@@ -8,10 +8,10 @@ use block_plugin_api::{
 };
 use block_ui::BlockCatalog;
 use eframe::egui;
-use std::{cell::Cell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 use uuid::Uuid;
 
-use crate::{EditorHost, Waker, beui_frame, beui_frame::TopBar, host::BlockDrag};
+use crate::{EditorHost, Waker, beui_frame, beui_frame::BeuiFrame, host::BlockDrag};
 
 const WHEEL_LINE: f32 = 40.0;
 const WHEEL_PAGE: f32 = 400.0;
@@ -69,49 +69,7 @@ struct BeuiRegion {
     modifiers: beui::Modifiers,
     pointer: beui::Pos2,
     emulated_touch: bool,
-    chrome: Option<BeuiFrameChrome>,
-}
-
-struct BeuiFrameChrome {
-    document: beui::Document,
-    content: beui::NodeId,
-    set_trail: beui::reactive::WriteSignal<Vec<String>>,
-    set_shown: beui::reactive::WriteSignal<bool>,
-    exit: Rc<Cell<bool>>,
-}
-
-impl BeuiFrameChrome {
-    fn build(app: &mut dyn AppUi) -> Self {
-        let (trail, set_trail) = beui::reactive::create_signal(Vec::<String>::new());
-        let (shown, set_shown) = beui::reactive::create_signal(false);
-        let exit = Rc::new(Cell::new(false));
-        let exit_writer = exit.clone();
-        let content_slot: Rc<Cell<Option<beui::NodeId>>> = Rc::new(Cell::new(None));
-        let content_slot_writer = content_slot.clone();
-        let document = beui::reactive::build(move || {
-            let content = app.beui_view();
-            content_slot_writer.set(Some(content));
-            let top_bar = beui::reactive::view! {
-                <TopBar trail shown on_exit={move || exit_writer.set(true)} />
-            };
-            let children = vec![
-                beui::reactive::intrinsic(top_bar),
-                beui::reactive::percent(content, 100.0),
-            ];
-            beui::reactive::view! {
-                <beui::reactive::Column spacing=0.0 children={children} />
-            }
-        });
-        Self {
-            document,
-            content: content_slot
-                .get()
-                .expect("the app's view() was called while building the frame chrome"),
-            set_trail,
-            set_shown,
-            exit,
-        }
-    }
+    chrome: Option<BeuiFrame>,
 }
 
 impl BeuiRegion {
@@ -1162,7 +1120,7 @@ impl EditorSession {
         );
         let drawn = spec.chrome == FrameChrome::Drawn;
         if region == EditorRegion::Frame && !creating && state.chrome.is_none() {
-            state.chrome = Some(BeuiFrameChrome::build(app.as_mut()));
+            state.chrome = Some(BeuiFrame::build(|| app.beui_view()));
         }
         let mut exit = false;
         let mut content_rect = None;
@@ -1174,18 +1132,18 @@ impl EditorSession {
                     .chrome
                     .as_mut()
                     .expect("the frame chrome was just built");
-                let set_trail = chrome.set_trail.clone();
-                let set_shown = chrome.set_shown.clone();
+                let set_trail = chrome.set_trail();
+                let set_shown = chrome.set_shown();
                 let trail = spec.trail.clone();
-                beui::reactive::with_reactive_scope(&mut chrome.document, || {
+                beui::reactive::with_reactive_scope(chrome.document_mut(), || {
                     set_trail.set(trail);
                     set_shown.set(drawn);
                     app.beui_update();
                 });
-                chrome.document.show(context, frame);
-                app.beui_after_layout(&chrome.document);
-                content_rect = chrome.document.node_rect(chrome.content);
-                exit = chrome.exit.get() || beui_frame::escaped(context);
+                chrome.document_mut().show(context, frame);
+                app.beui_after_layout(chrome.document());
+                content_rect = chrome.document().node_rect(chrome.content());
+                exit = chrome.exit().get() || beui_frame::escaped(context);
                 painted = vec![frame];
             }
             EditorRegion::Preview => app.beui_preview(context, frame),

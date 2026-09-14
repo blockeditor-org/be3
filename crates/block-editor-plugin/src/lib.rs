@@ -6,8 +6,8 @@ pub use egui_material_icons;
 
 use std::sync::Arc;
 
-#[cfg(target_arch = "wasm32")]
-mod beui_frame;
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub mod beui_frame;
 #[cfg(target_arch = "wasm32")]
 mod editor_session;
 mod host;
