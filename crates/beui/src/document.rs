@@ -37,6 +37,7 @@ pub struct Document {
     pub(crate) pointer_capture: Option<NodeId>,
     paste_requested: bool,
     test_ids: HashMap<String, NodeId>,
+    node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
     paint_revision: u64,
     viewport: Option<(Context, Rect, f32)>,
@@ -78,6 +79,7 @@ impl Document {
             pointer_capture: None,
             paste_requested: false,
             test_ids: HashMap::new(),
+            node_test_ids: HashMap::new(),
             layout_revision: 0,
             paint_revision: 0,
             viewport: None,
@@ -147,7 +149,25 @@ impl Document {
     }
 
     pub fn set_test_id(&mut self, id: NodeId, test_id: impl Into<String>) {
-        self.test_ids.insert(test_id.into(), id);
+        let test_id = test_id.into();
+        if let Some(previous) = self.test_ids.insert(test_id.clone(), id)
+            && previous != id
+        {
+            self.forget_test_id(previous, &test_id);
+        }
+        let owned = self.node_test_ids.entry(id).or_default();
+        if !owned.iter().any(|existing| existing == &test_id) {
+            owned.push(test_id);
+        }
+    }
+
+    fn forget_test_id(&mut self, id: NodeId, test_id: &str) {
+        if let Some(owned) = self.node_test_ids.get_mut(&id) {
+            owned.retain(|existing| existing != test_id);
+            if owned.is_empty() {
+                self.node_test_ids.remove(&id);
+            }
+        }
     }
 
     pub fn find_test_id(&self, test_id: &str) -> Option<NodeId> {
@@ -217,6 +237,11 @@ impl Document {
         self.sizes.remove(&id);
         self.component_states.remove(&id);
         self.accessibility.remove(&id);
+        for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
+            if self.test_ids.get(&test_id) == Some(&id) {
+                self.test_ids.remove(&test_id);
+            }
+        }
         scopes.extend(self.node_scopes.remove(&id).unwrap_or_default());
         if self.root == Some(id) {
             self.root = None;
