@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{create_memo, create_signal, view, Button, Text};
+use crate::reactive::{Button, Text, create_memo, create_signal, view};
 
 #[test]
 fn a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame() {

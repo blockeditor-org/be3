@@ -2,19 +2,19 @@
 
 use std::collections::HashMap;
 
-use crate::backend::c::{validate_c_name, CValidatedIdentifierName};
+use crate::backend::c::{CValidatedIdentifierName, validate_c_name};
 use crate::compiler::{
-    add_err, analyze, analyze_base, analyze_block, block_append, cast_value, create_declaration,
-    empty_block, get_declaration, throw_consumed_err, throw_err, AnalysisBlock, AnalysisLine,
-    AnalysisResult, Binary2, ComptimeFolder, ComptimeValue, ComptimeValueBuildArtifact,
-    ComptimeValueCExportName, ComptimeValueDeclaration, ComptimeValueExportList,
-    ComptimeValueExportListEntry, ComptimeValueKey, ComptimeValueMcIdentifier,
-    ComptimeValueMcNbtRef, ComptimeValueMcResult, ComptimeValueUint8Array, ConsumedErrorToken, Env,
-    PositionedError, RuntimeValue, Uint8ArraySourcemapEntry,
+    AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeValue,
+    ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueDeclaration,
+    ComptimeValueExportList, ComptimeValueExportListEntry, ComptimeValueKey,
+    ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, ComptimeValueMcResult,
+    ComptimeValueUint8Array, ConsumedErrorToken, Env, PositionedError, RuntimeValue,
+    Uint8ArraySourcemapEntry, add_err, analyze, analyze_base, analyze_block, block_append,
+    cast_value, create_declaration, empty_block, get_declaration, throw_consumed_err, throw_err,
 };
-use crate::comptime::{comptime_eval, get_comptime, ComptimeValueKind};
+use crate::comptime::{ComptimeValueKind, comptime_eval, get_comptime};
 use crate::parser::{
-    unescape_string, BlockToken, ErrorStyle, IdentifierToken, RawTag, SyntaxNode, TokenPosition,
+    BlockToken, ErrorStyle, IdentifierToken, RawTag, SyntaxNode, TokenPosition, unescape_string,
 };
 use crate::printers::printers::AST_NODE;
 
@@ -874,10 +874,10 @@ fn parse_mc_identifier(decoded: &str) -> Option<(String, String)> {
         Some((ns, path)) => (Some(ns), path),
         None => (None, decoded),
     };
-    if let Some(ns) = namespace_part {
-        if ns.is_empty() || !ns.chars().all(is_id_char) {
-            return None;
-        }
+    if let Some(ns) = namespace_part
+        && (ns.is_empty() || !ns.chars().all(is_id_char))
+    {
+        return None;
     }
     if path_part.is_empty() || !path_part.chars().all(|c| is_id_char(c) || c == '/') {
         return None;

@@ -1,6 +1,6 @@
 use crate::{
-    decode_frame, Capability, DecodeError, ErrorCode, HelloAccepted, InputBatch, InputEvent,
-    Message, ProtocolError, MAX_QUEUED_MESSAGES, PROTOCOL_VERSION, REQUEST_TIMEOUT_MILLISECONDS,
+    Capability, DecodeError, ErrorCode, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES,
+    Message, PROTOCOL_VERSION, ProtocolError, REQUEST_TIMEOUT_MILLISECONDS, decode_frame,
 };
 use std::collections::{HashMap, VecDeque};
 

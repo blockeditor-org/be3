@@ -1,4 +1,4 @@
-use super::support::{clear_presence, create_and_watch, post_presence, watch, TestServer};
+use super::support::{TestServer, clear_presence, create_and_watch, post_presence, watch};
 use block::ServerMessage;
 use uuid::Uuid;
 

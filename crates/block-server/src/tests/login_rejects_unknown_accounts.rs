@@ -1,5 +1,5 @@
-use super::support::{management_request, TestServer};
 use super::TEST_PASSWORD;
+use super::support::{TestServer, management_request};
 use block::{ManagementClientMessage, ManagementErrorCode, ManagementServerMessage};
 use uuid::Uuid;
 

@@ -1,6 +1,6 @@
 use std::sync::{
-    atomic::{AtomicU32, Ordering},
     Arc, Mutex,
+    atomic::{AtomicU32, Ordering},
 };
 
 use block_plugin_api::{ScreenId, ScreenLayout};
@@ -12,10 +12,10 @@ use eframe::{
 use super::backend::{Availability, Frame};
 
 #[cfg(not(target_arch = "wasm32"))]
-use super::wasm::{presenter as build_presenter, Presenter as PlatformPresenter};
+use super::wasm::{Presenter as PlatformPresenter, presenter as build_presenter};
 #[cfg(target_arch = "wasm32")]
 use super::web::renderer::{
-    presenter as build_presenter, WebSurfacePresenter as PlatformPresenter,
+    WebSurfacePresenter as PlatformPresenter, presenter as build_presenter,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

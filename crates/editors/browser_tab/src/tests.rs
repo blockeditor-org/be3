@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use block_client::blocks::web_browser_tab::{HistoryItem, WebBrowserTab, WebBrowserTabOperation};
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::{egui, App as _, EditorHost, WebViewCommand, WebViewEvent};
+use block_editor_plugin::{App as _, EditorHost, WebViewCommand, WebViewEvent, egui};
 use block_ui_test::EditorTest;
 use uuid::Uuid;
 

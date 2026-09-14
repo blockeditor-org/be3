@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use accesskit::{Action, ActionRequest, Role, TreeId};
 
-use super::{build, styled, view, Harness, VIEWPORT};
+use super::{Harness, VIEWPORT, build, styled, view};
 
 #[test]
 fn accessibility_reports_and_steps_a_slider() {

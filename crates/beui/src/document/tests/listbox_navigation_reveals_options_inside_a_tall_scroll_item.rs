@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, NodeRef, Scroll};
+use crate::reactive::{NodeRef, Scroll, build, view};
 use crate::styled::Listbox;
 
 #[test]

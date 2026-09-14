@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{history_test_support::DisabledHistoryBlock, BlockClient};
+use super::{BlockClient, history_test_support::DisabledHistoryBlock};
 
 #[test]
 fn no_history_policy_disables_undo() {

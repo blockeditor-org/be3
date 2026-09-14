@@ -1,14 +1,13 @@
 use std::{future::Future, thread, time::Duration};
 
 use futures_util::{
-    stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
+    stream::{SplitSink, SplitStream},
 };
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
-    connect_async_with_config,
-    tungstenite::{client::IntoClientRequest, protocol::WebSocketConfig, Message},
-    MaybeTlsStream, WebSocketStream,
+    MaybeTlsStream, WebSocketStream, connect_async_with_config,
+    tungstenite::{Message, client::IntoClientRequest, protocol::WebSocketConfig},
 };
 
 use super::SocketMessage;

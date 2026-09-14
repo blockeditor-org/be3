@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use block::{Block, BlockParent, BlockReferenceList};
 use block_client::{
+    BlockClient, BlockHandle, ReferenceList,
     block_ref::BlockRef,
     blocks::{
         database::{Database, DatabaseOperation, DatabaseRow, DatabaseValue},
@@ -11,19 +12,18 @@ use block_client::{
         database_view::{DatabaseView, DatabaseViewKind, DatabaseViewOperation, DatabaseViewSort},
     },
     references::{ReferenceClassificationQueue, ReferenceResolutionCache},
-    BlockClient, BlockHandle, ReferenceList,
 };
 use block_editor_plugin::{
+    BlockFilter, BlockPicker, EditorHost,
     block_ui::{
+        BlockLabel,
         database::{DatabaseBlockPickRequest, DatabaseValueEditor, DatabaseValueEditorOutput},
         test_id::TestId,
-        BlockLabel,
     },
     egui,
     egui_material_icons::icons::{
         ICON_DESELECT, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA, ICON_VIEW_KANBAN,
     },
-    BlockFilter, BlockPicker, EditorHost,
 };
 use uuid::Uuid;
 
@@ -462,16 +462,14 @@ impl block_editor_plugin::App for DatabaseViewApp {
             &mut operations,
         );
         self.operate_database(operations);
-        if let (Some(request), Some(target)) = (block_pick, self.spreadsheet.selected_target()) {
-            if target.1 == request.field_id {
-                if let Some(field) = data
-                    .fields
-                    .iter()
-                    .find(|field| field.id == request.field_id)
-                {
-                    self.open_value_picker(target, &field.name, request);
-                }
-            }
+        if let (Some(request), Some(target)) = (block_pick, self.spreadsheet.selected_target())
+            && target.1 == request.field_id
+            && let Some(field) = data
+                .fields
+                .iter()
+                .find(|field| field.id == request.field_id)
+        {
+            self.open_value_picker(target, &field.name, request);
         }
     }
 
@@ -557,14 +555,13 @@ impl block_editor_plugin::App for DatabaseViewApp {
                     .map(|request| (selected_row.unwrap_or_default(), request));
             });
         self.operate_database(operations);
-        if let Some((row_index, request)) = block_pick {
-            if let Some(field) = data
+        if let Some((row_index, request)) = block_pick
+            && let Some(field) = data
                 .fields
                 .iter()
                 .find(|field| field.id == request.field_id)
-            {
-                self.open_value_picker((row_index, request.field_id), &field.name, request);
-            }
+        {
+            self.open_value_picker((row_index, request.field_id), &field.name, request);
         }
     }
 

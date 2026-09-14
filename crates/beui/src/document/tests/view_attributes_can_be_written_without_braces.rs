@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::text::TextAlign;
-use crate::reactive::{view, Row};
+use crate::reactive::{Row, view};
 
 const LABEL: &str = "Unbraced";
 const LABEL_SIZE: f32 = 20.0;

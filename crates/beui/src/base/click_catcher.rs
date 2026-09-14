@@ -7,7 +7,7 @@ use crate::painter::Painter;
 
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
-use crate::reactive::{create_effect, with_document, Callback, Child, ClickCallback, Prop};
+use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
 
 use beui_macros::component;
 
@@ -121,11 +121,12 @@ impl Element for ClickCatcherNode {
                 self.on_press.call(press);
             }
         }
-        if contains_pointer && input.secondary_pressed_this_frame {
-            if let Some(pos) = input.pointer_pos {
-                let press = self.press(input, rect, pos);
-                self.on_secondary_press.call(press);
-            }
+        if contains_pointer
+            && input.secondary_pressed_this_frame
+            && let Some(pos) = input.pointer_pos
+        {
+            let press = self.press(input, rect, pos);
+            self.on_secondary_press.call(press);
         }
         if input.touch_cancelled || input.touch_scrolling {
             self.armed = false;
@@ -151,14 +152,15 @@ impl Element for ClickCatcherNode {
             self.active = active;
             self.on_active_change.call(active);
         }
-        if self.armed && input.pointer_down && !input.touch_scrolling {
-            if let Some(pos) = input.pointer_pos {
-                if self.dragged != Some(pos) {
-                    self.dragged = Some(pos);
-                    let press = self.press(input, rect, pos);
-                    self.on_drag.call(press);
-                }
-            }
+        if self.armed
+            && input.pointer_down
+            && !input.touch_scrolling
+            && let Some(pos) = input.pointer_pos
+            && self.dragged != Some(pos)
+        {
+            self.dragged = Some(pos);
+            let press = self.press(input, rect, pos);
+            self.on_drag.call(press);
         }
 
         self.child.into_iter().collect()

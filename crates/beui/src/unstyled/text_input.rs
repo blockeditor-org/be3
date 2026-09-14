@@ -13,16 +13,16 @@ use text_editor_core::{
 use crate::color::Color32;
 use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 
-use crate::base::text_index_at;
 use crate::base::TextAlign;
+use crate::base::text_index_at;
 use crate::document::Document;
 use crate::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::reactive::{
-    clone, component_accessibility, copy_text, create_effect, create_memo, create_signal,
-    set_component_state, Callback, Child, ClickCatcher, Focusable, Frame, Memo, NodeRef, Prop,
-    ReadSignal, Render, Text, WriteSignal,
+    Callback, Child, ClickCatcher, Focusable, Frame, Memo, NodeRef, Prop, ReadSignal, Render, Text,
+    WriteSignal, clone, component_accessibility, copy_text, create_effect, create_memo,
+    create_signal, set_component_state,
 };
 
 const FONT_SIZE: f32 = 14.0;

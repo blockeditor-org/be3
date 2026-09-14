@@ -5,12 +5,12 @@ mod scope;
 mod selector;
 mod signal;
 
-pub use computation::{create_effect, Effect};
-pub use memo::{create_memo, Memo};
+pub use computation::{Effect, create_effect};
+pub use memo::{Memo, create_memo};
 pub use runtime::{batch, settle, untrack};
-pub use scope::{on_cleanup, owner_scope, provide_context, use_context, Scope, ScopeContext};
-pub use selector::{create_selector, Selector};
-pub use signal::{create_signal, ReadSignal, WriteSignal};
+pub use scope::{Scope, ScopeContext, on_cleanup, owner_scope, provide_context, use_context};
+pub use selector::{Selector, create_selector};
+pub use signal::{ReadSignal, WriteSignal, create_signal};
 
 #[macro_export]
 macro_rules! clone {

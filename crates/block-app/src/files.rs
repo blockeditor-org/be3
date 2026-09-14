@@ -4,7 +4,7 @@ use eframe::egui;
 use egui_material_icons::icons::ICON_CHECK;
 use uuid::Uuid;
 
-use crate::{editors::SidebarDragSource, performance, BlockApp, PendingDestructiveAction};
+use crate::{BlockApp, PendingDestructiveAction, editors::SidebarDragSource, performance};
 
 impl BlockApp {
     fn open_settings(&mut self) {

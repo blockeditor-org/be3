@@ -1,4 +1,4 @@
-use super::support::{create, parent as read_parent, read, references, set_parent, TestServer};
+use super::support::{TestServer, create, parent as read_parent, read, references, set_parent};
 use block::{BlockParent, BlockReferenceList, ServerMessage};
 use uuid::Uuid;
 
@@ -21,9 +21,11 @@ async fn parents_may_name_blocks_that_do_not_exist() {
         read_parent(read(&mut socket, child).await),
         BlockParent::Uuid(parent)
     );
-    assert!(references(&mut socket, BlockReferenceList::Parents(child))
-        .await
-        .is_empty());
+    assert!(
+        references(&mut socket, BlockReferenceList::Parents(child))
+            .await
+            .is_empty()
+    );
 
     assert!(matches!(
         create(&mut socket, parent, vec![]).await,

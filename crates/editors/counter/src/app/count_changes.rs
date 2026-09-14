@@ -2,12 +2,12 @@ use std::cell::Cell;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Wake, Waker};
 
-use block_client::blocks::counter::Counter;
 use block_client::BlockHandle;
+use block_client::blocks::counter::Counter;
 
 #[cfg(test)]
 mod tests;

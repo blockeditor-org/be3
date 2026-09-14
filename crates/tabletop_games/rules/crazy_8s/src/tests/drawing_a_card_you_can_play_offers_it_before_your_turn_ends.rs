@@ -21,15 +21,19 @@ fn drawing_a_card_you_can_play_offers_it_before_your_turn_ends() {
         screen.description,
         format!("You drew the {drawn} - play it or keep it")
     );
-    assert!(screen
-        .actions
-        .iter()
-        .any(|option| option.label.starts_with(&format!("Play {drawn}"))));
+    assert!(
+        screen
+            .actions
+            .iter()
+            .any(|option| option.label.starts_with(&format!("Play {drawn}")))
+    );
 
     let keep = option(&actions, players[0], "Keep it");
     actions.push(keep);
 
-    assert!(show(&actions, players[1])
-        .description
-        .starts_with("Your turn"));
+    assert!(
+        show(&actions, players[1])
+            .description
+            .starts_with("Your turn")
+    );
 }

@@ -2,10 +2,10 @@ use beui::reactive::ItemSize;
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
-    build, clone, create_memo, create_signal, view, with_reactive_scope, CenteredRow, Column,
-    Frame, WriteSignal,
+    CenteredRow, Column, Frame, WriteSignal, build, clone, create_memo, create_signal, view,
+    with_reactive_scope,
 };
-use block_editor_plugin::beui::styled::{use_theme, Button, ButtonVariant, Display};
+use block_editor_plugin::beui::styled::{Button, ButtonVariant, Display, use_theme};
 use block_editor_plugin::beui::{Color32, Context, Document, Rect};
 
 const PADDING: f32 = 20.0;
@@ -15,7 +15,7 @@ fn step(
     counter: &Rc<dyn Counter>,
     set_count: &WriteSignal<i64>,
     action: fn(&(dyn Counter + 'static)),
-) -> impl FnMut() + 'static {
+) -> impl FnMut() + 'static + use<> {
     let counter = counter.clone();
     let set_count = set_count.clone();
     move || {

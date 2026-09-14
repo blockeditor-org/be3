@@ -3,8 +3,8 @@ use beui_macros::{component, view};
 use crate::base::TextAlign;
 use crate::node::NodeId;
 use crate::reactive::{CenteredRow, ItemSize, Prop, Text};
-use crate::styled::theme::{use_theme, FONT_SMALL};
 use crate::styled::Chip;
+use crate::styled::theme::{FONT_SMALL, use_theme};
 
 const SPACING: f32 = 10.0;
 

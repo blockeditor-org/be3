@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use block::Block;
 use block_client::blocks::version_control_data::{
-    Commit, CommitId, VersionControlData, VersionControlDataOperation, MAIN_BRANCH,
+    Commit, CommitId, MAIN_BRANCH, VersionControlData, VersionControlDataOperation,
 };
 use block_client::blocks::version_control_worktree::VersionControlWorktree;
 use block_client::{BlockClient, BlockHandle};
@@ -11,7 +11,7 @@ use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::egui_material_icons::icons::{
     ICON_ADD, ICON_ALT_ROUTE, ICON_COMMIT, ICON_PERSON, ICON_SCHEDULE,
 };
-use block_editor_plugin::{egui, EditorHost};
+use block_editor_plugin::{EditorHost, egui};
 use uuid::Uuid;
 
 const INTRINSIC_WIDTH: f32 = 640.0;
@@ -123,15 +123,14 @@ impl VersionControlDataApp {
                 )
                 .test_id("repository.create-branch")
                 .clicked()
+                && let (Some(commit), Some(block)) = (current_head, self.block.as_ref())
             {
-                if let (Some(commit), Some(block)) = (current_head, self.block.as_ref()) {
-                    block.operate(VersionControlDataOperation::SetBranch {
-                        name: trimmed.to_owned(),
-                        expected: None,
-                        commit,
-                    });
-                    self.new_branch_name.clear();
-                }
+                block.operate(VersionControlDataOperation::SetBranch {
+                    name: trimmed.to_owned(),
+                    expected: None,
+                    commit,
+                });
+                self.new_branch_name.clear();
             }
         });
     }

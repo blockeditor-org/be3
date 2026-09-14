@@ -6,9 +6,9 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    clone, create_memo, Callback, CenteredRow, Frame, ItemSize, Prop, Spacer, Text,
+    Callback, CenteredRow, Frame, ItemSize, Prop, Spacer, Text, clone, create_memo,
 };
-use crate::styled::theme::{use_theme, Theme, BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, RADIUS};
+use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, RADIUS, Theme, use_theme};
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
 

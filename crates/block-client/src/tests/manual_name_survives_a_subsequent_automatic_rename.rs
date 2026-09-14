@@ -4,9 +4,8 @@ use parking_lot::RwLock;
 use uuid::Uuid;
 
 use super::{
-    crypto,
+    BlockShared, ErasedBlock, TypedBlock, crypto,
     lib_test_support::{Counter, CounterOperation},
-    BlockShared, ErasedBlock, TypedBlock,
 };
 use crate::properties::{self, BlockName};
 

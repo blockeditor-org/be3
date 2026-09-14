@@ -6,7 +6,7 @@ use block_client::blocks::settings::{ActivationCondition, Settings, SettingsOper
 use block_client::blocks::ui_settings::UiSettings;
 use block_client::{BlockClient, BlockHandle};
 use block_editor_plugin::block_ui::test_id::TestId;
-use block_editor_plugin::{egui, EditorHost};
+use block_editor_plugin::{EditorHost, egui};
 
 const INTRINSIC_WIDTH: f32 = 360.0;
 const INTRINSIC_HEIGHT: f32 = 120.0;

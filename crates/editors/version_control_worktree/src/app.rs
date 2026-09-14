@@ -6,9 +6,9 @@ use block::{BlockReference, BlockReferenceList};
 use block_client::blocks::version_control_data::{CommitId, VersionControlData};
 use block_client::blocks::version_control_worktree::VersionControlWorktree;
 use block_client::version_control_checkout::{
-    checkout_worktree, worktree_is_clean, CheckoutOutcome,
+    CheckoutOutcome, checkout_worktree, worktree_is_clean,
 };
-use block_client::version_control_commit::{commit_worktree, CommitOutcome};
+use block_client::version_control_commit::{CommitOutcome, commit_worktree};
 use block_client::{BlockClient, BlockHandle, ReferenceList};
 use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::block_ui::{BlockLabel, BlockTypes};
@@ -16,7 +16,7 @@ use block_editor_plugin::egui_material_icons::icons::{
     ICON_ALT_ROUTE, ICON_CHECK_CIRCLE, ICON_COMMIT, ICON_DELETE_SWEEP, ICON_REFRESH,
     ICON_SWAP_HORIZ, ICON_SYNC, ICON_UNDO, ICON_WARNING,
 };
-use block_editor_plugin::{egui, EditorHost, Task};
+use block_editor_plugin::{EditorHost, Task, egui};
 use uuid::Uuid;
 
 const INTRINSIC_WIDTH: f32 = 480.0;
@@ -210,10 +210,9 @@ impl VersionControlWorktreeApp {
             .on_hover_text("Revert to the last commit, discarding uncommitted changes")
             .test_id("worktree.discard")
             .clicked()
+            && let Some(checked_out) = checked_out
         {
-            if let Some(checked_out) = checked_out {
-                self.spawn_checkout(checked_out, true);
-            }
+            self.spawn_checkout(checked_out, true);
         }
 
         if let Some(error) = &self.error {
@@ -330,10 +329,10 @@ impl VersionControlWorktreeApp {
                     egui::Button::new(label).right_text(type_name).truncate(),
                 )
                 .test_id(&format!("worktree.member.{live_id}"));
-            if response.clicked() {
-                if let Some(reference) = reference {
-                    host.open_block(reference.id, reference.block_type);
-                }
+            if response.clicked()
+                && let Some(reference) = reference
+            {
+                host.open_block(reference.id, reference.block_type);
             }
         }
     }

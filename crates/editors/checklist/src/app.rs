@@ -2,8 +2,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use block_client::blocks::checklist::{Checklist, ChecklistOperation};
-use block_editor_plugin::beui::{Context, Rect};
 use block_editor_plugin::EditorHost;
+use block_editor_plugin::beui::{Context, Rect};
 
 mod checklist_changes;
 mod ui;
@@ -91,10 +91,10 @@ impl block_editor_plugin::BeuiApp for ChecklistApp {
 
     fn frame(&mut self, context: &Context, rect: Rect) {
         if let Some(snapshot) = self.changes.as_mut().and_then(ChecklistChanges::take) {
-            if self.ui.is_none() {
-                if let Some(checklist) = &self.checklist {
-                    self.ui = Some(ChecklistUi::new(checklist.clone()));
-                }
+            if self.ui.is_none()
+                && let Some(checklist) = &self.checklist
+            {
+                self.ui = Some(ChecklistUi::new(checklist.clone()));
             }
             if let Some(ui) = &mut self.ui {
                 ui.set_snapshot(snapshot);

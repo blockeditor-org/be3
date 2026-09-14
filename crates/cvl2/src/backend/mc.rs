@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use crate::compiler::{
-    compiler_pos, throw_err, AnalysisBlock, AnalysisLine, ComptimeValue, ComptimeValueFn,
-    ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, Env, PositionedError, RuntimeValue,
+    AnalysisBlock, AnalysisLine, ComptimeValue, ComptimeValueFn, ComptimeValueMcIdentifier,
+    ComptimeValueMcNbtRef, Env, PositionedError, RuntimeValue, compiler_pos, throw_err,
 };
-use crate::comptime::{get_comptime, ComptimeValueKind};
+use crate::comptime::{ComptimeValueKind, get_comptime};
 use crate::parser::TokenPosition;
 use crate::printers::printers::{BLOCK, RUNTIME_VALUE};
-use crate::printers::{analysis_line_pos, UNLIMITED_DEPTH};
+use crate::printers::{UNLIMITED_DEPTH, analysis_line_pos};
 
 #[cfg(test)]
 mod tests;

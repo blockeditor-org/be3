@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use block::Block;
 use block_client::{
+    BlockClient, BlockHandle,
     blocks::{
         image::Image,
         pixel_art::{PixelArt, PixelArtAnchor, PixelArtOperation, PixelColor},
     },
-    BlockClient, BlockHandle,
 };
-use block_editor_plugin::{egui, Artifact, ArtifactDescription, EditorHost};
+use block_editor_plugin::{Artifact, ArtifactDescription, EditorHost, egui};
 use uuid::Uuid;
 
 use crate::{

@@ -74,11 +74,11 @@ impl WebViewHost {
             events.push(event);
         }
         let address = self.view.as_ref().and_then(WebView::url);
-        if let Some(address) = address {
-            if self.address.as_deref() != Some(address.as_str()) {
-                self.address = Some(address.clone());
-                events.push(WebViewEvent::Address(address));
-            }
+        if let Some(address) = address
+            && self.address.as_deref() != Some(address.as_str())
+        {
+            self.address = Some(address.clone());
+            events.push(WebViewEvent::Address(address));
         }
     }
 

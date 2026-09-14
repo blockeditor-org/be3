@@ -1,4 +1,4 @@
-use super::support::{create, set_parent, TestServer};
+use super::support::{TestServer, create, set_parent};
 use block::{BlockParent, ErrorCode, ServerMessage};
 use uuid::Uuid;
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, component, view, Column, Row};
+use crate::reactive::{Column, Row, build, component, view};
 
 #[component]
 fn Widget() -> NodeId {

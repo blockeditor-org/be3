@@ -3,7 +3,7 @@ use std::sync::Arc;
 use block_client::blocks::scene_3d::Scene3D;
 use block_client::{BlockClient, BlockHandle};
 use block_editor_plugin::block_ui::test_id::TestId;
-use block_editor_plugin::{egui, EditorHost};
+use block_editor_plugin::{EditorHost, egui};
 use uuid::Uuid;
 
 use crate::camera::Camera;

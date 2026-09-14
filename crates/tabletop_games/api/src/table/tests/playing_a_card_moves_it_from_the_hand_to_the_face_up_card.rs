@@ -1,4 +1,4 @@
-use super::{seated, HAND_SIZE};
+use super::{HAND_SIZE, seated};
 
 #[test]
 fn playing_a_card_moves_it_from_the_hand_to_the_face_up_card() {

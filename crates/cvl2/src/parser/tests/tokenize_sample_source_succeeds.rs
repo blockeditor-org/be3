@@ -27,14 +27,18 @@ fn tokenize_sample_source_succeeds() {
 
     assert!(!result.result.is_empty());
     assert!(!result.errors.is_empty());
-    assert!(find_first(
-        &result.result,
-        &|n| matches!(n, SyntaxNode::Identifier(t) if t.str == "abc")
-    )
-    .is_some());
-    assert!(find_first(
-        &result.result,
-        &|n| matches!(n, SyntaxNode::Identifier(t) if t.str == "ghi")
-    )
-    .is_some());
+    assert!(
+        find_first(
+            &result.result,
+            &|n| matches!(n, SyntaxNode::Identifier(t) if t.str == "abc")
+        )
+        .is_some()
+    );
+    assert!(
+        find_first(
+            &result.result,
+            &|n| matches!(n, SyntaxNode::Identifier(t) if t.str == "ghi")
+        )
+        .is_some()
+    );
 }

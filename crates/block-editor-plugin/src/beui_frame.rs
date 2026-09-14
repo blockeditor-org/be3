@@ -1,6 +1,6 @@
-use beui::styled::theme::{FONT_BODY, FONT_SMALL, RADIUS};
 use beui::styled::Theme;
-use beui::{pos2, Context, CursorIcon, FontId, Key, Rect, Vec2};
+use beui::styled::theme::{FONT_BODY, FONT_SMALL, RADIUS};
+use beui::{Context, CursorIcon, FontId, Key, Rect, Vec2, pos2};
 
 const THEME: Theme = Theme::DARK;
 const BAND_HEIGHT: f32 = 36.0;

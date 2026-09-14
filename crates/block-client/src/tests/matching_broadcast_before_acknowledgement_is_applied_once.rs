@@ -5,8 +5,8 @@ use parking_lot::RwLock;
 use uuid::Uuid;
 
 use super::{
-    lib_test_support::{Counter, CounterOperation},
     BlockShared, ErasedBlock, TypedBlock,
+    lib_test_support::{Counter, CounterOperation},
 };
 
 #[test]

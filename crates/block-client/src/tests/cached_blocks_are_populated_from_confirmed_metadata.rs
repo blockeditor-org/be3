@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    crypto, BlockShared, CachedBlock, ClientDebugSnapshot, ErasedBlock, NetworkDebugSnapshot,
-    PendingRequest, StoredBlock, TypedBlock, WorkerState,
+    BlockShared, CachedBlock, ClientDebugSnapshot, ErasedBlock, NetworkDebugSnapshot,
+    PendingRequest, StoredBlock, TypedBlock, WorkerState, crypto,
 };
 use crate::properties::{self, BlockName};
 

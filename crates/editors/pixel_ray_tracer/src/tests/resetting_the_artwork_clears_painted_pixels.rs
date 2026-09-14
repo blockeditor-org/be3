@@ -11,21 +11,25 @@ fn resetting_the_artwork_clears_painted_pixels() {
         }],
     });
     editor.step();
-    assert!(block
-        .read()
-        .unwrap()
-        .pixels()
-        .iter()
-        .any(|pixel| *pixel != PIXEL_RAY_TRACER_BACKGROUND));
+    assert!(
+        block
+            .read()
+            .unwrap()
+            .pixels()
+            .iter()
+            .any(|pixel| *pixel != PIXEL_RAY_TRACER_BACKGROUND)
+    );
 
     editor.find("pixel_ray_tracer.reset").click();
     editor.step();
     editor.step();
 
-    assert!(block
-        .read()
-        .unwrap()
-        .pixels()
-        .iter()
-        .all(|pixel| *pixel == PIXEL_RAY_TRACER_BACKGROUND));
+    assert!(
+        block
+            .read()
+            .unwrap()
+            .pixels()
+            .iter()
+            .all(|pixel| *pixel == PIXEL_RAY_TRACER_BACKGROUND)
+    );
 }

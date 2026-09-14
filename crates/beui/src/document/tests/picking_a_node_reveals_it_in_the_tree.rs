@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Frame, NodeRef, Text};
+use crate::reactive::{Frame, NodeRef, Text, build, view};
 
 #[test]
 fn picking_a_node_reveals_it_in_the_tree() {

@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use crate::color::Color32;
 use crate::context::FrameOutput;
 use crate::font::{GlyphId, GlyphImage};
-use crate::geometry::{vec2, Rect, Vec2};
+use crate::geometry::{Rect, Vec2, vec2};
 use crate::painter::Shape;
 
 const ATLAS_SIZE: u32 = 2048;

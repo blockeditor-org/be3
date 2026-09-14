@@ -299,57 +299,55 @@ impl InfiniteCanvasEditor {
         self.render_scale = view_scale(editors);
         let mut viewport = DirectEditorViewport::new(editors.host().clone(), self.render_scale);
         self.viewport_center = self.screen_to_world(canvas_clip_rect.center(), canvas_rect);
-        if std::mem::take(&mut self.fit_selection_requested) {
-            if let Some(bounds) = self.selected_bounds(&entities) {
-                fit_into_view(
-                    &mut viewport,
-                    canvas_clip_rect,
-                    screen_rect(self, bounds, canvas_rect),
-                );
-            }
+        if std::mem::take(&mut self.fit_selection_requested)
+            && let Some(bounds) = self.selected_bounds(&entities)
+        {
+            fit_into_view(
+                &mut viewport,
+                canvas_clip_rect,
+                screen_rect(self, bounds, canvas_rect),
+            );
         }
-        if let Some(id) = self.fit_entity_requested.take() {
-            if let Some(bounds) = entities
+        if let Some(id) = self.fit_entity_requested.take()
+            && let Some(bounds) = entities
                 .iter()
                 .find(|entity| entity.id == id)
                 .and_then(|entity| direct_editor_layout(entity).map(|layout| layout.content))
-            {
-                fit_into_view(
-                    &mut viewport,
-                    canvas_clip_rect,
-                    screen_rect(self, bounds, canvas_rect),
-                );
-            }
+        {
+            fit_into_view(
+                &mut viewport,
+                canvas_clip_rect,
+                screen_rect(self, bounds, canvas_rect),
+            );
         }
-        if std::mem::take(&mut self.fit_preview_region_requested) {
-            if let Some(region) = self.block.read().and_then(|canvas| canvas.preview_region()) {
-                fit_into_view(
-                    &mut viewport,
-                    canvas_clip_rect,
-                    screen_rect(self, preview_region_bounds(region), canvas_rect),
-                );
-                viewport.resume_auto_fit();
-            }
+        if std::mem::take(&mut self.fit_preview_region_requested)
+            && let Some(region) = self.block.read().and_then(|canvas| canvas.preview_region())
+        {
+            fit_into_view(
+                &mut viewport,
+                canvas_clip_rect,
+                screen_rect(self, preview_region_bounds(region), canvas_rect),
+            );
+            viewport.resume_auto_fit();
         }
-        if let Some(client_id) = std::mem::take(&mut self.pending_presence_reveal) {
-            if let Some((_, cursor)) = editors
+        if let Some(client_id) = std::mem::take(&mut self.pending_presence_reveal)
+            && let Some((_, cursor)) = editors
                 .host()
                 .presence::<CanvasCursor>()
                 .into_iter()
                 .find(|(id, _)| *id == client_id)
-            {
-                let target = cursor.pointer.or_else(|| {
-                    entities
-                        .iter()
-                        .filter(|entity| cursor.selection.contains(&entity.id))
-                        .map(entity_bounds)
-                        .reduce(WorldRect::union)
-                        .map(|bounds| bounds.center())
-                });
-                if let Some(target) = target {
-                    let screen = self.world_to_screen(target, canvas_rect);
-                    viewport.pan(canvas_clip_rect.center() - screen);
-                }
+        {
+            let target = cursor.pointer.or_else(|| {
+                entities
+                    .iter()
+                    .filter(|entity| cursor.selection.contains(&entity.id))
+                    .map(entity_bounds)
+                    .reduce(WorldRect::union)
+                    .map(|bounds| bounds.center())
+            });
+            if let Some(target) = target {
+                let screen = self.world_to_screen(target, canvas_rect);
+                viewport.pan(canvas_clip_rect.center() - screen);
             }
         }
         self.import_picked_image(editors);

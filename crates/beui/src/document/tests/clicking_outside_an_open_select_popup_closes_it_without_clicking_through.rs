@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, NodeRef, Row};
+use crate::reactive::{NodeRef, Row, build, view};
 use crate::styled::Select;
 
 #[test]

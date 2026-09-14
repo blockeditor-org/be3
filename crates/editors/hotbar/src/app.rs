@@ -2,18 +2,17 @@ use std::{collections::HashMap, sync::Arc};
 
 use block::Block;
 use block_client::{
+    BlockClient, BlockHandle,
     block_ref::BlockRef,
     blocks::{
         compiled_logic::CompiledLogic,
         hotbar::{Hotbar, HotbarOperation, HotbarSlot},
     },
     references::ReferenceResolutionCache,
-    BlockClient, BlockHandle,
 };
 use block_editor_plugin::{
-    egui,
+    EditorHost, egui,
     egui_material_icons::icons::{ICON_DELETE, ICON_FOLDER},
-    EditorHost,
 };
 use uuid::Uuid;
 

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use super::support::{request, TestServer};
-use block::{ClientMessage, ErrorCode, ServerMessage, MAX_PROPERTY_VALUE_BYTES};
+use super::support::{TestServer, request};
+use block::{ClientMessage, ErrorCode, MAX_PROPERTY_VALUE_BYTES, ServerMessage};
 use uuid::Uuid;
 
 #[tokio::test]

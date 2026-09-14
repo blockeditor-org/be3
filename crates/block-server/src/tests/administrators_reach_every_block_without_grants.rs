@@ -1,6 +1,6 @@
 use super::support::{
-    access_for, add_member, create, create_workspace, list_access, read, references, register,
-    set_access, set_parent, TestServer,
+    TestServer, access_for, add_member, create, create_workspace, list_access, read, references,
+    register, set_access, set_parent,
 };
 use block::{
     BlockAccess, BlockParent, BlockReferenceList, ErrorCode, ServerMessage, WorkspaceRole,

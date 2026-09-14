@@ -17,9 +17,11 @@ fn scrolling_a_virtual_scroll_reuses_overlapping_items() {
     let lower = harness.document.children(scroll);
     assert_eq!(*built.borrow(), vec![visible, visible + 1]);
     assert_eq!(lower[..visible - 2], original[2..]);
-    assert!(original[..2]
-        .iter()
-        .all(|&id| !harness.document.contains(id)));
+    assert!(
+        original[..2]
+            .iter()
+            .all(|&id| !harness.document.contains(id))
+    );
 
     built.borrow_mut().clear();
     harness

@@ -1,4 +1,4 @@
-use super::support::{add_member, create_workspace, register, TestServer};
+use super::support::{TestServer, add_member, create_workspace, register};
 use block::WorkspaceRole;
 use futures_util::StreamExt;
 
@@ -6,10 +6,12 @@ use futures_util::StreamExt;
 async fn block_connections_require_workspace_membership() {
     let server = TestServer::start().await;
 
-    assert!(server
-        .try_connect_to("not-a-real-token", server.workspace_id)
-        .await
-        .is_err());
+    assert!(
+        server
+            .try_connect_to("not-a-real-token", server.workspace_id)
+            .await
+            .is_err()
+    );
 
     let management = server.management();
     let owner = register(&management, "owner@example.com").await;

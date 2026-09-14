@@ -1,4 +1,4 @@
-use super::{decode, png_bytes, ImageMetadata};
+use super::{ImageMetadata, decode, png_bytes};
 
 #[test]
 fn decode_reads_the_pixels_and_the_metadata() {

@@ -1,5 +1,5 @@
-use super::{editor, CanvasPoint, CanvasPreviewRegion, InfiniteCanvasOperation};
-use block_editor_plugin::{egui, App as _};
+use super::{CanvasPoint, CanvasPreviewRegion, InfiniteCanvasOperation, editor};
+use block_editor_plugin::{App as _, egui};
 
 #[test]
 fn the_intrinsic_size_follows_the_preview_region() {

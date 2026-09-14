@@ -23,9 +23,11 @@ fn tokenize_indent_based_auto_close() {
     let is_map_block =
         |node: &SyntaxNode| matches!(node, SyntaxNode::Block(b) if b.tag == BracketTag::Map);
     assert_eq!(count_all(&result.result, &is_map_block), 1);
-    assert!(find_first(
-        &result.result,
-        &|n| matches!(n, SyntaxNode::Identifier(t) if t.str == "a")
-    )
-    .is_some());
+    assert!(
+        find_first(
+            &result.result,
+            &|n| matches!(n, SyntaxNode::Identifier(t) if t.str == "a")
+        )
+        .is_some()
+    );
 }

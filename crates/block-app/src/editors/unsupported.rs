@@ -1,6 +1,6 @@
 use block::BlockParent;
 use block_client::{
-    properties::BlockName, BlockClient, BlockHandleAccess, BlockHistoryHandle, BlockRelationships,
+    BlockClient, BlockHandleAccess, BlockHistoryHandle, BlockRelationships, properties::BlockName,
 };
 use eframe::egui;
 use uuid::Uuid;

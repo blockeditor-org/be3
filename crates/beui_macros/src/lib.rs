@@ -4,9 +4,8 @@ use syn::braced;
 use syn::parenthesized;
 use syn::parse::{Parse, ParseStream};
 use syn::{
-    parse_macro_input, Attribute, Expr, ExprCall, ExprLit, ExprPath, ExprReference, ExprUnary,
-    FnArg, GenericArgument, Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, Token, Type,
-    UnOp,
+    Attribute, Expr, ExprCall, ExprLit, ExprPath, ExprReference, ExprUnary, FnArg, GenericArgument,
+    Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, Token, Type, UnOp, parse_macro_input,
 };
 
 struct Prop {
@@ -300,13 +299,13 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
         panic!("component `{name}` marks more than one prop `#[prop(children)]`");
     }
     let named_children = props.iter().find(|prop| prop.ident == "children");
-    if let (Some(slot), Some(children)) = (designated.first(), named_children) {
-        if slot.ident != children.ident {
-            panic!(
-                "component `{name}` already takes its children through `children`, so `{}` cannot be `#[prop(children)]`",
-                slot.ident,
-            );
-        }
+    if let (Some(slot), Some(children)) = (designated.first(), named_children)
+        && slot.ident != children.ident
+    {
+        panic!(
+            "component `{name}` already takes its children through `children`, so `{}` cannot be `#[prop(children)]`",
+            slot.ident,
+        );
     }
     let children_slot = designated.first().copied().or(named_children);
     if let Some(slot) = children_slot {
@@ -884,9 +883,11 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
         None => quote! { #component_path() #(#setters)* .build() },
         Some(children) => {
             let tag = last.span();
-            if let [ViewChild {
-                kind: ViewChildKind::Expr(Expr::Closure(closure)),
-            }] = children.as_slice()
+            if let [
+                ViewChild {
+                    kind: ViewChildKind::Expr(Expr::Closure(closure)),
+                },
+            ] = children.as_slice()
             {
                 let children_render = format_ident!("children_render", span = tag);
                 return quote! {

@@ -6,7 +6,7 @@ use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::egui_material_icons::icons::{
     ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH,
 };
-use block_editor_plugin::{egui, EditorHost, WebViewEvent};
+use block_editor_plugin::{EditorHost, WebViewEvent, egui};
 use uuid::Uuid;
 
 const INTRINSIC_SIZE: egui::Vec2 = egui::vec2(1024.0, 768.0);

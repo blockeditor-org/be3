@@ -27,10 +27,11 @@ fn inside_double_angle_span(bytes: &[u8], index: usize) -> bool {
         match &bytes[position..position + 2] {
             b"<<" => start = Some(position),
             b">>" => {
-                if let Some(start) = start.take() {
-                    if start < index && index < position + 2 {
-                        return true;
-                    }
+                if let Some(start) = start.take()
+                    && start < index
+                    && index < position + 2
+                {
+                    return true;
                 }
             }
             _ => {

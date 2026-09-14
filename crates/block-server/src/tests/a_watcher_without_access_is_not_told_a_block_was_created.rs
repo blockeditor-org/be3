@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::support::{add_member, create, create_workspace, register, watch, TestServer};
+use super::support::{TestServer, add_member, create, create_workspace, register, watch};
 use block::{ErrorCode, ServerMessage, WorkspaceRole};
 use futures_util::StreamExt;
 use uuid::Uuid;

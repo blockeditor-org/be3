@@ -1,4 +1,4 @@
-use super::{block_url, editor, text, Uuid, WORKSPACE_ID};
+use super::{Uuid, WORKSPACE_ID, block_url, editor, text};
 use block_editor_plugin::App as _;
 
 #[test]

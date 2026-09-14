@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 
-use block_plugin_api::{decode_frame, encode_frame, ErrorCode, Message, ProtocolError};
+use block_plugin_api::{ErrorCode, Message, ProtocolError, decode_frame, encode_frame};
 
-use crate::{runtime::Runtime, wasm::host, wasm::surface, Waker};
+use crate::{Waker, runtime::Runtime, wasm::host, wasm::surface};
 
 thread_local! {
     static PLUGIN: RefCell<Option<Runtime>> = const { RefCell::new(None) };

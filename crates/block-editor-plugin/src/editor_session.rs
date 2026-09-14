@@ -3,16 +3,16 @@ use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage,
     EditorRegion, FetchResult, FilePick, FrameChrome, FrameReport, FrameSpec, ImeArea, ImeInput,
-    InputEvent, Message, Occluder, PointerButton, PresenceEntry, RegionSize, ScreenPlacement,
-    ScreenRequest, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS,
+    InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton,
+    PresenceEntry, RegionSize, ScreenPlacement, ScreenRequest, ViewChange, ViewportMetrics,
+    WebViewEvent, WheelUnit,
 };
 use block_ui::BlockCatalog;
 use eframe::egui;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 use uuid::Uuid;
 
-use crate::{beui_frame, host::BlockDrag, EditorHost, Waker};
+use crate::{EditorHost, Waker, beui_frame, host::BlockDrag};
 
 const WHEEL_LINE: f32 = 40.0;
 const WHEEL_PAGE: f32 = 400.0;

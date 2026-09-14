@@ -37,9 +37,11 @@ fn toggle_collapse_at_is_independent_of_the_cursor() {
     tester.execute(EditorCommand::ToggleCollapseAt(
         tester.pos(content.find("body a").unwrap()),
     ));
-    assert!(tester
-        .editor
-        .collapsible_sections()
-        .iter()
-        .all(|section| !section.collapsed));
+    assert!(
+        tester
+            .editor
+            .collapsible_sections()
+            .iter()
+            .all(|section| !section.collapsed)
+    );
 }

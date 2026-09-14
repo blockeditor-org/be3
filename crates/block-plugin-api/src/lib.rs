@@ -4,7 +4,7 @@ use std::fmt;
 
 mod manifest;
 mod session;
-pub use manifest::{manifest_from_json, ManifestDocument};
+pub use manifest::{ManifestDocument, manifest_from_json};
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
 pub const PROTOCOL_VERSION: u16 = 47;

@@ -1,6 +1,6 @@
 use std::mem::take;
 
-use super::{seated, HAND_SIZE};
+use super::{HAND_SIZE, seated};
 
 #[test]
 fn drawing_shuffles_the_discard_pile_back_under_the_face_up_card() {

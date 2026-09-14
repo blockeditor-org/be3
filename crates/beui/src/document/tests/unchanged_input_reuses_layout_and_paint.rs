@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Frame, NodeRef};
+use crate::reactive::{Frame, NodeRef, build, view};
 
 #[test]
 fn unchanged_input_reuses_layout_and_paint() {

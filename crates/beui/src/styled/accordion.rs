@@ -6,9 +6,9 @@ use crate::base::TextAlign;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    clone, create_memo, Callback, CenteredRow, Child, Frame, ItemSize, Memo, Prop, Text,
+    Callback, CenteredRow, Child, Frame, ItemSize, Memo, Prop, Text, clone, create_memo,
 };
-use crate::styled::theme::{use_theme, Theme, FONT_HEADING, FONT_SMALL, RADIUS};
+use crate::styled::theme::{FONT_HEADING, FONT_SMALL, RADIUS, Theme, use_theme};
 use crate::unstyled;
 use crate::unstyled::DisclosureHandle;
 
@@ -79,11 +79,7 @@ pub fn accordion_open(document: &Document, accordion: NodeId) -> bool {
 }
 
 fn glyph(open: bool) -> &'static str {
-    if open {
-        "-"
-    } else {
-        "+"
-    }
+    if open { "-" } else { "+" }
 }
 
 fn header_fill(theme: &Theme, hovered: bool) -> Color32 {

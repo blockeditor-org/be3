@@ -62,10 +62,10 @@ members = [
     "crates/fix-rust-source",
     "crates/wasi-threads",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 version = "0.1.0"
 license = "MIT"
 

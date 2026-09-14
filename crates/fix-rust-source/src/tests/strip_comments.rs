@@ -8,7 +8,7 @@ fn strip_comments() {
     let value = 1 /* removed
     across lines */ + 2;
 }
-fn gen() {}
+fn r#gen() {}
 "##;
 
     let stripped = strip(source).unwrap();

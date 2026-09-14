@@ -1,11 +1,11 @@
 use std::sync::{
-    atomic::{AtomicBool, AtomicI32, Ordering},
     Arc, Mutex,
+    atomic::{AtomicBool, AtomicI32, Ordering},
 };
 
 use block_gpu_abi as abi;
 use wasmtime::{Caller, Engine, Error, Linker, Module, SharedMemory, Store, TypedFunc};
-use wasmtime_wasi::{p1, WasiCtxBuilder};
+use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use crate::state::Threaded;
 

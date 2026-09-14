@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use block::BlockReference;
 use block_client::{block_ref::BlockRef, blocks::video::Video};
+use block_editor_plugin::EditorHost;
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::egui::{self, Color32, Rect};
-use block_editor_plugin::EditorHost;
 use uuid::Uuid;
 
 use crate::app::VideoApp;

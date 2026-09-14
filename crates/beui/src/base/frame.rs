@@ -5,10 +5,10 @@ use beui_macros::component;
 
 use crate::color::Color32;
 use crate::document::Document;
-use crate::geometry::{vec2, Rect, Vec2};
+use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, InteractInput, NodeId};
 use crate::painter::Painter;
-use crate::reactive::{create_effect, with_document, Child, Prop};
+use crate::reactive::{Child, Prop, create_effect, with_document};
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) struct FrameStyle {

@@ -6,12 +6,12 @@ use std::time::{Duration, Instant};
 
 use crate::color::Color32;
 use crate::font::{FontId, Galley};
-use crate::geometry::{pos2, vec2, Pos2, Rect, Vec2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
-use crate::reactive::{create_effect, with_document, NodeRef, Prop};
+use crate::reactive::{NodeRef, Prop, create_effect, with_document};
 
 use beui_macros::component;
 
@@ -55,11 +55,7 @@ pub(crate) struct TextNode {
 
 impl TextNode {
     pub(crate) fn accessible_text(&self) -> Option<&str> {
-        if self.icon {
-            None
-        } else {
-            Some(&self.content)
-        }
+        if self.icon { None } else { Some(&self.content) }
     }
 
     fn font(&self) -> FontId {

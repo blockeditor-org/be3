@@ -4,10 +4,10 @@ use std::ptr;
 use std::rc::Rc;
 
 use freetype::freetype as ft;
-use harfbuzz_rs::{shape, Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer};
+use harfbuzz_rs::{Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, shape};
 use unicode_script::{Script, UnicodeScript};
 
-use crate::geometry::{pos2, vec2, Pos2, Rect, Vec2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum FontFamily {

@@ -2,7 +2,7 @@ macro_rules! gpu_imports {
     ($(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)?;)+) => {
         #[cfg(target_arch = "wasm32")]
         #[link(wasm_import_module = "be3_gpu")]
-        extern "C" {
+        unsafe extern "C" {
             $(pub(crate) fn $name($($argument: $kind),*) $(-> $result)?;)+
         }
 

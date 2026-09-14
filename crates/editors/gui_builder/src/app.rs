@@ -7,13 +7,13 @@ use block_client::blocks::gui_builder::{
 use block_client::blocks::text::TextDocument;
 use block_client::{BlockClient, BlockHandle};
 use block_editor_plugin::block_ui::test_id::TestId;
+use block_editor_plugin::egui_material_icons::MaterialIcon;
 use block_editor_plugin::egui_material_icons::icons::{
     ICON_CHECK_BOX, ICON_CODE, ICON_DESIGN_SERVICES, ICON_HORIZONTAL_RULE, ICON_LABEL,
     ICON_PLAY_ARROW, ICON_SMART_BUTTON, ICON_SPACE_BAR, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TUNE,
     ICON_VIEW_COLUMN, ICON_VIEW_STREAM,
 };
-use block_editor_plugin::egui_material_icons::MaterialIcon;
-use block_editor_plugin::{egui, Artifact, ArtifactDescription, EditorBand, EditorHost};
+use block_editor_plugin::{Artifact, ArtifactDescription, EditorBand, EditorHost, egui};
 use uuid::Uuid;
 
 use crate::artifact;

@@ -6,7 +6,7 @@ use block_editor_plugin::{App as _, AudioStatus, EditorHost};
 use block_ui_test::EditorTest;
 use uuid::Uuid;
 
-use crate::app::{guess_media_type, AudioApp};
+use crate::app::{AudioApp, guess_media_type};
 
 mod a_playing_track_shows_its_position;
 mod the_media_type_follows_the_file_name;

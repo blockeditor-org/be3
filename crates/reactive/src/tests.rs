@@ -1,10 +1,10 @@
 use std::cell::{Cell, RefCell};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::{
-    batch, create_effect, create_memo, create_selector, create_signal, on_cleanup, owner_scope,
-    untrack, Scope,
+    Scope, batch, create_effect, create_memo, create_selector, create_signal, on_cleanup,
+    owner_scope, untrack,
 };
 
 mod a_context_reaches_the_effects_a_nested_scope_creates;

@@ -9,11 +9,13 @@ fn panic_restores_tracking_and_batching() {
         let seen = seen.clone();
         create_effect(move || seen.borrow_mut().push(value.get()));
     });
-    assert!(catch_unwind(AssertUnwindSafe(|| batch(|| {
-        set_value.set(1);
-        untrack(|| panic!("abort batch"));
-    })))
-    .is_err());
+    assert!(
+        catch_unwind(AssertUnwindSafe(|| batch(|| {
+            set_value.set(1);
+            untrack(|| panic!("abort batch"));
+        })))
+        .is_err()
+    );
     set_value.set(2);
     assert_eq!(*seen.borrow(), [0, 2]);
 }

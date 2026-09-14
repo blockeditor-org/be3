@@ -6,7 +6,7 @@ use block_client::block_ref::BlockRef;
 use block_client::blocks::paint_review::{ApprovedPainting, PaintReview, PaintReviewOperation};
 use block_client::blocks::paint_snapshot::PaintSnapshot;
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::{egui, App as _, EditorHost};
+use block_editor_plugin::{App as _, EditorHost, egui};
 use block_ui_test::EditorTest;
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 use uuid::Uuid;

@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::ct::{
     CExportName, CallArg, CtAst, CtBuildArtifact, CtBuildArtifactNarrow, CtExportList, CtKey,
@@ -11,9 +11,9 @@ use crate::ct::{
     TypeUnknown, TypeVoid,
 };
 use crate::parser::{
-    tokenize, BracketTag, IdentifierTag, OpTag, OperatorSegmentToken, OperatorToken, RawTag,
-    RawToken, Source, SyntaxNode, TokenPosition, TokenizationError, TokenizationErrorEntry,
-    TraceEntry,
+    BracketTag, IdentifierTag, OpTag, OperatorSegmentToken, OperatorToken, RawTag, RawToken,
+    Source, SyntaxNode, TokenPosition, TokenizationError, TokenizationErrorEntry, TraceEntry,
+    tokenize,
 };
 use crate::printers::printers::AST_NODE;
 
@@ -876,29 +876,29 @@ pub fn read_destructure(
     let mut ty: Option<Type> = None;
     {
         let last = lhs_items.last().expect("checked non-empty above");
-        if let SyntaxNode::Block(b) = last {
-            if b.tag == BracketTag::ColonCall {
-                let mut sub_block = empty_block();
-                let body = analyze(
-                    env,
-                    Type::CtType(CtType),
-                    b.pos.clone(),
-                    &b.items,
-                    &mut sub_block,
-                )?;
-                let evaluated =
-                    crate::comptime::comptime_eval(env, &sub_block, body.value, b.pos.clone())?;
-                let got = crate::comptime::get_comptime(
-                    env,
-                    Some(crate::comptime::ComptimeValueKind::Type),
-                    RuntimeValue::Comptime(evaluated),
-                    b.pos.clone(),
-                )?;
-                let ComptimeValue::Type(got) = got else {
-                    unreachable!("get_comptime guarantees a matching kind")
-                };
-                ty = Some(got.ty);
-            }
+        if let SyntaxNode::Block(b) = last
+            && b.tag == BracketTag::ColonCall
+        {
+            let mut sub_block = empty_block();
+            let body = analyze(
+                env,
+                Type::CtType(CtType),
+                b.pos.clone(),
+                &b.items,
+                &mut sub_block,
+            )?;
+            let evaluated =
+                crate::comptime::comptime_eval(env, &sub_block, body.value, b.pos.clone())?;
+            let got = crate::comptime::get_comptime(
+                env,
+                Some(crate::comptime::ComptimeValueKind::Type),
+                RuntimeValue::Comptime(evaluated),
+                b.pos.clone(),
+            )?;
+            let ComptimeValue::Type(got) = got else {
+                unreachable!("get_comptime guarantees a matching kind")
+            };
+            ty = Some(got.ty);
         }
     }
 
@@ -918,12 +918,12 @@ pub fn read_destructure(
     let _processed_tags: Vec<DestructureTag> = raw_tags
         .into_iter()
         .map(|tag| {
-            if let SyntaxNode::Identifier(id) = &tag {
-                if id.str == "callconv_c" {
-                    return DestructureTag::CallConv {
-                        pos: id.pos.clone(),
-                    };
-                }
+            if let SyntaxNode::Identifier(id) = &tag
+                && id.str == "callconv_c"
+            {
+                return DestructureTag::CallConv {
+                    pos: id.pos.clone(),
+                };
             }
             let tag_pos = syntax_node_pos(&tag).clone();
             let tok = add_err(
@@ -1214,18 +1214,18 @@ fn analyze_block_body(
                 env.scope.bindings = Rc::new(RefCell::new(new_bindings));
             } else {
                 let trimmed = trim_ws(&line.items);
-                if let Some(SyntaxNode::Raw(r)) = trimmed.first() {
-                    if r.tag == RawTag::Return {
-                        retloc = Some(r.pos.clone());
-                        ret = Some(analyze(
-                            env,
-                            slot.clone(),
-                            line.pos.clone(),
-                            &trimmed[1..],
-                            block,
-                        )?);
-                        continue;
-                    }
+                if let Some(SyntaxNode::Raw(r)) = trimmed.first()
+                    && r.tag == RawTag::Return
+                {
+                    retloc = Some(r.pos.clone());
+                    ret = Some(analyze(
+                        env,
+                        slot.clone(),
+                        line.pos.clone(),
+                        &trimmed[1..],
+                        block,
+                    )?);
+                    continue;
                 }
                 analyze(
                     env,
@@ -1502,16 +1502,16 @@ pub fn analyze(
             None,
         ));
     }
-    if let SyntaxNode::Raw(r) = &ast[0] {
-        if r.tag == RawTag::Return {
-            return Err(throw_err(
-                env,
-                Some(r.pos.clone()),
-                "can't return here",
-                None,
-                None,
-            ));
-        }
+    if let SyntaxNode::Raw(r) = &ast[0]
+        && r.tag == RawTag::Return
+    {
+        return Err(throw_err(
+            env,
+            Some(r.pos.clone()),
+            "can't return here",
+            None,
+            None,
+        ));
     }
 
     let last = ast.len() - 1;
@@ -1689,16 +1689,16 @@ pub fn analyze_base(
                     })
                 }
                 Binding::Runtime { runtime, .. } => {
-                    if let RuntimeValue::Runtime(idx) = &runtime.value {
-                        if idx.1 != block.validate {
-                            return Err(throw_err(
-                                env,
-                                Some(id.pos.clone()),
-                                "not accessible",
-                                None,
-                                None,
-                            ));
-                        }
+                    if let RuntimeValue::Runtime(idx) = &runtime.value
+                        && idx.1 != block.validate
+                    {
+                        return Err(throw_err(
+                            env,
+                            Some(id.pos.clone()),
+                            "not accessible",
+                            None,
+                            None,
+                        ));
                     }
                     Ok(runtime)
                 }
@@ -1788,7 +1788,7 @@ pub fn analyze_base(
 
 pub trait Descriptor: std::fmt::Debug {
     fn construct_impl(&self, env: &mut Env, route: &str)
-        -> Result<AnalysisResult, PositionedError>;
+    -> Result<AnalysisResult, PositionedError>;
 }
 
 fn descriptor_construct(

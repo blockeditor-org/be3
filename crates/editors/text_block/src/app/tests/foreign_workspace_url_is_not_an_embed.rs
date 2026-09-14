@@ -1,4 +1,4 @@
-use super::{block_url, parse_embeds, BLOCK_ID, WORKSPACE_ID};
+use super::{BLOCK_ID, WORKSPACE_ID, block_url, parse_embeds};
 use uuid::Uuid;
 
 #[test]

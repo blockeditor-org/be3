@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, create_signal, view, Button, Column, NodeRef, Show, Text};
+use crate::reactive::{Button, Column, NodeRef, Show, Text, build, create_signal, view};
 
 type Builds = Rc<Cell<usize>>;
 

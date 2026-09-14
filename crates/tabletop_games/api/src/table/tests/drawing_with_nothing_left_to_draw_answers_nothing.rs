@@ -1,4 +1,4 @@
-use super::{seated, HAND_SIZE};
+use super::{HAND_SIZE, seated};
 
 #[test]
 fn drawing_with_nothing_left_to_draw_answers_nothing() {

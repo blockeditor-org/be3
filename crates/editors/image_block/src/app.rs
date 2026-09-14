@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use block_client::{
-    blocks::image::{Image, ImageMetadata, ImageOperation},
     BlockClient, BlockHandle,
+    blocks::image::{Image, ImageMetadata, ImageOperation},
 };
-use block_editor_plugin::{egui, EditorHost, FileFilter, FilePicker, PickedFile};
+use block_editor_plugin::{EditorHost, FileFilter, FilePicker, PickedFile, egui};
 use uuid::Uuid;
 
 const LOADING_FILL: egui::Color32 = egui::Color32::from_gray(35);

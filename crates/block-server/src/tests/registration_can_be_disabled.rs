@@ -1,5 +1,5 @@
-use super::support::{management_request, Management};
 use super::TEST_PASSWORD;
+use super::support::{Management, management_request};
 use block::{ManagementClientMessage, ManagementErrorCode, ManagementServerMessage};
 use tokio::net::TcpListener;
 use uuid::Uuid;

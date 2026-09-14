@@ -26,8 +26,10 @@ fn connection_markers_render_as_wire_value_triangles() {
     assert_eq!(marker.value_index, 5);
     assert_eq!(marker.scale, 4.0);
     assert!(marker.bit_coords.contains(&0.0));
-    assert!(marker
-        .bit_coords
-        .iter()
-        .any(|&bit| (bit - 4.0).abs() < 0.00001));
+    assert!(
+        marker
+            .bit_coords
+            .iter()
+            .any(|&bit| (bit - 4.0).abs() < 0.00001)
+    );
 }

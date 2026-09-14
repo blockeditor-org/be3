@@ -6,8 +6,8 @@ use block_client::blocks::infinite_canvas::{
 };
 use eframe::egui::Vec2;
 use egui_material_icons::{
-    icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE},
     MaterialIcon,
+    icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE},
 };
 use uuid::Uuid;
 

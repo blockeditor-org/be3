@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, create_signal, view, Column, Dynamic, Frame, NodeRef, Scroll};
+use crate::reactive::{Column, Dynamic, Frame, NodeRef, Scroll, build, create_signal, view};
 
 #[test]
 fn a_dynamic_child_can_fill_its_available_height() {

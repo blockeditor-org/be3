@@ -2,7 +2,7 @@ use super::*;
 
 use block_editor_plugin::FetchResult;
 
-use crate::download::{start, Source};
+use crate::download::{Source, start};
 
 const AT_ONCE: usize = 8;
 const COUNT: usize = 20;

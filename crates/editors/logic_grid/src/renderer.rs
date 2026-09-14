@@ -4,8 +4,8 @@ use block_editor_plugin::egui_wgpu::{self, wgpu};
 use bytemuck::Pod;
 
 use crate::frame::{
-    background_triangles, ray_vertices, stub_vertices, triangle_vertices, value_triangle_vertices,
-    wire_vertices, RenderFrame, RenderVertex, WireValue, WireVertex,
+    RenderFrame, RenderVertex, WireValue, WireVertex, background_triangles, ray_vertices,
+    stub_vertices, triangle_vertices, value_triangle_vertices, wire_vertices,
 };
 
 impl RenderVertex {

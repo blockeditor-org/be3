@@ -28,9 +28,11 @@ fn viewport_grid_and_entities_are_layered_and_bounded() {
             || triangle.color == MAJOR_GRID_COLOR
             || triangle.color == AXIS_COLOR
     }) {
-        assert!(triangle
-            .positions
-            .iter()
-            .all(|[x, y]| { -5.0 <= *x && *x <= 5.0 && -5.0 <= *y && *y <= 5.0 }));
+        assert!(
+            triangle
+                .positions
+                .iter()
+                .all(|[x, y]| { -5.0 <= *x && *x <= 5.0 && -5.0 <= *y && *y <= 5.0 })
+        );
     }
 }

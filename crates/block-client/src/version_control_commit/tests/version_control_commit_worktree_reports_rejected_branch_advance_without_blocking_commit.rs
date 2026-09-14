@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use crate::blocks::version_control_data::{
-    empty_tree_hash, Commit, VersionControlData, VersionControlDataOperation, MAIN_BRANCH,
+    Commit, MAIN_BRANCH, VersionControlData, VersionControlDataOperation, empty_tree_hash,
 };
 use crate::blocks::version_control_worktree::VersionControlWorktree;
 

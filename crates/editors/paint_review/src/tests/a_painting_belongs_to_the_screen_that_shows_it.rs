@@ -31,8 +31,8 @@ fn sized(context: &egui::Context, paintings: &mut Paintings) -> Option<[usize; 2
         .expect("the painting was rastered")
         .expect("the painting was rastered");
     let manager = context.tex_manager();
-    let size = manager.read().meta(rendered.texture.id()).map(|it| it.size);
-    size
+
+    manager.read().meta(rendered.texture.id()).map(|it| it.size)
 }
 
 fn held(context: &egui::Context) -> Vec<[usize; 2]> {

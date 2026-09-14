@@ -1,10 +1,10 @@
 use block::Block;
 use block_client::{
-    blocks::{image::Image, pixel_art::PixelArt},
     BlockClient, BlockHandle, DynamicArtifactDescriptor,
+    blocks::{image::Image, pixel_art::PixelArt},
 };
-use block_editor_plugin::{egui, ArtifactDescription};
-use image::{codecs::png::PngEncoder, ExtendedColorType, ImageEncoder};
+use block_editor_plugin::{ArtifactDescription, egui};
+use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

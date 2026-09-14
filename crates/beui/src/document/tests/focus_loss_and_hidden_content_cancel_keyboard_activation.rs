@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{view, Frame, NodeRef};
+use crate::reactive::{Frame, NodeRef, view};
 
 #[test]
 fn focus_loss_and_hidden_content_cancel_keyboard_activation() {

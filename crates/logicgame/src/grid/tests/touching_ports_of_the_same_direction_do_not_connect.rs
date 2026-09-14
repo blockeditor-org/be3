@@ -23,12 +23,16 @@ fn touching_ports_of_the_same_direction_do_not_connect() {
     assert!(grid.validate().is_empty());
 
     let graph = grid.generate_graph();
-    assert!(!graph
-        .nodes
-        .iter()
-        .any(|node| matches!(node, GraphNode::Connection { .. })));
-    assert!(!graph
-        .nodes
-        .iter()
-        .any(|node| matches!(node, GraphNode::WireNet { .. })));
+    assert!(
+        !graph
+            .nodes
+            .iter()
+            .any(|node| matches!(node, GraphNode::Connection { .. }))
+    );
+    assert!(
+        !graph
+            .nodes
+            .iter()
+            .any(|node| matches!(node, GraphNode::WireNet { .. }))
+    );
 }

@@ -5,8 +5,8 @@ use crate::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::reactive::Memo;
-use crate::reactive::{clone, create_memo, CenteredRow, Frame, ItemSize, Prop, Spacer, Text};
-use crate::styled::theme::{use_theme, Theme, FONT_BODY, RADIUS};
+use crate::reactive::{CenteredRow, Frame, ItemSize, Prop, Spacer, Text, clone, create_memo};
+use crate::styled::theme::{FONT_BODY, RADIUS, Theme, use_theme};
 use crate::unstyled;
 use crate::unstyled::ChoiceOptionHandle;
 

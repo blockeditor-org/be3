@@ -1,18 +1,18 @@
 use std::{
-    sync::{mpsc, OnceLock},
+    sync::{OnceLock, mpsc},
     thread,
     time::Instant,
 };
 
 use block_editor_plugin::{
-    egui::{self, Pos2, Rect},
     PerformanceReporter, Waker,
+    egui::{self, Pos2, Rect},
 };
 use pdfium_render::prelude::{PdfBitmap, PdfBitmapFormat, PdfRenderConfig, Pdfium};
 
 use super::{
-    RenderJob, RenderJobMessage, RenderJobResult, RenderTarget, RenderedTile, DETAIL_MAX_DIM,
-    MIN_SCALE,
+    DETAIL_MAX_DIM, MIN_SCALE, RenderJob, RenderJobMessage, RenderJobResult, RenderTarget,
+    RenderedTile,
 };
 
 const MAX_PAGE_DIM: f32 = 100_000.0;

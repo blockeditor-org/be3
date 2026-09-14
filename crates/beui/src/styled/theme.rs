@@ -3,8 +3,8 @@ use beui_macros::component;
 use crate::color::Color32;
 use crate::node::NodeId;
 use crate::reactive::{
-    create_effect, create_signal, provide_context, use_context, with_document, Prop, ReadSignal,
-    Render,
+    Prop, ReadSignal, Render, create_effect, create_signal, provide_context, use_context,
+    with_document,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

@@ -1,4 +1,4 @@
-use super::{rasterize, square, Feature, GeometryKind, Layer, Tile, LAND, TILE_PIXELS, WATER};
+use super::{Feature, GeometryKind, LAND, Layer, TILE_PIXELS, Tile, WATER, rasterize, square};
 
 #[test]
 fn rasterize_styles_water_over_land() {

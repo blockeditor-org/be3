@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, intrinsic, view, NodeRef, Scroll, Text};
+use crate::reactive::{NodeRef, Scroll, Text, build, intrinsic, view};
 use crate::styled::{Slider, Tabs};
 
 #[test]

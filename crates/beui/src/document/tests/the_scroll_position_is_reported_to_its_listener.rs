@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, ItemSize, Scroll};
+use crate::reactive::{ItemSize, Scroll, build};
 
 #[test]
 fn the_scroll_position_is_reported_to_its_listener() {

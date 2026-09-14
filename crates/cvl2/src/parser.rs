@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::compiler::{throw_err, Env, PositionedError};
+use crate::compiler::{Env, PositionedError, throw_err};
 
 #[cfg(test)]
 mod tests;

@@ -11,7 +11,9 @@ fn read_destructure_empty_input_reports_error() {
         panic!("expected a fresh error");
     };
 
-    assert!(e.entries[0]
-        .message
-        .starts_with("Expected at least one item to destructure"));
+    assert!(
+        e.entries[0]
+            .message
+            .starts_with("Expected at least one item to destructure")
+    );
 }

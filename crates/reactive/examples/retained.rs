@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use reactive::{batch, create_effect, create_memo, create_signal, Scope};
+use reactive::{Scope, batch, create_effect, create_memo, create_signal};
 
 #[derive(Default)]
 struct Label {

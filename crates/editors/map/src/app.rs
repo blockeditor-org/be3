@@ -23,8 +23,8 @@ use uuid::Uuid;
 
 use crate::geo::MapView;
 use crate::points;
-use crate::raster::{TileLabel, TILE_PIXELS};
-use crate::tiles::{TileId, TileWorker, SOURCE_MAX_ZOOM};
+use crate::raster::{TILE_PIXELS, TileLabel};
+use crate::tiles::{SOURCE_MAX_ZOOM, TileId, TileWorker};
 
 const WORLD_POINTS: f32 = 1024.0;
 const TILE_POINTS: f32 = 256.0;
@@ -274,10 +274,10 @@ impl MapApp {
     fn ensure_tile(&mut self, id: TileId) {
         let state = self.tiles.entry(id).or_insert(TileState::Loading);
 
-        if matches!(state, TileState::Loading) {
-            if let Some(worker) = &mut self.worker {
-                worker.request(id);
-            }
+        if matches!(state, TileState::Loading)
+            && let Some(worker) = &mut self.worker
+        {
+            worker.request(id);
         }
     }
 
@@ -468,17 +468,16 @@ impl MapApp {
         points: &[MapPoint],
     ) {
         let host = self.host().cloned();
-        if let (Some(host), Some(dragged)) = (&host, host.as_ref().and_then(EditorHost::drag)) {
-            if dragged.block_id != self.block_id() {
-                host.accept_drag(true);
-                if dragged.dropped {
-                    let position = view.coordinate(dragged.position);
-                    if let Some(client) = self.client() {
-                        client
-                            .set_block_parent(dragged.block_id, BlockParent::Uuid(self.block_id()));
-                    }
-                    self.add_point(dragged.block_id, position);
+        if let (Some(host), Some(dragged)) = (&host, host.as_ref().and_then(EditorHost::drag))
+            && dragged.block_id != self.block_id()
+        {
+            host.accept_drag(true);
+            if dragged.dropped {
+                let position = view.coordinate(dragged.position);
+                if let Some(client) = self.client() {
+                    client.set_block_parent(dragged.block_id, BlockParent::Uuid(self.block_id()));
                 }
+                self.add_point(dragged.block_id, position);
             }
         }
         self.import_dropped_images(view);
@@ -497,15 +496,15 @@ impl MapApp {
             }
         }
         if let Some((id, offset)) = self.dragged {
-            if let Some(pointer) = response.interact_pointer_pos() {
-                if let Some(mut point) = points.iter().copied().find(|point| point.id == id) {
-                    let position = view.coordinate(pointer + offset);
-                    if position != point.position {
-                        point.position = position;
-                        self.record_grouped(MapOperation::UpdatePoints {
-                            points: vec![point],
-                        });
-                    }
+            if let Some(pointer) = response.interact_pointer_pos()
+                && let Some(mut point) = points.iter().copied().find(|point| point.id == id)
+            {
+                let position = view.coordinate(pointer + offset);
+                if position != point.position {
+                    point.position = position;
+                    self.record_grouped(MapOperation::UpdatePoints {
+                        points: vec![point],
+                    });
                 }
             }
             if response.drag_stopped() {
@@ -515,22 +514,22 @@ impl MapApp {
                     block.finish_history_group();
                 }
             }
-        } else if response.dragged() {
-            if let Some(host) = self.host() {
-                host.pan_view(response.drag_delta());
-            }
+        } else if response.dragged()
+            && let Some(host) = self.host()
+        {
+            host.pan_view(response.drag_delta());
         }
         if response.clicked() {
             self.selected = response
                 .interact_pointer_pos()
                 .and_then(|pointer| points::point_at(points, view, pointer));
         }
-        if response.secondary_clicked() {
-            if let Some(pointer) = response.interact_pointer_pos() {
-                self.pending_position = Some(view.coordinate(pointer));
-                if let Some(id) = points::point_at(points, view, pointer) {
-                    self.selected = Some(id);
-                }
+        if response.secondary_clicked()
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            self.pending_position = Some(view.coordinate(pointer));
+            if let Some(id) = points::point_at(points, view, pointer) {
+                self.selected = Some(id);
             }
         }
         let selected = self.selected;
@@ -555,10 +554,8 @@ impl MapApp {
                 ui.close();
             }
         });
-        if add_here {
-            if let Some(host) = self.host().cloned() {
-                self.picker.open(&host, BlockFilter::default());
-            }
+        if add_here && let Some(host) = self.host().cloned() {
+            self.picker.open(&host, BlockFilter::default());
         }
         if let Some(id) = remove {
             self.remove_point(id);

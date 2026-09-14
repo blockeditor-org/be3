@@ -17,26 +17,26 @@ use std::{
 use block::Block;
 use block_client::root_settings::RootSetting;
 use block_client::{
+    BlockClient, BlockHandle,
     block_ref::BlockRef,
     blocks::{
         compiled_logic::CompiledLogic,
         hotbar::{Hotbar, HotbarOperation, HotbarSlot as BlockHotbarSlot},
         logic_grid::{LogicGrid, LogicGridOperation},
     },
-    BlockClient, BlockHandle,
 };
 use block_editor_plugin::{
+    EditorHost,
     egui::{self, PointerButton},
     egui_material_icons::icons::ICON_BUILD,
-    EditorHost,
 };
 use logicgame::{
-    challenges::{generate_challenge, Challenge, ChallengeId},
+    challenges::{Challenge, ChallengeId, generate_challenge},
     execution::{Component as ExecutionComponent, Instruction, Pc, Vm},
     grid::{
-        value_mask, CircuitGraph, Component, ComponentId, ComponentKind, ComponentOrientation,
-        ComponentSide, ConnectionSlot, GraphNode, GraphNodeId, InputId, LogicGrid as Grid,
-        OutputId, Point, Rotation, Scale, ValidationError, Wire,
+        CircuitGraph, Component, ComponentId, ComponentKind, ComponentOrientation, ComponentSide,
+        ConnectionSlot, GraphNode, GraphNodeId, InputId, LogicGrid as Grid, OutputId, Point,
+        Rotation, Scale, ValidationError, Wire, value_mask,
     },
 };
 use uuid::Uuid;

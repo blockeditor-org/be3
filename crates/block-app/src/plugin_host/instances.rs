@@ -1,4 +1,4 @@
-use block_client::{blocks::audio::Audio, BlockClient, Tunnel};
+use block_client::{BlockClient, Tunnel, blocks::audio::Audio};
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
@@ -16,14 +16,15 @@ use std::{
 use uuid::Uuid;
 
 use super::{
+    BlockPickRequest, EditorBlock, HostChild, HostChildStatus, InstanceRole, MAX_LIVE_CHILDREN,
+    PresencePublication,
     audio::AudioPlayer,
-    input::{viewport_metrics, BlockDragEvent, FileDropEvent, InputAdapter},
-    pieces, BlockPickRequest, EditorBlock, HostChild, HostChildStatus, InstanceRole,
-    PresencePublication, MAX_LIVE_CHILDREN,
+    input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
+    pieces,
 };
 use crate::{
     performance,
-    platform::{http::Fetch, FileFilter, FilePicker},
+    platform::{FileFilter, FilePicker, http::Fetch},
     plugin_host::web_view::WebViewHost,
 };
 
@@ -511,11 +512,11 @@ impl Instances {
         let focus = self.focus.clone();
         let mut opened = Vec::new();
         let mut screens = Vec::new();
-        if !self.sent_block_types {
-            if let Some(block_types) = &self.block_types {
-                self.sent_block_types = true;
-                opened.push(Message::BlockTypes(block_types.as_ref().clone()));
-            }
+        if !self.sent_block_types
+            && let Some(block_types) = &self.block_types
+        {
+            self.sent_block_types = true;
+            opened.push(Message::BlockTypes(block_types.as_ref().clone()));
         }
         for instance in instances {
             let Some(entry) = self.entries.get_mut(&instance) else {

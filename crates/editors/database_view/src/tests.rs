@@ -8,14 +8,14 @@ use block_client::blocks::database_schema::{
 use block_client::blocks::database_view::{DatabaseView, DatabaseViewKind};
 use block_client::{BlockClient, BlockHandle};
 use block_editor_plugin::{
-    block_ui::{database::DatabaseBlockPickRequest, BlockLabel},
     App as _, EditorHost,
+    block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
 };
 use block_ui_test::EditorTest;
 use uuid::Uuid;
 
 use crate::{
-    app::{value_block_filter, DatabaseViewApp},
+    app::{DatabaseViewApp, value_block_filter},
     spreadsheet::compare_database_values,
 };
 

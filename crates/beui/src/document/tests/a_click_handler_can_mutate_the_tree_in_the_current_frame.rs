@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Frame, NodeRef};
+use crate::reactive::{Frame, NodeRef, build, view};
 
 #[test]
 fn a_click_handler_can_mutate_the_tree_in_the_current_frame() {

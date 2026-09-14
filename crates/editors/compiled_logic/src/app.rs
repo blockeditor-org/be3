@@ -6,7 +6,7 @@ use block_client::blocks::compiled_logic::CompiledLogic;
 use block_client::blocks::logic_grid::LogicGrid;
 use block_client::{BlockClient, BlockHandle};
 use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::{egui, EditorHost};
+use block_editor_plugin::{EditorHost, egui};
 use logicgame::execution::Instruction;
 use logicgame::grid::ConnectionDirection;
 use uuid::Uuid;

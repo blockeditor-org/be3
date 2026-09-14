@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, create_memo, create_signal, view, ItemSize, NodeRef};
+use crate::reactive::{ItemSize, NodeRef, build, create_memo, create_signal, view};
 use crate::styled::Switch;
 
 #[test]

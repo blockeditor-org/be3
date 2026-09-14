@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, ItemSize};
+use crate::reactive::{ItemSize, build, view};
 use crate::styled::Stack;
 use crate::unstyled::Container;
 

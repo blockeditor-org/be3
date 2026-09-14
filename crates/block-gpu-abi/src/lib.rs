@@ -7,7 +7,7 @@ mod tests;
 pub use descriptors::*;
 pub use enums::*;
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 pub const GPU_MODULE: &str = "be3_gpu";
 pub const HOST_MODULE: &str = "be3_host";

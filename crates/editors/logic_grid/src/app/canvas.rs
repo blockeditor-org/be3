@@ -396,13 +396,13 @@ impl LogicGridEditor {
             });
         }
 
-        if response.hovered() {
-            if let Some(pointer) = response.ctx.pointer_hover_pos() {
-                let scroll = response.ctx.input(|input| input.smooth_scroll_delta.y);
-                if scroll != 0.0 {
-                    self.camera
-                        .zoom_around(pointer, response.rect, (scroll * 0.002).exp());
-                }
+        if response.hovered()
+            && let Some(pointer) = response.ctx.pointer_hover_pos()
+        {
+            let scroll = response.ctx.input(|input| input.smooth_scroll_delta.y);
+            if scroll != 0.0 {
+                self.camera
+                    .zoom_around(pointer, response.rect, (scroll * 0.002).exp());
             }
         }
 
@@ -423,12 +423,12 @@ impl LogicGridEditor {
         let world = self.camera.screen_to_world(pointer, response.rect);
         let snapped = snap_point(world, self.active_tool_snap());
 
-        if response.clicked_by(PointerButton::Secondary) && self.tool.kind == ToolKind::Wire {
-            if let Some(wire) =
+        if response.clicked_by(PointerButton::Secondary)
+            && self.tool.kind == ToolKind::Wire
+            && let Some(wire) =
                 deletion_wire(self.grid.wires(), world, WIRE_HIT_RADIUS / self.camera.zoom)
-            {
-                self.edit(LogicGridOperation::RemoveWireSegment { wire });
-            }
+        {
+            self.edit(LogicGridOperation::RemoveWireSegment { wire });
         }
 
         let primary_pressed = response
@@ -488,15 +488,14 @@ impl LogicGridEditor {
                     drag_start: world,
                 }),
                 ToolKind::ConfigureStorage => {
-                    if let Some(DebugEntity::Component(id)) = self.entity_at(world) {
-                        if let Some(ComponentKind::Storage { scale, .. }) =
+                    if let Some(DebugEntity::Component(id)) = self.entity_at(world)
+                        && let Some(ComponentKind::Storage { scale, .. }) =
                             self.grid.component(id).map(|component| &component.kind)
-                        {
-                            if *scale == Scale::ONE {
-                                self.toggle_storage_bit(id, 0);
-                            } else {
-                                self.configured_storage = Some(id);
-                            }
+                    {
+                        if *scale == Scale::ONE {
+                            self.toggle_storage_bit(id, 0);
+                        } else {
+                            self.configured_storage = Some(id);
                         }
                     }
                     None

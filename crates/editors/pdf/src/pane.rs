@@ -1,13 +1,13 @@
 use std::{sync::mpsc::TryRecvError, time::Instant};
 
 use block_editor_plugin::{
-    egui::{self, Color32, Pos2, Rect, Vec2},
     PerformanceReporter, Waker,
+    egui::{self, Color32, Pos2, Rect, Vec2},
 };
 
 use crate::render::{
-    spawn_render_job, RenderJob, RenderRequest, RenderTarget, RenderedTile, DETAIL_MAX_DIM,
-    MIN_SCALE,
+    DETAIL_MAX_DIM, MIN_SCALE, RenderJob, RenderRequest, RenderTarget, RenderedTile,
+    spawn_render_job,
 };
 
 const TILE_MIN_SCALE_FACTOR: f32 = 0.4;

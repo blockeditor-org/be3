@@ -2,17 +2,17 @@ use std::{collections::HashMap, sync::Arc};
 
 use block::{BlockReference, BlockReferenceList};
 use block_client::{
+    BlockClient, BlockHandle, ReferenceList,
     blocks::presentation::{Presentation, PresentationOperation, PresentationSlide},
     references::{ReferenceClassificationQueue, ReferenceResolutionCache},
-    BlockClient, BlockHandle, ReferenceList,
 };
 use block_editor_plugin::{
+    BlockFilter, BlockPicker, ChildHandle, ChildMode, EditorHost,
     block_ui::{BlockLabel, BlockTypes},
     egui,
     egui_material_icons::icons::{
         ICON_ADD, ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_CLOSE, ICON_DELETE, ICON_FULLSCREEN,
     },
-    BlockFilter, BlockPicker, ChildHandle, ChildMode, EditorHost,
 };
 use uuid::Uuid;
 
@@ -388,10 +388,8 @@ impl PresentationApp {
                     );
                 });
         });
-        if exit {
-            if let Some(host) = self.host() {
-                host.present(false);
-            }
+        if exit && let Some(host) = self.host() {
+            host.present(false);
         }
         step
     }

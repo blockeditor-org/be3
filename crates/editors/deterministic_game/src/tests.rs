@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use block::Block as _;
+use block_client::BlockClient;
 use block_client::blocks::deterministic_game::DeterministicGame;
 use block_client::blocks::game_module::GameModule;
-use block_client::BlockClient;
 use block_editor_plugin::{BeuiApp as _, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::{module_filter, DeterministicGameApp};
+use crate::app::{DeterministicGameApp, module_filter};
 
 mod a_module_that_is_not_a_game_is_reported;
 mod the_creation_dialog_is_drawn_with_beui;

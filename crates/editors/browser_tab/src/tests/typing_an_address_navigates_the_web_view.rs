@@ -22,8 +22,9 @@ fn typing_an_address_navigates_the_web_view() {
         urls(&block).last().map(String::as_str),
         Some("https://example.org")
     );
-    assert!(host
-        .take_web_view_commands()
-        .contains(&WebViewCommand::Load("https://example.org".into())));
+    assert!(
+        host.take_web_view_commands()
+            .contains(&WebViewCommand::Load("https://example.org".into()))
+    );
     editor.snapshot("typing_an_address_navigates_the_web_view");
 }

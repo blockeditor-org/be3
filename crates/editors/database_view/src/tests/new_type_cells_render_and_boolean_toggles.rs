@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use block_client::{
+    BlockClient,
     block_ref::BlockRef,
     blocks::{
         database::{Database, DatabaseColor, DatabaseOperation, DatabaseValue},
@@ -9,7 +10,6 @@ use block_client::{
         },
         database_view::DatabaseView,
     },
-    BlockClient,
 };
 use block_editor_plugin::{App as _, EditorHost};
 use block_ui_test::EditorTest;

@@ -2,7 +2,7 @@ use std::{cell::RefCell, future::Future, rc::Rc};
 
 use futures_channel::{mpsc, oneshot};
 use futures_util::StreamExt;
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::JsFuture;
 
 use super::SocketMessage;

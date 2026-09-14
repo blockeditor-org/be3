@@ -9,7 +9,7 @@ mod web;
 
 pub(crate) use file_picker::{FileFilter, FilePicker};
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) use native::{spawn_request, start_embedded_server, EmbeddedServer};
+pub(crate) use native::{EmbeddedServer, spawn_request, start_embedded_server};
 #[cfg(target_arch = "wasm32")]
 pub(crate) use web::spawn_request;
 

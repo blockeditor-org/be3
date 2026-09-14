@@ -1,7 +1,7 @@
-use block_plugin_api::{encode_frame, Message};
+use block_plugin_api::{Message, encode_frame};
 use eframe::egui;
 use std::{cell::RefCell, rc::Rc};
-use wasm_bindgen::{prelude::*, JsCast};
+use wasm_bindgen::{JsCast, prelude::*};
 
 const WORKER_SOURCE: &str = r#"
 // The worker one plugin runs in.

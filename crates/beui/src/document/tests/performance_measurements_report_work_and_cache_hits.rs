@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Frame};
+use crate::reactive::{Frame, build, view};
 
 #[test]
 fn performance_measurements_report_work_and_cache_hits() {

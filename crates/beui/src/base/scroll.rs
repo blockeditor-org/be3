@@ -4,14 +4,14 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::time::Instant;
 
-use crate::geometry::{pos2, vec2, Rect, Vec2};
+use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
 use crate::reactive::{
-    create_effect, create_signal, owner_scope, settle, with_document, Callback, Children, Prop,
-    RenderFn, ScopeContext,
+    Callback, Children, Prop, RenderFn, ScopeContext, create_effect, create_signal, owner_scope,
+    settle, with_document,
 };
 use beui_macros::component;
 

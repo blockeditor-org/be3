@@ -1,11 +1,11 @@
 use block_gpu_abi as abi;
 
-use crate::{with, SHIM};
+use crate::{SHIM, with};
 
 macro_rules! scalar {
     ($(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)? => $method:ident;)+) => {
         $(
-            #[no_mangle]
+            #[unsafe(no_mangle)]
             pub extern "C" fn $name($($argument: $kind),*) $(-> $result)? {
                 with(|shim| shim.gpu.$method($($argument),*), Default::default())
             }
@@ -16,7 +16,7 @@ macro_rules! scalar {
 macro_rules! described {
     ($($name:ident => $method:ident;)+) => {
         $(
-            #[no_mangle]
+            #[unsafe(no_mangle)]
             pub extern "C" fn $name(pointer: u32, length: u32) -> u32 {
                 with(
                     |shim| {
@@ -30,7 +30,7 @@ macro_rules! described {
     };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn be3_scratch(length: u32) -> u32 {
     SHIM.with(|shim| {
         let mut shim = shim.borrow_mut();
@@ -129,7 +129,7 @@ scalar! {
     fn resource_drop(kind: u32, handle: u32) => drop_resource;
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn device_limits(pointer: u32, capacity: u32) -> u32 {
     with(
         |shim| {
@@ -140,7 +140,7 @@ pub extern "C" fn device_limits(pointer: u32, capacity: u32) -> u32 {
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn buffer_write_mapped(buffer: u32, offset: u64, pointer: u32, length: u32) {
     with(
         |shim| {
@@ -151,7 +151,7 @@ pub extern "C" fn buffer_write_mapped(buffer: u32, offset: u64, pointer: u32, le
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn queue_write_buffer(buffer: u32, offset: u64, pointer: u32, length: u32) {
     with(
         |shim| {
@@ -162,7 +162,7 @@ pub extern "C" fn queue_write_buffer(buffer: u32, offset: u64, pointer: u32, len
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn queue_write_texture(pointer: u32, length: u32, data: u32, data_length: u32) {
     with(
         |shim| {
@@ -174,7 +174,7 @@ pub extern "C" fn queue_write_texture(pointer: u32, length: u32, data: u32, data
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn queue_submit(pointer: u32, length: u32) {
     with(
         |shim| {
@@ -185,7 +185,7 @@ pub extern "C" fn queue_submit(pointer: u32, length: u32) {
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn pass_set_bind_group(
     pass: u32,
     index: u32,
@@ -202,7 +202,7 @@ pub extern "C" fn pass_set_bind_group(
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn surface_configure(surface: u32, pointer: u32, length: u32) {
     with(
         |shim| {
@@ -222,7 +222,7 @@ pub extern "C" fn surface_configure(surface: u32, pointer: u32, length: u32) {
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn surface_acquire(surface: u32) -> u32 {
     with(
         |shim| {
@@ -242,7 +242,7 @@ pub extern "C" fn surface_acquire(surface: u32) -> u32 {
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn surface_present(surface: u32) {
     with(
         |shim| {
@@ -253,7 +253,7 @@ pub extern "C" fn surface_present(surface: u32) {
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn texture_describe(texture: u32, pointer: u32, capacity: u32) -> u32 {
     with(
         |shim| match shim.gpu.describe_texture(texture) {
@@ -264,7 +264,7 @@ pub extern "C" fn texture_describe(texture: u32, pointer: u32, capacity: u32) ->
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn error_take(pointer: u32, capacity: u32) -> u32 {
     with(
         |shim| {
@@ -275,7 +275,7 @@ pub extern "C" fn error_take(pointer: u32, capacity: u32) -> u32 {
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn host_send(pointer: u32, length: u32) {
     with(
         |shim| {
@@ -286,7 +286,7 @@ pub extern "C" fn host_send(pointer: u32, length: u32) {
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn host_receive(pointer: u32, capacity: u32) -> i64 {
     with(
         |shim| {
@@ -305,7 +305,7 @@ pub extern "C" fn host_receive(pointer: u32, capacity: u32) -> i64 {
     )
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn host_now() -> f64 {
     with(|shim| (crate::now() - shim.started) / 1000.0, 0.0)
 }

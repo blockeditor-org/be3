@@ -1,5 +1,5 @@
 use super::{
-    decode, feature, field, length_delimited, tile_with_layer, varint, zigzag, GeometryKind,
+    GeometryKind, decode, feature, field, length_delimited, tile_with_layer, varint, zigzag,
 };
 
 #[test]

@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use block::BlockParent;
 use block_client::BlockClient;
 use block_editor_plugin::{
-    block_ui::BlockCatalog, egui, ChildHandle, ChildMode, EditorHost, InteractionMode, ResizeMode,
+    ChildHandle, ChildMode, EditorHost, InteractionMode, ResizeMode, block_ui::BlockCatalog, egui,
 };
 use uuid::Uuid;
 

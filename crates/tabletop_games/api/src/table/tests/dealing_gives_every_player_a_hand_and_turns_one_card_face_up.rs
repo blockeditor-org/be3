@@ -1,4 +1,4 @@
-use super::{seated, HAND_SIZE};
+use super::{HAND_SIZE, seated};
 
 #[test]
 fn dealing_gives_every_player_a_hand_and_turns_one_card_face_up() {

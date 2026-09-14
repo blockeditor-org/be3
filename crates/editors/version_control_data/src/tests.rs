@@ -6,7 +6,7 @@ use block_editor_plugin::{App as _, EditorHost};
 use block_ui_test::EditorTest;
 use uuid::Uuid;
 
-use crate::app::{format_commit_time, short_author, VersionControlDataApp};
+use crate::app::{VersionControlDataApp, format_commit_time, short_author};
 
 mod creating_a_branch_points_it_at_the_selected_head;
 mod format_commit_time_formats_readable_utc_string;

@@ -23,17 +23,19 @@ fn first_player_can_act_after_the_game_starts() {
     let screen = show(&actions, p0);
     assert!(screen.description.contains(&table.face_up().to_string()));
     assert!(table.can_draw());
-    assert!(screen
-        .actions
-        .iter()
-        .any(|option| option.label == "Draw a card"));
+    assert!(
+        screen
+            .actions
+            .iter()
+            .any(|option| option.label == "Draw a card")
+    );
 
     let mut offered: Vec<String> = Vec::new();
     for option in &screen.actions {
-        if let Some(card) = played_card(&option.label) {
-            if !offered.iter().any(|seen| seen == card) {
-                offered.push(card.to_owned());
-            }
+        if let Some(card) = played_card(&option.label)
+            && !offered.iter().any(|seen| seen == card)
+        {
+            offered.push(card.to_owned());
         }
     }
 

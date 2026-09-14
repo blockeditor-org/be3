@@ -1,4 +1,4 @@
-use super::super::core::{render_stops, CursorStops};
+use super::super::core::{CursorStops, render_stops};
 use super::*;
 
 #[test]

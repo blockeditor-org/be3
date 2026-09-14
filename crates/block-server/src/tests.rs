@@ -112,9 +112,8 @@ mod support {
     use futures_util::{SinkExt, StreamExt};
     use tokio::{fs, net::TcpListener, task::JoinHandle};
     use tokio_tungstenite::{
-        connect_async,
-        tungstenite::{client::IntoClientRequest, Message},
-        MaybeTlsStream, WebSocketStream,
+        MaybeTlsStream, WebSocketStream, connect_async,
+        tungstenite::{Message, client::IntoClientRequest},
     };
     use uuid::Uuid;
 

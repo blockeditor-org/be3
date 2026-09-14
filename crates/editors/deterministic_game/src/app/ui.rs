@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
-    build, clone, create_memo, create_signal, view, with_reactive_scope, Column, Dynamic, ForEach,
-    Frame, ItemSize, Scroll, WriteSignal,
+    Column, Dynamic, ForEach, Frame, ItemSize, Scroll, WriteSignal, build, clone, create_memo,
+    create_signal, view, with_reactive_scope,
 };
 use block_editor_plugin::beui::styled::{
-    use_theme, Body, Button, ButtonVariant, Card, Heading, Paragraph,
+    Body, Button, ButtonVariant, Card, Heading, Paragraph, use_theme,
 };
 use block_editor_plugin::beui::{Color32, Context, Document, NodeId, Rect, TextAlign};
 use game_api::{GameActionOption, GameScreen};

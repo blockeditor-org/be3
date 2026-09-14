@@ -11,10 +11,11 @@ fn wire_crossing_past_a_component_terminal_is_an_intersection() {
     let crossing = wire((1, 1), (1, 4), 1);
     grid.add_wire(crossing);
 
-    assert!(grid
-        .validate()
-        .contains(&ValidationError::WireComponentIntersection {
-            wire: crossing,
-            component: not,
-        }));
+    assert!(
+        grid.validate()
+            .contains(&ValidationError::WireComponentIntersection {
+                wire: crossing,
+                component: not,
+            })
+    );
 }

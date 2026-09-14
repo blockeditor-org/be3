@@ -23,7 +23,9 @@ fn the_difference_counts_the_pixels_that_changed() {
     let taller = egui::ColorImage::new([4, 6], vec![egui::Color32::BLACK; 24]);
     let grown = crate::render::difference(&approved, &taller);
     assert_eq!(grown.image.size, [4, 6]);
-    assert!(grown
-        .description
-        .starts_with("the painting is 4x6, it used to be 4x4; "));
+    assert!(
+        grown
+            .description
+            .starts_with("the painting is 4x6, it used to be 4x4; ")
+    );
 }

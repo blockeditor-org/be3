@@ -1,7 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use block::{Block, BlockParent, BlockReferenceList};
-use block_client::{blocks::text::TextDocument, BlockClient, ManagementClient};
+use block_client::{BlockClient, ManagementClient, blocks::text::TextDocument};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, net::TcpListener};
 use uuid::Uuid;

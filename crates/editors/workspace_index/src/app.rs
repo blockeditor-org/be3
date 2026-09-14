@@ -2,18 +2,18 @@ use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 use block::{BlockReference, BlockReferenceList};
 use block_client::{
+    BlockClient, BlockHandle, ReferenceList,
     block_ref::BlockRef,
     blocks::workspace_index::{WorkspaceIndex, WorkspaceIndexOperation},
     references::{ReferenceClassificationQueue, ReferenceResolutionCache},
-    BlockClient, BlockHandle, ReferenceList,
 };
 use block_editor_plugin::{
-    block_ui::{paint_name, BlockLabel, BlockTypes},
+    EditorHost,
+    block_ui::{BlockLabel, BlockTypes, paint_name},
     egui,
     egui_material_icons::icons::{
         ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER, ICON_GRID_VIEW, ICON_VIEW_LIST,
     },
-    EditorHost,
 };
 use uuid::Uuid;
 

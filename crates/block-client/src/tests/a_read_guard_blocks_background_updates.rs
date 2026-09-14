@@ -1,12 +1,12 @@
-use std::{sync::mpsc, sync::Arc, thread};
+use std::{sync::Arc, sync::mpsc, thread};
 
 use block::{OperationRecord, ReferenceDelta};
 use parking_lot::RwLock;
 use uuid::Uuid;
 
 use super::{
-    lib_test_support::{counter_operation, Counter},
     BlockShared, ErasedBlock, TypedBlock,
+    lib_test_support::{Counter, counter_operation},
 };
 
 #[test]

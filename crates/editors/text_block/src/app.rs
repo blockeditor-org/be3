@@ -9,6 +9,7 @@ use std::{
 
 use block::{BlockParent, BlockReferenceList, ClientId};
 use block_client::{
+    BlockClient, BlockHandle, ReferenceList,
     block_ref::BlockRef,
     block_ref_url,
     blocks::image::Image,
@@ -16,16 +17,17 @@ use block_client::{
     blocks::version_control_worktree::VersionControlWorktreeMembership,
     parse_block_urls,
     presence::{PresenceColor, UserActive},
-    BlockClient, BlockHandle, ReferenceList,
 };
 use block_editor_plugin::{
+    BlockPicker, ChildHandle, ChildMode, EditorHost, ImagePaster, InteractionMode, PastedImage,
+    PerformanceReporter, Task,
     block_ui::{
-        self, paint_name, test_id::TestId, BlockLabel, EMBEDDED_EDITOR_PADDING,
-        EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT,
+        self, BlockLabel, EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP,
+        EMBEDDED_EDITOR_TITLE_HEIGHT, paint_name, test_id::TestId,
     },
     egui::{
-        self, output::IMEOutput, Color32, CornerRadius, Event, EventFilter, ImeEvent, Key,
-        Modifiers, PointerButton, Pos2, Rect, Sense, Vec2,
+        self, Color32, CornerRadius, Event, EventFilter, ImeEvent, Key, Modifiers, PointerButton,
+        Pos2, Rect, Sense, Vec2, output::IMEOutput,
     },
     egui_material_icons::{
         self,
@@ -37,18 +39,16 @@ use block_editor_plugin::{
             ICON_MATCH_CASE, ICON_SEARCH, ICON_TITLE,
         },
     },
-    BlockPicker, ChildHandle, ChildMode, EditorHost, ImagePaster, InteractionMode, PastedImage,
-    PerformanceReporter, Task,
 };
 use text_editor_core::{
-    markdown_checkbox_marker, CollapsibleSection, CopyMode, Core, CursorHorizontalPositionMetric,
-    CursorLeftRightStop, CursorPosition, DragSelectionMode, EditorCommand, FindDirection,
-    LRDirection, MarkdownCommand, MoveMode, Position, SynHlColorScope, SyntaxHighlight,
-    SyntaxNodeDirection, TextIndentation, TextLanguage, UDDirection, VerticalMoveMode,
+    CollapsibleSection, CopyMode, Core, CursorHorizontalPositionMetric, CursorLeftRightStop,
+    CursorPosition, DragSelectionMode, EditorCommand, FindDirection, LRDirection, MarkdownCommand,
+    MoveMode, Position, SynHlColorScope, SyntaxHighlight, SyntaxNodeDirection, TextIndentation,
+    TextLanguage, UDDirection, VerticalMoveMode, markdown_checkbox_marker,
 };
 use uuid::Uuid;
 
-use crate::document::{inside_block_url, BlockDocument};
+use crate::document::{BlockDocument, inside_block_url};
 use crate::font::{self, BytePosition, DocumentLayout, LineLayout, ResolvedEmbed, TextRenderer};
 use crate::hex;
 use crate::presence::TextCursor;
@@ -1060,12 +1060,11 @@ impl TextEditor {
                 self.dragging_handle = None;
                 self.dragging_handle_offset = Vec2::ZERO;
                 return true;
-            } else if pressed {
-                if let Some(handle) = self.selection_handle_at(layout, local_pointer) {
-                    self.begin_selection_handle_drag(handle, layout, local_pointer);
-                    self.touch_menu_open = false;
-                    return true;
-                }
+            } else if pressed && let Some(handle) = self.selection_handle_at(layout, local_pointer)
+            {
+                self.begin_selection_handle_drag(handle, layout, local_pointer);
+                self.touch_menu_open = false;
+                return true;
             }
         }
         if layout.embeds.iter().any(|embed| {
@@ -1379,7 +1378,7 @@ impl TextEditor {
                         selection,
                         ..PaintTimings::default()
                     },
-                )
+                );
             }
         };
         let glyph_start = Instant::now();
@@ -1849,10 +1848,10 @@ impl TextEditor {
             language: self.core.language(),
             hidden: hidden_ranges_from_sections(&self.core.collapsible_sections()),
         };
-        if let Some((cached, size)) = &self.intrinsic {
-            if *cached == key {
-                return Some(*size);
-            }
+        if let Some((cached, size)) = &self.intrinsic
+            && *cached == key
+        {
+            return Some(*size);
         }
         let size = self.document_size(key.width)?;
         self.intrinsic = Some((key, size));
@@ -2023,8 +2022,8 @@ impl TextEditor {
             reveal_cursor |= self.pointer_input(ui, &response, origin, &layout, &checkboxes);
         }
         profile.pointer = pointer_start.elapsed();
-        if let Some(hover) = response.hover_pos() {
-            if checkbox_at(&layout, &checkboxes, (hover - origin).to_pos2()).is_some()
+        if let Some(hover) = response.hover_pos()
+            && (checkbox_at(&layout, &checkboxes, (hover - origin).to_pos2()).is_some()
                 || gutter_arrow_at(
                     response.rect,
                     gutter_width,
@@ -2033,10 +2032,9 @@ impl TextEditor {
                     &sections,
                     hover,
                 )
-                .is_some()
-            {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            }
+                .is_some())
+        {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         self.paint_embeds(ui, &painter, origin, &layout);
         let dragged = self
@@ -2090,10 +2088,10 @@ impl TextEditor {
             response.has_focus(),
         );
         self.paint_remote_cursors(&painter, origin, &layout);
-        if let Some(client_id) = std::mem::take(&mut self.pending_presence_reveal) {
-            if let Some(rect) = self.presence_cursor_rect(client_id, origin, &layout) {
-                ui.scroll_to_rect(rect.expand2(Vec2::new(8.0, 3.0)), Some(egui::Align::Center));
-            }
+        if let Some(client_id) = std::mem::take(&mut self.pending_presence_reveal)
+            && let Some(rect) = self.presence_cursor_rect(client_id, origin, &layout)
+        {
+            ui.scroll_to_rect(rect.expand2(Vec2::new(8.0, 3.0)), Some(egui::Align::Center));
         }
         self.paint_checkboxes(ui, &painter, origin, &layout, &checkboxes);
         paint_collapsed_ellipsis(&painter, origin, &layout, &sections);
@@ -2108,10 +2106,11 @@ impl TextEditor {
         }
         profile.paint = paint;
         let cursor_positions = self.core.cursor_positions().to_vec();
-        if reveal_cursor && cursor_positions != self.last_cursor_positions {
-            if let Some(cursor) = cursor {
-                ui.scroll_to_rect(cursor.expand2(Vec2::new(8.0, 3.0)), None);
-            }
+        if reveal_cursor
+            && cursor_positions != self.last_cursor_positions
+            && let Some(cursor) = cursor
+        {
+            ui.scroll_to_rect(cursor.expand2(Vec2::new(8.0, 3.0)), None);
         }
         self.last_cursor_positions = cursor_positions;
         profile.total = frame_start.elapsed() + profile.toolbar;

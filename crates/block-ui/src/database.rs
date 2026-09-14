@@ -16,9 +16,9 @@ use block_client::{
 use uuid::Uuid;
 
 use crate::{
+    BlockLabel,
     datetime::{datetime_editor, format_datetime_utc, parse_datetime_utc},
     test_id::TestId,
-    BlockLabel,
 };
 
 #[derive(Debug, PartialEq)]

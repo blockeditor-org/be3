@@ -2,7 +2,7 @@ use block::Block;
 use block_client::blocks::gui_builder::GuiBuilder;
 use block_client::blocks::text::{TextDocument, TextLanguage};
 use block_client::{BlockClient, BlockHandle, DynamicArtifactDescriptor};
-use block_editor_plugin::{egui, ArtifactDescription};
+use block_editor_plugin::{ArtifactDescription, egui};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

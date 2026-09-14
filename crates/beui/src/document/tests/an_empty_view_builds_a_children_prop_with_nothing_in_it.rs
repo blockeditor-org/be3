@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Column, NodeRef};
+use crate::reactive::{Column, NodeRef, build, view};
 
 #[test]
 fn an_empty_view_builds_a_children_prop_with_nothing_in_it() {

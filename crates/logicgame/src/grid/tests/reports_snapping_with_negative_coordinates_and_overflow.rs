@@ -18,7 +18,9 @@ fn reports_snapping_with_negative_coordinates_and_overflow() {
         component,
         snap: scale(4),
     }));
-    assert!(errors
-        .iter()
-        .any(|error| matches!(error, ValidationError::WireOverflow { .. })));
+    assert!(
+        errors
+            .iter()
+            .any(|error| matches!(error, ValidationError::WireOverflow { .. }))
+    );
 }

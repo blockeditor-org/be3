@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::io::{Read as _, Write as _};
 
+use flate2::Compression;
 use flate2::read::DeflateDecoder;
 use flate2::write::DeflateEncoder;
-use flate2::Compression;
 use serde::{Deserialize, Serialize};
 
 const MAGIC: &[u8; 8] = b"BE3PAINT";

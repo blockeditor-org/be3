@@ -152,12 +152,11 @@ impl Block for LogicGame {
                 solution,
                 index,
             } => {
-                if let Some(level) = game.level_mut(*challenge) {
-                    if !level.solutions.contains(solution) {
+                if let Some(level) = game.level_mut(*challenge)
+                    && !level.solutions.contains(solution) {
                         let index = (*index).min(level.solutions.len());
                         level.solutions.insert(index, *solution);
                     }
-                }
             }
             LogicGameOperation::RemoveSolution {
                 challenge,

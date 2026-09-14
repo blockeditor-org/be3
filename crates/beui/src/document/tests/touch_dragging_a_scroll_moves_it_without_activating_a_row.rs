@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, intrinsic, view, ItemSize, NodeRef, Scroll};
+use crate::reactive::{ItemSize, NodeRef, Scroll, build, intrinsic, view};
 
 #[test]
 fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {

@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use crate::computation::{Computation, State};
-use crate::runtime::{batch, RUNTIME};
+use crate::runtime::{RUNTIME, batch};
 
 #[derive(Default)]
 pub(crate) struct Source {

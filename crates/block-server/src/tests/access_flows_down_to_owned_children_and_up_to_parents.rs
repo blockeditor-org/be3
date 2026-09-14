@@ -1,6 +1,6 @@
 use super::support::{
-    access_for, add_member, create, create_workspace, list_access, register, set_access,
-    set_parent, update, TestServer,
+    TestServer, access_for, add_member, create, create_workspace, list_access, register,
+    set_access, set_parent, update,
 };
 use block::{BlockAccess, BlockParent, WorkspaceRole};
 use uuid::Uuid;

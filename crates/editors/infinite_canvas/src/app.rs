@@ -16,6 +16,7 @@ use std::collections::{HashMap, HashSet};
 
 use block::{BlockParent, BlockReferenceList, ClientId};
 use block_client::{
+    BlockClient, BlockHandle, ReferenceList,
     block_ref::BlockRef,
     blocks::{
         database::DatabaseValue,
@@ -29,14 +30,15 @@ use block_client::{
         },
     },
     presence::{PresenceColor, UserActive},
-    BlockClient, BlockHandle, ReferenceList,
 };
 use block_editor_plugin::{
+    BlockFilter, BlockPicker, ChildMode, EditorHost, FilePicker, ImagePaster, PastedImage,
+    ViewChange,
     block_ui::{
-        self,
-        database::{DatabaseValueEditor, DatabaseValueEditorOutput},
-        name_galley, paint_name, BlockLabel, EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP,
+        self, BlockLabel, EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP,
         EMBEDDED_EDITOR_TITLE_HEIGHT,
+        database::{DatabaseValueEditor, DatabaseValueEditorOutput},
+        name_galley, paint_name,
     },
     egui::{self, Color32, PointerButton, Pos2, Rect, Stroke, Vec2},
     egui_material_icons::icons::{
@@ -44,8 +46,6 @@ use block_editor_plugin::{
         ICON_KEYBOARD_ARROW_DOWN, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN,
         ICON_ZOOM_OUT,
     },
-    BlockFilter, BlockPicker, ChildMode, EditorHost, FilePicker, ImagePaster, PastedImage,
-    ViewChange,
 };
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, rc::Rc, sync::Arc};

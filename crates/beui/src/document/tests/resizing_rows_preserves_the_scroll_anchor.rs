@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, intrinsic, view, Frame, NodeRef, Scroll};
+use crate::reactive::{Frame, NodeRef, Scroll, build, intrinsic, view};
 
 #[test]
 fn resizing_rows_preserves_the_scroll_anchor() {

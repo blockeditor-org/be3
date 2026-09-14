@@ -7,7 +7,7 @@ use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::egui_material_icons::icons::{
     ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW,
 };
-use block_editor_plugin::{egui, EditorHost, FileFilter, FilePicker, PickedFile};
+use block_editor_plugin::{EditorHost, FileFilter, FilePicker, PickedFile, egui};
 use uuid::Uuid;
 
 const INTRINSIC_SIZE: egui::Vec2 = egui::vec2(320.0, 180.0);

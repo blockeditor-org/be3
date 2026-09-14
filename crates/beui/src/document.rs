@@ -7,7 +7,7 @@ use accesskit::Node;
 
 use crate::accessibility;
 use crate::context::Context;
-use crate::geometry::{pos2, Rect, Vec2};
+use crate::geometry::{Rect, Vec2, pos2};
 use crate::input::{Event, Key};
 
 use crate::inspector::Inspector;
@@ -317,10 +317,10 @@ impl Document {
                         paint::paint(self, &ctx.painter(), &self.rects, root);
                     }
                     for overlay in self.overlay_stack.clone() {
-                        if let Some(content) = self.overlay_content(overlay) {
-                            if self.rects.contains_key(&content) {
-                                paint::paint(self, &ctx.painter(), &self.rects, content);
-                            }
+                        if let Some(content) = self.overlay_content(overlay)
+                            && self.rects.contains_key(&content)
+                        {
+                            paint::paint(self, &ctx.painter(), &self.rects, content);
                         }
                     }
                 })

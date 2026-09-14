@@ -12,7 +12,7 @@ use block_gpu_host::Gpu;
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, Instance, Linker, Module, SharedMemory, Store, TypedFunc,
 };
-use wasmtime_wasi::{p1, WasiCtxBuilder};
+use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use threads::Spawner;
 

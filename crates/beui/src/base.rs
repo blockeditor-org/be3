@@ -9,4 +9,4 @@ pub(crate) mod text;
 pub use focusable::focus_within;
 pub use list::{Align, Direction, ItemSize};
 pub use scroll::ScrollPosition;
-pub use text::{text_index_at, TextAlign};
+pub use text::{TextAlign, text_index_at};

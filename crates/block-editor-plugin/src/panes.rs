@@ -3,13 +3,13 @@ use eframe::{egui, egui_wgpu, egui_wgpu::wgpu};
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
     time::Duration,
 };
 
-use crate::{editor_session, screens::Screens, Waker};
+use crate::{Waker, editor_session, screens::Screens};
 
 enum Pane {
     Egui(EguiPane),

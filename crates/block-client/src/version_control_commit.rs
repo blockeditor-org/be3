@@ -23,7 +23,7 @@ use crate::blocks::presentation::Presentation;
 use crate::blocks::settings::Settings;
 use crate::blocks::text::TextDocument;
 use crate::blocks::version_control_data::{
-    Commit, CommitId, VersionControlData, VersionControlDataOperation, MAIN_BRANCH,
+    Commit, CommitId, MAIN_BRANCH, VersionControlData, VersionControlDataOperation,
 };
 use crate::blocks::version_control_object::{
     ObjectHash, TreeEntry, TreeEntryKind, VersionControlObject,
@@ -34,7 +34,7 @@ use crate::blocks::version_control_worktree::{
 use crate::blocks::video::Video;
 use crate::blocks::web_browser_tab::WebBrowserTab;
 use crate::blocks::workspace_index::WorkspaceIndex;
-use crate::{properties, BlockClient, BlockHandle};
+use crate::{BlockClient, BlockHandle, properties};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommitOutcome {

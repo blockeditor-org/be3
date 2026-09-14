@@ -1,4 +1,4 @@
-use super::support::{management_request, register_with_password, TestServer};
+use super::support::{TestServer, management_request, register_with_password};
 use block::{ManagementClientMessage, ManagementErrorCode, ManagementServerMessage};
 use uuid::Uuid;
 

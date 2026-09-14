@@ -2,8 +2,8 @@ use std::sync::mpsc::Sender;
 
 use block_plugin_api::WebViewEvent;
 use wry::{
-    dpi::{PhysicalPosition, PhysicalSize},
     NewWindowResponse, PageLoadEvent, Rect as WebViewRect, WebViewBuilder,
+    dpi::{PhysicalPosition, PhysicalSize},
 };
 
 use super::Bounds;

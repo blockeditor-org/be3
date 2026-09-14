@@ -5,6 +5,7 @@ use accesskit::{
     Role, Tree, TreeId, TreeUpdate,
 };
 
+use crate::Document;
 use crate::base::focusable::FocusableNode;
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
@@ -13,7 +14,6 @@ use crate::base::text::TextNode;
 use crate::geometry::{Rect, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
 use crate::node::NodeId;
-use crate::Document;
 
 pub(crate) const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
 const DOCUMENT_SHIFT: u32 = 32;
@@ -171,15 +171,13 @@ impl Document {
                 let bridges_focus = node.supports_action(Action::Focus)
                     || node.supports_action(Action::Click)
                     || is_focusable_control(node.role());
-                if bridges_focus {
-                    if let Some(focusable) = self.first_focusable_within(id) {
-                        node.add_action(Action::Focus);
-                        if self.focusable_can_activate(focusable) {
-                            node.add_action(Action::Click);
-                        }
-                        if self.focused == Some(focusable) {
-                            *focused_accessible = Some(self.access_node_id(id));
-                        }
+                if bridges_focus && let Some(focusable) = self.first_focusable_within(id) {
+                    node.add_action(Action::Focus);
+                    if self.focusable_can_activate(focusable) {
+                        node.add_action(Action::Click);
+                    }
+                    if self.focused == Some(focusable) {
+                        *focused_accessible = Some(self.access_node_id(id));
                     }
                 }
             }

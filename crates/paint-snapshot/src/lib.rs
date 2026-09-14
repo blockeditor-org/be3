@@ -3,8 +3,8 @@ mod compare;
 mod format;
 mod raster;
 
-pub use capture::{capture, TextureStore};
-pub use compare::{difference, Difference};
+pub use capture::{TextureStore, capture};
+pub use compare::{Difference, difference};
 pub use format::{Content, Frame, Primitive, Snapshot, Texture, TextureKey, Triangle, Vertex};
 pub use raster::render;
 

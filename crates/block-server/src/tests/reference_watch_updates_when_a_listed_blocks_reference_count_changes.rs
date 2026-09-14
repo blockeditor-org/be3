@@ -1,4 +1,4 @@
-use super::support::{create, request, set_parent, update, TestServer};
+use super::support::{TestServer, create, request, set_parent, update};
 use block::{BlockParent, BlockReferenceList, ClientMessage, ServerMessage};
 use futures_util::StreamExt;
 use uuid::Uuid;

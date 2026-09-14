@@ -1,4 +1,4 @@
-use super::support::{management_request, register, TestServer};
+use super::support::{TestServer, management_request, register};
 use block::{ManagementClientMessage, ManagementErrorCode, ManagementServerMessage};
 use uuid::Uuid;
 
@@ -8,10 +8,12 @@ async fn logout_revokes_the_session_token() {
     let management = server.management();
     let account = register(&management, "logout@example.com").await;
     let workspace = super::support::create_workspace(&management, &account.token, "Logout").await;
-    assert!(server
-        .try_connect_to(&account.token, workspace.id)
-        .await
-        .is_ok());
+    assert!(
+        server
+            .try_connect_to(&account.token, workspace.id)
+            .await
+            .is_ok()
+    );
 
     let response = management_request(
         &management,
@@ -23,10 +25,12 @@ async fn logout_revokes_the_session_token() {
     .await;
     assert!(matches!(response, ManagementServerMessage::Ok { .. }));
 
-    assert!(server
-        .try_connect_to(&account.token, workspace.id)
-        .await
-        .is_err());
+    assert!(
+        server
+            .try_connect_to(&account.token, workspace.id)
+            .await
+            .is_err()
+    );
     let response = management_request(
         &management,
         ManagementClientMessage::ListWorkspaces {

@@ -10,9 +10,9 @@ use crate::base::{ScrollPosition, TextAlign};
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    clone, component, create_memo, create_signal, on_cleanup, view, CenteredRow, ClickCatcher,
-    Column, ForEach, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
-    WriteSignal,
+    CenteredRow, ClickCatcher, Column, ForEach, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row,
+    Scroll, Show, Spacer, WriteSignal, clone, component, create_memo, create_signal, on_cleanup,
+    view,
 };
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use crate::styled::{
@@ -514,11 +514,7 @@ pub(crate) fn toggle_fill(picking: bool) -> Color32 {
 }
 
 pub(crate) fn toggle_text(picking: bool) -> Color32 {
-    if picking {
-        THEME.on_accent
-    } else {
-        THEME.text
-    }
+    if picking { THEME.on_accent } else { THEME.text }
 }
 
 #[component]

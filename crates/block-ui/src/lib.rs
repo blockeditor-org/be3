@@ -6,7 +6,7 @@ pub mod test_id;
 use std::collections::{BTreeMap, HashMap};
 
 use block::BlockReference;
-use block_client::{presence::PresenceColor, BlockHandleAccess, CachedBlock};
+use block_client::{BlockHandleAccess, CachedBlock, presence::PresenceColor};
 use egui_material_icons::MaterialIcon;
 use uuid::Uuid;
 
@@ -151,11 +151,7 @@ impl BlockLabel {
 
     pub fn rich_text(&self) -> egui::RichText {
         let text = egui::RichText::new(&self.name);
-        if self.automatic {
-            text.italics()
-        } else {
-            text
-        }
+        if self.automatic { text.italics() } else { text }
     }
 
     pub fn widget_text(&self, style: &egui::Style) -> egui::WidgetText {

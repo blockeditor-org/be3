@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{taken, GameHelper};
+use super::{GameHelper, taken};
 
 #[test]
 fn turn_offers_moves_only_to_the_player_whose_turn_it_is() {

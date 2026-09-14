@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, Frame, ItemSize, NodeRef, Row};
+use crate::reactive::{Frame, ItemSize, NodeRef, Row, build};
 
 #[test]
 fn percent_sized_children_still_size_an_intrinsic_lists_height() {

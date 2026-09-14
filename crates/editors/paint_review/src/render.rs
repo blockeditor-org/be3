@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
-use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
+use std::sync::mpsc::{Receiver, TryRecvError};
 
-use block_editor_plugin::{egui, Waker};
+use block_editor_plugin::{Waker, egui};
 use paint_snapshot::{Content, Snapshot};
 
 mod difference;
@@ -124,13 +124,14 @@ impl Paintings {
 
     pub fn settle(&mut self, context: &egui::Context, waker: &Waker) {
         let finished = self.receive();
-        if self.active.is_none() && !finished {
-            if let Some((hash, data)) = self.queue.pop_front() {
-                self.active = Some(Job {
-                    messages: start_raster(data, waker.clone()),
-                    hash,
-                });
-            }
+        if self.active.is_none()
+            && !finished
+            && let Some((hash, data)) = self.queue.pop_front()
+        {
+            self.active = Some(Job {
+                messages: start_raster(data, waker.clone()),
+                hash,
+            });
         }
         if self.active.is_some() || !self.queue.is_empty() {
             context.request_repaint();

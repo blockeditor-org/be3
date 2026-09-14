@@ -19,7 +19,9 @@ fn drawing_a_card_you_cannot_play_ends_your_turn() {
     let drawer = show(&actions, players[0]);
     assert_eq!(drawer.description, "Waiting for your turn...");
     assert!(drawer.actions.is_empty());
-    assert!(show(&actions, players[1])
-        .description
-        .starts_with("Your turn"));
+    assert!(
+        show(&actions, players[1])
+            .description
+            .starts_with("Your turn")
+    );
 }

@@ -1,4 +1,4 @@
-use super::support::{create_and_watch, post_presence, unwatch, TestServer};
+use super::support::{TestServer, create_and_watch, post_presence, unwatch};
 use block::{ErrorCode, ServerMessage};
 use uuid::Uuid;
 

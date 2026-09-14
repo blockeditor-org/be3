@@ -7,14 +7,14 @@ use std::sync::Arc;
 
 use block::{BlockAccess, BlockParent, BlockReference};
 use block_client::{
-    blocks::{self, workspace_index::BlockEntry},
     BlockClient, BlockHandleAccess, BlockHistoryHandle, BlockRelationships,
+    blocks::{self, workspace_index::BlockEntry},
 };
 use block_plugin_api::PluginManifest;
-pub(super) use block_ui::{paint_name, BlockLabel};
+pub(super) use block_ui::{BlockLabel, paint_name};
 use block_ui::{BlockTypeEntry, BlockTypes};
 use eframe::egui;
-use egui_material_icons::{icons::ICON_LOCK, MaterialIcon};
+use egui_material_icons::{MaterialIcon, icons::ICON_LOCK};
 use uuid::Uuid;
 
 use self::unsupported::UnsupportedEditor;

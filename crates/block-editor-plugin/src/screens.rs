@@ -8,7 +8,7 @@ use eframe::egui;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 use uuid::Uuid;
 
-use crate::{editor_session::EditorSession, host::BlockDrag, Waker};
+use crate::{Waker, editor_session::EditorSession, host::BlockDrag};
 
 struct Client {
     client: Arc<BlockClient>,

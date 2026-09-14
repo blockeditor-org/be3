@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{atomic::AtomicUsize, Arc},
+    sync::{Arc, atomic::AtomicUsize},
 };
 
 use block::{Block, BlockAccess, BlockParent, BlockReference, BlockReferenceList, ClientMessage};

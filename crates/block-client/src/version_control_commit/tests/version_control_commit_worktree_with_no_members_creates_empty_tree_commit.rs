@@ -1,4 +1,4 @@
-use crate::blocks::version_control_data::{empty_tree_hash, VersionControlData, MAIN_BRANCH};
+use crate::blocks::version_control_data::{MAIN_BRANCH, VersionControlData, empty_tree_hash};
 
 use super::Fixture;
 

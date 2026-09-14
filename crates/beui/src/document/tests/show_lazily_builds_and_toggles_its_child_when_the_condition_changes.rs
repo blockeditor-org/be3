@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, create_signal, view, Button, Column, NodeRef, Show, Text};
+use crate::reactive::{Button, Column, NodeRef, Show, Text, build, create_signal, view};
 
 #[test]
 fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {

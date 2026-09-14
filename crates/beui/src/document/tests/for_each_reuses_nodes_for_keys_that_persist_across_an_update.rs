@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, create_signal, view, Button, Column, ForEach, NodeRef, Text};
+use crate::reactive::{Button, Column, ForEach, NodeRef, Text, build, create_signal, view};
 
 #[test]
 fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {

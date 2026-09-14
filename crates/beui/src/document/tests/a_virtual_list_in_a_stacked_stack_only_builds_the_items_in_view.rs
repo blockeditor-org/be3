@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::create_memo;
 use crate::styled::Stack;
-use crate::unstyled::{narrower_than, Container};
+use crate::unstyled::{Container, narrower_than};
 
 const BREAKPOINT: f32 = 500.0;
 const STACKED_LIST_HEIGHT: f32 = 100.0;

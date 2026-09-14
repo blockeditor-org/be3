@@ -1,4 +1,4 @@
-use super::{square, Canvas, CANVAS, LAND};
+use super::{CANVAS, Canvas, LAND, square};
 
 #[test]
 fn fill_carves_holes_with_even_odd_rule() {

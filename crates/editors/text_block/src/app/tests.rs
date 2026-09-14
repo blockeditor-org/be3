@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use block_client::blocks::text::TextDocument;
-use block_client::{block_ref::BlockRef, block_url, BlockClient, BlockHandle};
+use block_client::{BlockClient, BlockHandle, block_ref::BlockRef, block_url};
 use block_editor_plugin::App as _;
 use block_ui_test::EditorTest;
 use uuid::Uuid;
 
-use super::{image_embed_directive, parse_embeds, TextApp};
+use super::{TextApp, image_embed_directive, parse_embeds};
 
 mod classifies_markdown_image;
 mod foreign_workspace_url_is_not_an_embed;

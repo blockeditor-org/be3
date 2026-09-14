@@ -1,5 +1,5 @@
 use super::*;
-use crate::{encode_frame, Hello, Modifiers, PluginIdentity, PointerButton, WheelUnit};
+use crate::{Hello, Modifiers, PluginIdentity, PointerButton, WheelUnit, encode_frame};
 
 fn session() -> HostSession {
     HostSession::new("BE3", vec![Capability::Input, Capability::Lifecycle], true)

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Column, Frame, NodeRef, Show};
+use crate::reactive::{Column, Frame, NodeRef, Show, build, view};
 
 #[test]
 fn a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings() {

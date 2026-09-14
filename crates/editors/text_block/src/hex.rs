@@ -450,12 +450,11 @@ impl TextEditor {
                 &range,
             );
         }
-        if range.is_empty() {
-            if let Some(focus) = focus {
-                if focus / BYTES_PER_ROW < rows {
-                    paint_caret(&painter, origin, focus, &geometry, text_color);
-                }
-            }
+        if range.is_empty()
+            && let Some(focus) = focus
+            && focus / BYTES_PER_ROW < rows
+        {
+            paint_caret(&painter, origin, focus, &geometry, text_color);
         }
     }
 }

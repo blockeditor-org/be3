@@ -25,9 +25,11 @@ fn rejects_child_statuses_for_unopened_instances() {
     accept(&mut session);
     let instance = EditorInstanceId(1);
     open(&mut session, instance);
-    assert!(session
-        .receive(Message::ChildStatuses(vec![status(instance)]))
-        .is_empty());
+    assert!(
+        session
+            .receive(Message::ChildStatuses(vec![status(instance)]))
+            .is_empty()
+    );
     assert_eq!(session.state(), State::Running);
 
     let responses = session.receive(Message::ChildStatuses(vec![status(EditorInstanceId(9))]));

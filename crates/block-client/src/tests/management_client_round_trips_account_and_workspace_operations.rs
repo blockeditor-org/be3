@@ -27,11 +27,13 @@ async fn management_client_round_trips_account_and_workspace_operations() {
             .account,
         owner.account
     );
-    assert!(client
-        .list_workspaces(&owner.token)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        client
+            .list_workspaces(&owner.token)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     let workspace = client
         .create_workspace(&owner.token, "Workspace")
         .await

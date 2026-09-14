@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::support::{request, watch, TestServer};
+use super::support::{TestServer, request, watch};
 use block::{BlockAccess, BlockParent, ClientMessage, ErrorCode, ServerMessage};
 use futures_util::StreamExt;
 use uuid::Uuid;

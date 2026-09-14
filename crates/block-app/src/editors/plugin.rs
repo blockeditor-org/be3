@@ -1,4 +1,4 @@
-use block_client::{blocks, blocks::workspace_index::BlockEntry, BlockClient, BlockHandleAccess};
+use block_client::{BlockClient, BlockHandleAccess, blocks, blocks::workspace_index::BlockEntry};
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, ChildRect, CreationMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, PresenceEntry,
@@ -6,19 +6,19 @@ use block_plugin_api::{
 };
 use eframe::egui;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc,
+    atomic::{AtomicU64, Ordering},
 };
 use uuid::Uuid;
 
 pub(crate) mod discovery;
 
 use super::{
-    embedded_editor_ui, frame_child_ui, paint_block_fallback, rect_corners, ArtifactSession,
-    ArtifactStatus, BlockEditor, BlockRenderContext, CreationStep, DirectEditorCapabilities,
-    DirectEditorInteraction, DirectEditorResize, DirectEditorViewport, DirectEditorViewportCommand,
-    DirectEditorViewportInput, EditorAccess, EditorAction, EditorRegistry, FrameSlot,
-    PendingCreation,
+    ArtifactSession, ArtifactStatus, BlockEditor, BlockRenderContext, CreationStep,
+    DirectEditorCapabilities, DirectEditorInteraction, DirectEditorResize, DirectEditorViewport,
+    DirectEditorViewportCommand, DirectEditorViewportInput, EditorAccess, EditorAction,
+    EditorRegistry, FrameSlot, PendingCreation, embedded_editor_ui, frame_child_ui,
+    paint_block_fallback, rect_corners,
 };
 use crate::{
     block_picker::BlockPicker,
@@ -218,7 +218,7 @@ impl PendingCreation for PluginCreation {
                 return Err(format!(
                     "{} could not be created: {error}",
                     self.plugin.display_name
-                ))
+                ));
             }
             CreationState::Ready => {}
         }
@@ -277,20 +277,20 @@ fn serve_block_pick(
     excluded: Vec<Uuid>,
     parent: block::BlockParent,
 ) {
-    if pending.is_none() {
-        if let Some(request) = crate::plugin_host::take_block_pick(plugin_id, instance) {
-            let mut picker = BlockPicker::default();
-            let excluded: Vec<_> = excluded.into_iter().chain(request.excluded).collect();
-            if request.templates {
-                picker.open_templates_for_types(excluded, request.block_types);
-            } else {
-                picker.open_for_types(excluded, request.block_types);
-            }
-            *pending = Some(PendingBlockPick {
-                request_id: request.request_id,
-                picker,
-            });
+    if pending.is_none()
+        && let Some(request) = crate::plugin_host::take_block_pick(plugin_id, instance)
+    {
+        let mut picker = BlockPicker::default();
+        let excluded: Vec<_> = excluded.into_iter().chain(request.excluded).collect();
+        if request.templates {
+            picker.open_templates_for_types(excluded, request.block_types);
+        } else {
+            picker.open_for_types(excluded, request.block_types);
         }
+        *pending = Some(PendingBlockPick {
+            request_id: request.request_id,
+            picker,
+        });
     }
     let Some(waiting) = pending.as_mut() else {
         return;
@@ -369,10 +369,8 @@ impl PluginEditor {
                 ui.set_min_size(screen.size());
                 ui.painter().rect_filled(screen, 0.0, egui::Color32::BLACK);
                 action = self.frame_ui(ui, editors, FrameSpec::default(), screen.size(), None);
-                if entered {
-                    if let Some(id) = self.main_region_id {
-                        ui.ctx().memory_mut(|memory| memory.request_focus(id));
-                    }
+                if entered && let Some(id) = self.main_region_id {
+                    ui.ctx().memory_mut(|memory| memory.request_focus(id));
                 }
             });
         action
@@ -501,22 +499,22 @@ impl PluginEditor {
             action = action.or(next);
         }
         presentation.present(ui);
-        if region == EditorRegion::Frame {
-            if let Some(rect) = presentation.loading_rect {
-                let rect = rect.intersect(ui.clip_rect());
-                let mut loading = ui.new_child(
-                    egui::UiBuilder::new()
-                        .id_salt(("plugin-loading", self.instance.0))
-                        .max_rect(rect),
-                );
-                loading.set_clip_rect(rect);
-                loading.centered_and_justified(|ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.spinner();
-                        ui.weak("Loading plugin…");
-                    });
+        if region == EditorRegion::Frame
+            && let Some(rect) = presentation.loading_rect
+        {
+            let rect = rect.intersect(ui.clip_rect());
+            let mut loading = ui.new_child(
+                egui::UiBuilder::new()
+                    .id_salt(("plugin-loading", self.instance.0))
+                    .max_rect(rect),
+            );
+            loading.set_clip_rect(rect);
+            loading.centered_and_justified(|ui| {
+                ui.vertical_centered(|ui| {
+                    ui.spinner();
+                    ui.weak("Loading plugin…");
                 });
-            }
+            });
         }
         for child in presentation
             .children

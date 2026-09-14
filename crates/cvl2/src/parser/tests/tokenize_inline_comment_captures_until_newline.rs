@@ -22,9 +22,11 @@ fn tokenize_inline_comment_captures_until_newline() {
         other => panic!("expected a raw comment token, got {other:?}"),
     }
 
-    assert!(find_first(
-        &result.result,
-        &|n| matches!(n, SyntaxNode::Identifier(t) if t.str == "abc")
-    )
-    .is_some());
+    assert!(
+        find_first(
+            &result.result,
+            &|n| matches!(n, SyntaxNode::Identifier(t) if t.str == "abc")
+        )
+        .is_some()
+    );
 }

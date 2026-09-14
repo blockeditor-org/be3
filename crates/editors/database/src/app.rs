@@ -9,9 +9,9 @@ use block_client::blocks::database_schema::{
 use block_client::blocks::database_view::DatabaseView;
 use block_client::references::ReferenceResolutionCache;
 use block_client::{BlockClient, BlockHandle, ReferenceList};
-use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::{egui, EditorHost};
+use block_editor_plugin::block_ui::test_id::TestId;
+use block_editor_plugin::{EditorHost, egui};
 use uuid::Uuid;
 
 const INTRINSIC_WIDTH: f32 = 400.0;

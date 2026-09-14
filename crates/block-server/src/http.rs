@@ -140,7 +140,7 @@ fn parse_head(buffer: &[u8]) -> Result<Option<(RequestHead, usize)>, ServerError
         Err(error) => {
             return Err(ServerError::InvalidRequest(format!(
                 "malformed HTTP request: {error}"
-            )))
+            )));
         }
     };
     let head = RequestHead {

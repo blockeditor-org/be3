@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, create_signal, view, Frame, ItemSize, NodeRef, Text, VirtualList};
+use crate::reactive::{Frame, ItemSize, NodeRef, Text, VirtualList, build, create_signal, view};
 
 #[test]
 fn evicting_a_virtual_scroll_row_disposes_its_effects() {

@@ -15,8 +15,10 @@ fn invalid_action_index_is_ignored() {
     assert_eq!(screen.description, "Your turn (X)");
     assert_eq!(screen.actions.len(), 7);
     let taken = [cell_label(0), cell_label(1)];
-    assert!(screen
-        .actions
-        .iter()
-        .all(|option| !taken.contains(&option.label)));
+    assert!(
+        screen
+            .actions
+            .iter()
+            .all(|option| !taken.contains(&option.label))
+    );
 }

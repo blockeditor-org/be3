@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use block::BlockReference;
 use block_client::{
     block_ref::BlockRef,
-    blocks::video::{Video, VideoAttachment, VideoClip, MAX_CLIP_LENGTH},
+    blocks::video::{MAX_CLIP_LENGTH, Video, VideoAttachment, VideoClip},
 };
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::egui;

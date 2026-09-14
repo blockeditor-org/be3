@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, NodeRef, Text};
+use crate::reactive::{NodeRef, Text, build, view};
 
 #[test]
 fn dragging_the_inspector_edge_resizes_the_panel() {

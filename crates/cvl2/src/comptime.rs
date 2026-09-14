@@ -1,7 +1,7 @@
 use crate::compiler::{
-    analyze_function, throw_consumed_err, throw_err, AnalysisBlock, AnalysisLine, ComptimeFile,
-    ComptimeValue, ComptimeValueBuildArtifact, Env, NsFields, NsFieldsEntry, PositionedError,
-    RuntimeValue,
+    AnalysisBlock, AnalysisLine, ComptimeFile, ComptimeValue, ComptimeValueBuildArtifact, Env,
+    NsFields, NsFieldsEntry, PositionedError, RuntimeValue, analyze_function, throw_consumed_err,
+    throw_err,
 };
 use crate::parser::{ErrorStyle, TokenPosition};
 

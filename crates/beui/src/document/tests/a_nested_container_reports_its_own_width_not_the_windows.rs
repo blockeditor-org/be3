@@ -1,7 +1,7 @@
 use super::*;
-use crate::reactive::{build, view, ItemSize, Memo, ReadSignal};
+use crate::reactive::{ItemSize, Memo, ReadSignal, build, view};
 use crate::styled::Stack;
-use crate::unstyled::{narrower_than, Container};
+use crate::unstyled::{Container, narrower_than};
 
 const INNER_WIDTH: f32 = 200.0;
 const BREAKPOINT: f32 = 300.0;

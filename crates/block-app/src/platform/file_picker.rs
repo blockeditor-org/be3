@@ -71,10 +71,10 @@ impl FilePicker {
         self.pending = None;
         let mut file = result.transpose()?;
 
-        if let Ok(file) = &mut file {
-            if file.name.is_empty() {
-                file.name.clone_from(&self.default_file_name);
-            }
+        if let Ok(file) = &mut file
+            && file.name.is_empty()
+        {
+            file.name.clone_from(&self.default_file_name);
         }
         Some(file)
     }

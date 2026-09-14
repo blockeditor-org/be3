@@ -5,8 +5,8 @@ use crate::color::Color32;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{clone, create_memo, Callback, Frame, Prop};
-use crate::styled::theme::{use_theme, Theme, BORDER_WIDTH, FONT_BODY, RADIUS};
+use crate::reactive::{Callback, Frame, Prop, clone, create_memo};
+use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
 use crate::unstyled;
 use crate::unstyled::TextInputHandle;
 

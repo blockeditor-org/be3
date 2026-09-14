@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::{identifier_end, SynHlColorScope};
+use super::{SynHlColorScope, identifier_end};
 
 pub(super) fn chain_start_offset(kind: &str, source: &[u8]) -> usize {
     if kind.contains("function_declaration") && source.starts_with(b"pub ") {

@@ -6,10 +6,10 @@ use block_client::blocks::database_schema::{
 };
 use block_client::{BlockClient, BlockHandle};
 use block_editor_plugin::{
-    block_ui::{test_id::TestId, BlockCatalog},
+    EditorHost,
+    block_ui::{BlockCatalog, test_id::TestId},
     egui,
     egui_material_icons::icons::{ICON_ADD, ICON_DELETE},
-    EditorHost,
 };
 use uuid::Uuid;
 

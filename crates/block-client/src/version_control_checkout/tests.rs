@@ -6,15 +6,15 @@ use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 use crate::block_ref::{BlockRef, WorktreeMembership};
-use crate::blocks::version_control_data::{CommitId, VersionControlData, MAIN_BRANCH};
+use crate::blocks::version_control_data::{CommitId, MAIN_BRANCH, VersionControlData};
 use crate::blocks::version_control_worktree::{
     VersionControlWorktree, VersionControlWorktreeMembership,
 };
 use crate::blocks::workspace_index::{WorkspaceIndex, WorkspaceIndexOperation};
-use crate::version_control_commit::{commit_worktree, CommitOutcome};
+use crate::version_control_commit::{CommitOutcome, commit_worktree};
 use crate::{BlockClient, ManagementClient};
 
-use super::{checkout_worktree, materialize_worktree, worktree_is_clean, CheckoutOutcome};
+use super::{CheckoutOutcome, checkout_worktree, materialize_worktree, worktree_is_clean};
 
 mod version_control_checkout_blocked_when_dirty_without_discard;
 mod version_control_checkout_creates_members_missing_from_current_worktree;

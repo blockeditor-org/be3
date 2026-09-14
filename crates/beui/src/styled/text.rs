@@ -4,9 +4,9 @@ use beui_macros::{component, view};
 
 use crate::base::TextAlign;
 use crate::node::NodeId;
-use crate::reactive::{create_memo, Prop, Text};
+use crate::reactive::{Prop, Text, create_memo};
 use crate::styled::theme::{
-    use_theme, FONT_BODY, FONT_DISPLAY, FONT_HEADING, FONT_SMALL, FONT_TITLE, ICON_SIZE,
+    FONT_BODY, FONT_DISPLAY, FONT_HEADING, FONT_SMALL, FONT_TITLE, ICON_SIZE, use_theme,
 };
 
 fn text_color() -> Prop<Color32> {

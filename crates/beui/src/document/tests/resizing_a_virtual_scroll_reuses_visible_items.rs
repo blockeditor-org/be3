@@ -13,9 +13,11 @@ fn resizing_a_virtual_scroll_reuses_visible_items() {
     harness.frame(Vec::new());
     assert!(built.borrow().is_empty());
     assert_eq!(harness.document.children(scroll), original[..2]);
-    assert!(original[2..]
-        .iter()
-        .all(|&id| !harness.document.contains(id)));
+    assert!(
+        original[2..]
+            .iter()
+            .all(|&id| !harness.document.contains(id))
+    );
 
     harness.viewport = VIEWPORT;
     harness.frame(Vec::new());

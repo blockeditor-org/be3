@@ -8,13 +8,13 @@ use block_client::blocks::logic_grid::LogicGrid;
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_client::root_settings::RootSetting;
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::block_ui::BlockLabel;
+use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::egui_material_icons::icons::{
     ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS,
 };
-use block_editor_plugin::{egui, EditorHost};
-use logicgame::challenges::{generate_challenge, ChallengeId};
+use block_editor_plugin::{EditorHost, egui};
+use logicgame::challenges::{ChallengeId, generate_challenge};
 use uuid::Uuid;
 
 use crate::binary_addition::BinaryAdditionQuiz;
@@ -192,14 +192,13 @@ impl block_editor_plugin::App for LogicGameApp {
 
         ui.horizontal(|ui| {
             ui.heading("Levels");
-            if let Some(hotbar) = hotbar {
-                if ui
+            if let Some(hotbar) = hotbar
+                && ui
                     .button(format!("{} Hotbar", ICON_WIDGETS.codepoint))
                     .test_id("logic-game.hotbar")
                     .clicked()
-                {
-                    host.open_block(hotbar, Hotbar::TYPE_ID);
-                }
+            {
+                host.open_block(hotbar, Hotbar::TYPE_ID);
             }
         });
         ui.add_space(8.0);

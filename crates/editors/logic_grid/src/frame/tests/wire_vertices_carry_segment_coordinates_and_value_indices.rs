@@ -20,9 +20,11 @@ fn wire_vertices_carry_segment_coordinates_and_value_indices() {
     assert_eq!(vertices.len(), 6);
     assert_eq!(vertices[0].bit_coord, 0.0);
     assert_eq!(vertices[2].bit_coord, 4.0);
-    assert!(vertices
-        .iter()
-        .all(|vertex| vertex.value_index == 7 && vertex.scale == 4.0));
+    assert!(
+        vertices
+            .iter()
+            .all(|vertex| vertex.value_index == 7 && vertex.scale == 4.0)
+    );
     assert_eq!(frame.wire_values[0].low, 0b1010);
     assert_eq!(frame.wire_values[0].high, 0);
 }

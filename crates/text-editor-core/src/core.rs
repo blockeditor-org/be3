@@ -1,12 +1,12 @@
 use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 use serde::{Deserialize, Serialize};
-use similar::{capture_diff_slices, Algorithm, DiffTag};
+use similar::{Algorithm, DiffTag, capture_diff_slices};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    document::{Anchor, Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
     Highlighter, Language, SyntaxHighlight,
+    document::{Anchor, Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -746,15 +746,15 @@ impl Core {
         resolved.sort_by_key(|(left, right, _, _)| (*left, *right));
         let mut normalized: Vec<(usize, usize, bool, CursorPosition)> = Vec::new();
         for (left, right, is_right, cursor) in resolved {
-            if let Some(previous) = normalized.last_mut() {
-                if left <= previous.1 {
-                    previous.1 = previous.1.max(right);
-                    if right >= previous.1 {
-                        previous.2 = is_right;
-                        previous.3 = cursor;
-                    }
-                    continue;
+            if let Some(previous) = normalized.last_mut()
+                && left <= previous.1
+            {
+                previous.1 = previous.1.max(right);
+                if right >= previous.1 {
+                    previous.2 = is_right;
+                    previous.3 = cursor;
                 }
+                continue;
             }
             normalized.push((left, right, is_right, cursor));
         }
@@ -910,14 +910,13 @@ impl Core {
                 continue;
             }
             let focus = cursor.pos.focus.resolve(&document);
-            if direction == LRDirection::Right {
-                if let Some(section) = sections
+            if direction == LRDirection::Right
+                && let Some(section) = sections
                     .iter()
                     .find(|section| section.collapsed && section.line_end == focus)
-                {
-                    opened.push(section.line_start);
-                    continue;
-                }
+            {
+                opened.push(section.line_start);
+                continue;
             }
             let moved = to_boundary(
                 document.bytes(),
@@ -1772,29 +1771,29 @@ impl Core {
         };
         let anchor = drag.start_pos.resolve(&document);
         let focus = position.resolve(&document);
-        if drag.select_syntax_node {
-            if let Some(highlighter) = self.highlighter.as_mut() {
-                let left = anchor.min(focus);
-                let right = anchor.max(focus);
-                if let Some((start, end)) = highlighter.node_chain(left, right).first().copied() {
-                    self.cursor_positions[0] = CursorPosition {
-                        pos: if focus < anchor {
-                            Selection::range(
-                                Position::at(&document, end),
-                                Position::at(&document, start),
-                            )
-                        } else {
-                            Selection::range(
-                                Position::at(&document, start),
-                                Position::at(&document, end),
-                            )
-                        },
-                        vertical_move_start: None,
-                        node_select_start: Some(Selection::range(drag.start_pos, position)),
-                        drag_info: Some(drag),
-                    };
-                    return;
-                }
+        if drag.select_syntax_node
+            && let Some(highlighter) = self.highlighter.as_mut()
+        {
+            let left = anchor.min(focus);
+            let right = anchor.max(focus);
+            if let Some((start, end)) = highlighter.node_chain(left, right).first().copied() {
+                self.cursor_positions[0] = CursorPosition {
+                    pos: if focus < anchor {
+                        Selection::range(
+                            Position::at(&document, end),
+                            Position::at(&document, start),
+                        )
+                    } else {
+                        Selection::range(
+                            Position::at(&document, start),
+                            Position::at(&document, end),
+                        )
+                    },
+                    vertical_move_start: None,
+                    node_select_start: Some(Selection::range(drag.start_pos, position)),
+                    drag_info: Some(drag),
+                };
+                return;
             }
         }
         let anchor_left = to_boundary(
@@ -2203,11 +2202,7 @@ fn next_line_start(bytes: &[u8], index: usize) -> usize {
 
 fn line_end(bytes: &[u8], index: usize) -> usize {
     let next = next_line_start(bytes, line_start(bytes, index));
-    if next == bytes.len() {
-        next
-    } else {
-        next - 1
-    }
+    if next == bytes.len() { next } else { next - 1 }
 }
 
 fn heading_level(bytes: &[u8], start: usize) -> Option<u8> {
@@ -2600,12 +2595,13 @@ fn grapheme_boundaries(bytes: &[u8]) -> Vec<bool> {
     while index < bytes.len() {
         character_boundaries.push((decoded.len(), index));
         let width = utf8_width(bytes[index]);
-        if width > 0 && index + width <= bytes.len() {
-            if let Ok(value) = std::str::from_utf8(&bytes[index..index + width]) {
-                decoded.push_str(value);
-                index += width;
-                continue;
-            }
+        if width > 0
+            && index + width <= bytes.len()
+            && let Ok(value) = std::str::from_utf8(&bytes[index..index + width])
+        {
+            decoded.push_str(value);
+            index += width;
+            continue;
         }
         decoded.push('\u{fffd}');
         index += 1;

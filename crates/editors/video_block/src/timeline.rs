@@ -7,9 +7,9 @@ use block_client::{
         Video, VideoAttachment, VideoClip, VideoClipTiming, VideoFrameRate, VideoOperation,
     },
 };
-use block_editor_plugin::block_ui::{paint_name, BlockCatalog, BlockLabel};
-use block_editor_plugin::egui::{self, Color32, Rect, Sense, Stroke, Vec2};
 use block_editor_plugin::EditorHost;
+use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel, paint_name};
+use block_editor_plugin::egui::{self, Color32, Rect, Sense, Stroke, Vec2};
 use uuid::Uuid;
 
 use block_client::blocks::video::DEFAULT_CLIP_SECONDS;
@@ -462,19 +462,19 @@ impl VideoApp {
         }
         if let Some(dragged) = &dragged_block {
             host.accept_drag(sidebar_target.is_some());
-            if dragged.dropped {
-                if let Some(target) = sidebar_target {
-                    match target {
-                        TimelineDropTarget::Attach { parent, start, .. } => {
-                            self.insert_clip(video, dragged.block_id, Some(parent), start, Some(0));
-                        }
-                        TimelineDropTarget::Base { index, .. } => {
-                            self.insert_clip(video, dragged.block_id, None, 0, Some(index));
-                        }
-                        TimelineDropTarget::Offset { .. } => {}
+            if dragged.dropped
+                && let Some(target) = sidebar_target
+            {
+                match target {
+                    TimelineDropTarget::Attach { parent, start, .. } => {
+                        self.insert_clip(video, dragged.block_id, Some(parent), start, Some(0));
                     }
-                    self.set_child_parent(dragged.block_id);
+                    TimelineDropTarget::Base { index, .. } => {
+                        self.insert_clip(video, dragged.block_id, None, 0, Some(index));
+                    }
+                    TimelineDropTarget::Offset { .. } => {}
                 }
+                self.set_child_parent(dragged.block_id);
             }
         }
         if background.clicked() || (background.dragged() && !had_internal_drag) {

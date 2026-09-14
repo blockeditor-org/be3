@@ -7,7 +7,7 @@ use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
 use crate::font::{FontId, FontSources, Fonts, Galley};
-use crate::geometry::{pos2, Rect};
+use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, InputState, RawInput};
 use crate::painter::{Painter, Shape};
 

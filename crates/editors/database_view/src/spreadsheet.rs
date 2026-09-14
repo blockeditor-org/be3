@@ -1,28 +1,28 @@
 use std::collections::HashMap;
 
 use block_client::{
+    BlockHandle,
     block_ref::BlockRef,
     blocks::{
         database::{DatabaseColor, DatabaseOperation, DatabaseRow, DatabaseValue},
         database_schema::{DatabaseField, DatabaseFieldType, DatabaseNumberScale},
         database_view::{DatabaseView, DatabaseViewOperation, DatabaseViewSort, SortDirection},
     },
-    BlockHandle,
 };
 use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::block_ui::{
+    BlockLabel,
     database::{
-        block_reference_text, cell_text, database_value_text, field_type_label, number_drag_value,
-        parse_cell_value, DatabaseBlockPickRequest,
+        DatabaseBlockPickRequest, block_reference_text, cell_text, database_value_text,
+        field_type_label, number_drag_value, parse_cell_value,
     },
     datetime::datetime_editor,
-    BlockLabel,
 };
 use block_editor_plugin::egui;
 use block_editor_plugin::egui_material_icons::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD};
 use uuid::Uuid;
 
-use crate::app::{paint_preview_cell, preview_color, BlockRenderContext};
+use crate::app::{BlockRenderContext, paint_preview_cell, preview_color};
 
 const ROW_HEADER_WIDTH: f32 = 44.0;
 const ROW_HEIGHT: f32 = 28.0;
@@ -231,17 +231,17 @@ impl SpreadsheetView {
                 field_id: field.id,
                 value: None,
             });
-        } else if let Some(text) = take_typed_text(ui) {
-            if field.field_type != DatabaseFieldType::Block {
-                if let Some(value) = parse_cell_value(&text, field) {
-                    operations.push(DatabaseOperation::SetCell {
-                        row_index: selected.row_index,
-                        field_id: field.id,
-                        value: Some(value),
-                    });
-                }
-                self.begin_edit(selected.row_index, row, field, Some(text));
+        } else if let Some(text) = take_typed_text(ui)
+            && field.field_type != DatabaseFieldType::Block
+        {
+            if let Some(value) = parse_cell_value(&text, field) {
+                operations.push(DatabaseOperation::SetCell {
+                    row_index: selected.row_index,
+                    field_id: field.id,
+                    value: Some(value),
+                });
             }
+            self.begin_edit(selected.row_index, row, field, Some(text));
         }
     }
 
@@ -683,10 +683,10 @@ fn block_reference_fallback(reference: &BlockRef) -> Uuid {
 
 fn extra_row_count(len: usize, selected: Option<CellAddress>) -> usize {
     let mut extra = 1;
-    if let Some(selected) = selected {
-        if selected.row_index >= len {
-            extra = extra.max(selected.row_index - len + 2);
-        }
+    if let Some(selected) = selected
+        && selected.row_index >= len
+    {
+        extra = extra.max(selected.row_index - len + 2);
     }
     extra
 }

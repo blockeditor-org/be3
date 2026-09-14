@@ -15,11 +15,11 @@ use self::clipboard::Clipboard;
 use crate::color::Color32;
 mod clipboard;
 use crate::context::Context;
-use crate::geometry::{pos2, vec2, Pos2, Rect, Vec2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{
     CursorIcon, Event, Key, Modifiers, PointerButton, RawInput, TouchId, TouchPhase,
 };
-use crate::renderer::{clear_color, Renderer};
+use crate::renderer::{Renderer, clear_color};
 
 const LINE_HEIGHT: f32 = 40.0;
 const DEFAULT_SIZE: Vec2 = Vec2::new(1280.0, 800.0);
@@ -229,10 +229,9 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
                 .next_update
                 .is_some_and(|deadline| deadline <= Instant::now()))
             && self.update()
+            && let Some(surface) = &self.surface
         {
-            if let Some(surface) = &self.surface {
-                surface.window.request_redraw();
-            }
+            surface.window.request_redraw();
         }
         event_loop.set_control_flow(match self.next_update {
             Some(deadline) => ControlFlow::WaitUntil(deadline),
@@ -398,10 +397,9 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
                         && code == KeyCode::KeyV
                         && self.modifiers.ctrl
                         && !self.modifiers.alt
+                        && let Some(text) = self.clipboard.get()
                     {
-                        if let Some(text) = self.clipboard.get() {
-                            self.push(Event::Text(text));
-                        }
+                        self.push(Event::Text(text));
                     }
                     if let Some(key) = key(code) {
                         self.push(Event::Key {
@@ -412,12 +410,13 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
                         });
                     }
                 }
-                if pressed && !self.modifiers.ctrl && !self.modifiers.alt {
-                    if let Some(text) = event.text {
-                        if !text.chars().any(char::is_control) {
-                            self.push(Event::Text(text.to_string()));
-                        }
-                    }
+                if pressed
+                    && !self.modifiers.ctrl
+                    && !self.modifiers.alt
+                    && let Some(text) = event.text
+                    && !text.chars().any(char::is_control)
+                {
+                    self.push(Event::Text(text.to_string()));
                 }
             }
             WindowEvent::RedrawRequested => self.redraw(),

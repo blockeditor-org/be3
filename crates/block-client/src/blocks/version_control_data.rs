@@ -149,11 +149,10 @@ impl Block for VersionControlData {
                 time,
                 message,
             } => {
-                if let Some(parent_id) = parent {
-                    if !data.commits.contains_key(parent_id) {
+                if let Some(parent_id) = parent
+                    && !data.commits.contains_key(parent_id) {
                         return;
                     }
-                }
                 let commit = Commit {
                     parent: parent.clone(),
                     tree_hash: tree_hash.clone(),

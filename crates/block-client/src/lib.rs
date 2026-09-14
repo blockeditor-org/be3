@@ -5,8 +5,8 @@ use std::{
     ops::Deref,
     ops::Range,
     sync::{
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc, OnceLock, Weak,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -1614,10 +1614,10 @@ impl<B: Block> BlockHandleAccess for BlockHandle<B> {
     fn duplicate(&self, client: &BlockClient) -> Option<Uuid> {
         let value = self.read()?.clone();
         let copy = client.create_block(value);
-        if let Some(name) = BlockHandle::block_name(self) {
-            if name.manual {
-                copy.set_property(properties::NAME, properties::encode_name(&name));
-            }
+        if let Some(name) = BlockHandle::block_name(self)
+            && name.manual
+        {
+            copy.set_property(properties::NAME, properties::encode_name(&name));
         }
         Some(BlockHandle::id(&copy))
     }
@@ -2641,23 +2641,23 @@ impl WorkerState {
                 let _guard = guard.write();
                 self.record_access(id, access);
                 let properties = crypto::decode_properties(properties);
-                if let Some(block) = self.blocks.get(&id) {
-                    if !block.is_ready() {
-                        if block.block_type_id() != block_type {
-                            fatal(format!(
-                                "block {id} has type {block_type}, expected {}",
-                                block.block_type_id()
-                            ));
-                        }
-                        block.resolve_authored(
-                            author,
-                            snapshot,
-                            snapshot_seq,
-                            Vec::new(),
-                            parent,
-                            properties.clone(),
-                        );
+                if let Some(block) = self.blocks.get(&id)
+                    && !block.is_ready()
+                {
+                    if block.block_type_id() != block_type {
+                        fatal(format!(
+                            "block {id} has type {block_type}, expected {}",
+                            block.block_type_id()
+                        ));
                     }
+                    block.resolve_authored(
+                        author,
+                        snapshot,
+                        snapshot_seq,
+                        Vec::new(),
+                        parent,
+                        properties.clone(),
+                    );
                 }
                 self.cache_block(CachedBlock {
                     id,
@@ -2864,10 +2864,10 @@ impl WorkerState {
                 _ => BlockAccess::View,
             };
             self.lower_access(id, ceiling);
-            if command == Some(CommandKind::ReadBlock) {
-                if let Some(block) = self.blocks.get(&id) {
-                    block.read_refused();
-                }
+            if command == Some(CommandKind::ReadBlock)
+                && let Some(block) = self.blocks.get(&id)
+            {
+                block.read_refused();
             }
         }
     }
@@ -3446,23 +3446,24 @@ impl<A> HistoryStack<A> {
         metadata: Option<HistoryMetadata>,
     ) {
         self.redo.clear();
-        if matches!(mode, HistoryMode::Grouped) && self.group_open {
-            if let Some(previous) = self.undo.back_mut() {
-                let old_bytes = previous.bytes;
-                match H::merge(&mut previous.action, action) {
-                    Ok(()) => {
-                        previous.bytes = H::action_bytes(&previous.action).saturating_add(
-                            previous.metadata.as_ref().map_or(0, HistoryMetadata::bytes),
-                        );
-                        self.undo_bytes = self
-                            .undo_bytes
-                            .saturating_sub(old_bytes)
-                            .saturating_add(previous.bytes);
-                        self.evict();
-                        return;
-                    }
-                    Err(next) => action = next,
+        if matches!(mode, HistoryMode::Grouped)
+            && self.group_open
+            && let Some(previous) = self.undo.back_mut()
+        {
+            let old_bytes = previous.bytes;
+            match H::merge(&mut previous.action, action) {
+                Ok(()) => {
+                    previous.bytes = H::action_bytes(&previous.action).saturating_add(
+                        previous.metadata.as_ref().map_or(0, HistoryMetadata::bytes),
+                    );
+                    self.undo_bytes = self
+                        .undo_bytes
+                        .saturating_sub(old_bytes)
+                        .saturating_add(previous.bytes);
+                    self.evict();
+                    return;
                 }
+                Err(next) => action = next,
             }
         }
         let bytes = H::action_bytes(&action)
@@ -3700,12 +3701,12 @@ impl<B: Block> TypedBlock<B> {
             history_before.and_then(|before| B::History::action(before, value, &operations))
         };
         drop(state);
-        if !matches!(history_mode, HistoryMode::None) {
-            if let Some(action) = history_action {
-                self.history
-                    .write()
-                    .push::<B, B::History>(action, history_mode, history_metadata);
-            }
+        if !matches!(history_mode, HistoryMode::None)
+            && let Some(action) = history_action
+        {
+            self.history
+                .write()
+                .push::<B, B::History>(action, history_mode, history_metadata);
         }
     }
 

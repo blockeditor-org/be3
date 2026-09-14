@@ -1,6 +1,6 @@
 use super::support::{
-    add_member, create, create_workspace, read, references, register, set_access, set_parent,
-    update, TestServer,
+    TestServer, add_member, create, create_workspace, read, references, register, set_access,
+    set_parent, update,
 };
 use block::{
     BlockAccess, BlockParent, BlockReferenceList, ErrorCode, ServerMessage, WorkspaceRole,
@@ -30,9 +30,11 @@ async fn editors_only_reach_blocks_they_authored_or_were_granted() {
 
     let mut editor_socket = server.connect_to(&editor.token, workspace.id).await;
 
-    assert!(references(&mut editor_socket, BlockReferenceList::Roots)
-        .await
-        .is_empty());
+    assert!(
+        references(&mut editor_socket, BlockReferenceList::Roots)
+            .await
+            .is_empty()
+    );
     assert!(matches!(
         read(&mut editor_socket, private).await,
         ServerMessage::Error {

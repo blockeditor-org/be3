@@ -1,7 +1,7 @@
 use block_gpu_abi as abi;
 
 #[link(wasm_import_module = "be3_host")]
-extern "C" {
+unsafe extern "C" {
     fn host_send(pointer: u32, length: u32);
     fn host_receive(pointer: u32, capacity: u32) -> i64;
     fn host_now() -> f64;

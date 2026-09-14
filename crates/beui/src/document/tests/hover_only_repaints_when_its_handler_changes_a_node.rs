@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    build, create_effect, create_signal, view, with_document, ClickCatcher, Frame, NodeRef,
+    ClickCatcher, Frame, NodeRef, build, create_effect, create_signal, view, with_document,
 };
 
 #[test]

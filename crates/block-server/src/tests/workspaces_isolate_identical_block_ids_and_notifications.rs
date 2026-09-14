@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::support::{create, create_workspace, references, request, TestServer};
+use super::support::{TestServer, create, create_workspace, references, request};
 use block::{BlockReferenceList, ClientMessage, ReferenceDelta, ServerMessage};
 use futures_util::StreamExt;
 use uuid::Uuid;
@@ -39,12 +39,14 @@ async fn workspaces_isolate_identical_block_ids_and_notifications() {
             .await
             .is_empty()
     );
-    assert!(references(
-        &mut second_socket,
-        BlockReferenceList::Backrefs(second_only)
-    )
-    .await
-    .is_empty());
+    assert!(
+        references(
+            &mut second_socket,
+            BlockReferenceList::Backrefs(second_only)
+        )
+        .await
+        .is_empty()
+    );
 
     let _ = request(
         &mut first_socket,

@@ -96,7 +96,7 @@ pub fn strip_comments(source: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
 
 fn parse(source: &[u8]) -> Result<SourceFile, Box<dyn Error>> {
     let source = std::str::from_utf8(source)?;
-    SourceFile::parse(source, Edition::Edition2021)
+    SourceFile::parse(source, Edition::Edition2024)
         .ok()
         .map_err(|errors| {
             let errors = errors
@@ -184,13 +184,12 @@ fn attributed_test_functions(node: &SyntaxNode) -> Vec<TestFunction> {
         if function
             .attrs()
             .any(|attribute| is_test_attribute(&attribute))
+            && let Some(name) = function.name()
         {
-            if let Some(name) = function.name() {
-                functions.push(TestFunction {
-                    name: name.text().trim_start_matches("r#").to_owned(),
-                    range: syntax_range(function.syntax().text_range()),
-                });
-            }
+            functions.push(TestFunction {
+                name: name.text().trim_start_matches("r#").to_owned(),
+                range: syntax_range(function.syntax().text_range()),
+            });
         }
     }
     functions
@@ -206,15 +205,15 @@ fn is_test_attribute(attribute: &ast::Attr) -> bool {
 
 fn inline_tests(node: &SyntaxNode) -> Option<InlineTests> {
     for module in node.children().filter_map(ast::Module::cast) {
-        if module.name().is_some_and(|name| name.text() == "tests") {
-            if let Some(body) = module.item_list() {
-                return Some(InlineTests {
-                    range: syntax_range(module.syntax().text_range()),
-                    body_range: u32::from(body.l_curly_token()?.text_range().end()) as usize
-                        ..u32::from(body.r_curly_token()?.text_range().start()) as usize,
-                    functions: attributed_test_functions(body.syntax()),
-                });
-            }
+        if module.name().is_some_and(|name| name.text() == "tests")
+            && let Some(body) = module.item_list()
+        {
+            return Some(InlineTests {
+                range: syntax_range(module.syntax().text_range()),
+                body_range: u32::from(body.l_curly_token()?.text_range().end()) as usize
+                    ..u32::from(body.r_curly_token()?.text_range().start()) as usize,
+                functions: attributed_test_functions(body.syntax()),
+            });
         }
     }
     None
@@ -259,13 +258,13 @@ fn find_violations(root: &Path) -> Result<Vec<String>, Box<dyn Error>> {
             ));
         }
         if let Some((production, module)) = production_and_module_for_tests(path.parent().unwrap())
+            && production.exists()
+            && !aggregator_declares(&production, module)?
         {
-            if production.exists() && !aggregator_declares(&production, module)? {
-                violations.push(format!(
-                    "tests declaration: {}",
-                    relative(root, &production)
-                ));
-            }
+            violations.push(format!(
+                "tests declaration: {}",
+                relative(root, &production)
+            ));
         }
     }
 
@@ -690,12 +689,11 @@ fn synchronize_test_modules(root: &Path) -> Result<(), Box<dyn Error>> {
         )?;
         if let Some((production, production_module)) =
             production_and_module_for_tests(path.parent().unwrap())
+            && production.exists()
         {
-            if production.exists() {
-                let mut source = fs::read(&production)?;
-                append_test_declaration(&mut source, production_module);
-                fs::write(production, source)?;
-            }
+            let mut source = fs::read(&production)?;
+            append_test_declaration(&mut source, production_module);
+            fs::write(production, source)?;
         }
     }
     Ok(())

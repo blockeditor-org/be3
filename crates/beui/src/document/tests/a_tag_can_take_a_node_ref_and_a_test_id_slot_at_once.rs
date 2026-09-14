@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Column, NodeRef, Spacer};
+use crate::reactive::{Column, NodeRef, Spacer, build, view};
 
 #[test]
 fn a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once() {

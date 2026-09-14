@@ -1,6 +1,6 @@
 use std::{env, fs, process::ExitCode};
 
-use cvl2::{import_file, pretty_print_errors, render_tokenized_output, tokenize, Source};
+use cvl2::{Source, import_file, pretty_print_errors, render_tokenized_output, tokenize};
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();

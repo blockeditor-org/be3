@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, intrinsic, view, NodeRef, Scroll};
+use crate::reactive::{NodeRef, Scroll, build, intrinsic, view};
 
 #[test]
 fn tabbing_to_an_offscreen_control_reveals_it() {

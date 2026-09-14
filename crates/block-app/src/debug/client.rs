@@ -1,6 +1,6 @@
 use block_client::{
-    properties, BlockDebugSnapshot, ClientDebugEntry, ClientDebugSnapshot,
-    PendingRequestDebugSnapshot,
+    BlockDebugSnapshot, ClientDebugEntry, ClientDebugSnapshot, PendingRequestDebugSnapshot,
+    properties,
 };
 use eframe::egui;
 
@@ -229,11 +229,7 @@ fn monospace(ui: &mut egui::Ui, value: impl ToString) {
 }
 
 fn yes_no(value: bool) -> &'static str {
-    if value {
-        "Yes"
-    } else {
-        "No"
-    }
+    if value { "Yes" } else { "No" }
 }
 
 fn empty(ui: &mut egui::Ui) {

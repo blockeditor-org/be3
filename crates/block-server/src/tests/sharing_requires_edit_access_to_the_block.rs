@@ -1,5 +1,5 @@
 use super::support::{
-    add_member, create, create_workspace, list_access, register, set_access, TestServer,
+    TestServer, add_member, create, create_workspace, list_access, register, set_access,
 };
 use block::{BlockAccess, ErrorCode, ServerMessage, WorkspaceRole};
 use uuid::Uuid;

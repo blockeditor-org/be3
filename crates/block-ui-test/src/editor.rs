@@ -1,5 +1,5 @@
 use block_editor_plugin::{App, EditorHost, ViewChange};
-use egui_kittest::kittest::{by, Queryable as _};
+use egui_kittest::kittest::{Queryable as _, by};
 use egui_kittest::{Harness, Node};
 use paint_snapshot::Snapshot;
 

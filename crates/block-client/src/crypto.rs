@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 use chacha20poly1305::{
-    aead::{Aead, AeadCore, KeyInit, OsRng},
     ChaCha20Poly1305, Key, Nonce,
+    aead::{Aead, AeadCore, KeyInit, OsRng},
 };
-use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
+use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use uuid::Uuid;
 
 use crate::fatal;

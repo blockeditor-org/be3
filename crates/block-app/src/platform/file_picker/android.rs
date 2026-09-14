@@ -1,15 +1,15 @@
 use std::sync::{
-    mpsc::{self, Receiver, Sender},
     Mutex, OnceLock,
+    mpsc::{self, Receiver, Sender},
 };
 
 use jni::{
+    Env, EnvUnowned, Outcome,
     errors::Error as JniError,
     jni_sig, jni_str,
     objects::{JByteArray, JClass, JObject, JString, JValue},
     refs::Reference,
     vm::JavaVM,
-    Env, EnvUnowned, Outcome,
 };
 
 use super::{FileFilter, PickResult, PickedFile};

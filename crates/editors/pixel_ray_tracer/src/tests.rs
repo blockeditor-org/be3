@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use block_client::blocks::pixel_ray_tracer::{
-    PixelRayTracer, PixelRayTracerOperation, PixelUpdate, PIXEL_RAY_TRACER_BACKGROUND,
+    PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracer, PixelRayTracerOperation, PixelUpdate,
 };
 use block_client::{BlockClient, BlockHandle};
 use block_editor_plugin::{App as _, EditorHost};

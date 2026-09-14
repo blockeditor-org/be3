@@ -7,22 +7,23 @@ use std::{
 
 use block_plugin_api::{
     ArtifactDescription, BlockCommand, BlockPick, Capability, EditorInstanceId, EditorMessage,
-    EditorRegion, HostSession, Message, PluginManifest, PresenceEntry, ScreenId, ScreenLayout,
-    ScreenRequest, SessionState, ViewChange, MAX_QUEUED_MESSAGES,
+    EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, PresenceEntry,
+    ScreenId, ScreenLayout, ScreenRequest, SessionState, ViewChange,
 };
 use eframe::egui;
 use uuid::Uuid;
 
 use super::{
+    ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, EditorBlock,
+    EditorSlot, HostChild, HostChildStatus, InstanceRole, PreviewPresentation, PreviewSlot,
+    RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Platform},
     input,
     instances::{Focus, Instances, OpenRequest, Placement},
     presenter::{
-        self, PresenterCallback, PresenterState, PresenterStatus, Quad, Shared, MAX_SURFACES,
+        self, MAX_SURFACES, PresenterCallback, PresenterState, PresenterStatus, Quad, Shared,
     },
-    preview_size, ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState,
-    EditorBlock, EditorSlot, HostChild, HostChildStatus, InstanceRole, PreviewPresentation,
-    PreviewSlot, RuntimeStatus, SurfaceStatus,
+    preview_size,
 };
 
 const CROWDED: &str = "Too many plugin runtimes are already presenting.";
@@ -601,10 +602,11 @@ pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresen
         runtime.send(messages);
         if hovering && runtime.instances.drag_accepted(instance) {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Alias);
-        } else if response.hovered() && !over_hole {
-            if let Some(cursor) = runtime.instances.cursor(instance, region) {
-                ui.ctx().set_cursor_icon(cursor);
-            }
+        } else if response.hovered()
+            && !over_hole
+            && let Some(cursor) = runtime.instances.cursor(instance, region)
+        {
+            ui.ctx().set_cursor_icon(cursor);
         }
         if let Some(ime) = runtime.instances.ime(instance, region, response.rect) {
             ui.ctx().output_mut(|output| output.ime = Some(ime));

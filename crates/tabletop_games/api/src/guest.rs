@@ -1,4 +1,4 @@
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{Layout, alloc, dealloc};
 use std::convert::Infallible;
 
 use crate::{GameHelper, GameRequest, GameScreen};
@@ -50,17 +50,17 @@ fn hand_back(bytes: Vec<u8>) -> u64 {
 #[macro_export]
 macro_rules! game {
     ($name:expr, $play:path) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn name() -> u64 {
             $crate::guest::text($name)
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn allocate(length: u32) -> u32 {
             $crate::guest::allocate(length)
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn show(pointer: u32, length: u32) -> u64 {
             $crate::guest::show(pointer, length, $play)
         }

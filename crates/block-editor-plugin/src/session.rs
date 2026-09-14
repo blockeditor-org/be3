@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Capability, EditorInstanceId, ErrorCode, Hello, Message, PluginIdentity, ProtocolError,
-    ScreenId, PROTOCOL_VERSION,
+    Capability, EditorInstanceId, ErrorCode, Hello, Message, PROTOCOL_VERSION, PluginIdentity,
+    ProtocolError, ScreenId,
 };
 use std::collections::HashSet;
 

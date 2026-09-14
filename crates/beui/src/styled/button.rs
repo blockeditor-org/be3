@@ -4,8 +4,8 @@ use crate::color::Color32;
 
 use crate::base::TextAlign;
 use crate::node::NodeId;
-use crate::reactive::{clone, create_memo, ClickCallback, Frame, Prop, Text};
-use crate::styled::theme::{use_theme, Theme, BORDER_WIDTH, FONT_BODY, RADIUS};
+use crate::reactive::{ClickCallback, Frame, Prop, Text, clone, create_memo};
+use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
 use crate::unstyled;
 
 const PADDING_HORIZONTAL: f32 = 16.0;

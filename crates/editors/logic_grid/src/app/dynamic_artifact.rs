@@ -1,7 +1,7 @@
 use block::Block;
 use block_client::{
-    blocks::{compiled_logic::CompiledLogic, logic_grid::LogicGrid},
     BlockClient, BlockHandle, DynamicArtifactDescriptor,
+    blocks::{compiled_logic::CompiledLogic, logic_grid::LogicGrid},
 };
 use block_editor_plugin::egui;
 use serde::{Deserialize, Serialize};

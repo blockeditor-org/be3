@@ -280,12 +280,11 @@ impl LogicGridEditor {
         if !ui.ctx().egui_wants_keyboard_input() {
             ui.ctx().input(|input| {
                 for (index, key) in HOTBAR_KEYS.iter().enumerate() {
-                    if input.key_pressed(*key) {
-                        if let Some((path, slot)) = key_entries.get(index) {
-                            if !self.hotbar_slot_disabled(slot) {
-                                action = Some(HotbarAction::SelectPath(path.clone()));
-                            }
-                        }
+                    if input.key_pressed(*key)
+                        && let Some((path, slot)) = key_entries.get(index)
+                        && !self.hotbar_slot_disabled(slot)
+                    {
+                        action = Some(HotbarAction::SelectPath(path.clone()));
                     }
                 }
                 if input.key_pressed(egui::Key::Backtick) {

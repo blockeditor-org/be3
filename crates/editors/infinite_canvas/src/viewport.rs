@@ -1,4 +1,4 @@
-use block_editor_plugin::{egui, EditorHost, ViewChange};
+use block_editor_plugin::{EditorHost, ViewChange, egui};
 
 pub(crate) struct Viewport {
     host: EditorHost,

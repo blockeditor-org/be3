@@ -7,12 +7,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::context::Context;
-use crate::geometry::{pos2, Rect};
+use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, Event, Key as InputKey};
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{with_reactive_scope, WriteSignal};
+use crate::reactive::{WriteSignal, with_reactive_scope};
 use crate::styled::Theme;
 
 use panel::Summary;

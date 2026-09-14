@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Frame, ReadSignal, Spacer};
+use crate::reactive::{Frame, ReadSignal, Spacer, build, view};
 use crate::unstyled::Container;
 
 const PANEL_WIDTH: f32 = 200.0;

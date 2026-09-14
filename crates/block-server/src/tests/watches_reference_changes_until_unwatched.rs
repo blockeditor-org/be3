@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::support::{create, request, update, TestServer};
+use super::support::{TestServer, create, request, update};
 use block::{BlockReferenceList, ClientMessage, ServerMessage};
 use futures_util::StreamExt;
 use tokio::time::timeout;
@@ -54,9 +54,11 @@ async fn watches_reference_changes_until_unwatched() {
         ServerMessage::Ok { .. }
     ));
     update(&mut writer, source, vec![child], vec![]).await;
-    assert!(timeout(Duration::from_millis(100), watcher.next())
-        .await
-        .is_err());
+    assert!(
+        timeout(Duration::from_millis(100), watcher.next())
+            .await
+            .is_err()
+    );
 
     server.cleanup().await;
 }

@@ -55,10 +55,12 @@ fn connection_markers_are_inward_and_stay_inside_component_bounds() {
                 ConnectionDirection::Output => boundary_center,
             };
             assert_eq!(marker.positions[0], expected_tip);
-            assert!(marker
-                .positions
-                .iter()
-                .all(|[x, y]| { (10.0..=11.0).contains(x) && (20.0..=22.0).contains(y) }));
+            assert!(
+                marker
+                    .positions
+                    .iter()
+                    .all(|[x, y]| { (10.0..=11.0).contains(x) && (20.0..=22.0).contains(y) })
+            );
         }
     }
 }

@@ -2,12 +2,12 @@ use std::rc::Rc;
 
 use block_client::blocks::checklist::Checklist;
 use block_editor_plugin::beui::reactive::{
-    build, clone, create_memo, create_signal, view, with_reactive_scope, CenteredRow, Column,
-    ForEach, Frame, ItemSize, ReadSignal, Scroll, Show, WriteSignal,
+    CenteredRow, Column, ForEach, Frame, ItemSize, ReadSignal, Scroll, Show, WriteSignal, build,
+    clone, create_memo, create_signal, view, with_reactive_scope,
 };
 use block_editor_plugin::beui::styled::{
-    use_theme, Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, TextInput,
-    ToggleButton,
+    Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, TextInput,
+    ToggleButton, use_theme,
 };
 use block_editor_plugin::beui::{Color32, Context, Document, NodeId, Rect, TextAlign};
 

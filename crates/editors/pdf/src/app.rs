@@ -1,13 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use block_client::{
-    blocks::pdf::{Pdf, PdfOperation},
     BlockClient, BlockHandle,
+    blocks::pdf::{Pdf, PdfOperation},
 };
 use block_editor_plugin::{
-    egui,
+    EditorHost, FileFilter, FilePicker, PerformanceReporter, PickedFile, egui,
     egui_material_icons::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD},
-    EditorHost, FileFilter, FilePicker, PerformanceReporter, PickedFile,
 };
 use uuid::Uuid;
 
@@ -178,10 +177,10 @@ impl block_editor_plugin::App for PdfApp {
                 self.page += 1;
             }
             ui.separator();
-            if ui.button("Fit view").clicked() {
-                if let Some(editing) = &self.editing {
-                    editing.host.fit_view();
-                }
+            if ui.button("Fit view").clicked()
+                && let Some(editing) = &self.editing
+            {
+                editing.host.fit_view();
             }
         });
     }

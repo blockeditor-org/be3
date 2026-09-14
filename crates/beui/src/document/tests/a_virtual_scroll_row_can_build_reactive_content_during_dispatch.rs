@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, ItemSize, NodeRef, Text, VirtualList};
+use crate::reactive::{ItemSize, NodeRef, Text, VirtualList, build, view};
 
 #[test]
 fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {

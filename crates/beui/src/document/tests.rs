@@ -112,15 +112,15 @@ use std::rc::Rc;
 
 use crate::color::Color32;
 use crate::context::Context;
-use crate::geometry::{pos2, Pos2, Vec2};
+use crate::geometry::{Pos2, Vec2, pos2};
 use crate::input::{Event, Key, Modifiers, PointerButton, RawInput};
 use crate::input::{TouchId, TouchPhase};
 
 use crate::base::list::{Direction, ItemSize};
 use crate::inspector::Inspector;
 use crate::reactive::{
-    build, intrinsic, with_document, ClickCallback, Column, Frame, NodeRef, Spacer, Text,
-    VirtualList,
+    ClickCallback, Column, Frame, NodeRef, Spacer, Text, VirtualList, build, intrinsic,
+    with_document,
 };
 use crate::styled;
 use crate::unstyled;

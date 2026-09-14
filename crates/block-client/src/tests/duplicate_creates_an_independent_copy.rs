@@ -2,8 +2,8 @@ use block::BlockParent;
 use uuid::Uuid;
 
 use super::{
-    lib_test_support::{Counter, CounterOperation},
     BlockClient, BlockHandleAccess,
+    lib_test_support::{Counter, CounterOperation},
 };
 
 #[test]

@@ -9,12 +9,12 @@ mod web;
 #[cfg(all(target_arch = "wasm32", feature = "hosted"))]
 pub use hosted::pump;
 #[cfg(all(target_arch = "wasm32", feature = "hosted"))]
-pub(crate) use hosted::{post_json, spawn_worker, Socket};
+pub(crate) use hosted::{Socket, post_json, spawn_worker};
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) use native::{post_json, spawn_worker, Socket};
+pub(crate) use native::{Socket, post_json, spawn_worker};
 pub(crate) use tunnel::TunnelSocket;
 #[cfg(all(target_arch = "wasm32", not(feature = "hosted")))]
-pub(crate) use web::{post_json, spawn_worker, Socket};
+pub(crate) use web::{Socket, post_json, spawn_worker};
 
 pub(crate) enum Link {
     Socket(Socket),

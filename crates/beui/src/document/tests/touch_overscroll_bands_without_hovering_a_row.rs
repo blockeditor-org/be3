@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    build, intrinsic, view, ClickCatcher, Column, Frame, ItemSize, NodeRef, Scroll, Spacer,
+    ClickCatcher, Column, Frame, ItemSize, NodeRef, Scroll, Spacer, build, intrinsic, view,
 };
 
 #[test]

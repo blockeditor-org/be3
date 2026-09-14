@@ -10,7 +10,7 @@ use crate::painter::Painter;
 
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
-use crate::reactive::{create_effect, with_document, Callback, Child, ClickCallback, Prop};
+use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
 
 use beui_macros::component;
 

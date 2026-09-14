@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use block_wasm_host::{precompile, PRECOMPILED_EXTENSION};
+use block_wasm_host::{PRECOMPILED_EXTENSION, precompile};
 
 fn main() {
     let mut target = None;

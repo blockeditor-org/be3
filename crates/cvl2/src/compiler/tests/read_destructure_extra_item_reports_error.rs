@@ -12,7 +12,9 @@ fn read_destructure_extra_item_reports_error() {
         panic!("expected a fresh error");
     };
 
-    assert!(e.entries[0]
-        .message
-        .starts_with("Unexpected item for destructuring."));
+    assert!(
+        e.entries[0]
+            .message
+            .starts_with("Unexpected item for destructuring.")
+    );
 }

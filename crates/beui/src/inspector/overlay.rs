@@ -1,12 +1,12 @@
 use crate::color::Color32;
 use crate::font::FontId;
-use crate::geometry::{pos2, vec2, Pos2, Rect};
+use crate::geometry::{Pos2, Rect, pos2, vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::styled::theme::{CHIP_RADIUS, FONT_SMALL};
 use crate::styled::Theme;
+use crate::styled::theme::{CHIP_RADIUS, FONT_SMALL};
 
 use super::tree;
 

@@ -21,12 +21,16 @@ async fn management_answers_a_cors_preflight() {
 
     assert_eq!(preflight.status(), 204);
     assert_eq!(preflight.header("access-control-allow-origin"), Some("*"));
-    assert!(preflight
-        .header("access-control-allow-methods")
-        .is_some_and(|methods| methods.contains("POST")));
-    assert!(preflight
-        .header("access-control-allow-headers")
-        .is_some_and(|headers| headers.contains("content-type")));
+    assert!(
+        preflight
+            .header("access-control-allow-methods")
+            .is_some_and(|methods| methods.contains("POST"))
+    );
+    assert!(
+        preflight
+            .header("access-control-allow-headers")
+            .is_some_and(|headers| headers.contains("content-type"))
+    );
 
     let response = tokio::task::spawn_blocking(move || {
         match ureq::post(&url)

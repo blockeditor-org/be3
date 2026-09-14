@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    build, create_memo, create_signal, view, Button, Column, ItemSize, NodeRef, Row, Text,
+    Button, Column, ItemSize, NodeRef, Row, Text, build, create_memo, create_signal, view,
 };
 
 const FIXED_WIDTH: f32 = 30.0;

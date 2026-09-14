@@ -45,9 +45,11 @@ fn input_and_output_leads_extend_to_the_viewport_edge() {
     assert_eq!(vertices.len(), 12);
 
     let input_verts = &vertices[..6];
-    assert!(input_verts
-        .iter()
-        .all(|v| v.fill_color == DrawTriangle::INPUT_COLOR));
+    assert!(
+        input_verts
+            .iter()
+            .all(|v| v.fill_color == DrawTriangle::INPUT_COLOR)
+    );
 
     let top_y_clip = input_verts
         .iter()
@@ -59,9 +61,11 @@ fn input_and_output_leads_extend_to_the_viewport_edge() {
     );
 
     let output_verts = &vertices[6..];
-    assert!(output_verts
-        .iter()
-        .all(|v| v.fill_color == DrawTriangle::OUTPUT_COLOR));
+    assert!(
+        output_verts
+            .iter()
+            .all(|v| v.fill_color == DrawTriangle::OUTPUT_COLOR)
+    );
 
     let right_x_clip = output_verts
         .iter()

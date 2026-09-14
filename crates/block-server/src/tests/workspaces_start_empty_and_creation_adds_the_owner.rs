@@ -1,4 +1,4 @@
-use super::support::{create_workspace, management_request, register, TestServer};
+use super::support::{TestServer, create_workspace, management_request, register};
 use block::{ManagementClientMessage, ManagementServerMessage, WorkspaceRole};
 use uuid::Uuid;
 

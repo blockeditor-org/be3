@@ -4,19 +4,18 @@ use std::{
 };
 
 use block_client::{
-    blocks::calendar::{Calendar, CalendarEvent, CalendarOperation},
     BlockClient, BlockHandle,
+    blocks::calendar::{Calendar, CalendarEvent, CalendarOperation},
 };
 use block_editor_plugin::{
-    egui,
+    EditorHost, egui,
     egui_material_icons::icons::{
         ICON_ADD, ICON_CALENDAR_VIEW_DAY, ICON_CALENDAR_VIEW_MONTH, ICON_CALENDAR_VIEW_WEEK,
         ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
     },
-    EditorHost,
 };
 use block_ui::datetime::{
-    civil_from_days, date_time_fields_row as date_time_row, days_from_civil, DateTimeFields,
+    DateTimeFields, civil_from_days, date_time_fields_row as date_time_row, days_from_civil,
 };
 use uuid::Uuid;
 
@@ -464,21 +463,22 @@ impl CalendarApp {
                     }
                 }
 
-                if response.clicked() && editable {
-                    if let Some(pointer) = response.interact_pointer_pos() {
-                        let inside_event = event_rects
-                            .iter()
-                            .any(|event_rect| event_rect.contains(pointer));
-                        if !inside_event && pointer.x >= rect.left() + gutter {
-                            let day_index = ((pointer.x - rect.left() - gutter) / column_width)
-                                .floor()
-                                .clamp(0.0, (num_days - 1) as f32)
-                                as i64;
-                            let hour = ((pointer.y - rect.top()) / HOUR_HEIGHT)
-                                .floor()
-                                .clamp(0.0, 23.0) as u8;
-                            form = Some(EventForm::new_at(first_day + day_index, hour));
-                        }
+                if response.clicked()
+                    && editable
+                    && let Some(pointer) = response.interact_pointer_pos()
+                {
+                    let inside_event = event_rects
+                        .iter()
+                        .any(|event_rect| event_rect.contains(pointer));
+                    if !inside_event && pointer.x >= rect.left() + gutter {
+                        let day_index = ((pointer.x - rect.left() - gutter) / column_width)
+                            .floor()
+                            .clamp(0.0, (num_days - 1) as f32)
+                            as i64;
+                        let hour = ((pointer.y - rect.top()) / HOUR_HEIGHT)
+                            .floor()
+                            .clamp(0.0, 23.0) as u8;
+                        form = Some(EventForm::new_at(first_day + day_index, hour));
                     }
                 }
             });

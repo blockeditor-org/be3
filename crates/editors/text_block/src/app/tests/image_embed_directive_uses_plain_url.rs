@@ -1,4 +1,4 @@
-use super::{block_url, image_embed_directive, BlockRef, BLOCK_ID, WORKSPACE_ID};
+use super::{BLOCK_ID, BlockRef, WORKSPACE_ID, block_url, image_embed_directive};
 
 #[test]
 fn image_embed_directive_uses_plain_url() {

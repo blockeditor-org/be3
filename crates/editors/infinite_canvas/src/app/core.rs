@@ -445,11 +445,7 @@ impl InfiniteCanvasEditor {
         });
         let coordinate = |entity: &CanvasEntity| {
             let center = entity_bounds(entity).center();
-            if horizontal {
-                center.x
-            } else {
-                center.y
-            }
+            if horizontal { center.x } else { center.y }
         };
         let start = coordinate(&ordered[0]);
         let end = coordinate(ordered.last().unwrap());
@@ -839,17 +835,17 @@ impl InfiniteCanvasEditor {
             let resize = editors
                 .direct_editor_resize(block_id)
                 .unwrap_or(DirectEditorResize::None);
-            if resize == DirectEditorResize::Both {
-                if let Some(layout) = direct_editor_layout(entity) {
-                    let content_size = layout.content.size();
-                    editors.set_direct_editor_intrinsic_size(
-                        block_id,
-                        Vec2::new(
-                            content_size.x / scale.max(f32::EPSILON),
-                            content_size.y / scale.max(f32::EPSILON),
-                        ),
-                    );
-                }
+            if resize == DirectEditorResize::Both
+                && let Some(layout) = direct_editor_layout(entity)
+            {
+                let content_size = layout.content.size();
+                editors.set_direct_editor_intrinsic_size(
+                    block_id,
+                    Vec2::new(
+                        content_size.x / scale.max(f32::EPSILON),
+                        content_size.y / scale.max(f32::EPSILON),
+                    ),
+                );
             }
             let intrinsic = if resize == DirectEditorResize::Horizontal {
                 let width = direct_editor_layout(entity)

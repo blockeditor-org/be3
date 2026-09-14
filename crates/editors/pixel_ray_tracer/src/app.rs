@@ -1,16 +1,16 @@
 use std::{
-    sync::mpsc::{self, Receiver, TryRecvError},
     sync::Arc,
+    sync::mpsc::{self, Receiver, TryRecvError},
     thread,
     time::{Duration, Instant},
 };
 
 use block_client::{
-    blocks::pixel_ray_tracer::{
-        PixelRayTracer, PixelRayTracerOperation, PixelUpdate, Point, RayEntity, RaySettings,
-        PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE,
-    },
     BlockClient, BlockHandle,
+    blocks::pixel_ray_tracer::{
+        PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE, PixelRayTracer, PixelRayTracerOperation,
+        PixelUpdate, Point, RayEntity, RaySettings,
+    },
 };
 use block_editor_plugin::block_ui::test_id::TestId;
 use block_editor_plugin::egui::{
@@ -486,31 +486,32 @@ impl Editor {
         if delete {
             self.delete_selected();
         }
-        if pressed && response.hovered() && response.is_pointer_button_down_on() && !panning {
-            if let Some(point) = world {
-                self.begin_interaction(point);
-            }
+        if pressed
+            && response.hovered()
+            && response.is_pointer_button_down_on()
+            && !panning
+            && let Some(point) = world
+        {
+            self.begin_interaction(point);
         }
-        if down {
-            if let (Some(point), Some(interaction)) = (world, &mut self.interaction) {
-                match interaction {
-                    ActiveInteraction::Pixels { current, path, .. } => {
-                        let next = pixel_at(point, true).unwrap_or(*current);
-                        if self.tool == Tool::Pencil && next != *current {
-                            path.extend(raster_line(*current, next).into_iter().skip(1));
-                        }
+        if down && let (Some(point), Some(interaction)) = (world, &mut self.interaction) {
+            match interaction {
+                ActiveInteraction::Pixels { current, path, .. } => {
+                    let next = pixel_at(point, true).unwrap_or(*current);
+                    if self.tool == Tool::Pencil && next != *current {
+                        path.extend(raster_line(*current, next).into_iter().skip(1));
+                    }
+                    *current = next;
+                }
+                ActiveInteraction::Entity { current, .. } => {
+                    *current = snap(point);
+                }
+                ActiveInteraction::Endpoint { current, .. }
+                | ActiveInteraction::Light { current, .. } => {
+                    let next = snap(point);
+                    if *current != next {
                         *current = next;
-                    }
-                    ActiveInteraction::Entity { current, .. } => {
-                        *current = snap(point);
-                    }
-                    ActiveInteraction::Endpoint { current, .. }
-                    | ActiveInteraction::Light { current, .. } => {
-                        let next = snap(point);
-                        if *current != next {
-                            *current = next;
-                            self.interaction_revision = self.interaction_revision.wrapping_add(1);
-                        }
+                        self.interaction_revision = self.interaction_revision.wrapping_add(1);
                     }
                 }
             }
@@ -520,10 +521,10 @@ impl Editor {
         }
         self.draw_entities(&painter, canvas);
         self.draw_interaction(&painter, canvas);
-        if self.tool == Tool::RayTrace {
-            if let Some(origin) = world {
-                self.draw_ray_trace(&painter, canvas, origin);
-            }
+        if self.tool == Tool::RayTrace
+            && let Some(origin) = world
+        {
+            self.draw_ray_trace(&painter, canvas, origin);
         }
     }
 
@@ -565,45 +566,45 @@ impl Editor {
     }
 
     fn select_or_drag(&mut self, point: Point) {
-        if let Some(id) = self.selected_entity {
-            if let Some(entity) = self.block.read().and_then(|scene| {
+        if let Some(id) = self.selected_entity
+            && let Some(entity) = self.block.read().and_then(|scene| {
                 scene
                     .entities()
                     .iter()
                     .find(|item| item.id() == id)
                     .cloned()
-            }) {
-                let tolerance = 3.0;
-                match entity {
-                    RayEntity::Light { position, .. } if distance(point, position) <= tolerance => {
-                        self.interaction = Some(ActiveInteraction::Light {
-                            id,
-                            current: position,
-                        });
-                        return;
-                    }
-                    RayEntity::Surface { start, .. } | RayEntity::Water { start, .. }
-                        if distance(point, start) <= tolerance =>
-                    {
-                        self.interaction = Some(ActiveInteraction::Endpoint {
-                            id,
-                            start: true,
-                            current: start,
-                        });
-                        return;
-                    }
-                    RayEntity::Surface { end, .. } | RayEntity::Water { end, .. }
-                        if distance(point, end) <= tolerance =>
-                    {
-                        self.interaction = Some(ActiveInteraction::Endpoint {
-                            id,
-                            start: false,
-                            current: end,
-                        });
-                        return;
-                    }
-                    _ => {}
+            })
+        {
+            let tolerance = 3.0;
+            match entity {
+                RayEntity::Light { position, .. } if distance(point, position) <= tolerance => {
+                    self.interaction = Some(ActiveInteraction::Light {
+                        id,
+                        current: position,
+                    });
+                    return;
                 }
+                RayEntity::Surface { start, .. } | RayEntity::Water { start, .. }
+                    if distance(point, start) <= tolerance =>
+                {
+                    self.interaction = Some(ActiveInteraction::Endpoint {
+                        id,
+                        start: true,
+                        current: start,
+                    });
+                    return;
+                }
+                RayEntity::Surface { end, .. } | RayEntity::Water { end, .. }
+                    if distance(point, end) <= tolerance =>
+                {
+                    self.interaction = Some(ActiveInteraction::Endpoint {
+                        id,
+                        start: false,
+                        current: end,
+                    });
+                    return;
+                }
+                _ => {}
             }
         }
         self.selected_entity = self.find_entity(point).map(|entity| entity.id());

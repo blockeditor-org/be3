@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 
 use block_client::{
+    BlockHandle,
     block_ref::BlockRef,
     blocks::{
         database::{DatabaseOperation, DatabaseRow, DatabaseValue},
         database_schema::{DatabaseField, DatabaseFieldType},
         database_view::{DatabaseView, DatabaseViewOperation},
     },
-    BlockHandle,
 };
-use block_editor_plugin::block_ui::{database::cell_text, BlockLabel};
+use block_editor_plugin::block_ui::{BlockLabel, database::cell_text};
 use block_editor_plugin::egui;
 use block_editor_plugin::egui_material_icons::icons::ICON_ADD;
 use uuid::Uuid;
 
-use crate::app::{paint_preview_cell, preview_color, BlockRenderContext};
+use crate::app::{BlockRenderContext, paint_preview_cell, preview_color};
 
 const COLUMN_WIDTH: f32 = 240.0;
 const CARD_SPACING: f32 = 6.0;

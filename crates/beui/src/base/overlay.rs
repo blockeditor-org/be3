@@ -3,7 +3,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::geometry::{pos2, Pos2, Rect, Vec2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{CursorIcon, PointerPress};
 use crate::painter::Painter;
 
@@ -12,8 +12,8 @@ use beui_macros::{component, view};
 use crate::document::Document;
 use crate::node::{ClickHandler, Element, InteractInput, NodeId};
 use crate::reactive::{
-    create_effect, with_document, with_reactive_scope, Child, ClickCallback, ClickCatcher,
-    IntoProp, NodeRef, Prop,
+    Child, ClickCallback, ClickCatcher, IntoProp, NodeRef, Prop, create_effect, with_document,
+    with_reactive_scope,
 };
 
 #[derive(Clone, PartialEq)]

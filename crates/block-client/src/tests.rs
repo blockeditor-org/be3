@@ -174,7 +174,7 @@ impl Block for DisabledHistoryBlock {
 }
 
 mod lib_test_support {
-    pub(super) use super::{counter_operation, counter_snapshot, Counter, CounterOperation};
+    pub(super) use super::{Counter, CounterOperation, counter_operation, counter_snapshot};
 }
 
 mod history_test_support {

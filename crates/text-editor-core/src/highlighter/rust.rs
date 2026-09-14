@@ -1,4 +1,4 @@
-use super::{identifier_end, SynHlColorScope as Scope};
+use super::{SynHlColorScope as Scope, identifier_end};
 
 pub(super) fn chain_start_offset(kind: &str, source: &[u8]) -> usize {
     if !kind.ends_with("_item") {
@@ -18,11 +18,7 @@ pub(super) fn chain_start_offset(kind: &str, source: &[u8]) -> usize {
         .iter()
         .take_while(|byte| byte.is_ascii_whitespace())
         .count();
-    if spaces == 0 {
-        0
-    } else {
-        offset + spaces
-    }
+    if spaces == 0 { 0 } else { offset + spaces }
 }
 
 pub(super) fn scopes(bytes: &[u8]) -> Vec<Scope> {
@@ -48,12 +44,12 @@ pub(super) fn scopes(bytes: &[u8]) -> Vec<Scope> {
             index = block_comment(bytes, &mut scopes, index);
             continue;
         }
-        if byte == b'#' {
-            if let Some(end) = attribute_introducer(bytes, index) {
-                scopes[index..end].fill(Scope::Keyword);
-                index = end;
-                continue;
-            }
+        if byte == b'#'
+            && let Some(end) = attribute_introducer(bytes, index)
+        {
+            scopes[index..end].fill(Scope::Keyword);
+            index = end;
+            continue;
         }
         if let Some(literal) = string_start(bytes, index) {
             index = string_literal(bytes, &mut scopes, index, literal);
@@ -264,11 +260,7 @@ fn format_placeholder(bytes: &[u8], scopes: &mut [Scope], start: usize) -> usize
     } else {
         scopes[start] = Scope::Punctuation;
     }
-    if doubled {
-        start + 2
-    } else {
-        start + 1
-    }
+    if doubled { start + 2 } else { start + 1 }
 }
 
 fn quoted(bytes: &[u8], scopes: &mut [Scope], start: usize) -> usize {

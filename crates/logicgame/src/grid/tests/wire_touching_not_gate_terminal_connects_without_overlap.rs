@@ -35,15 +35,17 @@ fn wire_touching_not_gate_terminal_connects_without_overlap() {
     let overlap = wire((3, 3), (3, 5), 1);
     overlapping.add_wire(overlap);
 
-    assert!(overlapping
-        .validate()
-        .contains(&ValidationError::WireComponentIntersection {
-            wire: overlap,
-            component: not,
-        }));
-    assert!(!overlapping
-        .generate_graph()
-        .nodes
-        .iter()
-        .any(|node| matches!(node, GraphNode::Connection { component, .. } if *component == not)));
+    assert!(
+        overlapping
+            .validate()
+            .contains(&ValidationError::WireComponentIntersection {
+                wire: overlap,
+                component: not,
+            })
+    );
+    assert!(
+        !overlapping.generate_graph().nodes.iter().any(
+            |node| matches!(node, GraphNode::Connection { component, .. } if *component == not)
+        )
+    );
 }

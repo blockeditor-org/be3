@@ -1,7 +1,7 @@
 use block::Block;
 use block_client::blocks::pixel_art::{PixelArt, PixelArtOperation, PixelColor, PixelUpdate};
 
-use super::{generate, ImageSettings};
+use super::{ImageSettings, generate};
 
 #[test]
 fn scale_setting_magnifies_the_export() {

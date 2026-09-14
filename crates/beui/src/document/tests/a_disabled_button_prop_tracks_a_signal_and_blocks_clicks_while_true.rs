@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, create_signal, view, Button, Column, Text};
+use crate::reactive::{Button, Column, Text, build, create_signal, view};
 
 #[test]
 fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {

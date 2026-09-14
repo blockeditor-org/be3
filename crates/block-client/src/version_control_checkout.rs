@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use block::BlockParent;
 use uuid::Uuid;
 
-use crate::blocks::version_control_data::{empty_tree_hash, CommitId, VersionControlData};
+use crate::blocks::version_control_data::{CommitId, VersionControlData, empty_tree_hash};
 use crate::blocks::version_control_object::{
     ObjectHash, ObjectPayload, TreeEntry, TreeEntryKind, VersionControlObject,
 };

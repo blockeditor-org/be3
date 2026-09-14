@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{component, on_cleanup, view, Text};
+use crate::reactive::{Text, component, on_cleanup, view};
 
 #[test]
 fn removing_a_node_runs_the_cleanups_its_components_registered() {

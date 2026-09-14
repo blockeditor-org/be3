@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, NodeRef, Text};
+use crate::reactive::{NodeRef, Text, build, view};
 
 #[test]
 fn caret_repaints_on_a_deadline_without_repeating_layout() {

@@ -253,19 +253,16 @@ impl PixelRayTracer {
                 }
             }
             PixelRayTracerOperation::UpdateEntity { entity } => {
-                if valid_entity(entity) {
-                    if let Some(current) = self
+                if valid_entity(entity)
+                    && let Some(current) = self
                         .entities
                         .iter_mut()
                         .find(|item| item.id() == entity.id())
-                    {
-                        if current != entity {
+                        && current != entity {
                             current.clone_from(entity);
                             changed = true;
                             lighting_changed = true;
                         }
-                    }
-                }
             }
             PixelRayTracerOperation::DeleteEntity { id } => {
                 let old = self.entities.len();

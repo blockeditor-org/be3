@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use std::ptr;
 
 use crate::sys;
-use crate::terminal::{check, Error, Terminal};
+use crate::terminal::{Error, Terminal, check};
 
 pub type Rgb = sys::ColorRgb;
 

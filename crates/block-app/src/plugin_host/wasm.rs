@@ -8,7 +8,7 @@ use std::{
 
 use crate::editors::plugin::discovery::{self, Module};
 
-use block_plugin_api::{decode_frame, encode_frame, Message, PluginManifest, ScreenLayout};
+use block_plugin_api::{Message, PluginManifest, ScreenLayout, decode_frame, encode_frame};
 use block_wasm_host::{Host, Plugin};
 use eframe::{
     egui,
@@ -17,7 +17,7 @@ use eframe::{
 
 mod surface;
 
-pub(super) use surface::{presenter, Presenter, WasmFrame};
+pub(super) use surface::{Presenter, WasmFrame, presenter};
 
 const SCREENS_SURFACE: u32 = 0;
 const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";

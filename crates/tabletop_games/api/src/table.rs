@@ -1,9 +1,9 @@
-use rand::seq::SliceRandom;
 use rand::SeedableRng;
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 
-use crate::cards::{deck, Card};
+use crate::cards::{Card, deck};
 
 pub struct Table {
     players: Vec<Uuid>,

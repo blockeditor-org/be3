@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::support::{create, references, request, TestServer};
+use super::support::{TestServer, create, references, request};
 use block::{BlockReferenceList, ClientMessage, ReferenceDelta, ServerMessage};
 use uuid::Uuid;
 

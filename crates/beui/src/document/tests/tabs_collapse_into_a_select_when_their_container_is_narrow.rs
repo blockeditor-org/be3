@@ -50,9 +50,11 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     assert!(harness.document().is_visible(narrow));
     let select = harness.document().children(narrow)[0];
     assert!(harness.document().node_rect(select).is_some());
-    assert!(harness
-        .document()
-        .node_rect(harness.document().children(wide)[0])
-        .is_none());
+    assert!(
+        harness
+            .document()
+            .node_rect(harness.document().children(wide)[0])
+            .is_none()
+    );
     assert_eq!(styled::select_selected(harness.document(), select), Some(1));
 }

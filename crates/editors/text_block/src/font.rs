@@ -15,7 +15,7 @@ use std::{
 use block_editor_plugin::egui::{self, Color32, Pos2, Rect, Stroke, TextureHandle, Vec2};
 use freetype::freetype as ft;
 use harfbuzz_rs::{
-    shape, Direction, Face as HbFace, Font as HbFont, Owned, Shared, Tag, UnicodeBuffer,
+    Direction, Face as HbFace, Font as HbFont, Owned, Shared, Tag, UnicodeBuffer, shape,
 };
 use text_editor_core::{
     MarkdownTable, MarkdownTableAlignment, SynHlFontFamily, SynHlStyle, SynHlTextSize,

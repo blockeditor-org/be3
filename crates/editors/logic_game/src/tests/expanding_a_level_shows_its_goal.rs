@@ -10,9 +10,11 @@ fn expanding_a_level_shows_its_goal() {
         .click();
     editor.run();
 
-    assert!(editor
-        .find(&format!("logic-game.new-attempt.{}", first as usize))
-        .rect()
-        .is_positive());
+    assert!(
+        editor
+            .find(&format!("logic-game.new-attempt.{}", first as usize))
+            .rect()
+            .is_positive()
+    );
     editor.snapshot("expanding_a_level_shows_its_goal");
 }

@@ -1,8 +1,8 @@
 use uuid::Uuid;
 
 use super::{
-    history_test_support::{HistoryBlock, HistoryOperation},
     BlockClient,
+    history_test_support::{HistoryBlock, HistoryOperation},
 };
 
 #[test]

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use block_client::blocks::game_module::GameModule;
 use block_client::BlockClient;
+use block_client::blocks::game_module::GameModule;
 use block_editor_plugin::{App as _, EditorHost, PickedFile};
 use block_ui_test::EditorTest;
 use uuid::Uuid;
 
-use crate::app::{imported, GameModuleApp};
+use crate::app::{GameModuleApp, imported};
 
 mod a_file_that_is_not_a_game_module_is_refused;
 mod a_module_that_will_not_load_says_why;

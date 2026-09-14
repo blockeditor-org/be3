@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use crate::node::NodeId;
 use crate::reactive::{Child, Frame};
-use crate::styled::theme::{use_theme, BORDER_WIDTH, CARD_RADIUS};
+use crate::styled::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 
 const PADDING_HORIZONTAL: f32 = 18.0;
 const PADDING_VERTICAL: f32 = 16.0;

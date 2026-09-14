@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use crate::compiler::{
-    syntax_node_kind, AnalysisBlock, AnalysisLine, ComptimeValue, ComptimeValueBuildArtifact,
-    ComptimeValueKey, Destructure, DestructureExtract, RuntimeValue,
+    AnalysisBlock, AnalysisLine, ComptimeValue, ComptimeValueBuildArtifact, ComptimeValueKey,
+    Destructure, DestructureExtract, RuntimeValue, syntax_node_kind,
 };
 use crate::ct::Type;
 use crate::parser::{
-    colors, highlights, BracketTag, IdentifierTag, OpTag, RawTag, SyntaxNode, TokenPosition,
+    BracketTag, IdentifierTag, OpTag, RawTag, SyntaxNode, TokenPosition, colors, highlights,
 };
 
 pub const UNLIMITED_DEPTH: usize = usize::MAX;
@@ -89,11 +89,11 @@ impl Adisp {
         if self.indent_count > self.depth {
             self.put_newline();
             self.put("...", Some(colors::BRBLACK));
-            if let Some(n) = n {
-                if n > 0 {
-                    let msg = format!(" {n} item{}", if n == 1 { "" } else { "s" });
-                    self.put(&msg, Some(colors::BRBLACK));
-                }
+            if let Some(n) = n
+                && n > 0
+            {
+                let msg = format!(" {n} item{}", if n == 1 { "" } else { "s" });
+                self.put(&msg, Some(colors::BRBLACK));
             }
             return true;
         }
@@ -554,8 +554,8 @@ fn print_folder_or_file(adisp: &mut Adisp, entity: &ComptimeValueBuildArtifact) 
 #[allow(clippy::module_inception)]
 pub mod printers {
     use super::{
-        print_ast_node, print_block, print_destructure, print_destructure_extract,
-        print_folder_or_file, print_runtime_value, print_type, MultiPrinter, SinglePrinter,
+        MultiPrinter, SinglePrinter, print_ast_node, print_block, print_destructure,
+        print_destructure_extract, print_folder_or_file, print_runtime_value, print_type,
     };
     use crate::compiler::{
         AnalysisBlock, ComptimeValueBuildArtifact, Destructure, DestructureExtract, RuntimeValue,

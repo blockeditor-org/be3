@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use crate::base::{Direction, ItemSize};
 use crate::node::NodeId;
-use crate::reactive::{clone, create_memo, Children, List, Prop};
+use crate::reactive::{Children, List, Prop, clone, create_memo};
 
 #[component]
 pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children) -> NodeId {

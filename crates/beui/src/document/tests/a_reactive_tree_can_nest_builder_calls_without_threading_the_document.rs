@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, create_memo, create_signal, view, Button, Column, Row, Text};
+use crate::reactive::{Button, Column, Row, Text, build, create_memo, create_signal, view};
 
 #[test]
 fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {

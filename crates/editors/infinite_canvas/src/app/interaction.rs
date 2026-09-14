@@ -25,12 +25,12 @@ impl InfiniteCanvasEditor {
             self.pending_components
                 .push(&client, self.block.id(), id, entity_ids);
         }
-        if let Some((id, _)) = picked(&mut self.value_picker, editors) {
-            if let Some(target) = self.pending_value_target.clone() {
-                let client = editors.client_handle();
-                self.pending_values
-                    .push(&client, self.block.id(), id, target);
-            }
+        if let Some((id, _)) = picked(&mut self.value_picker, editors)
+            && let Some(target) = self.pending_value_target.clone()
+        {
+            let client = editors.client_handle();
+            self.pending_values
+                .push(&client, self.block.id(), id, target);
         }
     }
 
@@ -69,14 +69,13 @@ impl InfiniteCanvasEditor {
                 input.raw.dropped_files.clone(),
             )
         });
-        if hovering_file {
-            if let Some(position) = response
+        if hovering_file
+            && let Some(position) = response
                 .ctx
                 .pointer_hover_pos()
                 .filter(|position| response.rect.contains(*position))
-            {
-                self.pending_file_drop_position = Some(self.screen_to_world(position, canvas_rect));
-            }
+        {
+            self.pending_file_drop_position = Some(self.screen_to_world(position, canvas_rect));
         }
         if dropped.is_empty() {
             if !hovering_file {
@@ -168,23 +167,23 @@ impl InfiniteCanvasEditor {
         if touch.is_none() {
             self.finish_two_finger_touch(response);
         }
-        if response.hovered() {
-            if let Some(touch) = touch {
-                self.gesture = None;
+        if response.hovered()
+            && let Some(touch) = touch
+        {
+            self.gesture = None;
 
-                let start_center = self
-                    .two_finger_touch
-                    .map_or(touch.center_pos, |state| state.start_center);
-                self.two_finger_touch = Some(TwoFingerTouch {
-                    start_time: touch.start_time,
-                    start_center,
-                    last_center: touch.center_pos,
-                    max_touches: self.two_finger_touch.map_or(touch.num_touches, |state| {
-                        state.max_touches.max(touch.num_touches)
-                    }),
-                });
-                return true;
-            }
+            let start_center = self
+                .two_finger_touch
+                .map_or(touch.center_pos, |state| state.start_center);
+            self.two_finger_touch = Some(TwoFingerTouch {
+                start_time: touch.start_time,
+                start_center,
+                last_center: touch.center_pos,
+                max_touches: self.two_finger_touch.map_or(touch.num_touches, |state| {
+                    state.max_touches.max(touch.num_touches)
+                }),
+            });
+            return true;
         }
 
         let panning = response.ctx.input(|input| {
@@ -414,10 +413,10 @@ impl InfiniteCanvasEditor {
 
         let world = pointer.map(|point| self.screen_to_world(point, canvas_rect));
 
-        if response.hovered() {
-            if let Some(world) = world {
-                self.update_cursor(response, world, canvas_rect, entities, editors);
-            }
+        if response.hovered()
+            && let Some(world) = world
+        {
+            self.update_cursor(response, world, canvas_rect, entities, editors);
         }
 
         if let Some(dragged) = editors
@@ -434,20 +433,20 @@ impl InfiniteCanvasEditor {
             }
         }
 
-        if response.secondary_clicked() {
-            if let Some(world) = world {
-                self.context_menu_position = Some(world);
-                self.context_menu_for_selection = self
-                    .selected_frame(entities)
-                    .is_some_and(|frame| frame.contains(world));
-                if self.selection.is_empty() {
-                    if let Some(id) = self.entity_at(entities, world) {
-                        self.select_entity(entities, id, false);
-                        self.context_menu_for_selection = true;
-                    }
-                } else if !self.context_menu_for_selection {
-                    self.selection.clear();
+        if response.secondary_clicked()
+            && let Some(world) = world
+        {
+            self.context_menu_position = Some(world);
+            self.context_menu_for_selection = self
+                .selected_frame(entities)
+                .is_some_and(|frame| frame.contains(world));
+            if self.selection.is_empty() {
+                if let Some(id) = self.entity_at(entities, world) {
+                    self.select_entity(entities, id, false);
+                    self.context_menu_for_selection = true;
                 }
+            } else if !self.context_menu_for_selection {
+                self.selection.clear();
             }
         }
         response.context_menu(|ui| {
@@ -636,16 +635,18 @@ impl InfiniteCanvasEditor {
         let Some(world) = world else {
             return (layer_move, keyboard_action);
         };
-        if self.tool == Tool::Select && response.hovered() && response.double_clicked() {
-            if let Some(id) = self.entity_at(entities, world) {
-                let entity = entities.iter().find(|entity| entity.id == id).unwrap();
-                if matches!(entity.kind, CanvasEntityKind::Text { .. }) && !entity.locked {
-                    self.select_entity(entities, id, false);
-                    self.editing_text = Some(id);
-                    self.focus_text_requested = true;
-                    self.gesture = None;
-                    return (layer_move, keyboard_action);
-                }
+        if self.tool == Tool::Select
+            && response.hovered()
+            && response.double_clicked()
+            && let Some(id) = self.entity_at(entities, world)
+        {
+            let entity = entities.iter().find(|entity| entity.id == id).unwrap();
+            if matches!(entity.kind, CanvasEntityKind::Text { .. }) && !entity.locked {
+                self.select_entity(entities, id, false);
+                self.editing_text = Some(id);
+                self.focus_text_requested = true;
+                self.gesture = None;
+                return (layer_move, keyboard_action);
             }
         }
         let primary_pressed = response
@@ -872,10 +873,8 @@ impl InfiniteCanvasEditor {
         let primary_released = response
             .ctx
             .input(|input| input.pointer.button_released(PointerButton::Primary));
-        if primary_released {
-            if let Some(gesture) = self.gesture.take() {
-                self.finish_gesture(gesture, entities);
-            }
+        if primary_released && let Some(gesture) = self.gesture.take() {
+            self.finish_gesture(gesture, entities);
         }
         (layer_move, keyboard_action)
     }
@@ -1184,31 +1183,33 @@ impl InfiniteCanvasEditor {
         let panning = painter
             .ctx()
             .input(|input| input.key_down(egui::Key::Space));
-        if let (Some(icon), Some(pointer)) = (tool_icon, pointer) {
-            if painter.clip_rect().contains(pointer) && !panning && self.focused_editor.is_none() {
-                let center = pointer + Vec2::new(0.0, 20.0);
-                let badge = Rect::from_center_size(center, Vec2::splat(22.0));
-                let visuals = &painter.ctx().global_style().visuals;
-                painter.rect(
-                    badge,
-                    5.0,
-                    visuals.panel_fill,
-                    visuals.widgets.noninteractive.bg_stroke,
-                    egui::StrokeKind::Inside,
-                );
-                painter.text(
-                    center,
-                    egui::Align2::CENTER_CENTER,
-                    icon.codepoint,
-                    egui::FontId::new(
-                        16.0,
-                        egui::FontFamily::Name(
-                            block_editor_plugin::egui_material_icons::FONT_FAMILY.into(),
-                        ),
+        if let (Some(icon), Some(pointer)) = (tool_icon, pointer)
+            && painter.clip_rect().contains(pointer)
+            && !panning
+            && self.focused_editor.is_none()
+        {
+            let center = pointer + Vec2::new(0.0, 20.0);
+            let badge = Rect::from_center_size(center, Vec2::splat(22.0));
+            let visuals = &painter.ctx().global_style().visuals;
+            painter.rect(
+                badge,
+                5.0,
+                visuals.panel_fill,
+                visuals.widgets.noninteractive.bg_stroke,
+                egui::StrokeKind::Inside,
+            );
+            painter.text(
+                center,
+                egui::Align2::CENTER_CENTER,
+                icon.codepoint,
+                egui::FontId::new(
+                    16.0,
+                    egui::FontFamily::Name(
+                        block_editor_plugin::egui_material_icons::FONT_FAMILY.into(),
                     ),
-                    visuals.text_color(),
-                );
-            }
+                ),
+                visuals.text_color(),
+            );
         }
     }
 

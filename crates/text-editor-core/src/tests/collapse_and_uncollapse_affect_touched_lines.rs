@@ -9,11 +9,13 @@ fn collapse_and_uncollapse_affect_touched_lines() {
 
     tester.set_cursor(tester.pos(content.find("body a").unwrap()));
     tester.execute(EditorCommand::Collapse);
-    assert!(tester
-        .editor
-        .collapsible_sections()
-        .iter()
-        .all(|section| !section.collapsed));
+    assert!(
+        tester
+            .editor
+            .collapsible_sections()
+            .iter()
+            .all(|section| !section.collapsed)
+    );
 
     tester.execute(EditorCommand::SetSelection {
         anchor: tester.pos(a_start),

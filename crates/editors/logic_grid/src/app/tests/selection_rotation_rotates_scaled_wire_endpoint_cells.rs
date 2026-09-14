@@ -27,9 +27,11 @@ fn selection_rotation_rotates_scaled_wire_endpoint_cells() {
     assert!(editor.rotate_selection(RotationDirection::Right));
 
     assert_eq!(editor.grid.wires(), &[wire((0, 0), (0, 4), 2)]);
-    assert!(editor
-        .selection
-        .wire_endpoints
-        .iter()
-        .all(|endpoint| is_snapped(endpoint.point(), endpoint.wire.scale)));
+    assert!(
+        editor
+            .selection
+            .wire_endpoints
+            .iter()
+            .all(|endpoint| is_snapped(endpoint.point(), endpoint.wire.scale))
+    );
 }

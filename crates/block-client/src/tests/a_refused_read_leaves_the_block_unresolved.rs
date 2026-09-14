@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use uuid::Uuid;
 
-use super::{lib_test_support::Counter, BlockClient};
+use super::{BlockClient, lib_test_support::Counter};
 
 #[tokio::test]
 async fn a_refused_read_leaves_the_block_unresolved() {

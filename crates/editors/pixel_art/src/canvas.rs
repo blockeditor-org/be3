@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use crate::{
     app::PixelArtApp,
     color::{checkerboard_colors, checkerboard_image, composite_pixel, format_hex_color},
-    drawing::{rasterize_drawing, ActiveDrawing, CommittedPreview, PixelTool, MAX_BRUSH_SIZE},
+    drawing::{ActiveDrawing, CommittedPreview, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing},
 };
 
 pub const ZOOM_STEP: f32 = 1.25;
@@ -242,10 +242,10 @@ impl PixelArtApp {
         width: u16,
         height: u16,
     ) {
-        if response.clicked_by(PointerButton::Secondary) {
-            if let Some(pixel) = hovered_pixel {
-                self.sample_pixel(pixel);
-            }
+        if response.clicked_by(PointerButton::Secondary)
+            && let Some(pixel) = hovered_pixel
+        {
+            self.sample_pixel(pixel);
         }
 
         let (primary_pressed, primary_down, primary_released, shift, space) = ui.input(|input| {
@@ -266,45 +266,44 @@ impl PixelArtApp {
                         self.committed_preview = None;
                         self.active_drawing = Some(ActiveDrawing::new(tool, pixel));
                     }
-                } else if primary_down {
-                    if let (Some(drawing), Some(pixel)) =
+                } else if primary_down
+                    && let (Some(drawing), Some(pixel)) =
                         (self.active_drawing.as_mut(), hovered_pixel)
-                    {
-                        drawing.extend(pixel);
-                    }
+                {
+                    drawing.extend(pixel);
                 }
                 if primary_released {
                     self.commit_active_drawing(width, height, shift);
                 }
             }
             PixelTool::Fill => {
-                if response.clicked_by(PointerButton::Primary) {
-                    if let Some((x, y)) = hovered_pixel {
-                        self.remember_color(self.color);
-                        self.operate(PixelArtOperation::Fill {
-                            x,
-                            y,
-                            color: self.color,
-                        });
-                    }
+                if response.clicked_by(PointerButton::Primary)
+                    && let Some((x, y)) = hovered_pixel
+                {
+                    self.remember_color(self.color);
+                    self.operate(PixelArtOperation::Fill {
+                        x,
+                        y,
+                        color: self.color,
+                    });
                 }
             }
             PixelTool::Eyedropper => {
-                if response.clicked_by(PointerButton::Primary) {
-                    if let Some(pixel) = hovered_pixel {
-                        self.sample_pixel(pixel);
-                    }
+                if response.clicked_by(PointerButton::Primary)
+                    && let Some(pixel) = hovered_pixel
+                {
+                    self.sample_pixel(pixel);
                 }
             }
             PixelTool::ReplaceColor => {
-                if response.clicked_by(PointerButton::Primary) {
-                    if let Some(source) = self.replace_source_hover {
-                        self.remember_color(self.color);
-                        self.operate(PixelArtOperation::ReplaceColor {
-                            from: source,
-                            to: self.color,
-                        });
-                    }
+                if response.clicked_by(PointerButton::Primary)
+                    && let Some(source) = self.replace_source_hover
+                {
+                    self.remember_color(self.color);
+                    self.operate(PixelArtOperation::ReplaceColor {
+                        from: source,
+                        to: self.color,
+                    });
                 }
             }
             PixelTool::Pencil

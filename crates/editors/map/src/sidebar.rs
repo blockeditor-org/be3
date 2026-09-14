@@ -3,15 +3,15 @@ use std::ops::RangeInclusive;
 use std::collections::HashMap;
 
 use block_client::block_ref::BlockRef;
-use block_client::blocks::map::{MapColor, MapOperation, MapPoint, MAX_LATITUDE};
+use block_client::blocks::map::{MAX_LATITUDE, MapColor, MapOperation, MapPoint};
+use block_editor_plugin::EditorHost;
 use block_editor_plugin::block_ui::test_id::TestId;
-use block_editor_plugin::block_ui::{paint_name, BlockCatalog, BlockLabel, BlockTypes};
+use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel, BlockTypes, paint_name};
 use block_editor_plugin::egui::{self, FontId, Sense, Vec2};
 use block_editor_plugin::egui_material_icons;
 use block_editor_plugin::egui_material_icons::icons::{
     ICON_ARROW_BACK, ICON_DELETE, ICON_MY_LOCATION,
 };
-use block_editor_plugin::EditorHost;
 use uuid::Uuid;
 
 use crate::app::MapApp;
@@ -232,10 +232,10 @@ impl MapApp {
             ui.add(egui::Label::new(name).truncate());
         });
         ui.add_space(6.0);
-        if let Some(id) = resolved_id {
-            if let Some(host) = self.host_handle() {
-                show_block_preview(ui, &host, id, label, types);
-            }
+        if let Some(id) = resolved_id
+            && let Some(host) = self.host_handle()
+        {
+            show_block_preview(ui, &host, id, label, types);
         }
         ui.add_space(6.0);
         ui.horizontal(|ui| {
@@ -243,12 +243,10 @@ impl MapApp {
                 .add_enabled(label.is_some(), egui::Button::new("Edit"))
                 .on_disabled_hover_text("Waiting for block metadata")
                 .clicked()
-            {
-                if let (Some(host), Some(id), Some(label)) =
+                && let (Some(host), Some(id), Some(label)) =
                     (self.host_handle(), resolved_id, label)
-                {
-                    host.open_block(id, label.block_type);
-                }
+            {
+                host.open_block(id, label.block_type);
             }
             if ui
                 .button(ICON_MY_LOCATION)

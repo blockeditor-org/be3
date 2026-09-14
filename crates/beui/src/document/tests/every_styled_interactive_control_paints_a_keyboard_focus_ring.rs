@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{view, Text};
+use crate::reactive::{Text, view};
 use crate::styled::{
     Accordion, Button, Checkbox, ListRow, Listbox, RadioGroup, Slider, Switch, Tabs, TextInput,
     ToggleButton,

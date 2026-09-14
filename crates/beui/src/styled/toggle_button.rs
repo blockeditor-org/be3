@@ -4,8 +4,8 @@ use beui_macros::{component, view};
 use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{clone, create_memo, Callback, Frame, Prop, Text};
-use crate::styled::theme::{use_theme, Theme, FONT_BODY, RADIUS};
+use crate::reactive::{Callback, Frame, Prop, Text, clone, create_memo};
+use crate::styled::theme::{FONT_BODY, RADIUS, Theme, use_theme};
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
 

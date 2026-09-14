@@ -31,7 +31,9 @@ fn default_hotbar_uses_requested_folder_layout() {
         [HotbarSlot::Builtin(ToolKind::Not)]
     ));
 
-    assert!(hotbar
-        .iter()
-        .all(|slot| !matches!(slot, HotbarSlot::Builtin(ToolKind::Select))));
+    assert!(
+        hotbar
+            .iter()
+            .all(|slot| !matches!(slot, HotbarSlot::Builtin(ToolKind::Select)))
+    );
 }

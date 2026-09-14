@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::grid::{
-    value_mask, CircuitGraph, ComponentId, ComponentKind, ConnectionDirection, ConnectionSlotId,
-    GraphNode, GraphNodeId, InputId, LogicGrid, OutputId,
+    CircuitGraph, ComponentId, ComponentKind, ConnectionDirection, ConnectionSlotId, GraphNode,
+    GraphNodeId, InputId, LogicGrid, OutputId, value_mask,
 };
 
 pub type MemoryAddress = usize;

@@ -4,8 +4,9 @@ use std::{
 };
 
 use block::{BlockAccess, BlockParent, BlockReference, BlockReferenceList};
-use block_client::{blocks, BlockClient, BlockHandleAccess, ReferenceList};
+use block_client::{BlockClient, BlockHandleAccess, ReferenceList, blocks};
 use block_editor_plugin::{
+    BlockFilter, BlockPicker, BlockSource, EditorHost,
     block_ui::{BlockCatalog, BlockLabel, BlockTypes},
     egui,
     egui_material_icons::icons::{
@@ -13,7 +14,6 @@ use block_editor_plugin::{
         ICON_CIRCLE, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT, ICON_LINK_OFF, ICON_LOCK,
         ICON_SHARE, ICON_VISIBILITY,
     },
-    BlockFilter, BlockPicker, BlockSource, EditorHost,
 };
 use uuid::Uuid;
 
@@ -502,44 +502,42 @@ impl FileTreeApp {
             None => {}
         }
 
-        if can_add_child {
-            if let Some(response) = row_response {
-                let accepts = |dragged: &DragPayload| {
-                    can_add_here
-                        && dragged.reference.id != reference.id
-                        && dragged.source != BlockSource::Block(reference.id)
-                        && !path.contains(&dragged.reference.id)
-                        && self.can_move_out_of(
-                            frame,
-                            dragged.source,
-                            dragged.reference.id,
-                            dragged.is_reference,
-                        )
+        if can_add_child && let Some(response) = row_response {
+            let accepts = |dragged: &DragPayload| {
+                can_add_here
+                    && dragged.reference.id != reference.id
+                    && dragged.source != BlockSource::Block(reference.id)
+                    && !path.contains(&dragged.reference.id)
+                    && self.can_move_out_of(
+                        frame,
+                        dragged.source,
+                        dragged.reference.id,
+                        dragged.is_reference,
+                    )
+            };
+            if let Some(dragged) = response.dnd_hover_payload::<DragPayload>() {
+                let color = if accepts(&dragged) {
+                    ui.visuals().selection.stroke.color
+                } else {
+                    ui.visuals().error_fg_color
                 };
-                if let Some(dragged) = response.dnd_hover_payload::<DragPayload>() {
-                    let color = if accepts(&dragged) {
-                        ui.visuals().selection.stroke.color
-                    } else {
-                        ui.visuals().error_fg_color
-                    };
-                    ui.painter().rect_stroke(
-                        response.rect,
-                        3.0,
-                        egui::Stroke::new(1.0_f32, color),
-                        egui::StrokeKind::Outside,
-                    );
-                }
-                if let Some(dragged) = response.dnd_release_payload::<DragPayload>() {
-                    if accepts(&dragged) {
-                        frame.host.move_block(
-                            dragged.reference.id,
-                            dragged.reference.block_type,
-                            dragged.source,
-                            reference.id,
-                            dragged.is_reference,
-                        );
-                    }
-                }
+                ui.painter().rect_stroke(
+                    response.rect,
+                    3.0,
+                    egui::Stroke::new(1.0_f32, color),
+                    egui::StrokeKind::Outside,
+                );
+            }
+            if let Some(dragged) = response.dnd_release_payload::<DragPayload>()
+                && accepts(&dragged)
+            {
+                frame.host.move_block(
+                    dragged.reference.id,
+                    dragged.reference.block_type,
+                    dragged.source,
+                    reference.id,
+                    dragged.is_reference,
+                );
             }
         }
 

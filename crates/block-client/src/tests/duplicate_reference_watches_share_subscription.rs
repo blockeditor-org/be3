@@ -11,14 +11,18 @@ fn duplicate_reference_watches_share_subscription() {
 
     drop(first);
     assert_eq!(second.shared.subscribers.load(Ordering::Relaxed), 1);
-    assert!(client
-        .watched_reference_lists
-        .read()
-        .contains_key(&BlockReferenceList::Roots));
+    assert!(
+        client
+            .watched_reference_lists
+            .read()
+            .contains_key(&BlockReferenceList::Roots)
+    );
 
     drop(second);
-    assert!(!client
-        .watched_reference_lists
-        .read()
-        .contains_key(&BlockReferenceList::Roots));
+    assert!(
+        !client
+            .watched_reference_lists
+            .read()
+            .contains_key(&BlockReferenceList::Roots)
+    );
 }

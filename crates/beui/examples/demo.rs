@@ -1,16 +1,16 @@
 use beui::reactive::{
-    build, clone, create_memo, create_selector, create_signal, view, CenteredRow, Column, Frame,
-    Memo, ReadSignal, Row, Selector, Show, Spacer, VirtualList, WriteSignal,
+    CenteredRow, Column, Frame, Memo, ReadSignal, Row, Selector, Show, Spacer, VirtualList,
+    WriteSignal, build, clone, create_memo, create_selector, create_signal, view,
 };
 use beui::styled::theme::{NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
-    use_theme, Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu,
-    Display, Heading, Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select,
-    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton,
+    Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
+    Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
+    Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, use_theme,
 };
-use beui::unstyled::{narrower_than, Container};
+use beui::unstyled::{Container, narrower_than};
 use beui::{
-    unstyled, Color32, Context, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign,
+    Color32, Context, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign, unstyled,
 };
 use beui_macros::component;
 

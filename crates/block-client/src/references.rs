@@ -2,16 +2,16 @@ use std::{
     collections::HashMap,
     future::Future,
     sync::{
-        mpsc::{self, Receiver},
         Arc,
+        mpsc::{self, Receiver},
     },
 };
 
 use uuid::Uuid;
 
 use crate::{
-    block_ref::BlockRef, blocks::version_control_worktree::VersionControlWorktreeMembership,
-    BlockClient,
+    BlockClient, block_ref::BlockRef,
+    blocks::version_control_worktree::VersionControlWorktreeMembership,
 };
 
 pub type RequestResult<T> = Receiver<T>;

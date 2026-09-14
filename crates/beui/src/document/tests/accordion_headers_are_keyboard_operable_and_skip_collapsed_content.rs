@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{view, NodeRef};
+use crate::reactive::{NodeRef, view};
 use crate::styled::Accordion;
 
 #[test]

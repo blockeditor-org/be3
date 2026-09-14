@@ -20,9 +20,11 @@ fn a_painting_being_shown_is_not_evicted_for_another() {
 
 fn hold(paintings: &mut Paintings, context: &egui::Context, hash: &str, shade: u8) {
     for frame in 0..FRAMES {
-        assert!(paintings
-            .computed(context, hash, frame, FRAMES, || Ok(large(shade)))
-            .is_ok());
+        assert!(
+            paintings
+                .computed(context, hash, frame, FRAMES, || Ok(large(shade)))
+                .is_ok()
+        );
     }
 }
 

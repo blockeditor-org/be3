@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use block_client::blocks::scene_3d::Scene3D;
 use block_client::BlockClient;
-use block_editor_plugin::{egui, App as _, EditorHost};
+use block_client::blocks::scene_3d::Scene3D;
+use block_editor_plugin::{App as _, EditorHost, egui};
 use block_ui_test::EditorTest;
 use uuid::Uuid;
 

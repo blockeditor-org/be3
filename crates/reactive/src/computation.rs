@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
-use crate::runtime::{batch, enqueue, flush, Context, Reset, RUNTIME};
-use crate::scope::{current_owner, Owner};
+use crate::runtime::{Context, RUNTIME, Reset, batch, enqueue, flush};
+use crate::scope::{Owner, current_owner};
 use crate::signal::Source;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -69,12 +69,11 @@ impl Computation {
     }
 
     pub(crate) fn refresh(self: &Rc<Self>) {
-        if self.source.is_none() {
-            if let Some(parent) = self.parent.upgrade() {
-                if !parent.refreshing.get() {
-                    parent.refresh();
-                }
-            }
+        if self.source.is_none()
+            && let Some(parent) = self.parent.upgrade()
+            && !parent.refreshing.get()
+        {
+            parent.refresh();
         }
         assert!(!self.refreshing.get(), "reactive dependency cycle detected");
         if matches!(self.state.get(), State::Clean | State::Disposed) {
@@ -143,10 +142,8 @@ impl Computation {
         }
         match result {
             Ok(changed) => {
-                if changed {
-                    if let Some(source) = &self.source {
-                        source.version.set(source.version.get().wrapping_add(1));
-                    }
+                if changed && let Some(source) = &self.source {
+                    source.version.set(source.version.get().wrapping_add(1));
                 }
             }
             Err(error) => std::panic::resume_unwind(error),

@@ -3,14 +3,15 @@ use std::time::Duration;
 
 use block::BlockParent;
 use block_client::{
+    BlockClient, BlockHandle,
     block_ref::BlockRef,
     blocks::{
         paint_review::{ApprovedPainting, PaintReview, PaintReviewOperation},
         paint_snapshot::{PaintSnapshot, PaintSnapshotOperation},
     },
-    BlockClient, BlockHandle,
 };
 use block_editor_plugin::{
+    EditorHost, Waker,
     block_ui::test_id::TestId,
     egui,
     egui_material_icons::icons::{
@@ -18,11 +19,10 @@ use block_editor_plugin::{
         ICON_DIFFERENCE, ICON_DONE_ALL, ICON_FIBER_NEW, ICON_FIT_SCREEN, ICON_PAUSE,
         ICON_PLAY_ARROW, ICON_REFRESH, ICON_VERTICAL_SPLIT, ICON_ZOOM_IN, ICON_ZOOM_OUT,
     },
-    EditorHost, Waker,
 };
 use uuid::Uuid;
 
-use crate::download::{Download, Painting, Source, BRANCH};
+use crate::download::{BRANCH, Download, Painting, Source};
 use crate::render::{Change, Paintings, Rendered};
 
 const INTRINSIC_SIZE: egui::Vec2 = egui::vec2(960.0, 640.0);
@@ -500,15 +500,14 @@ impl PaintReviewApp {
             self.playing = false;
         }
         ui.weak(format!("Frame {} of {count}", self.frame + 1));
-        if let Some(changed) = changed.filter(|changed| *changed != self.frame) {
-            if ui
+        if let Some(changed) = changed.filter(|changed| *changed != self.frame)
+            && ui
                 .button(format!("{} Changed frame", ICON_DIFFERENCE.codepoint))
                 .test_id("paint_review.frame.changed")
                 .clicked()
-            {
-                self.frame = changed;
-                self.playing = false;
-            }
+        {
+            self.frame = changed;
+            self.playing = false;
         }
     }
 
@@ -532,10 +531,10 @@ impl PaintReviewApp {
     }
 
     fn pan_view(&self, response: &egui::Response) {
-        if let Some(editing) = &self.editing {
-            if response.dragged() {
-                editing.host.pan_view(response.drag_delta());
-            }
+        if let Some(editing) = &self.editing
+            && response.dragged()
+        {
+            editing.host.pan_view(response.drag_delta());
         }
     }
 
@@ -749,10 +748,9 @@ impl block_editor_plugin::App for PaintReviewApp {
                 )
                 .test_id("paint_review.approve")
                 .clicked()
+                && let Some(path) = &selected
             {
-                if let Some(path) = &selected {
-                    self.approve(path);
-                }
+                self.approve(path);
             }
             let unapprovable = editable
                 && matches!(
@@ -766,10 +764,9 @@ impl block_editor_plugin::App for PaintReviewApp {
                 )
                 .test_id("paint_review.unapprove")
                 .clicked()
+                && let Some(path) = &selected
             {
-                if let Some(path) = &selected {
-                    self.unapprove(path);
-                }
+                self.unapprove(path);
             }
             if status == Some(Status::Modified) {
                 ui.separator();
@@ -801,10 +798,10 @@ impl block_editor_plugin::App for PaintReviewApp {
             ui.label(egui::RichText::new(path.clone()).strong());
             ui.weak(status.label());
             ui.weak(showing.label());
-            if showing != Showing::Difference {
-                if let Some((change, _)) = self.changed(&path, status) {
-                    ui.weak(change);
-                }
+            if showing != Showing::Difference
+                && let Some((change, _)) = self.changed(&path, status)
+            {
+                ui.weak(change);
             }
             if let Some(description) = self.description.clone() {
                 ui.weak(description);

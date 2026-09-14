@@ -2,8 +2,8 @@ use block::{OperationRecord, ReferenceDelta};
 use uuid::Uuid;
 
 use super::{
-    lib_test_support::{counter_operation, Counter},
     BlockClient, ErasedBlock,
+    lib_test_support::{Counter, counter_operation},
 };
 
 #[tokio::test]

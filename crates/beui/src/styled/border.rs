@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use crate::node::NodeId;
 use crate::reactive::{Child, Frame};
-use crate::styled::theme::{use_theme, BORDER_WIDTH};
+use crate::styled::theme::{BORDER_WIDTH, use_theme};
 
 #[component]
 pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {

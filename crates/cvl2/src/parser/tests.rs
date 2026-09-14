@@ -20,10 +20,10 @@ fn find_first<'a>(
             SyntaxNode::OperatorSegment(s) => Some(&s.items),
             _ => None,
         };
-        if let Some(children) = children {
-            if let Some(found) = find_first(children, predicate) {
-                return Some(found);
-            }
+        if let Some(children) = children
+            && let Some(found) = find_first(children, predicate)
+        {
+            return Some(found);
         }
     }
     None

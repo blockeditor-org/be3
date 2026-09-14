@@ -5,9 +5,10 @@ use std::{
 
 use block::Block;
 use block_client::{
+    BLOCK_URL_MAX_BYTES, BlockHandle, BlockReadGuard, HistoryMetadata,
     block_ref::BlockRef,
     blocks::text::{self, TextDocument, TextOperation},
-    parse_block_urls, BlockHandle, BlockReadGuard, HistoryMetadata, BLOCK_URL_MAX_BYTES,
+    parse_block_urls,
 };
 use text_editor_core::{
     Anchor, CursorPosition, Document, DocumentEdit, DocumentRead, TextIndentation, TextLanguage,

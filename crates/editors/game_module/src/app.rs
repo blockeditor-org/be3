@@ -3,7 +3,7 @@ use std::sync::Arc;
 use block_client::blocks::game_module::{GameModule, GameModuleOperation};
 use block_client::{BlockClient, BlockHandle};
 use block_editor_plugin::block_ui::test_id::TestId;
-use block_editor_plugin::{egui, EditorHost, FileFilter, FilePicker, PickedFile};
+use block_editor_plugin::{EditorHost, FileFilter, FilePicker, PickedFile, egui};
 use game_host::Game;
 use uuid::Uuid;
 

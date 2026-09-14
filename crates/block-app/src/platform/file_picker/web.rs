@@ -4,7 +4,7 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlInputElement;
 

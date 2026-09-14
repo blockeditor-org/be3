@@ -4,7 +4,7 @@ use std::sync::Arc;
 use block::{BlockParent, BlockReference, BlockReferenceList};
 use block_client::block_ref::BlockRef;
 use block_client::blocks::video::{
-    Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation, DEFAULT_CLIP_SECONDS,
+    DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
 };
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_client::{BlockClient, BlockHandle, ReferenceList};
@@ -346,10 +346,9 @@ impl VideoApp {
             .add_enabled(selected.is_some(), egui::Button::new(ICON_DELETE))
             .on_hover_text("Delete the selected clip and everything attached to it")
             .clicked()
+            && let Some(selected) = selected
         {
-            if let Some(selected) = selected {
-                self.remove_clip(selected);
-            }
+            self.remove_clip(selected);
         }
     }
 

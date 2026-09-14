@@ -1,4 +1,4 @@
-use super::{square, Canvas, CANVAS, WATER};
+use super::{CANVAS, Canvas, WATER, square};
 
 #[test]
 fn fill_clamps_spans_beyond_the_canvas() {

@@ -16,12 +16,13 @@ fn infinite_leads_are_blocked_by_components_but_not_wires() {
     let blocker = grid.add_component(Point::new(0, 0), Rotation::Up, ComponentKind::Led);
     grid.add_wire(wire((-3, 1), (3, 1), 1));
 
-    assert!(grid
-        .validate()
-        .contains(&ValidationError::InfiniteLeadBlocked {
-            component: input,
-            blocker,
-        }));
+    assert!(
+        grid.validate()
+            .contains(&ValidationError::InfiniteLeadBlocked {
+                component: input,
+                blocker,
+            })
+    );
 
     grid.remove_component(blocker);
     assert!(!grid.validate().iter().any(|error| matches!(

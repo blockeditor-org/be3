@@ -1,10 +1,10 @@
 use jni::{
+    Env,
     errors::Error as JniInnerError,
     jni_sig, jni_str,
     objects::{JObject, JValue},
     sys::jobject,
     vm::JavaVM,
-    Env,
 };
 
 const APK_MIME_TYPE: &str = "application/vnd.android.package-archive";

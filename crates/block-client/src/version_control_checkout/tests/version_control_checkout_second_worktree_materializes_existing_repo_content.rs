@@ -5,7 +5,7 @@ use crate::blocks::version_control_data::VersionControlData;
 use crate::blocks::version_control_worktree::VersionControlWorktree;
 use crate::blocks::workspace_index::{WorkspaceIndex, WorkspaceIndexOperation};
 
-use super::{materialize_worktree, CheckoutOutcome, Fixture};
+use super::{CheckoutOutcome, Fixture, materialize_worktree};
 
 #[tokio::test]
 async fn version_control_checkout_second_worktree_materializes_existing_repo_content() {

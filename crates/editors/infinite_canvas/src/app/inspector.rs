@@ -255,7 +255,7 @@ impl InfiniteCanvasEditor {
                         BlockFilter {
                             name: "Component".to_owned(),
                             block_types: vec![
-                                <DatabaseSchema as block::Block>::TYPE_ID.into_bytes()
+                                <DatabaseSchema as block::Block>::TYPE_ID.into_bytes(),
                             ],
                             excluded: Vec::new(),
                             templates: false,
@@ -500,21 +500,21 @@ impl InfiniteCanvasEditor {
                         })
                         .map(|entity| entity.style.foreground),
                 );
-                if !matches!(foreground, CommonValue::None) {
-                    if let Some(color) = color_menu(ui, "Color", foreground) {
-                        self.remember_foreground(color);
-                        self.update_selected(
-                            entities,
-                            |kind| {
-                                !matches!(
-                                    kind,
-                                    CanvasEntityKind::Block { .. }
-                                        | CanvasEntityKind::DirectEditor { .. }
-                                )
-                            },
-                            |style| style.foreground = color,
-                        );
-                    }
+                if !matches!(foreground, CommonValue::None)
+                    && let Some(color) = color_menu(ui, "Color", foreground)
+                {
+                    self.remember_foreground(color);
+                    self.update_selected(
+                        entities,
+                        |kind| {
+                            !matches!(
+                                kind,
+                                CanvasEntityKind::Block { .. }
+                                    | CanvasEntityKind::DirectEditor { .. }
+                            )
+                        },
+                        |style| style.foreground = color,
+                    );
                 }
 
                 let stroked = selected.iter().copied().filter(|entity| {
@@ -651,63 +651,61 @@ impl InfiniteCanvasEditor {
                     ui.separator();
                     ui.strong("Text");
 
-                    if let [entity] = selected.as_slice() {
-                        if let CanvasEntityKind::Text {
+                    if let [entity] = selected.as_slice()
+                        && let CanvasEntityKind::Text {
                             text,
                             text_style,
                             placeholder,
                         } = &entity.kind
-                        {
-                            let mut edited = text.clone();
-                            let response = ui.add_enabled(
-                                !entity.locked,
-                                egui::TextEdit::multiline(&mut edited)
-                                    .id_salt(("canvas-inspector-text", entity.id))
-                                    .hint_text(placeholder.as_str())
-                                    .desired_width(f32::INFINITY)
-                                    .desired_rows(4),
-                            );
-                            let requested_focus = self.editing_text == Some(entity.id)
-                                && std::mem::take(&mut self.focus_text_requested);
-                            if requested_focus {
-                                response.request_focus();
+                    {
+                        let mut edited = text.clone();
+                        let response = ui.add_enabled(
+                            !entity.locked,
+                            egui::TextEdit::multiline(&mut edited)
+                                .id_salt(("canvas-inspector-text", entity.id))
+                                .hint_text(placeholder.as_str())
+                                .desired_width(f32::INFINITY)
+                                .desired_rows(4),
+                        );
+                        let requested_focus = self.editing_text == Some(entity.id)
+                            && std::mem::take(&mut self.focus_text_requested);
+                        if requested_focus {
+                            response.request_focus();
+                        }
+                        if response.gained_focus() {
+                            self.editing_text = Some(entity.id);
+                        }
+                        if response.changed() {
+                            let mut updated = (*entity).clone();
+                            updated.kind = CanvasEntityKind::Text {
+                                text: edited,
+                                text_style: *text_style,
+                                placeholder: placeholder.clone(),
+                            };
+                            if !text_style.wrap {
+                                updated.transform.size = inspector_text_size(
+                                    ui,
+                                    text_style,
+                                    match &updated.kind {
+                                        CanvasEntityKind::Text { text, .. } => text,
+                                        _ => unreachable!(),
+                                    },
+                                );
                             }
-                            if response.gained_focus() {
-                                self.editing_text = Some(entity.id);
+                            self.record_update(vec![(*entity).clone()], vec![updated], true);
+                        }
+                        let exit = ui.ctx().input(|input| {
+                            input.key_pressed(egui::Key::Escape)
+                                || (input.modifiers.command && input.key_pressed(egui::Key::Enter))
+                        });
+                        if response.has_focus() && exit {
+                            response.surrender_focus();
+                        }
+                        if response.lost_focus() {
+                            if self.editing_text == Some(entity.id) {
+                                self.editing_text = None;
                             }
-                            if response.changed() {
-                                let mut updated = (*entity).clone();
-                                updated.kind = CanvasEntityKind::Text {
-                                    text: edited,
-                                    text_style: *text_style,
-                                    placeholder: placeholder.clone(),
-                                };
-                                if !text_style.wrap {
-                                    updated.transform.size = inspector_text_size(
-                                        ui,
-                                        text_style,
-                                        match &updated.kind {
-                                            CanvasEntityKind::Text { text, .. } => text,
-                                            _ => unreachable!(),
-                                        },
-                                    );
-                                }
-                                self.record_update(vec![(*entity).clone()], vec![updated], true);
-                            }
-                            let exit = ui.ctx().input(|input| {
-                                input.key_pressed(egui::Key::Escape)
-                                    || (input.modifiers.command
-                                        && input.key_pressed(egui::Key::Enter))
-                            });
-                            if response.has_focus() && exit {
-                                response.surrender_focus();
-                            }
-                            if response.lost_focus() {
-                                if self.editing_text == Some(entity.id) {
-                                    self.editing_text = None;
-                                }
-                                self.block.finish_history_group();
-                            }
+                            self.block.finish_history_group();
                         }
                     }
 

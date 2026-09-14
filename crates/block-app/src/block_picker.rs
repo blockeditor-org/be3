@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use block::{Block, BlockParent};
-use block_client::{blocks::infinite_canvas::InfiniteCanvas, BlockClient, CachedBlock};
+use block_client::{BlockClient, CachedBlock, blocks::infinite_canvas::InfiniteCanvas};
 use eframe::egui;
 use egui_material_icons::MaterialIcon;
 use uuid::Uuid;

@@ -1,4 +1,4 @@
-use super::{decode, feature, tile_with_layer, zigzag, GeometryKind};
+use super::{GeometryKind, decode, feature, tile_with_layer, zigzag};
 
 #[test]
 fn decode_splits_polygons_and_multipoints_into_paths() {

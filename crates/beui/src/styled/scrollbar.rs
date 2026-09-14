@@ -4,8 +4,8 @@ use crate::color::Color32;
 
 use crate::base::ScrollPosition;
 use crate::node::NodeId;
-use crate::reactive::{clone, create_memo, Column, Frame, ItemSize, Prop, Spacer};
-use crate::styled::theme::{use_theme, Theme};
+use crate::reactive::{Column, Frame, ItemSize, Prop, Spacer, clone, create_memo};
+use crate::styled::theme::{Theme, use_theme};
 
 const RADIUS: u8 = 3;
 const MINIMUM_THUMB: f32 = 0.08;

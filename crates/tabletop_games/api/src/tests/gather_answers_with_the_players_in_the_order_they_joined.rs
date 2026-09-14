@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{taken, GameHelper};
+use super::{GameHelper, taken};
 
 #[test]
 fn gather_answers_with_the_players_in_the_order_they_joined() {

@@ -4,7 +4,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use crate::computation::create_effect;
-use crate::memo::{create_memo, Memo};
+use crate::memo::{Memo, create_memo};
 use crate::runtime::tracking;
 use crate::scope::on_cleanup;
 use crate::signal::Source;
@@ -30,11 +30,11 @@ pub fn create_selector<K: Clone + Eq + Hash + 'static>(
         let mut previous: Option<K> = None;
         create_memo(move || {
             let next = source();
-            if let Some(previous) = previous.replace(next.clone()) {
-                if previous != next {
-                    notify(&keys, &previous);
-                    notify(&keys, &next);
-                }
+            if let Some(previous) = previous.replace(next.clone())
+                && previous != next
+            {
+                notify(&keys, &previous);
+                notify(&keys, &next);
             }
             next
         })

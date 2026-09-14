@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Frame, NodeRef, Text};
+use crate::reactive::{Frame, NodeRef, Text, build, view};
 
 #[test]
 fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {

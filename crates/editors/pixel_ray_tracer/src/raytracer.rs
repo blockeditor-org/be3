@@ -1,5 +1,5 @@
 use block_client::blocks::pixel_ray_tracer::{
-    Point, RayEntity, RaySettings, PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE,
+    PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE, Point, RayEntity, RaySettings,
 };
 
 const AMBIENT_LIGHT: f32 = 0.15;
@@ -364,14 +364,14 @@ fn rough_direction(direction: Point, roughness: f32, random: &mut u32) -> Point 
 fn closest_hit(position: Point, movement: Point, entities: &[RayEntity]) -> Option<Hit> {
     let mut closest: Option<Hit> = None;
     let mut consider = |entity, start, end| {
-        if let Some((distance, normal)) = segment_hit(position, movement, start, end) {
-            if closest.is_none_or(|hit| distance < hit.distance) {
-                closest = Some(Hit {
-                    entity,
-                    distance,
-                    normal,
-                });
-            }
+        if let Some((distance, normal)) = segment_hit(position, movement, start, end)
+            && closest.is_none_or(|hit| distance < hit.distance)
+        {
+            closest = Some(Hit {
+                entity,
+                distance,
+                normal,
+            });
         }
     };
     for (index, entity) in entities.iter().enumerate() {

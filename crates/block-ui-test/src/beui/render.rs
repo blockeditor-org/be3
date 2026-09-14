@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use beui::{clear_color, Color32, FrameOutput, Renderer, Vec2};
+use beui::{Color32, FrameOutput, Renderer, Vec2, clear_color};
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;

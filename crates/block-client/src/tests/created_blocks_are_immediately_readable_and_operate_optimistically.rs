@@ -1,8 +1,8 @@
 use uuid::Uuid;
 
 use super::{
-    lib_test_support::{Counter, CounterOperation},
     BlockClient,
+    lib_test_support::{Counter, CounterOperation},
 };
 
 #[test]

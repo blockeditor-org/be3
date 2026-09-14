@@ -5,7 +5,7 @@ use game_api::table::Table;
 use game_host::{Game, GameAction, GameScreen};
 use uuid::Uuid;
 
-use super::{can_be_played, decks_for, HAND_SIZE};
+use super::{HAND_SIZE, can_be_played, decks_for};
 
 mod decks_scale_with_the_number_of_players;
 mod drawing_a_card_you_can_play_offers_it_before_your_turn_ends;

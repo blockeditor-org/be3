@@ -1,5 +1,5 @@
 use super::editor;
-use block_editor_plugin::{egui, App as _};
+use block_editor_plugin::{App as _, egui};
 
 #[test]
 fn the_intrinsic_size_follows_the_width_it_was_given() {

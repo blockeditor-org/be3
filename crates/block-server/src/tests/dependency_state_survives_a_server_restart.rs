@@ -1,4 +1,4 @@
-use super::support::{create, parent as read_parent, read, references, set_parent, TestServer};
+use super::support::{TestServer, create, parent as read_parent, read, references, set_parent};
 use block::{BlockParent, BlockReferenceList, ServerMessage};
 use uuid::Uuid;
 

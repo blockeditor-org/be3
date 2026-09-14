@@ -6,7 +6,7 @@ use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 use crate::block_ref::{BlockRef, WorktreeMembership};
-use crate::blocks::version_control_data::{VersionControlData, MAIN_BRANCH};
+use crate::blocks::version_control_data::{MAIN_BRANCH, VersionControlData};
 use crate::blocks::version_control_worktree::{
     VersionControlWorktree, VersionControlWorktreeMembership,
 };

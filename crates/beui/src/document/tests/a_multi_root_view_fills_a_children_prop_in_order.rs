@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Column, NodeRef, Text};
+use crate::reactive::{Column, NodeRef, Text, build, view};
 
 #[test]
 fn a_multi_root_view_fills_a_children_prop_in_order() {

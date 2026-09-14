@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use block_client::BlockClient;
 use block_client::blocks::checklist::Checklist;
-use block_client::blocks::version_control_data::{VersionControlData, MAIN_BRANCH};
+use block_client::blocks::version_control_data::{MAIN_BRANCH, VersionControlData};
 use block_client::blocks::version_control_worktree::{
     VersionControlWorktree, VersionControlWorktreeOperation,
 };
-use block_client::BlockClient;
 use block_editor_plugin::{App as _, EditorHost};
 use block_ui_test::EditorTest;
 use uuid::Uuid;

@@ -1067,31 +1067,29 @@ impl LogicGrid {
                 result.push(wire);
                 continue;
             }
-            if start < remove_start {
-                if let Some(remaining_end) = remove_start.checked_sub(scale.get()) {
-                    if remaining_end - start >= scale.get() {
-                        result.push(Wire::from_parts(
-                            orientation,
-                            fixed,
-                            start,
-                            remaining_end.min(end),
-                            scale,
-                        ));
-                    }
-                }
+            if start < remove_start
+                && let Some(remaining_end) = remove_start.checked_sub(scale.get())
+                && remaining_end - start >= scale.get()
+            {
+                result.push(Wire::from_parts(
+                    orientation,
+                    fixed,
+                    start,
+                    remaining_end.min(end),
+                    scale,
+                ));
             }
-            if remove_end < end {
-                if let Some(remaining_start) = remove_end.checked_add(scale.get()) {
-                    if end - remaining_start >= scale.get() {
-                        result.push(Wire::from_parts(
-                            orientation,
-                            fixed,
-                            remaining_start.max(start),
-                            end,
-                            scale,
-                        ));
-                    }
-                }
+            if remove_end < end
+                && let Some(remaining_start) = remove_end.checked_add(scale.get())
+                && end - remaining_start >= scale.get()
+            {
+                result.push(Wire::from_parts(
+                    orientation,
+                    fixed,
+                    remaining_start.max(start),
+                    end,
+                    scale,
+                ));
             }
         }
 

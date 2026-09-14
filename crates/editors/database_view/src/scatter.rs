@@ -1,15 +1,15 @@
 use block_client::{
+    BlockHandle,
     blocks::{
         database::{DatabaseRow, DatabaseValue},
         database_schema::{DatabaseField, DatabaseFieldType},
         database_view::{DatabaseView, DatabaseViewOperation},
     },
-    BlockHandle,
 };
 use block_editor_plugin::egui;
 use uuid::Uuid;
 
-use crate::app::{preview_color, BlockRenderContext};
+use crate::app::{BlockRenderContext, preview_color};
 
 const POINT_RADIUS: f32 = 4.0;
 const SELECTED_POINT_RADIUS: f32 = 6.0;
@@ -88,15 +88,15 @@ impl ScatterView {
             )
         };
 
-        if response.clicked() {
-            if let Some(pointer) = response.interact_pointer_pos() {
-                self.selected = points
-                    .iter()
-                    .map(|(row_index, x, y)| (*row_index, to_screen(*x, *y).distance(pointer)))
-                    .filter(|(_, distance)| *distance <= HIT_RADIUS)
-                    .min_by(|a, b| a.1.total_cmp(&b.1))
-                    .map(|(row_index, _)| row_index);
-            }
+        if response.clicked()
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            self.selected = points
+                .iter()
+                .map(|(row_index, x, y)| (*row_index, to_screen(*x, *y).distance(pointer)))
+                .filter(|(_, distance)| *distance <= HIT_RADIUS)
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(row_index, _)| row_index);
         }
 
         let axis_stroke = visuals.widgets.noninteractive.bg_stroke;

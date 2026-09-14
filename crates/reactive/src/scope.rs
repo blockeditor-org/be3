@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::computation::Computation;
-use crate::runtime::{batch, Context, RUNTIME};
+use crate::runtime::{Context, RUNTIME, batch};
 
 #[derive(Default)]
 pub(crate) struct Owner {
@@ -46,10 +46,10 @@ impl Owner {
                 failure.get_or_insert(error);
             }
         }
-        if let Some(error) = failure {
-            if !std::thread::panicking() {
-                std::panic::resume_unwind(error);
-            }
+        if let Some(error) = failure
+            && !std::thread::panicking()
+        {
+            std::panic::resume_unwind(error);
         }
     }
 }

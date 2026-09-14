@@ -200,13 +200,12 @@ fn arrange(
             )
             .on_hover_text("Move into the container above")
             .clicked()
+            && let Some(target) = target
         {
-            if let Some(target) = target {
-                operations.push(GuiBuilderOperation::Move {
-                    id,
-                    location: GuiLocation::new(Some(target.id), target.children.len()),
-                });
-            }
+            operations.push(GuiBuilderOperation::Move {
+                id,
+                location: GuiLocation::new(Some(target.id), target.children.len()),
+            });
         }
 
         let parent = location.parent.and_then(|parent| builder.location(parent));
@@ -217,13 +216,12 @@ fn arrange(
             )
             .on_hover_text("Move out of the container")
             .clicked()
+            && let Some(parent) = parent
         {
-            if let Some(parent) = parent {
-                operations.push(GuiBuilderOperation::Move {
-                    id,
-                    location: GuiLocation::new(parent.parent, parent.index + 1),
-                });
-            }
+            operations.push(GuiBuilderOperation::Move {
+                id,
+                location: GuiLocation::new(parent.parent, parent.index + 1),
+            });
         }
 
         if ui

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]

@@ -15,9 +15,11 @@ fn struct_name_setting_renames_the_generated_struct() {
     let artifact = CodeArtifact::decode(&data).unwrap();
     assert_eq!(artifact.source, source);
     assert_eq!(artifact.settings, CodeSettings::default());
-    assert!(generate_initial(&builder)
-        .text_lossy()
-        .contains("pub struct MyWindow {"));
+    assert!(
+        generate_initial(&builder)
+            .text_lossy()
+            .contains("pub struct MyWindow {")
+    );
 
     let settings = CodeSettings {
         struct_name: "Settings Panel".into(),

@@ -129,10 +129,9 @@ impl block_editor_plugin::App for LogicGridApp {
                 .button(format!("{} Compile", ICON_BUILD.codepoint))
                 .on_hover_text("Build a component other grids can call")
                 .clicked()
+                && let Some(client) = &client
             {
-                if let Some(client) = &client {
-                    compiled = editor.compile(client);
-                }
+                compiled = editor.compile(client);
             }
             if let Some(challenge) = &editor.challenge {
                 ui.separator();

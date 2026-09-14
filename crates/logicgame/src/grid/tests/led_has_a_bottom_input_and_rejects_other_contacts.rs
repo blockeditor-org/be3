@@ -26,10 +26,12 @@ fn led_has_a_bottom_input_and_rejects_other_contacts() {
         crossing_grid.add_component(Point::new(10, 0), Rotation::Up, ComponentKind::Led);
     let crossing = wire((8, 0), (10, 0), 1);
     crossing_grid.add_wire(crossing);
-    assert!(crossing_grid
-        .validate()
-        .contains(&ValidationError::WireComponentIntersection {
-            wire: crossing,
-            component: crossed_led,
-        }));
+    assert!(
+        crossing_grid
+            .validate()
+            .contains(&ValidationError::WireComponentIntersection {
+                wire: crossing,
+                component: crossed_led,
+            })
+    );
 }

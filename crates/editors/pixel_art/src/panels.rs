@@ -1,9 +1,10 @@
 use block_client::blocks::pixel_art::{
-    PixelArtAnchor, PixelArtOperation, PixelColor, MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE,
+    MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
 };
 use block_editor_plugin::{
     egui::{self, Vec2},
     egui_material_icons::{
+        MaterialIcon,
         icons::{
             ICON_ADD, ICON_ARROW_BACK, ICON_ARROW_DOWNWARD, ICON_ARROW_FORWARD, ICON_ARROW_UPWARD,
             ICON_CIRCLE, ICON_COLORIZE, ICON_CROP_SQUARE, ICON_DELETE, ICON_DIAGONAL_LINE,
@@ -11,7 +12,6 @@ use block_editor_plugin::{
             ICON_INK_ERASER, ICON_NORTH_EAST, ICON_NORTH_WEST, ICON_RESIZE, ICON_SOUTH_EAST,
             ICON_SOUTH_WEST, ICON_SQUARE, ICON_ZOOM_IN, ICON_ZOOM_OUT,
         },
-        MaterialIcon,
     },
 };
 
@@ -19,7 +19,7 @@ use crate::{
     app::PixelArtApp,
     canvas::ZOOM_STEP,
     color::{color_swatch, parse_hex_color},
-    drawing::{BrushShape, PixelTool, MAX_BRUSH_SIZE},
+    drawing::{BrushShape, MAX_BRUSH_SIZE, PixelTool},
 };
 
 const NO_EDIT_ACCESS: &str = "You cannot change this block";
@@ -199,10 +199,10 @@ impl PixelArtApp {
                     .desired_width(100.0)
                     .hint_text("#RRGGBBAA"),
             );
-            if hex_response.changed() {
-                if let Some(color) = parse_hex_color(&self.color_hex) {
-                    self.color = color;
-                }
+            if hex_response.changed()
+                && let Some(color) = parse_hex_color(&self.color_hex)
+            {
+                self.color = color;
             }
             if parse_hex_color(&self.color_hex).is_none() {
                 hex_response.on_hover_text("Enter a color as #RRGGBBAA");

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{create_memo, create_signal, view, NodeRef, Show};
-use crate::styled::{switch_on, Switch};
+use crate::reactive::{NodeRef, Show, create_memo, create_signal, view};
+use crate::styled::{Switch, switch_on};
 
 #[test]
 fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {

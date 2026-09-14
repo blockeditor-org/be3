@@ -1,10 +1,10 @@
 use block_plugin_api::{EditorBand, Message};
 
 use crate::{
+    Waker,
     screens::Screens,
     session::{ClientSession, State},
     wasm::Surface,
-    Waker,
 };
 
 pub(crate) struct Step {

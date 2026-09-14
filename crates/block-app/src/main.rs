@@ -27,21 +27,22 @@ use block::{
 };
 use block_client::root_settings::{RootSetting, RootSettings};
 use block_client::{
-    blocks::{file_tree::FileTree, ui_settings::UiSettings, workspace_index::BlockEntry},
-    presence::{pick_free_color, UserActive},
-    properties::MAX_NAME_BYTES,
     BlockClient, BlockHandle, DynamicArtifactDescriptor, ManagementClient, ManagementClientError,
     ReferenceList, Session,
+    blocks::{file_tree::FileTree, ui_settings::UiSettings, workspace_index::BlockEntry},
+    presence::{UserActive, pick_free_color},
+    properties::MAX_NAME_BYTES,
 };
 use block_picker::{BlockPicker, BlockPickerResult};
 use block_plugin_api::{BlockCommand, BlockLocation};
 use editors::{
-    direct_editor_tab_ui, ArtifactSession, ArtifactStatus, BlockEditor, BlockLabel, EditorAccess,
-    EditorAction, EditorRegistry, SidebarDragPayload, SidebarDragSource,
+    ArtifactSession, ArtifactStatus, BlockEditor, BlockLabel, EditorAccess, EditorAction,
+    EditorRegistry, SidebarDragPayload, SidebarDragSource, direct_editor_tab_ui,
 };
 use eframe::egui;
-use egui_dock::{widgets::tab_viewer::OnCloseResponse, DockArea, DockState, TabViewer};
+use egui_dock::{DockArea, DockState, TabViewer, widgets::tab_viewer::OnCloseResponse};
 use egui_material_icons::{
+    MaterialIcon,
     icons::{
         ICON_ADD, ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_AUTO_AWESOME, ICON_CHEVRON_RIGHT,
         ICON_CLOSE, ICON_CLOUD, ICON_COMPUTER, ICON_DATA_OBJECT, ICON_EDIT, ICON_GROUP_ADD,
@@ -49,7 +50,6 @@ use egui_material_icons::{
         ICON_MORE_HORIZ, ICON_REDO, ICON_REFRESH, ICON_SETTINGS, ICON_SHARE, ICON_SWITCH_ACCOUNT,
         ICON_UNDO, ICON_VISIBILITY, ICON_WORKSPACES,
     },
-    MaterialIcon,
 };
 use share::ShareDialog;
 use uuid::Uuid;
@@ -704,11 +704,11 @@ impl BlockApp {
                     )
                     .clicked();
 
-                if !self.add_account_open {
-                    if let Some(error) = &self.account_error {
-                        ui.add_space(12.0);
-                        ui.colored_label(ui.visuals().error_fg_color, error);
-                    }
+                if !self.add_account_open
+                    && let Some(error) = &self.account_error
+                {
+                    ui.add_space(12.0);
+                    ui.colored_label(ui.visuals().error_fg_color, error);
                 }
                 ui.add_space(24.0);
             });
@@ -926,15 +926,14 @@ impl BlockApp {
                 self.invitations = invitations;
                 self.workspaces_loaded = true;
                 self.workspaces_load_failed = false;
-                if let Some(last_workspace_id) = self.account.last_workspace_id {
-                    if let Some(workspace) = self
+                if let Some(last_workspace_id) = self.account.last_workspace_id
+                    && let Some(workspace) = self
                         .workspaces
                         .iter()
                         .find(|workspace| workspace.id == last_workspace_id)
                         .cloned()
-                    {
-                        self.open_workspace(workspace);
-                    }
+                {
+                    self.open_workspace(workspace);
                 }
             }
             Ok(WorkspaceResult::Created(workspace)) => {
@@ -1114,10 +1113,8 @@ impl BlockApp {
         if submit {
             self.begin_reauth_request();
         }
-        if log_out {
-            if let Some(account) = self.reauth.take().map(|reauth| reauth.account) {
-                self.log_out_account(&account);
-            }
+        if log_out && let Some(account) = self.reauth.take().map(|reauth| reauth.account) {
+            self.log_out_account(&account);
         }
         if close || response.should_close() {
             self.reauth = None;
@@ -2059,20 +2056,19 @@ impl BlockApp {
                     }
                     ui.separator();
                     let history = editor.history().filter(|_| access.can_edit());
-                    if ui
+                    if (ui
                         .add_enabled(
                             history.map_or_else(|| false, |history| history.can_undo()),
                             egui::Button::new(ICON_UNDO),
                         )
                         .on_hover_text("Undo (Ctrl/Cmd+Z)")
                         .clicked()
-                        || undo_requested
+                        || undo_requested)
+                        && let Some(history) = history
                     {
-                        if let Some(history) = history {
-                            history.undo();
-                        }
+                        history.undo();
                     }
-                    if ui
+                    if (ui
                         .add_enabled(
                             history.map_or_else(|| false, |history| history.can_redo()),
                             egui::Button::new(ICON_REDO),
@@ -2080,11 +2076,10 @@ impl BlockApp {
                         .on_hover_text("Redo")
                         .on_hover_text("Redo (Ctrl+Y or Ctrl/Cmd+Shift+Z)")
                         .clicked()
-                        || redo_requested
+                        || redo_requested)
+                        && let Some(history) = history
                     {
-                        if let Some(history) = history {
-                            history.redo();
-                        }
+                        history.redo();
                     }
                     ui.separator();
                     if let Some(item) =
@@ -2521,10 +2516,8 @@ impl BlockApp {
         if go_to_original {
             self.opened_via.remove(&active);
         }
-        if make_copy {
-            if let Some(container) = container {
-                self.queue_copy(active, container, tab_id);
-            }
+        if make_copy && let Some(container) = container {
+            self.queue_copy(active, container, tab_id);
         }
         navigate.map(|(id, block_type)| BlockTabHistoryItem { id, block_type })
     }
@@ -2877,10 +2870,10 @@ impl BlockApp {
                     let response = response.on_hover_text(
                         "Someone else is viewing this document\nClick to jump to their cursor",
                     );
-                    if response.clicked() {
-                        if let Some(editor) = self.editors.get_mut(&active) {
-                            editor.reveal_presence_cursor(*client_id);
-                        }
+                    if response.clicked()
+                        && let Some(editor) = self.editors.get_mut(&active)
+                    {
+                        editor.reveal_presence_cursor(*client_id);
                     }
                 }
             }
@@ -2993,10 +2986,10 @@ impl BlockApp {
 
     fn record_reference_types(&mut self, reference: &BlockReference) {
         self.block_types.insert(reference.id, reference.block_type);
-        if let BlockParent::Uuid(parent) = reference.parent {
-            if let Some(parent) = self.client.cached_block(parent) {
-                self.block_types.insert(parent.id, parent.block_type);
-            }
+        if let BlockParent::Uuid(parent) = reference.parent
+            && let Some(parent) = self.client.cached_block(parent)
+        {
+            self.block_types.insert(parent.id, parent.block_type);
         }
     }
 
@@ -3809,11 +3802,11 @@ impl BlockApp {
     fn delete_client_database(&mut self) {
         let path = self.data_dir.join("app.sqlite3");
         let _ = std::mem::replace(&mut self.app_state, AppStateStore::placeholder());
-        if let Err(error) = std::fs::remove_file(&path) {
-            if error.kind() != io::ErrorKind::NotFound {
-                self.error = Some(format!("failed to delete {}: {error}", path.display()));
-                return;
-            }
+        if let Err(error) = std::fs::remove_file(&path)
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            self.error = Some(format!("failed to delete {}: {error}", path.display()));
+            return;
         }
         self.restart();
     }
@@ -3831,11 +3824,11 @@ impl BlockApp {
         block_client::shut_down_clients();
         self.embedded_server = None;
         let path = self.data_dir.join("server");
-        if let Err(error) = std::fs::remove_dir_all(&path) {
-            if error.kind() != io::ErrorKind::NotFound {
-                self.error = Some(format!("failed to delete {}: {error}", path.display()));
-                return;
-            }
+        if let Err(error) = std::fs::remove_dir_all(&path)
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            self.error = Some(format!("failed to delete {}: {error}", path.display()));
+            return;
         }
         self.restart();
     }

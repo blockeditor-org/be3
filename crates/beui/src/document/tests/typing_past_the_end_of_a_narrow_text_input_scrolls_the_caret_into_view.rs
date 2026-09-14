@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{view, Frame, NodeRef};
+use crate::reactive::{Frame, NodeRef, view};
 use crate::styled::TextInput;
 
 #[test]

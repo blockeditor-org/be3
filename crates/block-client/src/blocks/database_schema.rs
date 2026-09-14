@@ -45,12 +45,11 @@ impl DatabaseNumberOptions {
             self.minimum = self.minimum.filter(|value| *value > 0.0);
             self.maximum = self.maximum.filter(|value| *value > 0.0);
         }
-        if let (Some(minimum), Some(maximum)) = (self.minimum, self.maximum) {
-            if minimum > maximum {
+        if let (Some(minimum), Some(maximum)) = (self.minimum, self.maximum)
+            && minimum > maximum {
                 self.minimum = Some(maximum);
                 self.maximum = Some(minimum);
             }
-        }
         self.step = match self.scale {
             DatabaseNumberScale::Linear => self.step.filter(|value| *value > 0.0),
             DatabaseNumberScale::Logarithmic => self.step.filter(|value| *value > 1.0),
@@ -178,15 +177,14 @@ impl Block for DatabaseSchema {
                 }
             }
             DatabaseSchemaOperation::AddEnumOption { field_id, option } => {
-                if let Some(field) = schema.fields.iter_mut().find(|field| field.id == *field_id) {
-                    if !field
+                if let Some(field) = schema.fields.iter_mut().find(|field| field.id == *field_id)
+                    && !field
                         .enum_options
                         .iter()
                         .any(|existing| existing.id == option.id)
                     {
                         field.enum_options.push(option.clone());
                     }
-                }
             }
             DatabaseSchemaOperation::RemoveEnumOption {
                 field_id,
@@ -201,15 +199,14 @@ impl Block for DatabaseSchema {
                 option_id,
                 name,
             } => {
-                if let Some(field) = schema.fields.iter_mut().find(|field| field.id == *field_id) {
-                    if let Some(option) = field
+                if let Some(field) = schema.fields.iter_mut().find(|field| field.id == *field_id)
+                    && let Some(option) = field
                         .enum_options
                         .iter_mut()
                         .find(|option| option.id == *option_id)
                     {
                         option.name.clone_from(name);
                     }
-                }
             }
         }
     }

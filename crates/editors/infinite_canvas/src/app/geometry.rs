@@ -721,11 +721,11 @@ pub(super) fn resize_entities_axis(
             );
             entity.transform.size.x = (entity.transform.size.x * scale_x).max(MIN_SIZE);
             entity.transform.size.y = (entity.transform.size.y * scale_y).max(MIN_SIZE);
-            if let CanvasEntityKind::DirectEditor { scale, .. } = &mut entity.kind {
-                if scale_editors {
-                    let factor = if handle.x == 0 { scale_y } else { scale_x };
-                    *scale = (*scale * factor).max(f32::EPSILON);
-                }
+            if let CanvasEntityKind::DirectEditor { scale, .. } = &mut entity.kind
+                && scale_editors
+            {
+                let factor = if handle.x == 0 { scale_y } else { scale_x };
+                *scale = (*scale * factor).max(f32::EPSILON);
             }
             if let CanvasEntityKind::Text { text_style, .. } = &mut entity.kind {
                 if scale_text {

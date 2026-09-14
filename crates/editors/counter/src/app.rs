@@ -2,8 +2,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use block_client::blocks::counter::{Counter as CounterBlock, CounterOperation};
-use block_editor_plugin::beui::{Context, Rect};
 use block_editor_plugin::EditorHost;
+use block_editor_plugin::beui::{Context, Rect};
 
 mod count_changes;
 mod ui;
@@ -83,10 +83,10 @@ impl block_editor_plugin::BeuiApp for CounterApp {
 
     fn frame(&mut self, context: &Context, rect: Rect) {
         if let Some(value) = self.changes.as_mut().and_then(CountChanges::take) {
-            if self.ui.is_none() {
-                if let Some(counter) = &self.counter {
-                    self.ui = Some(CounterUi::new(counter.clone()));
-                }
+            if self.ui.is_none()
+                && let Some(counter) = &self.counter
+            {
+                self.ui = Some(CounterUi::new(counter.clone()));
             }
             if let Some(ui) = &mut self.ui {
                 ui.set_value(value);

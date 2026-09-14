@@ -9,8 +9,8 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 use uuid::Uuid;
 
 use super::{
-    lib_test_support::{counter_snapshot, Counter},
     BlockClient,
+    lib_test_support::{Counter, counter_snapshot},
 };
 
 #[tokio::test]

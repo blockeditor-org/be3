@@ -4,40 +4,39 @@ use std::{
     future::Future,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
 use argon2::{
-    password_hash::{
-        rand_core::OsRng as PasswordHashOsRng, PasswordHash, PasswordHasher, PasswordVerifier,
-        SaltString,
-    },
     Argon2,
+    password_hash::{
+        PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+        rand_core::OsRng as PasswordHashOsRng,
+    },
 };
 use block::{
     Account, BlockAccess, BlockAccessEntry, BlockOperation, BlockParent, BlockReference,
     BlockReferenceList, ClientEnvelope, ClientMessage, CommandKind, ErrorCode,
-    ManagementClientMessage, ManagementErrorCode, ManagementServerMessage, OperationRecord,
-    ReferenceDelta, ServerEnvelope, ServerMessage, Workspace, WorkspaceInvitation, WorkspaceRole,
-    MAX_PROPERTY_VALUE_BYTES,
+    MAX_PROPERTY_VALUE_BYTES, ManagementClientMessage, ManagementErrorCode,
+    ManagementServerMessage, OperationRecord, ReferenceDelta, ServerEnvelope, ServerMessage,
+    Workspace, WorkspaceInvitation, WorkspaceRole,
 };
 use futures_util::{SinkExt, StreamExt};
 use indexmap::IndexMap;
-use rand::{rngs::OsRng, RngCore};
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rand::{RngCore, rngs::OsRng};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use sha2::{Digest, Sha256};
 use tokio::{
     fs,
     net::{TcpListener, TcpStream},
-    sync::{mpsc, Mutex},
+    sync::{Mutex, mpsc},
     task::JoinSet,
 };
 use tokio_tungstenite::{
-    accept_async_with_config,
-    tungstenite::{protocol::WebSocketConfig, Message},
-    WebSocketStream,
+    WebSocketStream, accept_async_with_config,
+    tungstenite::{Message, protocol::WebSocketConfig},
 };
 use uuid::Uuid;
 
@@ -1208,14 +1207,14 @@ impl WatchHub {
         {
             let mut watchers = self.watchers.lock().await;
             watchers.retain(|&(_, id), entries| {
-                if let Some(watch) = entries.remove(&client_id) {
-                    if !watch.presence.is_empty() {
-                        let deliveries = entries
-                            .values()
-                            .map(|watch| (watch.identity, watch.outbound.clone()))
-                            .collect::<Vec<_>>();
-                        cleared.push((id, watch.presence, deliveries));
-                    }
+                if let Some(watch) = entries.remove(&client_id)
+                    && !watch.presence.is_empty()
+                {
+                    let deliveries = entries
+                        .values()
+                        .map(|watch| (watch.identity, watch.outbound.clone()))
+                        .collect::<Vec<_>>();
+                    cleared.push((id, watch.presence, deliveries));
                 }
                 !entries.is_empty()
             });
@@ -1252,7 +1251,7 @@ impl WatchHub {
             watch.presence.insert(presence_id, data.clone());
             entries
                 .iter()
-                .filter(|(&other_id, _)| other_id != client_id)
+                .filter(|&(&other_id, _)| other_id != client_id)
                 .map(|(_, watch)| (watch.identity, watch.outbound.clone()))
                 .collect::<Vec<_>>()
         };
@@ -1285,7 +1284,7 @@ impl WatchHub {
             watch.presence.remove(&presence_id);
             entries
                 .iter()
-                .filter(|(&other_id, _)| other_id != client_id)
+                .filter(|&(&other_id, _)| other_id != client_id)
                 .map(|(_, watch)| (watch.identity, watch.outbound.clone()))
                 .collect::<Vec<_>>()
         };
@@ -1406,7 +1405,7 @@ impl WatchHub {
                 .map(|entries| {
                     entries
                         .iter()
-                        .filter(|(&client_id, _)| !skip_origin || client_id != origin)
+                        .filter(|&(&client_id, _)| !skip_origin || client_id != origin)
                         .map(|(_, watch)| (watch.identity, watch.outbound.clone()))
                         .collect()
                 })

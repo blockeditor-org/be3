@@ -177,22 +177,22 @@ pub mod __private {
 #[macro_export]
 macro_rules! platform_entry {
     ($app:ty, $manifest:ident, $start:ident) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn plugin_initialize_tls(size: u32, align: u32) {
             $crate::__private::initialize_tls(size as usize, align as usize);
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn plugin_start() {
             $crate::__private::$start::<$app>($manifest);
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn plugin_step() {
             $crate::__private::step_wasm();
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn plugin_shutdown() {
             $crate::__private::shutdown_wasm();
         }

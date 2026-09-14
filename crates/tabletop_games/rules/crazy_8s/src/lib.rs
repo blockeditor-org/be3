@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use game_api::cards::{Card, Rank, Suit, SUITS};
+use game_api::cards::{Card, Rank, SUITS, Suit};
 use game_api::table::Table;
 use game_api::{GameHelper, GameScreen};
 

@@ -1,4 +1,4 @@
-use super::{editor, entities, entity, BlockRef, CanvasEntityKind, Uuid};
+use super::{BlockRef, CanvasEntityKind, Uuid, editor, entities, entity};
 use block_editor_plugin::App as _;
 
 #[test]

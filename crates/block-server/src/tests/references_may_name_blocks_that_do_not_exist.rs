@@ -1,4 +1,4 @@
-use super::support::{create, references, update, TestServer};
+use super::support::{TestServer, create, references, update};
 use block::{BlockReferenceList, ServerMessage};
 use uuid::Uuid;
 
