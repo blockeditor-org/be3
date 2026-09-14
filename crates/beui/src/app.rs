@@ -101,10 +101,14 @@ impl Runner {
     }
 
     fn logical(&self, position: PhysicalPosition<f64>) -> Pos2 {
-        let scale = self
+        let native = self
             .surface
             .as_ref()
             .map_or(1.0, |surface| surface.window.scale_factor());
+        let scale = self
+            .context
+            .simulated_pixels_per_point()
+            .map_or(native, f64::from);
         pos2((position.x / scale) as f32, (position.y / scale) as f32)
     }
 
@@ -118,10 +122,11 @@ impl Runner {
             return false;
         }
 
-        let scale = surface.window.scale_factor() as f32;
+        self.context
+            .set_pixels_per_point(surface.window.scale_factor() as f32);
+        let scale = self.context.pixels_per_point();
         let physical = vec2(surface.config.width as f32, surface.config.height as f32);
         let screen = vec2(physical.x / scale, physical.y / scale);
-        self.context.set_pixels_per_point(scale);
 
         let raw = RawInput {
             events: std::mem::take(&mut self.events),

@@ -24,6 +24,8 @@ struct Inner {
     copied_text: RefCell<Option<String>>,
     cursor_icon: Cell<CursorIcon>,
     touch_emulation: Cell<bool>,
+    native_pixels_per_point: Cell<f32>,
+    simulated_pixels_per_point: Cell<Option<f32>>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
     previous: RefCell<Option<(Vec<Shape>, f32)>>,
@@ -46,6 +48,10 @@ pub struct FrameOutput {
 impl FrameOutput {
     pub fn shapes(&self) -> &[Shape] {
         &self.shapes
+    }
+
+    pub fn pixels_per_point(&self) -> f32 {
+        self.pixels_per_point
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
@@ -77,6 +83,8 @@ impl Context {
                 copied_text: RefCell::new(None),
                 cursor_icon: Cell::new(CursorIcon::Default),
                 touch_emulation: Cell::new(false),
+                native_pixels_per_point: Cell::new(1.0),
+                simulated_pixels_per_point: Cell::new(None),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
                 previous: RefCell::new(None),
@@ -87,6 +95,7 @@ impl Context {
     }
 
     pub fn begin_frame(&self, raw: RawInput) {
+        self.apply_pixels_per_point();
         self.inner.input.borrow_mut().begin_frame(raw);
         self.inner.shapes.borrow_mut().clear();
         self.inner.test_ids.borrow_mut().clear();
@@ -209,6 +218,26 @@ impl Context {
     }
 
     pub fn set_pixels_per_point(&self, pixels_per_point: f32) {
+        self.inner.native_pixels_per_point.set(pixels_per_point);
+        self.apply_pixels_per_point();
+    }
+
+    pub(crate) fn native_pixels_per_point(&self) -> f32 {
+        self.inner.native_pixels_per_point.get()
+    }
+
+    pub fn simulated_pixels_per_point(&self) -> Option<f32> {
+        self.inner.simulated_pixels_per_point.get()
+    }
+
+    pub(crate) fn set_simulated_pixels_per_point(&self, pixels_per_point: Option<f32>) {
+        self.inner.simulated_pixels_per_point.set(pixels_per_point);
+    }
+
+    fn apply_pixels_per_point(&self) {
+        let pixels_per_point = self
+            .simulated_pixels_per_point()
+            .unwrap_or_else(|| self.native_pixels_per_point());
         self.inner
             .fonts
             .borrow_mut()

@@ -77,6 +77,7 @@ mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
 mod shift_tab_moves_focus_to_the_previous_button;
 mod show_lazily_builds_and_toggles_its_child_when_the_condition_changes;
+mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
 mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
 mod tab_focus_stays_in_the_active_document_when_the_inspector_is_open;
 mod tab_is_trapped_inside_an_open_context_menu;
@@ -296,6 +297,14 @@ impl Harness {
 
     pub(crate) fn performance_tab_center(&self) -> Pos2 {
         self.node_center(self.inspector().performance_tab_node())
+    }
+
+    pub(crate) fn simulation_tab_center(&self) -> Pos2 {
+        self.node_center(self.inspector().simulation_tab_node())
+    }
+
+    pub(crate) fn pixel_ratio_option_center(&self, index: usize) -> Pos2 {
+        self.node_center(self.inspector().pixel_ratio_option_node(index))
     }
 
     pub(crate) fn performance_panel_visible(&self) -> bool {

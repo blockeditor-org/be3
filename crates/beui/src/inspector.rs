@@ -29,6 +29,7 @@ pub(crate) enum InspectorTab {
     Beui,
     AccessKit,
     Performance,
+    Simulation,
 }
 
 impl InspectorTab {
@@ -36,6 +37,7 @@ impl InspectorTab {
         match index {
             1 => Self::AccessKit,
             2 => Self::Performance,
+            3 => Self::Simulation,
             _ => Self::Beui,
         }
     }
@@ -48,20 +50,22 @@ pub(crate) struct State {
     pub(crate) selected: Cell<Option<NodeId>>,
     pub(crate) picking: Cell<bool>,
     pub(crate) touch_emulation: Cell<bool>,
+    pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
     reveal: Cell<Option<NodeId>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
 }
 
 impl State {
-    fn new(touch_emulation: bool) -> Self {
+    fn new(ctx: &Context) -> Self {
         Self {
             expansion: RefCell::new(HashMap::new()),
             tab: Cell::new(InspectorTab::default()),
             hovered: Cell::new(None),
             selected: Cell::new(None),
             picking: Cell::new(false),
-            touch_emulation: Cell::new(touch_emulation),
+            touch_emulation: Cell::new(ctx.touch_emulation()),
+            simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
             reveal: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
@@ -88,6 +92,11 @@ impl State {
 
     fn reset_performance(&self) {
         self.reset_performance.set(true);
+        self.touch();
+    }
+
+    fn simulate_pixels_per_point(&self, pixels_per_point: Option<f32>) {
+        self.simulated_pixels_per_point.set(pixels_per_point);
         self.touch();
     }
 
@@ -132,6 +141,8 @@ pub(crate) struct Inspector {
     tabs: crate::reactive::NodeRef,
     #[cfg(test)]
     performance_panel: crate::reactive::NodeRef,
+    #[cfg(test)]
+    pixel_ratio: crate::reactive::NodeRef,
     pub(crate) width: f32,
     grabbed: Option<f32>,
     grip: bool,
@@ -139,8 +150,8 @@ pub(crate) struct Inspector {
 }
 
 impl Inspector {
-    pub(crate) fn new(touch_emulation: bool) -> Self {
-        let state = Rc::new(State::new(touch_emulation));
+    pub(crate) fn new(ctx: &Context) -> Self {
+        let state = Rc::new(State::new(ctx));
         let panel = panel::build(&state);
         Self {
             document: panel.document,
@@ -153,6 +164,8 @@ impl Inspector {
             tabs: panel.tabs,
             #[cfg(test)]
             performance_panel: panel.performance_panel,
+            #[cfg(test)]
+            pixel_ratio: panel.pixel_ratio,
             state,
             set_keys: panel.set_keys,
             set_entries: panel.set_entries,
@@ -193,6 +206,17 @@ impl Inspector {
     pub(crate) fn performance_tab_node(&self) -> NodeId {
         let tabs = self.tabs.get();
         self.document.children(tabs)[2]
+    }
+
+    #[cfg(test)]
+    pub(crate) fn simulation_tab_node(&self) -> NodeId {
+        let tabs = self.tabs.get();
+        self.document.children(tabs)[3]
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pixel_ratio_option_node(&self, index: usize) -> NodeId {
+        self.document.children(self.pixel_ratio.get())[index]
     }
 
     #[cfg(test)]
@@ -244,7 +268,7 @@ impl Inspector {
         keyboard_interactive: bool,
     ) {
         self.forget_removed(target);
-        self.sync(target);
+        self.sync(target, ctx);
         self.document
             .show_content(ctx, panel, true, keyboard_interactive);
         if self.state.reset_performance.take() {
@@ -252,6 +276,7 @@ impl Inspector {
             ctx.request_repaint();
         }
         ctx.set_touch_emulation(self.state.touch_emulation.get());
+        ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
         self.pick(target, ctx, content);
         self.reveal();
         self.paint(target, ctx, content, panel);
@@ -269,13 +294,13 @@ impl Inspector {
         }
     }
 
-    fn sync(&mut self, target: &Document) {
+    fn sync(&mut self, target: &Document, ctx: &Context) {
         let entries = match self.state.tab.get() {
             InspectorTab::Beui => tree::collect(target, &self.state),
             InspectorTab::AccessKit => tree::collect_accesskit(target, &self.state),
-            InspectorTab::Performance => Vec::new(),
+            InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
         };
-        let summary = self.summary(target, &entries);
+        let summary = self.summary(target, ctx, &entries);
         let performance = panel::PerformanceSummary::from(target.performance());
         let Self {
             document,
@@ -299,7 +324,7 @@ impl Inspector {
         self.entries = entries;
     }
 
-    fn summary(&self, target: &Document, entries: &[Entry]) -> Summary {
+    fn summary(&self, target: &Document, ctx: &Context, entries: &[Entry]) -> Summary {
         let selected = self.state.selected.get();
         let selection = selected
             .and_then(|id| entries.iter().find(|entry| entry.key.node() == id))
@@ -308,8 +333,9 @@ impl Inspector {
             total: match self.state.tab.get() {
                 InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
                 InspectorTab::AccessKit => tree::accesskit_count(target),
-                InspectorTab::Performance => 0,
+                InspectorTab::Performance | InspectorTab::Simulation => 0,
             },
+            native_pixel_ratio: native_pixel_ratio_label(ctx.native_pixels_per_point()),
             picking: self.state.picking.get(),
             selection,
             bounds: selected
@@ -350,7 +376,7 @@ impl Inspector {
         let path = match self.state.tab.get() {
             InspectorTab::Beui => tree::path(target, id),
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
-            InspectorTab::Performance => return,
+            InspectorTab::Performance | InspectorTab::Simulation => return,
         };
         if let Some((_, ancestors)) = path.split_last() {
             for key in ancestors {
@@ -367,7 +393,7 @@ impl Inspector {
         let key = match self.state.tab.get() {
             InspectorTab::Beui => Key::Node(id),
             InspectorTab::AccessKit => Key::AccessKit(id),
-            InspectorTab::Performance => return,
+            InspectorTab::Performance | InspectorTab::Simulation => return,
         };
         let Some(index) = self.entries.iter().position(|entry| entry.key == key) else {
             return;
@@ -425,6 +451,13 @@ fn cancelled(event: &Event) -> bool {
 
 fn nothing_selected() -> String {
     "nothing selected".to_owned()
+}
+
+fn native_pixel_ratio_label(pixels_per_point: f32) -> String {
+    format!(
+        "Native pixel ratio: {}x",
+        (pixels_per_point * 100.0).round() / 100.0
+    )
 }
 
 fn bounds_label(rect: Rect) -> String {

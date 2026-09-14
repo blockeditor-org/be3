@@ -1039,7 +1039,7 @@ impl EditorSession {
     ) -> Option<beui::FrameOutput> {
         self.generation = generation;
         let scale_factor = self.scale_factor(region);
-        let rect = self.rect(region);
+        let host = self.rect(region);
         let spec = self
             .regions
             .get(&region)
@@ -1051,6 +1051,8 @@ impl EditorSession {
         let events = std::mem::take(&mut state.events);
         let context = state.context.clone();
         context.set_pixels_per_point(scale_factor);
+        let ratio = scale_factor / context.pixels_per_point();
+        let rect = scaled(host, ratio);
 
         let frame = beui::Rect::from_min_max(
             beui::pos2(rect.min.x, rect.min.y),
@@ -1065,7 +1067,7 @@ impl EditorSession {
                 let shown = beui_frame::show(context, frame, &spec.trail, drawn);
                 let content = match spec.content {
                     Some(content) => {
-                        let content = host_rect(content, rect.min.to_vec2());
+                        let content = scaled(host_rect(content, host.min.to_vec2()), ratio);
                         beui::Rect::from_min_max(
                             beui::pos2(
                                 content.min.x.max(shown.content.min.x),
@@ -1086,21 +1088,19 @@ impl EditorSession {
             EditorRegion::ArtifactSettings => {}
         });
 
-        let origin = rect.min.to_vec2();
+        let origin = host.min.to_vec2();
         let screen = self.placement(region).map(|placement| placement.screen);
         let chrome = chrome.unwrap_or_else(|| beui_frame::Chrome::plain(frame));
         self.leaving |= chrome.exit;
-        self.used(region, rect);
+        self.used(region, host);
+        let reported =
+            |rect: beui::Rect| plugin_rect(scaled(egui_rect(rect), ratio.recip()), origin);
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
             state.cursor = beui_cursor(output.cursor_icon);
             state.report = (region == EditorRegion::Frame).then(|| FrameReport {
                 screen,
-                content: plugin_rect(egui_rect(chrome.content), origin),
-                painted: chrome
-                    .painted
-                    .iter()
-                    .map(|rect| plugin_rect(egui_rect(*rect), origin))
-                    .collect(),
+                content: reported(chrome.content),
+                painted: chrome.painted.iter().map(|rect| reported(*rect)).collect(),
                 floating: Vec::new(),
             });
         }
@@ -1111,12 +1111,17 @@ impl EditorSession {
     }
 
     fn beui_input(&mut self, region: EditorRegion, event: &InputEvent) {
+        let scale_factor = self.scale_factor(region);
         let origin = self.rect(region).min.to_vec2();
         let Some(beui) = self.beui.as_mut() else {
             return;
         };
         let state = beui.entry(region).or_insert_with(BeuiRegion::new);
-        let at = |x: f32, y: f32| beui::pos2(x + origin.x, y + origin.y);
+        let ratio = state
+            .context
+            .simulated_pixels_per_point()
+            .map_or(1.0, |simulated| scale_factor / simulated);
+        let at = |x: f32, y: f32| beui::pos2((x + origin.x) * ratio, (y + origin.y) * ratio);
         match event {
             InputEvent::PointerMoved { x, y } => {
                 state.pointer = at(*x, *y);
@@ -1409,6 +1414,13 @@ fn beui_cursor(cursor: beui::CursorIcon) -> CursorIcon {
         beui::CursorIcon::Text => CursorIcon::Text,
         beui::CursorIcon::Wait => CursorIcon::Wait,
     }
+}
+
+fn scaled(rect: egui::Rect, ratio: f32) -> egui::Rect {
+    egui::Rect::from_min_max(
+        egui::pos2(rect.min.x * ratio, rect.min.y * ratio),
+        egui::pos2(rect.max.x * ratio, rect.max.y * ratio),
+    )
 }
 
 fn host_rect(rect: ChildRect, origin: egui::Vec2) -> egui::Rect {

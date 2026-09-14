@@ -19,7 +19,8 @@ use crate::styled::theme::{
     SEPARATOR_HEIGHT, SURFACE, SURFACE_RAISED, TEXT, TEXT_MUTED,
 };
 use crate::styled::{
-    Button, ButtonVariant, Caption, Checkbox, Code, Heading, ListRow, Scrollbar, Separator, Tabs,
+    Button, ButtonVariant, Caption, Checkbox, Code, Heading, ListRow, RadioGroup, Scrollbar,
+    Separator, Tabs,
 };
 use crate::unstyled;
 
@@ -40,10 +41,18 @@ const TOGGLE_PADDING_HORIZONTAL: f32 = 8.0;
 const TOGGLE_PADDING_VERTICAL: f32 = 3.0;
 const PERFORMANCE_SPACING: f32 = 10.0;
 const TIMING_SPACING: f32 = 4.0;
+const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
+    ("Native", None),
+    ("1x", Some(1.0)),
+    ("1.5x", Some(1.5)),
+    ("2x", Some(2.0)),
+    ("3x", Some(3.0)),
+];
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Summary {
     pub(crate) total: usize,
+    pub(crate) native_pixel_ratio: String,
     pub(crate) picking: bool,
     pub(crate) selection: String,
     pub(crate) bounds: String,
@@ -125,6 +134,8 @@ pub(crate) struct Panel {
     #[cfg(test)]
     pub(crate) performance_panel: NodeRef,
     #[cfg(test)]
+    pub(crate) pixel_ratio: NodeRef,
+    #[cfg(test)]
     pub(crate) rows: Rows,
 }
 
@@ -143,8 +154,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let tabs_ref = tabs.clone();
     let performance_panel = NodeRef::new();
     let performance_panel_ref = performance_panel.clone();
-    let touch_emulation = state.touch_emulation.get();
-    let touch_state = state.clone();
+    let pixel_ratio = NodeRef::new();
+    let pixel_ratio_ref = pixel_ratio.clone();
+    let simulation_state = state.clone();
     let tab_state = state.clone();
     let reset_state = state.clone();
 
@@ -155,14 +167,23 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                 InspectorTab::Performance => {
                     performance.with(|performance| performance.samples.clone())
                 }
+                InspectorTab::Simulation => String::new(),
                 _ => total_label(summary.with(|summary| summary.total)),
             }
         });
         let tree_visible = create_memo({
             let tab = tab.clone();
-            move || tab.get() != InspectorTab::Performance
+            move || matches!(tab.get(), InspectorTab::Beui | InspectorTab::AccessKit)
         });
-        let performance_visible = create_memo(move || tab.get() == InspectorTab::Performance);
+        let performance_visible = create_memo({
+            let tab = tab.clone();
+            move || tab.get() == InspectorTab::Performance
+        });
+        let simulation_visible = create_memo(move || tab.get() == InspectorTab::Simulation);
+        let native_pixel_ratio_text = create_memo({
+            let summary = summary.clone();
+            move || summary.with(|summary| summary.native_pixel_ratio.clone())
+        });
         let picking = create_memo({
             let summary = summary.clone();
             move || summary.with(|summary| summary.picking)
@@ -179,6 +200,8 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         let footer_tree_visible = tree_visible;
         let body_performance_visible = performance_visible.clone();
         let footer_performance_visible = performance_visible;
+        let body_simulation_visible = simulation_visible.clone();
+        let footer_simulation_visible = simulation_visible;
         view! {
         <Row spacing=0.0>
             <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
@@ -195,7 +218,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                             </CenteredRow>
                             <Tabs
                                 @node_ref=&tabs_ref
-                                labels={vec!["BEUI".to_owned(), "A11y".to_owned(), "Perf".to_owned()]}
+                                labels={vec!["BEUI".to_owned(), "A11y".to_owned(), "Perf".to_owned(), "Sim".to_owned()]}
                                 selected=0
                                 on_change={move |index| {
                                     tab_state.set_tab(index);
@@ -234,6 +257,13 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     performance={performance.clone()}
                                 />
                             </Show>
+                            <Show @sizing=ItemSize::Percent(100.0) condition={body_simulation_visible}>
+                                <SimulationPanel
+                                    state={simulation_state.clone()}
+                                    touch_toggle={touch_toggle_ref.clone()}
+                                    pixel_ratio={pixel_ratio_ref.clone()}
+                                />
+                            </Show>
                         </Column>
                     </Frame>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
@@ -241,12 +271,6 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                         <Column spacing=0.0>
                             <Show condition={footer_tree_visible}>
                                 <Column spacing=FOOTER_SPACING>
-                                    <Checkbox
-                                        @node_ref=&touch_toggle_ref
-                                        label="Emulate touch with mouse"
-                                        checked={touch_emulation}
-                                        on_change={move |enabled| touch_state.touch_emulation.set(enabled)}
-                                    />
                                     <Code content={selection_text} />
                                     <Code content={bounds_text} color=TEXT_MUTED />
                                 </Column>
@@ -257,6 +281,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     variant=ButtonVariant::Secondary
                                     on_click={move || reset_state.reset_performance()}
                                 />
+                            </Show>
+                            <Show condition={footer_simulation_visible}>
+                                <Code content={native_pixel_ratio_text} color=TEXT_MUTED />
                             </Show>
                         </Column>
                     </Frame>
@@ -281,7 +308,56 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         #[cfg(test)]
         performance_panel,
         #[cfg(test)]
+        pixel_ratio,
+        #[cfg(test)]
         rows,
+    }
+}
+
+#[component]
+fn SimulationPanel(state: Rc<State>, touch_toggle: NodeRef, pixel_ratio: NodeRef) -> NodeId {
+    let (position, set_position) = create_signal(ScrollPosition::ZERO);
+    let simulated = state.simulated_pixels_per_point.get();
+    let selected = PIXEL_RATIOS
+        .iter()
+        .position(|(_, ratio)| *ratio == simulated)
+        .unwrap_or(0);
+    let labels = PIXEL_RATIOS
+        .iter()
+        .map(|(label, _)| (*label).to_owned())
+        .collect::<Vec<_>>();
+    let (touch_state, ratio_state) = (state.clone(), state.clone());
+    view! {
+        <Row spacing=BODY_SPACING>
+            <Scroll
+                @sizing=ItemSize::Percent(100.0)
+                focus_color=ACCENT
+                on_change={move |value| set_position.set(value)}
+            >
+                <Column spacing=PERFORMANCE_SPACING>
+                    <Checkbox
+                        @node_ref=&touch_toggle
+                        label="Emulate touch with mouse"
+                        checked={state.touch_emulation.get()}
+                        on_change={move |enabled| touch_state.touch_emulation.set(enabled)}
+                    />
+                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Column spacing=TIMING_SPACING>
+                        <Heading content="Device pixel ratio" />
+                        <RadioGroup
+                            @node_ref=&pixel_ratio
+                            labels
+                            selected={Some(selected)}
+                            on_change={move |index: Option<usize>| {
+                                let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
+                                ratio_state.simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
+                            }}
+                        />
+                    </Column>
+                </Column>
+            </Scroll>
+            <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
+        </Row>
     }
 }
 

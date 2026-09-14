@@ -355,7 +355,7 @@ fn paint_beui(
             continue;
         };
         drawn.repaint = drawn.repaint.min(output.repaint_after);
-        let scale = placement.scale_factor();
+        let scale = output.pixels_per_point();
         renderer.prepare(target.device, target.queue, output, screen, scale);
         let mut encoder = target
             .device
