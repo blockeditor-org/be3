@@ -48,6 +48,8 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
         modifiers: Modifiers::NONE,
         pointer: Pos2::ZERO,
         emulated_touch: false,
+        held_buttons: 0,
+        pointer_left: false,
         error: None,
         next_update: None,
         clipboard: Clipboard::new(),
@@ -84,6 +86,8 @@ struct Runner {
     modifiers: Modifiers,
     pointer: Pos2,
     emulated_touch: bool,
+    held_buttons: u8,
+    pointer_left: bool,
     error: Option<String>,
     next_update: Option<Instant>,
     clipboard: Clipboard,
@@ -294,6 +298,8 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
             WindowEvent::Focused(focused) => {
                 if !focused {
                     self.emulated_touch = false;
+                    self.held_buttons = 0;
+                    self.pointer_left = false;
                 }
                 self.push(Event::Focus(focused));
             }
@@ -315,20 +321,30 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
                     self.push(Event::PointerMoved(self.pointer));
                 }
             }
+            WindowEvent::CursorEntered { .. } => self.pointer_left = false,
             WindowEvent::CursorLeft { .. } => {
-                if self.emulated_touch {
-                    self.emulated_touch = false;
-                    self.push(emulated_touch(TouchPhase::Cancel, self.pointer));
+                if self.emulated_touch || self.held_buttons != 0 {
+                    self.pointer_left = true;
                 } else {
                     self.push(Event::PointerGone);
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
+                let pressed = state == ElementState::Pressed;
+                let bit = mouse_button_bit(button);
+                if pressed {
+                    self.held_buttons |= bit;
+                } else {
+                    self.held_buttons &= !bit;
+                }
+                let released_outside = !pressed && self.pointer_left && self.held_buttons == 0;
+                if released_outside {
+                    self.pointer_left = false;
+                }
                 if self.context.touch_emulation() {
                     if button != MouseButton::Left {
                         return;
                     }
-                    let pressed = state == ElementState::Pressed;
                     if pressed != self.emulated_touch {
                         self.emulated_touch = pressed;
                         self.push(emulated_touch(
@@ -348,9 +364,12 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
                 self.push(Event::PointerButton {
                     pos: self.pointer,
                     button,
-                    pressed: state == ElementState::Pressed,
+                    pressed,
                     modifiers: self.modifiers,
                 });
+                if released_outside {
+                    self.push(Event::PointerGone);
+                }
             }
             WindowEvent::Touch(touch) => {
                 self.push(Event::Touch {
@@ -444,6 +463,17 @@ fn emulated_touch(phase: TouchPhase, pos: Pos2) -> Event {
         phase,
         pos,
         force: None,
+    }
+}
+
+fn mouse_button_bit(button: MouseButton) -> u8 {
+    match button {
+        MouseButton::Left => 1,
+        MouseButton::Right => 2,
+        MouseButton::Middle => 4,
+        MouseButton::Back => 8,
+        MouseButton::Forward => 16,
+        MouseButton::Other(_) => 32,
     }
 }
 
