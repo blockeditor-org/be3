@@ -377,6 +377,17 @@ jobs:
         with:
           version: 0.16.0
 
+      # fetch-pdfium.sh skips its download when this is already populated.
+      # The release it downloads from is pinned and hash-checked, so the
+      # cached copy can't go stale silently; it only saves a redundant fetch
+      # from a redirect that intermittently 504s.
+      - name: Cache PDFium
+        if: matrix.client
+        uses: actions/cache@v6
+        with:
+          path: target/tools/pdfium-*
+          key: pdfium-${{ matrix.target }}-1
+
       # The client build also stages every plugin under crates/editors beside
       # the app and fetches PDFium, which the PDF plugin loads at runtime.
       - name: Build
