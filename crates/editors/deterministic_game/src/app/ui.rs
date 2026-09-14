@@ -123,7 +123,7 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: GameSnapshot) -> NodeId {
                 <Column spacing=16.0>
                     <Heading content={screen.description} />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <ForEach spacing=10.0 items={actions} key={|action: Action| action.index}>
+                        <ForEach spacing=10.0 keys={actions}>
                             {move |action: Action| {
                                 let effect = action.effect;
                                 let game = game.clone();

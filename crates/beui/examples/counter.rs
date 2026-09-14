@@ -1,5 +1,6 @@
 use beui::reactive::{
-    Button, Column, ForEach, Row, Show, Text, build, component, create_memo, create_signal, view,
+    Button, Column, ForEach, KeyedStore, ReadSignal, Row, Show, Text, build, clone, component,
+    create_memo, create_signal, view,
 };
 use beui::{App, Color32, Context, Document, NodeId, Rect};
 
@@ -8,17 +9,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[component]
-fn HistoryEntry(value: i64) -> NodeId {
+fn HistoryEntry(value: ReadSignal<i64>) -> NodeId {
+    let text = create_memo(move || value.get().to_string());
     view! {
-        <Text string={value.to_string()} />
+        <Text string={text} />
     }
 }
 
 #[component]
 fn App() -> NodeId {
     let (count, set_count) = create_signal(0i64);
-    let (history, set_history) = create_signal(Vec::<(u64, i64)>::new());
+    let history: KeyedStore<u64, i64> = KeyedStore::new();
+    let (entries, set_entries) = create_signal(Vec::<(u64, i64)>::new());
     let (next_id, set_next_id) = create_signal(0u64);
+    let record = clone!(history entries -> move || {
+        history.reconcile(entries.get_untracked().iter().map(|(id, value)| (*id, value)));
+    });
 
     let is_zero = {
         let count = count.clone();
@@ -31,7 +37,8 @@ fn App() -> NodeId {
 
     let decrement_click = {
         let set_count = set_count.clone();
-        let set_history = set_history.clone();
+        let decrement_record = record.clone();
+        let set_entries = set_entries.clone();
         let count = count.clone();
         let next_id = next_id.clone();
         let set_next_id = set_next_id.clone();
@@ -39,13 +46,15 @@ fn App() -> NodeId {
             set_count.update(|value| *value -= 1);
             let id = next_id.get();
             set_next_id.set(id + 1);
-            set_history.update(|entries| entries.push((id, count.get())));
+            set_entries.update(|entries| entries.push((id, count.get())));
+            decrement_record();
         }
     };
 
     let increment_click = {
         let set_count = set_count.clone();
-        let set_history = set_history.clone();
+        let increment_record = record.clone();
+        let set_entries = set_entries.clone();
         let count = count.clone();
         let next_id = next_id.clone();
         let set_next_id = set_next_id.clone();
@@ -53,13 +62,15 @@ fn App() -> NodeId {
             set_count.update(|value| *value += 1);
             let id = next_id.get();
             set_next_id.set(id + 1);
-            set_history.update(|entries| entries.push((id, count.get())));
+            set_entries.update(|entries| entries.push((id, count.get())));
+            increment_record();
         }
     };
 
     let reset_click = move || {
         set_count.set(0);
-        set_history.set(Vec::new());
+        set_entries.set(Vec::new());
+        record();
     };
 
     let count_text = create_memo(move || count.get().to_string());
@@ -80,9 +91,12 @@ fn App() -> NodeId {
                     </Button>
                 </Show>
             </Row>
-            <ForEach spacing=4.0 items={history} key={|(id, _): (u64, i64)| id}>
-                {|(_, value): (u64, i64)| view! {
-                    <HistoryEntry value />
+            <ForEach spacing=4.0 keys={history.keys()}>
+                {move |id: u64| {
+                    let value = history.get(&id);
+                    view! {
+                        <HistoryEntry value />
+                    }
                 }}
             </ForEach>
         </Column>
