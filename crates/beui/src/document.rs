@@ -7,6 +7,8 @@ use accesskit::Node;
 
 use crate::accessibility;
 use crate::context::Context;
+use crate::damage;
+use crate::flash::FlashLog;
 use crate::geometry::{Rect, Vec2, pos2};
 use crate::input::{Event, Key};
 
@@ -50,6 +52,8 @@ pub struct Document {
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: HashMap<NodeId, Node>,
     performance: PerformanceTracker,
+    changes: FlashLog<NodeId>,
+    damage: FlashLog<Rect>,
 }
 
 struct SizeWatcher {
@@ -89,6 +93,8 @@ impl Document {
             accessibility_id: accessibility::next_document_id(),
             accessibility: HashMap::new(),
             performance: PerformanceTracker::default(),
+            changes: FlashLog::default(),
+            damage: FlashLog::default(),
         }
     }
 
@@ -160,6 +166,27 @@ impl Document {
         self.performance.clear();
     }
 
+    pub(crate) fn track_changes(&mut self, enabled: bool) {
+        self.changes.set_enabled(enabled);
+        self.arena.set_change_tracking(enabled);
+    }
+
+    pub(crate) fn track_damage(&mut self, enabled: bool) {
+        self.damage.set_enabled(enabled);
+    }
+
+    pub(crate) fn change_flashes(&self) -> impl Iterator<Item = (NodeId, Instant)> {
+        self.changes.entries().map(|(id, at)| (*id, at))
+    }
+
+    pub(crate) fn damage_flashes(&self) -> impl Iterator<Item = (Rect, Instant)> {
+        self.damage.entries().map(|(rect, at)| (*rect, at))
+    }
+
+    pub(crate) fn flashing(&self) -> bool {
+        !self.changes.is_empty() || !self.damage.is_empty()
+    }
+
     pub fn set_accessibility(&mut self, id: NodeId, node: Node) {
         if self.accessibility.get(&id) != Some(&node) {
             self.accessibility.insert(id, node);
@@ -221,6 +248,11 @@ impl Document {
             {
                 inspector.toggle_focus();
             }
+        }
+
+        if self.inspector.is_none() {
+            self.track_changes(false);
+            self.track_damage(false);
         }
 
         let (content, panel) = match &mut self.inspector {
@@ -323,6 +355,11 @@ impl Document {
                 self.settle_layout(ctx, rect)
             });
         let now = Instant::now();
+        self.changes.prune(now);
+        self.damage.prune(now);
+        for id in self.arena.take_changed() {
+            self.changes.record(id, now);
+        }
         if self.paint_revision != self.arena.revision
             || self.next_paint.is_some_and(|deadline| deadline <= now)
         {
@@ -343,7 +380,12 @@ impl Document {
                     }
                 })
             });
+            let region = damage::between(&self.shapes, &shapes).intersect(rect);
             self.shapes = shapes;
+            if region.is_positive() {
+                self.damage.record(region, now);
+                ctx.report_damage(region);
+            }
             self.next_paint = Instant::now().checked_add(delay);
             self.paint_revision = self.arena.revision;
         }

@@ -198,6 +198,13 @@ impl Rect {
         self.expand(-amount)
     }
 
+    pub fn union(&self, other: Self) -> Self {
+        Self {
+            min: Pos2::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y)),
+            max: Pos2::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y)),
+        }
+    }
+
     pub fn intersect(&self, other: Self) -> Self {
         Self {
             min: Pos2::new(self.min.x.max(other.min.x), self.min.y.max(other.min.y)),

@@ -5,10 +5,13 @@ mod tree;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::Instant;
 
 use crate::context::Context;
+use crate::flash;
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, Event, Key as InputKey};
+use crate::painter::Painter;
 
 use crate::document::Document;
 use crate::node::NodeId;
@@ -50,6 +53,8 @@ pub(crate) struct State {
     pub(crate) selected: Cell<Option<NodeId>>,
     pub(crate) picking: Cell<bool>,
     pub(crate) touch_emulation: Cell<bool>,
+    pub(crate) flash_changes: Cell<bool>,
+    pub(crate) flash_damage: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
     pub(crate) theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
@@ -67,6 +72,8 @@ impl State {
             selected: Cell::new(None),
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
+            flash_changes: Cell::new(false),
+            flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
@@ -150,6 +157,10 @@ pub(crate) struct Inspector {
     #[cfg(test)]
     touch_toggle: crate::reactive::NodeRef,
     #[cfg(test)]
+    change_flash_toggle: crate::reactive::NodeRef,
+    #[cfg(test)]
+    damage_flash_toggle: crate::reactive::NodeRef,
+    #[cfg(test)]
     tabs: crate::reactive::NodeRef,
     #[cfg(test)]
     performance_panel: crate::reactive::NodeRef,
@@ -175,6 +186,10 @@ impl Inspector {
             tree: panel.tree,
             #[cfg(test)]
             touch_toggle: panel.touch_toggle,
+            #[cfg(test)]
+            change_flash_toggle: panel.change_flash_toggle,
+            #[cfg(test)]
+            damage_flash_toggle: panel.damage_flash_toggle,
             #[cfg(test)]
             tabs: panel.tabs,
             #[cfg(test)]
@@ -211,6 +226,16 @@ impl Inspector {
     #[cfg(test)]
     pub(crate) fn touch_toggle_node(&self) -> NodeId {
         self.touch_toggle.get()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn change_flash_toggle_node(&self) -> NodeId {
+        self.change_flash_toggle.get()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn damage_flash_toggle_node(&self) -> NodeId {
+        self.damage_flash_toggle.get()
     }
 
     #[cfg(test)]
@@ -303,6 +328,8 @@ impl Inspector {
             ctx.request_repaint();
         }
         ctx.set_touch_emulation(self.state.touch_emulation.get());
+        target.track_changes(self.state.flash_changes.get());
+        target.track_damage(self.state.flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
         if let Some(theme) = self.state.requested_theme.take() {
             target.set_theme(theme);
@@ -312,6 +339,9 @@ impl Inspector {
         self.release_focus(ctx);
         self.reveal();
         self.paint(target, ctx, content, panel);
+        if target.flashing() {
+            ctx.request_repaint();
+        }
         if self.state.revision.get() != self.seen {
             self.seen = self.state.revision.get();
             ctx.request_repaint();
@@ -502,6 +532,7 @@ impl Inspector {
         let local = scale.recip();
         ctx.scaled(scale, || {
             let painter = ctx.painter().with_clip_rect(content.scaled(local));
+            flashes(&painter, target, local);
             let hovered = self.state.hovered.get();
             let selected = self.state.selected.get();
             if let Some(id) = selected.filter(|id| Some(*id) != hovered) {
@@ -520,6 +551,29 @@ impl Inspector {
                 ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
             }
         });
+    }
+}
+
+fn flashes(painter: &Painter, target: &Document, scale: f32) {
+    let now = Instant::now();
+    for (id, at) in target.change_flashes() {
+        let Some(rect) = target.node_rect(id) else {
+            continue;
+        };
+        overlay::flash(
+            painter,
+            rect.scaled(scale),
+            flash::CHANGE,
+            flash::remaining(now, at),
+        );
+    }
+    for (rect, at) in target.damage_flashes() {
+        overlay::flash(
+            painter,
+            rect.scaled(scale),
+            flash::REPAINT,
+            flash::remaining(now, at),
+        );
     }
 }
 

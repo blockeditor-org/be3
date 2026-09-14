@@ -126,6 +126,10 @@ pub(crate) struct Panel {
     #[cfg(test)]
     pub(crate) touch_toggle: NodeRef,
     #[cfg(test)]
+    pub(crate) change_flash_toggle: NodeRef,
+    #[cfg(test)]
+    pub(crate) damage_flash_toggle: NodeRef,
+    #[cfg(test)]
     pub(crate) tabs: NodeRef,
     #[cfg(test)]
     pub(crate) performance_panel: NodeRef,
@@ -151,6 +155,10 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let tree_ref = tree.clone();
     let touch_toggle = NodeRef::new();
     let touch_toggle_ref = touch_toggle.clone();
+    let change_flash_toggle = NodeRef::new();
+    let change_flash_toggle_ref = change_flash_toggle.clone();
+    let damage_flash_toggle = NodeRef::new();
+    let damage_flash_toggle_ref = damage_flash_toggle.clone();
     let tabs = NodeRef::new();
     let tabs_ref = tabs.clone();
     let performance_panel = NodeRef::new();
@@ -160,6 +168,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let theme_choice = NodeRef::new();
     let theme_choice_ref = theme_choice.clone();
     let simulation_state = state.clone();
+    let performance_state = state.clone();
     let tab_state = state.clone();
     let reset_state = state.clone();
 
@@ -291,6 +300,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     <PerformancePanel
                                         @node_ref=&performance_panel_ref
                                         performance={performance.clone()}
+                                        state={performance_state.clone()}
+                                        change_flash_toggle={change_flash_toggle_ref.clone()}
+                                        damage_flash_toggle={damage_flash_toggle_ref.clone()}
                                     />
                                 </Show>
                                 <Show
@@ -348,6 +360,10 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         tree,
         #[cfg(test)]
         touch_toggle,
+        #[cfg(test)]
+        change_flash_toggle,
+        #[cfg(test)]
+        damage_flash_toggle,
         #[cfg(test)]
         tabs,
         #[cfg(test)]
@@ -444,8 +460,14 @@ pub(crate) fn total_label(total: usize) -> String {
 }
 
 #[component]
-fn PerformancePanel(performance: ReadSignal<PerformanceSummary>) -> NodeId {
+fn PerformancePanel(
+    performance: ReadSignal<PerformanceSummary>,
+    state: Rc<State>,
+    change_flash_toggle: NodeRef,
+    damage_flash_toggle: NodeRef,
+) -> NodeId {
     let (position, set_position) = create_signal(ScrollPosition::ZERO);
+    let (change_state, damage_state) = (state.clone(), state.clone());
     let latest_work = performance_text(&performance, |summary| &summary.latest_work);
     let scene = performance_text(&performance, |summary| &summary.scene);
     let cache = performance_text(&performance, |summary| &summary.cache);
@@ -481,6 +503,22 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>) -> NodeId {
                         <TimingRow label="Paint" values={paint} />
                         <TimingRow label="Accessibility" values={accessibility} />
                         <TimingRow label="Other" values={other} />
+                    </Column>
+                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Column spacing=TIMING_SPACING>
+                        <Heading content="Visualize" />
+                        <Checkbox
+                            @node_ref=&change_flash_toggle
+                            label="Flash changed elements"
+                            checked={state.flash_changes.get()}
+                            on_change={move |enabled| change_state.flash_changes.set(enabled)}
+                        />
+                        <Checkbox
+                            @node_ref=&damage_flash_toggle
+                            label="Flash repainted regions"
+                            checked={state.flash_damage.get()}
+                            on_change={move |enabled| damage_state.flash_damage.set(enabled)}
+                        />
                     </Column>
                 </Column>
             </Scroll>
