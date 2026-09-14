@@ -15,6 +15,7 @@ Do not:
 - Don't use worktrees. If using subagents, run them sequentially rather than in parallel.
 
 Verification:
+- `./scripts/setup`: Installs the prerequisites and then compiles everything `./scripts/verify` needs, so the first verify on a fresh machine takes under a minute instead of a quarter of an hour. Run it again after a `cargo clean` to warm the caches back up; `--no-warm-cache` leaves the compiling out.
 - `./scripts/check`: Use this for fast compile feedback. It prepares non-Cargo prerequisites and checks the complete workspace with the feature unification the project expects. Prefer this over `cargo build` or `cargo check` directly.
 - `./scripts/verify`: This is the primary full check and is required before committing. Run it after coherent changes and use a 10 minute timeout in the tool call arguments so it doesn't convert itself to a background task.
   - This will run all project tests and clippy lints
