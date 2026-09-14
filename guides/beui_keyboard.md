@@ -68,14 +68,14 @@ Keyboard regression tests run without a window. Run `cargo test -p beui --lib --
 
 ## Touch behavior
 
-BEUI accepts `Event::Touch` with a stable device and finger id, lifecycle
+Beui accepts `Event::Touch` with a stable device and finger id, lifecycle
 phase, logical position, and optional normalized pressure. It tracks every
 active contact in `InputState::touch`; the first contact drives the primary
 pointer so existing pressable controls, sliders, text selection, focus, and
 overlays work without a separate touch-only control API. A second contact or
 a cancelled contact cancels a pending tap rather than activating it.
 
-A tap may drift by up to eight logical points. Beyond that threshold BEUI
+A tap may drift by up to eight logical points. Beyond that threshold beui
 locks the gesture to its dominant axis. Vertical gestures drag the deepest
 scroll view under the initial contact, keep that scroll captured when the
 finger leaves its rectangle, and do not click the row where the gesture
@@ -85,12 +85,12 @@ contacts do not hover controls, and focus is assigned only after a gesture
 resolves as a tap. Horizontal gestures remain available to controls such as
 sliders. The touch pointer disappears after release, so touch does not leave
 hover styling behind. Platform integrations may provide synthesized pointer
-events alongside touch events; BEUI suppresses those duplicates while the
+events alongside touch events; beui suppresses those duplicates while the
 touch is active.
 
 Standalone apps receive winit touch events automatically. Open the inspector
 with Ctrl+Shift+I and enable “Emulate touch with mouse” to turn the primary
-mouse button into a touch contact. Embedded BEUI plugins receive the same touch
+mouse button into a touch contact. Embedded beui plugins receive the same touch
 data over the block plugin input protocol. `block_ui_test::BeuiTest` provides
 `touch_start`, `touch_move`, `touch_end`, and `touch_cancel` for headless
 gesture tests.

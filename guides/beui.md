@@ -1,6 +1,6 @@
-# BEUI
+# Beui
 
-BEUI is BE3's retained-mode user interface toolkit. A `Document` owns a
+Beui is BE3's retained-mode user interface toolkit. A `Document` owns a
 persistent tree of nodes, and reactive signals update that tree in place. The
 tree is laid out, receives input, exposes accessibility, and paints into a
 `Context` whenever `Document::show` is called. Building the view is therefore
@@ -13,7 +13,7 @@ The quickest introductions are the small
 
 ## Component layers
 
-BEUI separates mechanism, behavior, and appearance. The dependency direction
+Beui separates mechanism, behavior, and appearance. The dependency direction
 is deliberate:
 
 | Layer | Location and public path | Responsibility |
@@ -51,7 +51,7 @@ inputs, menus, tabs, progress, scrollbars, and responsive layout components.
 The module re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 component lists.
 
-## Use BEUI in a standalone app
+## Use Beui in a standalone app
 
 The default `beui` feature is `window`, which includes the winit runner and the
 wgpu renderer. A standalone app builds its document once and implements
@@ -124,10 +124,10 @@ cargo run -p beui --example counter
 cargo run -p beui --example demo
 ```
 
-Use Ctrl+Shift+I in a standalone BEUI window to open the node, accessibility,
+Use Ctrl+Shift+I in a standalone beui window to open the node, accessibility,
 and performance inspector. Ctrl+Shift+C enables node picking.
 
-BEUI has three feature levels:
+Beui has three feature levels:
 
 - No features provides the document, components, layout, input model, and
   painting output. This is enough for headless logic tests.
@@ -207,9 +207,9 @@ fn set_value(document: &mut Document, value: &WriteSignal<String>, next: String)
 Keep the write handles needed by the host next to its `Document`. Do not rebuild
 the document to display new data.
 
-## Use BEUI in a block editor plugin
+## Use beui in a block editor plugin
 
-A BEUI editor implements `block_editor_plugin::BeuiApp` and uses
+A beui editor implements `block_editor_plugin::BeuiApp` and uses
 `block_editor_plugin::beui_plugin!` instead of the egui `App` and `plugin!`.
 Build and retain the editor's `Document`, then show it from `frame`:
 
@@ -224,7 +224,7 @@ block_editor_plugin::beui_plugin!(Editor, "../manifest.json");
 ```
 
 The host supplies input, fonts, clipboard integration, rendering, and the frame
-rectangle. A plugin normally depends on BEUI without the window runner:
+rectangle. A plugin normally depends on beui without the window runner:
 
 ```toml
 beui = { path = "../../beui", default-features = false, features = ["render"] }
@@ -232,7 +232,7 @@ beui = { path = "../../beui", default-features = false, features = ["render"] }
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
-creation flow, host connection, and current BEUI plugin capability limits.
+creation flow, host connection, and current beui plugin capability limits.
 
 A plugin with `"creation": "Dialog"` implements `creation_frame` to show a
 separate retained document in the host's creation dialog. Host services such as
@@ -351,13 +351,13 @@ exist solely to support an unstyled control.
 
 ## Test and verify changes
 
-BEUI behavior is tested headlessly. For library behavior, add a test under the
+Beui behavior is tested headlessly. For library behavior, add a test under the
 relevant `tests` directory and declare it in that directory's `tests.rs`; this
 repository keeps one test per file. The document tests use their `Harness` to
 build a `Document`, send `Event` values through a `Context`, and inspect
 component state, layout, accessibility, or painting output.
 
-For a BEUI block editor, use `block_ui_test::BeuiTest`. Give every interacted
+For a beui block editor, use `block_ui_test::BeuiTest`. Give every interacted
 node an `@test_id`, call `run` after queued gestures, assert the resulting block
 state, and snapshot only when the painting is meaningful. `BeuiTest` also
 supports key presses, text, hover, pointer clicks, and touch gestures. See the

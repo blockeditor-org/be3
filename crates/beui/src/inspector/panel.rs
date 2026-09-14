@@ -221,7 +221,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                             </CenteredRow>
                             <Tabs
                                 @node_ref=&tabs_ref
-                                labels={vec!["BEUI".to_owned(), "A11y".to_owned(), "Perf".to_owned(), "Sim".to_owned()]}
+                                labels={vec!["Beui".to_owned(), "A11y".to_owned(), "Perf".to_owned(), "Sim".to_owned()]}
                                 selected=0
                                 on_change={move |index| {
                                     tab_state.set_tab(index);
