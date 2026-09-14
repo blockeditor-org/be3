@@ -104,10 +104,7 @@ impl Spawner {
 
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {
         for import in self.module.imports() {
-            if !matches!(
-                import.module(),
-                abi::GPU_MODULE | abi::HOST_MODULE | abi::TEST_MODULE
-            ) {
+            if !matches!(import.module(), abi::GPU_MODULE | abi::HOST_MODULE) {
                 continue;
             }
             let Some(signature) = import.ty().func().cloned() else {

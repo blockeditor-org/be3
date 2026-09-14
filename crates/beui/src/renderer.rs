@@ -4,9 +4,9 @@ use bytemuck::{Pod, Zeroable};
 
 use crate::color::Color32;
 use crate::context::FrameOutput;
+use crate::draw::{Quad, quads};
 use crate::font::{GlyphId, GlyphImage};
-use crate::geometry::{Rect, Vec2, vec2};
-use crate::painter::Shape;
+use crate::geometry::Vec2;
 
 const ATLAS_SIZE: u32 = 2048;
 const GLYPH_PADDING: u32 = 1;
@@ -285,61 +285,37 @@ impl Renderer {
         );
 
         let mut instances = Vec::new();
-        for shape in &output.shapes {
-            match shape {
-                Shape::Rect {
+        for quad in quads(output, pixels_per_point) {
+            match quad {
+                Quad::Rect {
                     rect,
+                    clip,
+                    color,
                     corner_radius,
                     stroke_width,
-                    color,
+                } => instances.push(Instance {
+                    rect,
                     clip,
+                    uv: [0.0; 4],
+                    color: self.encode(color),
+                    params: [corner_radius, stroke_width, 0.0, 0.0],
+                }),
+                Quad::Glyph {
+                    rect,
+                    clip,
+                    color,
+                    glyph,
                 } => {
-                    if !rect.is_positive() {
+                    let Some(uv) = self.atlas.insert(queue, glyph.id, &glyph.image) else {
                         continue;
-                    }
+                    };
                     instances.push(Instance {
-                        rect: snapped(*rect, pixels_per_point),
-                        clip: bounds(*clip, pixels_per_point),
-                        uv: [0.0; 4],
-                        color: self.encode(*color),
-                        params: [
-                            corner_radius * pixels_per_point,
-                            stroke(*stroke_width, pixels_per_point),
-                            0.0,
-                            0.0,
-                        ],
+                        rect,
+                        clip,
+                        uv,
+                        color: self.encode(color),
+                        params: [0.0, 0.0, 1.0, 0.0],
                     });
-                }
-                Shape::Text {
-                    origin,
-                    galley,
-                    color,
-                    clip,
-                } => {
-                    let color = self.encode(*color);
-                    let clip = bounds(*clip, pixels_per_point);
-                    let origin = vec2(
-                        (origin.x * pixels_per_point).round(),
-                        (origin.y * pixels_per_point).round(),
-                    );
-                    for glyph in galley.glyphs() {
-                        let Some(uv) = self.atlas.insert(queue, glyph.id, &glyph.image) else {
-                            continue;
-                        };
-                        let min = origin + glyph.offset;
-                        instances.push(Instance {
-                            rect: [
-                                min.x,
-                                min.y,
-                                min.x + glyph.image.width as f32,
-                                min.y + glyph.image.height as f32,
-                            ],
-                            clip,
-                            uv,
-                            color,
-                            params: [0.0, 0.0, 1.0, 0.0],
-                        });
-                    }
                 }
             }
         }
@@ -413,27 +389,6 @@ fn bind_group(
             },
         ],
     })
-}
-
-fn bounds(rect: Rect, pixels_per_point: f32) -> [f32; 4] {
-    [
-        (rect.min.x * pixels_per_point).round(),
-        (rect.min.y * pixels_per_point).round(),
-        (rect.max.x * pixels_per_point).round(),
-        (rect.max.y * pixels_per_point).round(),
-    ]
-}
-
-fn snapped(rect: Rect, pixels_per_point: f32) -> [f32; 4] {
-    let [left, top, right, bottom] = bounds(rect, pixels_per_point);
-    [left, top, right.max(left + 1.0), bottom.max(top + 1.0)]
-}
-
-fn stroke(width: f32, pixels_per_point: f32) -> f32 {
-    if width <= 0.0 {
-        return 0.0;
-    }
-    (width * pixels_per_point).round().max(1.0)
 }
 
 #[cfg(test)]

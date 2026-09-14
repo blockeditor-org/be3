@@ -150,7 +150,7 @@ fn within(uv: [f32; 2], rect: [u32; 4], size: [u32; 2]) -> [f32; 2] {
     [at(0), at(1)]
 }
 
-fn fingerprint(size: [u32; 2], pixels: &[[u8; 4]]) -> TextureKey {
+pub fn fingerprint(size: [u32; 2], pixels: &[[u8; 4]]) -> TextureKey {
     let mut hash = Sha256::new();
     hash.update(size[0].to_le_bytes());
     hash.update(size[1].to_le_bytes());

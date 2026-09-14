@@ -35,6 +35,23 @@ pub struct Primitive {
 pub enum Content {
     Mesh(Vec<Triangle>),
     Callback([f32; 4]),
+    RoundedRect(RoundedRect),
+    Glyph(Glyph),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RoundedRect {
+    pub rect: [f32; 4],
+    pub corner_radius: f32,
+    pub stroke_width: f32,
+    pub color: [u8; 4],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Glyph {
+    pub rect: [f32; 4],
+    pub texture: TextureKey,
+    pub color: [u8; 4],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

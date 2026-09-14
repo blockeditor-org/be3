@@ -343,12 +343,11 @@ pub fn describe(snapshot: &Snapshot, frame: usize) -> Result<String, String> {
     let textures: std::collections::BTreeSet<_> = frame
         .primitives
         .iter()
-        .filter_map(|primitive| match &primitive.content {
-            Content::Mesh(triangles) => Some(triangles),
-            Content::Callback(_) => None,
+        .flat_map(|primitive| match &primitive.content {
+            Content::Mesh(triangles) => triangles.iter().map(|triangle| triangle.texture).collect(),
+            Content::Glyph(glyph) => vec![glyph.texture],
+            Content::Callback(_) | Content::RoundedRect(_) => Vec::new(),
         })
-        .flatten()
-        .map(|triangle| triangle.texture)
         .collect();
     Ok(format!(
         "{width}x{height}, {} draw calls, {} textures",

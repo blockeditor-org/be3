@@ -1,6 +1,6 @@
 use image::RgbaImage;
 
-use crate::format::{Content, Frame, Snapshot, Texture};
+use crate::format::{Content, Frame, Glyph, RoundedRect, Snapshot, Texture};
 
 pub fn render(snapshot: &Snapshot, frame: usize) -> Result<RgbaImage, String> {
     let frame: &Frame = snapshot.frame(frame)?;
@@ -32,9 +32,105 @@ pub fn render(snapshot: &Snapshot, frame: usize) -> Result<RgbaImage, String> {
                 let rect = scaled(*rect, scale, &canvas);
                 outline(&mut canvas, rect);
             }
+            Content::RoundedRect(shape) => {
+                rounded(&mut canvas, exact(primitive.clip, scale), shape, scale);
+            }
+            Content::Glyph(glyph) => {
+                let sampler = textures
+                    .get(&glyph.texture)
+                    .ok_or("the snapshot is missing a texture the painting uses")?;
+                stamp(
+                    &mut canvas,
+                    exact(primitive.clip, scale),
+                    glyph,
+                    scale,
+                    sampler,
+                );
+            }
         }
     }
     Ok(canvas)
+}
+
+fn exact(rect: [f32; 4], scale: f32) -> [f32; 4] {
+    rect.map(|value| value * scale)
+}
+
+fn rounded(canvas: &mut RgbaImage, clip: [f32; 4], shape: &RoundedRect, scale: f32) {
+    let rect = exact(shape.rect, scale);
+    let radius = shape.corner_radius * scale;
+    let width = shape.stroke_width * scale;
+    let center = [(rect[0] + rect[2]) * 0.5, (rect[1] + rect[3]) * 0.5];
+    let extent = [(rect[2] - rect[0]) * 0.5, (rect[3] - rect[1]) * 0.5];
+    let bled = [rect[0] - 1.0, rect[1] - 1.0, rect[2] + 1.0, rect[3] + 1.0];
+    cover(canvas, clip, bled, shape.color, |point| {
+        let mut distance =
+            rounded_distance([point[0] - center[0], point[1] - center[1]], extent, radius);
+        if width > 0.0 {
+            distance = (distance + width * 0.5).abs() - width * 0.5;
+        }
+        (0.5 - distance).clamp(0.0, 1.0)
+    });
+}
+
+fn rounded_distance(point: [f32; 2], extent: [f32; 2], radius: f32) -> f32 {
+    let limit = radius.min(extent[0].min(extent[1]));
+    let offset = [
+        point[0].abs() - extent[0] + limit,
+        point[1].abs() - extent[1] + limit,
+    ];
+    offset[0].max(offset[1]).min(0.0) + offset[0].max(0.0).hypot(offset[1].max(0.0)) - limit
+}
+
+fn stamp(canvas: &mut RgbaImage, clip: [f32; 4], glyph: &Glyph, scale: f32, sampler: &Sampler) {
+    let rect = glyph.rect.map(|value| (value * scale).round());
+    let size = [rect[2] - rect[0], rect[3] - rect[1]];
+    cover(canvas, clip, rect, glyph.color, |point| {
+        let uv = [
+            (point[0] - rect[0]) / size[0],
+            (point[1] - rect[1]) / size[1],
+        ];
+        sampler.sample(uv)[3] / 255.0
+    });
+}
+
+fn cover(
+    canvas: &mut RgbaImage,
+    clip: [f32; 4],
+    bounds: [f32; 4],
+    color: [u8; 4],
+    coverage: impl Fn([f32; 2]) -> f32,
+) {
+    let left = bounds[0].max(clip[0]).floor().max(0.0) as u32;
+    let top = bounds[1].max(clip[1]).floor().max(0.0) as u32;
+    let right = bounds[2]
+        .min(clip[2])
+        .ceil()
+        .min(canvas.width() as f32)
+        .max(0.0) as u32;
+    let bottom = bounds[3]
+        .min(clip[3])
+        .ceil()
+        .min(canvas.height() as f32)
+        .max(0.0) as u32;
+    for y in top..bottom {
+        for x in left..right {
+            let point = [x as f32 + 0.5, y as f32 + 0.5];
+            if point[0] < clip[0] || point[1] < clip[1] || point[0] > clip[2] || point[1] > clip[3]
+            {
+                continue;
+            }
+            let alpha = color[3] as f32 / 255.0 * coverage(point);
+            if alpha <= 0.0 {
+                continue;
+            }
+            let target = canvas.get_pixel_mut(x, y);
+            for (target, source) in target.0.iter_mut().zip(color).take(3) {
+                let blended = source as f32 * alpha + *target as f32 * (1.0 - alpha);
+                *target = blended.round().clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
 }
 
 struct Sampler {

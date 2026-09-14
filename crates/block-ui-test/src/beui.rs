@@ -5,7 +5,7 @@ use block_editor_plugin::BeuiApp;
 
 use crate::snapshot;
 
-mod render;
+mod capture;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 
@@ -175,7 +175,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        let painting = render::capture(output, self.size, self.pixels_per_point, Color32::BLACK)
+        let painting = capture::capture(output, self.size, self.pixels_per_point, Color32::BLACK)
             .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
     }

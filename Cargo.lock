@@ -939,11 +939,9 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-plugin",
- "block-gpu-guest",
  "egui",
  "egui_kittest",
  "paint-snapshot",
- "wgpu",
 ]
 
 [[package]]

@@ -11,7 +11,7 @@ mod text_paints_glyphs_over_the_background;
 use crate::context::Context;
 use crate::document::Document;
 use crate::font::FontId;
-use crate::geometry::{Pos2, pos2, vec2};
+use crate::geometry::{Pos2, Rect, pos2, vec2};
 use crate::input::RawInput;
 use crate::painter::Painter;
 

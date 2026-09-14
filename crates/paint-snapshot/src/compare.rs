@@ -137,5 +137,13 @@ fn summary(content: &Content) -> String {
                 .len()
         ),
         Content::Callback(rect) => format!("a callback over {rect:?}"),
+        Content::RoundedRect(shape) => format!(
+            "a rect over {:?} in {:?} with corner radius {} and stroke {}",
+            shape.rect, shape.color, shape.corner_radius, shape.stroke_width
+        ),
+        Content::Glyph(glyph) => format!(
+            "a glyph over {:?} in {:?} from texture {:016x}",
+            glyph.rect, glyph.color, glyph.texture
+        ),
     }
 }
