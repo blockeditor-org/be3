@@ -4,7 +4,7 @@ use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::node::NodeId;
 use crate::reactive::{Callback, Child, Frame, Prop, Text, clone, create_memo};
-use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
+use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{MenuItem, MenuRowHandle, TextInputMenu};
 
@@ -59,16 +59,15 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let disabled = item.disabled;
-    let color = theme.pick(move |theme| {
+    let color = create_memo(clone!(theme -> move || {
         if disabled {
-            theme.text_muted
+            theme.text_muted.get()
         } else {
-            theme.text
+            theme.text.get()
         }
-    });
-    let fill_color = create_memo(
-        clone!(theme -> move || row_background(&theme.get(), focused.get(), hovered.get())),
-    );
+    }));
+    let fill_color =
+        create_memo(clone!(theme -> move || row_background(&theme, focused.get(), hovered.get())));
     view! {
         <Frame
             color={fill_color}
@@ -87,8 +86,8 @@ fn MenuPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=MENU_WIDTH
-            color={theme.pick(|theme| theme.surface_raised)}
-            outline={theme.pick(|theme| theme.border)}
+            color={theme.surface_raised.clone()}
+            outline={theme.border.clone()}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
@@ -100,10 +99,10 @@ fn MenuPanel(children: Child) -> NodeId {
     }
 }
 
-fn row_background(theme: &Theme, focused: bool, hovered: bool) -> Color32 {
+fn row_background(theme: &ThemeStore, focused: bool, hovered: bool) -> Color32 {
     match (focused, hovered) {
-        (true, _) => theme.accent_soft,
-        (false, true) => theme.pressed,
+        (true, _) => theme.accent_soft.get(),
+        (false, true) => theme.pressed.get(),
         (false, false) => Color32::TRANSPARENT,
     }
 }

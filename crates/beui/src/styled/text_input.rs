@@ -7,7 +7,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{Callback, Frame, Prop, clone, create_memo};
 use crate::styled::context_menu::text_input_menu;
-use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
+use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::TextInputHandle;
 
@@ -38,10 +38,10 @@ pub fn TextInput(
             placeholder
             accessibility
             font_size=FONT_BODY
-            color={theme.pick(|theme| theme.text)}
-            placeholder_color={theme.pick(|theme| theme.text_muted)}
-            selection_color={theme.pick(|theme| theme.accent_soft)}
-            caret_color={theme.pick(|theme| theme.accent)}
+            color={theme.text.clone()}
+            placeholder_color={theme.text_muted.clone()}
+            selection_color={theme.accent_soft.clone()}
+            caret_color={theme.accent.clone()}
             padding_horizontal=PADDING_HORIZONTAL
             menu={text_input_menu()}
             on_change={move |value| on_change.call(value)}
@@ -63,11 +63,11 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let border = create_memo(
-        clone!(focused theme -> move || border_color(&theme.get(), focused.get(), hovered.get())),
+        clone!(focused theme -> move || border_color(&theme, focused.get(), hovered.get())),
     );
     view! {
         <Frame
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -75,7 +75,7 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
         >
             <Frame
                 height=HEIGHT
-                color={theme.pick(|theme| theme.surface_raised)}
+                color={theme.surface_raised.clone()}
                 outline={border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
@@ -91,10 +91,10 @@ pub fn text_input_value(document: &Document, input: NodeId) -> String {
     unstyled::text_input_value(document, input)
 }
 
-fn border_color(theme: &Theme, focused: bool, hovered: bool) -> Color32 {
+fn border_color(theme: &ThemeStore, focused: bool, hovered: bool) -> Color32 {
     match (focused, hovered) {
-        (true, _) => theme.accent,
-        (false, true) => theme.text_muted,
-        (false, false) => theme.border,
+        (true, _) => theme.accent.get(),
+        (false, true) => theme.text_muted.get(),
+        (false, false) => theme.border.get(),
     }
 }

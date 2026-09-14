@@ -49,7 +49,7 @@ impl CounterUi {
 
             view! {
                 <Frame
-                    color={theme.pick(|theme| theme.background)}
+                    color={theme.background.clone()}
                     padding_horizontal=PADDING
                     padding_vertical=PADDING
                 >

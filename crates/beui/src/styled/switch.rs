@@ -6,7 +6,9 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{Callback, CenteredRow, Frame, ItemSize, Prop, Spacer, clone, create_memo};
-use crate::styled::theme::{BORDER_WIDTH, RADIUS, Theme, use_theme};
+use crate::styled::theme::{
+    BORDER_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible, use_theme,
+};
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
 
@@ -54,13 +56,12 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
     let theme = use_theme();
     let before_percent = create_memo(clone!(checked -> move || before_size(checked.get())));
     let after_percent = create_memo(clone!(checked -> move || after_size(checked.get())));
-    let track_color = create_memo(
-        clone!(theme -> move || track_fill(&theme.get(), checked.get(), hovered.get())),
-    );
+    let track_color =
+        create_memo(clone!(theme -> move || track_fill(&theme, checked.get(), hovered.get())));
 
     view! {
         <Frame
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -70,9 +71,9 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                 width=WIDTH
                 height=HEIGHT
                 color={track_color}
-                outline={theme.pick(control_outline)}
+                outline={control_outline(&theme)}
                 outline_width=BORDER_WIDTH
-                outline_visible={theme.pick(|theme| theme.control_outline.is_some())}
+                outline_visible={control_outline_visible(&theme)}
                 radius=TRACK_RADIUS
                 padding_horizontal=PADDING
                 padding_vertical=PADDING
@@ -82,10 +83,10 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                     <Frame
                         width=KNOB_SIZE
                         height=KNOB_SIZE
-                        color={theme.pick(|theme| theme.knob)}
-                        outline={theme.pick(control_outline)}
+                        color={theme.knob.clone()}
+                        outline={control_outline(&theme)}
                         outline_width=BORDER_WIDTH
-                        outline_visible={theme.pick(|theme| theme.control_outline.is_some())}
+                        outline_visible={control_outline_visible(&theme)}
                         radius=KNOB_RADIUS
                     />
                     <Spacer @sizing={after_percent} />
@@ -97,10 +98,6 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
 
 pub fn switch_on(document: &Document, switch: NodeId) -> bool {
     unstyled::toggle_checked(document, switch).get()
-}
-
-fn control_outline(theme: &Theme) -> Color32 {
-    theme.control_outline.unwrap_or(Color32::TRANSPARENT)
 }
 
 fn before_size(on: bool) -> ItemSize {
@@ -119,11 +116,11 @@ fn after_size(on: bool) -> ItemSize {
     }
 }
 
-fn track_fill(theme: &Theme, on: bool, hovered: bool) -> Color32 {
+fn track_fill(theme: &ThemeStore, on: bool, hovered: bool) -> Color32 {
     match (on, hovered) {
-        (true, false) => theme.accent,
-        (true, true) => theme.accent_hover,
-        (false, false) => theme.surface_raised,
-        (false, true) => theme.pressed,
+        (true, false) => theme.accent.get(),
+        (true, true) => theme.accent_hover.get(),
+        (false, false) => theme.surface_raised.get(),
+        (false, true) => theme.pressed.get(),
     }
 }

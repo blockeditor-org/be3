@@ -140,7 +140,7 @@ impl PanZoomUi {
                 size(stage, ItemSize::Percent(100.0)),
             ];
             view! {
-                <Frame color={theme.pick(|theme| theme.background)}>
+                <Frame color={theme.background.clone()}>
                     <Row spacing=0.0 children={children} />
                 </Frame>
             }
@@ -208,7 +208,7 @@ fn sidebar(
     view! {
         <Frame
             visible={shown.clone()}
-            color={theme.pick(|theme| theme.surface)}
+            color={theme.surface.clone()}
             padding_horizontal=PANEL_PADDING
             padding_vertical=PANEL_PADDING
         >
@@ -216,13 +216,13 @@ fn sidebar(
                 <Text
                     string="Pan and Zoom"
                     font_size=HEADING_SIZE
-                    color={theme.pick(|theme| theme.text)}
+                    color={theme.text.clone()}
                     @test_id={"pan_zoom.title"}
                 />
                 <Text
                     string={readout}
                     font_size=LABEL_SIZE
-                    color={theme.pick(|theme| theme.text_muted)}
+                    color={theme.text_muted.clone()}
                     @test_id={"pan_zoom.zoom"}
                 />
                 <Row spacing=6.0>
@@ -249,7 +249,7 @@ fn sidebar(
                 <Text
                     string={chosen}
                     font_size=LABEL_SIZE
-                    color={theme.pick(|theme| theme.text_muted)}
+                    color={theme.text_muted.clone()}
                     @test_id={"pan_zoom.selected"}
                 />
                 <Column spacing=4.0 children={rows} />
@@ -293,22 +293,19 @@ fn rail(set_open: &WriteSignal<bool>, railed: &Memo<bool>) -> NodeId {
     view! {
         <Frame
             visible={railed.clone()}
-            color={theme.pick(|theme| theme.surface)}
+            color={theme.surface.clone()}
             padding_horizontal=6.0
             padding_vertical=PANEL_PADDING
         >
             <Column spacing=0.0>
                 <unstyled::Button on_click={show} @test_id={"pan_zoom.show_sidebar"}>
                     <Frame
-                        color={theme.pick(|theme| theme.surface_raised)}
+                        color={theme.surface_raised.clone()}
                         radius=6
                         padding_horizontal=8.0
                         padding_vertical=8.0
                     >
-                        <Icon
-                            glyph={ICON_LEFT_PANEL_OPEN.to_owned()}
-                            color={theme.pick(|theme| theme.text)}
-                        />
+                        <Icon glyph={ICON_LEFT_PANEL_OPEN.to_owned()} color={theme.text.clone()} />
                     </Frame>
                 </unstyled::Button>
             </Column>
@@ -368,7 +365,7 @@ fn card_node(
         >
             <ClickCatcher cursor=CursorIcon::PointingHand on_click={select}>
                 <Frame
-                    color={theme.pick(|theme| theme.surface_raised)}
+                    color={theme.surface_raised.clone()}
                     outline={outline}
                     outline_width={outline_width}
                     outline_visible=true
@@ -380,12 +377,12 @@ fn card_node(
                         <Text
                             string={card.name}
                             font_size={title_size}
-                            color={theme.pick(|theme| theme.text)}
+                            color={theme.text.clone()}
                         />
                         <Text
                             string={position}
                             font_size={label_size}
-                            color={theme.pick(|theme| theme.text_muted)}
+                            color={theme.text_muted.clone()}
                         />
                     </Column>
                 </Frame>

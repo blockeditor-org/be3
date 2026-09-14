@@ -32,9 +32,9 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
     let theme = use_theme();
 
     view! {
-        <Frame height=HEIGHT color={theme.pick(|theme| theme.track)} radius=RADIUS>
+        <Frame height=HEIGHT color={theme.track.clone()} radius=RADIUS>
             <Row spacing=0.0>
-                <Frame @sizing={filled} color={theme.pick(|theme| theme.accent)} radius=RADIUS />
+                <Frame @sizing={filled} color={theme.accent.clone()} radius=RADIUS />
                 <Spacer @sizing={rest} />
             </Row>
         </Frame>

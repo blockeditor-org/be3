@@ -8,7 +8,7 @@ use crate::node::NodeId;
 use crate::reactive::{
     Callback, CenteredRow, Frame, ItemSize, Prop, Spacer, Text, clone, create_memo,
 };
-use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, RADIUS, Theme, use_theme};
+use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
 
@@ -42,16 +42,16 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
     } = handle;
     let theme = use_theme();
     let fill_color = create_memo(
-        clone!(checked theme -> move || box_fill(&theme.get(), checked.get(), hovered.get())),
+        clone!(checked theme -> move || box_fill(&theme, checked.get(), hovered.get())),
     );
     let border_visible = create_memo(clone!(checked -> move || !checked.get()));
-    let box_border = theme.pick(|theme| theme.border);
-    let mark_color = theme.pick(|theme| theme.on_accent);
-    let label_color = theme.pick(|theme| theme.text);
+    let box_border = theme.border.clone();
+    let mark_color = theme.on_accent.clone();
+    let label_color = theme.text.clone();
 
     view! {
         <Frame
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -95,11 +95,11 @@ pub fn checkbox_checked(document: &Document, checkbox: NodeId) -> bool {
     unstyled::toggle_checked(document, checkbox).get()
 }
 
-fn box_fill(theme: &Theme, checked: bool, hovered: bool) -> Color32 {
+fn box_fill(theme: &ThemeStore, checked: bool, hovered: bool) -> Color32 {
     match (checked, hovered) {
-        (true, false) => theme.accent,
-        (true, true) => theme.accent_hover,
-        (false, false) => theme.surface_raised,
-        (false, true) => theme.pressed,
+        (true, false) => theme.accent.get(),
+        (true, true) => theme.accent_hover.get(),
+        (false, false) => theme.surface_raised.get(),
+        (false, true) => theme.pressed.get(),
     }
 }

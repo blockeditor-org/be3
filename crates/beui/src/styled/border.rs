@@ -9,7 +9,7 @@ pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            outline={theme.pick(|theme| theme.border)}
+            outline={theme.border.clone()}
             outline_width=BORDER_WIDTH
             radius={corner_radius}
             outline_offset=0.0
@@ -24,6 +24,6 @@ pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
 pub fn Separator() -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame color={theme.pick(|theme| theme.border)} radius=0></Frame>
+        <Frame color={theme.border.clone()} radius=0></Frame>
     }
 }

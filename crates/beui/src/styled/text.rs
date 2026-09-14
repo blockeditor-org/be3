@@ -4,17 +4,17 @@ use beui_macros::{component, view};
 
 use crate::base::TextAlign;
 use crate::node::NodeId;
-use crate::reactive::{Prop, Text, create_memo};
+use crate::reactive::{IntoProp, Prop, Text, create_memo};
 use crate::styled::theme::{
     FONT_BODY, FONT_DISPLAY, FONT_HEADING, FONT_SMALL, FONT_TITLE, ICON_SIZE, use_theme,
 };
 
 fn text_color() -> Prop<Color32> {
-    use_theme().pick(|theme| theme.text)
+    use_theme().text.clone().into_prop()
 }
 
 fn muted_color() -> Prop<Color32> {
-    use_theme().pick(|theme| theme.text_muted)
+    use_theme().text_muted.clone().into_prop()
 }
 
 #[component]

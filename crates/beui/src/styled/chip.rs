@@ -14,8 +14,8 @@ pub fn Chip(label: Prop<String>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.pick(|theme| theme.surface_raised)}
-            outline={theme.pick(|theme| theme.border)}
+            color={theme.surface_raised.clone()}
+            outline={theme.border.clone()}
             outline_width=BORDER_WIDTH
             radius=CHIP_RADIUS
             outline_visible=true
@@ -25,7 +25,7 @@ pub fn Chip(label: Prop<String>) -> NodeId {
             <Text
                 string={label_text}
                 font_size=FONT_SMALL
-                color={theme.pick(|theme| theme.text)}
+                color={theme.text.clone()}
                 align=TextAlign::Center
             />
         </Frame>
