@@ -4,6 +4,7 @@ mod a_closure_child_receives_the_handle_its_slot_hands_over;
 mod a_component_function_returns_its_base_node;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_dynamic_child_can_fill_its_available_height;
+mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_missing_required_prop_panics_at_the_view_that_wrote_it;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_nested_container_reports_its_own_width_not_the_windows;
@@ -86,6 +87,7 @@ mod tab_moves_focus_to_the_next_button;
 mod tabs_collapse_into_a_select_when_their_container_is_narrow;
 mod tapping_a_checkbox_with_touch_toggles_it;
 mod the_inspector_follows_nodes_added_to_the_document;
+mod the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated;
 mod the_inspector_keeps_the_rows_of_nodes_that_survive_an_update;
 mod the_inspector_lists_the_document_tree;
 mod the_inspector_shows_document_performance;
@@ -319,11 +321,14 @@ impl Harness {
     }
 
     fn node_center(&self, id: NodeId) -> Pos2 {
-        self.inspector()
+        let center = self
+            .inspector()
             .document
             .node_rect(id)
             .expect("the row was not laid out")
-            .center()
+            .center();
+        let scale = crate::inspector::scale(&self.context);
+        pos2(center.x * scale, center.y * scale)
     }
 }
 

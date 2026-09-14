@@ -224,8 +224,8 @@ impl Inspector {
         self.performance_panel.get()
     }
 
-    pub(crate) fn panel_width(&self, rect: Rect) -> f32 {
-        self.width.min(rect.width() / 2.0).max(0.0)
+    pub(crate) fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
+        (self.width * scale(ctx)).min(rect.width() / 2.0).max(0.0)
     }
 
     pub(crate) fn intercepts(&self) -> bool {
@@ -237,7 +237,8 @@ impl Inspector {
     }
 
     pub(crate) fn grab(&mut self, ctx: &Context, rect: Rect) {
-        let edge = rect.right() - self.panel_width(rect);
+        let scale = scale(ctx);
+        let edge = rect.right() - self.panel_width(ctx, rect);
         let grip = Rect::from_min_max(
             pos2(edge - GRIP_WIDTH, rect.top()),
             pos2(edge + GRIP_WIDTH, rect.bottom()),
@@ -253,8 +254,9 @@ impl Inspector {
             self.grabbed = Some(pointer.x - edge);
         }
         if let Some(grabbed) = self.grabbed {
-            let maximum = (rect.width() / 2.0).max(MINIMUM_WIDTH);
-            self.width = (rect.right() - pointer.x + grabbed).clamp(MINIMUM_WIDTH, maximum);
+            let maximum = (rect.width() / 2.0 / scale).max(MINIMUM_WIDTH);
+            self.width =
+                ((rect.right() - pointer.x + grabbed) / scale).clamp(MINIMUM_WIDTH, maximum);
         }
         self.grip = self.grabbed.is_some() || grip.contains(pointer);
     }
@@ -269,8 +271,11 @@ impl Inspector {
     ) {
         self.forget_removed(target);
         self.sync(target, ctx);
-        self.document
-            .show_content(ctx, panel, true, keyboard_interactive);
+        let scale = scale(ctx);
+        let document = &mut self.document;
+        ctx.scaled(scale, || {
+            document.show_content(ctx, panel.scaled(scale.recip()), true, keyboard_interactive);
+        });
         if self.state.reset_performance.take() {
             target.reset_performance();
             ctx.request_repaint();
@@ -410,24 +415,33 @@ impl Inspector {
     }
 
     fn paint(&self, target: &Document, ctx: &Context, content: Rect, panel: Rect) {
-        let painter = ctx.painter().with_clip_rect(content);
-        let hovered = self.state.hovered.get();
-        let selected = self.state.selected.get();
-        if let Some(id) = selected.filter(|id| Some(*id) != hovered) {
-            overlay::highlight(&painter, target, id, false);
-        }
-        if let Some(id) = hovered {
-            overlay::highlight(&painter, target, id, true);
-        }
-        if self.grip {
-            let grip = Rect::from_min_max(
-                panel.min,
-                pos2(panel.left() + GRIP_PAINT_WIDTH, panel.bottom()),
-            );
-            ctx.painter().rect_filled(grip, 0.0, ACCENT);
-            ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
-        }
+        let scale = scale(ctx);
+        let local = scale.recip();
+        ctx.scaled(scale, || {
+            let painter = ctx.painter().with_clip_rect(content.scaled(local));
+            let hovered = self.state.hovered.get();
+            let selected = self.state.selected.get();
+            if let Some(id) = selected.filter(|id| Some(*id) != hovered) {
+                overlay::highlight(&painter, target, id, false, local);
+            }
+            if let Some(id) = hovered {
+                overlay::highlight(&painter, target, id, true, local);
+            }
+            if self.grip {
+                let panel = panel.scaled(local);
+                let grip = Rect::from_min_max(
+                    panel.min,
+                    pos2(panel.left() + GRIP_PAINT_WIDTH, panel.bottom()),
+                );
+                ctx.painter().rect_filled(grip, 0.0, ACCENT);
+                ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
+            }
+        });
     }
+}
+
+pub(crate) fn scale(ctx: &Context) -> f32 {
+    ctx.native_pixels_per_point() / ctx.pixels_per_point()
 }
 
 fn entry_label(entry: &Entry) -> String {

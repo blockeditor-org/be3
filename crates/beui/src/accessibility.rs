@@ -26,6 +26,17 @@ pub(crate) struct Fragment {
     pub(crate) focus: Option<AccessNodeId>,
 }
 
+impl Fragment {
+    pub(crate) fn scale(&mut self, scale: f32) {
+        let root = self.root;
+        for (id, node) in &mut self.nodes {
+            if *id == root {
+                node.set_transform(Affine::scale(scale.into()));
+            }
+        }
+    }
+}
+
 pub(crate) fn next_document_id() -> u32 {
     NEXT_DOCUMENT_ID.fetch_add(1, Ordering::Relaxed)
 }

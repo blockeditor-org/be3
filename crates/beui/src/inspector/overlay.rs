@@ -33,8 +33,14 @@ fn deepest(target: &Document, id: NodeId, pos: Pos2) -> Option<NodeId> {
         .or(Some(id))
 }
 
-pub(crate) fn highlight(painter: &Painter, target: &Document, id: NodeId, strong: bool) {
-    let Some(rect) = target.node_rect(id) else {
+pub(crate) fn highlight(
+    painter: &Painter,
+    target: &Document,
+    id: NodeId,
+    strong: bool,
+    scale: f32,
+) {
+    let Some(rect) = target.node_rect(id).map(|rect| rect.scaled(scale)) else {
         return;
     };
     let fill = if strong { HIGHLIGHT } else { HIGHLIGHT_MUTED };

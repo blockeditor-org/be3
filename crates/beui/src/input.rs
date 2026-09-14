@@ -185,6 +185,36 @@ pub struct InputState {
 }
 
 impl InputState {
+    pub(crate) fn scaled(&self, factor: f32) -> Self {
+        let scale = |pos: Pos2| Pos2::new(pos.x * factor, pos.y * factor);
+        let mut input = self.clone();
+        for event in &mut input.events {
+            match event {
+                Event::PointerMoved(pos)
+                | Event::PointerButton { pos, .. }
+                | Event::Touch { pos, .. } => *pos = scale(*pos),
+                _ => {}
+            }
+        }
+        input.pointer.pos = input.pointer.pos.map(scale);
+        input.pointer.last_click = input
+            .pointer
+            .last_click
+            .map(|(when, pos)| (when, scale(pos)));
+        let touch = &mut input.touch;
+        for point in touch.points.values_mut() {
+            point.pos = scale(point.pos);
+        }
+        touch.start = touch.start.map(scale);
+        touch.previous = touch.previous.map(scale);
+        touch.scroll_delta = touch.scroll_delta * factor;
+        for (_, pos) in &mut touch.samples {
+            *pos = scale(*pos);
+        }
+        touch.velocity = touch.velocity * factor;
+        input
+    }
+
     pub(crate) fn begin_frame(&mut self, raw: RawInput) {
         self.pointer.begin_frame();
         self.touch.begin_frame(&mut self.pointer);

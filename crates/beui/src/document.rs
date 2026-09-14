@@ -193,7 +193,7 @@ impl Document {
         let (content, panel) = match &mut self.inspector {
             Some(inspector) => {
                 inspector.grab(ctx, rect);
-                split(rect, inspector.panel_width(rect))
+                split(rect, inspector.panel_width(ctx, rect))
             }
             None => (rect, Rect::NOTHING),
         };

@@ -7,7 +7,7 @@ use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
 use crate::font::{FontId, FontSources, Fonts, Galley};
-use crate::geometry::Rect;
+use crate::geometry::{pos2, Rect};
 use crate::input::{CursorIcon, InputState, RawInput};
 use crate::painter::{Painter, Shape};
 
@@ -24,6 +24,7 @@ struct Inner {
     copied_text: RefCell<Option<String>>,
     cursor_icon: Cell<CursorIcon>,
     touch_emulation: Cell<bool>,
+    pixels_per_point: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
     repaint: Cell<bool>,
@@ -83,6 +84,7 @@ impl Context {
                 copied_text: RefCell::new(None),
                 cursor_icon: Cell::new(CursorIcon::Default),
                 touch_emulation: Cell::new(false),
+                pixels_per_point: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
                 repaint: Cell::new(false),
@@ -151,7 +153,7 @@ impl Context {
         self.inner.cursor_icon.set(cursor_icon);
     }
 
-    pub(crate) fn touch_emulation(&self) -> bool {
+    pub fn touch_emulation(&self) -> bool {
         self.inner.touch_emulation.get()
     }
 
@@ -214,7 +216,7 @@ impl Context {
     }
 
     pub fn pixels_per_point(&self) -> f32 {
-        self.inner.fonts.borrow().pixels_per_point()
+        self.inner.pixels_per_point.get()
     }
 
     pub fn set_pixels_per_point(&self, pixels_per_point: f32) {
@@ -238,18 +240,76 @@ impl Context {
         let pixels_per_point = self
             .simulated_pixels_per_point()
             .unwrap_or_else(|| self.native_pixels_per_point());
-        self.inner
-            .fonts
+        self.inner.pixels_per_point.set(pixels_per_point);
+    }
+
+    pub(crate) fn scaled<R>(&self, scale: f32, content: impl FnOnce() -> R) -> R {
+        if scale == 1.0 {
+            return content();
+        }
+        let pixels_per_point = self.pixels_per_point();
+        self.inner.pixels_per_point.set(pixels_per_point * scale);
+        let input = self
+            .inner
+            .input
+            .replace_with(|input| input.scaled(scale.recip()));
+        let shapes = self.inner.shapes.borrow().len();
+        let fragments = self.inner.accessibility.borrow().len();
+        let test_ids = self.inner.test_ids.take();
+        let result = content();
+        self.inner.input.replace(input);
+        self.inner.pixels_per_point.set(pixels_per_point);
+        for shape in self.inner.shapes.borrow_mut().iter_mut().skip(shapes) {
+            scale_shape(shape, scale);
+        }
+        for fragment in self
+            .inner
+            .accessibility
             .borrow_mut()
-            .set_pixels_per_point(pixels_per_point);
+            .iter_mut()
+            .skip(fragments)
+        {
+            fragment.scale(scale);
+        }
+        let scaled = self.inner.test_ids.replace(test_ids);
+        self.inner.test_ids.borrow_mut().extend(
+            scaled
+                .into_iter()
+                .map(|(test_id, rect)| (test_id, rect.scaled(scale))),
+        );
+        result
     }
 
     pub(crate) fn layout(&self, text: &str, font: FontId, wrap_width: f32) -> Galley {
-        self.inner.fonts.borrow_mut().layout(text, font, wrap_width)
+        self.inner
+            .fonts
+            .borrow_mut()
+            .layout(text, font, wrap_width, self.pixels_per_point())
     }
 
     pub(crate) fn push(&self, shape: Shape) {
         self.inner.shapes.borrow_mut().push(shape);
+    }
+}
+
+fn scale_shape(shape: &mut Shape, scale: f32) {
+    match shape {
+        Shape::Rect {
+            rect,
+            corner_radius,
+            stroke_width,
+            clip,
+            ..
+        } => {
+            *rect = rect.scaled(scale);
+            *corner_radius *= scale;
+            *stroke_width *= scale;
+            *clip = clip.scaled(scale);
+        }
+        Shape::Text { origin, clip, .. } => {
+            *origin = pos2(origin.x * scale, origin.y * scale);
+            *clip = clip.scaled(scale);
+        }
     }
 }
 

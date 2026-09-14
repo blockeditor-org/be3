@@ -68,6 +68,7 @@ struct BeuiRegion {
     events: Vec<beui::Event>,
     modifiers: beui::Modifiers,
     pointer: beui::Pos2,
+    emulated_touch: bool,
 }
 
 impl BeuiRegion {
@@ -77,7 +78,20 @@ impl BeuiRegion {
             events: Vec::new(),
             modifiers: beui::Modifiers::NONE,
             pointer: beui::Pos2::ZERO,
+            emulated_touch: false,
         }
+    }
+
+    fn emulate_touch(&mut self, phase: beui::TouchPhase) {
+        self.events.push(beui::Event::Touch {
+            id: beui::TouchId {
+                device: 0,
+                finger: 0,
+            },
+            phase,
+            pos: self.pointer,
+            force: None,
+        });
     }
 }
 
@@ -1096,7 +1110,10 @@ impl EditorSession {
         let reported =
             |rect: beui::Rect| plugin_rect(scaled(egui_rect(rect), ratio.recip()), origin);
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
-            state.cursor = beui_cursor(output.cursor_icon);
+            state.cursor = match context.touch_emulation() {
+                true => CursorIcon::Crosshair,
+                false => beui_cursor(output.cursor_icon),
+            };
             state.report = (region == EditorRegion::Frame).then(|| FrameReport {
                 screen,
                 content: reported(chrome.content),
@@ -1122,11 +1139,37 @@ impl EditorSession {
             .simulated_pixels_per_point()
             .map_or(1.0, |simulated| scale_factor / simulated);
         let at = |x: f32, y: f32| beui::pos2((x + origin.x) * ratio, (y + origin.y) * ratio);
+        let emulating = state.context.touch_emulation();
+        if !emulating && state.emulated_touch {
+            state.emulated_touch = false;
+            state.emulate_touch(beui::TouchPhase::Cancel);
+        }
         match event {
             InputEvent::PointerMoved { x, y } => {
                 state.pointer = at(*x, *y);
-                state.events.push(beui::Event::PointerMoved(state.pointer));
+                if !emulating {
+                    state.events.push(beui::Event::PointerMoved(state.pointer));
+                } else if state.emulated_touch {
+                    state.emulate_touch(beui::TouchPhase::Move);
+                }
             }
+            InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed,
+                x,
+                y,
+            } if emulating => {
+                state.pointer = at(*x, *y);
+                if *pressed != state.emulated_touch {
+                    state.emulated_touch = *pressed;
+                    state.emulate_touch(if *pressed {
+                        beui::TouchPhase::Start
+                    } else {
+                        beui::TouchPhase::End
+                    });
+                }
+            }
+            InputEvent::PointerButton { .. } if emulating => {}
             InputEvent::PointerButton {
                 button,
                 pressed,
@@ -1196,7 +1239,10 @@ impl EditorSession {
                     shift: modifiers.shift,
                 };
             }
-            InputEvent::Focus(false) => state.events.push(beui::Event::Focus(false)),
+            InputEvent::Focus(false) => {
+                state.emulated_touch = false;
+                state.events.push(beui::Event::Focus(false));
+            }
             InputEvent::PointerMotion { .. }
             | InputEvent::Zoom { .. }
             | InputEvent::Ime(_)

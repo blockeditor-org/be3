@@ -185,6 +185,7 @@ struct GalleyKey {
     size: u32,
     family: FontFamily,
     wrap: u32,
+    scale: u32,
 }
 
 const GALLEY_CACHE_LIMIT: usize = 4096;
@@ -255,7 +256,6 @@ pub(crate) struct Fonts {
     icons: Vec<usize>,
     glyphs: HashMap<GlyphId, Rc<GlyphImage>>,
     galleys: HashMap<GalleyKey, Galley>,
-    pixels_per_point: f32,
 }
 
 impl Fonts {
@@ -270,25 +270,11 @@ impl Fonts {
             icons: Vec::new(),
             glyphs: HashMap::new(),
             galleys: HashMap::new(),
-            pixels_per_point: 1.0,
         };
         if opened {
             fonts.load_families(sources);
         }
         fonts
-    }
-
-    pub(crate) fn pixels_per_point(&self) -> f32 {
-        self.pixels_per_point
-    }
-
-    pub(crate) fn set_pixels_per_point(&mut self, pixels_per_point: f32) {
-        if pixels_per_point == self.pixels_per_point {
-            return;
-        }
-        self.pixels_per_point = pixels_per_point;
-        self.galleys.clear();
-        self.glyphs.clear();
     }
 
     fn load_families(&mut self, sources: &FontSources) {
@@ -360,19 +346,26 @@ impl Fonts {
         }
     }
 
-    pub(crate) fn layout(&mut self, text: &str, font: FontId, wrap_width: f32) -> Galley {
-        let pixel_size = ((font.size * self.pixels_per_point).round() as u32).max(1);
-        let wrap = (wrap_width * self.pixels_per_point).max(0.0);
+    pub(crate) fn layout(
+        &mut self,
+        text: &str,
+        font: FontId,
+        wrap_width: f32,
+        pixels_per_point: f32,
+    ) -> Galley {
+        let pixel_size = ((font.size * pixels_per_point).round() as u32).max(1);
+        let wrap = (wrap_width * pixels_per_point).max(0.0);
         let key = GalleyKey {
             text: text.to_owned(),
             size: pixel_size,
             family: font.family,
             wrap: wrap.to_bits(),
+            scale: pixels_per_point.to_bits(),
         };
         if let Some(galley) = self.galleys.get(&key) {
             return galley.clone();
         }
-        let galley = self.build(text, font.family, pixel_size, wrap);
+        let galley = self.build(text, font.family, pixel_size, wrap, pixels_per_point);
         if self.galleys.len() >= GALLEY_CACHE_LIMIT {
             self.galleys.clear();
         }
@@ -380,9 +373,15 @@ impl Fonts {
         galley
     }
 
-    fn build(&mut self, text: &str, family: FontFamily, pixel_size: u32, wrap: f32) -> Galley {
+    fn build(
+        &mut self,
+        text: &str,
+        family: FontFamily,
+        pixel_size: u32,
+        wrap: f32,
+        scale: f32,
+    ) -> Galley {
         let (ascent, line_height) = self.metrics(family, pixel_size);
-        let scale = self.pixels_per_point;
         let mut glyphs = Vec::new();
         let mut lines = Vec::new();
         let mut width = 0.0f32;
