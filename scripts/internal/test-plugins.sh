@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Builds every plugin's tests for WebAssembly and runs them through the same
-# host the app runs a plugin in.
+# Builds every plugin's tests for WebAssembly and runs them with cargo nextest
+# through the same host the app runs a plugin in.
 #
 # A plugin is a wasm guest wherever it runs, and what it paints depends on the
 # FreeType and HarfBuzz it was compiled against. Running its tests natively
@@ -10,9 +10,17 @@
 # accepted paintings never settle. Compiled to wasm they are the versions the
 # plugin ships with, and the painting is the one the app would show.
 #
+# nextest runs every test in a process of its own, so each test module is
+# compiled by Cranelift once beforehand, several at a time, and left beside the
+# module as a .cwasm the way a build leaves one beside a plugin. Each test's
+# process then maps that in rather than compiling the module again.
+#
+# Arguments after --check go to cargo nextest run. A package named with -p
+# narrows the run to it; otherwise every plugin is tested.
+#
 # Usage:
-#   test-plugins.sh            accepts whatever the tests paint
-#   test-plugins.sh --check    reports a changed painting instead
+#   test-plugins.sh [nextest arguments...]            accepts whatever the tests paint
+#   test-plugins.sh --check [nextest arguments...]    reports a changed painting instead
 
 set -euo pipefail
 
@@ -28,12 +36,11 @@ assert_command cargo 'Install Rust from https://rustup.rs.'
 cd "$repository"
 load_plugins
 
-# The runner is what cargo starts in place of each test binary: it hands the
+# The runner is what nextest starts in place of each test binary: it hands the
 # module to wasmtime with the plugin's gpu abi linked, so the tests paint
 # through the host's device exactly as a plugin does. It is built optimised
 # because a debug Cranelift spends minutes on a module this size.
-echo 'Building the plugin test runner...'
-cargo build --release -p plugin-test-runner
+cargo build --quiet --release -p plugin-test-runner
 runner="$repository/target/release/plugin-test-runner"
 if [[ -f "$runner.exe" ]]; then
     runner+='.exe'
@@ -43,17 +50,49 @@ if [[ ! -f "$runner" ]]; then
     exit 1
 fi
 
-selection=()
-for plugin in "${plugins[@]}"; do
-    selection+=(-p "$plugin")
+packages=()
+expect_package=false
+for argument in "$@"; do
+    if $expect_package; then
+        packages+=(-p "$argument")
+        expect_package=false
+        continue
+    fi
+    case "$argument" in
+        -p | --package) expect_package=true ;;
+        --package=*) packages+=(-p "${argument#--package=}") ;;
+        -p?*) packages+=(-p "${argument#-p}") ;;
+        --) break ;;
+    esac
 done
+selection=()
+if [[ ${#packages[@]} -eq 0 ]]; then
+    for plugin in "${plugins[@]}"; do
+        selection+=(-p "$plugin")
+    done
+    packages=("${selection[@]}")
+fi
 
-echo "Testing ${#plugins[@]} plugins on $wasm_rust_target..."
+build=(--cargo-profile plugin --target "$wasm_rust_target")
+
 (
-    export_wasi_toolchain "${wasi_sysroot:-}"
+    export_wasi_toolchain "${wasi_sysroot:-}" > /dev/null
     export "CARGO_TARGET_$(echo "$wasm_rust_target" | tr 'a-z-' 'A-Z_')_RUNNER=$runner"
+
+    listing="$(cargo nextest list --cargo-quiet --list-type binaries-only --message-format json "${build[@]}" "${packages[@]}")"
+    stale=()
+    while IFS= read -r module; do
+        if [[ "$module" == *.wasm && ! "${module%.wasm}.cwasm" -nt "$module" ]]; then
+            stale+=("$module")
+        fi
+    done < <(grep -o '"binary-path":"[^"]*"' <<< "$listing" | sed 's/^"binary-path":"//; s/"$//')
+    if [[ ${#stale[@]} -gt 0 ]]; then
+        echo "Compiling ${#stale[@]} plugin test modules..."
+        "$runner" --precompile "${stale[@]}"
+    fi
+
     if ! $check; then
         export UPDATE_SNAPSHOTS=1
     fi
-    cargo test --no-fail-fast --profile plugin --target "$wasm_rust_target" "${selection[@]}" "$@"
+    cargo nextest run --no-fail-fast "${build[@]}" "${selection[@]}" "$@"
 )

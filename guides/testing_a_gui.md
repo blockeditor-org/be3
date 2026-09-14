@@ -148,14 +148,16 @@ painting rather than making one nothing would agree with.
 
 scripts/internal/test-plugins.sh is what runs them, and is worth running by itself while
 working on an editor. It compiles each plugin's tests for wasm32-wasip1-threads against the
-WASI sysroot the web build uses, and cargo starts each test module through
+WASI sysroot the web build uses, and cargo nextest starts each test through
 crates/plugin-test-runner, which is wasmtime with the plugin's own imports linked: the gpu abi
 that carries beui's renderer to the host's adapter, the threads a plugin spawns, and the
 repository itself, opened so that a test writes the painting it accepted where the workspace
-run would have. Arguments go to cargo, so a single crate is -p checklist and a single test is
---lib -- some_test_name.
+run would have. Arguments go to cargo nextest run, so a single crate is -p checklist and a
+single test is -p checklist some_test_name.
 
-Cranelift compiles each module the first time it sees it, which is most of the minute the
-first run costs; wasmtime keeps the result in target/plugin-test-cache, so a run that changed
-nothing takes seconds. A wasm build needs clang and llvm-ar on PATH, which ./scripts/setup
-installs, and the painting needs a graphics adapter the way beui's own renderer tests do.
+nextest runs every test in a process of its own, so before it starts, Cranelift compiles each
+test module that changed, several at a time, and leaves the machine code beside it as a .cwasm
+the way a build does for a plugin. Each test's process maps that in instead of compiling the
+module again, so a run that changed nothing takes seconds. A wasm build needs clang and
+llvm-ar on PATH, which ./scripts/setup installs, and the painting needs a graphics adapter the
+way beui's own renderer tests do.

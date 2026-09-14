@@ -1,17 +1,27 @@
 use std::path::{Path, PathBuf};
 
-use block_wasm_host::Host;
+use block_wasm_host::{Host, precompile};
 
 fn main() {
     let mut arguments = std::env::args();
     let program = arguments
         .next()
         .unwrap_or_else(|| "plugin-test-runner".into());
-    let Some(wasm) = arguments.next() else {
-        eprintln!("Usage: {program} TESTS.wasm [test arguments...]");
-        std::process::exit(2);
+    let Some(first) = arguments.next() else {
+        usage(&program);
     };
-    let wasm = PathBuf::from(wasm);
+    if first == "--precompile" {
+        let modules: Vec<PathBuf> = arguments.map(PathBuf::from).collect();
+        if modules.is_empty() {
+            usage(&program);
+        }
+        if let Err(message) = precompile(&modules, None) {
+            eprintln!("{message}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    let wasm = PathBuf::from(first);
     let mut arguments: Vec<String> = std::iter::once(wasm.to_string_lossy().into_owned())
         .chain(arguments)
         .collect();
@@ -34,11 +44,16 @@ fn main() {
     }
 }
 
+fn usage(program: &str) -> ! {
+    eprintln!("Usage: {program} TESTS.wasm [test arguments...]");
+    eprintln!("       {program} --precompile TESTS.wasm...");
+    std::process::exit(2);
+}
+
 fn run(wasm: &Path, arguments: &[String]) -> Result<i32, String> {
     let root = workspace()?;
     let (device, queue) = gpu()?;
-    let cache = root.join("target").join("plugin-test-cache");
-    let host = Host::new(device, queue, Some(&cache))?;
+    let host = Host::new(device, queue, None)?;
     host.run_tests(wasm, arguments, &root)
 }
 

@@ -105,9 +105,9 @@ fi
 
 echo 'plugin tests...'
 if $check; then
-    t "$internal/test-plugins.sh" --check
+    t "$internal/test-plugins.sh" --check --profile ci
 else
-    t "$internal/test-plugins.sh"
+    t "$internal/test-plugins.sh" --cargo-quiet --show-progress=none
 fi
 
 # in case one of the previous commands leaves stuff unformatted

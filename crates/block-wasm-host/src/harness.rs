@@ -5,16 +5,14 @@ use block_gpu_host::Gpu;
 use wasmtime::{Caller, Linker, Store, TypedFunc};
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
-use crate::{Host, gpu, module, shared_memory, state::State, threads, transport};
+use crate::{Host, gpu, precompile::test_module, shared_memory, state::State, threads, transport};
 
 const START: &str = "_start";
 const ALIGNMENT: u32 = 256;
 
 impl Host {
     pub fn run_tests(&self, wasm: &Path, arguments: &[String], root: &Path) -> Result<i32, String> {
-        let bytes = std::fs::read(wasm)
-            .map_err(|error| format!("{} could not be read: {error}", wasm.display()))?;
-        let module = module(&self.engine, &bytes)?;
+        let module = test_module(&self.engine, wasm)?;
         let memory = shared_memory(&self.engine, &module)?;
         let directory = root
             .to_str()

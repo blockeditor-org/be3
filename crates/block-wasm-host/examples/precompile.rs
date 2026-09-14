@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use block_wasm_host::{PRECOMPILED_EXTENSION, precompile};
+use block_wasm_host::precompile;
 
 fn main() {
     let mut target = None;
@@ -18,24 +18,12 @@ fn main() {
     if modules.is_empty() {
         usage();
     }
-    for module in &modules {
-        if let Err(error) = compile(module, target.as_deref()) {
-            eprintln!("{error}");
-            std::process::exit(1);
-        }
+    if let Err(error) = precompile(&modules, target.as_deref()) {
+        eprintln!("{error}");
+        std::process::exit(1);
     }
     let described = target.as_deref().unwrap_or("this machine");
     println!("Compiled {} plugins for {described}", modules.len());
-}
-
-fn compile(module: &Path, target: Option<&str>) -> Result<(), String> {
-    let bytes = std::fs::read(module)
-        .map_err(|error| format!("{} could not be read: {error}", module.display()))?;
-    let compiled = precompile(&bytes, target)
-        .map_err(|error| format!("{} could not be compiled: {error}", module.display()))?;
-    let artifact = module.with_extension(PRECOMPILED_EXTENSION);
-    std::fs::write(&artifact, compiled)
-        .map_err(|error| format!("{} could not be written: {error}", artifact.display()))
 }
 
 fn usage() -> ! {

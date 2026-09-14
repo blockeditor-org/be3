@@ -1,5 +1,6 @@
 mod gpu;
 mod harness;
+mod precompile;
 mod state;
 mod threads;
 mod transport;
@@ -17,6 +18,7 @@ use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use threads::Spawner;
 
+pub use precompile::precompile;
 pub use state::State;
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
@@ -53,20 +55,6 @@ impl Host {
     pub fn load_bytes(&self, bytes: &[u8]) -> Result<Plugin, String> {
         Plugin::new(self, module(&self.engine, bytes)?)
     }
-}
-
-pub fn precompile(bytes: &[u8], target: Option<&str>) -> Result<Vec<u8>, String> {
-    let mut configuration = configuration();
-    if let Some(target) = target {
-        configuration
-            .target(target)
-            .map_err(|error| format!("{target} is not a target wasmtime compiles for: {error}"))?;
-    }
-    let engine = Engine::new(&configuration)
-        .map_err(|error| format!("the wasm engine could not start: {error}"))?;
-    engine
-        .precompile_module(bytes)
-        .map_err(|error| format!("the plugin module could not be compiled: {error}"))
 }
 
 pub struct Plugin {
