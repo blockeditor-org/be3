@@ -104,18 +104,19 @@ input events of their own alongside the text it already delivers: an input
 method turning on, the text being composed, the text it settled on, and its
 turning off again.
 
-Presence belongs to whoever is looking, and what is looking is the host: a
-plugin's block client is carried over the host's connection but is a client of
-its own to the server, so anything it published would be attributed to someone
-else. The host therefore tells an editor instance whether its block is being
-viewed and hands over the presence the block currently carries - every entry's
-client, kind and opaque value - whenever any of that changes, and publishes on
-the instance's behalf whatever the instance asks it to, under its own client.
-An instance that wants no cursor of its own ignores both. The host also asks an
-instance to reveal one client's cursor, when the user picks that person out of
-the list of people viewing the block, which only the instance can do because
-only it knows where in its own content that cursor is; the client it names is
-one of the clients the presence it was handed came from.
+Presence is block data like any other, so an instance reads and publishes its
+own cursor straight on the block client it already holds - it is carried over
+the host's connection but is a client of its own to the server, and the
+presence it posts is attributed to that client, not to the host's. The host
+posts the coarse "someone is looking at this block" entry itself, under its
+own client, without the plugin's involvement; what the host still owes an
+instance is only whether its block is currently being viewed, so the instance
+knows when to start and stop publishing its own cursor. An instance that wants
+no cursor of its own ignores that. The host also asks an instance to reveal
+one client's cursor, when the user picks that person out of the list of
+people viewing the block, which only the instance can do because only it
+knows where in its own content that cursor is; the instance finds that client
+among the presence it already reads for itself.
 
 An editor instance may be asked to replace one of the blocks it references with
 another - a copy the host made of a block being edited in two places at once -

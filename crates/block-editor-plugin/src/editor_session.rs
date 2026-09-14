@@ -3,9 +3,8 @@ use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage,
     EditorRegion, FetchResult, FilePick, FrameChrome, FrameReport, FrameSpec, ImeArea, ImeInput,
-    InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton,
-    PresenceEntry, RegionSize, ScreenPlacement, ScreenRequest, ViewChange, ViewportMetrics,
-    WebViewEvent, WheelUnit,
+    InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize,
+    ScreenPlacement, ScreenRequest, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
 };
 use block_ui::BlockCatalog;
 use eframe::egui;
@@ -423,8 +422,7 @@ impl EditorSession {
         self.app.set_intrinsic_size(size);
     }
 
-    pub(crate) fn presence_visible(&mut self, visible: bool, entries: Vec<PresenceEntry>) {
-        self.host.set_presence_entries(entries);
+    pub(crate) fn presence_visible(&mut self, visible: bool) {
         self.app.presence_visible(visible);
     }
 
@@ -624,13 +622,6 @@ impl EditorSession {
         }
         if std::mem::take(&mut self.paste_requested) {
             messages.push(Message::Editor(EditorMessage::PasteText { instance }));
-        }
-        for (presence_id, data) in self.host.take_presence_publications() {
-            messages.push(Message::Editor(EditorMessage::PublishPresence {
-                instance,
-                presence_id: presence_id.into_bytes(),
-                data,
-            }));
         }
         for (request_id, replaced) in std::mem::take(&mut self.replacements) {
             messages.push(Message::Editor(EditorMessage::ChildReplaced {

@@ -7,7 +7,7 @@ mod session;
 pub use manifest::{ManifestDocument, manifest_from_json};
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 48;
+pub const PROTOCOL_VERSION: u16 = 49;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
@@ -683,12 +683,6 @@ pub enum EditorMessage {
     Presence {
         instance: EditorInstanceId,
         visible: bool,
-        entries: Vec<PresenceEntry>,
-    },
-    PublishPresence {
-        instance: EditorInstanceId,
-        presence_id: [u8; 16],
-        data: Option<Vec<u8>>,
     },
     RevealPresence {
         instance: EditorInstanceId,
@@ -795,7 +789,6 @@ impl EditorMessage {
             | Self::Cursor { instance, .. }
             | Self::Ime { instance, .. }
             | Self::Presence { instance, .. }
-            | Self::PublishPresence { instance, .. }
             | Self::RevealPresence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
@@ -1185,13 +1178,6 @@ pub enum ImeInput {
     Disabled,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PresenceEntry {
-    pub client_id: u64,
-    pub presence_id: [u8; 16],
-    pub data: Vec<u8>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ImeArea {
     pub rect: ChildRect,
@@ -1463,7 +1449,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text, .. } => string(text),
-        EditorMessage::Presence { entries, .. } => collection(entries.len()),
         EditorMessage::Fetch { url, .. } => string(url),
         EditorMessage::Fetched { result, .. } => match result {
             FetchResult::Failed(message) => string(message),

@@ -6,7 +6,6 @@ fn a_message_waits_for_the_instance_it_names_to_be_opened() {
     let presence = Message::Editor(EditorMessage::Presence {
         instance: INSTANCE,
         visible: true,
-        entries: Vec::new(),
     });
 
     assert!(instances.gate(vec![presence.clone()]).is_empty());

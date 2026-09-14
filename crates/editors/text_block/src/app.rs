@@ -1413,13 +1413,14 @@ impl TextEditor {
     }
 
     fn paint_remote_cursors(&self, painter: &egui::Painter, origin: Pos2, layout: &DocumentLayout) {
+        let block_id = self.block.id();
         let colors: HashMap<ClientId, PresenceColor> = self
-            .host
-            .presence::<UserActive>()
+            .client
+            .presence::<UserActive>(block_id)
             .into_iter()
             .map(|(client_id, user)| (client_id, user.color))
             .collect();
-        for (client_id, cursor) in self.host.presence::<TextCursor>() {
+        for (client_id, cursor) in self.client.presence::<TextCursor>(block_id) {
             let Some(color) = colors.get(&client_id).copied() else {
                 continue;
             };
@@ -1488,8 +1489,8 @@ impl TextEditor {
         layout: &DocumentLayout,
     ) -> Option<Rect> {
         let cursor = self
-            .host
-            .presence::<TextCursor>()
+            .client
+            .presence::<TextCursor>(self.block.id())
             .into_iter()
             .find(|(id, _)| *id == client_id)?
             .1;
@@ -1814,7 +1815,8 @@ impl TextEditor {
         self.presence_visible = visible;
         if !visible {
             self.published_cursor = None;
-            self.host.set_presence::<TextCursor>(None);
+            self.client
+                .set_presence::<TextCursor>(self.block.id(), None);
         }
     }
 
@@ -1833,7 +1835,7 @@ impl TextEditor {
             return;
         }
         self.published_cursor = Some(published);
-        self.host.set_presence(Some(&published));
+        self.client.set_presence(self.block.id(), Some(&published));
     }
 
     fn reveal_presence_cursor(&mut self, client_id: ClientId) {

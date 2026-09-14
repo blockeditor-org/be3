@@ -6,21 +6,6 @@ fn presence_messages_round_trip() {
         Message::Editor(EditorMessage::Presence {
             instance: EditorInstanceId(6),
             visible: true,
-            entries: vec![PresenceEntry {
-                client_id: 7,
-                presence_id: [3; 16],
-                data: vec![1, 2, 3],
-            }],
-        }),
-        Message::Editor(EditorMessage::PublishPresence {
-            instance: EditorInstanceId(6),
-            presence_id: [3; 16],
-            data: Some(vec![4, 5]),
-        }),
-        Message::Editor(EditorMessage::PublishPresence {
-            instance: EditorInstanceId(6),
-            presence_id: [3; 16],
-            data: None,
         }),
         Message::Editor(EditorMessage::RevealPresence {
             instance: EditorInstanceId(6),
@@ -32,21 +17,4 @@ fn presence_messages_round_trip() {
             message
         );
     }
-
-    let oversized = Message::Editor(EditorMessage::Presence {
-        instance: EditorInstanceId(6),
-        visible: true,
-        entries: vec![
-            PresenceEntry {
-                client_id: 7,
-                presence_id: [3; 16],
-                data: Vec::new(),
-            };
-            MAX_COLLECTION_ITEMS + 1
-        ],
-    });
-    assert_eq!(
-        encode_frame(&oversized),
-        Err(DecodeError::LimitExceeded("collection"))
-    );
 }

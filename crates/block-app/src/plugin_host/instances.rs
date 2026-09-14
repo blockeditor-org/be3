@@ -4,8 +4,8 @@ use block_plugin_api::{
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FetchResult,
     FilePick, FrameReport, FrameSpec, ImeArea, Message, Occluder, PerformanceMeasurement,
-    PresenceEntry, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, TunnelMessage, ViewChange,
+    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet,
+    TunnelMessage, ViewChange,
 };
 use eframe::egui;
 use std::{
@@ -17,7 +17,6 @@ use uuid::Uuid;
 
 use super::{
     BlockPickRequest, EditorBlock, HostChild, HostChildStatus, InstanceRole, MAX_LIVE_CHILDREN,
-    PresencePublication,
     audio::AudioPlayer,
     input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
@@ -85,8 +84,7 @@ struct Instance {
     grabbed: bool,
     web_view: Option<WebViewHost>,
     web_view_rect: Option<(EditorRegion, block_plugin_api::ChildRect)>,
-    presence: Option<(bool, Vec<PresenceEntry>)>,
-    presence_publications: Vec<PresencePublication>,
+    presence_visible: Option<bool>,
     replacements: HashMap<(Uuid, Uuid), Replacement>,
     next_replacement: u64,
     leaving: bool,
@@ -156,8 +154,7 @@ impl Instance {
             grabbed: false,
             web_view: None,
             web_view_rect: None,
-            presence: None,
-            presence_publications: Vec::new(),
+            presence_visible: None,
             replacements: HashMap::new(),
             next_replacement: 0,
             leaving: false,
@@ -1146,27 +1143,21 @@ impl Instances {
         messages
     }
 
-    pub(super) fn presence(
+    pub(super) fn set_presence_visible(
         &mut self,
         instance: EditorInstanceId,
         visible: bool,
-        entries: Vec<PresenceEntry>,
     ) -> Vec<Message> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
-        if entry
-            .presence
-            .as_ref()
-            .is_some_and(|(shown, seen)| *shown == visible && *seen == entries)
-        {
+        if entry.presence_visible == Some(visible) {
             return Vec::new();
         }
-        entry.presence = Some((visible, entries.clone()));
+        entry.presence_visible = Some(visible);
         vec![Message::Editor(EditorMessage::Presence {
             instance,
             visible,
-            entries,
         })]
     }
 
@@ -1187,16 +1178,6 @@ impl Instances {
                 })
             })
             .collect()
-    }
-
-    pub(super) fn take_presence_publications(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<PresencePublication> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.presence_publications))
-            .unwrap_or_default()
     }
 
     pub(super) fn replace_child(
@@ -1699,19 +1680,6 @@ impl Instances {
                     .text_pastes
                     .extend(super::clipboard::read_clipboard_text());
                 true
-            }
-            EditorMessage::PublishPresence {
-                instance,
-                presence_id,
-                data,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry
-                    .presence_publications
-                    .push((Uuid::from_bytes(presence_id), data));
-                false
             }
             EditorMessage::ChildReplaced {
                 instance,

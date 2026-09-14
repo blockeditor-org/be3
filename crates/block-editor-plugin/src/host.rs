@@ -13,7 +13,7 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
     EditorBand, EditorCapabilities, EditorRegion, FetchResult, FilePick, InteractionMode, Occluder,
-    PerformanceMeasurement, PresenceEntry, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
+    PerformanceMeasurement, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter};
 use block_ui::BlockCatalog;
@@ -21,8 +21,6 @@ use eframe::egui;
 use uuid::Uuid;
 
 pub type WebViewPlacement = (EditorRegion, Option<ChildRect>);
-
-pub type PresencePublication = (Uuid, Option<Vec<u8>>);
 
 #[derive(Clone, Copy)]
 pub struct BlockDrag {
@@ -505,9 +503,7 @@ pub struct EditorHost {
     cursor_grab_changed: Rc<Cell<bool>>,
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
-    presence: Rc<RefCell<Vec<PresenceEntry>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
-    presence_publications: Rc<RefCell<Vec<PresencePublication>>>,
     hidden_bands: Rc<RefCell<HashSet<EditorBand>>>,
     beui: Rc<Cell<BeuiFrame>>,
 }
@@ -1228,26 +1224,6 @@ impl EditorHost {
         self.presenting.set(presenting);
     }
 
-    pub fn presence<P: block_client::presence::PresenceKind>(&self) -> Vec<(u64, P)> {
-        self.presence
-            .borrow()
-            .iter()
-            .filter(|entry| Uuid::from_bytes(entry.presence_id) == P::ID)
-            .filter_map(|entry| {
-                serde_json::from_slice(&entry.data)
-                    .ok()
-                    .map(|value| (entry.client_id, value))
-            })
-            .collect()
-    }
-
-    pub fn set_presence<P: block_client::presence::PresenceKind>(&self, value: Option<&P>) {
-        let data = value
-            .map(|value| serde_json::to_vec(value).expect("a presence value could not be encoded"));
-        self.presence_publications.borrow_mut().push((P::ID, data));
-        self.waker.wake();
-    }
-
     fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
         self.child_views
             .borrow_mut()
@@ -1262,16 +1238,6 @@ impl EditorHost {
             .entry(child)
             .or_default()
             .push(change);
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn set_presence_entries(&self, entries: Vec<PresenceEntry>) {
-        *self.presence.borrow_mut() = entries;
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_presence_publications(&self) -> Vec<PresencePublication> {
-        std::mem::take(&mut self.presence_publications.borrow_mut())
     }
 
     #[cfg(target_arch = "wasm32")]
