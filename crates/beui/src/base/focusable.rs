@@ -223,7 +223,13 @@ impl Document {
 
     fn focusables(&self) -> Vec<NodeId> {
         let mut out = Vec::new();
-        let start = self.overlay_stack.last().copied().or(self.root);
+        let start = self
+            .overlay_stack
+            .iter()
+            .rev()
+            .copied()
+            .find(|overlay| self.overlay_traps_focus(*overlay))
+            .or(self.root);
         if let Some(start) = start {
             self.collect_focusables(start, &mut out);
         }

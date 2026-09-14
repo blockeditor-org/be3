@@ -29,8 +29,11 @@ pub use select::{
 };
 pub use slider::{Slider, SliderHandle, slider_value};
 pub use stack::Stack;
+#[cfg(test)]
+pub(crate) use text_input::text_input_handles;
 pub use text_input::{
-    TextInput, TextInputHandle, text_input_focused, text_input_text, text_input_value,
+    TextInput, TextInputHandle, text_input_focused, text_input_menu_row, text_input_selection,
+    text_input_text, text_input_value,
 };
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tree::{Tree, TreeItem, TreeRowHandle, tree_focused};

@@ -62,8 +62,9 @@ pub(crate) fn interact(
         }
     }
 
-    if (input.pressed_this_frame && !input.touch_started)
-        || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled)
+    if !doc.pointer_captured
+        && ((input.pressed_this_frame && !input.touch_started)
+            || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
     {
         doc.update_focus(focus_target);
     }
@@ -131,6 +132,9 @@ pub(crate) fn interact(
     doc.validate_focus();
     if input.touch_ended || input.touch_cancelled {
         doc.touch_scroll_target = None;
+    }
+    if !input.pointer_down {
+        doc.pointer_captured = false;
     }
 }
 

@@ -46,6 +46,7 @@ pub(crate) struct OverlayNode {
     open: bool,
     anchor: OverlayAnchor,
     placement: Placement,
+    traps_focus: bool,
     on_dismiss: Option<ClickHandler>,
 }
 
@@ -57,6 +58,7 @@ impl OverlayNode {
             open: false,
             anchor,
             placement,
+            traps_focus: true,
             on_dismiss: None,
         }
     }
@@ -178,6 +180,7 @@ impl Element for OverlayNode {
 pub(crate) fn Overlay(
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = true)] traps_focus: Prop<bool>,
     open: Prop<bool>,
     on_dismiss: ClickCallback,
     children: Option<Child>,
@@ -198,6 +201,9 @@ pub(crate) fn Overlay(
     });
     create_effect(move || {
         with_document(|document| document.set_overlay_placement(overlay, placement.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_overlay_traps_focus(overlay, traps_focus.get()))
     });
     create_effect(move || {
         let open = open.get();
@@ -243,6 +249,16 @@ impl Document {
         if self.arena.get_as::<OverlayNode>(overlay).placement != placement {
             self.arena.get_mut_as::<OverlayNode>(overlay).placement = placement;
         }
+    }
+
+    pub(crate) fn set_overlay_traps_focus(&mut self, overlay: NodeId, traps_focus: bool) {
+        if self.arena.get_as::<OverlayNode>(overlay).traps_focus != traps_focus {
+            self.arena.get_mut_as::<OverlayNode>(overlay).traps_focus = traps_focus;
+        }
+    }
+
+    pub(crate) fn overlay_traps_focus(&self, overlay: NodeId) -> bool {
+        self.arena.get_as::<OverlayNode>(overlay).traps_focus
     }
 
     pub(crate) fn set_overlay_on_dismiss(
@@ -325,6 +341,7 @@ impl Document {
                 .is_some_and(|rect| rect.contains(pos))
         });
         if !inside_any {
+            self.capture_pointer();
             self.close_overlay_at(level);
         }
     }

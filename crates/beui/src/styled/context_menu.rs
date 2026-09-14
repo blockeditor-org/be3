@@ -32,7 +32,7 @@ pub fn ContextMenu(
 }
 
 #[component]
-fn MenuRow(handle: MenuRowHandle) -> NodeId {
+pub(crate) fn MenuRow(handle: MenuRowHandle) -> NodeId {
     let MenuRowHandle {
         item,
         hovered,
@@ -63,7 +63,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-fn MenuPanel(children: Child) -> NodeId {
+pub(crate) fn MenuPanel(children: Child) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame width=MENU_WIDTH color={theme.pick(|theme| theme.surface_raised)} outline={theme.pick(|theme| theme.border)} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>

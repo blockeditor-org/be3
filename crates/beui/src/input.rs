@@ -98,6 +98,7 @@ pub struct PointerPress {
     pub fraction: Vec2,
     pub clicks: u32,
     pub modifiers: Modifiers,
+    pub touch: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

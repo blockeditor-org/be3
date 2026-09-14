@@ -19,12 +19,29 @@ const CARET_WIDTH: f32 = 1.0;
 const BLINK_INTERVAL: Duration = Duration::from_millis(530);
 const DEFAULT_FONT_SIZE: f32 = 14.0;
 const DEFAULT_SELECTION_COLOR: Color32 = Color32::from_gray(80);
+const HANDLE_RADIUS: f32 = 9.0;
+const HANDLE_GAP: f32 = 4.0;
+const HANDLE_HIT_RADIUS: f32 = 24.0;
+const HANDLE_VISIBILITY_SLACK: f32 = 0.5;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TextAlign {
     Start,
     Center,
     End,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum SelectionEnd {
+    Start,
+    End,
+}
+
+fn handle_center(end: SelectionEnd, anchor: Pos2) -> Pos2 {
+    match end {
+        SelectionEnd::Start => pos2(anchor.x - HANDLE_RADIUS, anchor.y + HANDLE_RADIUS),
+        SelectionEnd::End => pos2(anchor.x + HANDLE_RADIUS, anchor.y + HANDLE_RADIUS),
+    }
 }
 
 #[derive(Clone)]
@@ -48,6 +65,7 @@ pub(crate) struct TextNode {
     clip: bool,
     caret: Option<usize>,
     selection: Vec<Range<usize>>,
+    handles: bool,
     blink: Instant,
     offset: Cell<f32>,
     placed: RefCell<Option<Placed>>,
@@ -151,6 +169,75 @@ impl TextNode {
             None => 0,
         }
     }
+
+    fn caret_middle(&self, index: usize) -> Pos2 {
+        match self.placed.borrow().as_ref() {
+            Some(placed) => {
+                placed.galley.cursor_pos(placed.origin, index)
+                    + vec2(0.0, placed.galley.line_height() / 2.0)
+            }
+            None => Pos2::ZERO,
+        }
+    }
+
+    fn handle_anchors(&self) -> Vec<(SelectionEnd, Pos2)> {
+        let Some(range) = self.selection.first().filter(|_| self.handles) else {
+            return Vec::new();
+        };
+        let placed = self.placed.borrow();
+        let Some(placed) = placed.as_ref() else {
+            return Vec::new();
+        };
+        let shown = (placed.rect.left() - HANDLE_VISIBILITY_SLACK)
+            ..=(placed.rect.right() + HANDLE_VISIBILITY_SLACK);
+        [
+            (SelectionEnd::Start, range.start),
+            (SelectionEnd::End, range.end),
+        ]
+        .into_iter()
+        .filter_map(|(end, index)| {
+            let top = placed.galley.cursor_pos(placed.origin, index);
+            (!self.clip || shown.contains(&top.x)).then(|| {
+                (
+                    end,
+                    pos2(top.x, top.y + placed.galley.line_height() + HANDLE_GAP),
+                )
+            })
+        })
+        .collect()
+    }
+
+    fn handle_at(&self, pos: Pos2) -> Option<SelectionEnd> {
+        self.handle_anchors()
+            .into_iter()
+            .map(|(end, anchor)| (end, handle_center(end, anchor).distance(pos)))
+            .filter(|(_, distance)| *distance <= HANDLE_HIT_RADIUS)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(end, _)| end)
+    }
+
+    fn paint_handles(&self, painter: &Painter) {
+        for (end, anchor) in self.handle_anchors() {
+            let center = handle_center(end, anchor);
+            painter.rect_filled(
+                Rect::from_min_size(
+                    pos2(center.x - HANDLE_RADIUS, center.y - HANDLE_RADIUS),
+                    Vec2::splat(HANDLE_RADIUS * 2.0),
+                ),
+                HANDLE_RADIUS,
+                self.caret_color,
+            );
+            let corner = match end {
+                SelectionEnd::Start => pos2(anchor.x - HANDLE_RADIUS, anchor.y),
+                SelectionEnd::End => anchor,
+            };
+            painter.rect_filled(
+                Rect::from_min_size(corner, Vec2::splat(HANDLE_RADIUS)),
+                0.0,
+                self.caret_color,
+            );
+        }
+    }
 }
 
 impl Element for TextNode {
@@ -175,21 +262,21 @@ impl Element for TextNode {
         _rects: &HashMap<NodeId, Rect>,
         rect: Rect,
     ) {
-        let painter = painter.with_clip_rect(if self.clip { rect } else { Rect::EVERYTHING });
-        let placed = self.placed(&painter, rect);
+        let clipped = painter.with_clip_rect(if self.clip { rect } else { Rect::EVERYTHING });
+        let placed = self.placed(&clipped, rect);
 
         for range in &self.selection {
             for area in placed.galley.selection_rects(placed.origin, range.clone()) {
-                painter.rect_filled(area, 0.0, self.selection_color);
+                clipped.rect_filled(area, 0.0, self.selection_color);
             }
         }
 
-        painter.galley(placed.origin, placed.galley.clone(), self.color);
+        clipped.galley(placed.origin, placed.galley.clone(), self.color);
 
         if let Some(caret) = self.caret {
             if self.caret_shown() {
                 let top = placed.galley.cursor_pos(placed.origin, caret);
-                painter.rect_filled(
+                clipped.rect_filled(
                     Rect::from_min_size(top, vec2(CARET_WIDTH, placed.galley.line_height())),
                     0.0,
                     self.caret_color,
@@ -197,10 +284,12 @@ impl Element for TextNode {
             }
             let elapsed = self.blink.elapsed().as_nanos();
             let remaining = BLINK_INTERVAL.as_nanos() - elapsed % BLINK_INTERVAL.as_nanos();
-            painter
+            clipped
                 .ctx()
                 .request_repaint_after(Duration::from_nanos(remaining as u64));
         }
+
+        self.paint_handles(painter);
     }
 
     fn interact(
@@ -257,6 +346,7 @@ impl Document {
             clip: false,
             caret: None,
             selection: Vec::new(),
+            handles: false,
             blink: Instant::now(),
             offset: Cell::new(0.0),
             placed: RefCell::new(None),
@@ -352,6 +442,30 @@ impl Document {
     pub(crate) fn text_index_at(&self, text: NodeId, pos: Pos2) -> usize {
         self.arena.get_as::<TextNode>(text).index_at(pos)
     }
+
+    pub(crate) fn set_text_handles(&mut self, text: NodeId, handles: bool) {
+        if self.arena.get_as::<TextNode>(text).handles != handles {
+            self.arena.get_mut_as::<TextNode>(text).handles = handles;
+        }
+    }
+
+    pub(crate) fn text_handle_at(&self, text: NodeId, pos: Pos2) -> Option<SelectionEnd> {
+        self.arena.get_as::<TextNode>(text).handle_at(pos)
+    }
+
+    pub(crate) fn text_caret_middle(&self, text: NodeId, index: usize) -> Pos2 {
+        self.arena.get_as::<TextNode>(text).caret_middle(index)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn text_handle_centers(&self, text: NodeId) -> Vec<Pos2> {
+        self.arena
+            .get_as::<TextNode>(text)
+            .handle_anchors()
+            .into_iter()
+            .map(|(end, anchor)| handle_center(end, anchor))
+            .collect()
+    }
 }
 
 pub fn text_index_at(text: &NodeRef, pos: Pos2) -> usize {
@@ -368,6 +482,7 @@ pub fn Text(
     #[prop(default = Color32::WHITE)] caret_color: Prop<Color32>,
     caret: Prop<Option<usize>>,
     selection: Prop<Vec<Range<usize>>>,
+    handles: Prop<bool>,
     align: Option<Prop<TextAlign>>,
     vertical_align: Option<Prop<TextAlign>>,
     wrap: Prop<bool>,
@@ -411,5 +526,6 @@ pub fn Text(
     create_effect(move || {
         with_document(|document| document.set_text_selection(node, selection.get()))
     });
+    create_effect(move || with_document(|document| document.set_text_handles(node, handles.get())));
     node
 }

@@ -6,6 +6,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{Callback, Frame, Prop, clone, create_memo};
+use crate::styled::context_menu::{MenuPanel, MenuRow};
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
 use crate::unstyled;
 use crate::unstyled::TextInputHandle;
@@ -42,6 +43,8 @@ pub fn TextInput(
             selection_color={theme.pick(|theme| theme.accent_soft)}
             caret_color={theme.pick(|theme| theme.accent)}
             padding_horizontal=PADDING_HORIZONTAL
+            menu_row={|handle| view! { <MenuRow handle /> }}
+            menu_panel={|content| view! { <MenuPanel>{content}</MenuPanel> }}
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
         >

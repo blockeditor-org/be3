@@ -15,16 +15,20 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) child: Option<NodeId>,
     pub(crate) cursor: CursorIcon,
     pub(crate) armed: bool,
+    pub(crate) captured: bool,
+    pub(crate) capture_presses: bool,
     pub(crate) key_active: bool,
     pub(crate) hovered: bool,
     pub(crate) active: bool,
     pub(crate) dragged: Option<Pos2>,
     pub(crate) on_click: ClickCallback,
+    pub(crate) on_click_at: Callback<PointerPress>,
     pub(crate) on_hover_change: Callback<bool>,
     pub(crate) on_active_change: Callback<bool>,
     pub(crate) on_press: Callback<PointerPress>,
     pub(crate) on_secondary_press: Callback<PointerPress>,
     pub(crate) on_drag: Callback<PointerPress>,
+    pub(crate) capture_at: Callback<Pos2, bool>,
 }
 
 impl ClickCatcherNode {
@@ -33,16 +37,20 @@ impl ClickCatcherNode {
             child: None,
             cursor,
             armed: false,
+            captured: false,
+            capture_presses: false,
             key_active: false,
             hovered: false,
             active: false,
             dragged: None,
             on_click: ClickCallback::empty(),
+            on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
             on_active_change: Callback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
             on_drag: Callback::empty(),
+            capture_at: Callback::empty(),
         }
     }
 
@@ -56,6 +64,10 @@ impl ClickCatcherNode {
             fraction: fraction(rect, pos),
             clicks: input.clicks,
             modifiers: input.modifiers,
+            touch: input.touch_started
+                || input.touch_active
+                || input.touch_ended
+                || input.touch_cancelled,
         }
     }
 }
@@ -102,7 +114,7 @@ impl Element for ClickCatcherNode {
 
     fn interact(
         &mut self,
-        _doc: &mut Document,
+        doc: &mut Document,
         painter: &Painter,
         input: &InteractInput,
         _id: NodeId,
@@ -111,15 +123,26 @@ impl Element for ClickCatcherNode {
     ) -> Vec<NodeId> {
         if !input.pointer_down && !input.released_this_frame {
             self.armed = false;
+            self.captured = false;
             self.dragged = None;
         }
         let contains_pointer = input.pointer_pos.is_some_and(|pos| rect.contains(pos));
-        if contains_pointer && input.pressed_this_frame {
-            self.armed = true;
-            if let Some(pos) = input.pointer_pos {
+        if input.pressed_this_frame
+            && let Some(pos) = input.pointer_pos
+        {
+            self.captured = (contains_pointer && self.capture_presses) || self.capture_at.call(pos);
+            if self.captured {
+                doc.capture_pointer();
+            }
+            if contains_pointer || self.captured {
+                self.armed = true;
                 let press = self.press(input, rect, pos);
                 self.on_press.call(press);
             }
+        }
+        if doc.pointer_captured && !self.captured {
+            self.armed = false;
+            self.dragged = None;
         }
         if contains_pointer
             && input.secondary_pressed_this_frame
@@ -128,15 +151,20 @@ impl Element for ClickCatcherNode {
             let press = self.press(input, rect, pos);
             self.on_secondary_press.call(press);
         }
-        if input.touch_cancelled || input.touch_scrolling {
+        if input.touch_cancelled || (input.touch_scrolling && !self.captured) {
             self.armed = false;
             self.dragged = None;
         }
         if input.released_this_frame {
             if contains_pointer && self.armed && !input.touch_dragged && !input.touch_cancelled {
                 self.on_click.call();
+                if let Some(pos) = input.pointer_pos {
+                    let press = self.press(input, rect, pos);
+                    self.on_click_at.call(press);
+                }
             }
             self.armed = false;
+            self.captured = false;
             self.dragged = None;
         }
         let hovered = contains_pointer && !input.touch_active && !input.touch_ended;
@@ -154,7 +182,7 @@ impl Element for ClickCatcherNode {
         }
         if self.armed
             && input.pointer_down
-            && !input.touch_scrolling
+            && (!input.touch_scrolling || self.captured)
             && let Some(pos) = input.pointer_pos
             && self.dragged != Some(pos)
         {
@@ -188,6 +216,11 @@ impl Document {
         self.arena.insert(ClickCatcherNode::new(cursor))
     }
 
+    pub(crate) fn capture_pointer(&mut self) {
+        self.pointer_captured = true;
+        self.touch_scroll_target = None;
+    }
+
     pub(crate) fn set_click_catcher_child(&mut self, click_catcher: NodeId, child: NodeId) {
         if self.arena.get_as::<ClickCatcherNode>(click_catcher).child == Some(child) {
             return;
@@ -200,6 +233,14 @@ impl Document {
     pub(crate) fn set_click_catcher_cursor(&mut self, id: NodeId, cursor: CursorIcon) {
         if self.arena.get_as::<ClickCatcherNode>(id).cursor != cursor {
             self.arena.get_mut_as::<ClickCatcherNode>(id).cursor = cursor;
+        }
+    }
+
+    pub(crate) fn set_click_catcher_capture_presses(&mut self, id: NodeId, capture_presses: bool) {
+        if self.arena.get_as::<ClickCatcherNode>(id).capture_presses != capture_presses {
+            self.arena
+                .get_mut_as::<ClickCatcherNode>(id)
+                .capture_presses = capture_presses;
         }
     }
 
@@ -223,23 +264,28 @@ impl Document {
 pub fn ClickCatcher(
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     key_active: Prop<bool>,
+    capture_presses: Prop<bool>,
     on_click: ClickCallback,
+    on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
     on_active_change: Callback<bool>,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
+    capture_at: Callback<Pos2, bool>,
     children: Option<Child>,
 ) -> NodeId {
     let click_catcher = with_document(|document| {
         let click_catcher = document.create_click_catcher(CursorIcon::Default);
         let node = document.arena.get_mut_as::<ClickCatcherNode>(click_catcher);
         node.on_click = on_click;
+        node.on_click_at = on_click_at;
         node.on_hover_change = on_hover_change;
         node.on_active_change = on_active_change;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
         node.on_drag = on_drag;
+        node.capture_at = capture_at;
         if let Some(child) = children {
             document.set_click_catcher_child(click_catcher, child);
         }
@@ -247,6 +293,11 @@ pub fn ClickCatcher(
     });
     create_effect(move || {
         with_document(|document| document.set_click_catcher_cursor(click_catcher, cursor.get()))
+    });
+    create_effect(move || {
+        with_document(|document| {
+            document.set_click_catcher_capture_presses(click_catcher, capture_presses.get())
+        })
     });
     create_effect(move || {
         with_document(|document| {
