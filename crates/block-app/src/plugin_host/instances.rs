@@ -63,6 +63,9 @@ struct Instance {
     block_drags: Vec<(Uuid, Uuid)>,
     block_commands: Vec<(Uuid, BlockCommand)>,
     reported_focus: Option<Focus>,
+    focus_reports: Vec<Focus>,
+    artifact_watch: Option<Vec<Uuid>>,
+    reported_artifacts: Vec<block_plugin_api::ArtifactState>,
     drag_accepted: bool,
     intrinsic: Option<egui::Vec2>,
     aspect_ratio: Option<f32>,
@@ -131,6 +134,9 @@ impl Instance {
             block_drags: Vec::new(),
             block_commands: Vec::new(),
             reported_focus: None,
+            focus_reports: Vec::new(),
+            artifact_watch: None,
+            reported_artifacts: Vec::new(),
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
@@ -826,6 +832,7 @@ impl Instances {
                 child: child.child,
                 frame_owner: matches!(mode, ChildMode::Active | ChildMode::Live)
                     && !screen.frame_revoked.contains(&child.child),
+                own_frame: child.own_frame,
                 block_id: Uuid::from_bytes(child.block_id),
                 block_type: Uuid::from_bytes(child.block_type),
                 rect: child_rect,
@@ -874,6 +881,7 @@ impl Instances {
             .iter()
             .find(|child| {
                 matches!(child.mode, ChildMode::Active | ChildMode::Live)
+                    && !child.own_frame
                     && !screen.frame_revoked.contains(&child.child)
                     && !child.rect.is_empty()
             })
@@ -889,7 +897,7 @@ impl Instances {
             return;
         };
         for child in &screen.children.children {
-            if matches!(child.mode, ChildMode::Active | ChildMode::Live) {
+            if matches!(child.mode, ChildMode::Active | ChildMode::Live) && !child.own_frame {
                 screen.frame_revoked.insert(child.child);
             }
         }
@@ -1471,6 +1479,29 @@ impl Instances {
                 ));
                 true
             }
+            EditorMessage::Focused {
+                instance,
+                block_id,
+                block_type,
+                via,
+            } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.focus_reports.push(Focus {
+                    block: block_id
+                        .map(|block_id| (Uuid::from_bytes(block_id), Uuid::from_bytes(block_type))),
+                    via: via.into_iter().map(Uuid::from_bytes).collect(),
+                });
+                true
+            }
+            EditorMessage::WatchArtifacts { instance, blocks } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.artifact_watch = Some(blocks.into_iter().map(Uuid::from_bytes).collect());
+                true
+            }
             EditorMessage::DragBlock {
                 instance,
                 block_id,
@@ -1841,6 +1872,55 @@ impl Instances {
         } else {
             Some(entry.block_commands.remove(0))
         }
+    }
+
+    pub(super) fn take_focus_report(&mut self, instance: EditorInstanceId) -> Option<Focus> {
+        let entry = self.entries.get_mut(&instance)?;
+        if entry.focus_reports.is_empty() {
+            None
+        } else {
+            Some(entry.focus_reports.remove(0))
+        }
+    }
+
+    pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
+        self.entries.get_mut(&instance)?.artifact_watch.take()
+    }
+
+    pub(super) fn show_block(
+        &mut self,
+        instance: EditorInstanceId,
+        block_id: Uuid,
+        block_type: Uuid,
+        via: Option<Uuid>,
+    ) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::ShowBlock {
+            instance,
+            block_id: block_id.into_bytes(),
+            block_type: block_type.into_bytes(),
+            via: via.map(Uuid::into_bytes),
+        })]
+    }
+
+    pub(super) fn set_artifact_states(
+        &mut self,
+        instance: EditorInstanceId,
+        states: Vec<block_plugin_api::ArtifactState>,
+    ) -> Vec<Message> {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return Vec::new();
+        };
+        if entry.reported_artifacts == states {
+            return Vec::new();
+        }
+        entry.reported_artifacts = states.clone();
+        vec![Message::Editor(EditorMessage::ArtifactStates {
+            instance,
+            states,
+        })]
     }
 
     pub(super) fn set_focus(&mut self, focus: Focus) -> bool {

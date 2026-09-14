@@ -223,6 +223,37 @@ impl Screens {
                     });
                 }
             }
+            Message::Editor(EditorMessage::ShowBlock {
+                instance,
+                block_id,
+                block_type,
+                via,
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.show_block(
+                        Uuid::from_bytes(*block_id),
+                        Uuid::from_bytes(*block_type),
+                        via.map(Uuid::from_bytes),
+                    );
+                }
+            }
+            Message::Editor(EditorMessage::ArtifactStates { instance, states }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.set_artifacts(
+                        states
+                            .iter()
+                            .map(|state| crate::host::ArtifactState {
+                                block_id: Uuid::from_bytes(state.block_id),
+                                source_type: Uuid::from_bytes(state.source_type),
+                                source: state.source.map(Uuid::from_bytes),
+                                summary: state.summary.clone(),
+                                error: state.error.clone(),
+                                regenerating: state.regenerating,
+                            })
+                            .collect(),
+                    );
+                }
+            }
             Message::Editor(EditorMessage::PresentingChanged {
                 instance,
                 presenting,

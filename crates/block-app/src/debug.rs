@@ -1,4 +1,3 @@
-mod block_data;
 mod client;
 pub(crate) mod inspect;
 mod network;

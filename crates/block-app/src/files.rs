@@ -2,9 +2,8 @@ use block::Block;
 use block_client::blocks::settings::Settings;
 use eframe::egui;
 use egui_material_icons::icons::ICON_CHECK;
-use uuid::Uuid;
 
-use crate::{BlockApp, PendingDestructiveAction, editors::SidebarDragSource, performance};
+use crate::{BlockApp, PendingDestructiveAction, performance};
 
 impl BlockApp {
     fn open_settings(&mut self) {
@@ -15,31 +14,7 @@ impl BlockApp {
         else {
             return;
         };
-        self.open_tab(id, Settings::TYPE_ID);
-    }
-
-    pub(crate) fn can_edit_block(&self, id: Uuid) -> bool {
-        self.client.block_access(id).can_edit()
-    }
-
-    fn can_delete_from(&self, source: SidebarDragSource) -> bool {
-        match source {
-            SidebarDragSource::Root | SidebarDragSource::Orphaned => true,
-            SidebarDragSource::Block(id) => {
-                self.block_type_of(id)
-                    .is_some_and(|block_type| self.registry.can_delete_child(block_type))
-                    && self.can_edit_block(id)
-            }
-        }
-    }
-
-    pub(crate) fn can_move_out_of(
-        &self,
-        source: SidebarDragSource,
-        child: Uuid,
-        is_reference: bool,
-    ) -> bool {
-        self.can_delete_from(source) && (is_reference || self.can_edit_block(child))
+        self.show_in_shell(id, Settings::TYPE_ID, None);
     }
 
     pub(crate) fn show_status_bar(&mut self, ui: &mut egui::Ui) {

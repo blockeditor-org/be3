@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::{BlockCommand, BlockLocation};
+use crate::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation};
 
 #[test]
 fn block_commands_round_trip() {
@@ -29,6 +29,20 @@ fn block_commands_round_trip() {
             source: BlockLocation::Orphaned,
             is_reference: true,
         },
+        BlockCommand::Artifact {
+            action: ArtifactAction::Regenerate,
+        },
+        BlockCommand::Artifact {
+            action: ArtifactAction::Settings,
+        },
+        BlockCommand::Artifact {
+            action: ArtifactAction::Unlink,
+        },
+        BlockCommand::SimulateAccess {
+            access: AccessLevel::View,
+        },
+        BlockCommand::RevealPresence { client_id: 42 },
+        BlockCommand::CloseEditor,
     ] {
         let message = Message::Editor(EditorMessage::BlockCommand {
             instance: EditorInstanceId(6),

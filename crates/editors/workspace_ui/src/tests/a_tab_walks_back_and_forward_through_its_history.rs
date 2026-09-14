@@ -1,0 +1,23 @@
+use super::*;
+
+#[test]
+fn a_tab_walks_back_and_forward_through_its_history() {
+    let (mut editor, host, opened) = editor();
+    let second = Uuid::new_v4();
+
+    host.show_block(opened, FileTree::TYPE_ID, None);
+    editor.step();
+    editor.app().navigate_active(second, FileTree::TYPE_ID);
+    editor.step();
+    assert_eq!(editor.app().open_blocks(), vec![second]);
+    assert_eq!(host.focused_block().block_id, Some(second));
+
+    editor.app().go_back();
+    editor.step();
+    assert_eq!(editor.app().open_blocks(), vec![opened]);
+    assert_eq!(host.focused_block().block_id, Some(opened));
+
+    editor.app().go_forward();
+    editor.step();
+    assert_eq!(editor.app().open_blocks(), vec![second]);
+}

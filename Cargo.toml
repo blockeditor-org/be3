@@ -51,6 +51,7 @@ members = [
     "crates/editors/version_control_worktree",
     "crates/editors/video_block",
     "crates/editors/workspace_index",
+    "crates/editors/workspace_ui",
     "crates/block-editor-plugin",
     "crates/block-gpu-abi",
     "crates/block-gpu-guest",

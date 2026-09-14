@@ -1,0 +1,23 @@
+[package]
+name = "workspace_ui"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+block = { path = "../../block" }
+block-client = { path = "../../block-client" }
+block-editor-plugin = { path = "../../block-editor-plugin" }
+egui_dock = "0.19.1"
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+block-ui-test = { path = "../../block-ui-test" }
+
+
+[lints]
+workspace = true

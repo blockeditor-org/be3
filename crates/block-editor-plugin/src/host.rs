@@ -10,9 +10,9 @@ use std::{
 };
 
 use block_plugin_api::{
-    AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick, ChildId, ChildLayer,
-    ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage, EditorBand,
-    EditorCapabilities, EditorRegion, FetchResult, FilePick, InteractionMode, Occluder,
+    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
+    ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
+    EditorBand, EditorCapabilities, EditorRegion, FetchResult, FilePick, InteractionMode, Occluder,
     PerformanceMeasurement, PresenceEntry, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter};
@@ -40,6 +40,23 @@ pub struct FileDrop {
 }
 
 type OpenRequest = (Uuid, Uuid, Option<Uuid>);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShowRequest {
+    pub block_id: Uuid,
+    pub block_type: Uuid,
+    pub via: Option<Uuid>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ArtifactState {
+    pub block_id: Uuid,
+    pub source_type: Uuid,
+    pub source: Option<Uuid>,
+    pub summary: String,
+    pub error: Option<String>,
+    pub regenerating: bool,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BlockSource {
@@ -70,6 +87,15 @@ pub struct FocusedBlock {
     pub block_id: Option<Uuid>,
     pub block_type: Uuid,
     pub via: Vec<Uuid>,
+}
+
+impl FocusedBlock {
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    fn same(&self, other: &Self) -> bool {
+        self.block_id == other.block_id
+            && self.block_type == other.block_type
+            && self.via == other.via
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -334,6 +360,12 @@ impl ChildHandle {
         self.set_mode(ChildMode::Live);
     }
 
+    pub fn own_frame(&self) {
+        self.host.update_child(self.index, |placement| {
+            placement.own_frame = true;
+        });
+    }
+
     pub fn set_corner_radius(&self, radius: f32) {
         let layer = self.host.update_child(self.index, |placement| {
             placement.corner_radius = radius;
@@ -427,7 +459,14 @@ fn beui_rect(rect: egui::Rect, ratio: f32) -> beui::Rect {
 pub struct EditorHost {
     waker: Waker,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
+    shows: Rc<RefCell<Vec<OpenRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
+    artifacts: Rc<RefCell<HashMap<Uuid, ArtifactState>>>,
+    watched_artifacts: Rc<RefCell<Vec<Uuid>>>,
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    reported_artifacts: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
@@ -508,8 +547,104 @@ impl EditorHost {
             .push((block_id, block_type, Some(container)));
     }
 
+    pub fn take_show_requests(&self) -> Vec<ShowRequest> {
+        self.shows
+            .borrow_mut()
+            .drain(..)
+            .map(|(block_id, block_type, via)| ShowRequest {
+                block_id,
+                block_type,
+                via,
+            })
+            .collect()
+    }
+
+    pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+        self.shows.borrow_mut().push((block_id, block_type, via));
+    }
+
     pub fn focused_block(&self) -> FocusedBlock {
         self.focused.borrow().clone()
+    }
+
+    pub fn report_focus(&self, focused: FocusedBlock) {
+        *self.focused.borrow_mut() = focused;
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_focus_report(&self) -> Option<FocusedBlock> {
+        let focused = self.focused.borrow().clone();
+        let mut reported = self.reported_focus.borrow_mut();
+        if reported.as_ref().is_some_and(|last| last.same(&focused)) {
+            return None;
+        }
+        *reported = Some(focused.clone());
+        Some(focused)
+    }
+
+    pub fn watch_artifacts(&self, blocks: impl IntoIterator<Item = Uuid>) {
+        let mut blocks: Vec<Uuid> = blocks.into_iter().collect();
+        blocks.sort();
+        blocks.dedup();
+        *self.watched_artifacts.borrow_mut() = blocks;
+    }
+
+    pub fn artifact(&self, block_id: Uuid) -> Option<ArtifactState> {
+        self.artifacts.borrow().get(&block_id).cloned()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
+        let blocks = self.watched_artifacts.borrow().clone();
+        let mut reported = self.reported_artifacts.borrow_mut();
+        if reported.as_ref() == Some(&blocks) {
+            return None;
+        }
+        *reported = Some(blocks.clone());
+        Some(blocks)
+    }
+
+    pub fn set_artifacts(&self, states: Vec<ArtifactState>) {
+        *self.artifacts.borrow_mut() = states
+            .into_iter()
+            .map(|state| (state.block_id, state))
+            .collect();
+    }
+
+    pub fn regenerate_artifact(&self, block_id: Uuid) {
+        self.artifact_command(block_id, ArtifactAction::Regenerate);
+    }
+
+    pub fn edit_artifact(&self, block_id: Uuid) {
+        self.artifact_command(block_id, ArtifactAction::Settings);
+    }
+
+    pub fn unlink_artifact(&self, block_id: Uuid) {
+        self.artifact_command(block_id, ArtifactAction::Unlink);
+    }
+
+    fn artifact_command(&self, block_id: Uuid, action: ArtifactAction) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Artifact { action }));
+    }
+
+    pub fn reveal_presence(&self, block_id: Uuid, client_id: u64) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::RevealPresence { client_id }));
+    }
+
+    pub fn close_editor(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::CloseEditor));
+    }
+
+    pub fn simulate_access(&self, block_id: Uuid, access: AccessLevel) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::SimulateAccess { access }));
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -916,6 +1051,7 @@ impl EditorHost {
             block_type: block_type.into_bytes(),
             rect: child_rect(rect.translate(-state.origin)),
             clip: child_rect(ui.clip_rect().intersect(rect).translate(-state.origin)),
+            own_frame: false,
             corner_radius: 0.0,
             layer,
             mode: ChildMode::Passive,

@@ -1,0 +1,16 @@
+{
+  "id": "be3.workspace-ui",
+  "name": "Workspace",
+  "version": "0.1.0",
+  "block_type": "776f726b-7370-6163-652d-75692d303031",
+  "display_name": "Workspace",
+  "icon": "",
+  "creation": "None",
+  "interaction": "Live",
+  "resize": "None",
+  "regions": [
+    "Frame"
+  ],
+  "chrome": [],
+  "entry_point": "workspace_ui.wasm"
+}

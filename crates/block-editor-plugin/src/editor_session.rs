@@ -401,6 +401,14 @@ impl EditorSession {
         self.host.set_focused_block(focused);
     }
 
+    pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+        self.host.show_block(block_id, block_type, via);
+    }
+
+    pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
+        self.host.set_artifacts(states);
+    }
+
     pub(crate) fn set_view(&self, view: egui::Rect, scale: f32) {
         self.host.set_view(view, scale);
     }
@@ -714,6 +722,20 @@ impl EditorSession {
                 instance,
                 block_id: block_id.into_bytes(),
                 command,
+            }));
+        }
+        if let Some(focused) = self.host.take_focus_report() {
+            messages.push(Message::Editor(EditorMessage::Focused {
+                instance,
+                block_id: focused.block_id.map(Uuid::into_bytes),
+                block_type: focused.block_type.into_bytes(),
+                via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
+            }));
+        }
+        if let Some(blocks) = self.host.take_artifact_watch() {
+            messages.push(Message::Editor(EditorMessage::WatchArtifacts {
+                instance,
+                blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
             }));
         }
         messages

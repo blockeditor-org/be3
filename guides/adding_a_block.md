@@ -1,6 +1,6 @@
 # Adding a block
 
-Blocks are synchronized, serialized data models. A block type belongs in this directory; its UI belongs in `block-app/src/editors`.
+Blocks are synchronized, serialized data models. A block type belongs in this directory; its UI belongs in a plugin under `crates/editors`.
 
 ## 1. Define the model and operations
 
@@ -137,4 +137,4 @@ From the workspace root, run:
 ./scripts/verify
 ```
 
-If the block needs a UI, continue with the [editor guide](../../../block-app/src/editors/guide.md).
+If the block needs a UI, continue with the [plugin editor guide](adding_a_plugin_editor.md).

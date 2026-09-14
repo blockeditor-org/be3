@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use block::{BlockAccess, BlockParent};
 use block_client::{
-    BlockClient, BlockHandleAccess, BlockHistoryHandle, BlockRelationships,
+    BlockClient, BlockHandleAccess,
     blocks::{self, workspace_index::BlockEntry},
 };
 use block_plugin_api::PluginManifest;
@@ -21,6 +21,11 @@ use self::unsupported::UnsupportedEditor;
 
 const DIRECT_EDITOR_MIN_ZOOM: f32 = 0.25;
 const DIRECT_EDITOR_MAX_ZOOM: f32 = 32.0;
+pub struct FocusReport {
+    pub block: Option<(Uuid, Uuid)>,
+    pub via: Vec<Uuid>,
+}
+
 pub enum EditorAction {
     OpenBlock {
         id: Uuid,
@@ -225,6 +230,7 @@ pub struct EditorAccess<'a> {
     client_id: Uuid,
     registry: &'a EditorRegistry,
     editors: &'a mut HashMap<Uuid, Box<dyn BlockEditor>>,
+    simulated: &'a HashMap<Uuid, BlockAccess>,
 }
 
 pub fn embedded_editor_ui(
@@ -278,6 +284,7 @@ impl<'a> EditorAccess<'a> {
         client_id: Uuid,
         registry: &'a EditorRegistry,
         editors: &'a mut HashMap<Uuid, Box<dyn BlockEditor>>,
+        simulated: &'a HashMap<Uuid, BlockAccess>,
     ) -> Self {
         Self {
             active: vec![active],
@@ -286,6 +293,7 @@ impl<'a> EditorAccess<'a> {
             client_id,
             registry,
             editors,
+            simulated,
         }
     }
 
@@ -294,7 +302,14 @@ impl<'a> EditorAccess<'a> {
     }
 
     fn access_for(&self, id: Uuid) -> BlockAccess {
-        self.access.min(editor_access_ceiling(self.client, id))
+        let simulated = self
+            .simulated
+            .get(&id)
+            .copied()
+            .unwrap_or(BlockAccess::Edit);
+        self.access
+            .min(editor_access_ceiling(self.client, id))
+            .min(simulated)
     }
 
     pub fn client(&self) -> &BlockClient {
@@ -510,9 +525,6 @@ pub trait BlockEditor {
     fn block_type(&self) -> Uuid {
         self.block().block_type()
     }
-    fn relationships(&self) -> Option<BlockRelationships> {
-        self.block().relationships()
-    }
     fn set_parent(&self, parent: BlockParent) {
         self.block().set_parent(parent);
     }
@@ -527,6 +539,22 @@ pub trait BlockEditor {
     }
     fn update(&mut self, _frame: &eframe::Frame) {}
     fn finish_frame(&mut self) {}
+
+    fn drawn(&self) -> bool {
+        false
+    }
+
+    fn show_block(&self, _id: Uuid, _block_type: Uuid, _via: Option<Uuid>) {}
+
+    fn take_focus_report(&self) -> Option<FocusReport> {
+        None
+    }
+
+    fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
+        None
+    }
+
+    fn set_artifact_states(&self, _states: Vec<block_plugin_api::ArtifactState>) {}
     fn set_tab_active(&mut self, _active: bool) {}
     fn tab_closed(&mut self) {}
 
@@ -537,9 +565,6 @@ pub trait BlockEditor {
     fn sync_cursor_presence(&mut self, _client: &BlockClient, _visible: bool) {}
 
     fn reveal_presence_cursor(&mut self, _client_id: block::ClientId) {}
-    fn history(&self) -> Option<&dyn BlockHistoryHandle> {
-        self.block().history()
-    }
     fn render(
         &mut self,
         _context: BlockRenderContext<'_>,
@@ -748,6 +773,79 @@ pub fn direct_editor_tab_ui(
         }
         ui.ctx().request_repaint();
     }
+    action
+}
+
+pub fn own_frame_child_ui(
+    ui: &mut egui::Ui,
+    editors: &mut EditorAccess<'_>,
+    block_id: Uuid,
+    id_salt: impl Hash,
+    frame: egui::Rect,
+    clip_rect: egui::Rect,
+    viewport: &mut DirectEditorViewport,
+) -> Option<EditorAction> {
+    let clip = frame.intersect(clip_rect);
+    let mut stack = Vec::new();
+    let mut trail = vec![editors.block_label(block_id)];
+    let mut child = editors.direct_editor_frame_child(block_id);
+    while let Some(id) = child {
+        if id == block_id || stack.contains(&id) {
+            break;
+        }
+        stack.push(id);
+        trail.push(editors.block_label(id));
+        child = editors.direct_editor_frame_child(id);
+    }
+    let owner = stack.last().copied();
+    let outer_frame = tab_frame(ui.ctx());
+    let outer_exit = take_frame_exit(ui.ctx());
+    ui.ctx().data_mut(|data| {
+        data.insert_temp(
+            tab_frame_id(),
+            TabFrame {
+                frame,
+                clip,
+                stack: stack.clone(),
+                trail,
+            },
+        );
+    });
+    let slot = FrameSlot {
+        frame,
+        clip,
+        content: None,
+        chrome: match owner {
+            Some(_) => block_ui::frame::Chrome::Reserved,
+            None => block_ui::frame::Chrome::Drawn,
+        },
+        trail: Vec::new(),
+    };
+    let action = editors.direct_editor_frame_ui(block_id, ui, id_salt, &slot, viewport);
+    if take_frame_exit(ui.ctx()) {
+        match stack.len() {
+            0 => editors.clear_direct_editor_frame_child(block_id),
+            depth => {
+                let parent = match depth {
+                    1 => block_id,
+                    _ => stack[depth - 2],
+                };
+                editors.clear_direct_editor_frame_child(parent);
+            }
+        }
+        ui.ctx().request_repaint();
+    }
+    if outer_exit {
+        request_frame_exit(ui.ctx());
+    }
+    ui.ctx().data_mut(|data| match outer_frame {
+        Some(frame) => {
+            data.insert_temp(tab_frame_id(), frame);
+        }
+        None => {
+            data.remove::<TabFrame>(tab_frame_id());
+        }
+    });
     action
 }
 

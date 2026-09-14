@@ -7,7 +7,7 @@ mod session;
 pub use manifest::{ManifestDocument, manifest_from_json};
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 47;
+pub const PROTOCOL_VERSION: u16 = 48;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
@@ -198,6 +198,7 @@ pub struct ChildPlacement {
     pub block_type: [u8; 16],
     pub rect: ChildRect,
     pub clip: ChildRect,
+    pub own_frame: bool,
     pub corner_radius: f32,
     pub layer: ChildLayer,
     pub mode: ChildMode,
@@ -492,6 +493,13 @@ pub enum EditorMessage {
         via: Option<[u8; 16]>,
     },
 
+    ShowBlock {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        block_type: [u8; 16],
+        via: Option<[u8; 16]>,
+    },
+
     Focused {
         instance: EditorInstanceId,
         block_id: Option<[u8; 16]>,
@@ -653,6 +661,14 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         outcome: RegenerationOutcome,
     },
+    WatchArtifacts {
+        instance: EditorInstanceId,
+        blocks: Vec<[u8; 16]>,
+    },
+    ArtifactStates {
+        instance: EditorInstanceId,
+        states: Vec<ArtifactState>,
+    },
     Cursor {
         instance: EditorInstanceId,
         region: EditorRegion,
@@ -740,6 +756,7 @@ impl EditorMessage {
             | Self::LeaveFrame { instance, .. }
             | Self::Close { instance, .. }
             | Self::OpenBlock { instance, .. }
+            | Self::ShowBlock { instance, .. }
             | Self::Focused { instance, .. }
             | Self::DragBlock { instance, .. }
             | Self::BlockCommand { instance, .. }
@@ -772,6 +789,8 @@ impl EditorMessage {
             | Self::ArtifactEdited { instance, .. }
             | Self::RegenerateArtifact { instance, .. }
             | Self::ArtifactRegenerated { instance, .. }
+            | Self::WatchArtifacts { instance, .. }
+            | Self::ArtifactStates { instance, .. }
             | Self::Cursor { instance, .. }
             | Self::Ime { instance, .. }
             | Self::Presence { instance, .. }
@@ -851,10 +870,46 @@ pub enum BlockLocation {
     Block([u8; 16]),
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum AccessLevel {
+    None,
+    KnowExists,
+    View,
+    #[default]
+    Edit,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ArtifactAction {
+    Regenerate,
+    Settings,
+    Unlink,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArtifactState {
+    pub block_id: [u8; 16],
+    pub source_type: [u8; 16],
+    pub source: Option<[u8; 16]>,
+    pub summary: String,
+    pub error: Option<String>,
+    pub regenerating: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockCommand {
     Share,
     Rename,
+    Artifact {
+        action: ArtifactAction,
+    },
+    SimulateAccess {
+        access: AccessLevel,
+    },
+    RevealPresence {
+        client_id: u64,
+    },
+    CloseEditor,
     Unlink {
         container: [u8; 16],
     },
@@ -1395,6 +1450,17 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
         },
         EditorMessage::Focused { via, .. } => collection(via.len()),
+        EditorMessage::WatchArtifacts { blocks, .. } => collection(blocks.len()),
+        EditorMessage::ArtifactStates { states, .. } => {
+            collection(states.len())?;
+            for state in states {
+                string(&state.summary)?;
+                if let Some(error) = &state.error {
+                    string(error)?;
+                }
+            }
+            Ok(())
+        }
         EditorMessage::CopyText { text, .. } => string(text),
         EditorMessage::Presence { entries, .. } => collection(entries.len()),
         EditorMessage::Fetch { url, .. } => string(url),

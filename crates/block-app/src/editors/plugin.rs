@@ -17,8 +17,8 @@ use super::{
     ArtifactSession, ArtifactStatus, BlockEditor, BlockRenderContext, CreationStep,
     DirectEditorCapabilities, DirectEditorInteraction, DirectEditorResize, DirectEditorViewport,
     DirectEditorViewportCommand, DirectEditorViewportInput, EditorAccess, EditorAction,
-    EditorRegistry, FrameSlot, PendingCreation, embedded_editor_ui, frame_child_ui,
-    paint_block_fallback, rect_corners,
+    EditorRegistry, FocusReport, FrameSlot, PendingCreation, embedded_editor_ui, frame_child_ui,
+    own_frame_child_ui, paint_block_fallback, rect_corners,
 };
 use crate::{
     block_picker::BlockPicker,
@@ -578,6 +578,17 @@ impl PluginEditor {
             if !rendered {
                 paint_block_fallback(&painter, child.rect, child.block_id, editors);
             }
+        } else if available && child.frame_owner && child.own_frame {
+            action = own_frame_child_ui(
+                ui,
+                editors,
+                child.block_id,
+                ("plugin-own-frame-child", self.instance.0, child.child.0),
+                child.rect,
+                child.clip,
+                viewport,
+            );
+            collect_view_changes(child.child, viewport, views);
         } else if available && child.frame_owner && editors.is_frame_child(ui.ctx(), child.block_id)
         {
             action = frame_child_ui(
@@ -855,6 +866,37 @@ impl BlockEditor for PluginEditor {
 
     fn direct_editor_owns_frame(&self) -> bool {
         true
+    }
+
+    fn drawn(&self) -> bool {
+        self.active_this_frame
+    }
+
+    fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+        crate::plugin_host::show_block(
+            &self.plugin.identity.id,
+            self.instance,
+            id,
+            block_type,
+            via,
+        );
+    }
+
+    fn take_focus_report(&self) -> Option<FocusReport> {
+        crate::plugin_host::take_focus_report(&self.plugin.identity.id, self.instance).map(
+            |focus| FocusReport {
+                block: focus.block,
+                via: focus.via,
+            },
+        )
+    }
+
+    fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
+        crate::plugin_host::take_artifact_watch(&self.plugin.identity.id, self.instance)
+    }
+
+    fn set_artifact_states(&self, states: Vec<block_plugin_api::ArtifactState>) {
+        crate::plugin_host::set_artifact_states(&self.plugin.identity.id, self.instance, states);
     }
 
     fn direct_editor_frame_child(&mut self, _editors: &mut EditorAccess<'_>) -> Option<Uuid> {

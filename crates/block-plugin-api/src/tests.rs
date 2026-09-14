@@ -56,6 +56,7 @@ fn region_screen(
 }
 
 mod artifact_messages_round_trip;
+mod artifact_watch_messages_round_trip;
 mod audio_messages_round_trip;
 mod block_commands_round_trip;
 mod block_types_round_trip;
@@ -95,6 +96,7 @@ mod rejects_unknown_message_kind;
 mod rejects_unordered_occluders;
 mod replacing_a_child_round_trips;
 mod resize_messages_round_trip;
+mod show_block_request_round_trips;
 mod touch_input_round_trips;
 mod view_messages_round_trip;
 mod web_view_messages_round_trip;

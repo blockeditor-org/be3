@@ -132,11 +132,19 @@ the block the instance opened it from, which is what tells the host that the
 block was reached through a reference held by that container rather than on
 its own.
 
+The instance that draws the window rather than a block - the one the host
+opens on the workspace's own interface block - is where those requests end up:
+the host hands it every block it is asked to open, its own included, as a
+request of its own carrying the same block, block type and container. Nothing
+answers it; the instance decides where the block goes, since it owns the tabs.
+
 The host tells every open instance which block the user is looking at - the
 block of the tab that has focus, absent while none has - along with the chain
 of containers that block was opened through, innermost first. It is sent when
 it changes and whenever an instance opens, which is what lets an editor that
-lists the workspace's blocks mark where the user is.
+lists the workspace's blocks mark where the user is. The instance that owns
+the tabs reports it the other way, with the same message: only it knows which
+tab has focus, and the host passes what it says on to every other instance.
 
 An editor instance may tell the host that it has started dragging one of the
 blocks it draws. The host carries the drag from there, reporting it to
@@ -152,6 +160,24 @@ itself, and each names where the block is listed - the root, the blocks with
 no parent, or a container - and whether it is listed there as a reference
 rather than as a child, since that decides whether the block's own parent
 moves with it. None of them is answered.
+
+The same request carries four more the instance that owns the window needs,
+for blocks it is showing rather than drawing: to rebuild a block's dynamic
+artifact, to open the host's settings dialog for it, or to unlink it from the
+source it was generated from; to hold a block to no more access than a named
+level, which is what shows a block as an account with less access would see
+it; to reveal one client's presence cursor, which only the editor of that
+block can scroll to; and to close a block's editor, which is what a tab
+closing means to the host. None of them is answered either.
+
+An instance may ask the host to tell it about the dynamic artifacts of the
+blocks it names, which the host answers with, and repeats whenever any of it
+changes: for each of those blocks, the block it was generated from, the block
+type that generated it, what its settings currently produce, why they cannot
+be read, and whether it is being rebuilt. Only the plugin that made an
+artifact can describe it, so the host keeps that instance open for as long as
+a block is named and answers on its behalf. Naming a block again leaves it
+where it is; leaving one out closes the instance describing it.
 
 An editor instance may ask the host to choose a file for it, which only the
 host can do on every platform the app runs on. The request carries the filter
@@ -323,6 +349,17 @@ frame that it owns no chrome, and keeps its content exactly where it was, so
 selecting a child moves nothing. Handover is always a replacement: a child's
 chrome is never nested inside its parent's, and the framework, not the plugin,
 draws the trail back out.
+
+A placement may instead declare that the child owns a frame of its own, which
+is a frame laid out inside the rectangle the placement gave it rather than the
+one the instance was given. The child draws its own chrome bands there and
+begins a trail of its own, and the instance that placed it keeps its whole
+frame, including every band, since nothing was handed over. That is what lets
+an instance put several editors on the screen at once, each with its toolbar
+and sidebars over its own part of it, which is how the workspace's own
+interface draws a pane of files beside the block being edited. The two are
+exclusive: a child that owns a frame of its own never takes the frame it was
+placed in.
 
 The host answers with a status per child: whether the block could be opened
 at all, the size and shape its editor asks for, whether the pointer is over

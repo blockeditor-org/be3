@@ -28,8 +28,8 @@ pub(crate) use runtime::{
     creation_ready, editor_ui, flush, frame_child, frame_rects, install, intrinsic_size, kill,
     poll, presence, present, presenting, preview, regenerate_artifact, region_size, replace_child,
     report_child_views, report_children, resized, reveal_presence, revoke_frame_child, running,
-    set_focus, take_artifact_outcome, take_block_pick, take_created, take_leaving,
-    take_view_changes,
+    set_artifact_states, set_focus, show_block, take_artifact_outcome, take_artifact_watch,
+    take_block_pick, take_created, take_focus_report, take_leaving, take_view_changes,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -44,6 +44,7 @@ pub(crate) const MAX_LIVE_CHILDREN: usize = 16;
 pub(crate) struct HostChild {
     pub(crate) child: ChildId,
     pub(crate) frame_owner: bool,
+    pub(crate) own_frame: bool,
     pub(crate) block_id: Uuid,
     pub(crate) block_type: Uuid,
     pub(crate) rect: egui::Rect,

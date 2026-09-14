@@ -61,11 +61,6 @@ impl Default for BlockPicker {
 }
 
 impl BlockPicker {
-    pub fn open(&mut self, excluded: impl IntoIterator<Item = Uuid>) {
-        self.allowed.clear();
-        self.open_on_tab(excluded, BlockPickerTab::Add);
-    }
-
     pub fn open_for_types(
         &mut self,
         excluded: impl IntoIterator<Item = Uuid>,

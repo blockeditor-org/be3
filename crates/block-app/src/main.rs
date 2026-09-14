@@ -22,45 +22,36 @@ use std::{io, path::PathBuf};
 
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use block::{
-    Block, BlockAccess, BlockParent, BlockReference, BlockReferenceList, ManagementErrorCode,
-    Workspace, WorkspaceInvitation, WorkspaceRole,
+    Block, BlockAccess, BlockParent, ManagementErrorCode, Workspace, WorkspaceInvitation,
+    WorkspaceRole,
 };
 use block_client::root_settings::{RootSetting, RootSettings};
 use block_client::{
     BlockClient, BlockHandle, DynamicArtifactDescriptor, ManagementClient, ManagementClientError,
-    ReferenceList, Session,
-    blocks::{file_tree::FileTree, ui_settings::UiSettings, workspace_index::BlockEntry},
+    Session,
+    blocks::{
+        file_tree::FileTree, ui_settings::UiSettings, workspace_index::BlockEntry,
+        workspace_ui::WorkspaceUi,
+    },
     presence::{UserActive, pick_free_color},
     properties::MAX_NAME_BYTES,
 };
-use block_picker::{BlockPicker, BlockPickerResult};
-use block_plugin_api::{BlockCommand, BlockLocation};
+use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation};
 use editors::{
     ArtifactSession, ArtifactStatus, BlockEditor, BlockLabel, EditorAccess, EditorAction,
     EditorRegistry, SidebarDragPayload, SidebarDragSource, direct_editor_tab_ui,
 };
 use eframe::egui;
-use egui_dock::{DockArea, DockState, TabViewer, widgets::tab_viewer::OnCloseResponse};
-use egui_material_icons::{
-    MaterialIcon,
-    icons::{
-        ICON_ADD, ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_AUTO_AWESOME, ICON_CHEVRON_RIGHT,
-        ICON_CLOSE, ICON_CLOUD, ICON_COMPUTER, ICON_DATA_OBJECT, ICON_EDIT, ICON_GROUP_ADD,
-        ICON_KEYBOARD_ARROW_DOWN, ICON_LINK, ICON_LINK_OFF, ICON_LOCK, ICON_LOGOUT,
-        ICON_MORE_HORIZ, ICON_REDO, ICON_REFRESH, ICON_SETTINGS, ICON_SHARE, ICON_SWITCH_ACCOUNT,
-        ICON_UNDO, ICON_VISIBILITY, ICON_WORKSPACES,
-    },
+use egui_material_icons::icons::{
+    ICON_ADD, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_CLOUD, ICON_COMPUTER, ICON_GROUP_ADD,
+    ICON_KEYBOARD_ARROW_DOWN, ICON_LOGOUT, ICON_MORE_HORIZ, ICON_REFRESH, ICON_SWITCH_ACCOUNT,
+    ICON_WORKSPACES,
 };
 use share::ShareDialog;
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
 const APP_ID: &str = "Block";
-const COMPACT_FILES_WIDTH: f32 = 700.0;
-const MAX_OPENED_VIA_HOPS: usize = 64;
-const NO_EDIT_ACCESS: &str = "You do not have permission to change this block";
-
-const ICON_DYNAMIC_ARTIFACT: MaterialIcon = ICON_AUTO_AWESOME;
 const ONBOARDING_WIDTH: f32 = 460.0;
 
 pub(crate) const COMMIT: &str = env!("BLOCK_APP_COMMIT");
@@ -176,20 +167,16 @@ struct BlockApp {
     client: Arc<BlockClient>,
     root_settings: RootSettings,
     file_tree: RootSetting<FileTree>,
-    files_tab: Uuid,
+    workspace_ui: RootSetting<WorkspaceUi>,
+    shell: Option<Uuid>,
     ui_settings: Option<BlockHandle<UiSettings>>,
-    parents: HashMap<Uuid, ReferenceList>,
-    references: HashMap<Uuid, ReferenceList>,
-    backrefs: HashMap<Uuid, ReferenceList>,
-
-    parent_candidates: HashMap<Uuid, ReferenceList>,
     block_types: HashMap<Uuid, Uuid>,
     registry: EditorRegistry,
     editors: HashMap<Uuid, Box<dyn BlockEditor>>,
 
     editor_access: HashMap<Uuid, BlockAccess>,
 
-    debug_tabs: HashSet<Uuid>,
+    watched_artifacts: Vec<Uuid>,
     dynamic_artifact_sessions: HashMap<Uuid, Box<dyn ArtifactSession>>,
     dynamic_artifact_errors: HashMap<Uuid, String>,
 
@@ -198,13 +185,8 @@ struct BlockApp {
     dynamic_artifact_settings_open: Option<Uuid>,
 
     dynamic_artifact_unlink: Option<Uuid>,
-    dock_state: DockState<DockTab>,
-    files_compact: bool,
-    active_tab: Option<Uuid>,
 
     active_presence: HashSet<Uuid>,
-
-    opened_via: HashMap<Uuid, Uuid>,
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     rename: Option<RenameState>,
@@ -212,8 +194,6 @@ struct BlockApp {
     client_debug_open: bool,
     network_debug_open: bool,
     about_open: bool,
-    block_picker: BlockPicker,
-    block_picker_target: Option<BlockPickerTarget>,
     pending_destructive_action: Option<PendingDestructiveAction>,
     scheduled_account_switch: Option<Account>,
     allow_close: bool,
@@ -230,130 +210,6 @@ enum ErrorAction {
     DeleteClientDatabase,
     #[cfg(not(target_arch = "wasm32"))]
     DeleteServerDatabase,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-enum DockTab {
-    Files,
-    Empty,
-    Block(BlockTab),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-struct BlockTab {
-    id: Uuid,
-    history: Vec<BlockTabHistoryItem>,
-    history_index: usize,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct BlockTabHistoryItem {
-    id: Uuid,
-    block_type: Uuid,
-}
-
-impl BlockTab {
-    fn new(id: Uuid, block_type: Uuid) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            history: vec![BlockTabHistoryItem { id, block_type }],
-            history_index: 0,
-        }
-    }
-
-    fn current(&self) -> BlockTabHistoryItem {
-        self.history[self.history_index]
-    }
-
-    fn can_go_back(&self) -> bool {
-        self.history_index > 0
-    }
-
-    fn can_go_forward(&self) -> bool {
-        self.history_index + 1 < self.history.len()
-    }
-
-    fn navigate(&mut self, item: BlockTabHistoryItem) {
-        if self.current().id == item.id {
-            return;
-        }
-        self.history.truncate(self.history_index + 1);
-        self.history.push(item);
-        self.history_index += 1;
-    }
-
-    fn go_back(&mut self) {
-        if self.can_go_back() {
-            self.history_index -= 1;
-        }
-    }
-
-    fn go_forward(&mut self) {
-        if self.can_go_forward() {
-            self.history_index += 1;
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum TabNavigation {
-    Back,
-    Forward,
-    Open(BlockTabHistoryItem),
-}
-
-fn default_dock_state() -> DockState<DockTab> {
-    let mut dock_state = DockState::new(vec![DockTab::Files]);
-    let files_path = dock_state
-        .find_tab(&DockTab::Files)
-        .expect("new dock state must contain Files");
-    dock_state[files_path.surface].split_right(files_path.node, 0.22, vec![DockTab::Empty]);
-    dock_state
-}
-
-fn ensure_empty_workspace(dock_state: &mut DockState<DockTab>) {
-    let has_editor = dock_state
-        .iter_all_tabs()
-        .any(|(_, tab)| matches!(tab, DockTab::Block(_)));
-    if has_editor || dock_state.find_tab(&DockTab::Empty).is_some() {
-        return;
-    }
-    if let Some(files_path) = dock_state.find_tab(&DockTab::Files) {
-        dock_state[files_path.surface].split_right(files_path.node, 0.22, vec![DockTab::Empty]);
-    }
-}
-
-fn set_files_compact(dock_state: &mut DockState<DockTab>, compact: bool) {
-    let active = dock_state
-        .find_active_focused()
-        .map(|(_, tab)| tab.clone())
-        .unwrap_or(DockTab::Files);
-    let Some(files_path) = dock_state.find_tab(&DockTab::Files) else {
-        return;
-    };
-    let target = dock_state
-        .iter_all_tabs()
-        .find_map(|(path, tab)| (*tab != DockTab::Files).then_some(path.node_path()));
-    let Some(target) = target else {
-        return;
-    };
-
-    dock_state.set_focused_node_and_surface(target);
-    dock_state.remove_tab(files_path);
-    if compact {
-        dock_state.push_to_focused_leaf(DockTab::Files);
-    } else if let Some(target) = dock_state.find_tab(&active).or_else(|| {
-        dock_state
-            .iter_all_tabs()
-            .find_map(|(path, tab)| (*tab != DockTab::Files).then_some(path))
-    }) {
-        dock_state[target.surface].split_left(target.node, 0.78, vec![DockTab::Files]);
-    }
-
-    if let Some(active_path) = dock_state.find_tab(&active) {
-        let _ = dock_state.set_active_tab(active_path);
-        dock_state.set_focused_node_and_surface(active_path.node_path());
-    }
 }
 
 type Account = SavedAccount;
@@ -454,7 +310,6 @@ enum TransferStage {
 struct PendingCopy {
     source: Uuid,
     container: Uuid,
-    tab_id: Uuid,
     stage: CopyStage,
 }
 
@@ -467,12 +322,6 @@ enum CopyStage {
 struct RenameState {
     id: Uuid,
     name: String,
-}
-
-#[derive(Clone, Copy)]
-enum BlockPickerTarget {
-    Root,
-    Block { parent: Uuid, open: bool },
 }
 
 impl BlockApp {
@@ -528,6 +377,7 @@ impl BlockApp {
         let client = Arc::new(BlockClient::new(account.id, Uuid::nil()));
         let root_settings = RootSettings::new(&client);
         let file_tree = RootSetting::new(&client);
+        let workspace_ui = RootSetting::new(&client);
         Ok(Self {
             app_state,
             client_id,
@@ -556,27 +406,20 @@ impl BlockApp {
             client,
             root_settings,
             file_tree,
-            files_tab: Uuid::new_v4(),
+            workspace_ui,
+            shell: None,
             ui_settings: None,
-            parents: HashMap::new(),
-            references: HashMap::new(),
-            backrefs: HashMap::new(),
-            parent_candidates: HashMap::new(),
             block_types: HashMap::new(),
             registry: EditorRegistry::new(),
             editors: HashMap::new(),
             editor_access: HashMap::new(),
-            debug_tabs: HashSet::new(),
+            watched_artifacts: Vec::new(),
             dynamic_artifact_sessions: HashMap::new(),
             dynamic_artifact_errors: HashMap::new(),
             dynamic_artifact_settings: HashMap::new(),
             dynamic_artifact_settings_open: None,
             dynamic_artifact_unlink: None,
-            dock_state: default_dock_state(),
-            files_compact: false,
-            active_tab: None,
             active_presence: HashSet::new(),
-            opened_via: HashMap::new(),
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             rename: None,
@@ -584,8 +427,6 @@ impl BlockApp {
             client_debug_open: false,
             network_debug_open: false,
             about_open: false,
-            block_picker: BlockPicker::default(),
-            block_picker_target: None,
             pending_destructive_action: None,
             scheduled_account_switch: None,
             allow_close: false,
@@ -1128,23 +969,20 @@ impl BlockApp {
     fn open_workspace(&mut self, workspace: Workspace) {
         let client = Arc::new(BlockClient::new(self.account.id, workspace.id));
         client.connect(self.server_url.clone(), self.account.token.clone());
-        self.parents.clear();
-        self.references.clear();
-        self.backrefs.clear();
         self.block_types.clear();
-        self.opened_via.clear();
         self.registry = EditorRegistry::new();
         self.editors.clear();
+        self.watched_artifacts.clear();
         self.dynamic_artifact_sessions.clear();
         self.dynamic_artifact_errors.clear();
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.dynamic_artifact_unlink = None;
-        self.dock_state = default_dock_state();
-        self.active_tab = None;
         self.share = ShareDialog::default();
         self.root_settings = RootSettings::new(&client);
         self.file_tree = RootSetting::new(&client);
+        self.workspace_ui = RootSetting::new(&client);
+        self.shell = None;
         self.ui_settings = None;
         self.client = client;
         self.workspace = Some(workspace.clone());
@@ -1483,29 +1321,21 @@ impl BlockApp {
             ServerLocation::Remote(url) => url.clone(),
         };
         let client = Arc::new(BlockClient::new(account.id, Uuid::nil()));
-        self.parents.clear();
-        self.references.clear();
-        self.backrefs.clear();
         self.block_types.clear();
-        self.opened_via.clear();
         self.registry = EditorRegistry::new();
         self.editors.clear();
+        self.watched_artifacts.clear();
         self.dynamic_artifact_sessions.clear();
         self.dynamic_artifact_errors.clear();
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.dynamic_artifact_unlink = None;
-        self.dock_state = default_dock_state();
-        self.files_compact = false;
-        self.active_tab = None;
         self.pending_transfers.clear();
         self.rename = None;
         self.share = ShareDialog::default();
         self.client_debug_open = false;
         self.network_debug_open = false;
         self.about_open = false;
-        self.block_picker = BlockPicker::default();
-        self.block_picker_target = None;
         self.pending_destructive_action = None;
         self.scheduled_account_switch = None;
         self.allow_close = false;
@@ -1520,6 +1350,8 @@ impl BlockApp {
         self.invite_open = false;
         self.root_settings = RootSettings::new(&client);
         self.file_tree = RootSetting::new(&client);
+        self.workspace_ui = RootSetting::new(&client);
+        self.shell = None;
         self.ui_settings = None;
         self.client = client;
         self.account = account;
@@ -1598,46 +1430,6 @@ impl BlockApp {
         } else if cancel {
             self.pending_destructive_action = None;
         }
-    }
-
-    fn handle_picker_result(&mut self, result: BlockPickerResult, target: BlockPickerTarget) {
-        self.block_types.insert(result.id, result.block_type);
-        match target {
-            BlockPickerTarget::Root => self.open_tab(result.id, result.block_type),
-            BlockPickerTarget::Block { parent, open } => {
-                self.queue_placement(result.id, result.block_type, parent, result.linked);
-                if open {
-                    self.open_tab(result.id, result.block_type);
-                }
-            }
-        }
-    }
-
-    fn show_block_picker(&mut self, context: &egui::Context) {
-        let target = self.block_picker_target.unwrap_or(BlockPickerTarget::Root);
-        let parent = match target {
-            BlockPickerTarget::Root => BlockParent::Root,
-
-            BlockPickerTarget::Block { .. } => BlockParent::Orphaned,
-        };
-        let active = self.active_tab.unwrap_or(Uuid::nil());
-        let access = self.editor_access(active);
-        let result = {
-            let mut editors = EditorAccess::new(
-                active,
-                access,
-                &self.client,
-                self.client_id,
-                &self.registry,
-                &mut self.editors,
-            );
-            self.block_picker.handle(context, &mut editors, parent)
-        };
-        let Some(result) = result else {
-            return;
-        };
-        self.block_picker_target = None;
-        self.handle_picker_result(result, target);
     }
 
     fn block_type_of(&self, id: Uuid) -> Option<Uuid> {
@@ -1795,11 +1587,11 @@ impl BlockApp {
         }
     }
 
-    fn queue_copy(&mut self, source: Uuid, container: Uuid, tab_id: Uuid) {
+    fn queue_copy(&mut self, source: Uuid, container: Uuid) {
         if self
             .pending_copies
             .iter()
-            .any(|pending| pending.tab_id == tab_id)
+            .any(|pending| pending.source == source && pending.container == container)
         {
             return;
         }
@@ -1808,7 +1600,6 @@ impl BlockApp {
         self.pending_copies.push(PendingCopy {
             source,
             container,
-            tab_id,
             stage: CopyStage::Duplicate,
         });
     }
@@ -1859,114 +1650,7 @@ impl BlockApp {
             }
 
             self.set_block_parent(copy_id, BlockParent::Uuid(copy.container));
-            self.navigate_tab(
-                copy.tab_id,
-                TabNavigation::Open(BlockTabHistoryItem {
-                    id: copy_id,
-                    block_type,
-                }),
-            );
-        }
-    }
-
-    fn open_tab(&mut self, id: Uuid, block_type: Uuid) {
-        self.ensure_block_open(id, block_type);
-        let existing_tab = self.dock_state.iter_all_tabs().find_map(|(path, tab)| {
-            matches!(tab, DockTab::Block(tab) if tab.current().id == id).then_some(path)
-        });
-        if let Some(path) = existing_tab {
-            let _ = self.dock_state.set_active_tab(path);
-            self.dock_state
-                .set_focused_node_and_surface(path.node_path());
-        } else {
-            let tab = DockTab::Block(BlockTab::new(id, block_type));
-            let existing_block = self
-                .dock_state
-                .iter_all_tabs()
-                .find_map(|(path, tab)| matches!(tab, DockTab::Block(_)).then_some(path));
-            if let Some(empty_path) = self.dock_state.find_tab(&DockTab::Empty) {
-                let leaf = self
-                    .dock_state
-                    .leaf_mut(empty_path.node_path())
-                    .expect("blank workspace must be a dock leaf");
-                leaf.tabs_mut()[empty_path.tab.0] = tab;
-                let _ = self.dock_state.set_active_tab(empty_path);
-                self.dock_state
-                    .set_focused_node_and_surface(empty_path.node_path());
-            } else if let Some(path) = existing_block {
-                self.dock_state
-                    .set_focused_node_and_surface(path.node_path());
-                self.dock_state.push_to_focused_leaf(tab);
-            } else if let Some(files_path) = self.dock_state.find_tab(&DockTab::Files) {
-                self.dock_state[files_path.surface].split_right(files_path.node, 0.22, vec![tab]);
-            } else {
-                self.dock_state.push_to_focused_leaf(tab);
-            }
-        }
-        self.active_tab = Some(id);
-    }
-
-    fn ensure_block_open(&mut self, id: Uuid, block_type: Uuid) {
-        self.block_types.insert(id, block_type);
-        if !self.editors.contains_key(&id) {
-            self.editors
-                .insert(id, self.registry.open(&self.client, id, block_type));
-        }
-        self.parents
-            .entry(id)
-            .or_insert_with(|| self.client.watch_parents(id));
-        self.references.entry(id).or_insert_with(|| {
-            self.client
-                .watch_references(BlockReferenceList::References(id))
-        });
-        self.backrefs.entry(id).or_insert_with(|| {
-            self.client
-                .watch_references(BlockReferenceList::Backrefs(id))
-        });
-    }
-
-    fn navigate_tab(&mut self, tab_id: Uuid, navigation: TabNavigation) {
-        let destination = match navigation {
-            TabNavigation::Open(item) => Some(item),
-            TabNavigation::Back | TabNavigation::Forward => None,
-        };
-        if let Some(item) = destination {
-            self.ensure_block_open(item.id, item.block_type);
-        }
-        let Some(tab) = self
-            .dock_state
-            .iter_all_tabs_mut()
-            .find_map(|(_, tab)| match tab {
-                DockTab::Block(tab) if tab.id == tab_id => Some(tab),
-                DockTab::Files | DockTab::Empty | DockTab::Block(_) => None,
-            })
-        else {
-            return;
-        };
-        match navigation {
-            TabNavigation::Back => tab.go_back(),
-            TabNavigation::Forward => tab.go_forward(),
-            TabNavigation::Open(item) => tab.navigate(item),
-        }
-        let current = tab.current();
-        self.ensure_block_open(current.id, current.block_type);
-        self.active_tab = Some(current.id);
-    }
-
-    fn close_tab_resources(&mut self, id: Uuid) {
-        self.editor_access.remove(&id);
-        self.debug_tabs.remove(&id);
-        self.parents.remove(&id);
-        self.references.remove(&id);
-        self.backrefs.remove(&id);
-        self.dynamic_artifact_sessions.remove(&id);
-        self.dynamic_artifact_errors.remove(&id);
-        self.forget_dynamic_artifact_dialogs(id);
-        if let Some(editor) = self.editors.get_mut(&id) {
-            editor.tab_closed();
-        }
-        if self.active_tab == Some(id) {
-            self.active_tab = None;
+            self.show_in_shell(copy_id, block_type, Some(copy.container));
         }
     }
 
@@ -1981,224 +1665,6 @@ impl BlockApp {
             .map_or(ceiling, |chosen| (*chosen).min(ceiling))
     }
 
-    fn show_content(
-        &mut self,
-        ui: &mut egui::Ui,
-        tab_id: Uuid,
-        active: Uuid,
-        can_go_back: bool,
-        can_go_forward: bool,
-    ) -> (Option<EditorAction>, Option<TabNavigation>) {
-        let Some(mut editor) = self.editors.remove(&active) else {
-            return (None, None);
-        };
-        let access = self.editor_access(active);
-        let denied = !access.can_view();
-        let relationships = editor.relationships();
-        let artifact_navigation = if denied {
-            None
-        } else {
-            self.show_dynamic_artifact_bar(ui, active, editor.block_type())
-        };
-        let shared_navigation = if denied {
-            None
-        } else {
-            self.show_shared_block_bar(ui, tab_id, active, relationships.as_ref())
-        };
-        let undo_shortcut = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::Z);
-        let redo_shortcut = egui::KeyboardShortcut::new(
-            egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
-            egui::Key::Z,
-        );
-        let redo_y_shortcut = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Y);
-        let redo_requested = access.can_edit()
-            && (ui
-                .ctx()
-                .input_mut(|input| input.consume_shortcut(&redo_shortcut))
-                || ui
-                    .ctx()
-                    .input_mut(|input| input.consume_shortcut(&redo_y_shortcut)));
-        let undo_requested = access.can_edit()
-            && ui
-                .ctx()
-                .input_mut(|input| input.consume_shortcut(&undo_shortcut));
-        let current_name = BlockLabel::for_handle(&self.registry, editor.block());
-        let mut navigation = artifact_navigation
-            .or(shared_navigation)
-            .map(TabNavigation::Open);
-        let mut share = false;
-        let can_share = self.client.block_access(active).can_edit();
-        let ceiling = self.editor_access_ceiling(active);
-        let generated = self.client.is_dynamic_artifact(active);
-        let debug = self.debug_tabs.contains(&active);
-        let mut mode = if debug {
-            TabMode::Debug
-        } else {
-            TabMode::Access(access)
-        };
-        egui::Sides::new().shrink_left().show(
-            ui,
-            |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .add_enabled(can_go_back, egui::Button::new(ICON_ARROW_BACK))
-                        .on_hover_text("Back")
-                        .clicked()
-                    {
-                        navigation = Some(TabNavigation::Back);
-                    }
-                    if ui
-                        .add_enabled(can_go_forward, egui::Button::new(ICON_ARROW_FORWARD))
-                        .on_hover_text("Forward")
-                        .clicked()
-                    {
-                        navigation = Some(TabNavigation::Forward);
-                    }
-                    ui.separator();
-                    let history = editor.history().filter(|_| access.can_edit());
-                    if (ui
-                        .add_enabled(
-                            history.map_or_else(|| false, |history| history.can_undo()),
-                            egui::Button::new(ICON_UNDO),
-                        )
-                        .on_hover_text("Undo (Ctrl/Cmd+Z)")
-                        .clicked()
-                        || undo_requested)
-                        && let Some(history) = history
-                    {
-                        history.undo();
-                    }
-                    if (ui
-                        .add_enabled(
-                            history.map_or_else(|| false, |history| history.can_redo()),
-                            egui::Button::new(ICON_REDO),
-                        )
-                        .on_hover_text("Redo")
-                        .on_hover_text("Redo (Ctrl+Y or Ctrl/Cmd+Shift+Z)")
-                        .clicked()
-                        || redo_requested)
-                        && let Some(history) = history
-                    {
-                        history.redo();
-                    }
-                    ui.separator();
-                    if let Some(item) =
-                        self.show_breadcrumbs(ui, active, &current_name, relationships.as_ref())
-                    {
-                        navigation = Some(TabNavigation::Open(item));
-                    }
-                });
-            },
-            |ui| {
-                share = ui
-                    .add_enabled(
-                        can_share,
-                        egui::Button::new(format!("{} Share", ICON_SHARE.codepoint)),
-                    )
-                    .on_hover_text("Share this block")
-                    .on_disabled_hover_text("Only accounts that can edit a block may share it")
-                    .clicked();
-                mode = show_access_mode(ui, active, access, ceiling, generated, debug);
-            },
-        );
-        if share {
-            self.share.open(&self.client, active, current_name);
-        }
-        match mode {
-            TabMode::Access(chosen_access) => {
-                self.debug_tabs.remove(&active);
-                if chosen_access != access {
-                    self.editor_access.insert(active, chosen_access);
-                }
-            }
-            TabMode::Debug => {
-                self.debug_tabs.insert(active);
-            }
-        }
-        ui.separator();
-        if self.debug_tabs.contains(&active) {
-            if ceiling.can_view() {
-                self.editors.insert(active, editor);
-                self.show_debug_data(ui, active);
-                return (None, navigation);
-            }
-            self.debug_tabs.remove(&active);
-        }
-        if denied {
-            self.editors.insert(active, editor);
-            self.show_access_denied(ui, self.editor_access_ceiling(active).can_view());
-            return (None, navigation);
-        }
-        let mut editors = EditorAccess::new(
-            active,
-            access,
-            &self.client,
-            self.client_id,
-            &self.registry,
-            &mut self.editors,
-        );
-        let action = direct_editor_tab_ui(editor.as_mut(), ui, &mut editors);
-        self.editors.insert(active, editor);
-        (action, navigation)
-    }
-
-    fn show_access_denied(&self, ui: &mut egui::Ui, simulated: bool) {
-        ui.centered_and_justified(|ui| {
-            ui.vertical_centered(|ui| {
-                ui.heading(format!("{} No access", ICON_LOCK.codepoint));
-                if simulated {
-                    ui.weak("An account that only knows this block exists cannot open it.");
-                    ui.weak("Switch back to Can view or Can edit to see it.");
-                } else {
-                    ui.weak("You do not have permission to open this block.");
-                    ui.weak("Ask someone who can edit it to share it with you.");
-                }
-            });
-        });
-    }
-
-    fn show_breadcrumbs(
-        &mut self,
-        ui: &mut egui::Ui,
-        active: Uuid,
-        current_name: &BlockLabel,
-        relationships: Option<&block_client::BlockRelationships>,
-    ) -> Option<BlockTabHistoryItem> {
-        let mut navigate = None;
-        let parents =
-            relationships.and_then(|_| self.parents.get(&active).map(ReferenceList::read));
-        let root = parents
-            .as_ref()
-            .and_then(|parents| parents.first().map(|parent| parent.parent))
-            .or_else(|| relationships.map(|relationships| relationships.parent));
-        ui.label(match root {
-            Some(BlockParent::Orphaned) => "Recently Deleted",
-            Some(BlockParent::Root) => "Root",
-            Some(BlockParent::Uuid(_)) | None => "Unknown",
-        });
-        if let Some(parents) = parents {
-            for parent in parents {
-                self.record_reference_types(&parent);
-                ui.label(ICON_CHEVRON_RIGHT);
-                let parent_label =
-                    BlockLabel::for_reference(&self.registry, &parent).widget_text(ui.style());
-                if ui
-                    .button(parent_label)
-                    .on_hover_text(parent.id.to_string())
-                    .clicked()
-                {
-                    navigate = Some(BlockTabHistoryItem {
-                        id: parent.id,
-                        block_type: parent.block_type,
-                    });
-                }
-            }
-        }
-        ui.label(ICON_CHEVRON_RIGHT);
-        ui.label(current_name.widget_text(ui.style()));
-        navigate
-    }
-
     fn forget_dynamic_artifact_dialogs(&mut self, id: Uuid) {
         self.dynamic_artifact_settings.remove(&id);
         if self.dynamic_artifact_settings_open == Some(id) {
@@ -2209,346 +1675,254 @@ impl BlockApp {
         }
     }
 
-    fn show_dynamic_artifact_bar(
-        &mut self,
-        ui: &mut egui::Ui,
-        id: Uuid,
-        block_type: Uuid,
-    ) -> Option<BlockTabHistoryItem> {
-        let Some(descriptor) = self.client.dynamic_artifact(id) else {
-            self.forget_dynamic_artifact_dialogs(id);
-            self.dynamic_artifact_sessions.remove(&id);
-            return None;
-        };
+    fn ensure_shell(&mut self) -> Option<Uuid> {
+        self.file_tree.ensure(&self.client, self.client_id);
+        let id = self
+            .workspace_ui
+            .ensure(&self.client, self.client_id)
+            .map(BlockHandle::id)?;
+        self.block_types.insert(id, WorkspaceUi::TYPE_ID);
+        if !self.editors.contains_key(&id) {
+            let editor = self.registry.open(&self.client, id, WorkspaceUi::TYPE_ID);
+            self.editors.insert(id, editor);
+        }
+        self.shell = Some(id);
+        Some(id)
+    }
 
-        let mut session = self.dynamic_artifact_sessions.remove(&id);
-        let mut unsupported = None;
-        if session.is_none() {
-            match self.registry.artifact_session(
-                descriptor.source_type,
-                id,
-                block_type,
+    fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+        self.block_types.insert(id, block_type);
+        let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) else {
+            return;
+        };
+        shell.show_block(id, block_type, via);
+    }
+
+    fn show_shell(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame) {
+        let Some(shell) = self.ensure_shell() else {
+            ui.centered_and_justified(|ui| {
+                ui.spinner();
+            });
+            return;
+        };
+        for editor in self.editors.values_mut() {
+            editor.update(frame);
+            editor.set_tab_active(false);
+        }
+        let Some(mut editor) = self.editors.remove(&shell) else {
+            return;
+        };
+        editor.set_tab_active(true);
+        let access = self.editor_access(shell);
+        let action = {
+            let mut editors = EditorAccess::new(
+                shell,
+                access,
+                &self.client,
                 self.client_id,
-            ) {
-                Ok(started) => session = Some(started),
-                Err(error) => unsupported = Some(error),
+                &self.registry,
+                &mut self.editors,
+                &self.editor_access,
+            );
+            direct_editor_tab_ui(editor.as_mut(), ui, &mut editors)
+        };
+        let focus = editor.take_focus_report();
+        let watch = editor.take_artifact_watch();
+        self.editors.insert(shell, editor);
+        if let Some(focus) = focus {
+            plugin_host::set_focus(focus.block, focus.via);
+        }
+        if let Some(watch) = watch {
+            self.watch_artifacts(watch);
+        }
+        let mut visible = HashSet::new();
+        for (id, editor) in &self.editors {
+            if *id != shell && editor.drawn() && editor.wants_presence() {
+                visible.insert(*id);
             }
         }
-        let status = session
-            .as_mut()
-            .map(|session| session.poll(ui.ctx(), &self.registry, &self.client, &descriptor.data));
-        if let Some(outcome) = session.as_mut().and_then(|session| session.take_outcome()) {
-            match outcome {
-                Ok(()) => {
+        for editor in self.editors.values_mut() {
+            editor.finish_frame();
+        }
+        self.update_active_presence(visible);
+        if let Some(action) = action {
+            self.handle_editor_action(ui.ctx(), action);
+        }
+    }
+
+    fn close_editor(&mut self, id: Uuid) {
+        if self.shell == Some(id) {
+            return;
+        }
+        self.editor_access.remove(&id);
+        self.dynamic_artifact_sessions.remove(&id);
+        self.dynamic_artifact_errors.remove(&id);
+        self.forget_dynamic_artifact_dialogs(id);
+        self.watched_artifacts.retain(|watched| *watched != id);
+        if let Some(mut editor) = self.editors.remove(&id) {
+            editor.tab_closed();
+        }
+        self.active_presence.remove(&id);
+        self.client.set_presence::<UserActive>(id, None);
+    }
+
+    fn watch_artifacts(&mut self, blocks: Vec<Uuid>) {
+        for id in std::mem::replace(&mut self.watched_artifacts, blocks) {
+            if !self.watched_artifacts.contains(&id) {
+                self.dynamic_artifact_sessions.remove(&id);
+                self.dynamic_artifact_errors.remove(&id);
+                self.forget_dynamic_artifact_dialogs(id);
+            }
+        }
+    }
+
+    fn act_on_artifact(&mut self, id: Uuid, action: ArtifactAction) {
+        match action {
+            ArtifactAction::Regenerate => {
+                let data = self
+                    .client
+                    .dynamic_artifact(id)
+                    .map(|descriptor| descriptor.data);
+                if let (Some(data), Some(session)) =
+                    (data, self.dynamic_artifact_sessions.get_mut(&id))
+                {
+                    session.regenerate(&self.client, &data);
                     self.dynamic_artifact_errors.remove(&id);
                 }
-                Err(error) => {
-                    self.dynamic_artifact_errors.insert(id, error);
+            }
+            ArtifactAction::Settings => self.dynamic_artifact_settings_open = Some(id),
+            ArtifactAction::Unlink => self.dynamic_artifact_unlink = Some(id),
+        }
+    }
+
+    fn poll_artifacts(&mut self, ui: &mut egui::Ui) {
+        let watched = self.watched_artifacts.clone();
+        let mut states = Vec::new();
+        for id in watched {
+            let Some(descriptor) = self.client.dynamic_artifact(id) else {
+                self.dynamic_artifact_sessions.remove(&id);
+                self.forget_dynamic_artifact_dialogs(id);
+                continue;
+            };
+            let mut session = self.dynamic_artifact_sessions.remove(&id);
+            let mut unsupported = None;
+            if session.is_none() {
+                let block_type = self.block_type_of(id).unwrap_or_default();
+                match self.registry.artifact_session(
+                    descriptor.source_type,
+                    id,
+                    block_type,
+                    self.client_id,
+                ) {
+                    Ok(started) => session = Some(started),
+                    Err(error) => unsupported = Some(error),
                 }
             }
-        }
-
-        let running = session
-            .as_ref()
-            .is_some_and(|session| session.regenerating());
-        let described = matches!(status, Some(ArtifactStatus::Described { .. }));
-
-        let can_regenerate = self.client.block_access(id).can_edit();
-
-        let mut draft = self.dynamic_artifact_settings.remove(&id);
-        let mut navigate = None;
-        let mut regenerate = false;
-        let mut open_settings = false;
-        let mut open_unlink = false;
-        egui::Frame::new()
-            .fill(ui.visuals().faint_bg_color)
-            .inner_margin(egui::Margin::symmetric(8, 5))
-            .show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.strong(format!(
-                        "{} Dynamic artifact",
-                        ICON_DYNAMIC_ARTIFACT.codepoint
-                    ));
-                    match &status {
-                        Some(ArtifactStatus::Described { source, summary }) => {
-                            navigate = self.show_dynamic_artifact_source(
-                                ui,
-                                descriptor.source_type,
-                                *source,
-                            );
-                            ui.separator();
-                            ui.weak(summary);
-                            open_settings = ui
-                                .add_enabled(can_regenerate, egui::Button::new(ICON_SETTINGS))
-                                .on_hover_text("Settings")
-                                .on_disabled_hover_text(NO_EDIT_ACCESS)
-                                .clicked();
-                        }
-                        Some(ArtifactStatus::Starting) => {
-                            ui.spinner();
-                        }
-                        Some(ArtifactStatus::Failed(error)) => {
-                            ui.colored_label(ui.visuals().error_fg_color, error);
-                        }
-                        None => {
-                            ui.colored_label(
-                                ui.visuals().error_fg_color,
-                                unsupported.as_deref().unwrap_or_default(),
-                            );
-                        }
-                    }
-                    if running {
-                        ui.spinner();
-                    }
-                    regenerate = ui
-                        .add_enabled(
-                            can_regenerate && !running && described,
-                            egui::Button::new(ICON_REFRESH),
-                        )
-                        .on_hover_text("Regenerate")
-                        .on_disabled_hover_text("You cannot change this block")
-                        .clicked();
-                    open_unlink = ui
-                        .add_enabled(can_regenerate && !running, egui::Button::new(ICON_LINK_OFF))
-                        .on_hover_text("Unlink from the source block")
-                        .on_disabled_hover_text("You cannot change this block")
-                        .clicked();
-                });
-                if let Some(error) = self.dynamic_artifact_errors.get(&id) {
-                    ui.colored_label(ui.visuals().error_fg_color, error);
-                }
+            let status = session.as_mut().map(|session| {
+                session.poll(ui.ctx(), &self.registry, &self.client, &descriptor.data)
             });
-        ui.separator();
-        if open_settings {
-            self.dynamic_artifact_settings_open = Some(id);
-        }
-        if open_unlink {
-            self.dynamic_artifact_unlink = Some(id);
-        }
-        let mut apply = None;
-        if self.dynamic_artifact_settings_open == Some(id) {
-            match session.as_mut().filter(|_| described) {
-                Some(session) => {
-                    match self.show_dynamic_artifact_settings(
-                        ui,
-                        &descriptor,
-                        session.as_mut(),
-                        &mut draft,
-                    ) {
-                        ModalOutcome::Open => {}
-                        ModalOutcome::Accepted(data) => {
-                            apply = Some(data);
-                            self.dynamic_artifact_settings_open = None;
-                        }
-                        ModalOutcome::Dismissed => {
-                            session.cancel_settings();
-                            draft = None;
-                            self.dynamic_artifact_settings_open = None;
-                        }
+            if let Some(outcome) = session.as_mut().and_then(|session| session.take_outcome()) {
+                match outcome {
+                    Ok(()) => {
+                        self.dynamic_artifact_errors.remove(&id);
+                    }
+                    Err(error) => {
+                        self.dynamic_artifact_errors.insert(id, error);
                     }
                 }
-                None => self.dynamic_artifact_settings_open = None,
+            }
+            let mut state = block_plugin_api::ArtifactState {
+                block_id: id.into_bytes(),
+                source_type: descriptor.source_type.into_bytes(),
+                source: None,
+                summary: String::new(),
+                error: self.dynamic_artifact_errors.get(&id).cloned(),
+                regenerating: session
+                    .as_ref()
+                    .is_some_and(|session| session.regenerating()),
+            };
+            match &status {
+                Some(ArtifactStatus::Described { source, summary }) => {
+                    state.source = Some(source.into_bytes());
+                    state.summary = summary.clone();
+                }
+                Some(ArtifactStatus::Failed(error)) => {
+                    state.error = Some(error.clone());
+                }
+                Some(ArtifactStatus::Starting) => {}
+                None => state.error = Some(unsupported.unwrap_or_default()),
+            }
+            let described = matches!(status, Some(ArtifactStatus::Described { .. }));
+            if let Some(session) = session {
+                if session.regenerating() {
+                    ui.ctx().request_repaint();
+                }
+                self.dynamic_artifact_sessions.insert(id, session);
+            }
+            if !described && self.dynamic_artifact_settings_open == Some(id) {
+                self.dynamic_artifact_settings_open = None;
+            }
+            states.push(state);
+        }
+        if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
+            shell.set_artifact_states(states);
+        }
+        self.show_artifact_dialogs(ui);
+    }
+
+    fn show_artifact_dialogs(&mut self, ui: &mut egui::Ui) {
+        if let Some(id) = self.dynamic_artifact_settings_open {
+            let descriptor = self.client.dynamic_artifact(id);
+            let mut session = self.dynamic_artifact_sessions.remove(&id);
+            let mut draft = self.dynamic_artifact_settings.remove(&id);
+            if let (Some(descriptor), Some(session)) = (&descriptor, session.as_mut()) {
+                match self.show_dynamic_artifact_settings(
+                    ui,
+                    descriptor,
+                    session.as_mut(),
+                    &mut draft,
+                ) {
+                    ModalOutcome::Open => {}
+                    ModalOutcome::Accepted(data) => {
+                        self.client.set_dynamic_artifact(
+                            id,
+                            DynamicArtifactDescriptor {
+                                source_type: descriptor.source_type,
+                                data: data.clone(),
+                            },
+                        );
+                        session.regenerate(&self.client, &data);
+                        self.dynamic_artifact_errors.remove(&id);
+                        draft = None;
+                        self.dynamic_artifact_settings_open = None;
+                    }
+                    ModalOutcome::Dismissed => {
+                        session.cancel_settings();
+                        draft = None;
+                        self.dynamic_artifact_settings_open = None;
+                    }
+                }
+            } else {
+                self.dynamic_artifact_settings_open = None;
+            }
+            if let Some(session) = session {
+                self.dynamic_artifact_sessions.insert(id, session);
+            }
+            if let Some(draft) = draft {
+                self.dynamic_artifact_settings.insert(id, draft);
             }
         }
-        let mut unlinked = false;
-        if self.dynamic_artifact_unlink == Some(id) {
+        if let Some(id) = self.dynamic_artifact_unlink {
             match show_dynamic_artifact_unlink(ui.ctx()) {
                 ModalOutcome::Open => {}
                 ModalOutcome::Accepted(()) => {
                     self.client.clear_dynamic_artifact(id);
                     self.dynamic_artifact_errors.remove(&id);
                     self.forget_dynamic_artifact_dialogs(id);
-                    unlinked = true;
                 }
                 ModalOutcome::Dismissed => self.dynamic_artifact_unlink = None,
             }
         }
-        if unlinked {
-            return navigate;
-        }
-        if let Some(data) = apply {
-            self.client.set_dynamic_artifact(
-                id,
-                DynamicArtifactDescriptor {
-                    source_type: descriptor.source_type,
-                    data: data.clone(),
-                },
-            );
-            if let Some(session) = session.as_mut() {
-                session.regenerate(&self.client, &data);
-            }
-            self.dynamic_artifact_errors.remove(&id);
-            draft = None;
-        } else if regenerate {
-            if let Some(session) = session.as_mut() {
-                session.regenerate(&self.client, &descriptor.data);
-            }
-            self.dynamic_artifact_errors.remove(&id);
-        }
-        if let Some(draft) = draft {
-            self.dynamic_artifact_settings.insert(id, draft);
-        }
-        if let Some(session) = session {
-            if session.regenerating() {
-                ui.ctx().request_repaint();
-            }
-            self.dynamic_artifact_sessions.insert(id, session);
-        }
-        navigate
-    }
-
-    fn copy_permission(&self, container: Option<Uuid>) -> Result<(), &'static str> {
-        let container_block_type = container.and_then(|container| self.block_type_of(container));
-        match (container, container_block_type) {
-            (Some(_), Some(block_type)) if !self.registry.can_replace_child(block_type) => {
-                Err("This container doesn't support replacing a reference")
-            }
-            (Some(container), Some(_)) if !self.client.block_access(container).can_edit() => {
-                Err("You don't have permission to edit this container")
-            }
-            (Some(_), Some(_)) => Ok(()),
-            _ => Err("Loading…"),
-        }
-    }
-
-    fn show_shared_block_bar(
-        &mut self,
-        ui: &mut egui::Ui,
-        tab_id: Uuid,
-        active: Uuid,
-        relationships: Option<&block_client::BlockRelationships>,
-    ) -> Option<BlockTabHistoryItem> {
-        let relationships = relationships?;
-        let backrefs = self
-            .backrefs
-            .get(&active)
-            .map(|list| (list.is_loaded(), list.read()))?;
-        if !backrefs.0 || backrefs.1.len() <= 1 {
-            return None;
-        }
-        let count = backrefs.1.len();
-        let container = self.opened_via.get(&active).copied();
-        let via_reference =
-            container.is_some_and(|container| relationships.parent != BlockParent::Uuid(container));
-        let copy_permission = self.copy_permission(container);
-        let mut navigate = None;
-        let mut context_action = None;
-        let mut go_to_original = false;
-        let mut make_copy = false;
-        egui::Frame::new()
-            .fill(ui.visuals().faint_bg_color)
-            .inner_margin(egui::Margin::symmetric(8, 5))
-            .show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.strong(format!("{} Linked block", ICON_LINK.codepoint));
-                    if via_reference {
-                        let others = count - 1;
-                        ui.weak(format!(
-                            "This block also appears in {others} other place{}. Editing it here changes it everywhere it appears.",
-                            if others == 1 { "" } else { "s" }
-                        ));
-                        go_to_original = ui
-                            .button("Go to original")
-                            .clicked();
-                        let copy_button = ui.add_enabled(
-                            copy_permission.is_ok(),
-                            egui::Button::new(format!("{} Unlink", ICON_LINK_OFF.codepoint)),
-                        );
-                        make_copy = match copy_permission {
-                            Ok(()) => copy_button
-                                .on_hover_text(
-                                    "Replace this occurrence with its own copy, unaffected by the original",
-                                )
-                                .clicked(),
-                            Err(hover) => copy_button.on_disabled_hover_text(hover).clicked(),
-                        };
-                    } else {
-                        ui.weak(format!(
-                            "This block appears in {count} places. Editing it here changes it everywhere."
-                        ));
-                        ui.menu_button("Show references", |ui| {
-                            self.status_reference_list(
-                                ui,
-                                &backrefs.1,
-                                backrefs.0,
-                                "No backrefs",
-                                None,
-                                &mut navigate,
-                                &mut context_action,
-                            );
-                        });
-                    }
-                });
-            });
-        ui.separator();
-        if let Some((reference, source, is_reference, action)) = context_action {
-            match action {
-                BlockContextMenuAction::Picker => {
-                    self.block_picker_target = Some(BlockPickerTarget::Block {
-                        parent: reference.id,
-                        open: false,
-                    });
-                }
-                BlockContextMenuAction::SetParent(parent) => {
-                    self.set_block_parent(reference.id, parent);
-                }
-                BlockContextMenuAction::Rename => {
-                    let name = BlockLabel::for_reference(&self.registry, &reference).name;
-                    self.rename = Some(RenameState {
-                        id: reference.id,
-                        name,
-                    });
-                }
-                BlockContextMenuAction::Share => {
-                    let label = BlockLabel::for_reference(&self.registry, &reference);
-                    self.share.open(&self.client, reference.id, label);
-                }
-                BlockContextMenuAction::Copy => {
-                    if let SidebarDragSource::Block(container) = source {
-                        self.queue_copy(reference.id, container, Uuid::new_v4());
-                    }
-                }
-                BlockContextMenuAction::Delete => {
-                    self.queue_delete(reference.id, reference.block_type, source, is_reference);
-                }
-            }
-        }
-        if go_to_original {
-            self.opened_via.remove(&active);
-        }
-        if make_copy && let Some(container) = container {
-            self.queue_copy(active, container, tab_id);
-        }
-        navigate.map(|(id, block_type)| BlockTabHistoryItem { id, block_type })
-    }
-
-    fn show_dynamic_artifact_source(
-        &self,
-        ui: &mut egui::Ui,
-        source_type: Uuid,
-        source: Uuid,
-    ) -> Option<BlockTabHistoryItem> {
-        ui.weak("Generated from");
-        let label = self.client.cached_block(source).map_or_else(
-            || BlockLabel {
-                block_type: source_type,
-                icon: self.registry.icon(source_type),
-                name: self
-                    .registry
-                    .display_name(source_type)
-                    .unwrap_or("source block")
-                    .to_owned(),
-                automatic: true,
-            },
-            |block| BlockLabel::for_cached(&self.registry, &block),
-        );
-        ui.button(label.widget_text(ui.style()))
-            .on_hover_text(format!("Open the source block\n{source}"))
-            .clicked()
-            .then_some(BlockTabHistoryItem {
-                id: source,
-                block_type: source_type,
-            })
     }
 
     fn show_dynamic_artifact_settings(
@@ -2590,31 +1964,13 @@ impl BlockApp {
         outcome
     }
 
-    fn handle_editor_action(
-        &mut self,
-        context: &egui::Context,
-        tab_id: Uuid,
-        action: EditorAction,
-    ) {
+    fn handle_editor_action(&mut self, context: &egui::Context, action: EditorAction) {
         match action {
             EditorAction::OpenBlock {
                 id,
                 block_type,
                 via,
-            } => {
-                match via {
-                    Some(container) => self.opened_via.insert(id, container),
-                    None => self.opened_via.remove(&id),
-                };
-                if tab_id == self.files_tab {
-                    self.open_tab(id, block_type);
-                } else {
-                    self.navigate_tab(
-                        tab_id,
-                        TabNavigation::Open(BlockTabHistoryItem { id, block_type }),
-                    );
-                }
-            }
+            } => self.show_in_shell(id, block_type, via),
             EditorAction::DragBlock { id, block_type } => {
                 egui::DragAndDrop::set_payload(
                     context,
@@ -2649,7 +2005,26 @@ impl BlockApp {
                 self.rename = Some(RenameState { id, name });
             }
             BlockCommand::Unlink { container } => {
-                self.queue_copy(id, Uuid::from_bytes(container), Uuid::new_v4());
+                self.queue_copy(id, Uuid::from_bytes(container));
+            }
+            BlockCommand::Artifact { action } => self.act_on_artifact(id, action),
+            BlockCommand::RevealPresence { client_id } => {
+                if let Some(editor) = self.editors.get_mut(&id) {
+                    editor.reveal_presence_cursor(client_id);
+                }
+            }
+            BlockCommand::CloseEditor => self.close_editor(id),
+            BlockCommand::SimulateAccess { access } => {
+                let access = match access {
+                    AccessLevel::None => BlockAccess::None,
+                    AccessLevel::KnowExists => BlockAccess::KnowExists,
+                    AccessLevel::View => BlockAccess::View,
+                    AccessLevel::Edit => BlockAccess::Edit,
+                };
+                match access == BlockAccess::Edit {
+                    true => self.editor_access.remove(&id),
+                    false => self.editor_access.insert(id, access),
+                };
             }
             BlockCommand::Delete {
                 block_type,
@@ -2686,131 +2061,6 @@ impl BlockApp {
         }
     }
 
-    fn ensure_file_tree(&mut self) -> Option<Uuid> {
-        let id = self
-            .file_tree
-            .ensure(&self.client, self.client_id)
-            .map(BlockHandle::id)?;
-        self.ensure_block_open(id, FileTree::TYPE_ID);
-        Some(id)
-    }
-
-    fn report_focus(&mut self) {
-        let focused = self.active_tab.and_then(|id| {
-            let block_type = self.block_types.get(&id).copied()?;
-            Some((id, block_type))
-        });
-        let mut via = Vec::new();
-        if let Some((id, _)) = focused {
-            let mut visited = HashSet::new();
-            visited.insert(id);
-            let mut current = id;
-            while let Some(&container) = self.opened_via.get(&current) {
-                if via.len() >= MAX_OPENED_VIA_HOPS || !visited.insert(container) {
-                    break;
-                }
-                via.push(container);
-                current = container;
-            }
-        }
-        plugin_host::set_focus(focused, via);
-    }
-
-    fn show_dock(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame) {
-        self.report_focus();
-        let mut dock_state = std::mem::replace(&mut self.dock_state, default_dock_state());
-        let files_compact = ui.available_width() < COMPACT_FILES_WIDTH;
-        if files_compact != self.files_compact {
-            set_files_compact(&mut dock_state, files_compact);
-            self.files_compact = files_compact;
-        }
-        for editor in self.editors.values_mut() {
-            editor.update(frame);
-            editor.set_tab_active(false);
-        }
-        let mut viewer = BlockTabViewer {
-            app: self,
-            actions: Vec::new(),
-            navigations: Vec::new(),
-            tabs_to_close: Vec::new(),
-            active_blocks: HashSet::new(),
-        };
-        DockArea::new(&mut dock_state).show_inside(ui, &mut viewer);
-        for editor in viewer.app.editors.values_mut() {
-            editor.finish_frame();
-        }
-        let active_blocks = std::mem::take(&mut viewer.active_blocks);
-        viewer.app.update_active_presence(active_blocks);
-        let tabs_to_close = std::mem::take(&mut viewer.tabs_to_close);
-        for tab_id in tabs_to_close {
-            let Some((path, current)) =
-                dock_state
-                    .iter_all_tabs()
-                    .find_map(|(path, tab)| match tab {
-                        DockTab::Block(tab) if tab.id == tab_id => Some((path, tab.current())),
-                        DockTab::Files | DockTab::Empty | DockTab::Block(_) => None,
-                    })
-            else {
-                continue;
-            };
-            let editor_count = dock_state
-                .iter_all_tabs()
-                .filter(|(_, tab)| matches!(tab, DockTab::Block(_)))
-                .count();
-            if editor_count == 1 {
-                let leaf = dock_state
-                    .leaf_mut(path.node_path())
-                    .expect("editor tab must be in a dock leaf");
-                leaf.tabs_mut()[path.tab.0] = DockTab::Empty;
-            } else {
-                dock_state.remove_tab(path);
-            }
-            viewer.app.close_tab_resources(current.id);
-        }
-        ensure_empty_workspace(&mut dock_state);
-        let actions = std::mem::take(&mut viewer.actions);
-        let pending_tabs = viewer
-            .app
-            .dock_state
-            .iter_all_tabs()
-            .filter_map(|(_, tab)| match tab {
-                DockTab::Files | DockTab::Empty => None,
-                DockTab::Block(tab) => Some(tab.current()),
-            })
-            .collect::<Vec<_>>();
-        let previous_active = viewer.app.active_tab;
-        let active_tab = dock_state
-            .find_active_focused()
-            .and_then(|(_, tab)| match tab {
-                DockTab::Files | DockTab::Empty => None,
-                DockTab::Block(tab) => Some(tab.current().id),
-            })
-            .or_else(|| {
-                previous_active.filter(|id| {
-                    dock_state.iter_all_tabs().any(
-                        |(_, tab)| matches!(tab, DockTab::Block(tab) if tab.current().id == *id),
-                    )
-                })
-            })
-            .or_else(|| {
-                dock_state.iter_all_tabs().find_map(|(_, tab)| match tab {
-                    DockTab::Files | DockTab::Empty => None,
-                    DockTab::Block(tab) => Some(tab.current().id),
-                })
-            });
-        viewer.app.dock_state = dock_state;
-        viewer.app.active_tab = active_tab;
-        for item in pending_tabs {
-            viewer.app.open_tab(item.id, item.block_type);
-        }
-        for (tab_id, navigation) in std::mem::take(&mut viewer.navigations) {
-            viewer.app.navigate_tab(tab_id, navigation);
-        }
-        for (tab_id, _, action) in actions {
-            viewer.app.handle_editor_action(ui.ctx(), tab_id, action);
-        }
-    }
-
     fn update_active_presence(&mut self, visible: HashSet<Uuid>) {
         for id in self.active_presence.difference(&visible) {
             self.client.set_presence::<UserActive>(*id, None);
@@ -2833,224 +2083,6 @@ impl BlockApp {
             }
         }
         self.active_presence = visible;
-    }
-
-    fn show_statusbar(&mut self, ui: &mut egui::Ui, active: Uuid) -> Option<BlockTabHistoryItem> {
-        let editor = self.editors.get(&active)?;
-        let block_type = editor.block_type();
-        let type_name = self
-            .registry
-            .display_name(block_type)
-            .map_or_else(|| block_type.to_string(), str::to_owned);
-        let relationships = editor.relationships();
-        let parents = self.parents.get(&active).map(ReferenceList::read);
-        let references = self
-            .references
-            .get(&active)
-            .map(|list| (list.is_loaded(), list.read()));
-        let backrefs = self
-            .backrefs
-            .get(&active)
-            .map(|list| (list.is_loaded(), list.read()));
-        let mut navigate = None;
-        let mut context_action = None;
-
-        let active_users = self.client.presence::<UserActive>(active);
-
-        ui.horizontal_wrapped(|ui| {
-            ui.label(format!("Type: {type_name}"));
-            if !active_users.is_empty() {
-                ui.separator();
-                ui.label("Also viewing:");
-                for (client_id, user) in &active_users {
-                    let (rect, response) =
-                        ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::click());
-                    ui.painter()
-                        .rect_filled(rect, 2.0, block_ui::presence_color(user.color));
-                    let response = response.on_hover_text(
-                        "Someone else is viewing this document\nClick to jump to their cursor",
-                    );
-                    if response.clicked()
-                        && let Some(editor) = self.editors.get_mut(&active)
-                    {
-                        editor.reveal_presence_cursor(*client_id);
-                    }
-                }
-            }
-            ui.separator();
-            let Some(relationships) = &relationships else {
-                ui.label("Relationships loading…");
-                return;
-            };
-
-            let Some(_parents) = &parents else {
-                ui.label("Parents loading…");
-                return;
-            };
-            ui.separator();
-            ui.menu_button(
-                format!(
-                    "Backrefs: {}",
-                    backrefs.as_ref().map_or_else(
-                        || "…".to_string(),
-                        |(loaded, backrefs)| if *loaded {
-                            backrefs.len().to_string()
-                        } else {
-                            "…".to_string()
-                        }
-                    )
-                ),
-                |ui| {
-                    let Some((loaded, backrefs)) = &backrefs else {
-                        ui.weak("Loading…");
-                        return;
-                    };
-                    self.status_reference_list(
-                        ui,
-                        backrefs,
-                        *loaded,
-                        "No backrefs",
-                        None,
-                        &mut navigate,
-                        &mut context_action,
-                    );
-                },
-            );
-            ui.separator();
-            ui.menu_button(
-                format!(
-                    "References: {}",
-                    references.as_ref().map_or(
-                        relationships.references.len(),
-                        |(loaded, references)| {
-                            if *loaded {
-                                references.len()
-                            } else {
-                                relationships.references.len()
-                            }
-                        }
-                    )
-                ),
-                |ui| {
-                    let Some((loaded, references)) = &references else {
-                        ui.weak("Loading…");
-                        return;
-                    };
-                    self.status_reference_list(
-                        ui,
-                        references,
-                        *loaded,
-                        "No references",
-                        Some(active),
-                        &mut navigate,
-                        &mut context_action,
-                    );
-                },
-            );
-        });
-
-        if let Some((reference, source, is_reference, action)) = context_action {
-            match action {
-                BlockContextMenuAction::Picker => {
-                    self.block_picker_target = Some(BlockPickerTarget::Block {
-                        parent: reference.id,
-                        open: false,
-                    });
-                }
-                BlockContextMenuAction::SetParent(parent) => {
-                    self.set_block_parent(reference.id, parent);
-                }
-                BlockContextMenuAction::Rename => {
-                    let name = BlockLabel::for_reference(&self.registry, &reference).name;
-                    self.rename = Some(RenameState {
-                        id: reference.id,
-                        name,
-                    });
-                }
-                BlockContextMenuAction::Share => {
-                    let label = BlockLabel::for_reference(&self.registry, &reference);
-                    self.share.open(&self.client, reference.id, label);
-                }
-                BlockContextMenuAction::Copy => {
-                    if let SidebarDragSource::Block(container) = source {
-                        self.queue_copy(reference.id, container, Uuid::new_v4());
-                    }
-                }
-                BlockContextMenuAction::Delete => {
-                    self.queue_delete(reference.id, reference.block_type, source, is_reference);
-                }
-            }
-        }
-        navigate.map(|(id, block_type)| BlockTabHistoryItem { id, block_type })
-    }
-
-    fn record_reference_types(&mut self, reference: &BlockReference) {
-        self.block_types.insert(reference.id, reference.block_type);
-        if let BlockParent::Uuid(parent) = reference.parent
-            && let Some(parent) = self.client.cached_block(parent)
-        {
-            self.block_types.insert(parent.id, parent.block_type);
-        }
-    }
-
-    fn status_reference_list(
-        &mut self,
-        ui: &mut egui::Ui,
-        references: &[BlockReference],
-        loaded: bool,
-        empty: &str,
-        containing_id: Option<Uuid>,
-        navigate: &mut Option<(Uuid, Uuid)>,
-        context_action: &mut Option<(
-            BlockReference,
-            SidebarDragSource,
-            bool,
-            BlockContextMenuAction,
-        )>,
-    ) {
-        if references.is_empty() {
-            ui.weak(if loaded { empty } else { "Loading…" });
-        }
-        for reference in references {
-            self.record_reference_types(reference);
-            let source = containing_id.map_or_else(
-                || sidebar_source(reference.parent),
-                SidebarDragSource::Block,
-            );
-            let is_reference =
-                containing_id.is_some_and(|id| reference.parent != BlockParent::Uuid(id));
-            let label =
-                BlockLabel::for_reference(&self.registry, reference).widget_text(ui.style());
-            let response = ui.button(label).on_hover_text(reference.id.to_string());
-            if response.clicked() {
-                *navigate = Some((reference.id, reference.block_type));
-                ui.close();
-            }
-            let can_edit = self.can_edit_block(reference.id);
-            let permissions = BlockMenuPermissions {
-                add: self.registry.can_add_child(reference.block_type) && can_edit,
-                edit: can_edit,
-                delete: source != SidebarDragSource::Orphaned
-                    && self.can_move_out_of(source, reference.id, is_reference),
-                copy: self.copy_permission(containing_id),
-            };
-            response.context_menu(|ui| {
-                if let Some(action) = block_context_menu(
-                    ui,
-                    &self.registry,
-                    &mut self.block_picker,
-                    &self.client,
-                    &mut self.parent_candidates,
-                    reference.id,
-                    reference.parent,
-                    [reference.id],
-                    permissions,
-                    is_reference,
-                ) {
-                    *context_action = Some((reference.clone(), source, is_reference, action));
-                }
-            });
-        }
     }
 
     fn show_rename(&mut self, ui: &mut egui::Ui) {
@@ -3088,275 +2120,6 @@ impl BlockApp {
     }
 }
 
-struct BlockTabViewer<'a> {
-    app: &'a mut BlockApp,
-    actions: Vec<(Uuid, Uuid, EditorAction)>,
-    navigations: Vec<(Uuid, TabNavigation)>,
-    tabs_to_close: Vec<Uuid>,
-
-    active_blocks: HashSet<Uuid>,
-}
-
-impl TabViewer for BlockTabViewer<'_> {
-    type Tab = DockTab;
-
-    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
-        match tab {
-            DockTab::Files => "Files".into(),
-            DockTab::Empty => "Workspace".into(),
-            DockTab::Block(tab) => self
-                .app
-                .editors
-                .get(&tab.current().id)
-                .map_or_else(
-                    || egui::RichText::new(tab.current().id.to_string()),
-                    |editor| BlockLabel::for_handle(&self.app.registry, editor.block()).rich_text(),
-                )
-                .into(),
-        }
-    }
-
-    fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
-        match tab {
-            DockTab::Files => egui::Id::new("files-tab"),
-            DockTab::Empty => egui::Id::new("empty-tab"),
-            DockTab::Block(tab) => egui::Id::new(tab.id),
-        }
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        match tab {
-            DockTab::Files => {
-                let Some(id) = self.app.ensure_file_tree() else {
-                    ui.centered_and_justified(|ui| {
-                        ui.spinner();
-                    });
-                    return;
-                };
-                if let Some(editor) = self.app.editors.get_mut(&id) {
-                    editor.set_tab_active(true);
-                }
-                let files_tab = self.app.files_tab;
-                let (action, _) = self.app.show_content(ui, files_tab, id, false, false);
-                if let Some(action) = action {
-                    self.actions.push((files_tab, id, action));
-                }
-            }
-            DockTab::Empty => {
-                ui.centered_and_justified(|ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.heading("No file open");
-                        ui.weak("Open or create a file from Files to get started.");
-                    });
-                });
-            }
-            DockTab::Block(tab) => {
-                let current = tab.current();
-                let wants_presence = self.app.editors.get_mut(&current.id).is_none_or(|editor| {
-                    editor.set_tab_active(true);
-                    editor.wants_presence()
-                });
-                if wants_presence {
-                    self.active_blocks.insert(current.id);
-                }
-                let mut status_navigation = None;
-                egui::Panel::bottom(egui::Id::new(("block-statusbar", tab.id)))
-                    .resizable(false)
-                    .show_inside(ui, |ui| {
-                        status_navigation = self.app.show_statusbar(ui, current.id)
-                    });
-                if let Some(item) = status_navigation {
-                    self.navigations.push((tab.id, TabNavigation::Open(item)));
-                }
-                let (action, navigation) = self.app.show_content(
-                    ui,
-                    tab.id,
-                    current.id,
-                    tab.can_go_back(),
-                    tab.can_go_forward(),
-                );
-                if let Some(action) = action {
-                    self.actions.push((tab.id, current.id, action));
-                }
-                if let Some(navigation) = navigation {
-                    self.navigations.push((tab.id, navigation));
-                }
-            }
-        }
-    }
-
-    fn on_close(&mut self, tab: &mut Self::Tab) -> OnCloseResponse {
-        match tab {
-            DockTab::Files | DockTab::Empty => OnCloseResponse::Ignore,
-            DockTab::Block(tab) => {
-                self.tabs_to_close.push(tab.id);
-                OnCloseResponse::Ignore
-            }
-        }
-    }
-
-    fn is_closeable(&self, tab: &Self::Tab) -> bool {
-        matches!(tab, DockTab::Block(_))
-    }
-
-    fn scroll_bars(&self, _tab: &Self::Tab) -> [bool; 2] {
-        [false, false]
-    }
-}
-
-enum BlockContextMenuAction {
-    Picker,
-    SetParent(BlockParent),
-    Rename,
-    Share,
-    Copy,
-    Delete,
-}
-
-struct BlockMenuPermissions {
-    add: bool,
-    edit: bool,
-    delete: bool,
-
-    copy: Result<(), &'static str>,
-}
-
-fn block_context_menu(
-    ui: &mut egui::Ui,
-    registry: &EditorRegistry,
-    picker: &mut BlockPicker,
-    client: &BlockClient,
-    parent_candidates: &mut HashMap<Uuid, ReferenceList>,
-    subject: Uuid,
-    current_parent: BlockParent,
-    excluded: impl IntoIterator<Item = Uuid>,
-    permissions: BlockMenuPermissions,
-    is_reference: bool,
-) -> Option<BlockContextMenuAction> {
-    let mut action = None;
-    ui.add_enabled_ui(permissions.add, |ui| {
-        if ui.button("Add").clicked() {
-            picker.open(excluded);
-            action = Some(BlockContextMenuAction::Picker);
-            ui.close();
-        }
-    })
-    .response
-    .on_disabled_hover_text(NO_EDIT_ACCESS);
-    ui.add_enabled_ui(permissions.edit, |ui| {
-        ui.menu_button("Set parent", |ui| {
-            if ui
-                .add_enabled(
-                    current_parent != BlockParent::Root,
-                    egui::Button::new("Root"),
-                )
-                .clicked()
-            {
-                action = Some(BlockContextMenuAction::SetParent(BlockParent::Root));
-                ui.close();
-            }
-            if ui
-                .add_enabled(
-                    current_parent != BlockParent::Orphaned,
-                    egui::Button::new("Orphaned"),
-                )
-                .clicked()
-            {
-                action = Some(BlockContextMenuAction::SetParent(BlockParent::Orphaned));
-                ui.close();
-            }
-            ui.separator();
-            let backrefs = parent_candidates
-                .entry(subject)
-                .or_insert_with(|| client.watch_references(BlockReferenceList::Backrefs(subject)));
-            let listed = backrefs.read();
-            if listed.is_empty() {
-                ui.weak(if backrefs.is_loaded() {
-                    "No backrefs"
-                } else {
-                    "Loading…"
-                });
-            }
-            for backref in listed {
-                let is_current = current_parent == BlockParent::Uuid(backref.id);
-                let label = BlockLabel::for_reference(registry, &backref).widget_text(ui.style());
-                if ui
-                    .add_enabled(!is_current, egui::Button::new(label))
-                    .clicked()
-                {
-                    action = Some(BlockContextMenuAction::SetParent(BlockParent::Uuid(
-                        backref.id,
-                    )));
-                    ui.close();
-                }
-            }
-        });
-    })
-    .response
-    .on_disabled_hover_text(NO_EDIT_ACCESS);
-    if ui
-        .add_enabled(permissions.edit, egui::Button::new("Rename"))
-        .on_disabled_hover_text(NO_EDIT_ACCESS)
-        .clicked()
-    {
-        action = Some(BlockContextMenuAction::Rename);
-        ui.close();
-    }
-    if ui
-        .add_enabled(
-            permissions.edit,
-            egui::Button::new(format!("{} Share", ICON_SHARE.codepoint)),
-        )
-        .on_disabled_hover_text("Only accounts that can edit a block may share it")
-        .clicked()
-    {
-        action = Some(BlockContextMenuAction::Share);
-        ui.close();
-    }
-    if is_reference {
-        let copy_button = ui.add_enabled(
-            permissions.copy.is_ok(),
-            egui::Button::new(format!("{} Unlink", ICON_LINK_OFF.codepoint)),
-        );
-        let clicked = match permissions.copy {
-            Ok(()) => copy_button
-                .on_hover_text(
-                    "Replace this occurrence with its own copy, unaffected by the original",
-                )
-                .clicked(),
-            Err(hover) => copy_button.on_disabled_hover_text(hover).clicked(),
-        };
-        if clicked {
-            action = Some(BlockContextMenuAction::Copy);
-            ui.close();
-        }
-    }
-    let delete_label = if is_reference {
-        "Remove link"
-    } else {
-        "Delete"
-    };
-    let delete_text = egui::RichText::new(delete_label);
-    let delete_text = if permissions.delete {
-        delete_text.color(ui.visuals().error_fg_color)
-    } else {
-        delete_text
-    };
-    let delete_response = ui.add_enabled(permissions.delete, egui::Button::new(delete_text));
-    let delete_response = if is_reference {
-        delete_response.on_hover_text(
-            "Removes this link only, without creating a copy. The original block is not deleted.",
-        )
-    } else {
-        delete_response
-    };
-    if delete_response.clicked() {
-        action = Some(BlockContextMenuAction::Delete);
-        ui.close();
-    }
-    action
-}
-
 enum ModalOutcome<T> {
     Open,
     Accepted(T),
@@ -3385,94 +2148,6 @@ fn show_dynamic_artifact_unlink(ctx: &egui::Context) -> ModalOutcome<()> {
         outcome = ModalOutcome::Dismissed;
     }
     outcome
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TabMode {
-    Access(BlockAccess),
-    Debug,
-}
-
-fn show_access_mode(
-    ui: &mut egui::Ui,
-    active: Uuid,
-    access: BlockAccess,
-    ceiling: BlockAccess,
-    generated: bool,
-    debug: bool,
-) -> TabMode {
-    let current = if debug {
-        TabMode::Debug
-    } else {
-        TabMode::Access(access)
-    };
-    let mut chosen = current;
-    egui::ComboBox::from_id_salt(("editor-access-mode", active))
-        .selected_text(tab_mode_label(current))
-        .show_ui(ui, |ui| {
-            for mode in [BlockAccess::Edit, BlockAccess::View, BlockAccess::KnowExists] {
-                let label = access_mode_label(mode);
-                ui.add_enabled_ui(mode <= ceiling, |ui| {
-                    if ui.selectable_label(current == TabMode::Access(mode), label).clicked() {
-                        chosen = TabMode::Access(mode);
-                    }
-                })
-                .response
-                .on_disabled_hover_text(if generated {
-                    "Generated blocks are replaced whenever they are rebuilt, so they cannot be edited here"
-                } else {
-                    "You do not have that much access to this block"
-                });
-            }
-            ui.separator();
-            ui.add_enabled_ui(ceiling.can_view(), |ui| {
-                if ui
-                    .selectable_label(current == TabMode::Debug, debug_mode_label())
-                    .clicked()
-                {
-                    chosen = TabMode::Debug;
-                }
-            })
-            .response
-            .on_disabled_hover_text("You do not have that much access to this block");
-        })
-        .response
-        .on_hover_text(
-            "Show this block as an account with this much access would see it, or inspect its raw data",
-        );
-    chosen
-}
-
-fn access_mode_label(access: BlockAccess) -> String {
-    let icon = access_mode_icon(access).unwrap_or(ICON_EDIT.codepoint);
-    format!("{icon} {}", tab_mode_wording(access))
-}
-
-fn tab_mode_wording(access: BlockAccess) -> &'static str {
-    match access {
-        BlockAccess::Edit => "Editing",
-        BlockAccess::View => "Viewing",
-        BlockAccess::KnowExists | BlockAccess::None => "No access",
-    }
-}
-
-fn debug_mode_label() -> String {
-    format!("{} Debug", ICON_DATA_OBJECT.codepoint)
-}
-
-fn tab_mode_label(mode: TabMode) -> String {
-    match mode {
-        TabMode::Access(access) => access_mode_label(access),
-        TabMode::Debug => debug_mode_label(),
-    }
-}
-
-fn access_mode_icon(access: BlockAccess) -> Option<&'static str> {
-    match access {
-        BlockAccess::Edit => None,
-        BlockAccess::View => Some(ICON_VISIBILITY.codepoint),
-        BlockAccess::KnowExists | BlockAccess::None => Some(ICON_LOCK.codepoint),
-    }
 }
 
 enum AccountAction {
@@ -3586,14 +2261,6 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
     }
 }
 
-fn sidebar_source(parent: BlockParent) -> SidebarDragSource {
-    match parent {
-        BlockParent::Root => SidebarDragSource::Root,
-        BlockParent::Orphaned => SidebarDragSource::Orphaned,
-        BlockParent::Uuid(parent) => SidebarDragSource::Block(parent),
-    }
-}
-
 impl eframe::App for BlockApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         if self.error.is_none() {
@@ -3650,7 +2317,6 @@ impl BlockApp {
         self.intercept_close(ui.ctx());
         self.process_pending_transfers();
         self.process_pending_copies();
-        self.show_block_picker(ui.ctx());
         self.show_rename(ui);
         self.share.show(ui.ctx(), &self.client);
         self.show_client_debug(ui.ctx());
@@ -3668,7 +2334,8 @@ impl BlockApp {
                 ui.separator();
                 self.show_status_bar(ui);
             });
-        self.show_dock(ui, frame);
+        self.show_shell(ui, frame);
+        self.poll_artifacts(ui);
         self.show_discard_confirmation(ui.ctx());
         performance::show(ui.ctx());
         plugin_host::flush();

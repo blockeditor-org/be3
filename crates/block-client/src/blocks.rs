@@ -63,4 +63,5 @@ block_types! {
     video::Video;
     web_browser_tab::WebBrowserTab;
     workspace_index::WorkspaceIndex;
+    workspace_ui::WorkspaceUi;
 }

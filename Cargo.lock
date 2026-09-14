@@ -9066,6 +9066,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "workspace_ui"
+version = "0.1.0"
+dependencies = [
+ "block",
+ "block-client",
+ "block-editor-plugin",
+ "block-ui-test",
+ "egui_dock",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "writeable"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

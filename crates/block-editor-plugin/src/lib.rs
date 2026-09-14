@@ -24,15 +24,16 @@ pub mod session;
 mod wasm;
 
 pub use block_plugin_api::{
-    AudioStatus, BlockFilter, BlockPick, ChildId, ChildLayer, ChildMode, ClipboardImage,
-    EditorBand, EditorCapabilities, EditorRegion, FetchResult, InteractionMode, ResizeMode,
-    ViewChange, WebViewCommand, WebViewEvent,
+    AccessLevel, ArtifactAction, AudioStatus, BlockFilter, BlockPick, ChildId, ChildLayer,
+    ChildMode, ClipboardImage, EditorBand, EditorCapabilities, EditorRegion, FetchResult,
+    InteractionMode, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_ui;
 pub use host::{
-    Artifact, ArtifactDescription, BeuiView, BlockDrag, BlockPicker, BlockSource, ChildHandle,
-    EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster, PastedImage,
-    PerformanceMeasurementGuard, PerformanceReporter, PickedBlock, PickedFile, Task, Waker,
+    Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
+    ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster,
+    PastedImage, PerformanceMeasurementGuard, PerformanceReporter, PickedBlock, PickedFile,
+    ShowRequest, Task, Waker,
 };
 
 #[cfg(target_arch = "wasm32")]

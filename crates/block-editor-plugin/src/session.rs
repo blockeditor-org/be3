@@ -108,7 +108,9 @@ impl ClientSession {
                     | block_plugin_api::EditorMessage::Presence { instance, .. }
                     | block_plugin_api::EditorMessage::RevealPresence { instance, .. }
                     | block_plugin_api::EditorMessage::ReplaceChild { instance, .. }
-                    | block_plugin_api::EditorMessage::ChildView { instance, .. },
+                    | block_plugin_api::EditorMessage::ChildView { instance, .. }
+                    | block_plugin_api::EditorMessage::ShowBlock { instance, .. }
+                    | block_plugin_api::EditorMessage::ArtifactStates { instance, .. },
                 ),
             ) if self.instances.contains(&instance) => Ok(Vec::new()),
             (

@@ -1,24 +1,21 @@
-use eframe::egui;
+use block_client::BlockClient;
+use block_editor_plugin::egui;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::BlockApp;
-
-impl BlockApp {
-    pub(crate) fn show_debug_data(&mut self, ui: &mut egui::Ui, active: Uuid) {
-        let data = self.client.block_debug_data(active);
-        egui::ScrollArea::both()
-            .auto_shrink([false, false])
-            .show(ui, |ui| match &data {
-                Some(data) => show_debug_tree(ui, data),
-                None => {
-                    ui.weak("This block has not finished loading yet.");
-                }
-            });
-    }
+pub(crate) fn show(ui: &mut egui::Ui, client: &BlockClient, id: Uuid) {
+    let data = client.block_debug_data(id);
+    egui::ScrollArea::both()
+        .auto_shrink([false, false])
+        .show(ui, |ui| match &data {
+            Some(data) => show_tree(ui, data),
+            None => {
+                ui.weak("This block has not finished loading yet.");
+            }
+        });
 }
 
-fn show_debug_tree(ui: &mut egui::Ui, data: &str) {
+fn show_tree(ui: &mut egui::Ui, data: &str) {
     let root: Value = match serde_json::from_str(data) {
         Ok(root) => root,
         Err(_) => {

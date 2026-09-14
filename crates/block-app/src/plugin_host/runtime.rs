@@ -913,6 +913,49 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
     });
 }
 
+pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> Option<Focus> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_focus_report(instance)
+    })
+    .flatten()
+}
+
+pub(crate) fn take_artifact_watch(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Option<Vec<Uuid>> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_artifact_watch(instance)
+    })
+    .flatten()
+}
+
+pub(crate) fn show_block(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    block_id: Uuid,
+    block_type: Uuid,
+    via: Option<Uuid>,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .show_block(instance, block_id, block_type, via);
+        runtime.send(messages);
+    });
+}
+
+pub(crate) fn set_artifact_states(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    states: Vec<block_plugin_api::ArtifactState>,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.set_artifact_states(instance, states);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn kill(context: &egui::Context, plugin_id: &str) {
     HOST.with(|host| {
         host.borrow_mut().shutdown(context, plugin_id);
