@@ -902,6 +902,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-reactive"
+version = "0.1.0"
+dependencies = [
+ "block",
+ "block-client",
+ "reactive",
+ "uuid",
+]
+
+[[package]]
 name = "block-server"
 version = "0.1.0"
 dependencies = [
@@ -1298,6 +1308,7 @@ dependencies = [
  "beui",
  "block-client",
  "block-editor-plugin",
+ "block-reactive",
  "block-ui-test",
  "uuid",
 ]
@@ -1560,6 +1571,7 @@ dependencies = [
  "beui",
  "block-client",
  "block-editor-plugin",
+ "block-reactive",
  "block-ui-test",
  "uuid",
 ]
@@ -1953,6 +1965,7 @@ dependencies = [
  "block",
  "block-client",
  "block-editor-plugin",
+ "block-reactive",
  "block-ui-test",
  "game-api",
  "game-host",

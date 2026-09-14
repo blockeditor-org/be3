@@ -53,6 +53,16 @@ impl Block for MyBlock {
 
 Keep fields private when callers only need read access, and expose focused getters. `apply_operation` must be deterministic and must safely ignore operations that no longer apply, such as removing an already-removed item.
 
+A block holding a list gives every item a stable `id: Uuid` and addresses it by that id rather than by its position. Two clients removing what they each saw as item 2 delete two different items when the operation carries a position and the same one when it carries an id, and an insert at the head renumbers every operation still in flight. The id belongs in the operation that creates the item, so every client applies the same one; a constructor generates it, and `apply_operation` ignores an add whose id is already present so a replayed operation cannot duplicate an item. Editors key their rows on those ids, which is what lets a row survive an edit to the item next to it - see `guides/reactive.md`.
+
+```rust
+impl MyBlockOperation {
+    pub fn add(text: impl Into<String>) -> Self {
+        Self::Add { id: Uuid::new_v4(), text: text.into() }
+    }
+}
+```
+
 Blocks have a generic `name` property (a client-interpreted `{manual, value}` pair, opaque to the server) rather than a single hardcoded name. `implicit_name` defaults to `None`, which leaves the property unset until the user renames the block; the UI then falls back to the block type's registered display name. Override it only when the block type can derive something better from its own content:
 
 ```rust

@@ -1,73 +1,40 @@
 use std::rc::Rc;
 
-use block_client::blocks::checklist::Checklist;
+use block_client::blocks::checklist::{Checklist, ChecklistItem};
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, ForEach, Frame, ItemSize, ReadSignal, Scroll, Show, WriteSignal, build,
-    clone, create_memo, create_signal, view, with_reactive_scope,
+    CenteredRow, Column, ForEach, Frame, ItemSize, KeyedStore, Scroll, Show, WriteSignal, build,
+    clone, create_memo, create_selector, create_signal, view, with_reactive_scope,
 };
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, TextInput,
     ToggleButton, use_theme,
 };
 use block_editor_plugin::beui::{Color32, Context, Document, NodeId, Rect, TextAlign};
+use uuid::Uuid;
+
+use super::ChecklistEditor;
 
 const PAGE_PADDING: f32 = 24.0;
 const SECTION_SPACING: f32 = 18.0;
 
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
-pub(super) struct ChecklistEntry {
-    index: u32,
-    text: String,
-    done: bool,
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(super) struct ChecklistSnapshot {
-    entries: Vec<ChecklistEntry>,
-}
-
-impl From<&Checklist> for ChecklistSnapshot {
-    fn from(checklist: &Checklist) -> Self {
-        Self {
-            entries: checklist
-                .items()
-                .iter()
-                .enumerate()
-                .map(|(index, item)| ChecklistEntry {
-                    index: index as u32,
-                    text: item.text.clone(),
-                    done: item.done,
-                })
-                .collect(),
-        }
-    }
-}
-
-pub(super) trait ChecklistModel {
-    fn snapshot(&self) -> ChecklistSnapshot;
-    fn add(&self, text: String);
-    fn set_done(&self, index: u32, done: bool);
-    fn remove(&self, index: u32);
-    fn clear_done(&self);
-}
+type Items = KeyedStore<Uuid, ChecklistItem>;
 
 pub struct ChecklistUi {
     document: Document,
-    set_snapshot: WriteSignal<ChecklistSnapshot>,
+    checklist: Rc<ChecklistEditor>,
 }
 
 impl ChecklistUi {
-    pub(super) fn new(checklist: Rc<dyn ChecklistModel>) -> Self {
-        let (snapshot, set_snapshot) = create_signal(checklist.snapshot());
-        let view_set_snapshot = set_snapshot.clone();
+    pub(super) fn new(checklist: Rc<ChecklistEditor>) -> Self {
+        let root = checklist.clone();
         let document = build(move || {
             view! {
-                <ChecklistView checklist snapshot set_snapshot=view_set_snapshot />
+                <ChecklistView checklist={root} />
             }
         });
         Self {
             document,
-            set_snapshot,
+            checklist,
         }
     }
 
@@ -79,9 +46,9 @@ impl ChecklistUi {
         self.document.theme().background
     }
 
-    pub(super) fn set_snapshot(&mut self, snapshot: ChecklistSnapshot) {
-        let set_snapshot = self.set_snapshot.clone();
-        with_reactive_scope(&mut self.document, move || set_snapshot.set(snapshot));
+    pub(super) fn pump(&mut self) {
+        let source = self.checklist.source().clone();
+        with_reactive_scope(&mut self.document, move || source.pump());
     }
 
     pub(super) fn show(&mut self, context: &Context, rect: Rect) {
@@ -89,7 +56,7 @@ impl ChecklistUi {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 enum Filter {
     All,
     Open,
@@ -97,70 +64,70 @@ enum Filter {
 }
 
 impl Filter {
-    fn keeps(self, entry: &ChecklistEntry) -> bool {
+    fn keeps(self, done: bool) -> bool {
         match self {
             Self::All => true,
-            Self::Open => !entry.done,
-            Self::Done => entry.done,
+            Self::Open => !done,
+            Self::Done => done,
         }
     }
 }
 
 #[block_editor_plugin::beui::reactive::component]
-fn ChecklistView(
-    checklist: Rc<dyn ChecklistModel>,
-    snapshot: ReadSignal<ChecklistSnapshot>,
-    set_snapshot: WriteSignal<ChecklistSnapshot>,
-) -> NodeId {
+fn ChecklistView(checklist: Rc<ChecklistEditor>) -> NodeId {
+    let source = checklist.source();
+    let items: Items = source.project_keyed(|checklist, items| {
+        items.reconcile(checklist.items().iter().map(|item| (item.id, item)));
+    });
+    let flags = source.project(|checklist| {
+        checklist
+            .items()
+            .iter()
+            .map(|item| (item.id, item.done))
+            .collect::<Vec<_>>()
+    });
+    let done_count = source.project(Checklist::done_count);
+    let total = source.project(|checklist| checklist.items().len());
+
     let (draft, set_draft) = create_signal(String::new());
     let (filter, set_filter) = create_signal(Filter::All);
-    let visible_entries = create_memo(clone!(snapshot filter -> move || {
+    let selected_filter = create_selector(clone!(filter -> move || filter.get()));
+    let visible = create_memo(clone!(flags filter -> move || {
         let filter = filter.get();
-        snapshot
-            .get()
-            .entries
-            .into_iter()
-            .filter(|entry| filter.keeps(entry))
-            .collect::<Vec<_>>()
+        flags.with(|flags| {
+            flags
+                .iter()
+                .filter(|(_, done)| filter.keeps(*done))
+                .map(|(id, _)| *id)
+                .collect::<Vec<Uuid>>()
+        })
     }));
-    let done_count = create_memo(clone!(snapshot -> move || {
-        snapshot.get().entries.iter().filter(|entry| entry.done).count()
-    }));
-    let progress = create_memo(clone!(snapshot done_count -> move || {
-        let total = snapshot.get().entries.len();
-        if total == 0 {
-            0.0
-        } else {
-            done_count.get() as f32 / total as f32
+    let progress = create_memo(clone!(done_count total -> move || {
+        match total.get() {
+            0 => 0.0,
+            total => done_count.get() as f32 / total as f32,
         }
     }));
-    let summary = create_memo(clone!(snapshot done_count -> move || {
-        let total = snapshot.get().entries.len();
-        match total {
+    let summary = create_memo(clone!(done_count total -> move || {
+        match total.get() {
             0 => "Add your first task below".to_owned(),
-            _ => format!("{} of {total} complete", done_count.get()),
+            total => format!("{} of {total} complete", done_count.get()),
         }
     }));
-    let empty = create_memo(clone!(visible_entries -> move || visible_entries.get().is_empty()));
+    let empty = create_memo(clone!(visible -> move || visible.get().is_empty()));
     let clear_disabled = create_memo(clone!(done_count -> move || done_count.get() == 0));
-    let all_selected = create_memo(clone!(filter -> move || filter.get() == Filter::All));
-    let open_selected = create_memo(clone!(filter -> move || filter.get() == Filter::Open));
-    let done_selected = create_memo(clone!(filter -> move || filter.get() == Filter::Done));
 
-    let submit_model = checklist.clone();
-    let submit_snapshot = set_snapshot.clone();
+    let submit_checklist = checklist.clone();
     let submit_draft = set_draft.clone();
-    let add_model = checklist.clone();
+    let add_checklist = checklist.clone();
     let add_draft = draft.clone();
-    let add_snapshot = set_snapshot.clone();
     let add_set_draft = set_draft.clone();
-    let clear_model = checklist.clone();
-    let clear_snapshot = set_snapshot.clone();
+    let clear_checklist = checklist.clone();
     let set_open_filter = set_filter.clone();
     let set_done_filter = set_filter.clone();
-    let rows = clone!(checklist set_snapshot -> move |entry: ChecklistEntry| {
+    let rows = clone!(checklist items -> move |id: Uuid| {
         view! {
-            <ChecklistRow checklist={checklist.clone()} set_snapshot={set_snapshot.clone()} entry />
+            <ChecklistRow checklist={checklist.clone()} items={items.clone()} id />
         }
     });
 
@@ -188,7 +155,7 @@ fn ChecklistView(
                                 @test_id={"checklist.draft"}
                                 on_change={move |value| set_draft.set(value)}
                                 on_submit={move |value| {
-                                    add_item(&submit_model, &submit_snapshot, &submit_draft, value);
+                                    add_item(&submit_checklist, &submit_draft, value);
                                 }}
                             />
                             <Button
@@ -196,7 +163,7 @@ fn ChecklistView(
                                 variant=ButtonVariant::Primary
                                 @test_id={"checklist.add"}
                                 on_click={move || {
-                                    add_item(&add_model, &add_snapshot, &add_set_draft, add_draft.get());
+                                    add_item(&add_checklist, &add_set_draft, add_draft.get());
                                 }}
                             />
                         </CenteredRow>
@@ -204,19 +171,19 @@ fn ChecklistView(
                             <CenteredRow @sizing=ItemSize::Percent(100.0) spacing=6.0>
                                 <ToggleButton
                                     label="All"
-                                    pressed={all_selected}
+                                    pressed={selected_filter.memo(Filter::All)}
                                     @test_id={"checklist.filter.all"}
                                     on_change={move |_| set_filter.set(Filter::All)}
                                 />
                                 <ToggleButton
                                     label="Open"
-                                    pressed={open_selected}
+                                    pressed={selected_filter.memo(Filter::Open)}
                                     @test_id={"checklist.filter.open"}
                                     on_change={move |_| set_open_filter.set(Filter::Open)}
                                 />
                                 <ToggleButton
                                     label="Done"
-                                    pressed={done_selected}
+                                    pressed={selected_filter.memo(Filter::Done)}
                                     @test_id={"checklist.filter.done"}
                                     on_change={move |_| set_done_filter.set(Filter::Done)}
                                 />
@@ -226,10 +193,7 @@ fn ChecklistView(
                                 variant=ButtonVariant::Secondary
                                 disabled={clear_disabled}
                                 @test_id={"checklist.clear-done"}
-                                on_click={move || {
-                                    clear_model.clear_done();
-                                    set_from_model(&clear_snapshot, clear_model.as_ref());
-                                }}
+                                on_click={move || clear_checklist.clear_done()}
                             />
                         </CenteredRow>
                     </Column>
@@ -240,7 +204,7 @@ fn ChecklistView(
                             <Body content="No tasks match this view." align=TextAlign::Center />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                            <ForEach spacing=8.0 keys={visible_entries} view={rows} />
+                            <ForEach spacing=8.0 keys={visible} view={rows} />
                         </Scroll>
                     </Column>
                 </Card>
@@ -249,35 +213,21 @@ fn ChecklistView(
     }
 }
 
-fn add_item(
-    checklist: &Rc<dyn ChecklistModel>,
-    set_snapshot: &WriteSignal<ChecklistSnapshot>,
-    set_draft: &WriteSignal<String>,
-    value: String,
-) {
+fn add_item(checklist: &Rc<ChecklistEditor>, set_draft: &WriteSignal<String>, value: String) {
     let text = value.trim().to_owned();
     if text.is_empty() {
         return;
     }
     checklist.add(text);
-    set_from_model(set_snapshot, checklist.as_ref());
     set_draft.set(String::new());
 }
 
-fn set_from_model(set_snapshot: &WriteSignal<ChecklistSnapshot>, checklist: &dyn ChecklistModel) {
-    set_snapshot.set(checklist.snapshot());
-}
-
 #[block_editor_plugin::beui::reactive::component]
-fn ChecklistRow(
-    checklist: Rc<dyn ChecklistModel>,
-    set_snapshot: WriteSignal<ChecklistSnapshot>,
-    entry: ChecklistEntry,
-) -> NodeId {
-    let done_index = entry.index;
-    let remove_index = entry.index;
-    let done_model = checklist.clone();
-    let done_snapshot = set_snapshot.clone();
+fn ChecklistRow(checklist: Rc<ChecklistEditor>, items: Items, id: Uuid) -> NodeId {
+    let item = items.get(&id);
+    let label = create_memo(clone!(item -> move || item.with(|item| item.text.clone())));
+    let done = create_memo(clone!(item -> move || item.with(|item| item.done)));
+    let toggle = checklist.clone();
     let theme = use_theme();
     view! {
         <Frame
@@ -289,22 +239,16 @@ fn ChecklistRow(
             <CenteredRow spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)
-                    label={entry.text}
-                    checked={entry.done}
-                    @test_id={format!("checklist.item.{}.done", entry.index)}
-                    on_change={move |done| {
-                        done_model.set_done(done_index, done);
-                        set_from_model(&done_snapshot, done_model.as_ref());
-                    }}
+                    label={label}
+                    checked={done}
+                    @test_id={format!("checklist.item.{id}.done")}
+                    on_change={move |done| toggle.set_done(id, done)}
                 />
                 <Button
                     label="Remove"
                     variant=ButtonVariant::Secondary
-                    @test_id={format!("checklist.item.{}.remove", entry.index)}
-                    on_click={move || {
-                        checklist.remove(remove_index);
-                        set_from_model(&set_snapshot, checklist.as_ref());
-                    }}
+                    @test_id={format!("checklist.item.{id}.remove")}
+                    on_click={move || checklist.remove(id)}
                 />
             </CenteredRow>
         </Frame>

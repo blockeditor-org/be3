@@ -12,6 +12,7 @@ beui = { path = "../../beui", default-features = false, features = ["render"] }
 block = { path = "../../block" }
 block-client = { path = "../../block-client" }
 block-editor-plugin = { path = "../../block-editor-plugin" }
+block-reactive = { path = "../../block-reactive" }
 game-api = { path = "../../tabletop_games/api" }
 game-host = { path = "../../tabletop_games/host" }
 uuid = "1"

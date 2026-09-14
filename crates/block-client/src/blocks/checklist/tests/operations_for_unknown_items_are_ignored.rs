@@ -1,26 +1,22 @@
 use super::*;
 
 #[test]
-fn out_of_range_operations_are_ignored() {
+fn operations_for_unknown_items_are_ignored() {
     let mut checklist = Checklist::new();
-    Checklist::apply_operation(
-        &mut checklist,
-        &ChecklistOperation::Add {
-            text: "only".to_owned(),
-        },
-    );
+    Checklist::apply_operation(&mut checklist, &ChecklistOperation::add("only"));
     let expected = checklist.clone();
+    let missing = Uuid::new_v4();
 
     for operation in [
         ChecklistOperation::SetText {
-            index: 1,
+            id: missing,
             text: "missing".to_owned(),
         },
         ChecklistOperation::SetDone {
-            index: 7,
+            id: missing,
             done: true,
         },
-        ChecklistOperation::Remove { index: 3 },
+        ChecklistOperation::Remove { id: missing },
     ] {
         Checklist::apply_operation(&mut checklist, &operation);
     }

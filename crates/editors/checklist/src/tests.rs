@@ -9,18 +9,20 @@ use uuid::Uuid;
 use crate::app::ChecklistApp;
 
 mod adding_an_item_puts_it_on_the_list;
+mod editing_one_item_leaves_the_other_rows_alone;
 mod filtering_to_open_hides_the_items_that_are_done;
 
 fn editor(items: &[(&str, bool)]) -> (BeuiTest<ChecklistApp>, BlockHandle<Checklist>) {
     let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
     let block = client.create_block(Checklist::default());
     for (text, done) in items {
-        block.operate(ChecklistOperation::Add {
-            text: (*text).to_owned(),
-        });
+        let add = ChecklistOperation::add(*text);
+        let ChecklistOperation::Add { id, .. } = add else {
+            unreachable!("add builds an add operation")
+        };
+        block.operate(add);
         if *done {
-            let index = block.read().unwrap().items().len() as u32 - 1;
-            block.operate(ChecklistOperation::SetDone { index, done: true });
+            block.operate(ChecklistOperation::SetDone { id, done: true });
         }
     }
 
@@ -39,4 +41,8 @@ fn items(block: &BlockHandle<Checklist>) -> Vec<(String, bool)> {
         .iter()
         .map(|item| (item.text.clone(), item.done))
         .collect()
+}
+
+fn id(block: &BlockHandle<Checklist>, index: usize) -> Uuid {
+    block.read().unwrap().items()[index].id
 }

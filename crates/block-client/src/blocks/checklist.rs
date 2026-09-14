@@ -9,6 +9,7 @@ pub struct Checklist {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ChecklistItem {
+    pub id: Uuid,
     pub text: String,
     pub done: bool,
 }
@@ -26,19 +27,28 @@ impl Checklist {
         self.items.iter().filter(|item| item.done).count()
     }
 
-    fn item_mut(&mut self, index: u32) -> Option<&mut ChecklistItem> {
-        self.items.get_mut(index as usize)
+    fn item_mut(&mut self, id: Uuid) -> Option<&mut ChecklistItem> {
+        self.items.iter_mut().find(|item| item.id == id)
     }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum ChecklistOperation {
-    Add { text: String },
-    SetText { index: u32, text: String },
-    SetDone { index: u32, done: bool },
-    Remove { index: u32 },
+    Add { id: Uuid, text: String },
+    SetText { id: Uuid, text: String },
+    SetDone { id: Uuid, done: bool },
+    Remove { id: Uuid },
     ClearDone,
+}
+
+impl ChecklistOperation {
+    pub fn add(text: impl Into<String>) -> Self {
+        Self::Add {
+            id: Uuid::new_v4(),
+            text: text.into(),
+        }
+    }
 }
 
 impl Block for Checklist {
@@ -49,26 +59,27 @@ impl Block for Checklist {
 
     fn apply_operation(checklist: &mut Self, operation: &Self::Operation) {
         match operation {
-            ChecklistOperation::Add { text } => checklist.items.push(ChecklistItem {
-                text: text.clone(),
-                done: false,
-            }),
-            ChecklistOperation::SetText { index, text } => {
-                if let Some(item) = checklist.item_mut(*index) {
+            ChecklistOperation::Add { id, text } => {
+                if checklist.items.iter().any(|item| item.id == *id) {
+                    return;
+                }
+                checklist.items.push(ChecklistItem {
+                    id: *id,
+                    text: text.clone(),
+                    done: false,
+                });
+            }
+            ChecklistOperation::SetText { id, text } => {
+                if let Some(item) = checklist.item_mut(*id) {
                     item.text.clone_from(text);
                 }
             }
-            ChecklistOperation::SetDone { index, done } => {
-                if let Some(item) = checklist.item_mut(*index) {
+            ChecklistOperation::SetDone { id, done } => {
+                if let Some(item) = checklist.item_mut(*id) {
                     item.done = *done;
                 }
             }
-            ChecklistOperation::Remove { index } => {
-                let index = *index as usize;
-                if index < checklist.items.len() {
-                    checklist.items.remove(index);
-                }
-            }
+            ChecklistOperation::Remove { id } => checklist.items.retain(|item| item.id != *id),
             ChecklistOperation::ClearDone => checklist.items.retain(|item| !item.done),
         }
     }

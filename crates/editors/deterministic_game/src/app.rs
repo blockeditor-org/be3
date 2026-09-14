@@ -11,10 +11,9 @@ use block_editor_plugin::{BlockFilter, BlockPicker, EditorHost};
 use game_host::Game;
 use uuid::Uuid;
 
-mod changes;
 mod ui;
 
-use changes::BlockChanges;
+use block_reactive::BlockWatch;
 use ui::{CreationSnapshot, GameCreationModel, GameCreationUi, GameModel, GameSnapshot, GameUi};
 
 const INTRINSIC_SIZE: Vec2 = Vec2::new(360.0, 320.0);
@@ -95,9 +94,9 @@ impl GameCreationModel for GameCreation {
 pub struct DeterministicGameApp {
     client: Option<Arc<BlockClient>>,
     game: Option<Rc<BlockGame>>,
-    game_changes: Option<BlockChanges<DeterministicGame>>,
+    game_changes: Option<BlockWatch<DeterministicGame>>,
     module: Option<BlockHandle<GameModule>>,
-    module_changes: Option<BlockChanges<GameModule>>,
+    module_changes: Option<BlockWatch<GameModule>>,
     loaded: Option<Loaded>,
     player: Uuid,
     ui: Option<GameUi>,
@@ -136,7 +135,7 @@ impl DeterministicGameApp {
                 .expect("the editor is connected")
                 .host
                 .waker();
-            self.module_changes = Some(BlockChanges::new(handle.clone(), waker));
+            self.module_changes = Some(BlockWatch::new(&handle, move || waker.wake()));
             self.module = Some(handle);
             self.loaded = None;
         }
@@ -181,7 +180,10 @@ impl block_editor_plugin::BeuiApp for DeterministicGameApp {
     fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid) {
         self.player = client.account_id();
         let block = client.get_block(block_id);
-        self.game_changes = Some(BlockChanges::new(block.clone(), host.waker()));
+        self.game_changes = Some(BlockWatch::new(&block, {
+            let waker = host.waker();
+            move || waker.wake()
+        }));
         self.game = Some(Rc::new(BlockGame { block, host }));
         self.client = Some(client);
         self.module = None;
@@ -228,8 +230,8 @@ impl block_editor_plugin::BeuiApp for DeterministicGameApp {
     }
 
     fn frame(&mut self, context: &Context, rect: Rect) {
-        let game_changed = self.game_changes.as_mut().is_some_and(BlockChanges::take);
-        let module_changed = self.module_changes.as_mut().is_some_and(BlockChanges::take);
+        let game_changed = self.game_changes.as_mut().is_some_and(BlockWatch::take);
+        let module_changed = self.module_changes.as_mut().is_some_and(BlockWatch::take);
         if self.ui.is_none() || game_changed || module_changed {
             let snapshot = self.snapshot();
             if let Some(changes) = &mut self.module_changes {

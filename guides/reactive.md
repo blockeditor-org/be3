@@ -104,6 +104,119 @@ flushed yet, and a key is forgotten once the last computation watching it is
 disposed or stops reading it. Like memos, a selector must be created inside a
 scope, and its per-key notifications stop when that scope is disposed.
 
+## Stores
+
+A signal holding a struct is one source for every field in it, so writing any
+field wakes every computation that reads any other. `#[derive(Store)]` splits it:
+for `Foo` it writes a `FooStore` whose fields are the `ReadSignal`s of `Foo`'s
+fields, a `new(value)` that seeds them, a `set(value)` that writes each one (so a
+field whose value did not change notifies nobody), a `set_<field>(value)` per
+field, and a `get()` that reads the whole struct back.
+
+```rust
+#[derive(Clone, PartialEq, Store)]
+pub struct Theme {
+    pub background: Color32,
+    pub accent: Color32,
+}
+
+let theme = ThemeStore::new(Theme::DARK);
+view! { <Frame color={theme.background.clone()} /> }
+theme.set_accent(Color32::WHITE);
+```
+
+Each field is a `ReadSignal<T>`, so it goes straight into a `Prop<T>`. A helper
+that picks between fields takes the store and reads the one the branch it takes
+needs, which is narrower still: tracking is per execution, so a memo around it
+subscribes to that field alone and re-subscribes when the branch changes.
+
+```rust
+fn fill(theme: &ThemeStore, hovered: bool) -> Color32 {
+    match hovered {
+        true => theme.accent.get(),
+        false => theme.background.get(),
+    }
+}
+```
+
+`beui::styled::use_theme` returns the document's `ThemeStore`, which is why a
+component binds a colour rather than the theme.
+
+## Keyed stores
+
+`KeyedStore<K, V>` is the same idea for a list: one signal per item, plus a
+signal holding the order. `reconcile` takes the items as they are now, writes
+only the ones whose value differs, writes the order only when it differs, and
+forgets the items whose keys are gone.
+
+```rust
+let items: KeyedStore<Uuid, Item> = KeyedStore::new();
+items.reconcile(list.iter().map(|item| (item.id, item)));
+```
+
+Values that are already owned go through `reconcile_owned`; `reconcile` takes
+them by reference and clones only the ones it is about to write. `keys()` is the
+order signal — read it with `with` rather than `get` so the list is not cloned —
+and `get(&key)` is that item's signal, which stays the same handle across
+reconciles.
+
+That handle is what a row binds to, which is why `for_each` takes keys rather
+than values:
+
+```rust
+<ForEach spacing=8.0 keys={visible}>
+    {move |id: Uuid| {
+        let item = items.get(&id);
+        view! { <Row item /> }
+    }}
+</ForEach>
+```
+
+Give the row the key and let it read its own item. A key that contains the row's
+content — the whole item, or its text — changes whenever the content changes,
+which destroys the row's nodes and its scope and builds a replacement, losing
+focus, caret and measured text along the way. A key that is the item's identity
+survives the edit, and only the bindings that read what changed run.
+`for_each` reconciles its children in place, so a list whose order did not change
+leaves the document untouched no matter how much of its content did. It panics
+if two items claim the same key.
+
+## Blocks
+
+`block-reactive` connects the two to block-client. `BlockSource::new(handle,
+wake)` watches one block, and `pump()` re-derives everything registered against
+it when that block has changed since the last call.
+
+```rust
+let source = BlockSource::new(client.get_block(id), move || waker.wake());
+let done = source.project(Checklist::done_count);
+let items = source.project_keyed(|checklist, items| {
+    items.reconcile(checklist.items().iter().map(|item| (item.id, item)));
+});
+```
+
+A projection is a plain function of the block's current value. It runs on every
+pump and writes its signal, which notifies only when the value it computed
+actually changed, so an edit to one item wakes the bindings that read that item
+and nothing else. Deriving from the current value rather than from the
+operations applied to it is what makes this correct: a block's visible value is
+rebuilt from the confirmed state by replaying the operations still in flight
+whenever the server acknowledges one, so it can move in ways no operation
+describes.
+
+Keep a projection cheap and pure. It runs while the block is read-locked, so it
+must not operate on the block; write through `BlockSource::operate`, which
+applies the operation and pumps, so a local edit is visible in the frame that
+made it. An editor calls `pump` once at the top of its frame, inside its
+document's reactive scope:
+
+```rust
+with_reactive_scope(&mut self.document, move || source.pump());
+```
+
+`BlockWatch` is the watch half on its own, for an editor whose view is computed
+from several blocks rather than projected from one.
+
 ## Effects, batches, and ownership
 
 Create memos, effects, and cleanup callbacks inside `Scope::run` or another
@@ -232,7 +345,7 @@ A tag whose required props are missing panics from the `view!` line that wrote
 it, not from inside the generated builder.
 
 The base elements and the structural primitives that insert and remove nodes for
-a living — `show`, `dynamic`, `for_each`, `virtual_list` — are the only code that
+a living — `show`, `dynamic`, `keyed`, `for_each`, `virtual_list` — are the only code that
 touches `Document` directly. Everything above them, unstyled and styled
 components and the code that uses them, says what it wants through props on
 those tags.
@@ -333,7 +446,7 @@ written between the tags.
 A render prop runs with the component that *wrote* it installed, not the one
 that calls it, so component-scoped state and accessibility inside one belong to
 the outer component. `Func<V, R>` is the same idea for a plain callback that
-returns a value, like `for_each`'s `key`. A prop of any of these three types also
+returns a value, like `keyed`'s `key`. A prop of any of these three types also
 accepts an already built `Render`/`RenderFn`/`Func`, which is how a component
 forwards one it was given.
 
@@ -385,6 +498,18 @@ swapped out.
 
 ```rust
 <Dynamic value={items}>{move |items: Vec<MenuItem>| view! { <MenuList items /> }}</Dynamic>
+```
+
+`dynamic` rebuilds on every change of its value, which is right when the value
+*is* the shape and wrong when only part of it decides the shape. `keyed` splits
+the two: it rebuilds when its `key` changes and hands its `view` a
+`ReadSignal<T>` for everything else, so the content of a branch updates in place
+while the branch itself stays put.
+
+```rust
+<Keyed value={state} key={|state: State| state.shape()}>
+    {|state: ReadSignal<State>| view! { <Screen state /> }}
+</Keyed>
 ```
 
 `@sizing` on a child inside `view!`, or on a root of a multi-root one, gives it
@@ -476,7 +601,7 @@ time one of its inputs changes.
 
 Effects created outside any component body — directly in `build`'s closure, for
 instance — belong to the document's root scope and live as long as the document.
-`show`, `dynamic`, `for_each`, and `virtual_list` open a scope per child they
+`show`, `dynamic`, `keyed`, `for_each`, and `virtual_list` open a scope per child they
 build, registered against that child's node, so dropping a row or scrolling one
 out of view disposes exactly that row's effects. Any other code that builds a subtree
 it will later remove on its own must do the same, with `in_new_scope`; building

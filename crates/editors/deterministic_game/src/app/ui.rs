@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
-    Column, Dynamic, ForEach, Frame, ItemSize, Scroll, WriteSignal, build, clone, create_memo,
-    create_signal, view, with_reactive_scope,
+    Column, ForEach, Frame, ItemSize, Keyed, ReadSignal, Scroll, WriteSignal, build, clone,
+    create_memo, create_signal, view, with_reactive_scope,
 };
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Card, Heading, Paragraph, use_theme,
@@ -36,6 +36,37 @@ pub(super) enum GameSnapshot {
     Loading,
     Error(String),
     Screen(Screen),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Shape {
+    Loading,
+    Error,
+    Screen,
+}
+
+impl GameSnapshot {
+    fn shape(&self) -> Shape {
+        match self {
+            Self::Loading => Shape::Loading,
+            Self::Error(_) => Shape::Error,
+            Self::Screen(_) => Shape::Screen,
+        }
+    }
+
+    fn as_error(&self) -> String {
+        match self {
+            Self::Error(error) => error.clone(),
+            _ => String::new(),
+        }
+    }
+
+    fn as_screen(&self) -> Screen {
+        match self {
+            Self::Screen(screen) => screen.clone(),
+            _ => Screen::default(),
+        }
+    }
 }
 
 impl GameSnapshot {
@@ -73,9 +104,15 @@ impl GameUi {
                     padding_horizontal=PAGE_PADDING
                     padding_vertical=PAGE_PADDING
                 >
-                    <Dynamic value={snapshot} item_size=ItemSize::Percent(100.0)>
-                        {move |snapshot| game_view(game.clone(), snapshot)}
-                    </Dynamic>
+                    <Keyed
+                        value={snapshot}
+                        key={|snapshot: GameSnapshot| snapshot.shape()}
+                        item_size=ItemSize::Percent(100.0)
+                    >
+                        {move |snapshot: ReadSignal<GameSnapshot>| {
+                            game_view(game.clone(), snapshot)
+                        }}
+                    </Keyed>
                 </Frame>
             }
         });
@@ -103,35 +140,43 @@ impl GameUi {
     }
 }
 
-fn game_view(game: Rc<dyn GameModel>, snapshot: GameSnapshot) -> NodeId {
-    match snapshot {
-        GameSnapshot::Loading => view! {
+fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> NodeId {
+    match snapshot.get_untracked().shape() {
+        Shape::Loading => view! {
             <Body content="Loading game..." align=TextAlign::Center />
         },
-        GameSnapshot::Error(error) => view! {
-            <Card>
-                <Column spacing=8.0>
-                    <Heading content="Game unavailable" />
-                    <Paragraph content={error} @test_id={"game.error"} />
-                </Column>
-            </Card>
-        },
-        GameSnapshot::Screen(screen) => {
-            let actions = screen.actions;
-            let editable = screen.editable;
+        Shape::Error => {
+            let error = create_memo(move || snapshot.get().as_error());
+            view! {
+                <Card>
+                    <Column spacing=8.0>
+                        <Heading content="Game unavailable" />
+                        <Paragraph content={error} @test_id={"game.error"} />
+                    </Column>
+                </Card>
+            }
+        }
+        Shape::Screen => {
+            let screen = create_memo(move || snapshot.get().as_screen());
+            let description = create_memo(clone!(screen -> move || screen.get().description));
+            let actions = create_memo(clone!(screen -> move || screen.get().actions));
+            let editable = create_memo(clone!(screen -> move || screen.get().editable));
             view! {
                 <Column spacing=16.0>
-                    <Heading content={screen.description} />
+                    <Heading content={description} />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
                         <ForEach spacing=10.0 keys={actions}>
                             {move |action: Action| {
                                 let effect = action.effect;
                                 let game = game.clone();
+                                let disabled = create_memo(
+                                    clone!(editable -> move || !editable.get()),
+                                );
                                 view! {
                                     <Button
                                         label={action.label}
                                         variant=ButtonVariant::Primary
-                                        disabled={!editable}
+                                        disabled={disabled}
                                         @test_id={format!("game.action.{}", action.index)}
                                         on_click={move || game.choose(effect.clone())}
                                     />
