@@ -316,6 +316,25 @@ impl Document {
             .retain(|item| item.child != child);
     }
 
+    pub(crate) fn set_children(&mut self, parent: NodeId, children: &[(NodeId, ItemSize)]) {
+        let items = &self.arena.get_as::<ListNode>(parent).items;
+        let unchanged = items.len() == children.len()
+            && items
+                .iter()
+                .zip(children)
+                .all(|(item, (child, size))| item.child == *child && item.size == *size);
+        if unchanged {
+            return;
+        }
+        self.arena.get_mut_as::<ListNode>(parent).items = children
+            .iter()
+            .map(|(child, size)| ListItem {
+                child: *child,
+                size: *size,
+            })
+            .collect();
+    }
+
     pub(crate) fn set_child_size(&mut self, parent: NodeId, child: NodeId, size: ItemSize) {
         if self
             .arena

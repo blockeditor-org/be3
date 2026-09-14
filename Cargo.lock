@@ -5585,6 +5585,18 @@ dependencies = [
 [[package]]
 name = "reactive"
 version = "0.1.0"
+dependencies = [
+ "reactive_macros",
+]
+
+[[package]]
+name = "reactive_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
 
 [[package]]
 name = "read-fonts"

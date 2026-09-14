@@ -110,7 +110,7 @@ where
     }));
 
     view! {
-        <ForEach spacing items={keys} key={|key: K| key}>
+        <ForEach spacing keys>
             {move |key: K| {
                 let item = create_memo(clone!(item key -> move || item.call(key.clone())));
                 let selected = selection.memo(Some(key.clone()));

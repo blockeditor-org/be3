@@ -14,8 +14,8 @@ use crate::unstyled;
 
 pub use beui_macros::{component, view};
 pub use reactive::{
-    Effect, Memo, ReadSignal, Scope, ScopeContext, Selector, WriteSignal, batch, clone,
-    create_effect, create_memo, create_selector, create_signal, on_cleanup, owner_scope,
+    Effect, KeyedStore, Memo, ReadSignal, Scope, ScopeContext, Selector, Store, WriteSignal, batch,
+    clone, create_effect, create_memo, create_selector, create_signal, on_cleanup, owner_scope,
     provide_context, settle, untrack, use_context,
 };
 
@@ -694,47 +694,87 @@ where
 }
 
 #[component]
-pub fn ForEach<T, K>(
+pub fn ForEach<K>(
     spacing: f32,
-    items: Prop<Vec<T>>,
-    key: Option<Func<T, K>>,
-    #[prop(children)] view: Option<RenderFn<T>>,
+    keys: Prop<Vec<K>>,
+    #[prop(children)] view: Option<RenderFn<K>>,
     #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
 ) -> NodeId
 where
-    T: Clone + 'static,
-    K: Hash + Eq + 'static,
+    K: Clone + Hash + Eq + 'static,
 {
-    let key = key.expect("for_each requires a `key` callback");
     let view = view.expect("for_each requires a `view` callback");
     let parent = view! {
         <Column spacing />
     };
     let existing: Rc<RefCell<HashMap<K, NodeId>>> = Rc::new(RefCell::new(HashMap::new()));
     create_effect(move || {
-        let items = items.get();
+        let keys = keys.get();
         let mut existing = existing.borrow_mut();
-        let mut next = Vec::with_capacity(items.len());
-        for item in &items {
-            let node = existing
-                .remove(&key.call(item.clone()))
-                .unwrap_or_else(|| in_new_scope(|| view.call(item.clone())));
-            next.push((key.call(item.clone()), node));
+        let mut next = HashMap::with_capacity(keys.len());
+        let mut children = Vec::with_capacity(keys.len());
+        for key in keys {
+            let node = match existing.remove(&key) {
+                Some(node) => node,
+                None => {
+                    let build = key.clone();
+                    let view = view.clone();
+                    in_new_scope(move || view.call(build))
+                }
+            };
+            children.push((node, item_size));
+            assert!(
+                next.insert(key, node).is_none(),
+                "for_each was given the same key twice"
+            );
         }
         with_document(|document| {
+            document.set_children(parent, &children);
             for removed in existing.values() {
-                document.remove_child(parent, *removed);
                 document.remove_node(*removed);
             }
-            for (_, child) in &next {
-                document.remove_child(parent, *child);
-            }
-            for (_, child) in &next {
-                document.append_child(parent, *child, item_size);
+        });
+        *existing = next;
+    });
+    parent
+}
+
+#[component]
+pub fn Keyed<T, K>(
+    value: Prop<T>,
+    key: Option<Func<T, K>>,
+    #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
+    #[prop(children)] view: Option<RenderFn<ReadSignal<T>>>,
+) -> NodeId
+where
+    T: Clone + Default + PartialEq + 'static,
+    K: PartialEq + 'static,
+{
+    let key = key.expect("keyed requires a `key` callback");
+    let view = view.expect("keyed requires a `view` callback");
+    let parent = view! {
+        <Column spacing=0.0 />
+    };
+    let (current, set_current) = create_signal(value.peek());
+    let built: Rc<RefCell<Option<(K, NodeId)>>> = Rc::new(RefCell::new(None));
+    create_effect(move || {
+        let value = value.get();
+        let next = key.call(value.clone());
+        set_current.set(value);
+        let mut built = built.borrow_mut();
+        if built.as_ref().is_some_and(|(key, _)| *key == next) {
+            return;
+        }
+        let current = current.clone();
+        let view = view.clone();
+        let child = in_new_scope(move || view.call(current));
+        let previous = built.replace((next, child));
+        with_document(|document| {
+            document.set_children(parent, &[(child, item_size)]);
+            if let Some((_, previous)) = previous {
+                document.remove_node(previous);
             }
         });
-        existing.clear();
-        existing.extend(next);
     });
     parent
 }

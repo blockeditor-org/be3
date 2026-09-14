@@ -104,6 +104,10 @@ impl<T> ReadSignal<T> {
     pub fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         f(&self.inner.value.borrow())
     }
+
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.inner, &other.inner)
+    }
 }
 
 impl<T> WriteSignal<T> {

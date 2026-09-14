@@ -3,16 +3,19 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::{
-    Scope, batch, create_effect, create_memo, create_selector, create_signal, on_cleanup,
-    owner_scope, untrack,
+    KeyedStore, Scope, Store, batch, create_effect, create_memo, create_selector, create_signal,
+    on_cleanup, owner_scope, untrack,
 };
 
 mod a_context_reaches_the_effects_a_nested_scope_creates;
+mod a_keyed_store_forgets_items_whose_keys_are_gone;
+mod a_keyed_store_only_wakes_the_item_that_changed;
 mod a_panicking_effect_can_run_again;
 mod a_scope_opened_inside_an_effect_belongs_to_the_effects_owner;
 mod a_selector_forgets_keys_whose_watchers_were_disposed;
 mod a_selector_memo_tracks_one_key_without_watching_the_source;
 mod a_selector_only_reruns_the_keys_that_gained_or_lost_selection;
+mod a_store_wakes_only_the_field_that_changed;
 mod all_cleanups_run_even_when_one_panics;
 mod an_effect_that_reads_nothing_is_discarded_after_its_first_run;
 mod an_effect_with_cleanup_is_kept_without_dependencies;
@@ -35,6 +38,8 @@ mod nested_effects_are_disposed_before_parent_reruns;
 mod non_clone_values_can_be_read_and_updated;
 mod panic_restores_tracking_and_batching;
 mod panicking_update_still_invalidates_mutated_value;
+mod reconciling_an_unchanged_list_wakes_nothing;
+mod reordering_a_keyed_store_keeps_the_item_signals;
 mod repeated_reads_only_subscribe_once;
 mod runaway_effects_are_stopped_and_scheduler_remains_usable;
 mod scopes_dispose_effects_and_run_cleanup_once;

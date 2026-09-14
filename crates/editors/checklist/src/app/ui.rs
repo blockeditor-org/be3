@@ -243,12 +243,7 @@ fn ChecklistView(
                             @sizing=ItemSize::Percent(100.0)
                             focus_color={theme.pick(|theme| theme.accent)}
                         >
-                            <ForEach
-                                spacing=8.0
-                                items={visible_entries}
-                                key={|entry: ChecklistEntry| entry.clone()}
-                                view={rows}
-                            />
+                            <ForEach spacing=8.0 keys={visible_entries} view={rows} />
                         </Scroll>
                     </Column>
                 </Card>
