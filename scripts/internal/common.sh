@@ -300,13 +300,11 @@ build_plugin_wasm() {
 # redone whenever the module or the compiler that produced it is newer.
 precompiler=''
 
-build_precompiler() {
-    if [[ -n "$precompiler" ]]; then
-        return
-    fi
-    echo 'Building the plugin compiler...'
-    (cd "$repository" && cargo build --release -p block-wasm-host --features all-arch --example precompile)
-    local built="$repository/target/release/examples/precompile"
+# Names the compiler a cargo call has already produced in the directory it
+# builds into, so a build that compiled it alongside the app does not compile it
+# a second time here.
+use_precompiler() {
+    local built="$1/precompile"
     if [[ -f "$built.exe" ]]; then
         built+='.exe'
     fi
@@ -315,6 +313,19 @@ build_precompiler() {
         exit 1
     fi
     precompiler="$built"
+}
+
+# The compiler runs on the machine the build runs on whatever the app is being
+# built for, so only a build for this machine can hand it over from its own
+# cargo call. A cross build compiles it here instead, where all-arch is what
+# gives wasmtime the backend the app's architecture needs.
+build_precompiler() {
+    if [[ -n "$precompiler" ]]; then
+        return
+    fi
+    echo 'Building the plugin compiler...'
+    (cd "$repository" && cargo build --release -p block-wasm-host --features all-arch --bin precompile)
+    use_precompiler "$repository/target/release"
 }
 
 precompile_plugin_wasm() {

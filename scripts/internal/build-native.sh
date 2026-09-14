@@ -84,19 +84,40 @@ sign() {
     fi
 }
 
-# The app and the server are one cargo call, so cargo builds the dependencies
-# they share once. Every plugin is a wasm guest, built for its own target below.
+# The app, the server and the compiler the plugins are handed to are one cargo
+# call, so cargo builds the dependencies they share once and has all three to
+# spread across the cores rather than a stretch of each in turn. Every plugin is
+# a wasm guest, built for its own target below.
 load_plugins
 selection=()
-if $server; then
-    selection+=(-p block-server --bin block-server)
-fi
+building=()
 if $client; then
     selection+=(-p block-app --bin block-app)
+    building+=('the app')
+fi
+if $server; then
+    selection+=(-p block-server --bin block-server)
+    building+=('the server')
 fi
 if [[ ${#selection[@]} -eq 0 ]]; then
     echo '--no-client and --no-server together leave nothing to build' >&2
     exit 1
+fi
+# The compiler runs here rather than on the machine the app is for, so it only
+# joins this call when the two are the same machine. A cross build compiles it
+# on its own afterwards, for this machine and with every backend.
+compiler=false
+if $client && [[ -z "$triple" ]]; then
+    compiler=true
+    selection+=(-p block-wasm-host --bin precompile)
+    building+=('the plugin compiler')
+fi
+last="${building[-1]}"
+unset 'building[-1]'
+description="$last"
+if [[ ${#building[@]} -ne 0 ]]; then
+    description="$(printf '%s, ' "${building[@]}")"
+    description="${description%, } and $last"
 fi
 # The terminal emulator the debug terminal window is built on is Zig, and is
 # compiled and cached for the target before cargo links it in.
@@ -104,8 +125,11 @@ if $client; then
     "$internal/build-ghostty-vt.sh" --triple "$target_triple" > /dev/null
 fi
 
-echo 'Building the app and the server...'
+echo "Building $description..."
 cargo build "${cargo_arguments[@]}" "${selection[@]}"
+if $compiler; then
+    use_precompiler "$artifact_directory"
+fi
 
 executables=()
 if $server; then
