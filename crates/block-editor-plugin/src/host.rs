@@ -46,6 +46,7 @@ pub struct ShowRequest {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub via: Option<Uuid>,
+    pub from: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -459,7 +460,7 @@ fn beui_rect(rect: egui::Rect, ratio: f32) -> beui::Rect {
 pub struct EditorHost {
     waker: Waker,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
-    shows: Rc<RefCell<Vec<OpenRequest>>>,
+    shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
@@ -548,19 +549,22 @@ impl EditorHost {
     }
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
-        self.shows
-            .borrow_mut()
-            .drain(..)
-            .map(|(block_id, block_type, via)| ShowRequest {
-                block_id,
-                block_type,
-                via,
-            })
-            .collect()
+        std::mem::take(&mut self.shows.borrow_mut())
     }
 
-    pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.shows.borrow_mut().push((block_id, block_type, via));
+    pub fn show_block(
+        &self,
+        block_id: Uuid,
+        block_type: Uuid,
+        via: Option<Uuid>,
+        from: Option<Uuid>,
+    ) {
+        self.shows.borrow_mut().push(ShowRequest {
+            block_id,
+            block_type,
+            via,
+            from,
+        });
     }
 
     pub fn focused_block(&self) -> FocusedBlock {

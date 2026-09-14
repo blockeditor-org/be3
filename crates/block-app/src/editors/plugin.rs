@@ -477,6 +477,7 @@ impl PluginEditor {
                         id,
                         block_type,
                         via,
+                        from: Some(self.block.id()),
                     })
             });
         let mut statuses = Vec::new();
@@ -872,13 +873,14 @@ impl BlockEditor for PluginEditor {
         self.active_this_frame
     }
 
-    fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+    fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>, from: Option<Uuid>) {
         crate::plugin_host::show_block(
             &self.plugin.identity.id,
             self.instance,
             id,
             block_type,
             via,
+            from,
         );
     }
 

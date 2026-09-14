@@ -14,7 +14,7 @@ impl BlockApp {
         else {
             return;
         };
-        self.show_in_shell(id, Settings::TYPE_ID, None);
+        self.show_in_shell(id, Settings::TYPE_ID, None, None);
     }
 
     pub(crate) fn show_status_bar(&mut self, ui: &mut egui::Ui) {

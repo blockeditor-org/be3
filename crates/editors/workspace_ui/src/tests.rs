@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::app::WorkspaceUiApp;
 
+mod a_block_opened_from_a_tab_replaces_it;
 mod a_shown_block_is_reported_as_focused;
 mod a_tab_walks_back_and_forward_through_its_history;
 mod closing_the_only_tab_leaves_the_blank_workspace;

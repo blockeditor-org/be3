@@ -135,8 +135,11 @@ its own.
 The instance that draws the window rather than a block - the one the host
 opens on the workspace's own interface block - is where those requests end up:
 the host hands it every block it is asked to open, its own included, as a
-request of its own carrying the same block, block type and container. Nothing
-answers it; the instance decides where the block goes, since it owns the tabs.
+request of its own carrying the same block, block type and container, along
+with the block the instance that asked was opened on, absent when the host
+itself asked. Nothing answers it; the instance decides where the block goes,
+since it owns the tabs, and the block that asked is what tells it whether the
+block was reached from something already on the screen.
 
 The host tells every open instance which block the user is looking at - the
 block of the tab that has focus, absent while none has - along with the chain

@@ -291,7 +291,20 @@ fn set_files_compact(dock: &mut DockState<DockTab>, compact: bool) {
 }
 
 impl WorkspaceUiApp {
-    fn open(&mut self, item: TabItem, via: Option<Uuid>) {
+    fn open(&mut self, item: TabItem, via: Option<Uuid>, from: Option<Uuid>) {
+        if let Some(from) = from
+            && from != item.id
+            && let Some(tab) = self.tab_showing(from)
+        {
+            if let Some(state) = self.state.as_mut() {
+                match via {
+                    Some(container) => state.opened_via.insert(item.id, container),
+                    None => state.opened_via.remove(&item.id),
+                };
+            }
+            self.navigate(tab, Navigation::Open(item));
+            return;
+        }
         let (Some(state), Some(dock)) = (self.state.as_mut(), self.dock.as_mut()) else {
             return;
         };
@@ -329,6 +342,16 @@ impl WorkspaceUiApp {
             dock.push_to_focused_leaf(tab);
         }
         state.active = Some(item.id);
+    }
+
+    fn tab_showing(&mut self, block_id: Uuid) -> Option<Uuid> {
+        self.dock
+            .as_mut()?
+            .iter_all_tabs()
+            .find_map(|(_, tab)| match tab {
+                DockTab::Block(tab) if tab.current().id == block_id => Some(tab.id),
+                DockTab::Files | DockTab::Empty | DockTab::Block(_) => None,
+            })
     }
 
     fn navigate(&mut self, tab_id: Uuid, navigation: Navigation) {
@@ -475,6 +498,7 @@ impl block_editor_plugin::App for WorkspaceUiApp {
                     block_type: request.block_type,
                 },
                 request.via,
+                request.from,
             );
         }
         if let Some(state) = self.state.as_mut() {

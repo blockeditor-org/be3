@@ -1893,6 +1893,7 @@ impl Instances {
         block_id: Uuid,
         block_type: Uuid,
         via: Option<Uuid>,
+        from: Option<Uuid>,
     ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
@@ -1902,6 +1903,7 @@ impl Instances {
             block_id: block_id.into_bytes(),
             block_type: block_type.into_bytes(),
             via: via.map(Uuid::into_bytes),
+            from: from.map(Uuid::into_bytes),
         })]
     }
 

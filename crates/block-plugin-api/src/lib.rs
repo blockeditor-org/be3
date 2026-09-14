@@ -498,6 +498,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        from: Option<[u8; 16]>,
     },
 
     Focused {

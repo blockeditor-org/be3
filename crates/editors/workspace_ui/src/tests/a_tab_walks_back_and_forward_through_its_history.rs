@@ -5,7 +5,7 @@ fn a_tab_walks_back_and_forward_through_its_history() {
     let (mut editor, host, opened) = editor();
     let second = Uuid::new_v4();
 
-    host.show_block(opened, FileTree::TYPE_ID, None);
+    host.show_block(opened, FileTree::TYPE_ID, None, None);
     editor.step();
     editor.app().navigate_active(second, FileTree::TYPE_ID);
     editor.step();

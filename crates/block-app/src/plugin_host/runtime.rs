@@ -936,11 +936,12 @@ pub(crate) fn show_block(
     block_id: Uuid,
     block_type: Uuid,
     via: Option<Uuid>,
+    from: Option<Uuid>,
 ) {
     with(plugin_id, |runtime| {
         let messages = runtime
             .instances
-            .show_block(instance, block_id, block_type, via);
+            .show_block(instance, block_id, block_type, via, from);
         runtime.send(messages);
     });
 }

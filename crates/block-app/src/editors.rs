@@ -31,6 +31,7 @@ pub enum EditorAction {
         id: Uuid,
         block_type: Uuid,
         via: Option<Uuid>,
+        from: Option<Uuid>,
     },
     DragBlock {
         id: Uuid,
@@ -544,7 +545,7 @@ pub trait BlockEditor {
         false
     }
 
-    fn show_block(&self, _id: Uuid, _block_type: Uuid, _via: Option<Uuid>) {}
+    fn show_block(&self, _id: Uuid, _block_type: Uuid, _via: Option<Uuid>, _from: Option<Uuid>) {}
 
     fn take_focus_report(&self) -> Option<FocusReport> {
         None

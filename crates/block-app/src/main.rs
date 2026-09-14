@@ -1650,7 +1650,7 @@ impl BlockApp {
             }
 
             self.set_block_parent(copy_id, BlockParent::Uuid(copy.container));
-            self.show_in_shell(copy_id, block_type, Some(copy.container));
+            self.show_in_shell(copy_id, block_type, Some(copy.container), Some(copy.source));
         }
     }
 
@@ -1690,12 +1690,12 @@ impl BlockApp {
         Some(id)
     }
 
-    fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+    fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>, from: Option<Uuid>) {
         self.block_types.insert(id, block_type);
         let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) else {
             return;
         };
-        shell.show_block(id, block_type, via);
+        shell.show_block(id, block_type, via, from);
     }
 
     fn show_shell(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame) {
@@ -1970,7 +1970,8 @@ impl BlockApp {
                 id,
                 block_type,
                 via,
-            } => self.show_in_shell(id, block_type, via),
+                from,
+            } => self.show_in_shell(id, block_type, via, from),
             EditorAction::DragBlock { id, block_type } => {
                 egui::DragAndDrop::set_payload(
                     context,

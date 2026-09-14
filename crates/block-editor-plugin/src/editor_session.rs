@@ -401,8 +401,14 @@ impl EditorSession {
         self.host.set_focused_block(focused);
     }
 
-    pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.host.show_block(block_id, block_type, via);
+    pub(crate) fn show_block(
+        &self,
+        block_id: Uuid,
+        block_type: Uuid,
+        via: Option<Uuid>,
+        from: Option<Uuid>,
+    ) {
+        self.host.show_block(block_id, block_type, via, from);
     }
 
     pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
