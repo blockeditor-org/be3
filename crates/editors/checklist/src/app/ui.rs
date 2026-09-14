@@ -158,98 +158,98 @@ fn ChecklistView(
     let set_done_filter = set_filter.clone();
     let rows = clone!(checklist set_snapshot -> move |entry: ChecklistEntry| {
         view! {
-            <ChecklistRow
-                checklist={checklist.clone()}
-                set_snapshot={set_snapshot.clone()}
-                entry
-            />
+            <ChecklistRow checklist={checklist.clone()} set_snapshot={set_snapshot.clone()} entry />
         }
     });
 
     let theme = use_theme();
     view! {
-        <Frame color={theme.pick(|theme| theme.background)} padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+        <Frame
+            color={theme.pick(|theme| theme.background)}
+            padding_horizontal=PAGE_PADDING
+            padding_vertical=PAGE_PADDING
+        >
             <Column spacing=SECTION_SPACING>
-                    <Column spacing=6.0>
-                        <Heading content="Checklist" />
-                        <Caption content={summary} />
-                        <Progress value={progress} label="Checklist completion" />
+                <Column spacing=6.0>
+                    <Heading content="Checklist" />
+                    <Caption content={summary} />
+                    <Progress value={progress} label="Checklist completion" />
+                </Column>
+                <Card>
+                    <Column spacing=12.0>
+                        <CenteredRow spacing=10.0>
+                            <TextInput
+                                @sizing=ItemSize::Percent(100.0)
+                                value={draft}
+                                placeholder="What needs doing?"
+                                label="New checklist item"
+                                @test_id={"checklist.draft"}
+                                on_change={move |value| set_draft.set(value)}
+                                on_submit={move |value| {
+                                    add_item(&submit_model, &submit_snapshot, &submit_draft, value);
+                                }}
+                            />
+                            <Button
+                                label="Add task"
+                                variant=ButtonVariant::Primary
+                                @test_id={"checklist.add"}
+                                on_click={move || {
+                                    add_item(&add_model, &add_snapshot, &add_set_draft, add_draft.get());
+                                }}
+                            />
+                        </CenteredRow>
+                        <CenteredRow spacing=10.0>
+                            <CenteredRow @sizing=ItemSize::Percent(100.0) spacing=6.0>
+                                <ToggleButton
+                                    label="All"
+                                    pressed={all_selected}
+                                    @test_id={"checklist.filter.all"}
+                                    on_change={move |_| set_filter.set(Filter::All)}
+                                />
+                                <ToggleButton
+                                    label="Open"
+                                    pressed={open_selected}
+                                    @test_id={"checklist.filter.open"}
+                                    on_change={move |_| set_open_filter.set(Filter::Open)}
+                                />
+                                <ToggleButton
+                                    label="Done"
+                                    pressed={done_selected}
+                                    @test_id={"checklist.filter.done"}
+                                    on_change={move |_| set_done_filter.set(Filter::Done)}
+                                />
+                            </CenteredRow>
+                            <Button
+                                label="Clear completed"
+                                variant=ButtonVariant::Secondary
+                                disabled={clear_disabled}
+                                @test_id={"checklist.clear-done"}
+                                on_click={move || {
+                                    clear_model.clear_done();
+                                    set_from_model(&clear_snapshot, clear_model.as_ref());
+                                }}
+                            />
+                        </CenteredRow>
                     </Column>
-                    <Card>
-                        <Column spacing=12.0>
-                            <CenteredRow spacing=10.0>
-                                <TextInput
-                                    @sizing=ItemSize::Percent(100.0)
-                                    value={draft}
-                                    placeholder="What needs doing?"
-                                    label="New checklist item"
-                                    @test_id={"checklist.draft"}
-                                    on_change={move |value| set_draft.set(value)}
-                                    on_submit={move |value| {
-                                        add_item(&submit_model, &submit_snapshot, &submit_draft, value);
-                                    }}
-                                />
-                                <Button
-                                    label="Add task"
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"checklist.add"}
-                                    on_click={move || {
-                                        add_item(&add_model, &add_snapshot, &add_set_draft, add_draft.get());
-                                    }}
-                                />
-                            </CenteredRow>
-                            <CenteredRow spacing=10.0>
-                                <CenteredRow
-                                    @sizing=ItemSize::Percent(100.0)
-                                    spacing=6.0
-                                >
-                                    <ToggleButton
-                                        label="All"
-                                        pressed={all_selected}
-                                        @test_id={"checklist.filter.all"}
-                                        on_change={move |_| set_filter.set(Filter::All)}
-                                    />
-                                    <ToggleButton
-                                        label="Open"
-                                        pressed={open_selected}
-                                        @test_id={"checklist.filter.open"}
-                                        on_change={move |_| set_open_filter.set(Filter::Open)}
-                                    />
-                                    <ToggleButton
-                                        label="Done"
-                                        pressed={done_selected}
-                                        @test_id={"checklist.filter.done"}
-                                        on_change={move |_| set_done_filter.set(Filter::Done)}
-                                    />
-                                </CenteredRow>
-                                <Button
-                                    label="Clear completed"
-                                    variant=ButtonVariant::Secondary
-                                    disabled={clear_disabled}
-                                    @test_id={"checklist.clear-done"}
-                                    on_click={move || {
-                                        clear_model.clear_done();
-                                        set_from_model(&clear_snapshot, clear_model.as_ref());
-                                    }}
-                                />
-                            </CenteredRow>
-                        </Column>
-                    </Card>
-                    <Card @sizing=ItemSize::Percent(100.0)>
-                        <Column spacing=10.0>
-                            <Show condition={empty}>
-                                <Body content="No tasks match this view." align=TextAlign::Center />
-                            </Show>
-                            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.pick(|theme| theme.accent)}>
-                                <ForEach
-                                    spacing=8.0
-                                    items={visible_entries}
-                                    key={|entry: ChecklistEntry| entry.clone()}
-                                    view={rows}
-                                />
-                            </Scroll>
-                        </Column>
-                    </Card>
+                </Card>
+                <Card @sizing=ItemSize::Percent(100.0)>
+                    <Column spacing=10.0>
+                        <Show condition={empty}>
+                            <Body content="No tasks match this view." align=TextAlign::Center />
+                        </Show>
+                        <Scroll
+                            @sizing=ItemSize::Percent(100.0)
+                            focus_color={theme.pick(|theme| theme.accent)}
+                        >
+                            <ForEach
+                                spacing=8.0
+                                items={visible_entries}
+                                key={|entry: ChecklistEntry| entry.clone()}
+                                view={rows}
+                            />
+                        </Scroll>
+                    </Column>
+                </Card>
             </Column>
         </Frame>
     }
@@ -286,27 +286,32 @@ fn ChecklistRow(
     let done_snapshot = set_snapshot.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.pick(|theme| theme.surface_raised)} radius=6 padding_horizontal=12.0 padding_vertical=10.0>
+        <Frame
+            color={theme.pick(|theme| theme.surface_raised)}
+            radius=6
+            padding_horizontal=12.0
+            padding_vertical=10.0
+        >
             <CenteredRow spacing=10.0>
-                    <Checkbox
-                        @sizing=ItemSize::Percent(100.0)
-                        label={entry.text}
-                        checked={entry.done}
-                        @test_id={format!("checklist.item.{}.done", entry.index)}
-                        on_change={move |done| {
-                            done_model.set_done(done_index, done);
-                            set_from_model(&done_snapshot, done_model.as_ref());
-                        }}
-                    />
-                    <Button
-                        label="Remove"
-                        variant=ButtonVariant::Secondary
-                        @test_id={format!("checklist.item.{}.remove", entry.index)}
-                        on_click={move || {
-                            checklist.remove(remove_index);
-                            set_from_model(&set_snapshot, checklist.as_ref());
-                        }}
-                    />
+                <Checkbox
+                    @sizing=ItemSize::Percent(100.0)
+                    label={entry.text}
+                    checked={entry.done}
+                    @test_id={format!("checklist.item.{}.done", entry.index)}
+                    on_change={move |done| {
+                        done_model.set_done(done_index, done);
+                        set_from_model(&done_snapshot, done_model.as_ref());
+                    }}
+                />
+                <Button
+                    label="Remove"
+                    variant=ButtonVariant::Secondary
+                    @test_id={format!("checklist.item.{}.remove", entry.index)}
+                    on_click={move || {
+                        checklist.remove(remove_index);
+                        set_from_model(&set_snapshot, checklist.as_ref());
+                    }}
+                />
             </CenteredRow>
         </Frame>
     }

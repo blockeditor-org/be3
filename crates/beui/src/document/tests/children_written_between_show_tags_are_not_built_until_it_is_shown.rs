@@ -26,9 +26,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
                     >
                         <Text string="toggle" />
                     </Button>
-                    <Show @node_ref=&panel condition=visible>
-                        <CountedPanel builds />
-                    </Show>
+                    <Show @node_ref=&panel condition=visible><CountedPanel builds /></Show>
                 </Column>
             }
         }

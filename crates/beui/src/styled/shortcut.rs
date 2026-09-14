@@ -14,7 +14,14 @@ pub fn Shortcut(keys: Prop<String>, description: Prop<String>) -> NodeId {
     view! {
         <CenteredRow spacing=SPACING>
             <Chip label={keys} />
-            <Text @sizing=ItemSize::Percent(100.0) string={description} font_size=FONT_SMALL color={theme.pick(|theme| theme.text_muted)} align=TextAlign::Start wrap=true />
+            <Text
+                @sizing=ItemSize::Percent(100.0)
+                string={description}
+                font_size=FONT_SMALL
+                color={theme.pick(|theme| theme.text_muted)}
+                align=TextAlign::Start
+                wrap=true
+            />
         </CenteredRow>
     }
 }

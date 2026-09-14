@@ -11,11 +11,7 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
         let switch_ref = switch_ref.clone();
         move || {
             let condition = create_memo(move || tab.get() == 0);
-            [view! {
-                <Show condition>
-                    <Switch @node_ref=&switch_ref on=false />
-                </Show>
-            }]
+            [view! { <Show condition><Switch @node_ref=&switch_ref on=false /></Show> }]
         }
     });
     let mut harness = Harness::new(document);

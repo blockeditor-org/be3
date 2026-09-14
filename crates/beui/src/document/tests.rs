@@ -377,9 +377,7 @@ pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Doc
 
 #[component]
 pub(crate) fn MenuRegion() -> NodeId {
-    view! {
-        <Frame width=120.0 height=60.0 color=Color32::from_gray(80) radius=4 />
-    }
+    view! { <Frame width=120.0 height=60.0 color=Color32::from_gray(80) radius=4 /> }
 }
 
 #[component]
@@ -394,9 +392,7 @@ pub(crate) fn ButtonFace(label: String) -> NodeId {
 #[component]
 pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
     view! {
-        <unstyled::Button on_click={move || on_click.call()}>
-            <ButtonFace label />
-        </unstyled::Button>
+        <unstyled::Button on_click={move || on_click.call()}><ButtonFace label /></unstyled::Button>
     }
 }
 
@@ -408,7 +404,8 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId
         move || {
             view! {
                 <Column spacing=0.0>
-                    <VirtualList @sizing=ItemSize::Percent(100.0)
+                    <VirtualList
+                        @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
                         item_height=VIRTUAL_ITEM_HEIGHT
@@ -416,7 +413,10 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId
                         {move |index: usize| {
                             sink.borrow_mut().push(index);
                             view! {
-                                <Frame padding_horizontal=0.0 padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}>
+                                <Frame
+                                    padding_horizontal=0.0
+                                    padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
+                                >
                                     <Spacer />
                                 </Frame>
                             }
@@ -443,12 +443,7 @@ pub(crate) fn hello_column() -> HelloColumn {
             view! {
                 <Column spacing=0.0>
                     <Frame @node_ref=&padding padding_horizontal=4.0 padding_vertical=4.0>
-                        <Text
-                            @node_ref=&text
-                            string="Hello"
-                            font_size=14.0
-                            color=Color32::WHITE
-                        />
+                        <Text @node_ref=&text string="Hello" font_size=14.0 color=Color32::WHITE />
                     </Frame>
                 </Column>
             }

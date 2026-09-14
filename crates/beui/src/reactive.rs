@@ -632,14 +632,7 @@ pub fn Column(spacing: Prop<f32>, children: Children) -> NodeId {
 
 #[component]
 pub fn CenteredRow(spacing: Prop<f32>, children: Children) -> NodeId {
-    view! {
-        <List
-            direction=Direction::Horizontal
-            align=Align::Center
-            spacing
-            children
-        />
-    }
+    view! { <List direction=Direction::Horizontal align=Align::Center spacing children /> }
 }
 
 #[component]
@@ -738,11 +731,5 @@ where
 
 #[component]
 pub fn Button(children: Children, disabled: Prop<bool>, on_click: ClickCallback) -> NodeId {
-    view! {
-        <unstyled::Button
-            disabled
-            on_click={move || on_click.call()}
-            children
-        />
-    }
+    view! { <unstyled::Button disabled on_click={move || on_click.call()} children /> }
 }

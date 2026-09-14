@@ -31,7 +31,8 @@ fn check_compact_rows(inset: f32) {
                         on=false
                         on_change={move |on: bool| set_compact.set(on)}
                     />
-                    <VirtualList @sizing=ItemSize::Percent(100.0)
+                    <VirtualList
+                        @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
                         item_height
@@ -40,7 +41,9 @@ fn check_compact_rows(inset: f32) {
                             sink.borrow_mut().push(index);
                             let height = row_height.get() / 2.0;
                             view! {
-                                <Frame padding_horizontal=0.0 padding_vertical={height}><Spacer /></Frame>
+                                <Frame padding_horizontal=0.0 padding_vertical={height}>
+                                    <Spacer />
+                                </Frame>
                             }
                         }}
                     </VirtualList>

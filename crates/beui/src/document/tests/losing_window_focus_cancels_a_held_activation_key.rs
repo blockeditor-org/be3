@@ -7,10 +7,7 @@ fn losing_window_focus_cancels_a_held_activation_key() {
     let counter = clicks.clone();
     let (document, [button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton
-                label="Click"
-                on_click={move || counter.set(counter.get() + 1)}
-            />
+            <LabelledButton label="Click" on_click={move || counter.set(counter.get() + 1)} />
         }]
     });
     let mut harness = Harness::new(document);

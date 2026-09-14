@@ -52,7 +52,16 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     let marker_color = theme.pick(|theme| theme.text_muted);
     let title_color = theme.pick(|theme| theme.text);
     view! {
-        <Frame color={header_color} outline={theme.pick(|theme| theme.accent)} outline_width=2.0 radius=RADIUS outline_offset=2.0 outline_visible={focused} padding_horizontal=PADDING_HORIZONTAL padding_vertical=PADDING_VERTICAL>
+        <Frame
+            color={header_color}
+            outline={theme.pick(|theme| theme.accent)}
+            outline_width=2.0
+            radius=RADIUS
+            outline_offset=2.0
+            outline_visible={focused}
+            padding_horizontal=PADDING_HORIZONTAL
+            padding_vertical=PADDING_VERTICAL
+        >
             <CenteredRow spacing=SPACING>
                 <Frame width=MARKER_WIDTH>
                     <Text
@@ -63,7 +72,8 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
                         align=TextAlign::Center
                     />
                 </Frame>
-                <Text @sizing=ItemSize::Percent(100.0)
+                <Text
+                    @sizing=ItemSize::Percent(100.0)
                     string={title}
                     font_size=FONT_HEADING
                     color={title_color}

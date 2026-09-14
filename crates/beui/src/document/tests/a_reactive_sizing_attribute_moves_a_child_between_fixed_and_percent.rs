@@ -30,7 +30,11 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
                     </Button>
                     <Row @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <Column @sizing={sizing} @node_ref=&left spacing=0.0></Column>
-                        <Column @sizing=ItemSize::Percent(100.0) @node_ref=&right spacing=0.0></Column>
+                        <Column
+                            @sizing=ItemSize::Percent(100.0)
+                            @node_ref=&right
+                            spacing=0.0
+                        ></Column>
                     </Row>
                 </Column>
             }

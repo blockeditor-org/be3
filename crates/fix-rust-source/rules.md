@@ -43,3 +43,18 @@ counter:
 empirical:
 - I enjoy it when I do look at the code
 - agent performance impact has not been measured
+
+## format view! calls:
+
+justification:
+- rustfmt gives up on `view!` because the body is not Rust syntax, so nothing else keeps it tidy and tag lines had grown past 240 columns
+- a canonical shape means diffs show what changed in the ui rather than how someone happened to wrap it
+- agents write views by pattern-matching nearby code, so one consistent shape is a better example than a mix
+
+counter:
+- the expressions inside `{...}` are still only re-indented, never reflowed, so a long one can push a line past 100 columns anyway
+- collapsing a short element onto one line can make siblings look inconsistent when only one of them fits
+- it is a second formatter to keep in step with rustfmt, and the two can disagree about a line rustfmt rewraps around a view
+
+empirical:
+- the first run reformatted 77 files and the workspace still compiled unchanged

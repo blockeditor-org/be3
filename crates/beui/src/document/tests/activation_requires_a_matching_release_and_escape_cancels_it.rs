@@ -7,10 +7,7 @@ fn activation_requires_a_matching_release_and_escape_cancels_it() {
     let counter = clicks.clone();
     let (document, [button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton
-                label="Click"
-                on_click={move || counter.set(counter.get() + 1)}
-            />
+            <LabelledButton label="Click" on_click={move || counter.set(counter.get() + 1)} />
         }]
     });
     let mut harness = Harness::new(document);

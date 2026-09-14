@@ -8,10 +8,21 @@ fn temporary_directory() -> PathBuf {
     std::env::temp_dir().join(format!("fix-rust-source-{}-{sequence}", std::process::id()))
 }
 
+fn formatted(source: &str) -> String {
+    String::from_utf8(crate::format_views(source.as_bytes()).expect("source parses")).unwrap()
+}
+
 mod fix_repository_check_reports_without_changes;
 mod fix_repository_does_not_rewrite_compliant_repository;
 mod fix_repository_enforces_rust_layout;
+mod fix_repository_formats_views;
 mod fix_repository_ignores_sources_outside_crates;
 mod fix_repository_removes_test_path_attributes;
 mod fix_repository_skips_hidden_directories;
+mod format_views_breaks_a_nested_view_inside_an_expression;
+mod format_views_breaks_a_tag_that_does_not_fit;
+mod format_views_collapses_a_view_that_fits_on_one_line;
+mod format_views_leaves_a_view_it_cannot_parse_alone;
+mod format_views_preserves_a_multi_line_string_literal;
+mod format_views_shifts_a_multi_line_expression_to_its_new_indent;
 mod strip_comments;

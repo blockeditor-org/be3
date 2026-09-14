@@ -17,9 +17,16 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
     let (document, [menu]) = toolbar_of({
         let region = region.clone();
         move || {
-            [view! { <ContextMenu items on_select={move |path| {
-                sink.borrow_mut().push(path);
-            }}><MenuRegion @node_ref=&region /></ContextMenu> }]
+            [view! {
+                <ContextMenu
+                    items
+                    on_select={move |path| {
+                        sink.borrow_mut().push(path);
+                    }}
+                >
+                    <MenuRegion @node_ref=&region />
+                </ContextMenu>
+            }]
         }
     });
     let region = region.get();

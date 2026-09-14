@@ -64,8 +64,21 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
         clone!(focused theme -> move || border_color(&theme.get(), focused.get(), hovered.get())),
     );
     view! {
-        <Frame outline={theme.pick(|theme| theme.accent)} outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
-            <Frame height=HEIGHT color={theme.pick(|theme| theme.surface_raised)} outline={border} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true>
+        <Frame
+            outline={theme.pick(|theme| theme.accent)}
+            outline_width=FOCUS_RING_WIDTH
+            radius=RADIUS
+            outline_offset=FOCUS_RING_OFFSET
+            outline_visible={focused}
+        >
+            <Frame
+                height=HEIGHT
+                color={theme.pick(|theme| theme.surface_raised)}
+                outline={border}
+                outline_width=BORDER_WIDTH
+                radius=RADIUS
+                outline_visible=true
+            >
                 {field}
             </Frame>
         </Frame>

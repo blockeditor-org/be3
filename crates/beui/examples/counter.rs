@@ -65,17 +65,11 @@ fn App() -> NodeId {
     view! {
         <Column spacing=8.0>
             <Row spacing=8.0>
-                <Button disabled={is_zero} on_click={decrement_click}>
-                    <Text string="-" />
-                </Button>
+                <Button disabled={is_zero} on_click={decrement_click}><Text string="-" /></Button>
                 <Text string={count_text} />
-                <Button on_click={increment_click}>
-                    <Text string="+" />
-                </Button>
+                <Button on_click={increment_click}><Text string="+" /></Button>
                 <Show condition={is_nonzero}>
-                    <Button on_click={reset_click}>
-                        <Text string="reset" />
-                    </Button>
+                    <Button on_click={reset_click}><Text string="reset" /></Button>
                 </Show>
             </Row>
             <ForEach spacing=4.0 items={history} key={|(id, _): (u64, i64)| id}>

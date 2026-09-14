@@ -58,13 +58,13 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         clone!(theme -> move || row_background(&theme.get(), focused.get(), hovered.get())),
     );
     view! {
-        <Frame color={fill_color} radius=RADIUS padding_horizontal=PADDING_HORIZONTAL padding_vertical=PADDING_VERTICAL>
-            <Text
-                string={item.label}
-                font_size=FONT_BODY
-                color
-                align=TextAlign::Start
-            />
+        <Frame
+            color={fill_color}
+            radius=RADIUS
+            padding_horizontal=PADDING_HORIZONTAL
+            padding_vertical=PADDING_VERTICAL
+        >
+            <Text string={item.label} font_size=FONT_BODY color align=TextAlign::Start />
         </Frame>
     }
 }
@@ -73,7 +73,16 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
 fn MenuPanel(children: Child) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame width=MENU_WIDTH color={theme.pick(|theme| theme.surface_raised)} outline={theme.pick(|theme| theme.border)} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
+        <Frame
+            width=MENU_WIDTH
+            color={theme.pick(|theme| theme.surface_raised)}
+            outline={theme.pick(|theme| theme.border)}
+            outline_width=BORDER_WIDTH
+            radius=RADIUS
+            outline_visible=true
+            padding_horizontal=MENU_PADDING
+            padding_vertical=MENU_PADDING
+        >
             {children}
         </Frame>
     }

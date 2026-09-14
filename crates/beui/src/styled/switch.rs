@@ -57,7 +57,13 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
     );
 
     view! {
-        <Frame outline={theme.pick(|theme| theme.accent)} outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+        <Frame
+            outline={theme.pick(|theme| theme.accent)}
+            outline_width=FOCUS_RING_WIDTH
+            radius=RADIUS
+            outline_offset=FOCUS_RING_OFFSET
+            outline_visible={focused}
+        >
             <Frame
                 width=WIDTH
                 height=HEIGHT

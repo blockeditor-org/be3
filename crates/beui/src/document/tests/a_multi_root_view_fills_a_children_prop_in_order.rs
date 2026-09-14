@@ -12,7 +12,9 @@ fn a_multi_root_view_fills_a_children_prop_in_order() {
             let toolbar = view! {
                 <Text @node_ref=&first string="One" font_size=14.0 color=Color32::WHITE />
                 <Text @node_ref=&second string="Two" font_size=14.0 color=Color32::WHITE />
-                {view! { <Text @node_ref=&third string="Three" font_size=14.0 color=Color32::WHITE /> }}
+                {view! {
+                    <Text @node_ref=&third string="Three" font_size=14.0 color=Color32::WHITE />
+                }}
             };
             view! { <Column @node_ref=&column spacing=0.0 children={toolbar} /> }
         }

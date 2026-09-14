@@ -40,7 +40,16 @@ pub(super) fn ChoiceOption(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
         clone!(theme -> move || background(&theme.get(), selected.get(), hovered.get())),
     );
     view! {
-        <Frame color={fill_color} outline={theme.pick(|theme| theme.accent)} outline_width=2.0 radius=RADIUS outline_offset=1.0 outline_visible={focused} padding_horizontal=14.0 padding_vertical=6.0>
+        <Frame
+            color={fill_color}
+            outline={theme.pick(|theme| theme.accent)}
+            outline_width=2.0
+            radius=RADIUS
+            outline_offset=1.0
+            outline_visible={focused}
+            padding_horizontal=14.0
+            padding_vertical=6.0
+        >
             <ChoiceLabel kind label color={label_color} checked />
         </Frame>
     }
@@ -68,10 +77,23 @@ fn ChoiceLabel(kind: Kind, label: String, color: Prop<Color32>, checked: Memo<bo
 fn RadioMark(checked: Memo<bool>) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame width=MARK_BOX height=MARK_BOX outline={theme.pick(|theme| theme.border)} outline_width=2.0 radius=MARK_RADIUS outline_visible=true>
+        <Frame
+            width=MARK_BOX
+            height=MARK_BOX
+            outline={theme.pick(|theme| theme.border)}
+            outline_width=2.0
+            radius=MARK_RADIUS
+            outline_visible=true
+        >
             <CenteredRow spacing=0.0>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Frame visible={checked} width=MARK_DOT height=MARK_DOT color={theme.pick(|theme| theme.accent)} radius=MARK_RADIUS />
+                <Frame
+                    visible={checked}
+                    width=MARK_DOT
+                    height=MARK_DOT
+                    color={theme.pick(|theme| theme.accent)}
+                    radius=MARK_RADIUS
+                />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </CenteredRow>
         </Frame>

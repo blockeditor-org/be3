@@ -9,9 +9,12 @@ fn setting_the_value_of_a_text_input_reports_the_change() {
     let (value, set_value) = create_signal(String::new());
     let (document, [_input]) = toolbar_of(|| {
         [view! {
-            <TextInput value on_change={move |value| {
-                *sink.borrow_mut() = value;
-            }} />
+            <TextInput
+                value
+                on_change={move |value| {
+                    *sink.borrow_mut() = value;
+                }}
+            />
         }]
     });
     let mut harness = Harness::new(document);

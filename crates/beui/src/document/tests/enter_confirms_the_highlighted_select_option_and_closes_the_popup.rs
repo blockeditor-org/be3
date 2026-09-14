@@ -11,11 +11,15 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
     let changes = Rc::new(RefCell::new(Vec::new()));
     let sink = changes.clone();
     let (document, [select]) = toolbar_of(|| {
-        [
-            view! { <Select options selected=None on_change={move |selected| {
-                sink.borrow_mut().push(selected);
-            }} /> },
-        ]
+        [view! {
+            <Select
+                options
+                selected=None
+                on_change={move |selected| {
+                    sink.borrow_mut().push(selected);
+                }}
+            />
+        }]
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

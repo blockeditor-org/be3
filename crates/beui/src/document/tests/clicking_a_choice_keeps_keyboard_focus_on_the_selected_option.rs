@@ -5,9 +5,12 @@ use crate::styled::RadioGroup;
 #[test]
 fn clicking_a_choice_keeps_keyboard_focus_on_the_selected_option() {
     let (document, [group]) = toolbar_of(|| {
-        [
-            view! { <RadioGroup labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string()]} selected=Some(0) /> },
-        ]
+        [view! {
+            <RadioGroup
+                labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string()]}
+                selected=Some(0)
+            />
+        }]
     });
     let options = document.children(group);
     let mut harness = Harness::new(document);

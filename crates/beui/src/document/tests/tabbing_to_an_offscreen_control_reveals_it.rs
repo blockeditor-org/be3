@@ -13,10 +13,7 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
                 .enumerate()
                 .map(|(index, button)| {
                     intrinsic(view! {
-                        <LabelledButton
-                            @node_ref={button}
-                            label={format!("Button {index}")}
-                        />
+                        <LabelledButton @node_ref={button} label={format!("Button {index}")} />
                     })
                 })
                 .collect();

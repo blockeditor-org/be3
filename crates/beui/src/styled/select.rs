@@ -73,7 +73,13 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
         clone!(focused theme -> move || border_color(&theme.get(), focused.get(), hovered.get())),
     );
     view! {
-        <Frame outline={theme.pick(|theme| theme.accent)} outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+        <Frame
+            outline={theme.pick(|theme| theme.accent)}
+            outline_width=FOCUS_RING_WIDTH
+            radius=RADIUS
+            outline_offset=FOCUS_RING_OFFSET
+            outline_visible={focused}
+        >
             <Frame
                 width=TRIGGER_WIDTH
                 height=HEIGHT
@@ -108,7 +114,14 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         clone!(theme -> move || border_color(&theme.get(), focused.get(), hovered.get())),
     );
     view! {
-        <Frame height=HEIGHT color={theme.pick(|theme| theme.surface)} outline={border} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true>
+        <Frame
+            height=HEIGHT
+            color={theme.pick(|theme| theme.surface)}
+            outline={border}
+            outline_width=BORDER_WIDTH
+            radius=RADIUS
+            outline_visible=true
+        >
             {field}
         </Frame>
     }
@@ -127,7 +140,12 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
         clone!(theme -> move || option_background(&theme.get(), highlighted.get(), hovered.get())),
     );
     view! {
-        <Frame color={fill_color} radius=RADIUS padding_horizontal=PADDING_HORIZONTAL padding_vertical=OPTION_PADDING_VERTICAL>
+        <Frame
+            color={fill_color}
+            radius=RADIUS
+            padding_horizontal=PADDING_HORIZONTAL
+            padding_vertical=OPTION_PADDING_VERTICAL
+        >
             <Text
                 string={label}
                 font_size=FONT_BODY
@@ -151,7 +169,9 @@ fn SelectPopup(children: Child) -> NodeId {
             outline_visible=true
             padding_horizontal=POPUP_PADDING
             padding_vertical=POPUP_PADDING
-        >{children}</Frame>
+        >
+            {children}
+        </Frame>
     }
 }
 

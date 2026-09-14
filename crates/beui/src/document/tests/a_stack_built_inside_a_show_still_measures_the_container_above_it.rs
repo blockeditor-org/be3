@@ -22,10 +22,18 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                             </Button>
                             <Show condition={visible}>
                                 <Stack spacing=0.0 breakpoint=BREAKPOINT>
-                                    <Frame @sizing=ItemSize::Percent(50.0) @node_ref=&left height=ITEM_HEIGHT>
+                                    <Frame
+                                        @sizing=ItemSize::Percent(50.0)
+                                        @node_ref=&left
+                                        height=ITEM_HEIGHT
+                                    >
                                         <Spacer />
                                     </Frame>
-                                    <Frame @sizing=ItemSize::Percent(50.0) @node_ref=&right height=ITEM_HEIGHT>
+                                    <Frame
+                                        @sizing=ItemSize::Percent(50.0)
+                                        @node_ref=&right
+                                        height=ITEM_HEIGHT
+                                    >
                                         <Spacer />
                                     </Frame>
                                 </Stack>

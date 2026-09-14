@@ -19,9 +19,7 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
                 intrinsic(view! { <Slider @node_ref=&slider value=0.5 /> }),
             ];
             items.extend((0..20).map(|_| {
-                intrinsic(view! {
-                    <Text string="Content" font_size=14.0 color=Color32::WHITE />
-                })
+                intrinsic(view! { <Text string="Content" font_size=14.0 color=Color32::WHITE /> })
             }));
             view! { <Scroll @node_ref=&scroll children={items} /> }
         }

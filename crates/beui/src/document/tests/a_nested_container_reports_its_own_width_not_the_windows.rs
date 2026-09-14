@@ -26,7 +26,11 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                         view! {
                             <Column spacing=0.0>
                                 <Stack spacing=0.0 breakpoint=BREAKPOINT>
-                                    <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&outer_item height=ITEM_HEIGHT>
+                                    <Frame
+                                        @sizing=ItemSize::Percent(100.0)
+                                        @node_ref=&outer_item
+                                        height=ITEM_HEIGHT
+                                    >
                                         <Spacer />
                                     </Frame>
                                 </Stack>
@@ -39,7 +43,8 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                                                 .push(narrower_than(BREAKPOINT));
                                             view! {
                                                 <Stack spacing=0.0 breakpoint=BREAKPOINT>
-                                                    <Frame @sizing=ItemSize::Percent(100.0)
+                                                    <Frame
+                                                        @sizing=ItemSize::Percent(100.0)
                                                         @node_ref=&inner_item
                                                         height=ITEM_HEIGHT
                                                     >

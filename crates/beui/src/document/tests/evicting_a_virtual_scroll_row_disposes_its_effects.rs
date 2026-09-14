@@ -10,7 +10,8 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
         move || {
             view! {
                 <Column spacing=0.0>
-                    <VirtualList @sizing=ItemSize::Percent(100.0)
+                    <VirtualList
+                        @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=100
                         item_height=20.0

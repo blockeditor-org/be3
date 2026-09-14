@@ -14,9 +14,11 @@ fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
         let (disabled, set_disabled) = create_signal(true);
 
         let toggle = view! {
-            <Button on_click={move || {
-                set_disabled.update(|disabled| *disabled = !*disabled)
-            }}>
+            <Button
+                on_click={move || {
+                    set_disabled.update(|disabled| *disabled = !*disabled)
+                }}
+            >
                 <Text string="toggle" />
             </Button>
         };

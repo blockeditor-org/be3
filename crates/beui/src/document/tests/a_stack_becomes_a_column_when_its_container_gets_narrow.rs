@@ -16,10 +16,18 @@ fn a_stack_becomes_a_column_when_its_container_gets_narrow() {
                 <Container>
                     {move |_| view! {
                         <Stack spacing=0.0 breakpoint=BREAKPOINT>
-                            <Frame @sizing=ItemSize::Percent(50.0) @node_ref=&left height=ITEM_HEIGHT>
+                            <Frame
+                                @sizing=ItemSize::Percent(50.0)
+                                @node_ref=&left
+                                height=ITEM_HEIGHT
+                            >
                                 <Spacer />
                             </Frame>
-                            <Frame @sizing=ItemSize::Percent(50.0) @node_ref=&right height=ITEM_HEIGHT>
+                            <Frame
+                                @sizing=ItemSize::Percent(50.0)
+                                @node_ref=&right
+                                height=ITEM_HEIGHT
+                            >
                                 <Spacer />
                             </Frame>
                         </Stack>

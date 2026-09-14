@@ -9,7 +9,8 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
         move || {
             view! {
                 <Column spacing=0.0>
-                    <VirtualList @sizing=ItemSize::Percent(100.0)
+                    <VirtualList
+                        @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
                         item_height=VIRTUAL_ITEM_HEIGHT

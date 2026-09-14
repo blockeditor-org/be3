@@ -8,9 +8,13 @@ fn clicking_a_tab_selects_the_panel_it_names() {
     let sink = reported.clone();
     let (document, [tabs]) = toolbar_of(|| {
         [view! {
-            <Tabs labels={vec!["List".to_string(), "Load".to_string()]} selected=0 on_change={move |selected| {
-                sink.set(selected);
-            }} />
+            <Tabs
+                labels={vec!["List".to_string(), "Load".to_string()]}
+                selected=0
+                on_change={move |selected| {
+                    sink.set(selected);
+                }}
+            />
         }]
     });
     let mut harness = Harness::new(document);

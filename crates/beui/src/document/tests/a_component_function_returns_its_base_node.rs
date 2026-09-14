@@ -9,11 +9,7 @@ fn Widget() -> NodeId {
 #[test]
 fn a_component_function_returns_its_base_node() {
     let document = build(|| {
-        view! {
-            <Column spacing=0.0>
-                <Widget />
-            </Column>
-        }
+        view! { <Column spacing=0.0><Widget /></Column> }
     });
     let mut harness = Harness::new(document);
 

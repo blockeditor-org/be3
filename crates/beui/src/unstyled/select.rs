@@ -215,7 +215,11 @@ pub fn Select(
                             }}
                             on_key_override={move |press: KeyPress| navigate(&navigate_state, press)}
                         />
-                        <Scroll @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT) reveal children={items} />
+                        <Scroll
+                            @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT)
+                            reveal
+                            children={items}
+                        />
                     </Column>
                 })}
             </Overlay>

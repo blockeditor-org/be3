@@ -51,8 +51,22 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
     }));
 
     view! {
-        <Frame outline={theme.pick(|theme| theme.accent)} outline_width=2.0 radius=RADIUS outline_offset=3.0 outline_visible={focused}>
-            <Frame color={fill_color} outline={border_color} outline_width=1.0 radius=RADIUS outline_visible=true padding_horizontal=14.0 padding_vertical=8.0>
+        <Frame
+            outline={theme.pick(|theme| theme.accent)}
+            outline_width=2.0
+            radius=RADIUS
+            outline_offset=3.0
+            outline_visible={focused}
+        >
+            <Frame
+                color={fill_color}
+                outline={border_color}
+                outline_width=1.0
+                radius=RADIUS
+                outline_visible=true
+                padding_horizontal=14.0
+                padding_vertical=8.0
+            >
                 <Text string={label} font_size=FONT_BODY color={theme.pick(|theme| theme.text)} />
             </Frame>
         </Frame>

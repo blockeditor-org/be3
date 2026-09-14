@@ -7,7 +7,10 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
     let (document, [listbox, after]) = toolbar_of(|| {
         [
             view! {
-                <Listbox labels={vec!["Apple".to_string(), "Banana".to_string(), "Blueberry".to_string(), "Cherry".to_string()]} selected=Some(0) />
+                <Listbox
+                    labels={vec!["Apple".to_string(), "Banana".to_string(), "Blueberry".to_string(), "Cherry".to_string()]}
+                    selected=Some(0)
+                />
             },
             view! { <LabelledButton label="After" /> },
         ]

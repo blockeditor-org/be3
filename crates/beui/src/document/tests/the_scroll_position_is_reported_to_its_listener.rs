@@ -10,14 +10,13 @@ fn the_scroll_position_is_reported_to_its_listener() {
         let items: Vec<_> = rows
             .into_iter()
             .map(|row| {
-                intrinsic(view! {
-                    <Text string={row} font_size=14.0 color=Color32::WHITE />
-                })
+                intrinsic(view! { <Text string={row} font_size=14.0 color=Color32::WHITE /> })
             })
             .collect();
         view! {
             <Column spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0)
+                <Scroll
+                    @sizing=ItemSize::Percent(100.0)
                     on_change={move |position| sink.set(Some(position))}
                     children={items}
                 />

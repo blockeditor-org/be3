@@ -68,7 +68,11 @@ impl GameUi {
         let document = build(move || {
             let theme = use_theme();
             view! {
-                <Frame color={theme.pick(|theme| theme.background)} padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+                <Frame
+                    color={theme.pick(|theme| theme.background)}
+                    padding_horizontal=PAGE_PADDING
+                    padding_vertical=PAGE_PADDING
+                >
                     <Dynamic value={snapshot} item_size=ItemSize::Percent(100.0)>
                         {move |snapshot| game_view(game.clone(), snapshot)}
                     </Dynamic>
@@ -119,11 +123,7 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: GameSnapshot) -> NodeId {
                 <Column spacing=16.0>
                     <Heading content={screen.description} />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <ForEach
-                            spacing=10.0
-                            items={actions}
-                            key={|action: Action| action.index}
-                        >
+                        <ForEach spacing=10.0 items={actions} key={|action: Action| action.index}>
                             {move |action: Action| {
                                 let effect = action.effect;
                                 let game = game.clone();
@@ -184,7 +184,11 @@ impl GameCreationUi {
                 }
             }));
             view! {
-                <Frame color={theme.pick(|theme| theme.background)} padding_horizontal=12.0 padding_vertical=10.0>
+                <Frame
+                    color={theme.pick(|theme| theme.background)}
+                    padding_horizontal=12.0
+                    padding_vertical=10.0
+                >
                     <Column spacing=8.0>
                         <Button
                             label="Choose game module..."

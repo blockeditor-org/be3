@@ -210,105 +210,129 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         let body_simulation_visible = simulation_visible.clone();
         let footer_simulation_visible = simulation_visible;
         view! {
-        <Row spacing=0.0>
-            <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-            <Frame @sizing=ItemSize::Percent(100.0) color={THEME.surface} radius=0>
-                <Column spacing=0.0>
-                    <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
-                        <Column spacing=HEADER_SPACING>
-                            <CenteredRow spacing=HEADER_SPACING>
-                                <Heading content="Inspector" />
-                                <Caption @sizing=ItemSize::Percent(100.0) content={count_text} align=TextAlign::End />
-                                <Show condition={header_tree_visible}>
-                                    <PickToggle state={pick_state} picking />
-                                </Show>
-                            </CenteredRow>
-                            <Tabs
-                                @node_ref=&tabs_ref
-                                labels={vec!["Beui".to_owned(), "A11y".to_owned(), "Perf".to_owned(), "Sim".to_owned()]}
-                                selected=0
-                                on_change={move |index| {
-                                    tab_state.set_tab(index);
-                                    set_tab.set(InspectorTab::from_index(index));
-                                }}
-                            />
-                        </Column>
-                    </Frame>
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
-                        <Column spacing=0.0>
-                            <Show @sizing=ItemSize::Percent(100.0) condition={body_tree_visible}>
-                                <Row spacing=BODY_SPACING>
-                                    <Scroll @sizing=ItemSize::Percent(100.0)
-                                        focus_color={THEME.accent}
-                                        on_change={move |value| set_position.set(value)}
-                                    >
-                                        <Tree
-                                            @node_ref=&tree_ref
-                                            keys
-                                            item={move |key: Key| item(&item_entries, key)}
-                                            selected={selection}
-                                            reveal
-                                            on_select={move |key: Key| select_state.select(key.node())}
-                                            on_expand={move |(key, expanded): (Key, bool)| {
-                                                expand_state.set_expanded(key, expanded);
-                                            }}
-                                            on_hover_change={move |(key, hovered): (Key, bool)| {
-                                                hover_state.hover(key.node(), hovered);
-                                            }}
+            <Row spacing=0.0>
+                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Frame @sizing=ItemSize::Percent(100.0) color={THEME.surface} radius=0>
+                    <Column spacing=0.0>
+                        <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
+                            <Column spacing=HEADER_SPACING>
+                                <CenteredRow spacing=HEADER_SPACING>
+                                    <Heading content="Inspector" />
+                                    <Caption
+                                        @sizing=ItemSize::Percent(100.0)
+                                        content={count_text}
+                                        align=TextAlign::End
+                                    />
+                                    <Show condition={header_tree_visible}>
+                                        <PickToggle state={pick_state} picking />
+                                    </Show>
+                                </CenteredRow>
+                                <Tabs
+                                    @node_ref=&tabs_ref
+                                    labels={vec!["Beui".to_owned(), "A11y".to_owned(), "Perf".to_owned(), "Sim".to_owned()]}
+                                    selected=0
+                                    on_change={move |index| {
+                                        tab_state.set_tab(index);
+                                        set_tab.set(InspectorTab::from_index(index));
+                                    }}
+                                />
+                            </Column>
+                        </Frame>
+                        <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                        <Frame
+                            @sizing=ItemSize::Percent(100.0)
+                            padding_horizontal=BODY_PADDING
+                            padding_vertical=BODY_PADDING
+                        >
+                            <Column spacing=0.0>
+                                <Show
+                                    @sizing=ItemSize::Percent(100.0)
+                                    condition={body_tree_visible}
+                                >
+                                    <Row spacing=BODY_SPACING>
+                                        <Scroll
+                                            @sizing=ItemSize::Percent(100.0)
+                                            focus_color={THEME.accent}
+                                            on_change={move |value| set_position.set(value)}
                                         >
-                                            {move |key: Key| view! {
-                                                <TreeCells
-                                                    row_key={key}
-                                                    entries={row_entries.clone()}
-                                                    rows={list_rows.clone()}
-                                                />
-                                            }}
-                                        </Tree>
-                                    </Scroll>
-                                    <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
-                                </Row>
-                            </Show>
-                            <Show @sizing=ItemSize::Percent(100.0) condition={body_performance_visible}>
-                                <PerformancePanel
-                                    @node_ref=&performance_panel_ref
-                                    performance={performance.clone()}
-                                />
-                            </Show>
-                            <Show @sizing=ItemSize::Percent(100.0) condition={body_simulation_visible}>
-                                <SimulationPanel
-                                    state={simulation_state.clone()}
-                                    touch_toggle={touch_toggle_ref.clone()}
-                                    pixel_ratio={pixel_ratio_ref.clone()}
-                                    theme_choice={theme_choice_ref.clone()}
-                                />
-                            </Show>
-                        </Column>
-                    </Frame>
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
-                        <Column spacing=0.0>
-                            <Show condition={footer_tree_visible}>
-                                <Column spacing=FOOTER_SPACING>
-                                    <Code content={selection_text} />
-                                    <Code content={bounds_text} color={THEME.text_muted} />
-                                </Column>
-                            </Show>
-                            <Show condition={footer_performance_visible}>
-                                <Button
-                                    label="Reset samples"
-                                    variant=ButtonVariant::Secondary
-                                    on_click={move || reset_state.reset_performance()}
-                                />
-                            </Show>
-                            <Show condition={footer_simulation_visible}>
-                                <Code content={native_pixel_ratio_text} color={THEME.text_muted} />
-                            </Show>
-                        </Column>
-                    </Frame>
-                </Column>
-            </Frame>
-        </Row>
+                                            <Tree
+                                                @node_ref=&tree_ref
+                                                keys
+                                                item={move |key: Key| item(&item_entries, key)}
+                                                selected={selection}
+                                                reveal
+                                                on_select={move |key: Key| select_state.select(key.node())}
+                                                on_expand={move |(key, expanded): (Key, bool)| {
+                                                    expand_state.set_expanded(key, expanded);
+                                                }}
+                                                on_hover_change={move |(key, hovered): (Key, bool)| {
+                                                    hover_state.hover(key.node(), hovered);
+                                                }}
+                                            >
+                                                {move |key: Key| view! {
+                                                    <TreeCells
+                                                        row_key={key}
+                                                        entries={row_entries.clone()}
+                                                        rows={list_rows.clone()}
+                                                    />
+                                                }}
+                                            </Tree>
+                                        </Scroll>
+                                        <Scrollbar
+                                            @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
+                                            position
+                                        />
+                                    </Row>
+                                </Show>
+                                <Show
+                                    @sizing=ItemSize::Percent(100.0)
+                                    condition={body_performance_visible}
+                                >
+                                    <PerformancePanel
+                                        @node_ref=&performance_panel_ref
+                                        performance={performance.clone()}
+                                    />
+                                </Show>
+                                <Show
+                                    @sizing=ItemSize::Percent(100.0)
+                                    condition={body_simulation_visible}
+                                >
+                                    <SimulationPanel
+                                        state={simulation_state.clone()}
+                                        touch_toggle={touch_toggle_ref.clone()}
+                                        pixel_ratio={pixel_ratio_ref.clone()}
+                                        theme_choice={theme_choice_ref.clone()}
+                                    />
+                                </Show>
+                            </Column>
+                        </Frame>
+                        <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                        <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
+                            <Column spacing=0.0>
+                                <Show condition={footer_tree_visible}>
+                                    <Column spacing=FOOTER_SPACING>
+                                        <Code content={selection_text} />
+                                        <Code content={bounds_text} color={THEME.text_muted} />
+                                    </Column>
+                                </Show>
+                                <Show condition={footer_performance_visible}>
+                                    <Button
+                                        label="Reset samples"
+                                        variant=ButtonVariant::Secondary
+                                        on_click={move || reset_state.reset_performance()}
+                                    />
+                                </Show>
+                                <Show condition={footer_simulation_visible}>
+                                    <Code
+                                        content={native_pixel_ratio_text}
+                                        color={THEME.text_muted}
+                                    />
+                                </Show>
+                            </Column>
+                        </Frame>
+                    </Column>
+                </Frame>
+            </Row>
         }
     });
     document.inspectable = false;
@@ -541,12 +565,16 @@ fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
     let picker = state;
     view! {
         <unstyled::Pressable on_click={move || picker.toggle_picking()}>
-            <Frame color={fill_color} outline={THEME.border} outline_width=BORDER_WIDTH radius=CHIP_RADIUS outline_visible=true padding_horizontal=TOGGLE_PADDING_HORIZONTAL padding_vertical=TOGGLE_PADDING_VERTICAL>
-                <Code
-                    content="Pick"
-                    align=TextAlign::Center
-                    color={label_color}
-                />
+            <Frame
+                color={fill_color}
+                outline={THEME.border}
+                outline_width=BORDER_WIDTH
+                radius=CHIP_RADIUS
+                outline_visible=true
+                padding_horizontal=TOGGLE_PADDING_HORIZONTAL
+                padding_vertical=TOGGLE_PADDING_VERTICAL
+            >
+                <Code content="Pick" align=TextAlign::Center color={label_color} />
             </Frame>
         </unstyled::Pressable>
     }

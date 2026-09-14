@@ -1,3 +1,5 @@
+mod views;
+
 use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasName};
 use ra_ap_syntax::{Edition, NodeOrToken, SourceFile, SyntaxNode};
 use std::error::Error;
@@ -6,6 +8,7 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
+pub use views::format_views;
 
 pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
     let mut violations = find_violations(root)?;
@@ -22,6 +25,7 @@ pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
     rename_module_files(root)?;
     strip_repository_comments(root)?;
     fix_test_layout(root)?;
+    format_repository_views(root)?;
 
     let remaining = find_layout_violations(root)?;
     if !remaining.is_empty() {
@@ -94,7 +98,7 @@ pub fn strip_comments(source: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     Ok(stripped)
 }
 
-fn parse(source: &[u8]) -> Result<SourceFile, Box<dyn Error>> {
+pub(crate) fn parse(source: &[u8]) -> Result<SourceFile, Box<dyn Error>> {
     let source = std::str::from_utf8(source)?;
     SourceFile::parse(source, Edition::Edition2024)
         .ok()
@@ -113,7 +117,7 @@ struct Comment {
     block: bool,
 }
 
-fn syntax_range(range: ra_ap_syntax::TextRange) -> Range<usize> {
+pub(crate) fn syntax_range(range: ra_ap_syntax::TextRange) -> Range<usize> {
     u32::from(range.start()) as usize..u32::from(range.end()) as usize
 }
 
@@ -219,8 +223,21 @@ fn inline_tests(node: &SyntaxNode) -> Option<InlineTests> {
     None
 }
 
-fn text(source: &[u8], range: Range<usize>) -> &str {
+pub(crate) fn text(source: &[u8], range: Range<usize>) -> &str {
     std::str::from_utf8(&source[range]).expect("Rust source is UTF-8")
+}
+
+fn format_repository_views(root: &Path) -> Result<(), Box<dyn Error>> {
+    let mut paths = Vec::new();
+    collect_crate_files(root, &mut paths)?;
+    for path in paths {
+        let source = fs::read(&path)?;
+        let formatted = format_views(&source)?;
+        if formatted != source {
+            fs::write(path, formatted)?;
+        }
+    }
+    Ok(())
 }
 
 fn strip_repository_comments(root: &Path) -> Result<(), Box<dyn Error>> {
@@ -361,6 +378,9 @@ fn inspect_file_queue(
             .any(|token| ast::AnyComment::cast(token).is_some())
         {
             violations.push(format!("comments: {relative}"));
+        }
+        if format_views(&source).map_err(|error| error.to_string())? != source {
+            violations.push(format!("view formatting: {relative}"));
         }
     }
     Ok(violations)

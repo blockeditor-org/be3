@@ -9,9 +9,13 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
     let (document, [group, after]) = toolbar_of(|| {
         [
             view! {
-                <RadioGroup labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string()]} selected=None on_change={move |value| {
-                    sink.borrow_mut().push(value)
-                }} />
+                <RadioGroup
+                    labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string()]}
+                    selected=None
+                    on_change={move |value| {
+                        sink.borrow_mut().push(value)
+                    }}
+                />
             },
             view! { <LabelledButton label="After" /> },
         ]

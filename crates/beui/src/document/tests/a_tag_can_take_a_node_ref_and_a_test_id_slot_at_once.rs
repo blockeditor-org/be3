@@ -8,9 +8,7 @@ fn a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once() {
         let spacer = spacer.clone();
         move || {
             view! {
-                <Column spacing=0.0>
-                    <Spacer @node_ref=&spacer @test_id="column.spacer" />
-                </Column>
+                <Column spacing=0.0><Spacer @node_ref=&spacer @test_id="column.spacer" /></Column>
             }
         }
     });

@@ -54,9 +54,21 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
         create_memo(clone!(theme -> move || knob_fill_color(&theme.get(), dragging.get())));
 
     view! {
-        <Frame height=HEIGHT outline={theme.pick(|theme| theme.accent)} outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+        <Frame
+            height=HEIGHT
+            outline={theme.pick(|theme| theme.accent)}
+            outline_width=FOCUS_RING_WIDTH
+            radius=RADIUS
+            outline_offset=FOCUS_RING_OFFSET
+            outline_visible={focused}
+        >
             <CenteredRow spacing=0.0>
-                <Frame @sizing={filled_percent} height=TRACK_HEIGHT color={theme.pick(|theme| theme.accent)} radius=TRACK_RADIUS />
+                <Frame
+                    @sizing={filled_percent}
+                    height=TRACK_HEIGHT
+                    color={theme.pick(|theme| theme.accent)}
+                    radius=TRACK_RADIUS
+                />
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
@@ -66,7 +78,12 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
                     outline_visible={theme.pick(|theme| theme.control_outline.is_some())}
                     radius=KNOB_RADIUS
                 />
-                <Frame @sizing={rest_percent} height=TRACK_HEIGHT color={theme.pick(|theme| theme.track)} radius=TRACK_RADIUS />
+                <Frame
+                    @sizing={rest_percent}
+                    height=TRACK_HEIGHT
+                    color={theme.pick(|theme| theme.track)}
+                    radius=TRACK_RADIUS
+                />
             </CenteredRow>
         </Frame>
     }

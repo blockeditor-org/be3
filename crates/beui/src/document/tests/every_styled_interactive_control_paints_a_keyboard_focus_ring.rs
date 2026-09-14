@@ -9,9 +9,7 @@ use crate::styled::{
 fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
     let controls: &[fn() -> NodeId] = &[
         || {
-            view! {
-                <Button label="Button" variant=styled::ButtonVariant::Primary />
-            }
+            view! { <Button label="Button" variant=styled::ButtonVariant::Primary /> }
         },
         || view! { <Checkbox label="Check" checked=false /> },
         || view! { <Switch on=false /> },
@@ -37,11 +35,7 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
             }
         },
         || {
-            view! {
-                <ListRow>
-                    <Text string="Row" font_size=14.0 color=Color32::WHITE />
-                </ListRow>
-            }
+            view! { <ListRow><Text string="Row" font_size=14.0 color=Color32::WHITE /></ListRow> }
         },
     ];
     for control in controls {

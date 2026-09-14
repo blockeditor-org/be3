@@ -12,9 +12,12 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
             .map(|index| {
                 let click_sink = click_sink.clone();
                 intrinsic(view! {
-                    <LabelledButton label={format!("Row {index}")} on_click={move || {
-                        click_sink.set(click_sink.get() + 1);
-                    }} />
+                    <LabelledButton
+                        label={format!("Row {index}")}
+                        on_click={move || {
+                            click_sink.set(click_sink.get() + 1);
+                        }}
+                    />
                 })
             })
             .collect::<Vec<_>>();

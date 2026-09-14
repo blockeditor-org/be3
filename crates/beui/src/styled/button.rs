@@ -50,9 +50,7 @@ pub fn Button(
         <unstyled::Button
             disabled
             on_click={move || on_click.call()}
-            content={move |handle| view! {
-                <ButtonFace handle variant label />
-            }}
+            content={move |handle| view! { <ButtonFace handle variant label /> }}
         />
     }
 }
@@ -73,7 +71,13 @@ fn ButtonFace(
         clone!(theme -> move || variant.fill(&theme.get(), hovered.get(), active.get())),
     );
     view! {
-        <Frame outline={theme.pick(|theme| theme.accent)} outline_width=FOCUS_RING_WIDTH radius={RADIUS + 4} outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+        <Frame
+            outline={theme.pick(|theme| theme.accent)}
+            outline_width=FOCUS_RING_WIDTH
+            radius={RADIUS + 4}
+            outline_offset=FOCUS_RING_OFFSET
+            outline_visible={focused}
+        >
             <Frame
                 color={fill_color}
                 outline={theme.pick(|theme| theme.border)}
@@ -83,7 +87,12 @@ fn ButtonFace(
                 padding_horizontal=PADDING_HORIZONTAL
                 padding_vertical=PADDING_VERTICAL
             >
-                <Text string={label} font_size=FONT_BODY color={theme.pick(move |theme| variant.label(theme))} align=TextAlign::Center />
+                <Text
+                    string={label}
+                    font_size=FONT_BODY
+                    color={theme.pick(move |theme| variant.label(theme))}
+                    align=TextAlign::Center
+                />
             </Frame>
         </Frame>
     }

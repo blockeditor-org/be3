@@ -48,32 +48,38 @@ impl CounterUi {
             let theme = use_theme();
 
             view! {
-                <Frame color={theme.pick(|theme| theme.background)} padding_horizontal=PADDING padding_vertical=PADDING>
+                <Frame
+                    color={theme.pick(|theme| theme.background)}
+                    padding_horizontal=PADDING
+                    padding_vertical=PADDING
+                >
                     <Column spacing=16.0>
-                            <Display
-                                content={create_memo(clone!(count -> move || count.get().to_string()))}
-                                @test_id={"counter.value"}
+                        <Display
+                            content={create_memo(clone!(count -> move || count.get().to_string()))}
+                            @test_id={"counter.value"}
+                        />
+                        <CenteredRow spacing=10.0>
+                            <Button
+                                @sizing=ItemSize::Fixed(BUTTON_WIDTH)
+                                label="-"
+                                variant=ButtonVariant::Primary
+                                @test_id={"counter.decrement"}
+                                on_click={decrement}
                             />
-                            <CenteredRow spacing=10.0>
-                                <Button @sizing=ItemSize::Fixed(BUTTON_WIDTH)
-                                    label="-"
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"counter.decrement"}
-                                    on_click={decrement}
-                                />
-                                <Button @sizing=ItemSize::Fixed(BUTTON_WIDTH)
-                                    label="+"
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"counter.increment"}
-                                    on_click={increment}
-                                />
-                                <Button
-                                    label="Reset"
-                                    variant=ButtonVariant::Secondary
-                                    @test_id={"counter.reset"}
-                                    on_click={reset}
-                                />
-                            </CenteredRow>
+                            <Button
+                                @sizing=ItemSize::Fixed(BUTTON_WIDTH)
+                                label="+"
+                                variant=ButtonVariant::Primary
+                                @test_id={"counter.increment"}
+                                on_click={increment}
+                            />
+                            <Button
+                                label="Reset"
+                                variant=ButtonVariant::Secondary
+                                @test_id={"counter.reset"}
+                                on_click={reset}
+                            />
+                        </CenteredRow>
                     </Column>
                 </Frame>
             }

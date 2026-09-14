@@ -8,7 +8,13 @@ use crate::styled::theme::{BORDER_WIDTH, use_theme};
 pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame outline={theme.pick(|theme| theme.border)} outline_width=BORDER_WIDTH radius={corner_radius} outline_offset=0.0 outline_visible=true>
+        <Frame
+            outline={theme.pick(|theme| theme.border)}
+            outline_width=BORDER_WIDTH
+            radius={corner_radius}
+            outline_offset=0.0
+            outline_visible=true
+        >
             {children}
         </Frame>
     }

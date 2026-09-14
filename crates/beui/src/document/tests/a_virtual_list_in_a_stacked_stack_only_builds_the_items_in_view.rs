@@ -29,7 +29,8 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                             <Spacer @sizing=ItemSize::Percent(50.0) />
                             <Column @sizing=ItemSize::Percent(50.0) spacing=0.0>
                                 <Column @sizing={size} spacing=0.0>
-                                    <VirtualList @sizing=ItemSize::Percent(100.0)
+                                    <VirtualList
+                                        @sizing=ItemSize::Percent(100.0)
                                         @node_ref=&scroll
                                         count=VIRTUAL_ITEM_COUNT
                                         item_height=VIRTUAL_ITEM_HEIGHT
@@ -37,7 +38,10 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                         {move |index: usize| {
                                             sink.borrow_mut().push(index);
                                             view! {
-                                                <Frame padding_horizontal=0.0 padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}>
+                                                <Frame
+                                                    padding_horizontal=0.0
+                                                    padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
+                                                >
                                                     <Spacer />
                                                 </Frame>
                                             }

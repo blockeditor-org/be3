@@ -16,10 +16,7 @@ fn a_dynamic_child_can_fill_its_available_height() {
                             view! {
                                 <Column spacing=10.0>
                                     <Frame height=20.0 />
-                                    <Scroll
-                                        @sizing=ItemSize::Percent(100.0)
-                                        @node_ref=&scroll
-                                    />
+                                    <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll />
                                 </Column>
                             }
                         }}
