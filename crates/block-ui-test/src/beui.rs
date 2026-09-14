@@ -11,6 +11,7 @@ const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 
 pub struct BeuiTest<A: BeuiApp> {
     app: A,
+    region: Region,
     context: Context,
     size: Vec2,
     pixels_per_point: f32,
@@ -19,12 +20,27 @@ pub struct BeuiTest<A: BeuiApp> {
     output: Option<beui::FrameOutput>,
 }
 
+#[derive(Clone, Copy)]
+enum Region {
+    Frame,
+    Creation,
+}
+
 impl<A: BeuiApp> BeuiTest<A> {
     pub fn new(app: A) -> Self {
+        Self::for_region(app, Region::Frame)
+    }
+
+    pub fn creation(app: A) -> Self {
+        Self::for_region(app, Region::Creation)
+    }
+
+    fn for_region(app: A, region: Region) -> Self {
         let context = Context::with_fonts(&block_editor_plugin::beui_fonts());
         context.set_pixels_per_point(1.0);
         let mut editor = Self {
             app,
+            region,
             context,
             size: SIZE,
             pixels_per_point: 1.0,
@@ -57,9 +73,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn step(&mut self, events: Vec<Event>) {
         let rect = self.rect();
         let app = &mut self.app;
-        let output = self.context.run(beui::RawInput { events }, |context| {
-            app.frame(context, rect)
-        });
+        let region = self.region;
+        let output = self
+            .context
+            .run(beui::RawInput { events }, |context| match region {
+                Region::Frame => app.frame(context, rect),
+                Region::Creation => app.creation_frame(context, rect),
+            });
         self.output = Some(output);
     }
 

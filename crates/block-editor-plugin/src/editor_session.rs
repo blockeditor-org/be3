@@ -102,6 +102,7 @@ struct RegionState {
 
 trait AppUi {
     fn beui_frame(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
+    fn beui_creation(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
     fn beui_preview(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
     fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid);
     fn connect_creation(&mut self, host: EditorHost, client: Arc<BlockClient>);
@@ -234,6 +235,10 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
 
     fn beui_preview(&mut self, context: &beui::Context, rect: beui::Rect) {
         crate::BeuiApp::preview(&mut self.app, context, rect);
+    }
+
+    fn beui_creation(&mut self, context: &beui::Context, rect: beui::Rect) {
+        crate::BeuiApp::creation_frame(&mut self.app, context, rect);
     }
 
     fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid) {
@@ -1040,6 +1045,7 @@ impl EditorSession {
             .get(&region)
             .and_then(|state| state.frame.clone())
             .unwrap_or_default();
+        let creating = self.creating;
         let beui = self.beui.as_mut()?;
         let state = beui.entry(region).or_insert_with(BeuiRegion::new);
         let events = std::mem::take(&mut state.events);
@@ -1053,6 +1059,7 @@ impl EditorSession {
         let app = &mut self.app;
         let mut chrome = None;
         let output = context.run(beui::RawInput { events }, |context| match region {
+            EditorRegion::Frame if creating => app.beui_creation(context, frame),
             EditorRegion::Frame => {
                 let drawn = spec.chrome == FrameChrome::Drawn;
                 let shown = beui_frame::show(context, frame, &spec.trail, drawn);

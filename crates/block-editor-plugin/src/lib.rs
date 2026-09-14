@@ -60,6 +60,7 @@ pub trait BeuiApp: Default + 'static {
     ) {
     }
     fn connect_creation(&mut self, _host: EditorHost, _client: Arc<block_client::BlockClient>) {}
+    fn creation_frame(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
     fn create_block(&mut self) -> Result<uuid::Uuid, String> {
         Err("this editor does not create blocks".into())
     }

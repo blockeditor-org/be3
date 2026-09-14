@@ -2021,6 +2021,7 @@ dependencies = [
 name = "deterministic_game"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block 0.1.0",
  "block-client",
  "block-editor-plugin",

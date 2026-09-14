@@ -232,6 +232,10 @@ The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
 creation flow, host connection, and current BEUI plugin capability limits.
 
+A plugin with `"creation": "Dialog"` implements `creation_frame` to show a
+separate retained document in the host's creation dialog. Host services such as
+`BlockPicker` work there in the same way they do from an egui creation UI.
+
 ## Develop an unstyled component
 
 An unstyled component owns semantics and interaction, not appearance. Put it in
