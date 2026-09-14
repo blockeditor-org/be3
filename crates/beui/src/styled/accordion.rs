@@ -6,8 +6,7 @@ use crate::base::TextAlign;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    create_memo, Callback, CenteredRow, Child, Fill, ItemSize, Memo, Outline, Padding, Prop, Sized,
-    Text,
+    create_memo, Callback, CenteredRow, Child, Frame, ItemSize, Memo, Prop, Text,
 };
 use crate::styled::theme::{
     ACCENT, FONT_HEADING, FONT_SMALL, RADIUS, SURFACE_RAISED, TEXT, TEXT_MUTED,
@@ -51,29 +50,25 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     let header_color = create_memo(move || header_fill(hovered.get()));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
     view! {
-        <Outline color=ACCENT width=2.0 radius=RADIUS offset=2.0 visible={focused}>
-            <Fill color={header_color} radius=RADIUS>
-                <Padding horizontal=PADDING_HORIZONTAL vertical=PADDING_VERTICAL>
-                    <CenteredRow spacing=SPACING>
-                        <Sized width=MARKER_WIDTH>
-                            <Text
-                                string={marker_glyph}
-                                font_size=FONT_SMALL
-                                color=TEXT_MUTED
-                                monospace=true
-                                align=TextAlign::Center
-                            />
-                        </Sized>
-                        <Text @sizing=ItemSize::Percent(100.0)
-                            string={title}
-                            font_size=FONT_HEADING
-                            color=TEXT
-                            align=TextAlign::Start
-                        />
-                    </CenteredRow>
-                </Padding>
-            </Fill>
-        </Outline>
+        <Frame color={header_color} outline=ACCENT outline_width=2.0 radius=RADIUS outline_offset=2.0 outline_visible={focused} padding_horizontal=PADDING_HORIZONTAL padding_vertical=PADDING_VERTICAL>
+            <CenteredRow spacing=SPACING>
+                <Frame width=MARKER_WIDTH>
+                    <Text
+                        string={marker_glyph}
+                        font_size=FONT_SMALL
+                        color=TEXT_MUTED
+                        monospace=true
+                        align=TextAlign::Center
+                    />
+                </Frame>
+                <Text @sizing=ItemSize::Percent(100.0)
+                    string={title}
+                    font_size=FONT_HEADING
+                    color=TEXT
+                    align=TextAlign::Start
+                />
+            </CenteredRow>
+        </Frame>
     }
 }
 

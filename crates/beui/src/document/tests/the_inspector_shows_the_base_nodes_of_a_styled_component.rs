@@ -17,11 +17,6 @@ fn the_inspector_shows_the_base_nodes_of_a_styled_component() {
 
     assert_eq!(
         harness.tree(),
-        [
-            "column",
-            "  focusable",
-            "    click-catcher",
-            "      outline"
-        ]
+        ["column", "  focusable", "    click-catcher", "      frame"]
     );
 }

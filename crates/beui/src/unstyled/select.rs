@@ -5,8 +5,8 @@ use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
     clone, create_effect, create_memo, create_selector, create_signal, intrinsic,
-    set_component_state, Callback, Child, Column, ItemSize, Memo, NodeRef, Prop, ReadSignal,
-    Render, RenderFn, Scroll, Selector, Visibility, WriteSignal,
+    set_component_state, Callback, Child, Column, Frame, ItemSize, Memo, NodeRef, Prop, ReadSignal,
+    Render, RenderFn, Scroll, Selector, WriteSignal,
 };
 use crate::unstyled;
 use crate::unstyled::button::ButtonHandle;
@@ -240,7 +240,7 @@ fn SelectRow(
         node
     });
     view! {
-        <Visibility visible>
+        <Frame visible>
             <unstyled::Button
                 @node_ref={&state.rows[index].button}
                 accessibility
@@ -262,7 +262,7 @@ fn SelectRow(
                 }}
                 on_click={move || confirm(&click_state, index)}
             />
-        </Visibility>
+        </Frame>
     }
 }
 

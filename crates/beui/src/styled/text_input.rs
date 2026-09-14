@@ -5,7 +5,7 @@ use crate::color::Color32;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{create_memo, Callback, Fill, Outline, Prop, Sized};
+use crate::reactive::{create_memo, Callback, Frame, Prop};
 use crate::styled::theme::{
     ACCENT, ACCENT_SOFT, BORDER, BORDER_WIDTH, FONT_BODY, RADIUS, SURFACE_RAISED, TEXT, TEXT_MUTED,
 };
@@ -63,13 +63,11 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
         move || border_color(focused.get(), hovered.get())
     });
     view! {
-        <Outline color=ACCENT width=FOCUS_RING_WIDTH radius=RADIUS offset=FOCUS_RING_OFFSET visible={focused}>
-            <Sized height=HEIGHT>
-                <Outline color={border} width=BORDER_WIDTH radius=RADIUS offset=0.0 visible=true>
-                    <Fill color=SURFACE_RAISED radius=RADIUS>{field}</Fill>
-                </Outline>
-            </Sized>
-        </Outline>
+        <Frame outline=ACCENT outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+            <Frame height=HEIGHT color=SURFACE_RAISED outline={border} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true>
+                {field}
+            </Frame>
+        </Frame>
     }
 }
 

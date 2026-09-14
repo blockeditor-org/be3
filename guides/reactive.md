@@ -206,11 +206,11 @@ enough to read on their own may drop the braces: literals, paths, a call on a
 path, a unary expression, and a reference to a path.
 
 ```rust
-<Fill color=SURFACE radius=0>
+<Frame color=SURFACE>
 <Caption content=count_text align=TextAlign::End />
 <List direction=Direction::Horizontal />
-<Sized @node_ref=&panel width=TRIGGER_WIDTH height=HEIGHT>
-<Fill color=Color32::from_gray(40) radius=4>
+<Frame @node_ref=&panel width=TRIGGER_WIDTH height=HEIGHT>
+<Frame color=Color32::from_gray(40) radius=4>
 ```
 
 An attribute written as a bare name takes the value of the binding with that
@@ -243,7 +243,7 @@ actually changes.
 
 ```rust
 let fill = create_memo(move || if hovered.get() { HOVER } else { REST });
-view! { <Fill color={fill} radius=RADIUS>{child}</Fill> }
+view! { <Frame color={fill} radius=RADIUS>{child}</Frame> }
 ```
 
 `Prop<T>` reads with `get()`, which subscribes the computation around it, and

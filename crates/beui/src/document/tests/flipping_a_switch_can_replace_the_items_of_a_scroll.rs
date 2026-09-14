@@ -40,7 +40,7 @@ fn check_compact_rows(inset: f32) {
                             sink.borrow_mut().push(index);
                             let height = row_height.get() / 2.0;
                             view! {
-                                <Padding horizontal=0.0 vertical={height}><Spacer /></Padding>
+                                <Frame padding_horizontal=0.0 padding_vertical={height}><Spacer /></Frame>
                             }
                         }}
                     </VirtualList>

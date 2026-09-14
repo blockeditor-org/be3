@@ -2,8 +2,8 @@ use beui::reactive::ItemSize;
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
-    build, clone, create_memo, create_signal, view, with_reactive_scope, CenteredRow, Column, Fill,
-    Padding, WriteSignal,
+    build, clone, create_memo, create_signal, view, with_reactive_scope, CenteredRow, Column,
+    Frame, WriteSignal,
 };
 use block_editor_plugin::beui::styled::theme::BACKGROUND;
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Display};
@@ -48,9 +48,8 @@ impl CounterUi {
             let increment = step(&counter, &sink, Counter::increment);
 
             view! {
-                <Fill color=BACKGROUND radius=0>
-                    <Padding horizontal=PADDING vertical=PADDING>
-                        <Column spacing=16.0>
+                <Frame color=BACKGROUND padding_horizontal=PADDING padding_vertical=PADDING>
+                    <Column spacing=16.0>
                             <Display
                                 content={create_memo(clone!(count -> move || count.get().to_string()))}
                                 @test_id={"counter.value"}
@@ -75,9 +74,8 @@ impl CounterUi {
                                     on_click={reset}
                                 />
                             </CenteredRow>
-                        </Column>
-                    </Padding>
-                </Fill>
+                    </Column>
+                </Frame>
             }
         });
 

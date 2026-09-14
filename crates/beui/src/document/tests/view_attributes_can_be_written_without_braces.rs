@@ -17,17 +17,15 @@ fn view_attributes_can_be_written_without_braces() {
             view! {
                 <Column spacing=0.0>
                     <Row spacing=0.0>
-                        <Sized @node_ref=&box_ref width=BOX_WIDTH height=40.0>
-                            <Fill color=Color32::from_gray(40) radius=4>
-                                <Text
-                                    @node_ref=&label
-                                    string=LABEL
-                                    font_size=LABEL_SIZE
-                                    align=TextAlign::End
-                                    wrap=false
-                                />
-                            </Fill>
-                        </Sized>
+                        <Frame @node_ref=&box_ref width=BOX_WIDTH height=40.0 color=Color32::from_gray(40) radius=4>
+                            <Text
+                                @node_ref=&label
+                                string=LABEL
+                                font_size=LABEL_SIZE
+                                align=TextAlign::End
+                                wrap=false
+                            />
+                        </Frame>
                     </Row>
                 </Column>
             }

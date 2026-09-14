@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use crate::color::Color32;
 
 use crate::node::NodeId;
-use crate::reactive::{create_memo, Child, ClickCallback, Fill, Outline, Padding};
+use crate::reactive::{create_memo, Child, ClickCallback, Frame};
 use crate::styled::theme::{ACCENT, BORDER, RADIUS, SURFACE_RAISED};
 use crate::unstyled::{Button, ButtonHandle};
 
@@ -29,11 +29,9 @@ fn ListRowFace(handle: ButtonHandle, children: Child) -> NodeId {
     } = handle;
     let fill_color = create_memo(move || background(hovered.get(), active.get()));
     view! {
-        <Outline color=ACCENT width=2.0 radius=RADIUS offset=0.0 visible={focused}>
-            <Fill color={fill_color} radius=RADIUS>
-                <Padding horizontal=PADDING_HORIZONTAL vertical=PADDING_VERTICAL>{children}</Padding>
-            </Fill>
-        </Outline>
+        <Frame color={fill_color} outline=ACCENT outline_width=2.0 radius=RADIUS outline_visible={focused} padding_horizontal=PADDING_HORIZONTAL padding_vertical=PADDING_VERTICAL>
+            {children}
+        </Frame>
     }
 }
 

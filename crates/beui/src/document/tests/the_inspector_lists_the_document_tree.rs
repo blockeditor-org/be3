@@ -7,5 +7,5 @@ fn the_inspector_lists_the_document_tree() {
 
     harness.toggle_inspector();
 
-    assert_eq!(harness.tree(), ["column", "  padding", "    text"]);
+    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
 }

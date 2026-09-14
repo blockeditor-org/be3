@@ -7,7 +7,6 @@ use std::rc::Rc;
 pub use crate::base::ItemSize;
 
 use crate::base::{Align, Direction};
-use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::Vec2;
 use crate::node::{ClickHandler, Handler, NodeId};
@@ -598,14 +597,10 @@ pub trait UnitHandle<H> {}
 impl<F> UnitHandle<()> for F {}
 
 pub use crate::base::click_catcher::ClickCatcher;
-pub use crate::base::fill::Fill;
 pub use crate::base::focusable::Focusable;
-pub use crate::base::outline::Outline;
-pub use crate::base::padding::Padding;
+pub use crate::base::frame::Frame;
 pub use crate::base::scroll::{Scroll, VirtualList};
-pub use crate::base::sized::Sized;
 pub use crate::base::text::Text;
-pub use crate::base::visibility::Visibility;
 
 #[component]
 pub fn List(
@@ -648,13 +643,13 @@ pub fn CenteredRow(spacing: Prop<f32>, children: Children) -> NodeId {
 
 #[component]
 pub fn Spacer() -> NodeId {
-    with_document(|document| document.create_fill(Color32::TRANSPARENT, 0))
+    with_document(Document::create_frame)
 }
 
 #[component]
 pub fn Show(condition: Prop<bool>, #[prop(children)] then: Option<Render>) -> NodeId {
     let mut then = then;
-    let visibility = with_document(|document| document.create_visibility(false));
+    let visibility = with_document(Document::create_frame);
     let built: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
     create_effect(move || {
         let visible = condition.get();
@@ -662,7 +657,7 @@ pub fn Show(condition: Prop<bool>, #[prop(children)] then: Option<Render>) -> No
             let build = then.take().expect("show requires a `then` callback");
             let child = in_new_scope(|| build.call(()));
             built.set(Some(child));
-            with_document(|document| document.set_visibility_child(visibility, child));
+            with_document(|document| document.set_frame_child(visibility, child));
         }
         with_document(|document| document.set_visible(visibility, visible));
     });

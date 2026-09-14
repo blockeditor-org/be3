@@ -1,9 +1,9 @@
 use std::any::Any;
 use std::collections::HashMap;
 
+use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::base::scroll::ScrollNode;
-use crate::base::visibility::VisibilityNode;
 use crate::geometry::{Rect, Vec2};
 use crate::input::{Key, KeyPress};
 use crate::painter::Painter;
@@ -234,7 +234,7 @@ impl Document {
         let element = self.arena.get(id);
         if element
             .as_any()
-            .downcast_ref::<VisibilityNode>()
+            .downcast_ref::<FrameNode>()
             .is_some_and(|node| !node.visible)
         {
             return;

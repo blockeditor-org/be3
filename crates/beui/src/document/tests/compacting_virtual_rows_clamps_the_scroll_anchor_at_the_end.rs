@@ -13,7 +13,13 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
         scroll,
         VIRTUAL_ITEM_COUNT,
         compact_height,
-        move |_| with_document(|document| document.create_padding(0.0, compact_height / 2.0)),
+        move |_| {
+            with_document(|document| {
+                let frame = document.create_frame();
+                document.set_frame_padding(frame, 0.0, compact_height / 2.0);
+                frame
+            })
+        },
     );
     harness.frame(Vec::new());
 

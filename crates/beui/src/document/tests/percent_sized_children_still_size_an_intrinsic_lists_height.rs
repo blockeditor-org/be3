@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, ItemSize, NodeRef, Padding, Row};
+use crate::reactive::{build, Frame, ItemSize, NodeRef, Row};
 
 #[test]
 fn percent_sized_children_still_size_an_intrinsic_lists_height() {
@@ -10,8 +10,8 @@ fn percent_sized_children_still_size_an_intrinsic_lists_height() {
             view! {
                 <Column spacing=0.0>
                     <Row @node_ref=&row spacing=0.0>
-                        <Padding @sizing=ItemSize::Percent(50.0) horizontal=0.0 vertical=20.0><Spacer /></Padding>
-                        <Padding @sizing=ItemSize::Percent(50.0) horizontal=0.0 vertical=20.0><Spacer /></Padding>
+                        <Frame @sizing=ItemSize::Percent(50.0) padding_horizontal=0.0 padding_vertical=20.0><Spacer /></Frame>
+                        <Frame @sizing=ItemSize::Percent(50.0) padding_horizontal=0.0 padding_vertical=20.0><Spacer /></Frame>
                     </Row>
                 </Column>
             }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    build, create_effect, create_signal, view, with_document, ClickCatcher, Fill, NodeRef,
+    build, create_effect, create_signal, view, with_document, ClickCatcher, Frame, NodeRef,
 };
 
 #[test]
@@ -15,7 +15,7 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
                     cursor=crate::CursorIcon::PointingHand
                     on_hover_change={move |hovered| set_hover_paints.set(hovered)}
                 >
-                    <Fill @node_ref=&fill color=Color32::WHITE radius=0 />
+                    <Frame @node_ref=&fill color=Color32::WHITE radius=0 />
                 </ClickCatcher>
             }
         }
@@ -35,7 +35,7 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
             } else {
                 Color32::WHITE
             };
-            with_document(|document| document.set_fill_color(fill, color));
+            with_document(|document| document.set_frame_color(fill, color));
         });
     });
     harness.frame(vec![Event::PointerGone]);

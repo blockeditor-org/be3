@@ -5,10 +5,7 @@ use crate::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::reactive::Memo;
-use crate::reactive::{
-    clone, create_memo, CenteredRow, Fill, ItemSize, Outline, Padding, Prop, Sized, Spacer, Text,
-    Visibility,
-};
+use crate::reactive::{clone, create_memo, CenteredRow, Frame, ItemSize, Prop, Spacer, Text};
 use crate::styled::theme::{
     ACCENT, ACCENT_SOFT, BORDER, FONT_BODY, RADIUS, SURFACE_RAISED, TEXT, TEXT_MUTED,
 };
@@ -36,18 +33,9 @@ pub(super) fn ChoiceOption(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
     let checked = selected.clone();
     let fill_color = create_memo(move || background(selected.get(), hovered.get()));
     view! {
-        <Outline color=ACCENT width=2.0 radius=RADIUS offset=1.0 visible={focused}>
-            <Fill color={fill_color} radius=RADIUS>
-                <Padding horizontal=14.0 vertical=6.0>
-                    <ChoiceLabel
-                        kind
-                        label
-                        color={label_color}
-                        checked
-                    />
-                </Padding>
-            </Fill>
-        </Outline>
+        <Frame color={fill_color} outline=ACCENT outline_width=2.0 radius=RADIUS outline_offset=1.0 outline_visible={focused} padding_horizontal=14.0 padding_vertical=6.0>
+            <ChoiceLabel kind label color={label_color} checked />
+        </Frame>
     }
 }
 
@@ -72,19 +60,13 @@ fn ChoiceLabel(kind: Kind, label: String, color: Prop<Color32>, checked: Memo<bo
 #[component]
 fn RadioMark(checked: Memo<bool>) -> NodeId {
     view! {
-        <Sized width=MARK_BOX height=MARK_BOX>
-            <Outline color=BORDER width=2.0 radius=MARK_RADIUS offset=0.0 visible=true>
-                <CenteredRow spacing=0.0>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Visibility visible={checked}>
-                        <Sized width=MARK_DOT height=MARK_DOT>
-                            <Fill color=ACCENT radius=MARK_RADIUS />
-                        </Sized>
-                    </Visibility>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </CenteredRow>
-            </Outline>
-        </Sized>
+        <Frame width=MARK_BOX height=MARK_BOX outline=BORDER outline_width=2.0 radius=MARK_RADIUS outline_visible=true>
+            <CenteredRow spacing=0.0>
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Frame visible={checked} width=MARK_DOT height=MARK_DOT color=ACCENT radius=MARK_RADIUS />
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+            </CenteredRow>
+        </Frame>
     }
 }
 

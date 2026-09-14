@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::node::NodeId;
-use crate::reactive::{create_memo, Callback, Child, Fill, Outline, Padding, Prop, Sized, Text};
+use crate::reactive::{create_memo, Callback, Child, Frame, Prop, Text};
 use crate::styled::theme::{
     ACCENT_SOFT, BORDER, BORDER_WIDTH, FONT_BODY, RADIUS, SURFACE_RAISED, TEXT, TEXT_MUTED,
 };
@@ -43,29 +43,23 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
     let color = if item.disabled { TEXT_MUTED } else { TEXT };
     let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
     view! {
-        <Fill color={fill_color} radius=RADIUS>
-            <Padding horizontal=PADDING_HORIZONTAL vertical=PADDING_VERTICAL>
-                <Text
-                    string={item.label}
-                    font_size=FONT_BODY
-                    color
-                    align=TextAlign::Start
-                />
-            </Padding>
-        </Fill>
+        <Frame color={fill_color} radius=RADIUS padding_horizontal=PADDING_HORIZONTAL padding_vertical=PADDING_VERTICAL>
+            <Text
+                string={item.label}
+                font_size=FONT_BODY
+                color
+                align=TextAlign::Start
+            />
+        </Frame>
     }
 }
 
 #[component]
 fn MenuPanel(children: Child) -> NodeId {
     view! {
-        <Sized width=MENU_WIDTH>
-            <Outline color=BORDER width=BORDER_WIDTH radius=RADIUS offset=0.0 visible=true>
-                <Fill color=SURFACE_RAISED radius=RADIUS>
-                    <Padding horizontal=MENU_PADDING vertical=MENU_PADDING>{children}</Padding>
-                </Fill>
-            </Outline>
-        </Sized>
+        <Frame width=MENU_WIDTH color=SURFACE_RAISED outline=BORDER outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
+            {children}
+        </Frame>
     }
 }
 

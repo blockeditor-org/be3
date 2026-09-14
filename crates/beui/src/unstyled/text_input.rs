@@ -21,7 +21,7 @@ use beui_macros::{component, view};
 
 use crate::reactive::{
     clone, component_accessibility, copy_text, create_effect, create_memo, create_signal,
-    set_component_state, Callback, Child, ClickCatcher, Focusable, Memo, NodeRef, Padding, Prop,
+    set_component_state, Callback, Child, ClickCatcher, Focusable, Frame, Memo, NodeRef, Prop,
     ReadSignal, Render, Text, WriteSignal,
 };
 
@@ -155,7 +155,7 @@ pub fn TextInput(
             >
                 {{
                     let field = view! {
-                        <Padding horizontal={padding_horizontal} vertical={padding_vertical}>
+                        <Frame padding_horizontal={padding_horizontal} padding_vertical={padding_vertical}>
                             <Text
                                 @node_ref=&text
                                 string
@@ -168,7 +168,7 @@ pub fn TextInput(
                                 align=TextAlign::Start
                                 clip=true
                             />
-                        </Padding>
+                        </Frame>
                     };
                     match content {
                         Some(build) => build.call(TextInputHandle { field, hovered, focused }),

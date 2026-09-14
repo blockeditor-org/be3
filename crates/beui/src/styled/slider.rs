@@ -5,9 +5,7 @@ use crate::color::Color32;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{
-    clone, create_memo, Callback, CenteredRow, Fill, ItemSize, Outline, Prop, Sized,
-};
+use crate::reactive::{clone, create_memo, Callback, CenteredRow, Frame, ItemSize, Prop};
 use crate::styled::theme::{ACCENT, ACCENT_HOVER, KNOB, RADIUS, TRACK};
 use crate::unstyled;
 use crate::unstyled::SliderHandle;
@@ -54,15 +52,13 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
     let knob_color = create_memo(move || knob_fill_color(dragging.get()));
 
     view! {
-        <Outline color=ACCENT width=FOCUS_RING_WIDTH radius=RADIUS offset=FOCUS_RING_OFFSET visible={focused}>
-            <Sized height=HEIGHT>
-                <CenteredRow spacing=0.0>
-                    <Sized @sizing={filled_percent} height=TRACK_HEIGHT><Fill color=ACCENT radius=TRACK_RADIUS></Fill></Sized>
-                    <Sized width=KNOB_SIZE height=KNOB_SIZE><Fill color={knob_color} radius=KNOB_RADIUS></Fill></Sized>
-                    <Sized @sizing={rest_percent} height=TRACK_HEIGHT><Fill color=TRACK radius=TRACK_RADIUS></Fill></Sized>
-                </CenteredRow>
-            </Sized>
-        </Outline>
+        <Frame height=HEIGHT outline=ACCENT outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+            <CenteredRow spacing=0.0>
+                <Frame @sizing={filled_percent} height=TRACK_HEIGHT color=ACCENT radius=TRACK_RADIUS />
+                <Frame width=KNOB_SIZE height=KNOB_SIZE color={knob_color} radius=KNOB_RADIUS />
+                <Frame @sizing={rest_percent} height=TRACK_HEIGHT color=TRACK radius=TRACK_RADIUS />
+            </CenteredRow>
+        </Frame>
     }
 }
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, NodeRef, Padding, Text};
+use crate::reactive::{build, view, Frame, NodeRef, Text};
 
 #[test]
 fn picking_a_node_reveals_it_in_the_tree() {
@@ -9,20 +9,20 @@ fn picking_a_node_reveals_it_in_the_tree() {
         move || {
             view! {
                 <Column spacing=0.0>
-                    <Padding horizontal=4.0 vertical=4.0>
-                        <Padding horizontal=4.0 vertical=4.0>
-                            <Padding horizontal=4.0 vertical=4.0>
-                                <Padding horizontal=4.0 vertical=4.0>
+                    <Frame padding_horizontal=4.0 padding_vertical=4.0>
+                        <Frame padding_horizontal=4.0 padding_vertical=4.0>
+                            <Frame padding_horizontal=4.0 padding_vertical=4.0>
+                                <Frame padding_horizontal=4.0 padding_vertical=4.0>
                                     <Text
                                         @node_ref=&text
                                         string="Hello"
                                         font_size=14.0
                                         color=Color32::WHITE
                                     />
-                                </Padding>
-                            </Padding>
-                        </Padding>
-                    </Padding>
+                                </Frame>
+                            </Frame>
+                        </Frame>
+                    </Frame>
                 </Column>
             }
         }
@@ -33,7 +33,7 @@ fn picking_a_node_reveals_it_in_the_tree() {
     harness.toggle_inspector();
     assert_eq!(
         harness.tree(),
-        ["column", "  padding", "    padding", "      padding"]
+        ["column", "  frame", "    frame", "      frame"]
     );
 
     harness.toggle_picking();
@@ -53,10 +53,10 @@ fn picking_a_node_reveals_it_in_the_tree() {
         harness.tree(),
         [
             "column",
-            "  padding",
-            "    padding",
-            "      padding",
-            "        padding",
+            "  frame",
+            "    frame",
+            "      frame",
+            "        frame",
             "          text",
         ]
     );

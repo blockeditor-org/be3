@@ -4,7 +4,7 @@ use crate::color::Color32;
 
 use crate::base::TextAlign;
 use crate::node::NodeId;
-use crate::reactive::{create_memo, ClickCallback, Fill, Outline, Padding, Prop, Text};
+use crate::reactive::{create_memo, ClickCallback, Frame, Prop, Text};
 use crate::styled::theme::{
     ACCENT, ACCENT_ACTIVE, ACCENT_HOVER, BORDER, BORDER_WIDTH, FONT_BODY, ON_ACCENT, RADIUS,
     SURFACE, SURFACE_RAISED, TEXT,
@@ -73,14 +73,18 @@ fn ButtonFace(
     } = handle;
     let fill_color = create_memo(move || variant.fill(hovered.get(), active.get()));
     view! {
-        <Outline color=ACCENT width=FOCUS_RING_WIDTH radius={RADIUS + 4} offset=FOCUS_RING_OFFSET visible={focused}>
-            <Outline color=BORDER width=BORDER_WIDTH radius=RADIUS offset=0.0 visible={variant == ButtonVariant::Secondary}>
-                <Fill color={fill_color} radius=RADIUS>
-                    <Padding horizontal=PADDING_HORIZONTAL vertical=PADDING_VERTICAL>
-                        <Text string={label} font_size=FONT_BODY color={variant.label()} align=TextAlign::Center />
-                    </Padding>
-                </Fill>
-            </Outline>
-        </Outline>
+        <Frame outline=ACCENT outline_width=FOCUS_RING_WIDTH radius={RADIUS + 4} outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+            <Frame
+                color={fill_color}
+                outline=BORDER
+                outline_width=BORDER_WIDTH
+                radius=RADIUS
+                outline_visible={variant == ButtonVariant::Secondary}
+                padding_horizontal=PADDING_HORIZONTAL
+                padding_vertical=PADDING_VERTICAL
+            >
+                <Text string={label} font_size=FONT_BODY color={variant.label()} align=TextAlign::Center />
+            </Frame>
+        </Frame>
     }
 }

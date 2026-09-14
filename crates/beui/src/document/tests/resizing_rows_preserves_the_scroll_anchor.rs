@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, intrinsic, view, NodeRef, Padding, Scroll};
+use crate::reactive::{build, intrinsic, view, Frame, NodeRef, Scroll};
 
 #[test]
 fn resizing_rows_preserves_the_scroll_anchor() {
@@ -15,13 +15,13 @@ fn resizing_rows_preserves_the_scroll_anchor() {
                 .enumerate()
                 .map(|(index, row)| {
                     intrinsic(view! {
-                        <Padding
+                        <Frame
                             @node_ref={row}
-                            horizontal=0.0
-                            vertical={10.0 + (index % 3) as f32}
+                            padding_horizontal=0.0
+                            padding_vertical={10.0 + (index % 3) as f32}
                         >
                             <Spacer />
-                        </Padding>
+                        </Frame>
                     })
                 })
                 .collect();
@@ -44,7 +44,7 @@ fn resizing_rows_preserves_the_scroll_anchor() {
     assert_eq!(top, -9.0);
 
     for &row in &rows[..10] {
-        harness.document.set_padding(row, 0.0, 5.0);
+        harness.document.set_frame_padding(row, 0.0, 5.0);
     }
     harness.frame(Vec::new());
 

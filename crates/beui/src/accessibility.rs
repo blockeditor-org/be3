@@ -6,10 +6,10 @@ use accesskit::{
 };
 
 use crate::base::focusable::FocusableNode;
+use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::base::scroll::ScrollNode;
 use crate::base::text::TextNode;
-use crate::base::visibility::VisibilityNode;
 use crate::geometry::{Rect, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
 use crate::node::NodeId;
@@ -96,7 +96,7 @@ impl Document {
         let element = self.arena.get(id);
         if element
             .as_any()
-            .downcast_ref::<VisibilityNode>()
+            .downcast_ref::<FrameNode>()
             .is_some_and(|node| !node.visible)
             || element
                 .as_any()

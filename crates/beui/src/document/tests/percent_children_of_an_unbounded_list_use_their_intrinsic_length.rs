@@ -13,9 +13,9 @@ fn percent_children_of_an_unbounded_list_use_their_intrinsic_length() {
                 <Column spacing=0.0>
                     <Column @node_ref=&inner spacing=0.0>
                         <Row @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                            <Padding horizontal=0.0 vertical={ITEM_HEIGHT / 2.0}>
+                            <Frame padding_horizontal=0.0 padding_vertical={ITEM_HEIGHT / 2.0}>
                                 <Spacer />
-                            </Padding>
+                            </Frame>
                         </Row>
                     </Column>
                 </Column>

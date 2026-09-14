@@ -1,7 +1,6 @@
 use beui::reactive::{
-    build, clone, create_memo, create_selector, create_signal, view, CenteredRow, Column, Fill,
-    Memo, Outline, Padding, ReadSignal, Row, Selector, Show, Spacer, VirtualList, Visibility,
-    WriteSignal,
+    build, clone, create_memo, create_selector, create_signal, view, CenteredRow, Column, Frame,
+    Memo, ReadSignal, Row, Selector, Show, Spacer, VirtualList, WriteSignal,
 };
 use beui::styled::theme::{
     ACCENT, ACCENT_SOFT, BACKGROUND, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT,
@@ -48,11 +47,11 @@ impl DemoApp {
         let document = build(|| {
             let (count, set_count) = create_signal(0i64);
             view! {
-                <Fill color=BACKGROUND radius=0>
+                <Frame color=BACKGROUND radius=0>
                     <Container>
                         {move |_| view! { <DemoShell count set_count /> }}
                     </Container>
-                </Fill>
+                </Frame>
             }
         });
 
@@ -157,22 +156,18 @@ fn ScrollRowFace(
     });
 
     view! {
-        <Outline color=ACCENT width=2.0 radius=RADIUS offset=0.0 visible={focused}>
-            <Fill color={fill_color} radius=RADIUS>
-                <Padding horizontal=ROW_PADDING_HORIZONTAL vertical>
-                    <CenteredRow spacing=12.0>
-                        <Body @sizing=ItemSize::Percent(100.0) content={format!("Row {index}")} />
-                        <Visibility visible={timings}>
-                            <Caption
-                                content={format!("{} ms", 7 + index * 3 % 91)}
-                                align=TextAlign::End
-                                color={value_color}
-                            />
-                        </Visibility>
-                    </CenteredRow>
-                </Padding>
-            </Fill>
-        </Outline>
+        <Frame color={fill_color} outline=ACCENT outline_width=2.0 radius=RADIUS outline_visible={focused} padding_horizontal=ROW_PADDING_HORIZONTAL padding_vertical={vertical}>
+            <CenteredRow spacing=12.0>
+                <Body @sizing=ItemSize::Percent(100.0) content={format!("Row {index}")} />
+                <Frame visible={timings}>
+                    <Caption
+                        content={format!("{} ms", 7 + index * 3 % 91)}
+                        align=TextAlign::End
+                        color={value_color}
+                    />
+                </Frame>
+            </CenteredRow>
+        </Frame>
     }
 }
 
@@ -209,14 +204,13 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
         }
     });
     view! {
-        <Fill color=SURFACE radius=0>
-            <Padding horizontal vertical=0.0>
-                <CenteredRow spacing=10.0>
+        <Frame color=SURFACE padding_horizontal={horizontal}>
+            <CenteredRow spacing=10.0>
                     <CenteredRow spacing=10.0>
                         <Title content="beui" />
-                        <Visibility visible={wide}>
+                        <Frame visible={wide}>
                             <Caption content="retained mode ui" />
-                        </Visibility>
+                        </Frame>
                     </CenteredRow>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Button label="Reset" variant=ButtonVariant::Secondary on_click={move || {
@@ -228,9 +222,8 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
                     <Button @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH) label="+" variant=ButtonVariant::Primary on_click={move || {
                         set_count.update(|value| *value = value.saturating_add(1));
                     }} />
-                </CenteredRow>
-            </Padding>
-        </Fill>
+            </CenteredRow>
+        </Frame>
     }
 }
 
@@ -245,12 +238,12 @@ fn DemoBody(count: ReadSignal<i64>) -> NodeId {
         }
     });
     view! {
-        <Padding horizontal={padding.clone()} vertical={padding}>
+        <Frame padding_horizontal={padding.clone()} padding_vertical={padding}>
             <Stack spacing=BODY_SPACING>
                 <Sidebar @sizing=ItemSize::Percent(32.0) />
                 <MainPanel @sizing=ItemSize::Percent(68.0) count />
             </Stack>
-        </Padding>
+        </Frame>
     }
 }
 

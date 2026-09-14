@@ -39,8 +39,9 @@ components directly because they have no interaction behavior to delegate.
 Interactive styled controls must use the matching unstyled behavior instead of
 reimplementing focus, keyboard, pointer, touch, or accessibility handling.
 
-The main base building blocks are `Row`, `Column`, `List`, `Fill`, `Outline`,
-`Padding`, `Sized`, `Text`, `Visibility`, `Scroll`, and `VirtualList`.
+The main base building blocks are `Row`, `Column`, `List`, `Frame`, `Text`,
+`Scroll`, and `VirtualList`. `Frame` combines optional sizing, padding, fill,
+outline, and visibility on one retained node.
 `Focusable` and `ClickCatcher` are lower-level interaction primitives mainly
 used to develop unstyled controls. The unstyled module contains behavior such
 as `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`,
@@ -58,7 +59,7 @@ wgpu renderer. A standalone app builds its document once and implements
 
 ```rust
 use beui::reactive::{
-    build, component, create_memo, create_signal, view, Column, Fill,
+    build, component, create_memo, create_signal, view, Column, Frame,
 };
 use beui::styled::theme::BACKGROUND;
 use beui::styled::{Button, ButtonVariant, Display};
@@ -75,7 +76,7 @@ fn Counter() -> NodeId {
     let label = create_memo(move || count.get().to_string());
 
     view! {
-        <Fill color=BACKGROUND radius=0>
+        <Frame color=BACKGROUND>
             <Column spacing=8.0>
                 <Display content={label} />
                 <Button
@@ -89,7 +90,7 @@ fn Counter() -> NodeId {
                     on_click={move || set_count.update(|value| *value += 1)}
                 />
             </Column>
-        </Fill>
+        </Frame>
     }
 }
 
@@ -170,9 +171,9 @@ the same frame.
 - `@node_ref` fills a `NodeRef` when enclosing code genuinely needs the
   resulting `NodeId`.
 
-Use `Sized` to constrain a component's own width or height. Use `@sizing` to
-describe how that component participates among siblings in a `Row`, `Column`,
-or `List`. `Container` and `narrower_than` provide container-responsive state;
+Use `Frame`'s `width` and `height` props to constrain a component's own size.
+Use `@sizing` to describe how that component participates among siblings in a
+`Row`, `Column`, or `List`. `Container` and `narrower_than` provide container-responsive state;
 `unstyled::Stack` and `styled::Stack` switch between a row and a column without
 rebuilding their children.
 
@@ -283,8 +284,8 @@ fn CustomButton(label: Prop<String>, on_click: ClickCallback) -> NodeId {
 ```
 
 `CustomButtonFace` derives colors or visibility with memos reading
-`handle.hovered`, `handle.active`, and `handle.focused`, then composes `Fill`,
-`Outline`, `Padding`, and `Text`. Keep keyboard and pointer handling in the
+`handle.hovered`, `handle.active`, and `handle.focused`, then composes `Frame`
+and `Text`. Keep keyboard and pointer handling in the
 unstyled button. Use constants from `styled::theme` for shared appearance and
 add a token there when a value is part of the theme rather than unique to one
 component.
@@ -315,8 +316,9 @@ stable `kind` for the inspector, and add a concise `detail` when it makes the
 tree easier to understand.
 
 The `base` module itself is private. Re-export base components intended for
-composition from `beui::reactive`, as the existing `Fill`, `Text`, and `Scroll`
-components are. Keep implementation-only primitives crate-private when they
+composition from `beui::reactive`, as the existing `Frame`, `Text`, and `Scroll`
+components are. Extend `Frame` when a new concern can share its single-child
+box model instead of adding another pass-through node. Keep implementation-only primitives crate-private when they
 exist solely to support an unstyled control.
 
 ## Test and verify changes

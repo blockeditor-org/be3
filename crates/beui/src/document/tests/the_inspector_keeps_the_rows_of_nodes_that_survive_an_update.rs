@@ -13,7 +13,7 @@ fn the_inspector_keeps_the_rows_of_nodes_that_survive_an_update() {
     harness.click(harness.marker_center(1));
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  padding"]);
+    assert_eq!(harness.tree(), ["column", "  frame"]);
     assert_eq!(
         (
             harness.inspector().row_node(0),
@@ -26,7 +26,7 @@ fn the_inspector_keeps_the_rows_of_nodes_that_survive_an_update() {
     harness.click(harness.marker_center(1));
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  padding", "    text"]);
+    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
     assert_eq!(
         (
             harness.inspector().row_node(0),

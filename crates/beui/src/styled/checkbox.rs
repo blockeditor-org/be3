@@ -6,8 +6,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    clone, create_memo, Callback, CenteredRow, Fill, ItemSize, Outline, Prop, Sized, Spacer, Text,
-    Visibility,
+    clone, create_memo, Callback, CenteredRow, Frame, ItemSize, Prop, Spacer, Text,
 };
 use crate::styled::theme::{
     ACCENT, ACCENT_HOVER, BORDER, BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, ON_ACCENT, RADIUS,
@@ -46,26 +45,18 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
     let border_visible = create_memo(clone!(checked -> move || !checked.get()));
 
     view! {
-        <Outline color=ACCENT width=FOCUS_RING_WIDTH radius=RADIUS offset=FOCUS_RING_OFFSET visible={focused}>
+        <Frame outline=ACCENT outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
             <CenteredRow spacing=SPACING>
-                <Sized width=BOX_SIZE height=BOX_SIZE>
-                    <Outline color=BORDER width=BORDER_WIDTH radius=CHIP_RADIUS offset=0.0 visible={border_visible}>
-                        <Fill color={fill_color} radius=CHIP_RADIUS>
-                            <CenteredRow spacing=0.0>
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
-                                <Visibility visible={checked}>
-                                    <Sized width=MARK_SIZE height=MARK_SIZE>
-                                        <Fill color=ON_ACCENT radius=MARK_RADIUS></Fill>
-                                    </Sized>
-                                </Visibility>
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
-                            </CenteredRow>
-                        </Fill>
-                    </Outline>
-                </Sized>
+                <Frame width=BOX_SIZE height=BOX_SIZE color={fill_color} outline=BORDER outline_width=BORDER_WIDTH radius=CHIP_RADIUS outline_visible={border_visible}>
+                    <CenteredRow spacing=0.0>
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Frame visible={checked} width=MARK_SIZE height=MARK_SIZE color=ON_ACCENT radius=MARK_RADIUS />
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                    </CenteredRow>
+                </Frame>
                 <Text @sizing=ItemSize::Percent(100.0) string={label} font_size=FONT_BODY color=TEXT align=TextAlign::Start />
             </CenteredRow>
-        </Outline>
+        </Frame>
     }
 }
 

@@ -37,9 +37,9 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                         {move |index: usize| {
                                             sink.borrow_mut().push(index);
                                             view! {
-                                                <Padding horizontal=0.0 vertical={VIRTUAL_ITEM_HEIGHT / 2.0}>
+                                                <Frame padding_horizontal=0.0 padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}>
                                                     <Spacer />
-                                                </Padding>
+                                                </Frame>
                                             }
                                         }}
                                     </VirtualList>

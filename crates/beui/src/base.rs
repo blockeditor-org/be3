@@ -1,14 +1,10 @@
 pub(crate) mod click_catcher;
-pub(crate) mod fill;
 pub(crate) mod focusable;
+pub(crate) mod frame;
 pub(crate) mod list;
-pub(crate) mod outline;
 pub(crate) mod overlay;
-pub(crate) mod padding;
 pub(crate) mod scroll;
-pub(crate) mod sized;
 pub(crate) mod text;
-pub(crate) mod visibility;
 
 pub use focusable::focus_within;
 pub use list::{Align, Direction, ItemSize};

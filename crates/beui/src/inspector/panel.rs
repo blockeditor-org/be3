@@ -11,16 +11,15 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
     clone, component, create_memo, create_signal, on_cleanup, view, CenteredRow, ClickCatcher,
-    Column, Fill, ForEach, ItemSize, Memo, NodeRef, Outline, Padding, ReadSignal, Row, Scroll,
-    Show, Spacer, WriteSignal,
+    Column, ForEach, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
+    WriteSignal,
 };
 use crate::styled::theme::{
-    ACCENT, BORDER_WIDTH, CHIP_RADIUS, ON_ACCENT, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT,
-    SURFACE, SURFACE_RAISED, TEXT, TEXT_MUTED,
+    ACCENT, BORDER, BORDER_WIDTH, CHIP_RADIUS, ON_ACCENT, RADIUS, SCROLLBAR_WIDTH,
+    SEPARATOR_HEIGHT, SURFACE, SURFACE_RAISED, TEXT, TEXT_MUTED,
 };
 use crate::styled::{
-    Bordered, Button, ButtonVariant, Caption, Checkbox, Code, Heading, ListRow, Scrollbar,
-    Separator, Tabs,
+    Button, ButtonVariant, Caption, Checkbox, Code, Heading, ListRow, Scrollbar, Separator, Tabs,
 };
 use crate::unstyled;
 
@@ -183,9 +182,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         view! {
         <Row spacing=0.0>
             <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-            <Fill @sizing=ItemSize::Percent(100.0) color=SURFACE radius=0>
+            <Frame @sizing=ItemSize::Percent(100.0) color=SURFACE radius=0>
                 <Column spacing=0.0>
-                    <Padding horizontal=HEADER_PADDING vertical=HEADER_PADDING>
+                    <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
                         <Column spacing=HEADER_SPACING>
                             <CenteredRow spacing=HEADER_SPACING>
                                 <Heading content="Inspector" />
@@ -204,9 +203,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 }}
                             />
                         </Column>
-                    </Padding>
+                    </Frame>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Padding @sizing=ItemSize::Percent(100.0) horizontal=BODY_PADDING vertical=BODY_PADDING>
+                    <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
                         <Column spacing=0.0>
                             <Show @sizing=ItemSize::Percent(100.0) condition={body_tree_visible}>
                                 <Row spacing=BODY_SPACING>
@@ -236,9 +235,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 />
                             </Show>
                         </Column>
-                    </Padding>
+                    </Frame>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Padding horizontal=FOOTER_PADDING vertical=FOOTER_PADDING>
+                    <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
                         <Column spacing=0.0>
                             <Show condition={footer_tree_visible}>
                                 <Column spacing=FOOTER_SPACING>
@@ -260,9 +259,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 />
                             </Show>
                         </Column>
-                    </Padding>
+                    </Frame>
                 </Column>
-            </Fill>
+            </Frame>
         </Row>
         }
     });
@@ -419,20 +418,13 @@ fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
     let picker = state;
     view! {
         <unstyled::Pressable on_click={move || picker.toggle_picking()}>
-            <Bordered corner_radius=CHIP_RADIUS>
-                <Fill color={fill_color} radius=CHIP_RADIUS>
-                    <Padding
-                        horizontal=TOGGLE_PADDING_HORIZONTAL
-                        vertical=TOGGLE_PADDING_VERTICAL
-                    >
-                        <Code
-                            content="Pick"
-                            align=TextAlign::Center
-                            color={label_color}
-                        />
-                    </Padding>
-                </Fill>
-            </Bordered>
+            <Frame color={fill_color} outline=BORDER outline_width=BORDER_WIDTH radius=CHIP_RADIUS outline_visible=true padding_horizontal=TOGGLE_PADDING_HORIZONTAL padding_vertical=TOGGLE_PADDING_VERTICAL>
+                <Code
+                    content="Pick"
+                    align=TextAlign::Center
+                    color={label_color}
+                />
+            </Frame>
         </unstyled::Pressable>
     }
 }
@@ -486,12 +478,12 @@ fn TreeRow(row_key: Key, entries: Entries, state: Rc<State>, rows: Rows) -> Node
             on_click={move || selection.select(node)}
             on_hover_change={move |hovered| hover.hover(node, hovered)}
         >
-            <Outline
-                color=ACCENT
-                width=BORDER_WIDTH
+            <Frame
+                outline=ACCENT
+                outline_width=BORDER_WIDTH
                 radius=RADIUS
-                offset=0.0
-                visible={selected}
+                outline_offset=0.0
+                outline_visible={selected}
             >
                 <ListRow>
                     <CenteredRow spacing=ROW_SPACING>
@@ -510,7 +502,7 @@ fn TreeRow(row_key: Key, entries: Entries, state: Rc<State>, rows: Rows) -> Node
                         <Code content={size} color=TEXT_MUTED align=TextAlign::End />
                     </CenteredRow>
                 </ListRow>
-            </Outline>
+            </Frame>
         </ClickCatcher>
     }
 }

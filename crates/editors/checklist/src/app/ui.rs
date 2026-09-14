@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use block_client::blocks::checklist::Checklist;
 use block_editor_plugin::beui::reactive::{
-    build, clone, create_memo, create_signal, view, with_reactive_scope, CenteredRow, Column, Fill,
-    ForEach, ItemSize, Padding, ReadSignal, Scroll, Show, WriteSignal,
+    build, clone, create_memo, create_signal, view, with_reactive_scope, CenteredRow, Column,
+    ForEach, Frame, ItemSize, ReadSignal, Scroll, Show, WriteSignal,
 };
 use block_editor_plugin::beui::styled::theme::{ACCENT, BACKGROUND, SURFACE_RAISED};
 use block_editor_plugin::beui::styled::{
@@ -168,9 +168,8 @@ fn ChecklistView(
     });
 
     view! {
-        <Fill color=BACKGROUND radius=0>
-            <Padding horizontal=PAGE_PADDING vertical=PAGE_PADDING>
-                <Column spacing=SECTION_SPACING>
+        <Frame color=BACKGROUND padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+            <Column spacing=SECTION_SPACING>
                     <Column spacing=6.0>
                         <Heading content="Checklist" />
                         <Caption content={summary} />
@@ -251,9 +250,8 @@ fn ChecklistView(
                             </Scroll>
                         </Column>
                     </Card>
-                </Column>
-            </Padding>
-        </Fill>
+            </Column>
+        </Frame>
     }
 }
 
@@ -287,9 +285,8 @@ fn ChecklistRow(
     let done_model = checklist.clone();
     let done_snapshot = set_snapshot.clone();
     view! {
-        <Fill color=SURFACE_RAISED radius=6>
-            <Padding horizontal=12.0 vertical=10.0>
-                <CenteredRow spacing=10.0>
+        <Frame color=SURFACE_RAISED radius=6 padding_horizontal=12.0 padding_vertical=10.0>
+            <CenteredRow spacing=10.0>
                     <Checkbox
                         @sizing=ItemSize::Percent(100.0)
                         label={entry.text}
@@ -309,8 +306,7 @@ fn ChecklistRow(
                             set_from_model(&set_snapshot, checklist.as_ref());
                         }}
                     />
-                </CenteredRow>
-            </Padding>
-        </Fill>
+            </CenteredRow>
+        </Frame>
     }
 }

@@ -1,14 +1,21 @@
 use super::*;
 
 #[test]
-fn a_border_paints_over_the_fill_it_wraps() {
+fn a_frame_paints_its_outline_over_its_fill() {
     let interior = Color32::from_rgb(80, 80, 80);
     let mut document = Document::new();
-    let fill = document.create_fill(interior, 0);
-    let border = document.create_outline(Color32::WHITE, 1.0, 0, 0.0);
-    document.set_outline_visible(border, true);
-    document.set_outline_child(border, fill);
-    document.set_root(border);
+    let frame = document.create_frame();
+    document.set_frame_style(
+        frame,
+        crate::base::frame::FrameStyle {
+            fill: interior,
+            outline: Color32::WHITE,
+            outline_width: 1.0,
+            outline_visible: true,
+            ..Default::default()
+        },
+    );
+    document.set_root(frame);
 
     let capture = capture(Color32::BLACK, |painter| {
         document.show(

@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{create_memo, Callback, Fill, Outline, Padding, Prop, Text};
+use crate::reactive::{create_memo, Callback, Frame, Prop, Text};
 use crate::styled::theme::{
     ACCENT, ACCENT_SOFT, BORDER, FONT_BODY, RADIUS, SURFACE, SURFACE_RAISED, TEXT,
 };
@@ -46,15 +46,11 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
     let border_color = create_memo(move || if checked.get() { ACCENT } else { BORDER });
 
     view! {
-        <Outline color=ACCENT width=2.0 radius=RADIUS offset=3.0 visible={focused}>
-            <Outline color={border_color} width=1.0 radius=RADIUS offset=0.0 visible=true>
-                <Fill color={fill_color} radius=RADIUS>
-                    <Padding horizontal=14.0 vertical=8.0>
-                        <Text string={label} font_size=FONT_BODY color=TEXT />
-                    </Padding>
-                </Fill>
-            </Outline>
-        </Outline>
+        <Frame outline=ACCENT outline_width=2.0 radius=RADIUS outline_offset=3.0 outline_visible={focused}>
+            <Frame color={fill_color} outline={border_color} outline_width=1.0 radius=RADIUS outline_visible=true padding_horizontal=14.0 padding_vertical=8.0>
+                <Text string={label} font_size=FONT_BODY color=TEXT />
+            </Frame>
+        </Frame>
     }
 }
 

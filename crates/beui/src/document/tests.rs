@@ -113,8 +113,8 @@ use crate::input::{TouchId, TouchPhase};
 use crate::base::list::{Direction, ItemSize};
 use crate::inspector::Inspector;
 use crate::reactive::{
-    build, intrinsic, with_document, ClickCallback, Column, Fill, NodeRef, Padding, Sized, Spacer,
-    Text, VirtualList,
+    build, intrinsic, with_document, ClickCallback, Column, Frame, NodeRef, Spacer, Text,
+    VirtualList,
 };
 use crate::styled;
 use crate::unstyled;
@@ -333,20 +333,16 @@ pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Doc
 #[component]
 pub(crate) fn MenuRegion() -> NodeId {
     view! {
-        <Sized width=120.0 height=60.0>
-            <Fill color=Color32::from_gray(80) radius=4 />
-        </Sized>
+        <Frame width=120.0 height=60.0 color=Color32::from_gray(80) radius=4 />
     }
 }
 
 #[component]
 pub(crate) fn ButtonFace(label: String) -> NodeId {
     view! {
-        <Fill color=Color32::from_gray(60) radius=4>
-            <Padding horizontal=20.0 vertical=12.0>
-                <Text string={label} font_size=14.0 color=Color32::WHITE />
-            </Padding>
-        </Fill>
+        <Frame color=Color32::from_gray(60) radius=4 padding_horizontal=20.0 padding_vertical=12.0>
+            <Text string={label} font_size=14.0 color=Color32::WHITE />
+        </Frame>
     }
 }
 
@@ -375,9 +371,9 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId
                         {move |index: usize| {
                             sink.borrow_mut().push(index);
                             view! {
-                                <Padding horizontal=0.0 vertical={VIRTUAL_ITEM_HEIGHT / 2.0}>
+                                <Frame padding_horizontal=0.0 padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}>
                                     <Spacer />
-                                </Padding>
+                                </Frame>
                             }
                         }}
                     </VirtualList>
@@ -401,14 +397,14 @@ pub(crate) fn hello_column() -> HelloColumn {
         move || {
             view! {
                 <Column spacing=0.0>
-                    <Padding @node_ref=&padding horizontal=4.0 vertical=4.0>
+                    <Frame @node_ref=&padding padding_horizontal=4.0 padding_vertical=4.0>
                         <Text
                             @node_ref=&text
                             string="Hello"
                             font_size=14.0
                             color=Color32::WHITE
                         />
-                    </Padding>
+                    </Frame>
                 </Column>
             }
         }

@@ -5,9 +5,7 @@ use crate::color::Color32;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{
-    create_memo, Callback, CenteredRow, Fill, ItemSize, Outline, Padding, Prop, Sized, Spacer,
-};
+use crate::reactive::{create_memo, Callback, CenteredRow, Frame, ItemSize, Prop, Spacer};
 use crate::styled::theme::{ACCENT, ACCENT_HOVER, BORDER, KNOB, RADIUS, SURFACE_RAISED};
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
@@ -62,21 +60,15 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
     let track_color = create_memo(move || track_fill(checked.get(), hovered.get()));
 
     view! {
-        <Outline color=ACCENT width=FOCUS_RING_WIDTH radius=RADIUS offset=FOCUS_RING_OFFSET visible={focused}>
-            <Sized width=WIDTH height=HEIGHT>
-                <Fill color={track_color} radius=TRACK_RADIUS>
-                    <Padding horizontal=PADDING vertical=PADDING>
-                        <CenteredRow spacing=0.0>
-                            <Spacer @sizing={before_percent} />
-                            <Sized width=KNOB_SIZE height=KNOB_SIZE>
-                                <Fill color=KNOB radius=KNOB_RADIUS></Fill>
-                            </Sized>
-                            <Spacer @sizing={after_percent} />
-                        </CenteredRow>
-                    </Padding>
-                </Fill>
-            </Sized>
-        </Outline>
+        <Frame outline=ACCENT outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+            <Frame width=WIDTH height=HEIGHT color={track_color} radius=TRACK_RADIUS padding_horizontal=PADDING padding_vertical=PADDING>
+                <CenteredRow spacing=0.0>
+                    <Spacer @sizing={before_percent} />
+                    <Frame width=KNOB_SIZE height=KNOB_SIZE color=KNOB radius=KNOB_RADIUS />
+                    <Spacer @sizing={after_percent} />
+                </CenteredRow>
+            </Frame>
+        </Frame>
     }
 }
 

@@ -10,10 +10,10 @@ fn clicking_a_row_collapses_its_children() {
     harness.click(padding_row);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  padding"]);
+    assert_eq!(harness.tree(), ["column", "  frame"]);
 
     harness.click(padding_row);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  padding", "    text"]);
+    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
 }

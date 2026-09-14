@@ -5,7 +5,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
     clone, create_effect, create_memo, create_signal, set_component_state, untrack, Callback,
-    Child, Column, Prop, ReadSignal, Render, Visibility,
+    Child, Column, Frame, Prop, ReadSignal, Render,
 };
 use crate::unstyled;
 use crate::unstyled::button::ButtonHandle;
@@ -62,7 +62,7 @@ pub fn Disclosure(
                     })
                 }}
             />
-            <Visibility visible={open_read}>{children}</Visibility>
+            <Frame visible={open_read}>{children}</Frame>
         </Column>
     }
 }

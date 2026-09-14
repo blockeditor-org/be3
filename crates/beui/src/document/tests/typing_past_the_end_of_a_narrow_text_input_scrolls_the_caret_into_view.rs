@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{view, NodeRef, Sized};
+use crate::reactive::{view, Frame, NodeRef};
 use crate::styled::TextInput;
 
 #[test]
@@ -10,9 +10,9 @@ fn typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view() {
         let input = input.clone();
         move || {
             [view! {
-                <Sized width=80.0>
+                <Frame width=80.0>
                     <TextInput @node_ref=&input value=String::new() />
-                </Sized>
+                </Frame>
             }]
         }
     });

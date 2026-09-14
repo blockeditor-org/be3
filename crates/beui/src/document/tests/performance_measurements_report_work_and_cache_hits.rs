@@ -1,9 +1,9 @@
 use super::*;
-use crate::reactive::{build, view, Fill};
+use crate::reactive::{build, view, Frame};
 
 #[test]
 fn performance_measurements_report_work_and_cache_hits() {
-    let document = build(|| view! { <Fill color=Color32::WHITE radius=0 /> });
+    let document = build(|| view! { <Frame color=Color32::WHITE radius=0 /> });
     let mut harness = Harness::new(document);
 
     assert_eq!(harness.document().performance().samples, 0);
