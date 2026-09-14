@@ -13,22 +13,33 @@ pub fn assert_snapshot(name: &str, snapshot: &Snapshot) {
     let accepted = accepted_path(name);
     let updating = std::env::var_os("UPDATE_SNAPSHOTS").is_some();
 
-    if updating || !accepted.exists() {
-        write(&accepted, &bytes);
-        if updating {
-            return;
+    if !accepted.exists() {
+        if !updating {
+            panic!(
+                "there is no accepted painting at {}, {REVIEW}",
+                accepted.display()
+            );
         }
-        panic!("wrote a new painting to {}, {REVIEW}", accepted.display());
+        write(&accepted, &bytes);
+        return;
     }
 
-    let previous = Snapshot::decode(&read(&accepted)).expect("the accepted painting is unreadable");
-    let Some(difference) = paint_snapshot::difference(&previous, snapshot) else {
+    let previous_bytes = read(&accepted);
+    if previous_bytes == bytes {
         return;
-    };
+    }
+    if updating {
+        write(&accepted, &bytes);
+        return;
+    }
+
+    let previous = Snapshot::decode(&previous_bytes).expect("the accepted painting is unreadable");
+    let description = paint_snapshot::difference(&previous, snapshot)
+        .map(|difference| difference.description)
+        .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned());
 
     panic!(
-        "the painting changed: {}\nto accept it:\n  ./scripts/verify, or scripts/internal/test-plugins.sh\nthen {REVIEW}",
-        difference.description
+        "the painting changed: {description}\nto accept it:\n  ./scripts/verify, or scripts/internal/test-plugins.sh\nthen {REVIEW}"
     );
 }
 
