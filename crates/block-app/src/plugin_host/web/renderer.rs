@@ -4,8 +4,6 @@ use wasm_bindgen::JsCast;
 
 use super::super::presenter::{Regions, SurfacePresenter};
 
-const TARGET_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
-
 pub(crate) fn presenter(
     render_state: &eframe::egui_wgpu::RenderState,
 ) -> Result<WebSurfacePresenter, String> {
@@ -32,6 +30,7 @@ pub(crate) struct WebSurfacePresenter {
     blit_pipeline: wgpu::RenderPipeline,
     blit_bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
+    copy_format: wgpu::TextureFormat,
     targets: HashMap<u32, Target>,
 }
 
@@ -104,6 +103,7 @@ impl WebSurfacePresenter {
             blit_pipeline,
             blit_bind_group_layout,
             sampler,
+            copy_format: copy_format(target_format),
             targets: HashMap::new(),
         }
     }
@@ -132,8 +132,10 @@ impl WebSurfacePresenter {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: TARGET_FORMAT,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            format: self.copy_format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -259,6 +261,13 @@ impl SurfacePresenter for WebSurfacePresenter {
 
     fn release(&mut self, surface: u32) {
         self.targets.remove(&surface);
+    }
+}
+
+fn copy_format(target_format: wgpu::TextureFormat) -> wgpu::TextureFormat {
+    match target_format.is_srgb() {
+        true => wgpu::TextureFormat::Rgba8UnormSrgb,
+        false => wgpu::TextureFormat::Rgba8Unorm,
     }
 }
 
