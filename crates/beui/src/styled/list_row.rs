@@ -4,7 +4,7 @@ use crate::color::Color32;
 
 use crate::node::NodeId;
 use crate::reactive::{Child, ClickCallback, Frame, clone, create_memo};
-use crate::styled::theme::{RADIUS, Theme, use_theme};
+use crate::styled::theme::{RADIUS, ThemeStore, use_theme};
 use crate::unstyled::{Button, ButtonHandle};
 
 const PADDING_HORIZONTAL: f32 = 8.0;
@@ -31,11 +31,11 @@ fn ListRowFace(handle: ButtonHandle, children: Child) -> NodeId {
     } = handle;
     let theme = use_theme();
     let fill_color =
-        create_memo(clone!(theme -> move || background(&theme.get(), hovered.get(), active.get())));
+        create_memo(clone!(theme -> move || background(&theme, hovered.get(), active.get())));
     view! {
         <Frame
             color={fill_color}
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
             outline_visible={focused}
@@ -47,10 +47,10 @@ fn ListRowFace(handle: ButtonHandle, children: Child) -> NodeId {
     }
 }
 
-fn background(theme: &Theme, hovered: bool, active: bool) -> Color32 {
+fn background(theme: &ThemeStore, hovered: bool, active: bool) -> Color32 {
     match (hovered, active) {
-        (_, true) => theme.pressed,
-        (true, false) => theme.hover,
+        (_, true) => theme.pressed.get(),
+        (true, false) => theme.hover.get(),
         (false, false) => Color32::TRANSPARENT,
     }
 }

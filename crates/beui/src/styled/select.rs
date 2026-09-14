@@ -7,7 +7,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{Callback, Child, Frame, Prop, Text, clone, create_memo};
 use crate::styled::context_menu::text_input_menu;
-use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
+use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{SelectOptionHandle, SelectTriggerHandle, TextInputHandle};
 
@@ -44,10 +44,10 @@ pub fn Select(
             on_change={move |selected| on_change.call(selected)}
             search_placeholder="Search"
             search_font_size=FONT_BODY
-            search_color={theme.pick(|theme| theme.text)}
-            search_placeholder_color={theme.pick(|theme| theme.text_muted)}
-            search_selection_color={theme.pick(|theme| theme.accent_soft)}
-            search_caret_color={theme.pick(|theme| theme.accent)}
+            search_color={theme.text.clone()}
+            search_placeholder_color={theme.text_muted.clone()}
+            search_selection_color={theme.accent_soft.clone()}
+            search_caret_color={theme.accent.clone()}
             search_padding_horizontal=PADDING_HORIZONTAL
             search_content={|handle| view! {
                 <SearchField handle />
@@ -78,11 +78,11 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
     let theme = use_theme();
     let label_text = create_memo(move || trigger_label(&options, selected.get()));
     let border = create_memo(
-        clone!(focused theme -> move || border_color(&theme.get(), focused.get(), hovered.get())),
+        clone!(focused theme -> move || border_color(&theme, focused.get(), hovered.get())),
     );
     view! {
         <Frame
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -91,7 +91,7 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
             <Frame
                 width=TRIGGER_WIDTH
                 height=HEIGHT
-                color={theme.pick(|theme| theme.surface_raised)}
+                color={theme.surface_raised.clone()}
                 outline={border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
@@ -101,7 +101,7 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
                 <Text
                     string={label_text}
                     font_size=FONT_BODY
-                    color={theme.pick(|theme| theme.text)}
+                    color={theme.text.clone()}
                     align=TextAlign::Start
                     clip=true
                 />
@@ -118,13 +118,12 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         focused,
     } = handle;
     let theme = use_theme();
-    let border = create_memo(
-        clone!(theme -> move || border_color(&theme.get(), focused.get(), hovered.get())),
-    );
+    let border =
+        create_memo(clone!(theme -> move || border_color(&theme, focused.get(), hovered.get())));
     view! {
         <Frame
             height=HEIGHT
-            color={theme.pick(|theme| theme.surface)}
+            color={theme.surface.clone()}
             outline={border}
             outline_width=BORDER_WIDTH
             radius=RADIUS
@@ -145,7 +144,7 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let fill_color = create_memo(
-        clone!(theme -> move || option_background(&theme.get(), highlighted.get(), hovered.get())),
+        clone!(theme -> move || option_background(&theme, highlighted.get(), hovered.get())),
     );
     view! {
         <Frame
@@ -157,7 +156,7 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
             <Text
                 string={label}
                 font_size=FONT_BODY
-                color={theme.pick(|theme| theme.text)}
+                color={theme.text.clone()}
                 align=TextAlign::Start
             />
         </Frame>
@@ -170,8 +169,8 @@ fn SelectPopup(children: Child) -> NodeId {
     view! {
         <Frame
             width=POPUP_WIDTH
-            color={theme.pick(|theme| theme.surface_raised)}
-            outline={theme.pick(|theme| theme.border)}
+            color={theme.surface_raised.clone()}
+            outline={theme.border.clone()}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
@@ -198,18 +197,18 @@ fn trigger_label(options: &[String], selected: Option<usize>) -> String {
         .unwrap_or_else(|| "Select...".to_owned())
 }
 
-fn option_background(theme: &Theme, highlighted: bool, hovered: bool) -> Color32 {
+fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Color32 {
     match (highlighted, hovered) {
-        (true, _) => theme.accent_soft,
-        (false, true) => theme.surface,
+        (true, _) => theme.accent_soft.get(),
+        (false, true) => theme.surface.get(),
         (false, false) => Color32::TRANSPARENT,
     }
 }
 
-fn border_color(theme: &Theme, focused: bool, hovered: bool) -> Color32 {
+fn border_color(theme: &ThemeStore, focused: bool, hovered: bool) -> Color32 {
     match (focused, hovered) {
-        (true, _) => theme.accent,
-        (false, true) => theme.text_muted,
-        (false, false) => theme.border,
+        (true, _) => theme.accent.get(),
+        (false, true) => theme.text_muted.get(),
+        (false, false) => theme.border.get(),
     }
 }

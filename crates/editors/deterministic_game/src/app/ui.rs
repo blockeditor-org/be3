@@ -69,7 +69,7 @@ impl GameUi {
             let theme = use_theme();
             view! {
                 <Frame
-                    color={theme.pick(|theme| theme.background)}
+                    color={theme.background.clone()}
                     padding_horizontal=PAGE_PADDING
                     padding_vertical=PAGE_PADDING
                 >
@@ -185,7 +185,7 @@ impl GameCreationUi {
             }));
             view! {
                 <Frame
-                    color={theme.pick(|theme| theme.background)}
+                    color={theme.background.clone()}
                     padding_horizontal=12.0
                     padding_vertical=10.0
                 >

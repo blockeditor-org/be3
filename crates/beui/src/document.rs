@@ -19,7 +19,7 @@ use crate::node::{Arena, NodeId};
 use crate::paint;
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, PerformanceSnapshot, PerformanceTracker};
-use crate::styled::Theme;
+use crate::styled::{Theme, ThemeStore};
 
 const SIZE_PASSES: usize = 4;
 
@@ -45,8 +45,7 @@ pub struct Document {
     pub(crate) copied_text: Option<String>,
     next_paint: Option<Instant>,
     reactive_scope: ::reactive::Scope,
-    theme: ::reactive::ReadSignal<Theme>,
-    set_theme: ::reactive::WriteSignal<Theme>,
+    theme: ThemeStore,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     sizes: HashMap<NodeId, Vec<SizeWatcher>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
@@ -64,7 +63,7 @@ struct SizeWatcher {
 
 impl Document {
     pub fn new() -> Self {
-        let (theme, set_theme) = ::reactive::create_signal(Theme::DARK);
+        let theme = ThemeStore::new(Theme::DARK);
         Self {
             arena: Arena::default(),
             root: None,
@@ -88,7 +87,6 @@ impl Document {
             next_paint: None,
             reactive_scope: ::reactive::Scope::new(),
             theme,
-            set_theme,
             node_scopes: HashMap::new(),
             sizes: HashMap::new(),
             component_states: HashMap::new(),
@@ -116,15 +114,15 @@ impl Document {
     }
 
     pub fn theme(&self) -> Theme {
-        self.theme.get_untracked()
+        ::reactive::untrack(|| self.theme.get())
     }
 
     pub fn set_theme(&mut self, theme: Theme) {
-        let set_theme = self.set_theme.clone();
-        crate::reactive::with_reactive_scope(self, move || set_theme.set(theme));
+        let store = self.theme.clone();
+        crate::reactive::with_reactive_scope(self, move || store.set(theme));
     }
 
-    pub(crate) fn theme_signal(&self) -> ::reactive::ReadSignal<Theme> {
+    pub(crate) fn theme_store(&self) -> ThemeStore {
         self.theme.clone()
     }
 

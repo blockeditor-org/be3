@@ -56,7 +56,7 @@ impl DemoApp {
             let (count, set_count) = create_signal(0i64);
             let theme = use_theme();
             view! {
-                <Frame color={theme.pick(|theme| theme.background)} radius=0>
+                <Frame color={theme.background.clone()} radius=0>
                     <Container>
                         {move |_| view! {
                             <DemoShell count set_count />
@@ -173,7 +173,7 @@ fn ScrollRowFace(
     view! {
         <Frame
             color={fill_color}
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
             outline_visible={focused}
@@ -228,7 +228,7 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
     });
     let theme = use_theme();
     view! {
-        <Frame color={theme.pick(|theme| theme.surface)} padding_horizontal={horizontal}>
+        <Frame color={theme.surface.clone()} padding_horizontal={horizontal}>
             <CenteredRow spacing=10.0>
                 <CenteredRow spacing=10.0>
                     <Title content="beui" />
@@ -373,7 +373,7 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                             @sizing=ItemSize::Percent(100.0)
                             count=ROW_COUNT
                             item_height={row_height}
-                            focus_color={use_theme().pick(|theme| theme.accent)}
+                            focus_color={use_theme().accent.clone()}
                             on_change={move |position| set_scroll_position.set(position)}
                         >
                             {move |index: usize| {

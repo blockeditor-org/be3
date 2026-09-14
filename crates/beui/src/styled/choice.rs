@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 
 use crate::reactive::Memo;
 use crate::reactive::{CenteredRow, Frame, ItemSize, Prop, Spacer, Text, clone, create_memo};
-use crate::styled::theme::{FONT_BODY, RADIUS, Theme, use_theme};
+use crate::styled::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::ChoiceOptionHandle;
 
@@ -36,13 +36,12 @@ pub(super) fn ChoiceOption(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
         }
     }));
     let checked = selected.clone();
-    let fill_color = create_memo(
-        clone!(theme -> move || background(&theme.get(), selected.get(), hovered.get())),
-    );
+    let fill_color =
+        create_memo(clone!(theme -> move || background(&theme, selected.get(), hovered.get())));
     view! {
         <Frame
             color={fill_color}
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
             outline_offset=1.0
@@ -82,7 +81,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
         <Frame
             width=MARK_BOX
             height=MARK_BOX
-            outline={theme.pick(|theme| theme.border)}
+            outline={theme.border.clone()}
             outline_width=2.0
             radius=MARK_RADIUS
             outline_visible=true
@@ -93,7 +92,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
                     visible={checked}
                     width=MARK_DOT
                     height=MARK_DOT
-                    color={theme.pick(|theme| theme.accent)}
+                    color={theme.accent.clone()}
                     radius=MARK_RADIUS
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -106,10 +105,10 @@ pub(super) fn selected_index(document: &Document, choice: NodeId) -> Option<usiz
     unstyled::choice_selected(document, choice)
 }
 
-fn background(theme: &Theme, active: bool, hovered: bool) -> Color32 {
+fn background(theme: &ThemeStore, active: bool, hovered: bool) -> Color32 {
     match (active, hovered) {
-        (true, _) => theme.accent_soft,
-        (false, true) => theme.hover,
+        (true, _) => theme.accent_soft.get(),
+        (false, true) => theme.hover.get(),
         _ => Color32::TRANSPARENT,
     }
 }

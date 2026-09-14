@@ -9,7 +9,7 @@ use crate::reactive::{
     Callback, CenteredRow, Frame, Func, ItemSize, Prop, RenderFn, Spacer, Text, clone, create_memo,
     intrinsic, percent, size,
 };
-use crate::styled::theme::{FONT_SMALL, RADIUS, Theme, use_theme};
+use crate::styled::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{TreeItem, TreeRowHandle};
 
@@ -69,7 +69,7 @@ where
     } = handle;
     let theme = use_theme();
     let fill = create_memo(clone!(theme selected -> move || {
-        background(&theme.get(), selected.get(), hovered.get(), active.get())
+        background(&theme, selected.get(), hovered.get(), active.get())
     }));
     let indent = create_memo(clone!(item -> move || {
         ItemSize::Fixed(item.get().depth as f32 * INDENT)
@@ -78,7 +78,7 @@ where
         let item = item.get();
         marker(item.expandable, item.expanded).to_owned()
     }));
-    let marker_color = theme.pick(|theme| theme.text_muted);
+    let marker_color = theme.text_muted.clone();
     let spacer = view! {
         <Spacer />
     };
@@ -101,7 +101,7 @@ where
     view! {
         <Frame
             color={fill}
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=OUTLINE_WIDTH
             radius=RADIUS
             outline_visible={focused}
@@ -121,11 +121,11 @@ fn marker(expandable: bool, expanded: bool) -> &'static str {
     }
 }
 
-fn background(theme: &Theme, selected: bool, hovered: bool, active: bool) -> Color32 {
+fn background(theme: &ThemeStore, selected: bool, hovered: bool, active: bool) -> Color32 {
     match (selected, hovered, active) {
-        (_, _, true) => theme.pressed,
-        (true, _, _) => theme.accent_soft,
-        (false, true, _) => theme.hover,
+        (_, _, true) => theme.pressed.get(),
+        (true, _, _) => theme.accent_soft.get(),
+        (false, true, _) => theme.hover.get(),
         (false, false, false) => Color32::TRANSPARENT,
     }
 }

@@ -5,7 +5,7 @@ use crate::color::Color32;
 use crate::base::TextAlign;
 use crate::node::NodeId;
 use crate::reactive::{ClickCallback, Frame, Prop, Text, clone, create_memo};
-use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
+use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 
 const PADDING_HORIZONTAL: f32 = 16.0;
@@ -20,21 +20,21 @@ pub enum ButtonVariant {
 }
 
 impl ButtonVariant {
-    pub(crate) fn fill(self, theme: &Theme, hovered: bool, active: bool) -> Color32 {
+    pub(crate) fn fill(self, theme: &ThemeStore, hovered: bool, active: bool) -> Color32 {
         match (self, hovered, active) {
-            (ButtonVariant::Primary, _, true) => theme.accent_active,
-            (ButtonVariant::Primary, true, false) => theme.accent_hover,
-            (ButtonVariant::Primary, false, false) => theme.accent,
-            (ButtonVariant::Secondary, _, true) => theme.pressed,
-            (ButtonVariant::Secondary, true, false) => theme.hover,
-            (ButtonVariant::Secondary, false, false) => theme.surface,
+            (ButtonVariant::Primary, _, true) => theme.accent_active.get(),
+            (ButtonVariant::Primary, true, false) => theme.accent_hover.get(),
+            (ButtonVariant::Primary, false, false) => theme.accent.get(),
+            (ButtonVariant::Secondary, _, true) => theme.pressed.get(),
+            (ButtonVariant::Secondary, true, false) => theme.hover.get(),
+            (ButtonVariant::Secondary, false, false) => theme.surface.get(),
         }
     }
 
-    pub(crate) fn label(self, theme: &Theme) -> Color32 {
+    pub(crate) fn label(self, theme: &ThemeStore) -> Color32 {
         match self {
-            ButtonVariant::Primary => theme.on_accent,
-            ButtonVariant::Secondary => theme.text,
+            ButtonVariant::Primary => theme.on_accent.get(),
+            ButtonVariant::Secondary => theme.text.get(),
         }
     }
 }
@@ -69,12 +69,11 @@ fn ButtonFace(
         focused,
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(
-        clone!(theme -> move || variant.fill(&theme.get(), hovered.get(), active.get())),
-    );
+    let fill_color =
+        create_memo(clone!(theme -> move || variant.fill(&theme, hovered.get(), active.get())));
     view! {
         <Frame
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 4}
             outline_offset=FOCUS_RING_OFFSET
@@ -82,7 +81,7 @@ fn ButtonFace(
         >
             <Frame
                 color={fill_color}
-                outline={theme.pick(|theme| theme.border)}
+                outline={theme.border.clone()}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_visible={variant == ButtonVariant::Secondary}
@@ -92,7 +91,7 @@ fn ButtonFace(
                 <Text
                     string={label}
                     font_size=FONT_BODY
-                    color={theme.pick(move |theme| variant.label(theme))}
+                    color={create_memo(clone!(theme -> move || variant.label(&theme)))}
                     align=TextAlign::Center
                 />
             </Frame>

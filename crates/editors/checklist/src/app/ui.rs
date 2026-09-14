@@ -167,7 +167,7 @@ fn ChecklistView(
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.pick(|theme| theme.background)}
+            color={theme.background.clone()}
             padding_horizontal=PAGE_PADDING
             padding_vertical=PAGE_PADDING
         >
@@ -239,10 +239,7 @@ fn ChecklistView(
                         <Show condition={empty}>
                             <Body content="No tasks match this view." align=TextAlign::Center />
                         </Show>
-                        <Scroll
-                            @sizing=ItemSize::Percent(100.0)
-                            focus_color={theme.pick(|theme| theme.accent)}
-                        >
+                        <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
                             <ForEach spacing=8.0 keys={visible_entries} view={rows} />
                         </Scroll>
                     </Column>
@@ -284,7 +281,7 @@ fn ChecklistRow(
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.pick(|theme| theme.surface_raised)}
+            color={theme.surface_raised.clone()}
             radius=6
             padding_horizontal=12.0
             padding_vertical=10.0

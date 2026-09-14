@@ -8,7 +8,7 @@ use crate::node::NodeId;
 use crate::reactive::{
     Callback, CenteredRow, Child, Frame, ItemSize, Memo, Prop, Text, clone, create_memo,
 };
-use crate::styled::theme::{FONT_HEADING, FONT_SMALL, RADIUS, Theme, use_theme};
+use crate::styled::theme::{FONT_HEADING, FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::DisclosureHandle;
 
@@ -48,15 +48,14 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let header_color =
-        create_memo(clone!(theme -> move || header_fill(&theme.get(), hovered.get())));
+    let header_color = create_memo(clone!(theme -> move || header_fill(&theme, hovered.get())));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
-    let marker_color = theme.pick(|theme| theme.text_muted);
-    let title_color = theme.pick(|theme| theme.text);
+    let marker_color = theme.text_muted.clone();
+    let title_color = theme.text.clone();
     view! {
         <Frame
             color={header_color}
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
             outline_offset=2.0
@@ -94,9 +93,9 @@ fn glyph(open: bool) -> &'static str {
     if open { "-" } else { "+" }
 }
 
-fn header_fill(theme: &Theme, hovered: bool) -> Color32 {
+fn header_fill(theme: &ThemeStore, hovered: bool) -> Color32 {
     if hovered {
-        theme.hover
+        theme.hover.get()
     } else {
         Color32::TRANSPARENT
     }

@@ -5,7 +5,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{Callback, Frame, Prop, Text, clone, create_memo};
-use crate::styled::theme::{FONT_BODY, RADIUS, Theme, use_theme};
+use crate::styled::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
 
@@ -41,7 +41,7 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
     } = handle;
     let theme = use_theme();
     let fill_color = create_memo(
-        clone!(checked theme -> move || fill_for(&theme.get(), checked.get(), hovered.get())),
+        clone!(checked theme -> move || fill_for(&theme, checked.get(), hovered.get())),
     );
     let border_color = create_memo(clone!(theme -> move || {
         let theme = theme.get();
@@ -54,7 +54,7 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
 
     view! {
         <Frame
-            outline={theme.pick(|theme| theme.accent)}
+            outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
             outline_offset=3.0
@@ -69,19 +69,19 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                 padding_horizontal=14.0
                 padding_vertical=8.0
             >
-                <Text string={label} font_size=FONT_BODY color={theme.pick(|theme| theme.text)} />
+                <Text string={label} font_size=FONT_BODY color={theme.text.clone()} />
             </Frame>
         </Frame>
     }
 }
 
-fn fill_for(theme: &Theme, pressed: bool, hovered: bool) -> Color32 {
+fn fill_for(theme: &ThemeStore, pressed: bool, hovered: bool) -> Color32 {
     if pressed {
-        theme.accent_soft
+        theme.accent_soft.get()
     } else if hovered {
-        theme.hover
+        theme.hover.get()
     } else {
-        theme.surface
+        theme.surface.get()
     }
 }
 
