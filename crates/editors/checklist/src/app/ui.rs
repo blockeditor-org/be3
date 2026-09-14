@@ -5,9 +5,8 @@ use block_editor_plugin::beui::reactive::{
     build, clone, create_memo, create_signal, view, with_reactive_scope, CenteredRow, Column,
     ForEach, Frame, ItemSize, ReadSignal, Scroll, Show, WriteSignal,
 };
-use block_editor_plugin::beui::styled::theme::{ACCENT, BACKGROUND, SURFACE_RAISED};
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, TextInput,
+    use_theme, Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, TextInput,
     ToggleButton,
 };
 use block_editor_plugin::beui::{Color32, Context, Document, NodeId, Rect, TextAlign};
@@ -75,7 +74,7 @@ impl ChecklistUi {
     }
 
     pub fn background(&self) -> Color32 {
-        BACKGROUND
+        self.document.theme().background
     }
 
     pub(super) fn set_snapshot(&mut self, snapshot: ChecklistSnapshot) {
@@ -167,8 +166,9 @@ fn ChecklistView(
         }
     });
 
+    let theme = use_theme();
     view! {
-        <Frame color=BACKGROUND padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+        <Frame color={theme.pick(|theme| theme.background)} padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
             <Column spacing=SECTION_SPACING>
                     <Column spacing=6.0>
                         <Heading content="Checklist" />
@@ -240,7 +240,7 @@ fn ChecklistView(
                             <Show condition={empty}>
                                 <Body content="No tasks match this view." align=TextAlign::Center />
                             </Show>
-                            <Scroll @sizing=ItemSize::Percent(100.0) focus_color=ACCENT>
+                            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.pick(|theme| theme.accent)}>
                                 <ForEach
                                     spacing=8.0
                                     items={visible_entries}
@@ -284,8 +284,9 @@ fn ChecklistRow(
     let remove_index = entry.index;
     let done_model = checklist.clone();
     let done_snapshot = set_snapshot.clone();
+    let theme = use_theme();
     view! {
-        <Frame color=SURFACE_RAISED radius=6 padding_horizontal=12.0 padding_vertical=10.0>
+        <Frame color={theme.pick(|theme| theme.surface_raised)} radius=6 padding_horizontal=12.0 padding_vertical=10.0>
             <CenteredRow spacing=10.0>
                     <Checkbox
                         @sizing=ItemSize::Percent(100.0)

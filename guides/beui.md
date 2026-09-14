@@ -61,8 +61,7 @@ wgpu renderer. A standalone app builds its document once and implements
 use beui::reactive::{
     build, component, create_memo, create_signal, view, Column, Frame,
 };
-use beui::styled::theme::BACKGROUND;
-use beui::styled::{Button, ButtonVariant, Display};
+use beui::styled::{use_theme, Button, ButtonVariant, Display};
 use beui::{App, Color32, Context, Document, NodeId, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -74,9 +73,10 @@ fn Counter() -> NodeId {
     let (count, set_count) = create_signal(0i64);
     let decrease = set_count.clone();
     let label = create_memo(move || count.get().to_string());
+    let theme = use_theme();
 
     view! {
-        <Frame color=BACKGROUND>
+        <Frame color={theme.pick(|theme| theme.background)}>
             <Column spacing=8.0>
                 <Display content={label} />
                 <Button
@@ -112,7 +112,7 @@ impl App for CounterApp {
     }
 
     fn clear_color(&self) -> Color32 {
-        BACKGROUND
+        self.document.theme().background
     }
 }
 ```
@@ -292,15 +292,37 @@ fn CustomButton(label: Prop<String>, on_click: ClickCallback) -> NodeId {
 `CustomButtonFace` derives colors or visibility with memos reading
 `handle.hovered`, `handle.active`, and `handle.focused`, then composes `Frame`
 and `Text`. Keep keyboard and pointer handling in the
-unstyled button. Use constants from `styled::theme` for shared appearance and
-add a token there when a value is part of the theme rather than unique to one
-component.
+unstyled button. Read colors from the nearest theme with `styled::use_theme()`:
+bind a token directly with `theme.pick(|theme| theme.accent)`, or call
+`theme.get()` inside a memo that also reads interaction state, so the control
+repaints when the theme changes. Sizes, radii, and font sizes are constants in
+`styled::theme`. Add a field to `Theme`, with a value in every built-in theme,
+when a color is part of the theme rather than unique to one component.
 
 Styled controls must visibly expose keyboard focus. Keep labels and accessible
 roles stable when visual state changes. Use glyphs from `beui::icons` with
 `styled::Icon` or `styled::IconSized`; do not use Unicode characters as ad-hoc
 icons. The [keyboard guide](beui_keyboard.md) records the expected behavior for
 each control family.
+
+### Themes
+
+`styled::Theme` holds the color tokens, and `Theme::DARK` and `Theme::EINK`
+are the built-in themes. Every `Document` owns a theme signal that styled
+components use when no provider covers them. Change it with
+`Document::set_theme` and read it with `Document::theme`, for example to pick an
+app's clear color. The inspector's Sim tab switches it at runtime.
+
+`ThemeProvider` overrides the theme for the subtree written between its tags
+and follows the `Prop<Theme>` it is given:
+
+```rust
+view! {
+    <ThemeProvider theme={theme_signal}>
+        <Settings />
+    </ThemeProvider>
+}
+```
 
 ## Develop a base component
 

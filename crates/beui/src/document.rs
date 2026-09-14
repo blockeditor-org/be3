@@ -17,6 +17,7 @@ use crate::node::{Arena, NodeId};
 use crate::paint;
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, PerformanceSnapshot, PerformanceTracker};
+use crate::styled::Theme;
 
 const SIZE_PASSES: usize = 4;
 
@@ -39,6 +40,8 @@ pub struct Document {
     pub(crate) copied_text: Option<String>,
     next_paint: Option<Instant>,
     reactive_scope: ::reactive::Scope,
+    theme: ::reactive::ReadSignal<Theme>,
+    set_theme: ::reactive::WriteSignal<Theme>,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     sizes: HashMap<NodeId, Vec<SizeWatcher>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
@@ -54,6 +57,7 @@ struct SizeWatcher {
 
 impl Document {
     pub fn new() -> Self {
+        let (theme, set_theme) = ::reactive::create_signal(Theme::DARK);
         Self {
             arena: Arena::default(),
             root: None,
@@ -73,6 +77,8 @@ impl Document {
             copied_text: None,
             next_paint: None,
             reactive_scope: ::reactive::Scope::new(),
+            theme,
+            set_theme,
             node_scopes: HashMap::new(),
             sizes: HashMap::new(),
             component_states: HashMap::new(),
@@ -95,6 +101,19 @@ impl Document {
 
     pub(crate) fn reactive_scope(&self) -> &::reactive::Scope {
         &self.reactive_scope
+    }
+
+    pub fn theme(&self) -> Theme {
+        self.theme.get_untracked()
+    }
+
+    pub fn set_theme(&mut self, theme: Theme) {
+        let set_theme = self.set_theme.clone();
+        crate::reactive::with_reactive_scope(self, move || set_theme.set(theme));
+    }
+
+    pub(crate) fn theme_signal(&self) -> ::reactive::ReadSignal<Theme> {
+        self.theme.clone()
     }
 
     pub(crate) fn register_node_scope(&mut self, node: NodeId, scope: ::reactive::Scope) {
@@ -177,15 +196,16 @@ impl Document {
 
     pub fn show(&mut self, ctx: &Context, rect: Rect) {
         if self.inspectable {
+            let theme = self.theme();
             if chord_pressed(ctx, Key::I) {
                 self.inspector = match self.inspector {
                     Some(_) => None,
-                    None => Some(Box::new(Inspector::new(ctx))),
+                    None => Some(Box::new(Inspector::new(ctx, theme))),
                 };
             }
             if chord_pressed(ctx, Key::C) {
                 self.inspector
-                    .get_or_insert_with(|| Box::new(Inspector::new(ctx)))
+                    .get_or_insert_with(|| Box::new(Inspector::new(ctx, theme)))
                     .toggle_picking();
             }
         }

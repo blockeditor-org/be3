@@ -2,14 +2,11 @@ use beui::reactive::{
     build, clone, create_memo, create_selector, create_signal, view, CenteredRow, Column, Frame,
     Memo, ReadSignal, Row, Selector, Show, Spacer, VirtualList, WriteSignal,
 };
-use beui::styled::theme::{
-    ACCENT, ACCENT_SOFT, BACKGROUND, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT,
-    SURFACE, SURFACE_RAISED, TEXT_MUTED,
-};
+use beui::styled::theme::{NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
-    Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
-    Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
-    Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton,
+    use_theme, Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu,
+    Display, Heading, Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select,
+    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton,
 };
 use beui::unstyled::{narrower_than, Container};
 use beui::{
@@ -46,8 +43,9 @@ impl DemoApp {
     fn new() -> Self {
         let document = build(|| {
             let (count, set_count) = create_signal(0i64);
+            let theme = use_theme();
             view! {
-                <Frame color=BACKGROUND radius=0>
+                <Frame color={theme.pick(|theme| theme.background)} radius=0>
                     <Container>
                         {move |_| view! { <DemoShell count set_count /> }}
                     </Container>
@@ -65,7 +63,7 @@ impl beui::App for DemoApp {
     }
 
     fn clear_color(&self) -> Color32 {
-        BACKGROUND
+        self.document.theme().background
     }
 }
 
@@ -147,16 +145,26 @@ fn ScrollRowFace(
     } else {
         ROW_PADDING_VERTICAL
     };
-    let value_color =
-        create_memo(clone!(selected -> move || if selected.get() { ACCENT } else { TEXT_MUTED }));
-    let fill_color = create_memo(move || match (selected.get(), hovered.get()) {
-        (true, _) => ACCENT_SOFT,
-        (false, true) => SURFACE_RAISED,
-        (false, false) => Color32::TRANSPARENT,
-    });
+    let theme = use_theme();
+    let value_color = create_memo(clone!(selected theme -> move || {
+        let theme = theme.get();
+        if selected.get() {
+            theme.accent
+        } else {
+            theme.text_muted
+        }
+    }));
+    let fill_color = create_memo(clone!(theme -> move || {
+        let theme = theme.get();
+        match (selected.get(), hovered.get()) {
+            (true, _) => theme.accent_soft,
+            (false, true) => theme.hover,
+            (false, false) => Color32::TRANSPARENT,
+        }
+    }));
 
     view! {
-        <Frame color={fill_color} outline=ACCENT outline_width=2.0 radius=RADIUS outline_visible={focused} padding_horizontal=ROW_PADDING_HORIZONTAL padding_vertical={vertical}>
+        <Frame color={fill_color} outline={theme.pick(|theme| theme.accent)} outline_width=2.0 radius=RADIUS outline_visible={focused} padding_horizontal=ROW_PADDING_HORIZONTAL padding_vertical={vertical}>
             <CenteredRow spacing=12.0>
                 <Body @sizing=ItemSize::Percent(100.0) content={format!("Row {index}")} />
                 <Frame visible={timings}>
@@ -203,8 +211,9 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
             HEADER_PADDING
         }
     });
+    let theme = use_theme();
     view! {
-        <Frame color=SURFACE padding_horizontal={horizontal}>
+        <Frame color={theme.pick(|theme| theme.surface)} padding_horizontal={horizontal}>
             <CenteredRow spacing=10.0>
                     <CenteredRow spacing=10.0>
                         <Title content="beui" />
@@ -321,7 +330,7 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                         <VirtualList @sizing=ItemSize::Percent(100.0)
                             count=ROW_COUNT
                             item_height={row_height}
-                            focus_color=ACCENT
+                            focus_color={use_theme().pick(|theme| theme.accent)}
                             on_change={move |position| set_scroll_position.set(position)}
                         >
                             {move |index: usize| {

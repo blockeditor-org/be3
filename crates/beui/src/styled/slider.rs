@@ -6,7 +6,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{clone, create_memo, Callback, CenteredRow, Frame, ItemSize, Prop};
-use crate::styled::theme::{ACCENT, ACCENT_HOVER, KNOB, RADIUS, TRACK};
+use crate::styled::theme::{use_theme, Theme, BORDER_WIDTH, RADIUS};
 use crate::unstyled;
 use crate::unstyled::SliderHandle;
 
@@ -47,16 +47,26 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
         dragging,
         focused,
     } = handle;
+    let theme = use_theme();
     let filled_percent = create_memo(clone!(value -> move || filled_size(value.get())));
     let rest_percent = create_memo(move || rest_size(value.get()));
-    let knob_color = create_memo(move || knob_fill_color(dragging.get()));
+    let knob_color =
+        create_memo(clone!(theme -> move || knob_fill_color(&theme.get(), dragging.get())));
 
     view! {
-        <Frame height=HEIGHT outline=ACCENT outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+        <Frame height=HEIGHT outline={theme.pick(|theme| theme.accent)} outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
             <CenteredRow spacing=0.0>
-                <Frame @sizing={filled_percent} height=TRACK_HEIGHT color=ACCENT radius=TRACK_RADIUS />
-                <Frame width=KNOB_SIZE height=KNOB_SIZE color={knob_color} radius=KNOB_RADIUS />
-                <Frame @sizing={rest_percent} height=TRACK_HEIGHT color=TRACK radius=TRACK_RADIUS />
+                <Frame @sizing={filled_percent} height=TRACK_HEIGHT color={theme.pick(|theme| theme.accent)} radius=TRACK_RADIUS />
+                <Frame
+                    width=KNOB_SIZE
+                    height=KNOB_SIZE
+                    color={knob_color}
+                    outline={theme.pick(|theme| theme.control_outline.unwrap_or(Color32::TRANSPARENT))}
+                    outline_width=BORDER_WIDTH
+                    outline_visible={theme.pick(|theme| theme.control_outline.is_some())}
+                    radius=KNOB_RADIUS
+                />
+                <Frame @sizing={rest_percent} height=TRACK_HEIGHT color={theme.pick(|theme| theme.track)} radius=TRACK_RADIUS />
             </CenteredRow>
         </Frame>
     }
@@ -74,10 +84,10 @@ fn rest_size(value: f32) -> ItemSize {
     ItemSize::Percent((1.0 - value) * 100.0)
 }
 
-fn knob_fill_color(dragging: bool) -> Color32 {
+fn knob_fill_color(theme: &Theme, dragging: bool) -> Color32 {
     if dragging {
-        ACCENT_HOVER
+        theme.accent_hover
     } else {
-        KNOB
+        theme.knob
     }
 }

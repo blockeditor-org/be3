@@ -38,6 +38,7 @@ pub use switch::{switch_on, Switch};
 pub use tabs::{tabs_selected, Tabs};
 pub use text::{Body, Caption, Code, Display, Heading, Icon, IconSized, Paragraph, Title};
 pub use text_input::{text_input_value, TextInput};
+pub use theme::{use_theme, Theme, ThemeProvider, ThemeSignal};
 
 mod choice;
 mod listbox;

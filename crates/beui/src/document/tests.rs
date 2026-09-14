@@ -14,6 +14,7 @@ mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
+mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
@@ -27,6 +28,7 @@ mod arrow_keys_move_a_visible_highlight_through_an_open_context_menu;
 mod arrow_keys_step_the_focused_slider;
 mod backspace_deletes_the_character_before_the_caret;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
+mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
 mod clicking_a_checkbox_toggles_it;
 mod clicking_a_row_collapses_its_children;
 mod clicking_a_row_selects_the_node_it_lists;
@@ -307,6 +309,10 @@ impl Harness {
 
     pub(crate) fn pixel_ratio_option_center(&self, index: usize) -> Pos2 {
         self.node_center(self.inspector().pixel_ratio_option_node(index))
+    }
+
+    pub(crate) fn theme_option_center(&self, index: usize) -> Pos2 {
+        self.node_center(self.inspector().theme_option_node(index))
     }
 
     pub(crate) fn performance_panel_visible(&self) -> bool {

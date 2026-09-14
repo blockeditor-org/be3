@@ -4,10 +4,8 @@ use beui_macros::{component, view};
 use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{create_memo, Callback, Frame, Prop, Text};
-use crate::styled::theme::{
-    ACCENT, ACCENT_SOFT, BORDER, FONT_BODY, RADIUS, SURFACE, SURFACE_RAISED, TEXT,
-};
+use crate::reactive::{clone, create_memo, Callback, Frame, Prop, Text};
+use crate::styled::theme::{use_theme, Theme, FONT_BODY, RADIUS};
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
 
@@ -39,28 +37,35 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
         focused,
         ..
     } = handle;
-    let fill_color = create_memo({
-        let checked = checked.clone();
-        move || fill_for(checked.get(), hovered.get())
-    });
-    let border_color = create_memo(move || if checked.get() { ACCENT } else { BORDER });
+    let theme = use_theme();
+    let fill_color = create_memo(
+        clone!(checked theme -> move || fill_for(&theme.get(), checked.get(), hovered.get())),
+    );
+    let border_color = create_memo(clone!(theme -> move || {
+        let theme = theme.get();
+        if checked.get() {
+            theme.accent
+        } else {
+            theme.border
+        }
+    }));
 
     view! {
-        <Frame outline=ACCENT outline_width=2.0 radius=RADIUS outline_offset=3.0 outline_visible={focused}>
+        <Frame outline={theme.pick(|theme| theme.accent)} outline_width=2.0 radius=RADIUS outline_offset=3.0 outline_visible={focused}>
             <Frame color={fill_color} outline={border_color} outline_width=1.0 radius=RADIUS outline_visible=true padding_horizontal=14.0 padding_vertical=8.0>
-                <Text string={label} font_size=FONT_BODY color=TEXT />
+                <Text string={label} font_size=FONT_BODY color={theme.pick(|theme| theme.text)} />
             </Frame>
         </Frame>
     }
 }
 
-fn fill_for(pressed: bool, hovered: bool) -> Color32 {
+fn fill_for(theme: &Theme, pressed: bool, hovered: bool) -> Color32 {
     if pressed {
-        ACCENT_SOFT
+        theme.accent_soft
     } else if hovered {
-        SURFACE_RAISED
+        theme.hover
     } else {
-        SURFACE
+        theme.surface
     }
 }
 

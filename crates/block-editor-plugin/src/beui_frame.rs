@@ -1,8 +1,8 @@
-use beui::styled::theme::{
-    BORDER, FONT_BODY, FONT_SMALL, RADIUS, SURFACE, SURFACE_RAISED, TEXT, TEXT_MUTED,
-};
+use beui::styled::theme::{FONT_BODY, FONT_SMALL, RADIUS};
+use beui::styled::Theme;
 use beui::{pos2, Context, CursorIcon, FontId, Key, Rect, Vec2};
 
+const THEME: Theme = Theme::DARK;
 const BAND_HEIGHT: f32 = 36.0;
 const BAND_PADDING: f32 = 12.0;
 const STEP_GAP: f32 = 8.0;
@@ -32,14 +32,14 @@ pub(crate) fn show(context: &Context, rect: Rect, trail: &[String], drawn: bool)
 
     let band = Rect::from_min_size(rect.min, Vec2::new(rect.width(), BAND_HEIGHT));
     let painter = context.painter();
-    painter.rect_filled(band, 0.0, SURFACE);
+    painter.rect_filled(band, 0.0, THEME.surface);
     painter.rect_filled(
         Rect::from_min_size(
             pos2(band.left(), band.bottom() - SEPARATOR),
             Vec2::new(band.width(), SEPARATOR),
         ),
         0.0,
-        BORDER,
+        THEME.border,
     );
 
     let font = FontId::proportional(FONT_BODY);
@@ -49,12 +49,12 @@ pub(crate) fn show(context: &Context, rect: Rect, trail: &[String], drawn: bool)
         if index > 0 {
             let galley = painter.layout(">", FontId::proportional(FONT_SMALL), f32::INFINITY);
             let width = galley.size().x;
-            painter.galley(centered(band, x, galley.size()), galley, TEXT_MUTED);
+            painter.galley(centered(band, x, galley.size()), galley, THEME.text_muted);
             x += width + STEP_GAP;
         }
         let galley = painter.layout(step.clone(), font, f32::INFINITY);
         let width = galley.size().x;
-        let color = if last { TEXT } else { TEXT_MUTED };
+        let color = if last { THEME.text } else { THEME.text_muted };
         painter.galley(centered(band, x, galley.size()), galley, color);
         x += width + STEP_GAP;
     }
@@ -86,16 +86,20 @@ fn exit_button(context: &Context, band: Rect) -> bool {
     painter.rect_filled(
         button,
         RADIUS as f32,
-        if hovered { SURFACE_RAISED } else { SURFACE },
+        if hovered {
+            THEME.surface_raised
+        } else {
+            THEME.surface
+        },
     );
-    painter.rect_stroke(button, RADIUS as f32, 1.0, BORDER);
+    painter.rect_stroke(button, RADIUS as f32, 1.0, THEME.border);
     painter.galley(
         pos2(
             button.left() + EXIT_PADDING,
             button.top() + (button.height() - size.y) / 2.0,
         ),
         galley,
-        TEXT,
+        THEME.text,
     );
     hovered && context.input(|input| input.pointer.primary_released())
 }

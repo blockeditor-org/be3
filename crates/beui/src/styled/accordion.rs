@@ -6,11 +6,9 @@ use crate::base::TextAlign;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    create_memo, Callback, CenteredRow, Child, Frame, ItemSize, Memo, Prop, Text,
+    clone, create_memo, Callback, CenteredRow, Child, Frame, ItemSize, Memo, Prop, Text,
 };
-use crate::styled::theme::{
-    ACCENT, FONT_HEADING, FONT_SMALL, RADIUS, SURFACE_RAISED, TEXT, TEXT_MUTED,
-};
+use crate::styled::theme::{use_theme, Theme, FONT_HEADING, FONT_SMALL, RADIUS};
 use crate::unstyled;
 use crate::unstyled::DisclosureHandle;
 
@@ -47,16 +45,20 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
         focused,
         ..
     } = handle;
-    let header_color = create_memo(move || header_fill(hovered.get()));
+    let theme = use_theme();
+    let header_color =
+        create_memo(clone!(theme -> move || header_fill(&theme.get(), hovered.get())));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
+    let marker_color = theme.pick(|theme| theme.text_muted);
+    let title_color = theme.pick(|theme| theme.text);
     view! {
-        <Frame color={header_color} outline=ACCENT outline_width=2.0 radius=RADIUS outline_offset=2.0 outline_visible={focused} padding_horizontal=PADDING_HORIZONTAL padding_vertical=PADDING_VERTICAL>
+        <Frame color={header_color} outline={theme.pick(|theme| theme.accent)} outline_width=2.0 radius=RADIUS outline_offset=2.0 outline_visible={focused} padding_horizontal=PADDING_HORIZONTAL padding_vertical=PADDING_VERTICAL>
             <CenteredRow spacing=SPACING>
                 <Frame width=MARKER_WIDTH>
                     <Text
                         string={marker_glyph}
                         font_size=FONT_SMALL
-                        color=TEXT_MUTED
+                        color={marker_color}
                         monospace=true
                         align=TextAlign::Center
                     />
@@ -64,7 +66,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
                 <Text @sizing=ItemSize::Percent(100.0)
                     string={title}
                     font_size=FONT_HEADING
-                    color=TEXT
+                    color={title_color}
                     align=TextAlign::Start
                 />
             </CenteredRow>
@@ -84,9 +86,9 @@ fn glyph(open: bool) -> &'static str {
     }
 }
 
-fn header_fill(hovered: bool) -> Color32 {
+fn header_fill(theme: &Theme, hovered: bool) -> Color32 {
     if hovered {
-        SURFACE_RAISED
+        theme.hover
     } else {
         Color32::TRANSPARENT
     }

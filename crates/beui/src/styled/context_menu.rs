@@ -3,10 +3,8 @@ use beui_macros::{component, view};
 use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::node::NodeId;
-use crate::reactive::{create_memo, Callback, Child, Frame, Prop, Text};
-use crate::styled::theme::{
-    ACCENT_SOFT, BORDER, BORDER_WIDTH, FONT_BODY, RADIUS, SURFACE_RAISED, TEXT, TEXT_MUTED,
-};
+use crate::reactive::{clone, create_memo, Callback, Child, Frame, Prop, Text};
+use crate::styled::theme::{use_theme, Theme, BORDER_WIDTH, FONT_BODY, RADIUS};
 use crate::unstyled;
 use crate::unstyled::{MenuItem, MenuRowHandle};
 
@@ -40,8 +38,18 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         hovered,
         focused,
     } = handle;
-    let color = if item.disabled { TEXT_MUTED } else { TEXT };
-    let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
+    let theme = use_theme();
+    let disabled = item.disabled;
+    let color = theme.pick(move |theme| {
+        if disabled {
+            theme.text_muted
+        } else {
+            theme.text
+        }
+    });
+    let fill_color = create_memo(
+        clone!(theme -> move || row_background(&theme.get(), focused.get(), hovered.get())),
+    );
     view! {
         <Frame color={fill_color} radius=RADIUS padding_horizontal=PADDING_HORIZONTAL padding_vertical=PADDING_VERTICAL>
             <Text
@@ -56,17 +64,18 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
 
 #[component]
 fn MenuPanel(children: Child) -> NodeId {
+    let theme = use_theme();
     view! {
-        <Frame width=MENU_WIDTH color=SURFACE_RAISED outline=BORDER outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
+        <Frame width=MENU_WIDTH color={theme.pick(|theme| theme.surface_raised)} outline={theme.pick(|theme| theme.border)} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
             {children}
         </Frame>
     }
 }
 
-fn row_background(focused: bool, hovered: bool) -> Color32 {
+fn row_background(theme: &Theme, focused: bool, hovered: bool) -> Color32 {
     match (focused, hovered) {
-        (true, _) => ACCENT_SOFT,
-        (false, true) => BORDER,
+        (true, _) => theme.accent_soft,
+        (false, true) => theme.pressed,
         (false, false) => Color32::TRANSPARENT,
     }
 }

@@ -5,11 +5,8 @@ use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{create_memo, Callback, Child, Frame, Prop, Text};
-use crate::styled::theme::{
-    ACCENT, ACCENT_SOFT, BORDER, BORDER_WIDTH, FONT_BODY, RADIUS, SURFACE, SURFACE_RAISED, TEXT,
-    TEXT_MUTED,
-};
+use crate::reactive::{clone, create_memo, Callback, Child, Frame, Prop, Text};
+use crate::styled::theme::{use_theme, Theme, BORDER_WIDTH, FONT_BODY, RADIUS};
 use crate::unstyled;
 use crate::unstyled::{SelectOptionHandle, SelectTriggerHandle, TextInputHandle};
 
@@ -37,6 +34,7 @@ pub fn Select(
         }
         node
     });
+    let theme = use_theme();
     view! {
         <unstyled::Select
             options
@@ -45,10 +43,10 @@ pub fn Select(
             on_change={move |selected| on_change.call(selected)}
             search_placeholder="Search"
             search_font_size=FONT_BODY
-            search_color=TEXT
-            search_placeholder_color=TEXT_MUTED
-            search_selection_color=ACCENT_SOFT
-            search_caret_color=ACCENT
+            search_color={theme.pick(|theme| theme.text)}
+            search_placeholder_color={theme.pick(|theme| theme.text_muted)}
+            search_selection_color={theme.pick(|theme| theme.accent_soft)}
+            search_caret_color={theme.pick(|theme| theme.accent)}
             search_padding_horizontal=PADDING_HORIZONTAL
             search_content={|handle| view! { <SearchField handle /> }}
             trigger={move |handle| view! { <SelectTrigger options={trigger_options} handle /> }}
@@ -67,17 +65,17 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
         focused,
         ..
     } = handle;
+    let theme = use_theme();
     let label_text = create_memo(move || trigger_label(&options, selected.get()));
-    let border = create_memo({
-        let focused = focused.clone();
-        move || border_color(focused.get(), hovered.get())
-    });
+    let border = create_memo(
+        clone!(focused theme -> move || border_color(&theme.get(), focused.get(), hovered.get())),
+    );
     view! {
-        <Frame outline=ACCENT outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
+        <Frame outline={theme.pick(|theme| theme.accent)} outline_width=FOCUS_RING_WIDTH radius=RADIUS outline_offset=FOCUS_RING_OFFSET outline_visible={focused}>
             <Frame
                 width=TRIGGER_WIDTH
                 height=HEIGHT
-                color=SURFACE_RAISED
+                color={theme.pick(|theme| theme.surface_raised)}
                 outline={border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
@@ -87,7 +85,7 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
                 <Text
                     string={label_text}
                     font_size=FONT_BODY
-                    color=TEXT
+                    color={theme.pick(|theme| theme.text)}
                     align=TextAlign::Start
                     clip=true
                 />
@@ -103,9 +101,12 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         hovered,
         focused,
     } = handle;
-    let border = create_memo(move || border_color(focused.get(), hovered.get()));
+    let theme = use_theme();
+    let border = create_memo(
+        clone!(theme -> move || border_color(&theme.get(), focused.get(), hovered.get())),
+    );
     view! {
-        <Frame height=HEIGHT color=SURFACE outline={border} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true>
+        <Frame height=HEIGHT color={theme.pick(|theme| theme.surface)} outline={border} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true>
             {field}
         </Frame>
     }
@@ -119,13 +120,16 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
         hovered,
         ..
     } = handle;
-    let fill_color = create_memo(move || option_background(highlighted.get(), hovered.get()));
+    let theme = use_theme();
+    let fill_color = create_memo(
+        clone!(theme -> move || option_background(&theme.get(), highlighted.get(), hovered.get())),
+    );
     view! {
         <Frame color={fill_color} radius=RADIUS padding_horizontal=PADDING_HORIZONTAL padding_vertical=OPTION_PADDING_VERTICAL>
             <Text
                 string={label}
                 font_size=FONT_BODY
-                color=TEXT
+                color={theme.pick(|theme| theme.text)}
                 align=TextAlign::Start
             />
         </Frame>
@@ -134,11 +138,12 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
 
 #[component]
 fn SelectPopup(children: Child) -> NodeId {
+    let theme = use_theme();
     view! {
         <Frame
             width=POPUP_WIDTH
-            color=SURFACE_RAISED
-            outline=BORDER
+            color={theme.pick(|theme| theme.surface_raised)}
+            outline={theme.pick(|theme| theme.border)}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
@@ -163,18 +168,18 @@ fn trigger_label(options: &[String], selected: Option<usize>) -> String {
         .unwrap_or_else(|| "Select...".to_owned())
 }
 
-fn option_background(highlighted: bool, hovered: bool) -> Color32 {
+fn option_background(theme: &Theme, highlighted: bool, hovered: bool) -> Color32 {
     match (highlighted, hovered) {
-        (true, _) => ACCENT_SOFT,
-        (false, true) => SURFACE,
+        (true, _) => theme.accent_soft,
+        (false, true) => theme.surface,
         (false, false) => Color32::TRANSPARENT,
     }
 }
 
-fn border_color(focused: bool, hovered: bool) -> Color32 {
+fn border_color(theme: &Theme, focused: bool, hovered: bool) -> Color32 {
     match (focused, hovered) {
-        (true, _) => ACCENT,
-        (false, true) => TEXT_MUTED,
-        (false, false) => BORDER,
+        (true, _) => theme.accent,
+        (false, true) => theme.text_muted,
+        (false, false) => theme.border,
     }
 }

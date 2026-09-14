@@ -5,7 +5,7 @@ use crate::color::Color32;
 use crate::base::ScrollPosition;
 use crate::node::NodeId;
 use crate::reactive::{clone, create_memo, Column, Frame, ItemSize, Prop, Spacer};
-use crate::styled::theme::{SCROLL_THUMB, SURFACE_RAISED};
+use crate::styled::theme::{use_theme, Theme};
 
 const RADIUS: u8 = 3;
 const MINIMUM_THUMB: f32 = 0.08;
@@ -13,14 +13,15 @@ const MINIMUM_THUMB: f32 = 0.08;
 #[component]
 pub fn Scrollbar(position: Prop<ScrollPosition>) -> NodeId {
     let position = create_memo(move || position.get());
+    let theme = use_theme();
 
     let before = create_memo(clone!(position -> move || before_percent(position.get())));
     let thumb = create_memo(clone!(position -> move || thumb_percent(position.get())));
     let after = create_memo(clone!(position -> move || after_percent(position.get())));
-    let color = create_memo(move || thumb_color(position.get()));
+    let color = create_memo(clone!(theme -> move || thumb_color(&theme.get(), position.get())));
 
     view! {
-        <Frame color=SURFACE_RAISED radius=RADIUS>
+        <Frame color={theme.pick(|theme| theme.surface_raised)} radius=RADIUS>
             <Column spacing=0.0>
                 <Spacer @sizing={before} />
                 <Frame @sizing={thumb} color radius=RADIUS></Frame>
@@ -60,9 +61,9 @@ fn after_percent(position: ScrollPosition) -> ItemSize {
     ItemSize::Percent(rest * (1.0 - progress_fraction(position)))
 }
 
-fn thumb_color(position: ScrollPosition) -> Color32 {
+fn thumb_color(theme: &Theme, position: ScrollPosition) -> Color32 {
     if position.max_offset() > 0.0 {
-        SCROLL_THUMB
+        theme.scroll_thumb
     } else {
         Color32::TRANSPARENT
     }

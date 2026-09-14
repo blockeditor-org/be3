@@ -13,7 +13,7 @@ use crate::input::{CursorIcon, Event, Key as InputKey};
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{with_reactive_scope, WriteSignal};
-use crate::styled::theme::ACCENT;
+use crate::styled::Theme;
 
 use panel::Summary;
 use tree::{Entry, Key};
@@ -51,13 +51,15 @@ pub(crate) struct State {
     pub(crate) picking: Cell<bool>,
     pub(crate) touch_emulation: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
+    pub(crate) theme: Cell<Theme>,
+    requested_theme: Cell<Option<Theme>>,
     reveal: Cell<Option<NodeId>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
 }
 
 impl State {
-    fn new(ctx: &Context) -> Self {
+    fn new(ctx: &Context, theme: Theme) -> Self {
         Self {
             expansion: RefCell::new(HashMap::new()),
             tab: Cell::new(InspectorTab::default()),
@@ -66,6 +68,8 @@ impl State {
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
+            theme: Cell::new(theme),
+            requested_theme: Cell::new(None),
             reveal: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
@@ -97,6 +101,12 @@ impl State {
 
     fn simulate_pixels_per_point(&self, pixels_per_point: Option<f32>) {
         self.simulated_pixels_per_point.set(pixels_per_point);
+        self.touch();
+    }
+
+    fn choose_theme(&self, theme: Theme) {
+        self.theme.set(theme);
+        self.requested_theme.set(Some(theme));
         self.touch();
     }
 
@@ -143,6 +153,8 @@ pub(crate) struct Inspector {
     performance_panel: crate::reactive::NodeRef,
     #[cfg(test)]
     pixel_ratio: crate::reactive::NodeRef,
+    #[cfg(test)]
+    theme_choice: crate::reactive::NodeRef,
     pub(crate) width: f32,
     grabbed: Option<f32>,
     grip: bool,
@@ -150,8 +162,8 @@ pub(crate) struct Inspector {
 }
 
 impl Inspector {
-    pub(crate) fn new(ctx: &Context) -> Self {
-        let state = Rc::new(State::new(ctx));
+    pub(crate) fn new(ctx: &Context, theme: Theme) -> Self {
+        let state = Rc::new(State::new(ctx, theme));
         let panel = panel::build(&state);
         Self {
             document: panel.document,
@@ -166,6 +178,8 @@ impl Inspector {
             performance_panel: panel.performance_panel,
             #[cfg(test)]
             pixel_ratio: panel.pixel_ratio,
+            #[cfg(test)]
+            theme_choice: panel.theme_choice,
             state,
             set_keys: panel.set_keys,
             set_entries: panel.set_entries,
@@ -217,6 +231,11 @@ impl Inspector {
     #[cfg(test)]
     pub(crate) fn pixel_ratio_option_node(&self, index: usize) -> NodeId {
         self.document.children(self.pixel_ratio.get())[index]
+    }
+
+    #[cfg(test)]
+    pub(crate) fn theme_option_node(&self, index: usize) -> NodeId {
+        self.document.children(self.theme_choice.get())[index]
     }
 
     #[cfg(test)]
@@ -282,6 +301,10 @@ impl Inspector {
         }
         ctx.set_touch_emulation(self.state.touch_emulation.get());
         ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
+        if let Some(theme) = self.state.requested_theme.take() {
+            target.set_theme(theme);
+            ctx.request_repaint();
+        }
         self.pick(target, ctx, content);
         self.reveal();
         self.paint(target, ctx, content, panel);
@@ -433,7 +456,7 @@ impl Inspector {
                     panel.min,
                     pos2(panel.left() + GRIP_PAINT_WIDTH, panel.bottom()),
                 );
-                ctx.painter().rect_filled(grip, 0.0, ACCENT);
+                ctx.painter().rect_filled(grip, 0.0, Theme::DARK.accent);
                 ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
             }
         });

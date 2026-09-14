@@ -14,13 +14,10 @@ use crate::reactive::{
     Column, ForEach, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
     WriteSignal,
 };
-use crate::styled::theme::{
-    ACCENT, BORDER, BORDER_WIDTH, CHIP_RADIUS, ON_ACCENT, RADIUS, SCROLLBAR_WIDTH,
-    SEPARATOR_HEIGHT, SURFACE, SURFACE_RAISED, TEXT, TEXT_MUTED,
-};
+use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use crate::styled::{
     Button, ButtonVariant, Caption, Checkbox, Code, Heading, ListRow, RadioGroup, Scrollbar,
-    Separator, Tabs,
+    Separator, Tabs, Theme,
 };
 use crate::unstyled;
 
@@ -48,6 +45,8 @@ const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("2x", Some(2.0)),
     ("3x", Some(3.0)),
 ];
+const THEMES: [(&str, Theme); 2] = [("Dark", Theme::DARK), ("E-ink", Theme::EINK)];
+const THEME: Theme = Theme::DARK;
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Summary {
@@ -136,6 +135,8 @@ pub(crate) struct Panel {
     #[cfg(test)]
     pub(crate) pixel_ratio: NodeRef,
     #[cfg(test)]
+    pub(crate) theme_choice: NodeRef,
+    #[cfg(test)]
     pub(crate) rows: Rows,
 }
 
@@ -156,6 +157,8 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let performance_panel_ref = performance_panel.clone();
     let pixel_ratio = NodeRef::new();
     let pixel_ratio_ref = pixel_ratio.clone();
+    let theme_choice = NodeRef::new();
+    let theme_choice_ref = theme_choice.clone();
     let simulation_state = state.clone();
     let tab_state = state.clone();
     let reset_state = state.clone();
@@ -205,7 +208,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         view! {
         <Row spacing=0.0>
             <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-            <Frame @sizing=ItemSize::Percent(100.0) color=SURFACE radius=0>
+            <Frame @sizing=ItemSize::Percent(100.0) color={THEME.surface} radius=0>
                 <Column spacing=0.0>
                     <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
                         <Column spacing=HEADER_SPACING>
@@ -233,7 +236,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                             <Show @sizing=ItemSize::Percent(100.0) condition={body_tree_visible}>
                                 <Row spacing=BODY_SPACING>
                                     <Scroll @sizing=ItemSize::Percent(100.0)
-                                        focus_color=ACCENT
+                                        focus_color={THEME.accent}
                                         reveal
                                         on_change={move |value| set_position.set(value)}
                                     >
@@ -262,6 +265,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     state={simulation_state.clone()}
                                     touch_toggle={touch_toggle_ref.clone()}
                                     pixel_ratio={pixel_ratio_ref.clone()}
+                                    theme_choice={theme_choice_ref.clone()}
                                 />
                             </Show>
                         </Column>
@@ -272,7 +276,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                             <Show condition={footer_tree_visible}>
                                 <Column spacing=FOOTER_SPACING>
                                     <Code content={selection_text} />
-                                    <Code content={bounds_text} color=TEXT_MUTED />
+                                    <Code content={bounds_text} color={THEME.text_muted} />
                                 </Column>
                             </Show>
                             <Show condition={footer_performance_visible}>
@@ -283,7 +287,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 />
                             </Show>
                             <Show condition={footer_simulation_visible}>
-                                <Code content={native_pixel_ratio_text} color=TEXT_MUTED />
+                                <Code content={native_pixel_ratio_text} color={THEME.text_muted} />
                             </Show>
                         </Column>
                     </Frame>
@@ -310,12 +314,19 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         #[cfg(test)]
         pixel_ratio,
         #[cfg(test)]
+        theme_choice,
+        #[cfg(test)]
         rows,
     }
 }
 
 #[component]
-fn SimulationPanel(state: Rc<State>, touch_toggle: NodeRef, pixel_ratio: NodeRef) -> NodeId {
+fn SimulationPanel(
+    state: Rc<State>,
+    touch_toggle: NodeRef,
+    pixel_ratio: NodeRef,
+    theme_choice: NodeRef,
+) -> NodeId {
     let (position, set_position) = create_signal(ScrollPosition::ZERO);
     let simulated = state.simulated_pixels_per_point.get();
     let selected = PIXEL_RATIOS
@@ -326,12 +337,21 @@ fn SimulationPanel(state: Rc<State>, touch_toggle: NodeRef, pixel_ratio: NodeRef
         .iter()
         .map(|(label, _)| (*label).to_owned())
         .collect::<Vec<_>>();
-    let (touch_state, ratio_state) = (state.clone(), state.clone());
+    let theme = state.theme.get();
+    let selected_theme = THEMES
+        .iter()
+        .position(|(_, candidate)| *candidate == theme)
+        .unwrap_or(0);
+    let theme_labels = THEMES
+        .iter()
+        .map(|(label, _)| (*label).to_owned())
+        .collect::<Vec<_>>();
+    let (touch_state, ratio_state, theme_state) = (state.clone(), state.clone(), state.clone());
     view! {
         <Row spacing=BODY_SPACING>
             <Scroll
                 @sizing=ItemSize::Percent(100.0)
-                focus_color=ACCENT
+                focus_color={THEME.accent}
                 on_change={move |value| set_position.set(value)}
             >
                 <Column spacing=PERFORMANCE_SPACING>
@@ -351,6 +371,20 @@ fn SimulationPanel(state: Rc<State>, touch_toggle: NodeRef, pixel_ratio: NodeRef
                             on_change={move |index: Option<usize>| {
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
                                 ratio_state.simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
+                            }}
+                        />
+                    </Column>
+                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Column spacing=TIMING_SPACING>
+                        <Heading content="Theme" />
+                        <RadioGroup
+                            @node_ref=&theme_choice
+                            labels={theme_labels}
+                            selected={Some(selected_theme)}
+                            on_change={move |index: Option<usize>| {
+                                if let Some((_, theme)) = index.and_then(|index| THEMES.get(index)) {
+                                    theme_state.choose_theme(*theme);
+                                }
                             }}
                         />
                     </Column>
@@ -384,14 +418,14 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>) -> NodeId {
         <Row spacing=BODY_SPACING>
             <Scroll
                 @sizing=ItemSize::Percent(100.0)
-                focus_color=ACCENT
+                focus_color={THEME.accent}
                 on_change={move |value| set_position.set(value)}
             >
                 <Column spacing=PERFORMANCE_SPACING>
                     <Column spacing=FOOTER_SPACING>
                         <Code content={latest_work} />
-                        <Code content={scene} color=TEXT_MUTED />
-                        <Code content={cache} color=TEXT_MUTED />
+                        <Code content={scene} color={THEME.text_muted} />
+                        <Code content={cache} color={THEME.text_muted} />
                     </Column>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                     <Column spacing=TIMING_SPACING>
@@ -473,17 +507,17 @@ fn percentage(count: usize, total: usize) -> usize {
 
 pub(crate) fn toggle_fill(picking: bool) -> Color32 {
     if picking {
-        ACCENT
+        THEME.accent
     } else {
-        SURFACE_RAISED
+        THEME.surface_raised
     }
 }
 
 pub(crate) fn toggle_text(picking: bool) -> Color32 {
     if picking {
-        ON_ACCENT
+        THEME.on_accent
     } else {
-        TEXT
+        THEME.text
     }
 }
 
@@ -494,7 +528,7 @@ fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
     let picker = state;
     view! {
         <unstyled::Pressable on_click={move || picker.toggle_picking()}>
-            <Frame color={fill_color} outline=BORDER outline_width=BORDER_WIDTH radius=CHIP_RADIUS outline_visible=true padding_horizontal=TOGGLE_PADDING_HORIZONTAL padding_vertical=TOGGLE_PADDING_VERTICAL>
+            <Frame color={fill_color} outline={THEME.border} outline_width=BORDER_WIDTH radius=CHIP_RADIUS outline_visible=true padding_horizontal=TOGGLE_PADDING_HORIZONTAL padding_vertical=TOGGLE_PADDING_VERTICAL>
                 <Code
                     content="Pick"
                     align=TextAlign::Center
@@ -555,7 +589,7 @@ fn TreeRow(row_key: Key, entries: Entries, state: Rc<State>, rows: Rows) -> Node
             on_hover_change={move |hovered| hover.hover(node, hovered)}
         >
             <Frame
-                outline=ACCENT
+                outline={THEME.accent}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_offset=0.0
@@ -571,11 +605,11 @@ fn TreeRow(row_key: Key, entries: Entries, state: Rc<State>, rows: Rows) -> Node
                                 expansion.set_expanded(key, !expanded.get_untracked());
                             }}
                         >
-                            <Code content={glyph} color=TEXT_MUTED align=TextAlign::Center />
+                            <Code content={glyph} color={THEME.text_muted} align=TextAlign::Center />
                         </unstyled::Pressable>
                         <Code content={kind} />
-                        <Code @sizing=ItemSize::Percent(100.0) content={detail} color=TEXT_MUTED />
-                        <Code content={size} color=TEXT_MUTED align=TextAlign::End />
+                        <Code @sizing=ItemSize::Percent(100.0) content={detail} color={THEME.text_muted} />
+                        <Code content={size} color={THEME.text_muted} align=TextAlign::End />
                     </CenteredRow>
                 </ListRow>
             </Frame>

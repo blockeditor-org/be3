@@ -5,8 +5,7 @@ use block_editor_plugin::beui::reactive::{
     build, clone, create_memo, create_signal, view, with_reactive_scope, CenteredRow, Column,
     Frame, WriteSignal,
 };
-use block_editor_plugin::beui::styled::theme::BACKGROUND;
-use block_editor_plugin::beui::styled::{Button, ButtonVariant, Display};
+use block_editor_plugin::beui::styled::{use_theme, Button, ButtonVariant, Display};
 use block_editor_plugin::beui::{Color32, Context, Document, Rect};
 
 const PADDING: f32 = 20.0;
@@ -46,9 +45,10 @@ impl CounterUi {
             let reset = step(&counter, &sink, Counter::reset);
             let decrement = step(&counter, &sink, Counter::decrement);
             let increment = step(&counter, &sink, Counter::increment);
+            let theme = use_theme();
 
             view! {
-                <Frame color=BACKGROUND padding_horizontal=PADDING padding_vertical=PADDING>
+                <Frame color={theme.pick(|theme| theme.background)} padding_horizontal=PADDING padding_vertical=PADDING>
                     <Column spacing=16.0>
                             <Display
                                 content={create_memo(clone!(count -> move || count.get().to_string()))}
@@ -90,7 +90,7 @@ impl CounterUi {
     }
 
     pub fn background(&self) -> Color32 {
-        BACKGROUND
+        self.document.theme().background
     }
 
     pub fn set_value(&mut self, value: i64) {

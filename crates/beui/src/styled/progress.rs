@@ -5,7 +5,7 @@ use crate::node::NodeId;
 use crate::reactive::{
     clone, component_accessibility, create_memo, Frame, ItemSize, Prop, Row, Spacer,
 };
-use crate::styled::theme::{ACCENT, TRACK};
+use crate::styled::theme::use_theme;
 
 const HEIGHT: f32 = 6.0;
 const RADIUS: u8 = 3;
@@ -29,11 +29,12 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
         node.set_max_numeric_value(1.0);
         node
     })));
+    let theme = use_theme();
 
     view! {
-        <Frame height=HEIGHT color=TRACK radius=RADIUS>
+        <Frame height=HEIGHT color={theme.pick(|theme| theme.track)} radius=RADIUS>
             <Row spacing=0.0>
-                <Frame @sizing={filled} color=ACCENT radius=RADIUS />
+                <Frame @sizing={filled} color={theme.pick(|theme| theme.accent)} radius=RADIUS />
                 <Spacer @sizing={rest} />
             </Row>
         </Frame>

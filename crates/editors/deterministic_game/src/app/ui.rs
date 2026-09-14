@@ -4,8 +4,9 @@ use block_editor_plugin::beui::reactive::{
     build, clone, create_memo, create_signal, view, with_reactive_scope, Column, Dynamic, ForEach,
     Frame, ItemSize, Scroll, WriteSignal,
 };
-use block_editor_plugin::beui::styled::theme::{ACCENT_HOVER, BACKGROUND, TEXT_MUTED};
-use block_editor_plugin::beui::styled::{Body, Button, ButtonVariant, Card, Heading, Paragraph};
+use block_editor_plugin::beui::styled::{
+    use_theme, Body, Button, ButtonVariant, Card, Heading, Paragraph,
+};
 use block_editor_plugin::beui::{Color32, Context, Document, NodeId, Rect, TextAlign};
 use game_api::{GameActionOption, GameScreen};
 
@@ -65,8 +66,9 @@ impl GameUi {
     pub(super) fn new(game: Rc<dyn GameModel>, initial: GameSnapshot) -> Self {
         let (snapshot, set_snapshot) = create_signal(initial);
         let document = build(move || {
+            let theme = use_theme();
             view! {
-                <Frame color=BACKGROUND padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+                <Frame color={theme.pick(|theme| theme.background)} padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
                     <Dynamic value={snapshot} item_size=ItemSize::Percent(100.0)>
                         {move |snapshot| game_view(game.clone(), snapshot)}
                     </Dynamic>
@@ -84,7 +86,7 @@ impl GameUi {
     }
 
     pub fn background(&self) -> Color32 {
-        BACKGROUND
+        self.document.theme().background
     }
 
     pub(super) fn set_snapshot(&mut self, snapshot: GameSnapshot) {
@@ -172,15 +174,17 @@ impl GameCreationUi {
                         .unwrap_or_else(|| "No game module chosen".to_owned())
                 })
             }));
-            let status_color = create_memo(move || {
+            let theme = use_theme();
+            let status_color = create_memo(clone!(theme -> move || {
+                let theme = theme.get();
                 if snapshot.get().error.is_some() {
-                    ACCENT_HOVER
+                    theme.accent_hover
                 } else {
-                    TEXT_MUTED
+                    theme.text_muted
                 }
-            });
+            }));
             view! {
-                <Frame color=BACKGROUND padding_horizontal=12.0 padding_vertical=10.0>
+                <Frame color={theme.pick(|theme| theme.background)} padding_horizontal=12.0 padding_vertical=10.0>
                     <Column spacing=8.0>
                         <Button
                             label="Choose game module..."
