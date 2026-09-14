@@ -39,9 +39,15 @@ fi
 packages=(build-essential pkg-config)
 # build-ghostty-vt.sh clones Ghostty and unpacks a Zig release, which is .tar.xz.
 packages+=(curl git tar xz-utils)
-# The web build compiles HarfBuzz for wasm32-wasip1-threads with clang and
-# archives it with llvm-ar, neither of which comes from rustup.
+# The web build, and every plugin's tests, compile HarfBuzz for
+# wasm32-wasip1-threads with clang and archive it with llvm-ar, neither of
+# which comes from rustup. 24.04 still ships 18 as plain clang, which is older
+# than the setjmp lowering FreeType needs, so a newer one is installed beside
+# it and the build scripts pick that one up.
 packages+=(clang llvm)
+if [[ "$(clang_major clang || echo 0)" -lt "$wasm_clang_minimum" ]]; then
+    packages+=(clang-20 llvm-20)
+fi
 # alsa-sys compiles against the ALSA headers; audio playback is behind it.
 packages+=(libasound2-dev)
 # wgpu opens libvulkan at runtime rather than linking it, and lavapipe out of

@@ -59,6 +59,7 @@ members = [
     "crates/block-plugin-api",
     "crates/ghostty-vt",
     "crates/paint-snapshot",
+    "crates/plugin-test-runner",
     "crates/fix-rust-source",
     "crates/wasi-threads",
 ]

@@ -149,6 +149,42 @@ build_games() {
 wasi_sdk_version='33'
 wasm_rust_target='wasm32-wasip1-threads'
 
+# The flags below are LLVM 19's, so an older clang stops at the first of them
+# with nothing built. Ubuntu still ships 18 as plain clang while packaging newer
+# ones beside it, so a machine that has one is used rather than turned away.
+wasm_clang_minimum='19'
+wasm_clang=''
+wasm_clangxx=''
+wasm_ar=''
+
+clang_major() {
+    command -v "$1" > /dev/null || return 1
+    "$1" --version 2> /dev/null | sed -n 's/.*clang version \([0-9][0-9]*\).*/\1/p' | head -1
+}
+
+pick_wasm_clang() {
+    local candidate major newest=''
+    for candidate in clang clang-22 clang-21 clang-20 clang-19; do
+        major="$(clang_major "$candidate" || true)"
+        [[ -n "$major" ]] || continue
+        if [[ "$major" -ge "$wasm_clang_minimum" ]]; then
+            newest="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$newest" ]]; then
+        echo "The wasm build needs clang $wasm_clang_minimum or newer, and none was found on PATH." >&2
+        echo "Install one (apt-get install clang-20 llvm-20) and run this again." >&2
+        exit 1
+    fi
+    wasm_clang="$newest"
+    wasm_clangxx="${newest/clang/clang++}"
+    command -v "$wasm_clangxx" > /dev/null || wasm_clangxx='clang++'
+    wasm_ar="${newest/clang/llvm-ar}"
+    command -v "$wasm_ar" > /dev/null || wasm_ar='llvm-ar'
+    assert_command "$wasm_ar" 'Install LLVM and put its bin directory on PATH.'
+}
+
 # An extraction that was interrupted leaves the headers behind without the
 # archives the link needs, so what is checked for is what is actually linked
 # against rather than the directory merely existing.
@@ -160,8 +196,7 @@ wasi_sysroot_is_complete() {
 
 export_wasi_toolchain() {
     local requested="${1:-}"
-    assert_command clang 'Install LLVM and put its bin directory on PATH.'
-    assert_command llvm-ar 'Install LLVM and put its bin directory on PATH.'
+    pick_wasm_clang
     if ! rustup target list --installed | grep -qx "$wasm_rust_target"; then
         echo "Installing the $wasm_rust_target Rust target..."
         rustup target add "$wasm_rust_target"
@@ -205,9 +240,9 @@ export_wasi_toolchain() {
     # thread that draws shapes text and HB_NO_MT keeps it from paying for locks
     # nothing contends.
     local flags="--sysroot=$sysroot -isystem $sysroot/include/c++/v1 -pthread -mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh=false -fno-exceptions -fno-rtti -DHB_NO_MT -O2 -w"
-    export CC_wasm32_wasip1_threads='clang'
-    export CXX_wasm32_wasip1_threads='clang++'
-    export AR_wasm32_wasip1_threads='llvm-ar'
+    export CC_wasm32_wasip1_threads="$wasm_clang"
+    export CXX_wasm32_wasip1_threads="$wasm_clangxx"
+    export AR_wasm32_wasip1_threads="$wasm_ar"
     export CFLAGS_wasm32_wasip1_threads="$flags"
     export CXXFLAGS_wasm32_wasip1_threads="$flags"
     export CXXSTDLIB_wasm32_wasip1_threads='c++'

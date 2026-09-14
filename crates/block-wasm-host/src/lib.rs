@@ -1,4 +1,5 @@
 mod gpu;
+mod harness;
 mod state;
 mod threads;
 mod transport;

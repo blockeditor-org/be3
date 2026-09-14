@@ -6,6 +6,7 @@ const REVIEW: &str =
     "push it to the dev branch and review it in a Paint review block, which reads them from there";
 
 pub fn assert_snapshot(name: &str, snapshot: &Snapshot) {
+    only_in_wasm();
     let bytes = snapshot
         .encode()
         .expect("the painting could not be encoded");
@@ -26,10 +27,20 @@ pub fn assert_snapshot(name: &str, snapshot: &Snapshot) {
     };
 
     panic!(
-        "the painting changed: {}\nto accept it:\n  ./scripts/verify, or UPDATE_SNAPSHOTS=1 cargo nextest run --workspace\nthen {REVIEW}",
+        "the painting changed: {}\nto accept it:\n  ./scripts/verify, or scripts/internal/test-plugins.sh\nthen {REVIEW}",
         difference.description
     );
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+fn only_in_wasm() {
+    panic!(
+        "a plugin paints as the wasm guest it ships as, so its tests only run there: ./scripts/verify, or scripts/internal/test-plugins.sh"
+    );
+}
+
+#[cfg(target_arch = "wasm32")]
+fn only_in_wasm() {}
 
 fn accepted_path(name: &str) -> PathBuf {
     let manifest = manifest();

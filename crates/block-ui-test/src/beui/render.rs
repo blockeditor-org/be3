@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 
-use beui::{Color32, FrameOutput, Renderer, Vec2, clear_color};
+use beui::{Color32, FrameOutput, Vec2};
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 
+#[cfg(target_arch = "wasm32")]
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
-const ALIGNMENT: u32 = 256;
+#[cfg(target_arch = "wasm32")]
+const SURFACE: u32 = 0;
 const SCREEN: paint_snapshot::TextureKey = 0;
 
 pub(crate) fn capture(
@@ -53,29 +55,33 @@ fn quad(size: Vec2) -> Vec<Triangle> {
     ]
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn render(
+    _output: &FrameOutput,
+    _size: [u32; 2],
+    _pixels_per_point: f32,
+    _background: Color32,
+) -> Result<Vec<[u8; 4]>, String> {
+    Err(
+        "a plugin paints through the gpu abi, so its tests only run in wasm: scripts/internal/test-plugins.sh"
+            .into(),
+    )
+}
+
+#[cfg(target_arch = "wasm32")]
 fn render(
     output: &FrameOutput,
     size: [u32; 2],
     pixels_per_point: f32,
     background: Color32,
 ) -> Result<Vec<[u8; 4]>, String> {
+    use beui::{clear_color, Renderer};
+
     let [width, height] = size;
-    let instance = wgpu::Instance::default();
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::LowPower,
-        force_fallback_adapter: false,
-        compatible_surface: None,
-    }))
-    .map_err(|error| format!("no graphics adapter is available: {error}"))?;
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-        label: Some("beui editor device"),
-        required_features: wgpu::Features::empty(),
-        required_limits: wgpu::Limits::downlevel_defaults(),
-        experimental_features: wgpu::ExperimentalFeatures::disabled(),
-        memory_hints: wgpu::MemoryHints::Performance,
-        trace: wgpu::Trace::Off,
-    }))
-    .map_err(|error| format!("the adapter did not provide a device: {error}"))?;
+    let (device, queue) = block_gpu_guest::device_and_queue();
+    block_gpu_guest::configure_surface(SURFACE, width, height, FORMAT);
+    let target = block_gpu_guest::acquire_surface_texture(SURFACE)?;
+    let view = target.create_view(&wgpu::TextureViewDescriptor::default());
 
     let mut renderer = Renderer::new(&device, FORMAT);
     renderer.prepare(
@@ -85,30 +91,6 @@ fn render(
         beui::vec2(width as f32, height as f32),
         pixels_per_point,
     );
-
-    let target = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("beui editor target"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-        view_formats: &[],
-    });
-    let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-    let stride = width * 4;
-    let padded = stride.div_ceil(ALIGNMENT) * ALIGNMENT;
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("beui editor readback"),
-        size: u64::from(padded) * u64::from(height),
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
 
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("beui editor encoder"),
@@ -132,50 +114,28 @@ fn render(
         });
         renderer.paint(&mut pass);
     }
-    encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo {
-            texture: &target,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        wgpu::TexelCopyBufferInfo {
-            buffer: &buffer,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(padded),
-                rows_per_image: Some(height),
-            },
-        },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-    );
     queue.submit(Some(encoder.finish()));
+    block_gpu_guest::present_surface(SURFACE);
 
-    buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-    device
-        .poll(wgpu::PollType::wait_indefinitely())
-        .map_err(|error| format!("the device never finished the frame: {error}"))?;
-    let mapped = buffer.slice(..).get_mapped_range().to_vec();
-    Ok(rows(&mapped, width, height, padded))
+    read(SURFACE, width, height)
 }
 
-fn rows(mapped: &[u8], width: u32, height: u32, padded: u32) -> Vec<[u8; 4]> {
-    let mut pixels = Vec::with_capacity((width * height) as usize);
-    for row in 0..height {
-        let start = (row * padded) as usize;
-        for column in 0..width as usize {
-            let texel = start + column * 4;
-            pixels.push([
-                mapped[texel],
-                mapped[texel + 1],
-                mapped[texel + 2],
-                mapped[texel + 3],
-            ]);
-        }
+#[cfg(target_arch = "wasm32")]
+#[link(wasm_import_module = "be3_test")]
+unsafe extern "C" {
+    fn surface_read(surface: u32, pointer: u32, capacity: u32) -> u32;
+}
+
+#[cfg(target_arch = "wasm32")]
+fn read(surface: u32, width: u32, height: u32) -> Result<Vec<[u8; 4]>, String> {
+    let needed = (width as usize) * (height as usize) * 4;
+    let mut bytes = vec![0u8; needed];
+    let written =
+        unsafe { surface_read(surface, bytes.as_mut_ptr() as u32, bytes.len() as u32) } as usize;
+    if written != needed {
+        return Err(format!(
+            "the host read {written} bytes of a {width} by {height} painting, which needs {needed}"
+        ));
     }
-    pixels
+    Ok(bytes.as_chunks::<4>().0.to_vec())
 }

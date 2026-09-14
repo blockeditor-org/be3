@@ -1,0 +1,13 @@
+[package]
+name = "plugin-test-runner"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+block-wasm-host = { path = "../block-wasm-host" }
+pollster = "0.4"
+wgpu = "29"
+
+[lints]
+workspace = true

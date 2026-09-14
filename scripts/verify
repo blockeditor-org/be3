@@ -22,8 +22,16 @@ if [[ "${1:-}" == "--check" ]]; then
     check=true
 fi
 
-repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 cd "$repository"
+
+# A plugin's tests run in wasm rather than natively, so the workspace run skips
+# them and internal/test-plugins.sh runs them afterwards.
+load_plugins
+native=(--workspace)
+for plugin in "${plugins[@]}"; do
+    native+=(--exclude "$plugin")
+done
 
 failed=false
 
@@ -88,11 +96,18 @@ fi
 
 echo 'cargo nextest run...'
 if $check; then
-    t cargo nextest run --profile ci
+    t cargo nextest run --profile ci "${native[@]}"
 else
     # A changed painting is not a failure to fix here: the accepted files are
     # rewritten, and it is the diff a person reviews.
-    t env UPDATE_SNAPSHOTS=1 cargo nextest run --cargo-quiet --show-progress=none
+    t env UPDATE_SNAPSHOTS=1 cargo nextest run --cargo-quiet --show-progress=none "${native[@]}"
+fi
+
+echo 'plugin tests...'
+if $check; then
+    t "$internal/test-plugins.sh" --check
+else
+    t "$internal/test-plugins.sh"
 fi
 
 # in case one of the previous commands leaves stuff unformatted

@@ -11,6 +11,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 pub const GPU_MODULE: &str = "be3_gpu";
 pub const HOST_MODULE: &str = "be3_host";
+pub const TEST_MODULE: &str = "be3_test";
 
 pub const ABI_VERSION: u32 = 1;
 

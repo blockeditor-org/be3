@@ -1,7 +1,12 @@
-GUI tests run headless: no window, no GPU, no server. A test builds an editor, drives it the
+GUI tests run headless: no window, no input, no server. A test builds an editor, drives it the
 way a person would, and checks two things — what the block became, and what the editor
 painted. They are fast enough to belong in ./scripts/verify: the handful that exist run in
 well under a second.
+
+A plugin's tests run where the plugin runs: compiled to wasm32-wasip1-threads and started by
+the same wasmtime host the app opens a plugin with (see 5). Nothing about writing one changes
+because of that, but what the editor paints is then what the shipped plugin paints rather than
+what the machine running the tests happens to have installed.
 
 1. What a GUI test may look at
 
@@ -111,9 +116,9 @@ way for the test to fail.
   to look at. Say in your handoff which paintings changed and why, and leave the images
   alone.
 - The exception is a painting you cannot account for: if you do not know why one changed,
-  restore the committed file and run the test without UPDATE_SNAPSHOTS - git restore
-  snapshots/ && cargo nextest run --workspace - and the failure says which frame changed and
-  what moved in it, which is what you needed rather than the image.
+  restore the committed file and run the tests without UPDATE_SNAPSHOTS - git restore
+  snapshots/ && ./scripts/internal/test-plugins.sh --check - and the failure says which frame
+  changed and what moved in it, which is what you needed rather than the image.
 
 A snapshot never holds the font atlas. Each triangle carries the piece of texture it
 samples, cut out of the atlas and keyed by what is in it, so where a glyph happened to land
@@ -127,13 +132,30 @@ since those contents never reach the painter: the snapshot keeps the region and 
 inside it, so a test of one asserts on the block instead.
 
 An editor that rasterizes its own glyphs rather than egui's - the text editor, which shapes
-and rasterizes through HarfBuzz and FreeType - draws from whatever fonts the machine
-running the test happens to have, so its content is not a painting to compare. Test what
-that editor does to its block, and keep a snapshot for the parts it draws with egui's own
-fonts.
+and rasterizes through HarfBuzz and FreeType - draws with the fonts it carries once it is
+compiled to wasm, which is how its tests run, so what it paints is comparable like anything
+else. What is still not comparable is anything the frame itself varies: a temporary
+directory's name, a uuid, the time.
 
 5. Running them
 
-Run ./scripts/verify. It prepares the non-Cargo prerequisites and builds the complete workspace.
-Do not build or test an editor package by itself: block-app turns on the windowing features
-eframe needs, and Cargo only unifies those across a whole-workspace build.
+Run ./scripts/verify. It prepares the non-Cargo prerequisites, builds the complete workspace,
+and then runs every plugin's tests through scripts/internal/test-plugins.sh. Do not build or
+test an editor package for the host by itself: block-app turns on the windowing features
+eframe needs, and Cargo only unifies those across a whole-workspace build. The workspace run
+skips the plugin crates outright, so cargo test on one of them natively refuses to compare a
+painting rather than making one nothing would agree with.
+
+scripts/internal/test-plugins.sh is what runs them, and is worth running by itself while
+working on an editor. It compiles each plugin's tests for wasm32-wasip1-threads against the
+WASI sysroot the web build uses, and cargo starts each test module through
+crates/plugin-test-runner, which is wasmtime with the plugin's own imports linked: the gpu abi
+that carries beui's renderer to the host's adapter, the threads a plugin spawns, and the
+repository itself, opened so that a test writes the painting it accepted where the workspace
+run would have. Arguments go to cargo, so a single crate is -p checklist and a single test is
+--lib -- some_test_name.
+
+Cranelift compiles each module the first time it sees it, which is most of the minute the
+first run costs; wasmtime keeps the result in target/plugin-test-cache, so a run that changed
+nothing takes seconds. A wasm build needs clang and llvm-ar on PATH, which ./scripts/setup
+installs, and the painting needs a graphics adapter the way beui's own renderer tests do.
