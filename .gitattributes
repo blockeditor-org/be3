@@ -1,0 +1,5 @@
+# Checked-out line endings must stay LF everywhere, including on Windows
+# runners (whose git defaults to converting to CRLF on checkout): scripts run
+# through bash, and scripts/internal/ghostty-vt.patch is applied verbatim
+# against an LF checkout of Ghostty, so a CRLF copy fails to apply.
+* text=auto eol=lf
