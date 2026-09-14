@@ -4,7 +4,11 @@ use crate::styled::TextInput;
 
 #[test]
 fn clicking_the_start_of_a_text_input_puts_the_caret_before_the_text() {
-    let (document, [input]) = toolbar_of(|| [view! { <TextInput value="end" /> }]);
+    let (document, [input]) = toolbar_of(|| {
+        [view! {
+            <TextInput value="end" />
+        }]
+    });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 

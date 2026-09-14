@@ -50,7 +50,9 @@ pub fn Button(
         <unstyled::Button
             disabled
             on_click={move || on_click.call()}
-            content={move |handle| view! { <ButtonFace handle variant label /> }}
+            content={move |handle| view! {
+                <ButtonFace handle variant label />
+            }}
         />
     }
 }

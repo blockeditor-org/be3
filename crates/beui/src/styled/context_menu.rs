@@ -22,11 +22,11 @@ pub fn ContextMenu(
     view! {
         <unstyled::ContextMenu
             items
-            row={|handle| view! { <MenuRow handle /> }}
+            row={|handle| view! {
+                <MenuRow handle />
+            }}
             panel={|content| view! {
-                <MenuPanel>
-                    {content}
-                </MenuPanel>
+                <MenuPanel>{content}</MenuPanel>
             }}
             on_select={move |path| on_select.call(path)}
         >

@@ -377,7 +377,9 @@ pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Doc
 
 #[component]
 pub(crate) fn MenuRegion() -> NodeId {
-    view! { <Frame width=120.0 height=60.0 color=Color32::from_gray(80) radius=4 /> }
+    view! {
+        <Frame width=120.0 height=60.0 color=Color32::from_gray(80) radius=4 />
+    }
 }
 
 #[component]
@@ -470,7 +472,9 @@ pub(crate) fn toolbar_of<const N: usize>(
     let document = build(move || {
         let nodes = controls();
         sink.set(Some(nodes));
-        view! { <Column spacing=8.0 children={nodes.map(intrinsic)} /> }
+        view! {
+            <Column spacing=8.0 children={nodes.map(intrinsic)} />
+        }
     });
     let nodes = built.get().expect("the toolbar was built");
     (document, nodes)

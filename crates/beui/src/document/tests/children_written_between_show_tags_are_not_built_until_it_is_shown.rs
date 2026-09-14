@@ -6,7 +6,9 @@ type Builds = Rc<Cell<usize>>;
 #[component]
 fn CountedPanel(builds: Builds) -> NodeId {
     builds.set(builds.get() + 1);
-    view! { <Text string="panel" /> }
+    view! {
+        <Text string="panel" />
+    }
 }
 
 #[test]

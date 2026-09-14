@@ -4,7 +4,11 @@ use crate::styled::Slider;
 
 #[test]
 fn slider_home_end_and_page_keys_clamp_at_the_bounds() {
-    let (document, [slider]) = toolbar_of(|| [view! { <Slider value=0.5 /> }]);
+    let (document, [slider]) = toolbar_of(|| {
+        [view! {
+            <Slider value=0.5 />
+        }]
+    });
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::End, Modifiers::NONE);

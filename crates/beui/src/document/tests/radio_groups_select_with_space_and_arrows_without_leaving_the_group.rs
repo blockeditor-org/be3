@@ -17,7 +17,9 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
                     }}
                 />
             },
-            view! { <LabelledButton label="After" /> },
+            view! {
+                <LabelledButton label="After" />
+            },
         ]
     });
     let after_focus = unstyled::button_focused(&document, after);

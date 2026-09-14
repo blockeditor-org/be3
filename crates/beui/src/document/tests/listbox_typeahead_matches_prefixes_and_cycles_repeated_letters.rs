@@ -12,7 +12,9 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
                     selected=Some(0)
                 />
             },
-            view! { <LabelledButton label="After" /> },
+            view! {
+                <LabelledButton label="After" />
+            },
         ]
     });
     let after_focus = unstyled::button_focused(&document, after);

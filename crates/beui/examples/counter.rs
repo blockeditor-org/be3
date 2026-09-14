@@ -9,7 +9,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[component]
 fn HistoryEntry(value: i64) -> NodeId {
-    view! { <Text string={value.to_string()} /> }
+    view! {
+        <Text string={value.to_string()} />
+    }
 }
 
 #[component]
@@ -79,7 +81,9 @@ fn App() -> NodeId {
                 </Show>
             </Row>
             <ForEach spacing=4.0 items={history} key={|(id, _): (u64, i64)| id}>
-                {|(_, value): (u64, i64)| view! { <HistoryEntry value /> }}
+                {|(_, value): (u64, i64)| view! {
+                    <HistoryEntry value />
+                }}
             </ForEach>
         </Column>
     }
@@ -92,7 +96,11 @@ struct CounterApp {
 impl CounterApp {
     fn new() -> Self {
         Self {
-            document: build(|| view! { <App /> }),
+            document: build(|| {
+                view! {
+                    <App />
+                }
+            }),
         }
     }
 }

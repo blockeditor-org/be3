@@ -29,7 +29,9 @@ pub fn Accordion(
         <unstyled::Disclosure
             spacing=SPACING
             on_toggle={move |open| on_toggle.call(open)}
-            header={move |handle| view! { <AccordionHeader handle title={title_text} /> }}
+            header={move |handle| view! {
+                <AccordionHeader handle title={title_text} />
+            }}
             open
         >
             {children}

@@ -63,7 +63,9 @@ fn ChoiceLabel(kind: Kind, label: String, color: Prop<Color32>, checked: Memo<bo
         TextAlign::Start
     };
     if kind != Kind::Radio {
-        return view! { <Text string={label} font_size=FONT_BODY color align /> };
+        return view! {
+            <Text string={label} font_size=FONT_BODY color align />
+        };
     }
     view! {
         <CenteredRow spacing=MARK_SPACING>

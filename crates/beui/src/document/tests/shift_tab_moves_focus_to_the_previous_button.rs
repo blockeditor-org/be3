@@ -5,8 +5,12 @@ use crate::reactive::view;
 fn shift_tab_moves_focus_to_the_previous_button() {
     let (document, [first, second]) = toolbar_of(|| {
         [
-            view! { <LabelledButton label="First" /> },
-            view! { <LabelledButton label="Second" /> },
+            view! {
+                <LabelledButton label="First" />
+            },
+            view! {
+                <LabelledButton label="Second" />
+            },
         ]
     });
     let first_focused = unstyled::button_focused(&document, first);

@@ -19,7 +19,9 @@ fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
                         />
                     </Frame>
                 },
-                view! { <LabelledButton label="After" /> },
+                view! {
+                    <LabelledButton label="After" />
+                },
             ]
         }
     });

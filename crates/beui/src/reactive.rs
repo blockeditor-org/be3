@@ -622,17 +622,23 @@ pub fn List(
 
 #[component]
 pub fn Row(spacing: Prop<f32>, children: Children) -> NodeId {
-    view! { <List direction=Direction::Horizontal spacing children /> }
+    view! {
+        <List direction=Direction::Horizontal spacing children />
+    }
 }
 
 #[component]
 pub fn Column(spacing: Prop<f32>, children: Children) -> NodeId {
-    view! { <List direction=Direction::Vertical spacing children /> }
+    view! {
+        <List direction=Direction::Vertical spacing children />
+    }
 }
 
 #[component]
 pub fn CenteredRow(spacing: Prop<f32>, children: Children) -> NodeId {
-    view! { <List direction=Direction::Horizontal align=Align::Center spacing children /> }
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing children />
+    }
 }
 
 #[component]
@@ -668,7 +674,9 @@ where
     T: Clone + Default + 'static,
 {
     let view = view.expect("dynamic requires a `view` callback");
-    let parent = view! { <Column spacing=0.0 /> };
+    let parent = view! {
+        <Column spacing=0.0 />
+    };
     let built: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
     create_effect(move || {
         let value = value.get();
@@ -699,7 +707,9 @@ where
 {
     let key = key.expect("for_each requires a `key` callback");
     let view = view.expect("for_each requires a `view` callback");
-    let parent = view! { <Column spacing /> };
+    let parent = view! {
+        <Column spacing />
+    };
     let existing: Rc<RefCell<HashMap<K, NodeId>>> = Rc::new(RefCell::new(HashMap::new()));
     create_effect(move || {
         let items = items.get();
@@ -731,5 +741,7 @@ where
 
 #[component]
 pub fn Button(children: Children, disabled: Prop<bool>, on_click: ClickCallback) -> NodeId {
-    view! { <unstyled::Button disabled on_click={move || on_click.call()} children /> }
+    view! {
+        <unstyled::Button disabled on_click={move || on_click.call()} children />
+    }
 }

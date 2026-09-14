@@ -58,7 +58,9 @@ impl DemoApp {
             view! {
                 <Frame color={theme.pick(|theme| theme.background)} radius=0>
                     <Container>
-                        {move |_| view! { <DemoShell count set_count /> }}
+                        {move |_| view! {
+                            <DemoShell count set_count />
+                        }}
                     </Container>
                 </Frame>
             }
@@ -377,7 +379,9 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                             {move |index: usize| {
                                 let rows = item_rows.clone();
                                 let compact = rows.compact.get();
-                                view! { <ScrollRow index rows compact /> }
+                                view! {
+                                    <ScrollRow index rows compact />
+                                }
                             }}
                         </VirtualList>
                         <Scrollbar
@@ -396,7 +400,9 @@ fn Controls(rows: Rows) -> NodeId {
     view! {
         <Card>
             <Container>
-                {move |_| view! { <ControlPanels rows /> }}
+                {move |_| view! {
+                    <ControlPanels rows />
+                }}
             </Container>
         </Card>
     }
@@ -614,7 +620,9 @@ fn TreeControls() -> NodeId {
                     });
                 }}
             >
-                {move |row: usize| view! { <Body content={TREE_NODES[row].0} /> }}
+                {move |row: usize| view! {
+                    <Body content={TREE_NODES[row].0} />
+                }}
             </Tree>
             <Caption content={status_text} />
         </Column>

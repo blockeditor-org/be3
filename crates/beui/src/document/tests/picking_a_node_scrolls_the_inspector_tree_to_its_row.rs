@@ -12,9 +12,15 @@ fn picking_a_node_scrolls_the_inspector_tree_to_its_row() {
         move || {
             let children: Vec<_> = frames
                 .iter()
-                .map(|frame| intrinsic(view! { <Frame @node_ref=frame height=6.0 /> }))
+                .map(|frame| {
+                    intrinsic(view! {
+                        <Frame @node_ref=frame height=6.0 />
+                    })
+                })
                 .collect();
-            view! { <Column spacing=0.0 children={children} /> }
+            view! {
+                <Column spacing=0.0 children={children} />
+            }
         }
     });
     let picked = frames[PICKED].get();

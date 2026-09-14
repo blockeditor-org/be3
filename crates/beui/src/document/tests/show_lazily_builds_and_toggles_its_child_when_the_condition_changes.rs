@@ -24,7 +24,9 @@ fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
                         condition={visible}
                         then={move || {
                             sink.set(sink.get() + 1);
-                            view! { <Text string="panel" /> }
+                            view! {
+                                <Text string="panel" />
+                            }
                         }}
                     />
                 </Column>

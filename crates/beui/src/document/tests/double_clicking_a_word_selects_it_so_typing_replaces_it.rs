@@ -4,7 +4,11 @@ use crate::styled::TextInput;
 
 #[test]
 fn double_clicking_a_word_selects_it_so_typing_replaces_it() {
-    let (document, [input]) = toolbar_of(|| [view! { <TextInput value="hello world" /> }]);
+    let (document, [input]) = toolbar_of(|| {
+        [view! {
+            <TextInput value="hello world" />
+        }]
+    });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 

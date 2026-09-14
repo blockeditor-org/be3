@@ -49,15 +49,19 @@ pub fn Select(
             search_selection_color={theme.pick(|theme| theme.accent_soft)}
             search_caret_color={theme.pick(|theme| theme.accent)}
             search_padding_horizontal=PADDING_HORIZONTAL
-            search_content={|handle| view! { <SearchField handle /> }}
+            search_content={|handle| view! {
+                <SearchField handle />
+            }}
             search_menu={text_input_menu()}
-            trigger={move |handle| view! { <SelectTrigger options={trigger_options} handle /> }}
-            option={|handle| view! { <SelectOption handle /> }}
+            trigger={move |handle| view! {
+                <SelectTrigger options={trigger_options} handle />
+            }}
+            option={|handle| view! {
+                <SelectOption handle />
+            }}
         >
             {|content| view! {
-                <SelectPopup>
-                    {content}
-                </SelectPopup>
+                <SelectPopup>{content}</SelectPopup>
             }}
         </unstyled::Select>
     }

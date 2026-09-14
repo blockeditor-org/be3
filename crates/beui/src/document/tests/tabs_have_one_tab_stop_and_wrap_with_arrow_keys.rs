@@ -6,14 +6,18 @@ use crate::styled::Tabs;
 fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
     let (document, [_before, tabs, after]) = toolbar_of(|| {
         [
-            view! { <LabelledButton label="Before" /> },
+            view! {
+                <LabelledButton label="Before" />
+            },
             view! {
                 <Tabs
                     labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string()]}
                     selected=1
                 />
             },
-            view! { <LabelledButton label="After" /> },
+            view! {
+                <LabelledButton label="After" />
+            },
         ]
     });
     let after_focus = unstyled::button_focused(&document, after);

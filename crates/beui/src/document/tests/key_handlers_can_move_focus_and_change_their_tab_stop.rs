@@ -26,7 +26,9 @@ fn key_handlers_can_move_focus_and_change_their_tab_stop() {
                         <ButtonFace label="First" />
                     </unstyled::Button>
                 },
-                view! { <LabelledButton @node_ref=&second label="Second" /> },
+                view! {
+                    <LabelledButton @node_ref=&second label="Second" />
+                },
             ]
         }
     });

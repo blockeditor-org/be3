@@ -14,7 +14,9 @@ fn accordion_headers_are_keyboard_operable_and_skip_collapsed_content() {
                         <LabelledButton @node_ref=&child label="Child" />
                     </Accordion>
                 },
-                view! { <LabelledButton label="After" /> },
+                view! {
+                    <LabelledButton label="After" />
+                },
             ]
         }
     });

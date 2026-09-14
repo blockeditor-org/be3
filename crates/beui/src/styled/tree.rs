@@ -79,7 +79,9 @@ where
         marker(item.expandable, item.expanded).to_owned()
     }));
     let marker_color = theme.pick(|theme| theme.text_muted);
-    let spacer = view! { <Spacer /> };
+    let spacer = view! {
+        <Spacer />
+    };
     let marker = view! {
         <Frame width=MARKER_WIDTH>
             <Text

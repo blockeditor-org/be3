@@ -4,7 +4,11 @@ use crate::styled::Slider;
 
 #[test]
 fn arrow_keys_step_the_focused_slider() {
-    let (document, [slider]) = toolbar_of(|| [view! { <Slider value=0.5 /> }]);
+    let (document, [slider]) = toolbar_of(|| {
+        [view! {
+            <Slider value=0.5 />
+        }]
+    });
     let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);

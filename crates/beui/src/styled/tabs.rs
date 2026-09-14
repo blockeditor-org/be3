@@ -21,7 +21,9 @@ pub fn Tabs(labels: Vec<String>, selected: Prop<usize>, on_change: Callback<usiz
                 }
             }}
         >
-            {|handle| view! { <ChoiceOption kind=Kind::Tabs handle /> }}
+            {|handle| view! {
+                <ChoiceOption kind=Kind::Tabs handle />
+            }}
         </Choice>
     }
 }

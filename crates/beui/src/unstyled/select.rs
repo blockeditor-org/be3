@@ -86,7 +86,13 @@ pub fn Select(
 ) -> NodeId {
     let selected_prop = selected;
     let initial = selected_prop.peek().filter(|index| *index < options.len());
-    let option = option.unwrap_or_else(|| RenderFn::new(|_| view! { <Column spacing=0.0 /> }));
+    let option = option.unwrap_or_else(|| {
+        RenderFn::new(|_| {
+            view! {
+                <Column spacing=0.0 />
+            }
+        })
+    });
     let popup = popup.unwrap_or_else(|| Render::new(|content| content));
 
     let (highlighted, set_highlighted) = create_signal(initial);
@@ -125,7 +131,13 @@ pub fn Select(
     });
     set_component_state(state.clone());
 
-    let trigger_view = trigger.unwrap_or_else(|| Render::new(|_| view! { <Column spacing=0.0 /> }));
+    let trigger_view = trigger.unwrap_or_else(|| {
+        Render::new(|_| {
+            view! {
+                <Column spacing=0.0 />
+            }
+        })
+    });
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ComboBox)));
     let trigger_accessibility = create_memo(clone!(state -> move || {
         let mut node = accessibility.get();

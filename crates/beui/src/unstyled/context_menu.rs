@@ -24,7 +24,13 @@ pub fn ContextMenu(
     panel: Option<RenderFn<Child>>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
-    let row = row.unwrap_or_else(|| RenderFn::new(|_| view! { <Column spacing=0.0 /> }));
+    let row = row.unwrap_or_else(|| {
+        RenderFn::new(|_| {
+            view! {
+                <Column spacing=0.0 />
+            }
+        })
+    });
     let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let (open, set_open) = create_signal(false);
     let (position, set_position) = create_signal(Pos2::ZERO);

@@ -15,7 +15,9 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
                         count=VIRTUAL_ITEM_COUNT
                         item_height=VIRTUAL_ITEM_HEIGHT
                     >
-                        {|index: usize| view! { <Text string={format!("Row {index}")} /> }}
+                        {|index: usize| view! {
+                            <Text string={format!("Row {index}")} />
+                        }}
                     </VirtualList>
                 </Column>
             }

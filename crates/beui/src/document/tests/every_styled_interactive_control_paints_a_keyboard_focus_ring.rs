@@ -9,13 +9,35 @@ use crate::styled::{
 fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
     let controls: &[fn() -> NodeId] = &[
         || {
-            view! { <Button label="Button" variant=styled::ButtonVariant::Primary /> }
+            view! {
+                <Button label="Button" variant=styled::ButtonVariant::Primary />
+            }
         },
-        || view! { <Checkbox label="Check" checked=false /> },
-        || view! { <Switch on=false /> },
-        || view! { <Slider value=0.5 /> },
-        || view! { <TextInput value="Text" /> },
-        || view! { <Tabs labels={vec!["One".to_string(), "Two".to_string()]} selected=0 /> },
+        || {
+            view! {
+                <Checkbox label="Check" checked=false />
+            }
+        },
+        || {
+            view! {
+                <Switch on=false />
+            }
+        },
+        || {
+            view! {
+                <Slider value=0.5 />
+            }
+        },
+        || {
+            view! {
+                <TextInput value="Text" />
+            }
+        },
+        || {
+            view! {
+                <Tabs labels={vec!["One".to_string(), "Two".to_string()]} selected=0 />
+            }
+        },
         || {
             view! {
                 <RadioGroup labels={vec!["One".to_string(), "Two".to_string()]} selected=Some(0) />
@@ -26,7 +48,11 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
                 <Listbox labels={vec!["One".to_string(), "Two".to_string()]} selected=Some(0) />
             }
         },
-        || view! { <ToggleButton label="Toggle" pressed=false /> },
+        || {
+            view! {
+                <ToggleButton label="Toggle" pressed=false />
+            }
+        },
         || {
             view! {
                 <Accordion title="Header" open=false>

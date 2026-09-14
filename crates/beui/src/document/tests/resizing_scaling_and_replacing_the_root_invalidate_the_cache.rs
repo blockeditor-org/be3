@@ -7,7 +7,9 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     let mut document = build({
         let text = text.clone();
         move || {
-            view! { <Text @node_ref=&text string="hello" font_size=14.0 color=Color32::WHITE /> }
+            view! {
+                <Text @node_ref=&text string="hello" font_size=14.0 color=Color32::WHITE />
+            }
         }
     });
     let text = text.get();
@@ -26,7 +28,9 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     assert!(output.shapes().is_empty());
     assert!(harness.document.node_rect(text).is_none());
     let fill = with_installed(harness.document_mut(), |_| {
-        view! { <Frame color=Color32::BLACK radius=0 /> }
+        view! {
+            <Frame color=Color32::BLACK radius=0 />
+        }
     });
     harness.document.set_root(fill);
     assert!(harness.frame(vec![]).changed);

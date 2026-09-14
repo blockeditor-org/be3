@@ -47,7 +47,9 @@ pub fn TextInput(
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
         >
-            {move |handle| view! { <TextInputFrame handle /> }}
+            {move |handle| view! {
+                <TextInputFrame handle />
+            }}
         </unstyled::TextInput>
     }
 }

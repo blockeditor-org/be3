@@ -16,9 +16,7 @@ pub fn ListRow(children: Child, on_click: ClickCallback) -> NodeId {
         <Button
             on_click={move || on_click.call()}
             content={move |handle| view! {
-                <ListRowFace handle>
-                    {children}
-                </ListRowFace>
+                <ListRowFace handle>{children}</ListRowFace>
             }}
         />
     }

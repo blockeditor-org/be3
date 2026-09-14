@@ -31,5 +31,7 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children) -> Node
         })
         .collect();
 
-    view! { <List direction spacing children /> }
+    view! {
+        <List direction spacing children />
+    }
 }

@@ -8,7 +8,11 @@ fn arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing
         .iter()
         .map(|label| (*label).to_owned())
         .collect();
-    let (document, [select]) = toolbar_of(|| [view! { <Select options selected=None /> }]);
+    let (document, [select]) = toolbar_of(|| {
+        [view! {
+            <Select options selected=None />
+        }]
+    });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 

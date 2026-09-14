@@ -24,7 +24,9 @@ pub fn ToggleButton(label: Prop<String>, pressed: Prop<bool>, on_change: Callbac
 
     view! {
         <Toggle checked={pressed} accessibility on_change={move |pressed| on_change.call(pressed)}>
-            {move |handle| view! { <ToggleButtonFace handle label={label_text} /> }}
+            {move |handle| view! {
+                <ToggleButtonFace handle label={label_text} />
+            }}
         </Toggle>
     }
 }

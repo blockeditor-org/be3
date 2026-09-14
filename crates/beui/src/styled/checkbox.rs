@@ -24,7 +24,9 @@ pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bo
     view! {
         <Toggle checked on_change={move |checked| on_change.call(checked)}>
             {move |handle: ToggleHandle| {
-                view! { <CheckboxFace handle label /> }
+                view! {
+                    <CheckboxFace handle label />
+                }
             }}
         </Toggle>
     }

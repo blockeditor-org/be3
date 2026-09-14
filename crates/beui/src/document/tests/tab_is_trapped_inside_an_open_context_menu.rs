@@ -13,13 +13,17 @@ fn tab_is_trapped_inside_an_open_context_menu() {
         let region = region.clone();
         move || {
             [
-                view! { <LabelledButton label="Before" /> },
+                view! {
+                    <LabelledButton label="Before" />
+                },
                 view! {
                     <ContextMenu items>
                         <MenuRegion @node_ref=&region />
                     </ContextMenu>
                 },
-                view! { <LabelledButton label="After" /> },
+                view! {
+                    <LabelledButton label="After" />
+                },
             ]
         }
     });

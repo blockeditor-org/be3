@@ -12,7 +12,9 @@ fn a_click_handler_can_mutate_the_tree_in_the_current_frame() {
                     @node_ref=&button
                     label="replace"
                     on_click={|| with_document(|document| {
-                        let replacement = view! { <Frame color=Color32::BLACK radius=0 /> };
+                        let replacement = view! {
+                            <Frame color=Color32::BLACK radius=0 />
+                        };
                         document.set_root(replacement);
                     })}
                 />

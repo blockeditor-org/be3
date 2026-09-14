@@ -35,7 +35,9 @@ pub fn Switch(
     view! {
         <Toggle checked={on} accessibility on_change={move |on| on_change.call(on)}>
             {move |handle: ToggleHandle| {
-                view! { <SwitchTrack handle /> }
+                view! {
+                    <SwitchTrack handle />
+                }
             }}
         </Toggle>
     }

@@ -3,7 +3,9 @@ use crate::reactive::{Column, Row, build, component, view};
 
 #[component]
 fn Widget() -> NodeId {
-    view! { <Row spacing=0.0></Row> }
+    view! {
+        <Row spacing=0.0></Row>
+    }
 }
 
 #[test]

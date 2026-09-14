@@ -24,9 +24,8 @@ pub fn format_views(source: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
             .rposition(|byte| *byte == b'\n')
             .map_or(0, |index| index + 1);
         let prefix = text(source, line_start..call.range.start);
-        let column = prefix.chars().count();
         let indent = prefix.len() - prefix.trim_start_matches([' ', '\t']).len();
-        let lines = formatter.view_lines(&call.roots, indent, column);
+        let lines = formatter.view_lines(&call.roots, indent);
         output.splice(call.range.clone(), lines.join("\n").bytes());
     }
     Ok(output)
@@ -308,14 +307,9 @@ struct Formatter<'a> {
 }
 
 impl Formatter<'_> {
-    fn view_lines(&self, roots: &[Child], indent: usize, column: usize) -> Vec<String> {
+    fn view_lines(&self, roots: &[Child], indent: usize) -> Vec<String> {
         if roots.is_empty() {
             return vec!["view! {}".to_owned()];
-        }
-        if let Some(single) = self.view_text(roots)
-            && column + single.chars().count() <= MAX_WIDTH
-        {
-            return vec![single];
         }
         let mut lines = vec!["view! {".to_owned()];
         for root in roots {
@@ -391,14 +385,6 @@ impl Formatter<'_> {
         }
     }
 
-    fn view_text(&self, roots: &[Child]) -> Option<String> {
-        match roots {
-            [] => Some("view! {}".to_owned()),
-            [root] => Some(format!("view! {{ {} }}", self.child_text(root)?)),
-            _ => None,
-        }
-    }
-
     fn child_text(&self, child: &Child) -> Option<String> {
         match child {
             Child::Element(element) => self.element_text(element),
@@ -408,11 +394,18 @@ impl Formatter<'_> {
 
     fn element_text(&self, element: &Element) -> Option<String> {
         let head = self.attributes_text(element)?;
-        match element.children.as_deref() {
-            None => Some(format!("{head} />")),
-            Some([]) => Some(format!("{head}></{}>", element.tag)),
-            Some(_) => None,
+        let Some(children) = &element.children else {
+            return Some(format!("{head} />"));
+        };
+        let mut text = format!("{head}>");
+        for child in children {
+            if matches!(child, Child::Element(_)) {
+                return None;
+            }
+            text.push_str(&self.child_text(child)?);
         }
+        text.push_str(&format!("</{}>", element.tag));
+        Some(text)
     }
 
     fn attributes_text(&self, element: &Element) -> Option<String> {
@@ -434,15 +427,10 @@ impl Formatter<'_> {
     }
 
     fn expr_text(&self, range: &Range<usize>) -> Option<String> {
-        let mut rendered = String::new();
-        let mut cursor = range.start;
-        for nested in self.nested_views(range) {
-            rendered.push_str(one_line(self.source, cursor..nested.range.start)?);
-            rendered.push_str(&self.view_text(&nested.roots)?);
-            cursor = nested.range.end;
+        if !self.nested_views(range).is_empty() {
+            return None;
         }
-        rendered.push_str(one_line(self.source, cursor..range.end)?);
-        Some(rendered)
+        one_line(self.source, range.clone()).map(str::to_owned)
     }
 
     fn expr_lines(&self, range: &Range<usize>, indent: usize, column: usize) -> Vec<String> {
@@ -462,14 +450,12 @@ impl Formatter<'_> {
         let mut cursor = range.start;
         for nested in self.nested_views(range) {
             self.push_source(&mut lines, &mut current, cursor..nested.range.start, shift);
-            let (nested_indent, nested_column) = if lines.is_empty() {
-                (indent, column + current.chars().count())
+            let nested_indent = if lines.is_empty() {
+                indent
             } else {
-                (leading(&current), current.chars().count())
+                leading(&current)
             };
-            let mut parts = self
-                .view_lines(&nested.roots, nested_indent, nested_column)
-                .into_iter();
+            let mut parts = self.view_lines(&nested.roots, nested_indent).into_iter();
             current.push_str(&parts.next().unwrap_or_default());
             for part in parts {
                 lines.push(std::mem::replace(&mut current, part));

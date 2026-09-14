@@ -23,5 +23,7 @@ pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
 #[component]
 pub fn Separator() -> NodeId {
     let theme = use_theme();
-    view! { <Frame color={theme.pick(|theme| theme.border)} radius=0></Frame> }
+    view! {
+        <Frame color={theme.pick(|theme| theme.border)} radius=0></Frame>
+    }
 }

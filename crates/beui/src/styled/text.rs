@@ -23,17 +23,23 @@ pub fn Code(
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = text_color())] color: Prop<Color32>,
 ) -> NodeId {
-    view! { <Text string={content} font_size=FONT_SMALL color align monospace=true /> }
+    view! {
+        <Text string={content} font_size=FONT_SMALL color align monospace=true />
+    }
 }
 
 #[component]
 pub fn Icon(glyph: String, #[prop(default = text_color())] color: Prop<Color32>) -> NodeId {
-    view! { <IconSized glyph font_size=ICON_SIZE color /> }
+    view! {
+        <IconSized glyph font_size=ICON_SIZE color />
+    }
 }
 
 #[component]
 pub fn IconSized(glyph: String, font_size: Prop<f32>, color: Prop<Color32>) -> NodeId {
-    view! { <Text string={glyph} font_size color align=TextAlign::Center icon=true /> }
+    view! {
+        <Text string={glyph} font_size color align=TextAlign::Center icon=true />
+    }
 }
 
 #[component]
@@ -44,7 +50,9 @@ fn Line(
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
 ) -> NodeId {
     let text = create_memo(move || content.get());
-    view! { <Text string={text} font_size color align /> }
+    view! {
+        <Text string={text} font_size color align />
+    }
 }
 
 #[component]
@@ -53,7 +61,9 @@ pub fn Display(
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = text_color())] color: Prop<Color32>,
 ) -> NodeId {
-    view! { <Line content font_size=FONT_DISPLAY color align /> }
+    view! {
+        <Line content font_size=FONT_DISPLAY color align />
+    }
 }
 
 #[component]
@@ -62,7 +72,9 @@ pub fn Title(
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = text_color())] color: Prop<Color32>,
 ) -> NodeId {
-    view! { <Line content font_size=FONT_TITLE color align /> }
+    view! {
+        <Line content font_size=FONT_TITLE color align />
+    }
 }
 
 #[component]
@@ -71,7 +83,9 @@ pub fn Heading(
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = text_color())] color: Prop<Color32>,
 ) -> NodeId {
-    view! { <Line content font_size=FONT_HEADING color align /> }
+    view! {
+        <Line content font_size=FONT_HEADING color align />
+    }
 }
 
 #[component]
@@ -80,7 +94,9 @@ pub fn Body(
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = text_color())] color: Prop<Color32>,
 ) -> NodeId {
-    view! { <Line content font_size=FONT_BODY color align /> }
+    view! {
+        <Line content font_size=FONT_BODY color align />
+    }
 }
 
 #[component]
@@ -89,7 +105,9 @@ pub fn Caption(
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = muted_color())] color: Prop<Color32>,
 ) -> NodeId {
-    view! { <Line content font_size=FONT_SMALL color align /> }
+    view! {
+        <Line content font_size=FONT_SMALL color align />
+    }
 }
 
 #[component]
@@ -98,5 +116,7 @@ pub fn Paragraph(
     #[prop(default = muted_color())] color: Prop<Color32>,
 ) -> NodeId {
     let text = create_memo(move || content.get());
-    view! { <Text string={text} font_size=FONT_BODY color wrap=true /> }
+    view! {
+        <Text string={text} font_size=FONT_BODY color wrap=true />
+    }
 }

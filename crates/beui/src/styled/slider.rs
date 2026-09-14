@@ -34,7 +34,9 @@ pub fn Slider(
     view! {
         <unstyled::Slider value accessibility on_change={move |value| on_change.call(value)}>
             {move |handle: SliderHandle| {
-                view! { <SliderTrack handle /> }
+                view! {
+                    <SliderTrack handle />
+                }
             }}
         </unstyled::Slider>
     }

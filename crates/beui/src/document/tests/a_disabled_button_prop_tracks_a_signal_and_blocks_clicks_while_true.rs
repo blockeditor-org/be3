@@ -32,10 +32,7 @@ fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
         sink_go.set(Some(go));
 
         view! {
-            <Column spacing=0.0>
-                {toggle}
-                {go}
-            </Column>
+            <Column spacing=0.0>{toggle}{go}</Column>
         }
     });
 

@@ -61,7 +61,9 @@ impl ChecklistUi {
         let (snapshot, set_snapshot) = create_signal(checklist.snapshot());
         let view_set_snapshot = set_snapshot.clone();
         let document = build(move || {
-            view! { <ChecklistView checklist snapshot set_snapshot=view_set_snapshot /> }
+            view! {
+                <ChecklistView checklist snapshot set_snapshot=view_set_snapshot />
+            }
         });
         Self {
             document,
