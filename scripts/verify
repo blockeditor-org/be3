@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 #
-# Fixes Rust source layout, strips comments, lints, formats and tests.
+# Fixes Rust source layout, strips comments, lints and formats.
 #
-# Runs the Rust source fixer, clippy, rustfmt and the test suite over the whole
-# workspace. This is the one command to run after making changes.
+# Runs the Rust source fixer, clippy and rustfmt over the whole workspace.
+# This is the one command to run after making changes, before committing.
 #
 # By default source layout and comments are fixed, clippy applies the fixes it
-# can, rustfmt rewrites the sources and the tests accept whatever painting they
-# produce. With --check nothing is written and each tool only reports, which is
-# what CI wants. Either way the run fails if a Rust source violation or clippy
-# warning survives.
+# can, and rustfmt rewrites the sources. The test suite is not run in this
+# mode: CI runs it in full on every push and pull request, so a local run only
+# needs to cover the autofixes and lints. With --check nothing is written,
+# each tool only reports, and the full test suite runs too, which is what CI
+# wants. Either way the run fails if a Rust source violation or clippy warning
+# survives.
 #
 # Usage:
 #   ./scripts/verify
@@ -94,20 +96,17 @@ else
     fi
 fi
 
-echo 'cargo nextest run...'
 if $check; then
+    echo 'cargo nextest run...'
     t cargo nextest run --profile ci "${native[@]}"
-else
-    # A changed painting is not a failure to fix here: the accepted files are
-    # rewritten, and it is the diff a person reviews.
-    t env UPDATE_SNAPSHOTS=1 cargo nextest run --cargo-quiet --show-progress=none "${native[@]}"
-fi
 
-echo 'plugin tests...'
-if $check; then
+    echo 'plugin tests...'
     t "$internal/test-plugins.sh" --check --profile ci
 else
-    t "$internal/test-plugins.sh" --cargo-quiet --show-progress=none
+    # CI runs the full test suite with --check on every push and pull request,
+    # so a local run does not pay for it too. Run ./scripts/verify --check, or
+    # cargo nextest run / test-plugins.sh directly, to run tests locally.
+    echo 'skipping tests (CI runs the full suite; use --check to run it locally)...'
 fi
 
 # in case one of the previous commands leaves stuff unformatted
