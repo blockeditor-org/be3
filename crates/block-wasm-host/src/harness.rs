@@ -3,9 +3,9 @@ use std::{path::Path, time::Instant};
 use block_gpu_abi as abi;
 use block_gpu_host::Gpu;
 use wasmtime::{Caller, Linker, Store, TypedFunc};
-use wasmtime_wasi::{p1, FsPerms, I32Exit, WasiCtxBuilder};
+use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
-use crate::{gpu, module, shared_memory, state::State, threads, transport, Host};
+use crate::{Host, gpu, module, shared_memory, state::State, threads, transport};
 
 const START: &str = "_start";
 const ALIGNMENT: u32 = 256;
@@ -128,7 +128,11 @@ fn read_back(
     let swizzle = match texture.format() {
         wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => false,
         wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => true,
-        format => return Err(format!("a test painted into a {format:?} surface, which reads back as no colour a snapshot holds")),
+        format => {
+            return Err(format!(
+                "a test painted into a {format:?} surface, which reads back as no colour a snapshot holds"
+            ));
+        }
     };
     let width = texture.width();
     let height = texture.height();

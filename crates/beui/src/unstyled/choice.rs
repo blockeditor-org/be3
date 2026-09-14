@@ -12,8 +12,8 @@ use crate::reactive::{
     create_effect, create_memo, create_selector, create_signal, intrinsic, set_component_state,
 };
 use crate::unstyled;
-use crate::unstyled::typeahead::Typeahead;
 use crate::unstyled::ButtonHandle;
+use crate::unstyled::typeahead::Typeahead;
 use beui_macros::{component, view};
 
 #[derive(Clone, Copy, PartialEq, Eq)]

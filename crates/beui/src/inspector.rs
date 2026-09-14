@@ -12,7 +12,7 @@ use crate::input::{CursorIcon, Event, Key as InputKey};
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{with_document, with_reactive_scope, WriteSignal};
+use crate::reactive::{WriteSignal, with_document, with_reactive_scope};
 use crate::styled::Theme;
 
 use panel::Summary;

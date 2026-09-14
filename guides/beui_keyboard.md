@@ -37,7 +37,7 @@ key to scroll into view. It reports `on_select`, `on_expand` and
 `on_hover_change`, and its children build the cells of one row. The tree owns
 the roving Tab stop, the marker, the indent and the keyboard model; the caller
 owns the rows themselves, so a tree of anything keyed by anything hashable
-works. The demo's Tree tab and the BEUI inspector both use it.
+works. The demo's Tree tab and the beui inspector both use it.
 
 `<Select>` takes `options` and `selected` and opens a popup with a search box
 over the option list. `<ContextMenu>` wraps a `region` so a secondary click

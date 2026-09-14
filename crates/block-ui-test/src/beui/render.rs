@@ -75,7 +75,7 @@ fn render(
     pixels_per_point: f32,
     background: Color32,
 ) -> Result<Vec<[u8; 4]>, String> {
-    use beui::{clear_color, Renderer};
+    use beui::{Renderer, clear_color};
 
     let [width, height] = size;
     let (device, queue) = block_gpu_guest::device_and_queue();

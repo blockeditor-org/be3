@@ -6,10 +6,10 @@ use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::node::NodeId;
 use crate::reactive::{
-    clone, create_memo, intrinsic, percent, size, Callback, CenteredRow, Frame, Func, ItemSize,
-    Prop, RenderFn, Spacer, Text,
+    Callback, CenteredRow, Frame, Func, ItemSize, Prop, RenderFn, Spacer, Text, clone, create_memo,
+    intrinsic, percent, size,
 };
-use crate::styled::theme::{use_theme, Theme, FONT_SMALL, RADIUS};
+use crate::styled::theme::{FONT_SMALL, RADIUS, Theme, use_theme};
 use crate::unstyled;
 use crate::unstyled::{TreeItem, TreeRowHandle};
 

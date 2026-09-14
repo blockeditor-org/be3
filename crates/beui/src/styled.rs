@@ -38,8 +38,8 @@ pub use stack::Stack;
 pub use switch::{Switch, switch_on};
 pub use tabs::{Tabs, tabs_selected};
 pub use text::{Body, Caption, Code, Display, Heading, Icon, IconSized, Paragraph, Title};
-pub use text_input::{text_input_value, TextInput};
-pub use theme::{use_theme, Theme, ThemeProvider, ThemeSignal};
+pub use text_input::{TextInput, text_input_value};
+pub use theme::{Theme, ThemeProvider, ThemeSignal, use_theme};
 pub use tree::Tree;
 
 mod choice;

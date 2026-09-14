@@ -32,5 +32,5 @@ pub use stack::Stack;
 pub use text_input::{
     TextInput, TextInputHandle, text_input_focused, text_input_text, text_input_value,
 };
-pub use toggle::{toggle_checked, Toggle, ToggleHandle};
-pub use tree::{tree_focused, Tree, TreeItem, TreeRowHandle};
+pub use toggle::{Toggle, ToggleHandle, toggle_checked};
+pub use tree::{Tree, TreeItem, TreeRowHandle, tree_focused};

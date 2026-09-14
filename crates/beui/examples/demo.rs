@@ -4,11 +4,11 @@ use beui::reactive::{
 };
 use beui::styled::theme::{NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
-    use_theme, Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu,
-    Display, Heading, Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select,
-    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree,
+    Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
+    Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
+    Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, use_theme,
 };
-use beui::unstyled::{narrower_than, Container, TreeItem};
+use beui::unstyled::{Container, TreeItem, narrower_than};
 use beui::{
     Color32, Context, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign, unstyled,
 };

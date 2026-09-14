@@ -208,10 +208,10 @@ impl Document {
                     .get_or_insert_with(|| Box::new(Inspector::new(ctx, theme)))
                     .toggle_picking();
             }
-            if chord_pressed(ctx, Key::F) {
-                if let Some(inspector) = self.inspector.as_mut() {
-                    inspector.toggle_focus();
-                }
+            if chord_pressed(ctx, Key::F)
+                && let Some(inspector) = self.inspector.as_mut()
+            {
+                inspector.toggle_focus();
             }
         }
 

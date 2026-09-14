@@ -10,13 +10,13 @@ use crate::document::Document;
 use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    clone, component_accessibility, create_effect, create_memo, create_selector, create_signal,
-    on_cleanup, set_component_state, untrack, with_document, Callback, ForEach, Func, Memo, Prop,
-    ReadSignal, RenderFn, Selector, WriteSignal,
+    Callback, ForEach, Func, Memo, Prop, ReadSignal, RenderFn, Selector, WriteSignal, clone,
+    component_accessibility, create_effect, create_memo, create_selector, create_signal,
+    on_cleanup, set_component_state, untrack, with_document,
 };
 use crate::unstyled;
-use crate::unstyled::typeahead::Typeahead;
 use crate::unstyled::ButtonHandle;
+use crate::unstyled::typeahead::Typeahead;
 
 #[derive(Clone, Default, PartialEq)]
 pub struct TreeItem {

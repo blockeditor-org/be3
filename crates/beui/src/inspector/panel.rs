@@ -9,8 +9,8 @@ use crate::base::{ScrollPosition, TextAlign};
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    clone, component, create_memo, create_signal, on_cleanup, view, CenteredRow, Column, Frame,
-    ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer, WriteSignal,
+    CenteredRow, Column, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
+    WriteSignal, clone, component, create_memo, create_signal, on_cleanup, view,
 };
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use crate::styled::{
@@ -21,7 +21,7 @@ use crate::unstyled;
 use crate::unstyled::TreeItem;
 
 use super::tree::{Entry, Key};
-use super::{entry_label, InspectorTab, State};
+use super::{InspectorTab, State, entry_label};
 use crate::{PerformanceSnapshot, PerformanceTimings};
 
 const HEADER_PADDING: f32 = 12.0;

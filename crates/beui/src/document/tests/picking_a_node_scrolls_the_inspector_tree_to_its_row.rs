@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view, Frame, NodeRef};
+use crate::reactive::{Frame, NodeRef, build, view};
 
 const ROWS: usize = 40;
 const PICKED: usize = 28;
