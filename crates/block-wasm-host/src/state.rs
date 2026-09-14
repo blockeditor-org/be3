@@ -6,10 +6,35 @@ use wasmtime_wasi::p1::WasiP1Ctx;
 
 use crate::threads::{Spawner, Spawns};
 
+pub type Connect = Arc<dyn Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync>;
+
+pub(crate) enum Device {
+    Ready(Box<Gpu>),
+    Unconnected(Connect),
+    Unavailable(String),
+}
+
+impl Device {
+    pub(crate) fn ready(&self) -> Option<&Gpu> {
+        match self {
+            Self::Ready(gpu) => Some(gpu.as_ref()),
+            Self::Unconnected(_) | Self::Unavailable(_) => None,
+        }
+    }
+
+    pub(crate) fn ready_mut(&mut self) -> Option<&mut Gpu> {
+        match self {
+            Self::Ready(gpu) => Some(gpu.as_mut()),
+            Self::Unconnected(_) | Self::Unavailable(_) => None,
+        }
+    }
+}
+
 pub struct State {
     pub(crate) wasi: WasiP1Ctx,
     pub(crate) memory: SharedMemory,
-    pub(crate) gpu: Gpu,
+    pub(crate) device: Device,
+    pub(crate) error: Option<String>,
     pub(crate) inbox: VecDeque<Vec<u8>>,
     pub(crate) outbox: Vec<Vec<u8>>,
     pub(crate) started: Instant,
@@ -80,7 +105,35 @@ impl State {
         needed
     }
 
+    pub(crate) fn with_gpu<R: Default>(&mut self, call: impl FnOnce(&mut Gpu) -> R) -> R {
+        if let Device::Unconnected(connect) = &self.device {
+            self.device = match connect() {
+                Ok((device, queue)) => Device::Ready(Box::new(Gpu::new(device, queue))),
+                Err(message) => Device::Unavailable(format!(
+                    "the plugin used the gpu, and no device could be opened: {message}"
+                )),
+            };
+        }
+        match &mut self.device {
+            Device::Ready(gpu) => call(gpu.as_mut()),
+            Device::Unavailable(message) => {
+                let message = message.clone();
+                self.report(message);
+                R::default()
+            }
+            Device::Unconnected(_) => R::default(),
+        }
+    }
+
     pub(crate) fn report(&mut self, message: String) {
-        self.gpu.report(message);
+        if self.error.is_none() {
+            self.error = Some(message);
+        }
+    }
+
+    pub(crate) fn take_error(&mut self) -> Option<String> {
+        self.error
+            .take()
+            .or_else(|| self.device.ready_mut().and_then(Gpu::take_error))
     }
 }

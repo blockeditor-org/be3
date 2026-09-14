@@ -1,6 +1,5 @@
 use std::{path::Path, time::Instant};
 
-use block_gpu_host::Gpu;
 use wasmtime::{Linker, Store, TypedFunc};
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
@@ -30,7 +29,8 @@ impl Host {
         let state = State {
             wasi: builder.build_p1(),
             memory: memory.clone(),
-            gpu: Gpu::new(self.device.clone(), self.queue.clone()),
+            device: self.devices.open(),
+            error: None,
             inbox: Default::default(),
             outbox: Vec::new(),
             started: Instant::now(),
@@ -57,11 +57,7 @@ impl Host {
             .map_err(|error| format!("the tests have no usable {START} export: {error}"))?;
         let outcome = start.call(&mut store, ());
         let state = store.data_mut();
-        if let Some(failure) = state
-            .gpu
-            .take_error()
-            .or_else(|| state.threads.take_failure())
-        {
+        if let Some(failure) = state.take_error().or_else(|| state.threads.take_failure()) {
             return Err(failure);
         }
         match outcome {

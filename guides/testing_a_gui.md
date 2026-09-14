@@ -159,5 +159,6 @@ nextest runs every test in a process of its own, so before it starts, Cranelift 
 test module that changed, several at a time, and leaves the machine code beside it as a .cwasm
 the way a build does for a plugin. Each test's process maps that in instead of compiling the
 module again, so a run that changed nothing takes seconds. A wasm build needs clang and
-llvm-ar on PATH, which ./scripts/setup installs. The runner opens a graphics adapter for the
-gpu abi, but no painting is drawn with it: what a test compares never passes through a gpu.
+llvm-ar on PATH, which ./scripts/setup installs. The runner only opens a graphics adapter when
+a test calls the gpu abi, so a machine without one still runs every test that does not, and
+what a test compares never passes through a gpu.

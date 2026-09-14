@@ -37,8 +37,8 @@ cd "$repository"
 load_plugins
 
 # The runner is what nextest starts in place of each test binary: it hands the
-# module to wasmtime with the plugin's gpu abi linked, so the tests paint
-# through the host's device exactly as a plugin does. It is built optimised
+# module to wasmtime with a plugin's imports linked, and opens a graphics
+# device only if a test calls the gpu abi. It is built optimised
 # because a debug Cranelift spends minutes on a module this size.
 cargo build --quiet --release -p plugin-test-runner
 runner="$repository/target/release/plugin-test-runner"

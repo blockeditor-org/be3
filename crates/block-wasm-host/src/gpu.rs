@@ -12,7 +12,7 @@ macro_rules! described {
                 |mut caller: Caller<'_, State>, pointer: u32, length: u32| -> u32 {
                     let state = caller.data_mut();
                     match state.read(pointer, length) {
-                        Ok(bytes) => state.gpu.$name(&bytes),
+                        Ok(bytes) => state.with_gpu(|gpu| gpu.$name(&bytes)),
                         Err(message) => {
                             state.report(message);
                             abi::NULL_HANDLE
@@ -43,7 +43,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         "device_limits",
         |mut caller: Caller<'_, State>, pointer: u32, capacity: u32| -> u32 {
             let state = caller.data_mut();
-            let bytes = state.gpu.limits();
+            let bytes = state.with_gpu(|gpu| gpu.limits());
             state.write(pointer, capacity, &bytes)
         },
     )?;
@@ -53,7 +53,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         |mut caller: Caller<'_, State>, buffer: u32, offset: u64, pointer: u32, length: u32| {
             let state = caller.data_mut();
             match state.read(pointer, length) {
-                Ok(data) => state.gpu.write_mapped_buffer(buffer, offset, &data),
+                Ok(data) => state.with_gpu(|gpu| gpu.write_mapped_buffer(buffer, offset, &data)),
                 Err(message) => state.report(message),
             }
         },
@@ -62,7 +62,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         linker,
         "buffer_unmap",
         |mut caller: Caller<'_, State>, buffer: u32| {
-            caller.data_mut().gpu.unmap_buffer(buffer);
+            caller.data_mut().with_gpu(|gpu| gpu.unmap_buffer(buffer));
         },
     )?;
     wrap(
@@ -71,7 +71,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         |mut caller: Caller<'_, State>, buffer: u32, offset: u64, pointer: u32, length: u32| {
             let state = caller.data_mut();
             match state.read(pointer, length) {
-                Ok(data) => state.gpu.write_buffer(buffer, offset, &data),
+                Ok(data) => state.with_gpu(|gpu| gpu.write_buffer(buffer, offset, &data)),
                 Err(message) => state.report(message),
             }
         },
@@ -89,7 +89,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
                 Ok(payload) => payload,
                 Err(message) => return state.report(message),
             };
-            state.gpu.write_texture(&request, &payload);
+            state.with_gpu(|gpu| gpu.write_texture(&request, &payload));
         },
     )?;
     wrap(
@@ -98,7 +98,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         |mut caller: Caller<'_, State>, pointer: u32, length: u32| {
             let state = caller.data_mut();
             match state.read_words(pointer, length) {
-                Ok(handles) => state.gpu.submit(&handles),
+                Ok(handles) => state.with_gpu(|gpu| gpu.submit(&handles)),
                 Err(message) => state.report(message),
             }
         },
@@ -109,7 +109,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         |mut caller: Caller<'_, State>, pointer: u32, length: u32| -> u32 {
             let state = caller.data_mut();
             match state.read(pointer, length) {
-                Ok(bytes) => state.gpu.begin_render_pass(&bytes),
+                Ok(bytes) => state.with_gpu(|gpu| gpu.begin_render_pass(&bytes)),
                 Err(message) => {
                     state.report(message);
                     abi::NULL_HANDLE
@@ -121,14 +121,18 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         linker,
         "encoder_finish",
         |mut caller: Caller<'_, State>, encoder: u32| -> u32 {
-            caller.data_mut().gpu.finish_encoder(encoder)
+            caller
+                .data_mut()
+                .with_gpu(|gpu| gpu.finish_encoder(encoder))
         },
     )?;
     wrap(
         linker,
         "pass_set_pipeline",
         |mut caller: Caller<'_, State>, pass: u32, pipeline: u32| {
-            caller.data_mut().gpu.set_pipeline(pass, pipeline);
+            caller
+                .data_mut()
+                .with_gpu(|gpu| gpu.set_pipeline(pass, pipeline));
         },
     )?;
     wrap(
@@ -142,7 +146,9 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
          offsets_length: u32| {
             let state = caller.data_mut();
             match state.read_words(offsets, offsets_length) {
-                Ok(offsets) => state.gpu.set_bind_group(pass, index, group, &offsets),
+                Ok(offsets) => {
+                    state.with_gpu(|gpu| gpu.set_bind_group(pass, index, group, &offsets))
+                }
                 Err(message) => state.report(message),
             }
         },
@@ -158,8 +164,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
          size: u64| {
             caller
                 .data_mut()
-                .gpu
-                .set_index_buffer(pass, buffer, format, offset, size);
+                .with_gpu(|gpu| gpu.set_index_buffer(pass, buffer, format, offset, size));
         },
     )?;
     wrap(
@@ -173,8 +178,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
          size: u64| {
             caller
                 .data_mut()
-                .gpu
-                .set_vertex_buffer(pass, slot, buffer, offset, size);
+                .with_gpu(|gpu| gpu.set_vertex_buffer(pass, slot, buffer, offset, size));
         },
     )?;
     wrap(
@@ -188,15 +192,9 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
          height: f32,
          minimum_depth: f32,
          maximum_depth: f32| {
-            caller.data_mut().gpu.set_viewport(
-                pass,
-                x,
-                y,
-                width,
-                height,
-                minimum_depth,
-                maximum_depth,
-            );
+            caller.data_mut().with_gpu(|gpu| {
+                gpu.set_viewport(pass, x, y, width, height, minimum_depth, maximum_depth)
+            });
         },
     )?;
     wrap(
@@ -205,8 +203,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         |mut caller: Caller<'_, State>, pass: u32, x: u32, y: u32, width: u32, height: u32| {
             caller
                 .data_mut()
-                .gpu
-                .set_scissor_rect(pass, x, y, width, height);
+                .with_gpu(|gpu| gpu.set_scissor_rect(pass, x, y, width, height));
         },
     )?;
     wrap(
@@ -215,15 +212,16 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         |mut caller: Caller<'_, State>, pass: u32, red: f32, green: f32, blue: f32, alpha: f32| {
             caller
                 .data_mut()
-                .gpu
-                .set_blend_constant(pass, red, green, blue, alpha);
+                .with_gpu(|gpu| gpu.set_blend_constant(pass, red, green, blue, alpha));
         },
     )?;
     wrap(
         linker,
         "pass_set_stencil_reference",
         |mut caller: Caller<'_, State>, pass: u32, reference: u32| {
-            caller.data_mut().gpu.set_stencil_reference(pass, reference);
+            caller
+                .data_mut()
+                .with_gpu(|gpu| gpu.set_stencil_reference(pass, reference));
         },
     )?;
     wrap(
@@ -235,13 +233,15 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
          vertex_count: u32,
          first_instance: u32,
          instance_count: u32| {
-            caller.data_mut().gpu.draw(
-                pass,
-                first_vertex,
-                vertex_count,
-                first_instance,
-                instance_count,
-            );
+            caller.data_mut().with_gpu(|gpu| {
+                gpu.draw(
+                    pass,
+                    first_vertex,
+                    vertex_count,
+                    first_instance,
+                    instance_count,
+                )
+            });
         },
     )?;
     wrap(
@@ -254,28 +254,32 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
          base_vertex: i32,
          first_instance: u32,
          instance_count: u32| {
-            caller.data_mut().gpu.draw_indexed(
-                pass,
-                first_index,
-                index_count,
-                base_vertex,
-                first_instance,
-                instance_count,
-            );
+            caller.data_mut().with_gpu(|gpu| {
+                gpu.draw_indexed(
+                    pass,
+                    first_index,
+                    index_count,
+                    base_vertex,
+                    first_instance,
+                    instance_count,
+                )
+            });
         },
     )?;
     wrap(
         linker,
         "pass_end",
         |mut caller: Caller<'_, State>, pass: u32| {
-            caller.data_mut().gpu.end_pass(pass);
+            caller.data_mut().with_gpu(|gpu| gpu.end_pass(pass));
         },
     )?;
     wrap(
         linker,
         "resource_drop",
         |mut caller: Caller<'_, State>, kind: u32, handle: u32| {
-            caller.data_mut().gpu.drop_resource(kind, handle);
+            caller
+                .data_mut()
+                .with_gpu(|gpu| gpu.drop_resource(kind, handle));
         },
     )?;
     wrap(
@@ -284,7 +288,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         |mut caller: Caller<'_, State>, surface: u32, pointer: u32, length: u32| {
             let state = caller.data_mut();
             match state.read(pointer, length) {
-                Ok(bytes) => state.gpu.configure_surface(surface, &bytes),
+                Ok(bytes) => state.with_gpu(|gpu| gpu.configure_surface(surface, &bytes)),
                 Err(message) => state.report(message),
             }
         },
@@ -293,14 +297,18 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         linker,
         "surface_acquire",
         |mut caller: Caller<'_, State>, surface: u32| -> u32 {
-            caller.data_mut().gpu.acquire_surface(surface)
+            caller
+                .data_mut()
+                .with_gpu(|gpu| gpu.acquire_surface(surface))
         },
     )?;
     wrap(
         linker,
         "surface_present",
         |mut caller: Caller<'_, State>, surface: u32| {
-            caller.data_mut().gpu.present_surface(surface);
+            caller
+                .data_mut()
+                .with_gpu(|gpu| gpu.present_surface(surface));
         },
     )?;
     wrap(
@@ -308,7 +316,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         "texture_describe",
         |mut caller: Caller<'_, State>, texture: u32, pointer: u32, capacity: u32| -> u32 {
             let state = caller.data_mut();
-            match state.gpu.describe_texture(texture) {
+            match state.with_gpu(|gpu| gpu.describe_texture(texture)) {
                 Some(bytes) => state.write(pointer, capacity, &bytes),
                 None => 0,
             }
@@ -319,7 +327,7 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         "error_take",
         |mut caller: Caller<'_, State>, pointer: u32, capacity: u32| -> u32 {
             let state = caller.data_mut();
-            let message = state.gpu.take_error().unwrap_or_default();
+            let message = state.take_error().unwrap_or_default();
             state.write(pointer, capacity, message.as_bytes())
         },
     )?;

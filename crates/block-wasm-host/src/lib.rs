@@ -8,7 +8,7 @@ mod transport;
 #[cfg(test)]
 mod tests;
 
-use std::{path::Path, time::Instant};
+use std::{path::Path, sync::Arc, time::Instant};
 
 use block_gpu_host::Gpu;
 use wasmtime::{
@@ -16,18 +16,35 @@ use wasmtime::{
 };
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
+use state::Device;
 use threads::Spawner;
 
 pub use precompile::precompile;
-pub use state::State;
+pub use state::{Connect, State};
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 
 #[derive(Clone)]
 pub struct Host {
     engine: Engine,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    devices: Devices,
+}
+
+#[derive(Clone)]
+enum Devices {
+    Given(wgpu::Device, wgpu::Queue),
+    OnDemand(Connect),
+}
+
+impl Devices {
+    fn open(&self) -> Device {
+        match self {
+            Self::Given(device, queue) => {
+                Device::Ready(Box::new(Gpu::new(device.clone(), queue.clone())))
+            }
+            Self::OnDemand(connect) => Device::Unconnected(Arc::clone(connect)),
+        }
+    }
 }
 
 impl Host {
@@ -38,8 +55,17 @@ impl Host {
     ) -> Result<Self, String> {
         Ok(Self {
             engine: engine(cache)?,
-            device,
-            queue,
+            devices: Devices::Given(device, queue),
+        })
+    }
+
+    pub fn on_demand(
+        connect: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
+        cache: Option<&Path>,
+    ) -> Result<Self, String> {
+        Ok(Self {
+            engine: engine(cache)?,
+            devices: Devices::OnDemand(Arc::new(connect)),
         })
     }
 
@@ -67,20 +93,14 @@ pub struct Plugin {
 
 impl Plugin {
     fn new(host: &Host, module: Module) -> Result<Self, String> {
-        let Host {
-            engine,
-            device,
-            queue,
-        } = host;
-        let engine = engine.clone();
-        let device = device.clone();
-        let queue = queue.clone();
+        let engine = host.engine.clone();
         let memory = shared_memory(&engine, &module)?;
         let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
         let state = State {
             wasi,
             memory: memory.clone(),
-            gpu: Gpu::new(device, queue),
+            device: host.devices.open(),
+            error: None,
             inbox: Default::default(),
             outbox: Vec::new(),
             started: Instant::now(),
@@ -133,11 +153,7 @@ impl Plugin {
             return Err(error);
         }
         let state = self.store.data_mut();
-        match state
-            .gpu
-            .take_error()
-            .or_else(|| state.threads.take_failure())
-        {
+        match state.take_error().or_else(|| state.threads.take_failure()) {
             Some(error) => Err(error),
             None => Ok(()),
         }
@@ -152,23 +168,33 @@ impl Plugin {
     }
 
     pub fn take_presented(&mut self) -> Vec<u32> {
-        self.store.data_mut().gpu.take_presented()
+        self.store
+            .data_mut()
+            .device
+            .ready_mut()
+            .map(Gpu::take_presented)
+            .unwrap_or_default()
     }
 
     pub fn surface(&self, surface: u32) -> Option<(wgpu::Texture, u64)> {
         self.store
             .data()
-            .gpu
+            .device
+            .ready()?
             .surface(surface)
             .map(|(texture, generation)| (texture.clone(), generation))
     }
 
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
-        self.store.data_mut().gpu.attach_surface(surface, texture);
+        self.store
+            .data_mut()
+            .with_gpu(|gpu| gpu.attach_surface(surface, texture));
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
-        self.store.data_mut().gpu.detach_surface(surface);
+        if let Some(gpu) = self.store.data_mut().device.ready_mut() {
+            gpu.detach_surface(surface);
+        }
     }
 
     pub fn stop(&mut self) {

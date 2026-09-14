@@ -52,8 +52,7 @@ fn usage(program: &str) -> ! {
 
 fn run(wasm: &Path, arguments: &[String]) -> Result<i32, String> {
     let root = workspace()?;
-    let (device, queue) = gpu()?;
-    let host = Host::new(device, queue, None)?;
+    let host = Host::on_demand(gpu, None)?;
     host.run_tests(wasm, arguments, &root)
 }
 
