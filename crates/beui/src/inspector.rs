@@ -12,7 +12,7 @@ use crate::input::{CursorIcon, Event, Key as InputKey};
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{WriteSignal, with_reactive_scope};
+use crate::reactive::{with_document, with_reactive_scope, WriteSignal};
 use crate::styled::Theme;
 
 use panel::Summary;
@@ -142,9 +142,11 @@ pub(crate) struct Inspector {
     set_entries: WriteSignal<HashMap<Key, Entry>>,
     set_summary: WriteSignal<Summary>,
     set_performance: WriteSignal<panel::PerformanceSummary>,
-    set_reveal: WriteSignal<Option<usize>>,
+    set_selection: WriteSignal<Option<Key>>,
+    set_reveal: WriteSignal<Option<Key>>,
     #[cfg(test)]
     rows: Rc<RefCell<HashMap<Key, panel::Row>>>,
+    tree: crate::reactive::NodeRef,
     #[cfg(test)]
     touch_toggle: crate::reactive::NodeRef,
     #[cfg(test)]
@@ -170,6 +172,7 @@ impl Inspector {
             entries: Vec::new(),
             #[cfg(test)]
             rows: panel.rows,
+            tree: panel.tree,
             #[cfg(test)]
             touch_toggle: panel.touch_toggle,
             #[cfg(test)]
@@ -185,6 +188,7 @@ impl Inspector {
             set_entries: panel.set_entries,
             set_summary: panel.set_summary,
             set_performance: panel.set_performance,
+            set_selection: panel.set_selection,
             set_reveal: panel.set_reveal,
             width: DEFAULT_WIDTH,
             grabbed: None,
@@ -200,9 +204,8 @@ impl Inspector {
     }
 
     #[cfg(test)]
-    pub(crate) fn marker_node(&self, index: usize) -> NodeId {
-        let key = self.entries[index].key;
-        self.rows.borrow()[&key].marker.get()
+    pub(crate) fn focused_row(&self) -> Option<Key> {
+        crate::unstyled::tree_focused::<Key>(&self.document, self.tree.get())
     }
 
     #[cfg(test)]
@@ -306,6 +309,7 @@ impl Inspector {
             ctx.request_repaint();
         }
         self.pick(target, ctx, content);
+        self.release_focus(ctx);
         self.reveal();
         self.paint(target, ctx, content, panel);
         if self.state.revision.get() != self.seen {
@@ -330,12 +334,17 @@ impl Inspector {
         };
         let summary = self.summary(target, ctx, &entries);
         let performance = panel::PerformanceSummary::from(target.performance());
+        let selection = entries
+            .iter()
+            .find(|entry| entry.selected)
+            .map(|entry| entry.key);
         let Self {
             document,
             set_keys,
             set_entries,
             set_summary,
             set_performance,
+            set_selection,
             ..
         } = self;
         with_reactive_scope(document, || {
@@ -348,6 +357,7 @@ impl Inspector {
             );
             set_summary.set(summary);
             set_performance.set(performance);
+            set_selection.set(selection);
         });
         self.entries = entries;
     }
@@ -370,6 +380,56 @@ impl Inspector {
                 .and_then(|id| target.node_rect(id))
                 .map(bounds_label)
                 .unwrap_or_default(),
+        }
+    }
+
+    pub(crate) fn toggle_focus(&mut self) {
+        if self.document.focused_node().is_some() {
+            self.blur();
+            return;
+        }
+        let Some(target) = self.focus_entry() else {
+            return;
+        };
+        let Self { document, .. } = self;
+        with_reactive_scope(document, || {
+            with_document(|document| document.focus_focusable(target))
+        });
+    }
+
+    fn blur(&mut self) {
+        let Self { document, .. } = self;
+        with_reactive_scope(document, || {
+            with_document(|document| document.update_focus(None))
+        });
+    }
+
+    fn focus_entry(&self) -> Option<NodeId> {
+        let root = self.document.root()?;
+        let order = self.document.focusables_within(root);
+        let rows = self
+            .tree_node()
+            .map(|tree| self.document.focusables_within(tree))
+            .unwrap_or_default();
+        order
+            .iter()
+            .find(|id| rows.contains(id))
+            .or_else(|| order.first())
+            .copied()
+    }
+
+    fn tree_node(&self) -> Option<NodeId> {
+        self.tree
+            .try_get()
+            .filter(|tree| self.document.contains(*tree))
+    }
+
+    fn release_focus(&mut self, ctx: &Context) {
+        if self.state.picking.get() || self.document.focused_node().is_none() {
+            return;
+        }
+        if ctx.input(|input| input.events.iter().any(cancelled)) {
+            self.blur();
         }
     }
 
@@ -423,16 +483,16 @@ impl Inspector {
             InspectorTab::AccessKit => Key::AccessKit(id),
             InspectorTab::Performance | InspectorTab::Simulation => return,
         };
-        let Some(index) = self.entries.iter().position(|entry| entry.key == key) else {
+        if !self.entries.iter().any(|entry| entry.key == key) {
             return;
-        };
+        }
         self.state.reveal.set(None);
         let Self {
             document,
             set_reveal,
             ..
         } = self;
-        with_reactive_scope(document, || set_reveal.set(Some(index)));
+        with_reactive_scope(document, || set_reveal.set(Some(key)));
         with_reactive_scope(document, || set_reveal.set(None));
         self.state.touch();
     }

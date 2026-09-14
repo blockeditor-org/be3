@@ -4,25 +4,24 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use crate::color::Color32;
-use crate::input::CursorIcon;
 
 use crate::base::{ScrollPosition, TextAlign};
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    CenteredRow, ClickCatcher, Column, ForEach, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row,
-    Scroll, Show, Spacer, WriteSignal, clone, component, create_memo, create_signal, on_cleanup,
-    view,
+    clone, component, create_memo, create_signal, on_cleanup, view, CenteredRow, Column, Frame,
+    ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer, WriteSignal,
 };
-use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
+use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use crate::styled::{
-    Button, ButtonVariant, Caption, Checkbox, Code, Heading, ListRow, RadioGroup, Scrollbar,
-    Separator, Tabs, Theme,
+    Button, ButtonVariant, Caption, Checkbox, Code, Heading, RadioGroup, Scrollbar, Separator,
+    Tabs, Theme, Tree,
 };
 use crate::unstyled;
+use crate::unstyled::TreeItem;
 
 use super::tree::{Entry, Key};
-use super::{InspectorTab, State};
+use super::{entry_label, InspectorTab, State};
 use crate::{PerformanceSnapshot, PerformanceTimings};
 
 const HEADER_PADDING: f32 = 12.0;
@@ -32,8 +31,6 @@ const BODY_SPACING: f32 = 6.0;
 const FOOTER_PADDING: f32 = 10.0;
 const FOOTER_SPACING: f32 = 3.0;
 const ROW_SPACING: f32 = 6.0;
-const INDENT: f32 = 12.0;
-const MARKER_WIDTH: f32 = 14.0;
 const TOGGLE_PADDING_HORIZONTAL: f32 = 8.0;
 const TOGGLE_PADDING_VERTICAL: f32 = 3.0;
 const PERFORMANCE_SPACING: f32 = 10.0;
@@ -111,8 +108,6 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
 pub(crate) struct Row {
     #[cfg(test)]
     pub(crate) row: NodeRef,
-    #[cfg(test)]
-    pub(crate) marker: NodeRef,
 }
 
 type Rows = Rc<RefCell<HashMap<Key, Row>>>;
@@ -125,7 +120,9 @@ pub(crate) struct Panel {
     pub(crate) set_entries: WriteSignal<HashMap<Key, Entry>>,
     pub(crate) set_summary: WriteSignal<Summary>,
     pub(crate) set_performance: WriteSignal<PerformanceSummary>,
-    pub(crate) set_reveal: WriteSignal<Option<usize>>,
+    pub(crate) set_selection: WriteSignal<Option<Key>>,
+    pub(crate) set_reveal: WriteSignal<Option<Key>>,
+    pub(crate) tree: NodeRef,
     #[cfg(test)]
     pub(crate) touch_toggle: NodeRef,
     #[cfg(test)]
@@ -147,8 +144,11 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let (performance, set_performance) = create_signal(PerformanceSummary::default());
     let (tab, set_tab) = create_signal(InspectorTab::default());
     let (position, set_position) = create_signal(ScrollPosition::ZERO);
+    let (selection, set_selection) = create_signal(None);
     let (reveal, set_reveal) = create_signal(None);
     let rows: Rows = Rc::default();
+    let tree = NodeRef::new();
+    let tree_ref = tree.clone();
     let touch_toggle = NodeRef::new();
     let touch_toggle_ref = touch_toggle.clone();
     let tabs = NodeRef::new();
@@ -196,7 +196,11 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
             move || summary.with(|summary| summary.selection.clone())
         });
         let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
-        let (list_state, list_rows) = (state.clone(), rows.clone());
+        let (select_state, expand_state, hover_state) =
+            (state.clone(), state.clone(), state.clone());
+        let list_rows = rows.clone();
+        let row_entries = entries.clone();
+        let item_entries = entries.clone();
         let pick_state = state.clone();
         let header_tree_visible = tree_visible.clone();
         let body_tree_visible = tree_visible.clone();
@@ -237,19 +241,30 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 <Row spacing=BODY_SPACING>
                                     <Scroll @sizing=ItemSize::Percent(100.0)
                                         focus_color={THEME.accent}
-                                        reveal
                                         on_change={move |value| set_position.set(value)}
                                     >
-                                        <ForEach spacing=0.0 items={keys} key={|key: Key| key}>
+                                        <Tree
+                                            @node_ref=&tree_ref
+                                            keys
+                                            item={move |key: Key| item(&item_entries, key)}
+                                            selected={selection}
+                                            reveal
+                                            on_select={move |key: Key| select_state.select(key.node())}
+                                            on_expand={move |(key, expanded): (Key, bool)| {
+                                                expand_state.set_expanded(key, expanded);
+                                            }}
+                                            on_hover_change={move |(key, hovered): (Key, bool)| {
+                                                hover_state.hover(key.node(), hovered);
+                                            }}
+                                        >
                                             {move |key: Key| view! {
-                                                <TreeRow
+                                                <TreeCells
                                                     row_key={key}
-                                                    entries={entries.clone()}
-                                                    state={list_state.clone()}
+                                                    entries={row_entries.clone()}
                                                     rows={list_rows.clone()}
                                                 />
                                             }}
-                                        </ForEach>
+                                        </Tree>
                                     </Scroll>
                                     <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
                                 </Row>
@@ -304,7 +319,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         set_entries,
         set_summary,
         set_performance,
+        set_selection,
         set_reveal,
+        tree,
         #[cfg(test)]
         touch_toggle,
         #[cfg(test)]
@@ -545,78 +562,43 @@ fn entry_field<T: Clone + Default + PartialEq + 'static>(
 }
 
 #[component]
-fn TreeRow(row_key: Key, entries: Entries, state: Rc<State>, rows: Rows) -> NodeId {
+fn TreeCells(row_key: Key, entries: Entries, rows: Rows) -> NodeId {
     let key = row_key;
-    let node = key.node();
-    let indent = entry_field(&entries, key, |entry| {
-        ItemSize::Fixed(entry.depth as f32 * INDENT)
-    });
     let kind = entry_field(&entries, key, |entry| entry.kind.to_owned());
     let detail = entry_field(&entries, key, |entry| entry.detail.clone());
     let size = entry_field(&entries, key, |entry| entry.size.clone());
-    let selected = entry_field(&entries, key, |entry| entry.selected);
-    let expandable = entry_field(&entries, key, |entry| entry.expandable);
-    let expanded = entry_field(&entries, key, |entry| entry.expanded);
-    let glyph = create_memo({
-        let (expandable, expanded) = (expandable.clone(), expanded.clone());
-        move || glyph(expandable.get(), expanded.get()).to_owned()
-    });
 
-    let (row, marker) = (NodeRef::new(), NodeRef::new());
+    let row = NodeRef::new();
     rows.borrow_mut().insert(
         key,
         Row {
             #[cfg(test)]
             row: row.clone(),
-            #[cfg(test)]
-            marker: marker.clone(),
         },
     );
     on_cleanup(move || {
         rows.borrow_mut().remove(&key);
     });
 
-    let (hover, selection, expansion) = (state.clone(), state.clone(), state);
     view! {
-        <ClickCatcher
-            @node_ref=&row
-            cursor=CursorIcon::PointingHand
-            on_click={move || selection.select(node)}
-            on_hover_change={move |hovered| hover.hover(node, hovered)}
-        >
-            <Frame
-                outline={THEME.accent}
-                outline_width=BORDER_WIDTH
-                radius=RADIUS
-                outline_offset=0.0
-                outline_visible={selected}
-            >
-                <ListRow>
-                    <CenteredRow spacing=ROW_SPACING>
-                        <Spacer @sizing={indent} />
-                        <unstyled::Pressable @sizing=ItemSize::Fixed(MARKER_WIDTH)
-                            @node_ref=&marker
-                            enabled={expandable}
-                            on_click={move || {
-                                expansion.set_expanded(key, !expanded.get_untracked());
-                            }}
-                        >
-                            <Code content={glyph} color={THEME.text_muted} align=TextAlign::Center />
-                        </unstyled::Pressable>
-                        <Code content={kind} />
-                        <Code @sizing=ItemSize::Percent(100.0) content={detail} color={THEME.text_muted} />
-                        <Code content={size} color={THEME.text_muted} align=TextAlign::End />
-                    </CenteredRow>
-                </ListRow>
-            </Frame>
-        </ClickCatcher>
+        <CenteredRow @node_ref=&row spacing=ROW_SPACING>
+            <Code content={kind} />
+            <Code @sizing=ItemSize::Percent(100.0) content={detail} color={THEME.text_muted} />
+            <Code content={size} color={THEME.text_muted} align=TextAlign::End />
+        </CenteredRow>
     }
 }
 
-fn glyph(expandable: bool, expanded: bool) -> &'static str {
-    match (expandable, expanded) {
-        (true, true) => "-",
-        (true, false) => "+",
-        (false, _) => "",
-    }
+fn item(entries: &Entries, key: Key) -> TreeItem {
+    entries.with(|entries| {
+        entries
+            .get(&key)
+            .map(|entry| TreeItem {
+                label: entry_label(entry),
+                depth: entry.depth,
+                expandable: entry.expandable,
+                expanded: entry.expanded,
+            })
+            .unwrap_or_default()
+    })
 }

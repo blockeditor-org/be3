@@ -10,7 +10,7 @@ fn the_inspector_keeps_the_rows_of_nodes_that_survive_an_update() {
     let column_row = harness.inspector().row_node(0);
     let padding_row = harness.inspector().row_node(1);
 
-    harness.click(harness.marker_center(1));
+    harness.click(harness.row_center(1));
     harness.frame(Vec::new());
 
     assert_eq!(harness.tree(), ["column", "  frame"]);
@@ -23,7 +23,7 @@ fn the_inspector_keeps_the_rows_of_nodes_that_survive_an_update() {
         "collapsing a row must update the rows around it rather than rebuild them"
     );
 
-    harness.click(harness.marker_center(1));
+    harness.click(harness.row_center(1));
     harness.frame(Vec::new());
 
     assert_eq!(harness.tree(), ["column", "  frame", "    text"]);

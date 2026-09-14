@@ -4,11 +4,11 @@ use beui::reactive::{
 };
 use beui::styled::theme::{NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
-    Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
-    Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
-    Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, use_theme,
+    use_theme, Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu,
+    Display, Heading, Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select,
+    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree,
 };
-use beui::unstyled::{Container, narrower_than};
+use beui::unstyled::{narrower_than, Container, TreeItem};
 use beui::{
     Color32, Context, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign, unstyled,
 };
@@ -31,6 +31,17 @@ const ROW_COUNT: usize = 10_000;
 const NARROW_ROWS_HEIGHT: f32 = 320.0;
 const ROW_HEIGHT: f32 = 34.0;
 const COMPACT_ROW_HEIGHT: f32 = 25.0;
+const TREE_NODES: [(&str, usize); 9] = [
+    ("Project", 0),
+    ("src", 1),
+    ("main.rs", 2),
+    ("demo.rs", 2),
+    ("assets", 1),
+    ("logo.png", 2),
+    ("theme.toml", 2),
+    ("README.md", 1),
+    ("Cargo.toml", 1),
+];
 const ROW_PADDING_HORIZONTAL: f32 = 12.0;
 const ROW_PADDING_VERTICAL: f32 = 9.0;
 const COMPACT_ROW_PADDING_VERTICAL: f32 = 4.0;
@@ -366,7 +377,7 @@ fn ControlPanels(rows: Rows) -> NodeId {
     view! {
         <Column spacing=16.0>
             <ResponsiveTabs
-                labels={vec!["List".to_string(), "Load".to_string(), "Name".to_string(), "Choices".to_string(), "Menus".to_string()]}
+                labels={vec!["List".to_string(), "Load".to_string(), "Name".to_string(), "Choices".to_string(), "Menus".to_string(), "Tree".to_string()]}
                 selected=0
                 breakpoint=TABS_NARROW_WIDTH
                 on_change={move |selected| {
@@ -379,6 +390,7 @@ fn ControlPanels(rows: Rows) -> NodeId {
                 <Show condition={tab.memo(2)}><NameControls /></Show>
                 <Show condition={tab.memo(3)}><ChoiceControls /></Show>
                 <Show condition={tab.memo(4)}><MenuControls /></Show>
+                <Show condition={tab.memo(5)}><TreeControls /></Show>
             </Column>
         </Column>
     }
@@ -492,6 +504,73 @@ fn ChoiceControls() -> NodeId {
             </Column>
         </Stack>
     }
+}
+
+#[component]
+fn TreeControls() -> NodeId {
+    let (collapsed, set_collapsed) = create_signal(Vec::<usize>::new());
+    let (selected, set_selected) = create_signal(None::<usize>);
+    let keys = create_memo(clone!(collapsed -> move || visible_tree_rows(&collapsed.get())));
+    let status_text = create_memo(clone!(selected -> move || match selected.get() {
+        Some(row) => format!("{} selected", TREE_NODES[row].0),
+        None => "Nothing selected".to_owned(),
+    }));
+    let expansion = collapsed.clone();
+
+    view! {
+        <Column spacing=8.0>
+            <Caption content="Arrow keys walk the tree; Enter or a click opens and closes a folder" />
+            <Tree
+                keys
+                item={move |row: usize| tree_item(row, &expansion.get())}
+                selected
+                on_select={move |row: usize| set_selected.set(Some(row))}
+                on_expand={move |(row, expanded): (usize, bool)| {
+                    set_collapsed.update(|collapsed| {
+                        collapsed.retain(|candidate| *candidate != row);
+                        if !expanded {
+                            collapsed.push(row);
+                        }
+                    });
+                }}
+            >
+                {move |row: usize| view! { <Body content={TREE_NODES[row].0} /> }}
+            </Tree>
+            <Caption content={status_text} />
+        </Column>
+    }
+}
+
+fn tree_item(row: usize, collapsed: &[usize]) -> TreeItem {
+    let (label, depth) = TREE_NODES[row];
+    TreeItem {
+        label: label.to_owned(),
+        depth,
+        expandable: has_children(row),
+        expanded: !collapsed.contains(&row),
+    }
+}
+
+fn has_children(row: usize) -> bool {
+    TREE_NODES
+        .get(row + 1)
+        .is_some_and(|(_, depth)| *depth > TREE_NODES[row].1)
+}
+
+fn visible_tree_rows(collapsed: &[usize]) -> Vec<usize> {
+    let mut rows = Vec::new();
+    let mut hidden_below: Option<usize> = None;
+    for (row, (_, depth)) in TREE_NODES.iter().enumerate() {
+        match hidden_below {
+            Some(limit) if *depth > limit => continue,
+            _ => hidden_below = None,
+        }
+        rows.push(row);
+        if collapsed.contains(&row) {
+            hidden_below = Some(*depth);
+        }
+    }
+    rows
 }
 
 #[component]

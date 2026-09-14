@@ -6,7 +6,7 @@ fn clicking_a_row_collapses_its_children() {
     let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
-    let padding_row = harness.marker_center(1);
+    let padding_row = harness.row_center(1);
     harness.click(padding_row);
     harness.frame(Vec::new());
 

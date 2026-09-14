@@ -12,7 +12,11 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Space inserts text. Paste replaces the selection. The desktop runner maps Command to Ctrl on macOS. |
 | Scroll areas | Tab focuses the area. Up/Down scroll by a line; Page Up/Down and Space/Shift+Space scroll by a page; Home/End reach the endpoints. Tabbing to a child or navigating a choice scrolls it into view. Unused Up/Down, Home/End, and Page keys on child controls scroll the nearest containing area. Virtual lists can be paged before tabbing into their realized controls. |
 | Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options by case-insensitive substring. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
+| Tree views | One Tab stop, at the selected row or the first row. Up/Down move to the previous/next visible row and stop at the ends; Home/End reach the first/last row. Right expands a collapsed row and then moves to its first child; Left collapses an expanded row and then moves to its parent. Space or Enter selects a row and opens or closes it, the same as clicking it. Typing searches case-insensitive prefixes over the visible rows. Selection follows the focused row. |
 | Context menu | Secondary click opens the menu at the pointer and focuses its first item, which is shown with a highlighted background; Tab is trapped on the menu's single roving Tab stop while it is open. Up/Down move between items and update the highlight; Home/End jump to the first/last item. Right Arrow (or hovering an item) opens its submenu and focuses its first item; Left Arrow closes a submenu and refocuses the item that opened it. Only one submenu per level stays open. Enter or clicking a leaf item selects it and closes the entire menu stack; Escape closes one level at a time; an outside click closes the whole stack. |
+
+The inspector panel is a document of its own, so Ctrl+Shift+F moves focus into
+it and back, and Escape inside it returns focus to the inspected document.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 
@@ -25,6 +29,15 @@ changes through `on_change`; `None` clears the selection, and the first option
 becomes the entry point. `<ToggleButton>` takes `label` and `pressed`, and its
 label stays stable as the pressed state changes. The demo's Choices tab shows
 all three.
+
+`<Tree>` takes the `keys` of the rows that are visible in tree order, an `item`
+callback that answers with the `TreeItem` (label, depth, whether it can expand,
+whether it is expanded) for one key, the `selected` key, and optional `reveal`
+key to scroll into view. It reports `on_select`, `on_expand` and
+`on_hover_change`, and its children build the cells of one row. The tree owns
+the roving Tab stop, the marker, the indent and the keyboard model; the caller
+owns the rows themselves, so a tree of anything keyed by anything hashable
+works. The demo's Tree tab and the BEUI inspector both use it.
 
 `<Select>` takes `options` and `selected` and opens a popup with a search box
 over the option list. `<ContextMenu>` wraps a `region` so a secondary click

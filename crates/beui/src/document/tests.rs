@@ -26,6 +26,7 @@ mod arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_opti
 mod arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing_the_search_text;
 mod arrow_keys_move_a_visible_highlight_through_an_open_context_menu;
 mod arrow_keys_step_the_focused_slider;
+mod arrow_keys_walk_the_rows_of_the_inspector_tree;
 mod backspace_deletes_the_character_before_the_caret;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
 mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
@@ -41,6 +42,7 @@ mod clicking_the_padding_around_a_button_label_activates_it;
 mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod ctrl_a_selects_everything_so_typing_replaces_the_value;
+mod ctrl_shift_f_moves_focus_between_the_inspector_and_the_document;
 mod ctrl_shift_i_opens_and_closes_the_inspector;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod double_clicking_a_word_selects_it_so_typing_replaces_it;
@@ -49,6 +51,7 @@ mod dragging_the_inspector_edge_resizes_the_panel;
 mod enabling_touch_emulation_in_the_inspector_does_not_paint_a_pointer;
 mod enter_activates_the_focused_button;
 mod enter_confirms_the_highlighted_select_option_and_closes_the_popup;
+mod enter_on_an_inspector_row_selects_it_and_toggles_its_children;
 mod enter_toggles_the_focused_checkbox;
 mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
 mod evicting_a_virtual_scroll_row_disposes_its_effects;
@@ -66,6 +69,7 @@ mod percent_sized_children_still_size_an_intrinsic_lists_height;
 mod performance_measurements_report_work_and_cache_hits;
 mod picking_a_node_leaves_the_document_alone;
 mod picking_a_node_reveals_it_in_the_tree;
+mod picking_a_node_scrolls_the_inspector_tree_to_its_row;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
 mod removing_a_node_stops_the_effects_that_were_built_for_it;
@@ -95,11 +99,13 @@ mod the_inspector_lists_the_document_tree;
 mod the_inspector_shows_document_performance;
 mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
+mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_scroll_position_is_reported_to_its_listener;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
+mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
 mod typing_into_a_focused_text_input_inserts_the_text;
 mod typing_into_an_empty_field_does_not_pick_up_its_placeholder;
 mod typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view;
@@ -233,6 +239,10 @@ impl Harness {
         self.chord(Key::C);
     }
 
+    pub(crate) fn toggle_inspector_focus(&mut self) {
+        self.chord(Key::F);
+    }
+
     fn chord(&mut self, key: Key) {
         self.key(
             key,
@@ -287,8 +297,12 @@ impl Harness {
         self.node_center(self.inspector().row_node(index))
     }
 
-    pub(crate) fn marker_center(&self, index: usize) -> Pos2 {
-        self.node_center(self.inspector().marker_node(index))
+    pub(crate) fn focused_row_index(&self) -> Option<usize> {
+        let focused = self.inspector().focused_row()?;
+        self.inspector()
+            .entries
+            .iter()
+            .position(|entry| entry.key == focused)
     }
 
     pub(crate) fn touch_toggle_center(&self) -> Pos2 {

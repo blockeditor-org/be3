@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
 
 use accesskit::{Node, Role, Toggled};
 
@@ -13,10 +12,9 @@ use crate::reactive::{
     create_effect, create_memo, create_selector, create_signal, intrinsic, set_component_state,
 };
 use crate::unstyled;
+use crate::unstyled::typeahead::Typeahead;
 use crate::unstyled::ButtonHandle;
 use beui_macros::{component, view};
-
-const TYPEAHEAD_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ChoiceKind {
@@ -36,12 +34,6 @@ pub struct ChoiceOptionHandle {
 
 struct Option_ {
     label: String,
-}
-
-#[derive(Default)]
-struct Typeahead {
-    search: String,
-    typed_at: Option<Instant>,
 }
 
 struct State {
@@ -152,7 +144,7 @@ pub fn Choice(
         let state = state.clone();
         create_effect(move || {
             if state.focus.get().is_none() {
-                *state.typeahead.borrow_mut() = Typeahead::default();
+                state.typeahead.borrow_mut().clear();
             }
         });
     }
@@ -224,44 +216,15 @@ fn key(state: &State, index: usize, press: KeyPress) -> bool {
 }
 
 fn typeahead(state: &State, index: usize, text: &str) {
-    if text.is_empty() || text.chars().any(char::is_control) || text == " " {
-        return;
-    }
-    let typed = text.to_lowercase();
-    let now = Instant::now();
-    let search = {
-        let mut typeahead = state.typeahead.borrow_mut();
-        if typeahead
-            .typed_at
-            .is_none_or(|last| now.duration_since(last) > TYPEAHEAD_TIMEOUT)
-        {
-            typeahead.search.clear();
-        }
-        typeahead.typed_at = Some(now);
-        typeahead.search.push_str(&typed);
-        typeahead.search.clone()
-    };
-    let repeated = search.chars().all(|letter| search.starts_with(letter));
-    let prefix = if repeated { &typed } else { &search };
-    let start = if repeated || search == typed {
-        index + 1
-    } else {
-        index
-    };
-    let count = state.options.len();
-    let matched = (0..count)
-        .map(|offset| (start + offset) % count)
-        .find(|&candidate| {
-            state.options[candidate]
-                .label
-                .to_lowercase()
-                .starts_with(prefix)
-        });
+    let matched =
+        state
+            .typeahead
+            .borrow_mut()
+            .matched(text, index, state.options.len(), |option| {
+                state.options[option].label.clone()
+            });
     if let Some(next) = matched {
         state.set_focus.set(Some(next));
         select(state, Some(next));
-        let mut typeahead = state.typeahead.borrow_mut();
-        typeahead.search = search;
-        typeahead.typed_at = Some(now);
     }
 }

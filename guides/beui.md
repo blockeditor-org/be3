@@ -45,9 +45,10 @@ outline, and visibility on one retained node.
 `Focusable` and `ClickCatcher` are lower-level interaction primitives mainly
 used to develop unstyled controls. The unstyled module contains behavior such
 as `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`,
-`Disclosure`, `Select`, `ContextMenu`, `Container`, and `Stack`. The styled
-module supplies the themed buttons, text styles, cards, toggles, choices,
-inputs, menus, tabs, progress, scrollbars, and responsive layout components.
+`Disclosure`, `Tree`, `Select`, `ContextMenu`, `Container`, and `Stack`. The
+styled module supplies the themed buttons, text styles, cards, toggles, choices,
+inputs, menus, tabs, trees, progress, scrollbars, and responsive layout
+components.
 The module re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 component lists.
 
@@ -125,7 +126,12 @@ cargo run -p beui --example demo
 ```
 
 Use Ctrl+Shift+I in a standalone beui window to open the node, accessibility,
-and performance inspector. Ctrl+Shift+C enables node picking.
+and performance inspector. Ctrl+Shift+C enables node picking. Ctrl+Shift+F moves
+keyboard focus into the panel and back out again, and Escape inside the panel
+returns focus to the document, so the whole inspector is reachable without a
+mouse. Its tree rows select and expand together: clicking a row, or pressing
+Enter or Space on it, selects the node it lists and opens or closes its
+children, and the arrow keys walk the tree.
 
 Beui has three feature levels:
 

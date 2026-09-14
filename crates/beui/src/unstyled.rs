@@ -10,6 +10,8 @@ mod slider;
 mod stack;
 mod text_input;
 mod toggle;
+mod tree;
+pub(crate) mod typeahead;
 
 pub use button::{Button, ButtonHandle, button_active, button_focused};
 pub use choice::{Choice, ChoiceKind, ChoiceOptionHandle, choice_selected};
@@ -30,4 +32,5 @@ pub use stack::Stack;
 pub use text_input::{
     TextInput, TextInputHandle, text_input_focused, text_input_text, text_input_value,
 };
-pub use toggle::{Toggle, ToggleHandle, toggle_checked};
+pub use toggle::{toggle_checked, Toggle, ToggleHandle};
+pub use tree::{tree_focused, Tree, TreeItem, TreeRowHandle};

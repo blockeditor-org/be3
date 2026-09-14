@@ -610,6 +610,22 @@ impl Document {
         false
     }
 
+    pub(crate) fn reveal_node(&mut self, node: NodeId) {
+        let Some(root) = self.root else {
+            return;
+        };
+        let mut path = Vec::new();
+        if !self.focus_path(root, node, &mut path) {
+            return;
+        }
+        for id in path.into_iter().rev().skip(1) {
+            if self.arena.get(id).as_any().is::<ScrollNode>() {
+                self.reveal_scroll_item(id, node);
+                return;
+            }
+        }
+    }
+
     pub(crate) fn reveal_focus(&mut self, painter: &Painter) {
         let (Some(root), Some(focused)) = (self.root, self.focused) else {
             return;

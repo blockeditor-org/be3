@@ -14,5 +14,9 @@ fn clicking_a_row_selects_the_node_it_lists() {
     harness.frame(Vec::new());
 
     assert_eq!(harness.inspector().state.selected.get(), Some(padding));
-    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
+    assert_eq!(
+        harness.tree(),
+        ["column", "  frame"],
+        "clicking a row selects it and collapses its children"
+    );
 }
