@@ -112,8 +112,11 @@ if $client && [[ -z "$triple" ]]; then
     selection+=(-p block-wasm-host --bin precompile)
     building+=('the plugin compiler')
 fi
-last="${building[-1]}"
-unset 'building[-1]'
+# Negative array subscripts need bash 4.3+, which macOS does not ship: its
+# /bin/bash is stuck on the last GPLv2 release, 3.2.
+last_index=$((${#building[@]} - 1))
+last="${building[$last_index]}"
+unset "building[$last_index]"
 description="$last"
 if [[ ${#building[@]} -ne 0 ]]; then
     description="$(printf '%s, ' "${building[@]}")"
