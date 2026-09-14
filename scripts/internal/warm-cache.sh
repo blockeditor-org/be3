@@ -46,11 +46,19 @@ echo 'Warming crates/fix-rust-source...'
 cargo build --quiet -p fix-rust-source
 
 # Clippy checks through clippy-driver rather than rustc, so its artifacts are
-# its own: none of what the test build produces stands in for them, and the
-# warning cap is left alone here because a lint firing is verify's business,
-# not a reason for a machine to fail to set itself up.
+# its own and nothing the test build produces stands in for them. The lint
+# level goes on the command line, which cargo counts as part of what a unit was
+# built with, so leaving it off here would warm artifacts the -D warnings
+# verify asks for could not be reused as.
+#
+# A lint firing is verify's business rather than a reason for a machine to fail
+# to set itself up, so a denied warning costs only the artifacts of the crate it
+# fired in: --keep-going carries the rest of the workspace on, and the failure
+# itself is passed over.
 echo 'Warming cargo clippy...'
-cargo clippy --quiet --workspace --all-targets --all-features
+if ! cargo clippy --quiet --keep-going --workspace --all-targets --all-features -- -D warnings; then
+    echo 'Clippy has something to say about this checkout; ./scripts/verify will say it.'
+fi
 
 echo 'Warming the native test binaries...'
 cargo nextest run --cargo-quiet --no-run "${native[@]}"
