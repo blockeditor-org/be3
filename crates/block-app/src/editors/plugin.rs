@@ -1,4 +1,8 @@
-use block_client::{BlockClient, BlockHandleAccess, blocks, blocks::workspace_index::BlockEntry};
+use block_client::{
+    BlockClient, BlockHandleAccess, blocks,
+    blocks::workspace_index::BlockEntry,
+    presence::{UserActive, pick_free_color},
+};
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, ChildRect, CreationMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, PresenceEntry,
@@ -260,6 +264,7 @@ pub(super) struct PluginEditor {
     block_pick: Option<PendingBlockPick>,
     fullscreen: bool,
     active_this_frame: bool,
+    presence_active: bool,
     main_region_id: Option<egui::Id>,
 }
 
@@ -323,8 +328,46 @@ impl PluginEditor {
             block_pick: None,
             fullscreen: false,
             active_this_frame: false,
+            presence_active: false,
             main_region_id: None,
         }
+    }
+
+    fn sync_cursor_presence(&mut self, client: &BlockClient, visible: bool) {
+        let block_id = self.block.id();
+        let entries = client
+            .presence_entries(block_id)
+            .into_iter()
+            .map(|(client_id, presence_id, data)| PresenceEntry {
+                client_id,
+                presence_id: presence_id.into_bytes(),
+                data,
+            })
+            .collect();
+        let published =
+            crate::plugin_host::presence(&self.plugin.identity.id, self.instance, visible, entries);
+        for (presence_id, data) in published {
+            client.set_presence_data(block_id, presence_id, data);
+        }
+    }
+
+    fn sync_active_presence(&mut self, client: &BlockClient, active: bool) {
+        if active == self.presence_active {
+            return;
+        }
+        self.presence_active = active;
+        let block_id = self.block.id();
+        if active {
+            let used = client
+                .presence::<UserActive>(block_id)
+                .into_iter()
+                .map(|(_, user)| user.color);
+            let color = pick_free_color(used);
+            client.set_presence(block_id, Some(&UserActive { color }));
+        } else {
+            client.set_presence::<UserActive>(block_id, None);
+        }
+        self.sync_cursor_presence(client, active);
     }
 
     fn presenting(&self) -> bool {
@@ -747,24 +790,6 @@ impl BlockEditor for PluginEditor {
         }
     }
 
-    fn sync_cursor_presence(&mut self, client: &BlockClient, visible: bool) {
-        let block_id = self.block.id();
-        let entries = client
-            .presence_entries(block_id)
-            .into_iter()
-            .map(|(client_id, presence_id, data)| PresenceEntry {
-                client_id,
-                presence_id: presence_id.into_bytes(),
-                data,
-            })
-            .collect();
-        let published =
-            crate::plugin_host::presence(&self.plugin.identity.id, self.instance, visible, entries);
-        for (presence_id, data) in published {
-            client.set_presence_data(block_id, presence_id, data);
-        }
-    }
-
     fn reveal_presence_cursor(&mut self, client_id: block::ClientId) {
         crate::plugin_host::reveal_presence(&self.plugin.identity.id, self.instance, client_id);
     }
@@ -867,10 +892,6 @@ impl BlockEditor for PluginEditor {
 
     fn direct_editor_owns_frame(&self) -> bool {
         true
-    }
-
-    fn drawn(&self) -> bool {
-        self.active_this_frame
     }
 
     fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>, from: Option<Uuid>) {
@@ -990,13 +1011,16 @@ impl BlockEditor for PluginEditor {
         }
     }
 
-    fn finish_frame(&mut self) {
-        if !std::mem::take(&mut self.active_this_frame) {
+    fn finish_frame(&mut self, client: &BlockClient) {
+        let active = std::mem::take(&mut self.active_this_frame);
+        self.sync_active_presence(client, active);
+        if !active {
             self.stop_presenting();
         }
     }
 
-    fn tab_closed(&mut self) {
+    fn tab_closed(&mut self, client: &BlockClient) {
+        self.sync_active_presence(client, false);
         self.stop_presenting();
         self.close();
     }
