@@ -7,8 +7,8 @@ use std::{
 
 use block_plugin_api::{
     ArtifactDescription, BlockCommand, BlockPick, Capability, EditorInstanceId, EditorMessage,
-    EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, PresenceEntry,
-    ScreenId, ScreenLayout, ScreenRequest, SessionState, ViewChange,
+    EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, ScreenId,
+    ScreenLayout, ScreenRequest, SessionState, ViewChange,
 };
 use eframe::egui;
 use uuid::Uuid;
@@ -1085,18 +1085,11 @@ pub(crate) fn present(
     });
 }
 
-pub(crate) fn presence(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    visible: bool,
-    entries: Vec<PresenceEntry>,
-) -> Vec<super::PresencePublication> {
+pub(crate) fn set_presence_visible(plugin_id: &str, instance: EditorInstanceId, visible: bool) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.presence(instance, visible, entries);
+        let messages = runtime.instances.set_presence_visible(instance, visible);
         runtime.send(messages);
-        runtime.instances.take_presence_publications(instance)
-    })
-    .unwrap_or_default()
+    });
 }
 
 pub(crate) fn replace_child(

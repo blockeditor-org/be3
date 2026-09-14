@@ -26,18 +26,17 @@ pub(crate) use instances::EditorView;
 pub(crate) use runtime::{
     artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, creation,
     creation_ready, editor_ui, flush, frame_child, frame_rects, install, intrinsic_size, kill,
-    poll, presence, present, presenting, preview, regenerate_artifact, region_size, replace_child,
+    poll, present, presenting, preview, regenerate_artifact, region_size, replace_child,
     report_child_views, report_children, resized, reveal_presence, revoke_frame_child, running,
-    set_artifact_states, set_focus, show_block, take_artifact_outcome, take_artifact_watch,
-    take_block_pick, take_created, take_focus_report, take_leaving, take_view_changes,
+    set_artifact_states, set_focus, set_presence_visible, show_block, take_artifact_outcome,
+    take_artifact_watch, take_block_pick, take_created, take_focus_report, take_leaving,
+    take_view_changes,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn cache_in(directory: std::path::PathBuf) {
     wasm::cache_in(directory);
 }
-
-pub(crate) type PresencePublication = (Uuid, Option<Vec<u8>>);
 
 pub(crate) const MAX_LIVE_CHILDREN: usize = 16;
 

@@ -99,7 +99,10 @@ impl block_editor_plugin::App for CanvasApp {
         };
         editor.presence_visible = visible;
         if !visible {
-            editor.access.host().set_presence::<CanvasCursor>(None);
+            editor
+                .access
+                .client()
+                .set_presence::<CanvasCursor>(editor.block.id(), None);
         }
     }
 
@@ -122,10 +125,13 @@ impl InfiniteCanvasEditor {
         if !self.presence_visible {
             return;
         }
-        self.access.host().set_presence(Some(&CanvasCursor {
-            pointer: self.pointer_world,
-            selection: self.selection.iter().copied().collect(),
-        }));
+        self.access.client().set_presence(
+            self.block.id(),
+            Some(&CanvasCursor {
+                pointer: self.pointer_world,
+                selection: self.selection.iter().copied().collect(),
+            }),
+        );
     }
 
     fn replace_referenced_block(&mut self, old: Uuid, new: Uuid) -> bool {
@@ -332,8 +338,8 @@ impl InfiniteCanvasEditor {
         }
         if let Some(client_id) = std::mem::take(&mut self.pending_presence_reveal)
             && let Some((_, cursor)) = editors
-                .host()
-                .presence::<CanvasCursor>()
+                .client()
+                .presence::<CanvasCursor>(self.block.id())
                 .into_iter()
                 .find(|(id, _)| *id == client_id)
         {

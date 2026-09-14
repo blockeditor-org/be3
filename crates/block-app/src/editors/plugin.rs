@@ -5,8 +5,7 @@ use block_client::{
 };
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, ChildRect, CreationMode, EditorCapabilities, EditorInstanceId,
-    EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, PresenceEntry,
-    ResizeMode, ViewChange,
+    EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ViewChange,
 };
 use eframe::egui;
 use std::sync::{
@@ -333,24 +332,6 @@ impl PluginEditor {
         }
     }
 
-    fn sync_cursor_presence(&mut self, client: &BlockClient, visible: bool) {
-        let block_id = self.block.id();
-        let entries = client
-            .presence_entries(block_id)
-            .into_iter()
-            .map(|(client_id, presence_id, data)| PresenceEntry {
-                client_id,
-                presence_id: presence_id.into_bytes(),
-                data,
-            })
-            .collect();
-        let published =
-            crate::plugin_host::presence(&self.plugin.identity.id, self.instance, visible, entries);
-        for (presence_id, data) in published {
-            client.set_presence_data(block_id, presence_id, data);
-        }
-    }
-
     fn sync_active_presence(&mut self, client: &BlockClient, active: bool) {
         if active == self.presence_active {
             return;
@@ -367,7 +348,7 @@ impl PluginEditor {
         } else {
             client.set_presence::<UserActive>(block_id, None);
         }
-        self.sync_cursor_presence(client, active);
+        crate::plugin_host::set_presence_visible(&self.plugin.identity.id, self.instance, active);
     }
 
     fn presenting(&self) -> bool {

@@ -264,13 +264,9 @@ impl Screens {
                     session.set_presenting(*presenting);
                 }
             }
-            Message::Editor(EditorMessage::Presence {
-                instance,
-                visible,
-                entries,
-            }) => {
+            Message::Editor(EditorMessage::Presence { instance, visible }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
-                    session.presence_visible(*visible, entries.clone());
+                    session.presence_visible(*visible);
                 }
             }
             Message::Editor(EditorMessage::RevealPresence {
