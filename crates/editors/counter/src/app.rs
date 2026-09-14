@@ -4,18 +4,17 @@ use std::sync::Arc;
 use block_client::blocks::counter::{Counter as CounterBlock, CounterOperation};
 use block_editor_plugin::EditorHost;
 use block_editor_plugin::beui::{Context, Rect};
+use block_reactive::BlockSource;
+use uuid::Uuid;
 
-mod count_changes;
 mod ui;
 
-use count_changes::CountChanges;
-use ui::{Counter, CounterUi};
+use ui::CounterUi;
 
 #[derive(Default)]
 pub struct CounterApp {
     ui: Option<CounterUi>,
-    counter: Option<Rc<BlockCounter>>,
-    changes: Option<CountChanges>,
+    counter: Option<Rc<CounterEditor>>,
     creation: Option<Arc<block_client::BlockClient>>,
 }
 
@@ -25,33 +24,31 @@ impl CounterApp {
     }
 }
 
-struct BlockCounter {
-    block: block_client::BlockHandle<CounterBlock>,
+pub(crate) struct CounterEditor {
+    source: Rc<BlockSource<CounterBlock>>,
     host: EditorHost,
 }
 
-impl BlockCounter {
+impl CounterEditor {
+    pub(crate) fn source(&self) -> &Rc<BlockSource<CounterBlock>> {
+        &self.source
+    }
+
     fn operate(&self, operation: CounterOperation) {
         if self.host.editable() {
-            self.block.operate(operation);
+            self.source.operate(operation);
         }
     }
-}
 
-impl Counter for BlockCounter {
-    fn value(&self) -> i64 {
-        self.block.read().map_or(0, |counter| counter.count())
-    }
-
-    fn increment(&self) {
+    pub(crate) fn increment(&self) {
         self.operate(CounterOperation::Increment);
     }
 
-    fn decrement(&self) {
+    pub(crate) fn decrement(&self) {
         self.operate(CounterOperation::Decrement);
     }
 
-    fn reset(&self) {
+    pub(crate) fn reset(&self) {
         self.operate(CounterOperation::Reset);
     }
 }
@@ -61,11 +58,11 @@ impl block_editor_plugin::BeuiApp for CounterApp {
         &mut self,
         host: EditorHost,
         client: Arc<block_client::BlockClient>,
-        block_id: uuid::Uuid,
+        block_id: Uuid,
     ) {
-        let block = client.get_block(block_id);
-        self.changes = Some(CountChanges::new(block.clone(), host.waker()));
-        self.counter = Some(Rc::new(BlockCounter { block, host }));
+        let waker = host.waker();
+        let source = BlockSource::new(client.get_block(block_id), move || waker.wake());
+        self.counter = Some(Rc::new(CounterEditor { source, host }));
         self.ui = None;
     }
 
@@ -73,7 +70,7 @@ impl block_editor_plugin::BeuiApp for CounterApp {
         self.creation = Some(client);
     }
 
-    fn create_block(&mut self) -> Result<uuid::Uuid, String> {
+    fn create_block(&mut self) -> Result<Uuid, String> {
         let client = self
             .creation
             .as_ref()
@@ -82,19 +79,13 @@ impl block_editor_plugin::BeuiApp for CounterApp {
     }
 
     fn frame(&mut self, context: &Context, rect: Rect) {
-        if let Some(value) = self.changes.as_mut().and_then(CountChanges::take) {
-            if self.ui.is_none()
-                && let Some(counter) = &self.counter
-            {
-                self.ui = Some(CounterUi::new(counter.clone()));
-            }
-            if let Some(ui) = &mut self.ui {
-                ui.set_value(value);
-            }
-        }
-        let Some(ui) = &mut self.ui else {
+        let Some(counter) = self.counter.clone() else {
             return;
         };
+        let ui = self
+            .ui
+            .get_or_insert_with(|| CounterUi::new(counter.clone()));
+        ui.pump();
         ui.show(context, rect);
     }
 }

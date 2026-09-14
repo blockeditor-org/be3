@@ -4,17 +4,13 @@ use super::*;
 fn clear_done_keeps_open_items() {
     let mut checklist = Checklist::new();
     for text in ["write", "review", "ship"] {
-        Checklist::apply_operation(
-            &mut checklist,
-            &ChecklistOperation::Add {
-                text: text.to_owned(),
-            },
-        );
+        Checklist::apply_operation(&mut checklist, &ChecklistOperation::add(text));
     }
+    let review = checklist.items()[1].id;
     Checklist::apply_operation(
         &mut checklist,
         &ChecklistOperation::SetDone {
-            index: 1,
+            id: review,
             done: true,
         },
     );

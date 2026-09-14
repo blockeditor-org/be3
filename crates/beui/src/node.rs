@@ -85,6 +85,7 @@ pub(crate) trait Element: Any {
 #[derive(Default)]
 pub(crate) struct Arena {
     nodes: Vec<Option<Box<dyn Element>>>,
+    live: usize,
     pub(crate) revision: u64,
     track_changes: bool,
     changed: Vec<NodeId>,
@@ -92,13 +93,14 @@ pub(crate) struct Arena {
 
 impl Arena {
     pub(crate) fn len(&self) -> usize {
-        self.nodes.iter().flatten().count()
+        self.live
     }
 
     pub(crate) fn insert<T: Element>(&mut self, element: T) -> NodeId {
         self.invalidate();
         let id = NodeId(self.nodes.len() as u32);
         self.nodes.push(Some(Box::new(element)));
+        self.live += 1;
         self.mark_changed(id);
         id
     }
@@ -172,6 +174,8 @@ impl Arena {
 
     pub(crate) fn remove(&mut self, id: NodeId) {
         self.invalidate();
-        self.nodes[id.0 as usize] = None;
+        if self.nodes[id.0 as usize].take().is_some() {
+            self.live -= 1;
+        }
     }
 }

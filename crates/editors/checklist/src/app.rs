@@ -4,18 +4,17 @@ use std::sync::Arc;
 use block_client::blocks::checklist::{Checklist, ChecklistOperation};
 use block_editor_plugin::EditorHost;
 use block_editor_plugin::beui::{Context, Rect};
+use block_reactive::BlockSource;
+use uuid::Uuid;
 
-mod checklist_changes;
 mod ui;
 
-use checklist_changes::ChecklistChanges;
-use ui::{ChecklistModel, ChecklistSnapshot, ChecklistUi};
+use ui::ChecklistUi;
 
 #[derive(Default)]
 pub struct ChecklistApp {
     ui: Option<ChecklistUi>,
-    checklist: Option<Rc<BlockChecklist>>,
-    changes: Option<ChecklistChanges>,
+    checklist: Option<Rc<ChecklistEditor>>,
     creation: Option<Arc<block_client::BlockClient>>,
 }
 
@@ -25,41 +24,35 @@ impl ChecklistApp {
     }
 }
 
-struct BlockChecklist {
-    block: block_client::BlockHandle<Checklist>,
+pub(crate) struct ChecklistEditor {
+    source: Rc<BlockSource<Checklist>>,
     host: EditorHost,
 }
 
-impl BlockChecklist {
+impl ChecklistEditor {
+    pub(crate) fn source(&self) -> &Rc<BlockSource<Checklist>> {
+        &self.source
+    }
+
     fn operate(&self, operation: ChecklistOperation) {
         if self.host.editable() {
-            self.block.operate(operation);
+            self.source.operate(operation);
         }
     }
-}
 
-impl ChecklistModel for BlockChecklist {
-    fn snapshot(&self) -> ChecklistSnapshot {
-        self.block
-            .read()
-            .map_or_else(ChecklistSnapshot::default, |checklist| {
-                ChecklistSnapshot::from(&*checklist)
-            })
+    pub(crate) fn add(&self, text: String) {
+        self.operate(ChecklistOperation::add(text));
     }
 
-    fn add(&self, text: String) {
-        self.operate(ChecklistOperation::Add { text });
+    pub(crate) fn set_done(&self, id: Uuid, done: bool) {
+        self.operate(ChecklistOperation::SetDone { id, done });
     }
 
-    fn set_done(&self, index: u32, done: bool) {
-        self.operate(ChecklistOperation::SetDone { index, done });
+    pub(crate) fn remove(&self, id: Uuid) {
+        self.operate(ChecklistOperation::Remove { id });
     }
 
-    fn remove(&self, index: u32) {
-        self.operate(ChecklistOperation::Remove { index });
-    }
-
-    fn clear_done(&self) {
+    pub(crate) fn clear_done(&self) {
         self.operate(ChecklistOperation::ClearDone);
     }
 }
@@ -69,11 +62,11 @@ impl block_editor_plugin::BeuiApp for ChecklistApp {
         &mut self,
         host: EditorHost,
         client: Arc<block_client::BlockClient>,
-        block_id: uuid::Uuid,
+        block_id: Uuid,
     ) {
-        let block = client.get_block(block_id);
-        self.changes = Some(ChecklistChanges::new(block.clone(), host.waker()));
-        self.checklist = Some(Rc::new(BlockChecklist { block, host }));
+        let waker = host.waker();
+        let source = BlockSource::new(client.get_block(block_id), move || waker.wake());
+        self.checklist = Some(Rc::new(ChecklistEditor { source, host }));
         self.ui = None;
     }
 
@@ -81,7 +74,7 @@ impl block_editor_plugin::BeuiApp for ChecklistApp {
         self.creation = Some(client);
     }
 
-    fn create_block(&mut self) -> Result<uuid::Uuid, String> {
+    fn create_block(&mut self) -> Result<Uuid, String> {
         let client = self
             .creation
             .as_ref()
@@ -90,19 +83,13 @@ impl block_editor_plugin::BeuiApp for ChecklistApp {
     }
 
     fn frame(&mut self, context: &Context, rect: Rect) {
-        if let Some(snapshot) = self.changes.as_mut().and_then(ChecklistChanges::take) {
-            if self.ui.is_none()
-                && let Some(checklist) = &self.checklist
-            {
-                self.ui = Some(ChecklistUi::new(checklist.clone()));
-            }
-            if let Some(ui) = &mut self.ui {
-                ui.set_snapshot(snapshot);
-            }
-        }
-        let Some(ui) = &mut self.ui else {
+        let Some(checklist) = self.checklist.clone() else {
             return;
         };
+        let ui = self
+            .ui
+            .get_or_insert_with(|| ChecklistUi::new(checklist.clone()));
+        ui.pump();
         ui.show(context, rect);
     }
 }

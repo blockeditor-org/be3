@@ -3,22 +3,13 @@ use super::*;
 #[test]
 fn serialization_round_trip() {
     let mut checklist = Checklist::new();
-    Checklist::apply_operation(
-        &mut checklist,
-        &ChecklistOperation::Add {
-            text: "buy milk".to_owned(),
-        },
-    );
-    Checklist::apply_operation(
-        &mut checklist,
-        &ChecklistOperation::SetDone {
-            index: 0,
-            done: true,
-        },
-    );
+    Checklist::apply_operation(&mut checklist, &ChecklistOperation::add("buy milk"));
+    let id = checklist.items()[0].id;
+    Checklist::apply_operation(&mut checklist, &ChecklistOperation::SetDone { id, done: true });
     assert_eq!(
         checklist.items(),
         [ChecklistItem {
+            id,
             text: "buy milk".to_owned(),
             done: true,
         }]
