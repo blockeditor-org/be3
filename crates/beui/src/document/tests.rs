@@ -392,7 +392,9 @@ pub(crate) fn ButtonFace(label: String) -> NodeId {
 #[component]
 pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
     view! {
-        <unstyled::Button on_click={move || on_click.call()}><ButtonFace label /></unstyled::Button>
+        <unstyled::Button on_click={move || on_click.call()}>
+            <ButtonFace label />
+        </unstyled::Button>
     }
 }
 

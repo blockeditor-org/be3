@@ -18,7 +18,11 @@ fn a_closure_child_receives_the_handle_its_slot_hands_over() {
                     <Container>
                         {move |size: ReadSignal<Vec2>| {
                             *measured.borrow_mut() = Some(size);
-                            view! { <Frame @node_ref=&item height=ITEM_HEIGHT><Spacer /></Frame> }
+                            view! {
+                                <Frame @node_ref=&item height=ITEM_HEIGHT>
+                                    <Spacer />
+                                </Frame>
+                            }
                         }}
                     </Container>
                 </Frame>

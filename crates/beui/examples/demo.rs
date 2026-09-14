@@ -57,7 +57,9 @@ impl DemoApp {
             let theme = use_theme();
             view! {
                 <Frame color={theme.pick(|theme| theme.background)} radius=0>
-                    <Container>{move |_| view! { <DemoShell count set_count /> }}</Container>
+                    <Container>
+                        {move |_| view! { <DemoShell count set_count /> }}
+                    </Container>
                 </Frame>
             }
         });
@@ -228,7 +230,9 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
             <CenteredRow spacing=10.0>
                 <CenteredRow spacing=10.0>
                     <Title content="beui" />
-                    <Frame visible={wide}><Caption content="retained mode ui" /></Frame>
+                    <Frame visible={wide}>
+                        <Caption content="retained mode ui" />
+                    </Frame>
                 </CenteredRow>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
@@ -389,7 +393,13 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
 
 #[component]
 fn Controls(rows: Rows) -> NodeId {
-    view! { <Card><Container>{move |_| view! { <ControlPanels rows /> }}</Container></Card> }
+    view! {
+        <Card>
+            <Container>
+                {move |_| view! { <ControlPanels rows /> }}
+            </Container>
+        </Card>
+    }
 }
 
 #[component]
@@ -410,12 +420,24 @@ fn ControlPanels(rows: Rows) -> NodeId {
                 }}
             />
             <Column spacing=0.0>
-                <Show condition={tab.memo(0)}><ListControls rows=list_rows /></Show>
-                <Show condition={tab.memo(1)}><LoadControls /></Show>
-                <Show condition={tab.memo(2)}><NameControls /></Show>
-                <Show condition={tab.memo(3)}><ChoiceControls /></Show>
-                <Show condition={tab.memo(4)}><MenuControls /></Show>
-                <Show condition={tab.memo(5)}><TreeControls /></Show>
+                <Show condition={tab.memo(0)}>
+                    <ListControls rows=list_rows />
+                </Show>
+                <Show condition={tab.memo(1)}>
+                    <LoadControls />
+                </Show>
+                <Show condition={tab.memo(2)}>
+                    <NameControls />
+                </Show>
+                <Show condition={tab.memo(3)}>
+                    <ChoiceControls />
+                </Show>
+                <Show condition={tab.memo(4)}>
+                    <MenuControls />
+                </Show>
+                <Show condition={tab.memo(5)}>
+                    <TreeControls />
+                </Show>
             </Column>
         </Column>
     }

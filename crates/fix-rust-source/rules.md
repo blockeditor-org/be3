@@ -53,7 +53,7 @@ justification:
 
 counter:
 - the expressions inside `{...}` are still only re-indented, never reflowed, so a long one can push a line past 100 columns anyway
-- collapsing a short element onto one line can make siblings look inconsistent when only one of them fits
+- children always take their own line, so a one-child wrapper costs three lines where one read fine, and a short nested view inside an attribute grows to five
 - it is a second formatter to keep in step with rustfmt, and the two can disagree about a line rustfmt rewraps around a view
 
 empirical:

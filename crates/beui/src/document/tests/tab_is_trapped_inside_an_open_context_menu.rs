@@ -14,7 +14,11 @@ fn tab_is_trapped_inside_an_open_context_menu() {
         move || {
             [
                 view! { <LabelledButton label="Before" /> },
-                view! { <ContextMenu items><MenuRegion @node_ref=&region /></ContextMenu> },
+                view! {
+                    <ContextMenu items>
+                        <MenuRegion @node_ref=&region />
+                    </ContextMenu>
+                },
                 view! { <LabelledButton label="After" /> },
             ]
         }

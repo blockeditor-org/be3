@@ -411,11 +411,6 @@ impl Formatter<'_> {
         match element.children.as_deref() {
             None => Some(format!("{head} />")),
             Some([]) => Some(format!("{head}></{}>", element.tag)),
-            Some([child]) => Some(format!(
-                "{head}>{}</{}>",
-                self.child_text(child)?,
-                element.tag
-            )),
             Some(_) => None,
         }
     }

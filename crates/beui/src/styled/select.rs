@@ -54,7 +54,11 @@ pub fn Select(
             trigger={move |handle| view! { <SelectTrigger options={trigger_options} handle /> }}
             option={|handle| view! { <SelectOption handle /> }}
         >
-            {|content| view! { <SelectPopup>{content}</SelectPopup> }}
+            {|content| view! {
+                <SelectPopup>
+                    {content}
+                </SelectPopup>
+            }}
         </unstyled::Select>
     }
 }

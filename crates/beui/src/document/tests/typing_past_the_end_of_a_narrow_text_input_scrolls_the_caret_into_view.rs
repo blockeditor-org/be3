@@ -9,7 +9,11 @@ fn typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view() {
     let (document, [_sized]) = toolbar_of({
         let input = input.clone();
         move || {
-            [view! { <Frame width=80.0><TextInput @node_ref=&input value=String::new() /></Frame> }]
+            [view! {
+                <Frame width=80.0>
+                    <TextInput @node_ref=&input value=String::new() />
+                </Frame>
+            }]
         }
     });
     let input = input.get();

@@ -14,7 +14,13 @@ fn right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent
     )];
     let (document, [menu]) = toolbar_of({
         let region = region.clone();
-        move || [view! { <ContextMenu items><MenuRegion @node_ref=&region /></ContextMenu> }]
+        move || {
+            [view! {
+                <ContextMenu items>
+                    <MenuRegion @node_ref=&region />
+                </ContextMenu>
+            }]
+        }
     });
     let region = region.get();
     let mut harness = Harness::new(document);

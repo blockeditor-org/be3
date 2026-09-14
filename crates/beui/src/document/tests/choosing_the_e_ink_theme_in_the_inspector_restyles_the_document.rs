@@ -4,7 +4,13 @@ use crate::styled::{Caption, Card, Theme};
 
 #[test]
 fn choosing_the_e_ink_theme_in_the_inspector_restyles_the_document() {
-    let (document, [_card]) = toolbar_of(|| [view! { <Card><Caption content="Themed" /></Card> }]);
+    let (document, [_card]) = toolbar_of(|| {
+        [view! {
+            <Card>
+                <Caption content="Themed" />
+            </Card>
+        }]
+    });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let captions = |output: &crate::FrameOutput| {
         output

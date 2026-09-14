@@ -11,7 +11,13 @@ fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
     ];
     let (document, [_menu]) = toolbar_of({
         let region = region.clone();
-        move || [view! { <ContextMenu items><MenuRegion @node_ref=&region /></ContextMenu> }]
+        move || {
+            [view! {
+                <ContextMenu items>
+                    <MenuRegion @node_ref=&region />
+                </ContextMenu>
+            }]
+        }
     });
     let region = region.get();
     let mut harness = Harness::new(document);

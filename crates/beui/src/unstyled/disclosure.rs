@@ -62,7 +62,9 @@ pub fn Disclosure(
                     })
                 }}
             />
-            <Frame visible={open_read}>{children}</Frame>
+            <Frame visible={open_read}>
+                {children}
+            </Frame>
         </Column>
     }
 }
