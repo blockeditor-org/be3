@@ -3,6 +3,7 @@ use beui::{
     TouchPhase, Vec2,
 };
 use block_editor_plugin::BeuiApp;
+use block_editor_plugin::beui_frame::BeuiFrame;
 
 use crate::snapshot;
 
@@ -13,7 +14,7 @@ const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 pub struct BeuiTest<A: BeuiApp> {
     app: A,
     region: Region,
-    document: Option<Document>,
+    frame: Option<BeuiFrame>,
     context: Context,
     size: Vec2,
     pixels_per_point: f32,
@@ -30,21 +31,21 @@ enum Region {
 
 impl<A: BeuiApp> BeuiTest<A> {
     pub fn new(mut app: A) -> Self {
-        let document = beui::reactive::build(|| app.view());
-        Self::for_region(app, Region::Frame, Some(document))
+        let frame = BeuiFrame::build(|| app.view());
+        Self::for_region(app, Region::Frame, Some(frame))
     }
 
     pub fn creation(app: A) -> Self {
         Self::for_region(app, Region::Creation, None)
     }
 
-    fn for_region(app: A, region: Region, document: Option<Document>) -> Self {
+    fn for_region(app: A, region: Region, frame: Option<BeuiFrame>) -> Self {
         let context = Context::new();
         context.set_pixels_per_point(1.0);
         let mut editor = Self {
             app,
             region,
-            document,
+            frame,
             context,
             size: SIZE,
             pixels_per_point: 1.0,
@@ -61,9 +62,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn document(&self) -> &Document {
-        self.document
+        self.frame
             .as_ref()
             .expect("the editor is showing a creation dialog, which has no retained document")
+            .document()
     }
 
     pub fn rect(&self) -> Rect {
@@ -84,21 +86,22 @@ impl<A: BeuiApp> BeuiTest<A> {
         let rect = self.rect();
         let app = &mut self.app;
         let region = self.region;
-        let document = &mut self.document;
-        if let (Region::Frame, Some(document)) = (region, document.as_mut()) {
-            beui::reactive::with_reactive_scope(document, || app.update());
+        let frame = &mut self.frame;
+        if let (Region::Frame, Some(frame)) = (region, frame.as_mut()) {
+            beui::reactive::with_reactive_scope(frame.document_mut(), || app.update());
         }
         let output = self
             .context
             .run(beui::RawInput { events }, |context| match region {
-                Region::Frame => document
+                Region::Frame => frame
                     .as_mut()
                     .expect("the frame document is always built for Region::Frame")
+                    .document_mut()
                     .show(context, rect),
                 Region::Creation => app.creation_frame(context, rect),
             });
-        if let (Region::Frame, Some(document)) = (region, document.as_ref()) {
-            app.after_layout(document);
+        if let (Region::Frame, Some(frame)) = (region, frame.as_ref()) {
+            app.after_layout(frame.document());
         }
         self.output = Some(output);
     }
