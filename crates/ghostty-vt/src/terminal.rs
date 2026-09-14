@@ -45,13 +45,18 @@ pub struct Terminal {
 impl Terminal {
     pub fn new(cols: u16, rows: u16, max_scrollback: usize) -> Result<Self, Error> {
         let mut handle: sys::Terminal = ptr::null_mut();
-        let options = sys::TerminalOptions {
-            cols: cols.max(1),
-            rows: rows.max(1),
-            max_scrollback,
-        };
-        check(unsafe { sys::ghostty_terminal_new(ptr::null(), &mut handle, options) })?;
-        Ok(Self { handle })
+        check(unsafe {
+            sys::ghostty_terminal_new(ptr::null(), &mut handle, cols.max(1), rows.max(1))
+        })?;
+        let terminal = Self { handle };
+        check(unsafe {
+            sys::ghostty_terminal_set(
+                terminal.handle,
+                sys::TERMINAL_OPT_SCROLLBACK_MAX_LINES,
+                ptr::from_ref(&max_scrollback).cast(),
+            )
+        })?;
+        Ok(terminal)
     }
 
     pub fn write(&mut self, data: &[u8]) {

@@ -51,7 +51,7 @@ jobs:
       # source with Zig.
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.16.0
 
       - run: ./scripts/verify --check
 
@@ -104,7 +104,7 @@ jobs:
       # source with Zig.
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.16.0
 
       - run: ./scripts/build --target web --release
 
@@ -191,7 +191,7 @@ jobs:
       # source with Zig.
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.16.0
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -353,7 +353,7 @@ jobs:
         if: matrix.client
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.16.0
 
       # The client build also stages every plugin under crates/editors beside
       # the app and fetches PDFium, which the PDF plugin loads at runtime.

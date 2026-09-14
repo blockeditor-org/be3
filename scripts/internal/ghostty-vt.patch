@@ -1,0 +1,13 @@
+diff --git a/pkg/wuffs/src/main.zig b/pkg/wuffs/src/main.zig
+index ec9f8da..42b7447 100644
+--- a/pkg/wuffs/src/main.zig
++++ b/pkg/wuffs/src/main.zig
+@@ -24,7 +24,7 @@ pub const ImageData = struct {
+ // definition wins. Hidden keeps them out of the export table where the
+ // format honors it (e.g. wasm).
+ comptime {
+-    if (!builtin.link_libc) {
++    if (!builtin.link_libc and builtin.os.tag == .freestanding) {
+         @export(&callocStub, .{
+             .name = "calloc",
+             .linkage = .weak,

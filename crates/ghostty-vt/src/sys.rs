@@ -18,6 +18,9 @@ pub const RENDER_STATE_DATA_CURSOR_VISIBLE: c_int = 11;
 pub const RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE: c_int = 14;
 pub const RENDER_STATE_DATA_CURSOR_VIEWPORT_X: c_int = 15;
 pub const RENDER_STATE_DATA_CURSOR_VIEWPORT_Y: c_int = 16;
+pub const RENDER_STATE_DATA_COLORS: c_int = 19;
+
+pub const TERMINAL_OPT_SCROLLBACK_MAX_LINES: c_int = 28;
 
 pub const RENDER_STATE_OPTION_DIRTY: c_int = 0;
 pub const RENDER_STATE_DIRTY_FALSE: c_int = 0;
@@ -44,14 +47,6 @@ pub struct ColorRgb {
     pub r: u8,
     pub g: u8,
     pub b: u8,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TerminalOptions {
-    pub cols: u16,
-    pub rows: u16,
-    pub max_scrollback: usize,
 }
 
 #[repr(C)]
@@ -161,9 +156,11 @@ unsafe extern "C" {
     pub fn ghostty_terminal_new(
         allocator: *const c_void,
         terminal: *mut Terminal,
-        options: TerminalOptions,
+        cols: u16,
+        rows: u16,
     ) -> Result;
     pub fn ghostty_terminal_free(terminal: Terminal);
+    pub fn ghostty_terminal_set(terminal: Terminal, option: c_int, value: *const c_void) -> Result;
     pub fn ghostty_terminal_reset(terminal: Terminal);
     pub fn ghostty_terminal_resize(
         terminal: Terminal,
@@ -183,10 +180,6 @@ unsafe extern "C" {
         state: RenderState,
         option: c_int,
         value: *const c_void,
-    ) -> Result;
-    pub fn ghostty_render_state_colors_get(
-        state: RenderState,
-        out_colors: *mut RenderStateColors,
     ) -> Result;
 
     pub fn ghostty_render_state_row_iterator_new(

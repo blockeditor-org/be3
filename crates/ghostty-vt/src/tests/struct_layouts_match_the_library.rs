@@ -5,38 +5,38 @@ use std::ffi::CStr;
 #[test]
 fn struct_layouts_match_the_library() {
     let json = unsafe { CStr::from_ptr(sys::ghostty_type_json()) };
-    let types: Value = serde_json::from_str(json.to_str().unwrap()).unwrap();
+    let manifest: Value = serde_json::from_str(json.to_str().unwrap()).unwrap();
+    let types = &manifest["types"];
 
-    assert_size::<sys::ColorRgb>(&types, "GhosttyColorRgb");
-    assert_size::<sys::Buffer>(&types, "GhosttyBuffer");
-    assert_size::<sys::TerminalOptions>(&types, "GhosttyTerminalOptions");
-    assert_size::<sys::ScrollViewport>(&types, "GhosttyTerminalScrollViewport");
-    assert_size::<sys::StyleColor>(&types, "GhosttyStyleColor");
-    assert_size::<sys::Style>(&types, "GhosttyStyle");
-    assert_size::<sys::RenderStateColors>(&types, "GhosttyRenderStateColors");
+    assert_size::<sys::ColorRgb>(types, "GhosttyColorRgb");
+    assert_size::<sys::Buffer>(types, "GhosttyBuffer");
+    assert_size::<sys::ScrollViewport>(types, "GhosttyTerminalScrollViewport");
+    assert_size::<sys::StyleColor>(types, "GhosttyStyleColor");
+    assert_size::<sys::Style>(types, "GhosttyStyle");
+    assert_size::<sys::RenderStateColors>(types, "GhosttyRenderStateColors");
 
     let style = sys::Style::default();
     let base = std::ptr::from_ref(&style).addr();
     assert_offset(
-        &types,
+        types,
         "GhosttyStyle",
         "size",
         std::ptr::from_ref(&style.size).addr() - base,
     );
     assert_offset(
-        &types,
+        types,
         "GhosttyStyle",
         "bg_color",
         std::ptr::from_ref(&style.bg_color).addr() - base,
     );
     assert_offset(
-        &types,
+        types,
         "GhosttyStyle",
         "inverse",
         std::ptr::from_ref(&style.inverse).addr() - base,
     );
     assert_offset(
-        &types,
+        types,
         "GhosttyStyle",
         "underline",
         std::ptr::from_ref(&style.underline).addr() - base,
@@ -45,13 +45,13 @@ fn struct_layouts_match_the_library() {
     let colors = sys::RenderStateColors::default();
     let base = std::ptr::from_ref(&colors).addr();
     assert_offset(
-        &types,
+        types,
         "GhosttyRenderStateColors",
         "cursor_has_value",
         std::ptr::from_ref(&colors.cursor_has_value).addr() - base,
     );
     assert_offset(
-        &types,
+        types,
         "GhosttyRenderStateColors",
         "palette",
         std::ptr::from_ref(&colors.palette).addr() - base,

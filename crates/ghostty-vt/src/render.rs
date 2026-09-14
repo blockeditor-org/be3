@@ -107,7 +107,13 @@ impl Renderer {
         check(unsafe { sys::ghostty_render_state_update(state, terminal.handle()) })?;
 
         let mut colors = sys::RenderStateColors::default();
-        check(unsafe { sys::ghostty_render_state_colors_get(state, &mut colors) })?;
+        check(unsafe {
+            sys::ghostty_render_state_get(
+                state,
+                sys::RENDER_STATE_DATA_COLORS,
+                ptr::from_mut(&mut colors).cast(),
+            )
+        })?;
 
         let screen = &mut self.screen;
         screen.background = colors.background;

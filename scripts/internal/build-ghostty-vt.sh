@@ -8,12 +8,21 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 # terminal emulator; the checkout under external/ is refreshed automatically
 # when the commit here no longer matches what is in it.
 ghostty_repository='https://github.com/ghostty-org/ghostty.git'
-ghostty_commit='a887df42c56f6de86c0fe6da9c4eeca37931e083'
+ghostty_commit='0c2a290d3a3e2a599be3a43435d778a5896667ee'
+
+# Applied to the checkout before building. Ghostty's wuffs package exports weak
+# calloc and free stubs whenever libc is not linked into the library, meant only
+# to satisfy a freestanding link. Linked into an app against a shared libc, a
+# weak definition in the executable still beats the shared library's, so every
+# calloc in the app returned null. The patch keeps the stubs to freestanding.
+ghostty_patch="$internal/ghostty-vt.patch"
+ghostty_revision="$ghostty_commit $(git hash-object "$ghostty_patch")"
 
 # What Ghostty's build.zig.zon asks for as a minimum, and what CI installs with
-# mlugg/setup-zig. A local build with no zig on PATH downloads this one into
-# target/tools rather than failing; a zig that is already there is used as is.
-zig_version='0.15.2'
+# mlugg/setup-zig. A zig on PATH is only used when it is exactly this release,
+# since Zig breaks its build API between releases; otherwise this one is
+# downloaded into target/tools rather than failing.
+zig_version='0.16.0'
 
 triple=''
 while [[ $# -gt 0 ]]; do
@@ -34,13 +43,13 @@ if [[ -z "$triple" ]]; then
     exit 1
 fi
 
-# Leaves the zig to build with in $zig: whatever is on PATH if there is one,
-# and otherwise the pinned release, downloaded once into target/tools. Only the
-# platforms Zig ships a tarball for are fetched; anywhere else, saying what to
-# install is all this can do.
+# Leaves the zig to build with in $zig: the one on PATH if it is the pinned
+# release, and otherwise that release, downloaded once into target/tools. Only
+# the platforms Zig ships a tarball for are fetched; anywhere else, saying what
+# to install is all this can do.
 zig='zig'
 ensure_zig() {
-    if command -v zig > /dev/null; then
+    if command -v zig > /dev/null && [[ "$(zig version)" == "$zig_version" ]]; then
         return
     fi
 
@@ -52,7 +61,9 @@ ensure_zig() {
         Darwin-arm64) platform='aarch64-macos' ;;
         *)
             assert_command zig "Install Zig $zig_version from https://ziglang.org/download."
-            return
+            echo "Found Zig $(zig version) on PATH, but Ghostty needs Zig $zig_version." >&2
+            echo "Install it from https://ziglang.org/download." >&2
+            exit 1
             ;;
     esac
 
@@ -134,7 +145,7 @@ archive="$output/$archive_name"
 # Everything that decides what ends up in the archive, so that changing any of
 # it rebuilds rather than leaving a stale artifact behind.
 stamp="$output/.stamp"
-stamp_contents="$ghostty_commit $zig_target $zig_cpu $zig_optimize"
+stamp_contents="$ghostty_revision $zig_target $zig_cpu $zig_optimize"
 if [[ -f "$archive" && -f "$stamp" && "$(cat "$stamp")" == "$stamp_contents" ]]; then
     echo "$archive"
     exit 0
@@ -147,7 +158,7 @@ ensure_zig
 # hundred megabytes and survives a cargo clean, and only ever holds the one
 # commit that is fetched into it.
 source_directory="$repository/external/ghostty"
-if [[ "$(cat "$source_directory/.commit" 2> /dev/null)" != "$ghostty_commit" ]]; then
+if [[ "$(cat "$source_directory/.commit" 2> /dev/null)" != "$ghostty_revision" ]]; then
     echo "Fetching Ghostty $ghostty_commit..." >&2
     rm -rf "$source_directory"
     mkdir -p "$source_directory"
@@ -155,7 +166,8 @@ if [[ "$(cat "$source_directory/.commit" 2> /dev/null)" != "$ghostty_commit" ]];
     git -C "$source_directory" remote add origin "$ghostty_repository"
     git -C "$source_directory" fetch --quiet --depth 1 origin "$ghostty_commit"
     git -C "$source_directory" checkout --quiet FETCH_HEAD
-    echo "$ghostty_commit" > "$source_directory/.commit"
+    git -C "$source_directory" apply "$ghostty_patch"
+    echo "$ghostty_revision" > "$source_directory/.commit"
 fi
 
 install_prefix="$output/install"
