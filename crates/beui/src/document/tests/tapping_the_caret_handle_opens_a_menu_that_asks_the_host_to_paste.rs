@@ -4,7 +4,11 @@ use crate::styled::TextInput;
 
 #[test]
 fn tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste() {
-    let (document, [input]) = toolbar_of(|| [view! { <TextInput value="Hello" /> }]);
+    let (document, [input]) = toolbar_of(|| {
+        [view! {
+            <TextInput value="Hello" />
+        }]
+    });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = harness.rect(unstyled::text_input_text(harness.document(), input));

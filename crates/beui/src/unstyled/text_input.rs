@@ -212,7 +212,10 @@ pub fn TextInput(
         >
             {{
                 let field = view! {
-                    <Frame padding_horizontal={padding_horizontal} padding_vertical={padding_vertical}>
+                    <Frame
+                        padding_horizontal={padding_horizontal}
+                        padding_vertical={padding_vertical}
+                    >
                         <Text
                             @node_ref=&text
                             string
@@ -321,7 +324,9 @@ fn menu_rows(editor: &Handle, row: &RenderFn<MenuRowHandle>, actions: Vec<MenuAc
             })
         })
         .collect();
-    view! { <Column spacing=MENU_SPACING children={rows} /> }
+    view! {
+        <Column spacing=MENU_SPACING children={rows} />
+    }
 }
 
 #[component]

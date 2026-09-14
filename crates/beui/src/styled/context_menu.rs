@@ -37,8 +37,16 @@ pub fn ContextMenu(
 
 pub(crate) fn text_input_menu() -> TextInputMenu {
     TextInputMenu::new(
-        |handle| view! { <MenuRow handle /> },
-        |content| view! { <MenuPanel>{content}</MenuPanel> },
+        |handle| {
+            view! {
+                <MenuRow handle />
+            }
+        },
+        |content| {
+            view! {
+                <MenuPanel>{content}</MenuPanel>
+            }
+        },
     )
 }
 

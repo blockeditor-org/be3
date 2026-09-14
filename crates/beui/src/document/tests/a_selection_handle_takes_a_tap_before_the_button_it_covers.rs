@@ -9,7 +9,9 @@ fn a_selection_handle_takes_a_tap_before_the_button_it_covers() {
         let clicks = clicks.clone();
         move || {
             [
-                view! { <TextInput value="Hello world" /> },
+                view! {
+                    <TextInput value="Hello world" />
+                },
                 view! {
                     <LabelledButton
                         label={"Below".to_owned()}

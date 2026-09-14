@@ -8,7 +8,11 @@ fn tapping_inside_a_selection_in_a_select_search_box_opens_its_menu() {
         .iter()
         .map(|label| (*label).to_owned())
         .collect();
-    let (document, [select]) = toolbar_of(|| [view! { <Select options selected=None /> }]);
+    let (document, [select]) = toolbar_of(|| {
+        [view! {
+            <Select options selected=None />
+        }]
+    });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let trigger = unstyled::select_trigger(harness.document(), select);

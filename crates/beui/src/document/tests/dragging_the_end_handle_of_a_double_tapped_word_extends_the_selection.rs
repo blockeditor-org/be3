@@ -4,7 +4,11 @@ use crate::styled::TextInput;
 
 #[test]
 fn dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection() {
-    let (document, [input]) = toolbar_of(|| [view! { <TextInput value="Hello world" /> }]);
+    let (document, [input]) = toolbar_of(|| {
+        [view! {
+            <TextInput value="Hello world" />
+        }]
+    });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = harness.rect(unstyled::text_input_text(harness.document(), input));

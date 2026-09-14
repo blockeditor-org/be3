@@ -4,7 +4,11 @@ use crate::styled::TextInput;
 
 #[test]
 fn tapping_inside_a_touch_selection_opens_a_menu_that_copies_it() {
-    let (document, [input]) = toolbar_of(|| [view! { <TextInput value="Hello world" /> }]);
+    let (document, [input]) = toolbar_of(|| {
+        [view! {
+            <TextInput value="Hello world" />
+        }]
+    });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = harness.rect(unstyled::text_input_text(harness.document(), input));
