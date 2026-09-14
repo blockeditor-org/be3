@@ -62,10 +62,6 @@ impl BlockEditor for UnsupportedEditor {
         self
     }
 
-    fn wants_presence(&self) -> bool {
-        false
-    }
-
     fn direct_editor_capabilities(&self) -> DirectEditorCapabilities {
         DirectEditorCapabilities {
             allow_rotation: false,

@@ -539,11 +539,7 @@ pub trait BlockEditor {
         self.block().replace_child(old, new.id)
     }
     fn update(&mut self, _frame: &eframe::Frame) {}
-    fn finish_frame(&mut self) {}
-
-    fn drawn(&self) -> bool {
-        false
-    }
+    fn finish_frame(&mut self, _client: &BlockClient) {}
 
     fn show_block(&self, _id: Uuid, _block_type: Uuid, _via: Option<Uuid>, _from: Option<Uuid>) {}
 
@@ -557,13 +553,7 @@ pub trait BlockEditor {
 
     fn set_artifact_states(&self, _states: Vec<block_plugin_api::ArtifactState>) {}
     fn set_tab_active(&mut self, _active: bool) {}
-    fn tab_closed(&mut self) {}
-
-    fn wants_presence(&self) -> bool {
-        true
-    }
-
-    fn sync_cursor_presence(&mut self, _client: &BlockClient, _visible: bool) {}
+    fn tab_closed(&mut self, _client: &BlockClient) {}
 
     fn reveal_presence_cursor(&mut self, _client_id: block::ClientId) {}
     fn render(
@@ -705,27 +695,6 @@ fn tab_frame(context: &egui::Context) -> Option<TabFrame> {
     context.data(|data| data.get_temp::<TabFrame>(tab_frame_id()))
 }
 
-fn frame_editors_id() -> egui::Id {
-    egui::Id::new("direct-editor-frame-editors")
-}
-
-fn record_frame_editor(context: &egui::Context, id: Uuid) {
-    context.data_mut(|data| {
-        data.get_temp_mut_or_default::<Vec<Uuid>>(frame_editors_id())
-            .push(id);
-    });
-}
-
-pub fn take_frame_editors(context: &egui::Context) -> Vec<Uuid> {
-    context.data_mut(|data| {
-        let editors = data
-            .get_temp::<Vec<Uuid>>(frame_editors_id())
-            .unwrap_or_default();
-        data.remove::<Vec<Uuid>>(frame_editors_id());
-        editors
-    })
-}
-
 fn frame_exit_id() -> egui::Id {
     egui::Id::new("direct-editor-frame-exit")
 }
@@ -808,7 +777,6 @@ pub fn own_frame_child_ui(
     viewport: &mut DirectEditorViewport,
 ) -> Option<EditorAction> {
     let clip = frame.intersect(clip_rect);
-    record_frame_editor(ui.ctx(), block_id);
     let mut stack = Vec::new();
     let mut trail = vec![editors.block_label(block_id)];
     let mut child = editors.direct_editor_frame_child(block_id);
@@ -883,7 +851,6 @@ pub fn frame_child_ui(
 ) -> Option<EditorAction> {
     let tab = tab_frame(ui.ctx())?;
     let depth = tab.stack.iter().position(|id| *id == block_id)?;
-    record_frame_editor(ui.ctx(), block_id);
     let slot = FrameSlot {
         frame: tab.frame,
         clip: tab.clip,

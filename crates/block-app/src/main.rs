@@ -10,12 +10,7 @@ mod plugin_host;
 mod share;
 mod slide_templates;
 
-use std::{
-    collections::{HashMap, HashSet},
-    error::Error,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, error::Error, sync::Arc, time::Duration};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{io, path::PathBuf};
@@ -33,7 +28,6 @@ use block_client::{
         file_tree::FileTree, ui_settings::UiSettings, workspace_index::BlockEntry,
         workspace_ui::WorkspaceUi,
     },
-    presence::{UserActive, pick_free_color},
     properties::MAX_NAME_BYTES,
 };
 use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation};
@@ -186,7 +180,6 @@ struct BlockApp {
 
     dynamic_artifact_unlink: Option<Uuid>,
 
-    active_presence: HashSet<Uuid>,
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     rename: Option<RenameState>,
@@ -419,7 +412,6 @@ impl BlockApp {
             dynamic_artifact_settings: HashMap::new(),
             dynamic_artifact_settings_open: None,
             dynamic_artifact_unlink: None,
-            active_presence: HashSet::new(),
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             rename: None,
@@ -1735,21 +1727,11 @@ impl BlockApp {
         if let Some(watch) = watch {
             self.watch_artifacts(watch);
         }
-        let mut visible = HashSet::new();
-        for id in editors::take_frame_editors(ui.ctx()) {
-            if id != shell
-                && self
-                    .editors
-                    .get(&id)
-                    .is_some_and(|editor| editor.drawn() && editor.wants_presence())
-            {
-                visible.insert(id);
+        for (id, editor) in self.editors.iter_mut() {
+            if *id != shell {
+                editor.finish_frame(&self.client);
             }
         }
-        for editor in self.editors.values_mut() {
-            editor.finish_frame();
-        }
-        self.update_active_presence(visible);
         if let Some(action) = action {
             self.handle_editor_action(ui.ctx(), action);
         }
@@ -1765,10 +1747,8 @@ impl BlockApp {
         self.forget_dynamic_artifact_dialogs(id);
         self.watched_artifacts.retain(|watched| *watched != id);
         if let Some(mut editor) = self.editors.remove(&id) {
-            editor.tab_closed();
+            editor.tab_closed(&self.client);
         }
-        self.active_presence.remove(&id);
-        self.client.set_presence::<UserActive>(id, None);
     }
 
     fn watch_artifacts(&mut self, blocks: Vec<Uuid>) {
@@ -2065,30 +2045,6 @@ impl BlockApp {
                 linked,
             ),
         }
-    }
-
-    fn update_active_presence(&mut self, visible: HashSet<Uuid>) {
-        for id in self.active_presence.difference(&visible) {
-            self.client.set_presence::<UserActive>(*id, None);
-            if let Some(editor) = self.editors.get_mut(id) {
-                editor.sync_cursor_presence(&self.client, false);
-            }
-        }
-        for id in visible.difference(&self.active_presence) {
-            let used = self
-                .client
-                .presence::<UserActive>(*id)
-                .into_iter()
-                .map(|(_, user)| user.color);
-            let color = pick_free_color(used);
-            self.client.set_presence(*id, Some(&UserActive { color }));
-        }
-        for id in &visible {
-            if let Some(editor) = self.editors.get_mut(id) {
-                editor.sync_cursor_presence(&self.client, true);
-            }
-        }
-        self.active_presence = visible;
     }
 
     fn show_rename(&mut self, ui: &mut egui::Ui) {
