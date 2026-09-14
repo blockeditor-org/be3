@@ -54,7 +54,9 @@ pub trait BeuiApp: Default + 'static {
     fn create_block(&mut self) -> Result<uuid::Uuid, String> {
         Err("this editor does not create blocks".into())
     }
-    fn frame(&mut self, context: &beui::Context, rect: beui::Rect);
+    fn view(&mut self) -> beui::NodeId;
+    fn update(&mut self) {}
+    fn after_layout(&mut self, _document: &beui::Document) {}
     fn preview(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
     fn intrinsic_size(&mut self) -> Option<beui::Vec2> {
         None

@@ -23,13 +23,12 @@ fn editor() -> (BeuiTest<CounterApp>, BlockHandle<Counter>) {
 }
 
 fn shown(editor: &mut BeuiTest<CounterApp>) -> String {
-    let app = editor.app();
-    let ui = app.ui().expect("the ui is not open yet");
-    let value = ui
+    let value = editor
         .document()
         .find_test_id("counter.value")
         .expect("the ui has no counter.value node");
-    ui.document()
+    editor
+        .document()
         .node_detail(value)
         .expect("the value node has no text")
 }

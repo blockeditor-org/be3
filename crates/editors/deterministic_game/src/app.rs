@@ -6,7 +6,7 @@ use block::Block as _;
 use block_client::blocks::deterministic_game::{DeterministicGame, DeterministicGameOperation};
 use block_client::blocks::game_module::GameModule;
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::beui::{Context, Rect, Vec2};
+use block_editor_plugin::beui::{Context, NodeId, Rect, Vec2};
 use block_editor_plugin::{BlockFilter, BlockPicker, EditorHost};
 use game_host::Game;
 use uuid::Uuid;
@@ -106,10 +106,6 @@ pub struct DeterministicGameApp {
 }
 
 impl DeterministicGameApp {
-    pub fn ui(&self) -> Option<&GameUi> {
-        self.ui.as_ref()
-    }
-
     pub fn creation_ui(&self) -> Option<&GameCreationUi> {
         self.creation_ui.as_ref()
     }
@@ -229,22 +225,28 @@ impl block_editor_plugin::BeuiApp for DeterministicGameApp {
             .create_block()
     }
 
-    fn frame(&mut self, context: &Context, rect: Rect) {
+    fn view(&mut self) -> NodeId {
+        let snapshot = self.snapshot();
+        let game = self
+            .game
+            .clone()
+            .expect("connect is called before view is built");
+        let (ui, root) = GameUi::new(game, snapshot);
+        self.ui = Some(ui);
+        root
+    }
+
+    fn update(&mut self) {
         let game_changed = self.game_changes.as_mut().is_some_and(BlockWatch::take);
         let module_changed = self.module_changes.as_mut().is_some_and(BlockWatch::take);
-        if self.ui.is_none() || game_changed || module_changed {
+        if game_changed || module_changed {
             let snapshot = self.snapshot();
             if let Some(changes) = &mut self.module_changes {
                 changes.take();
             }
             if let Some(ui) = &mut self.ui {
                 ui.set_snapshot(snapshot);
-            } else if let Some(game) = &self.game {
-                self.ui = Some(GameUi::new(game.clone(), snapshot));
             }
-        }
-        if let Some(ui) = &mut self.ui {
-            ui.show(context, rect);
         }
     }
 

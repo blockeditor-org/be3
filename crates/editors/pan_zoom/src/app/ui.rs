@@ -4,12 +4,11 @@ use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::ICON_LEFT_PANEL_OPEN;
 use block_editor_plugin::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Column, Frame, ItemSize, Memo, NodeRef,
-    ReadSignal, Row, Text, WriteSignal, build, clone, create_memo, create_signal, intrinsic, size,
-    view, with_reactive_scope,
+    ReadSignal, Row, Text, WriteSignal, clone, create_memo, create_signal, intrinsic, size, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
 use block_editor_plugin::beui::unstyled;
-use block_editor_plugin::beui::{Context, CursorIcon, Document, Rect, Vec2, pos2, vec2};
+use block_editor_plugin::beui::{CursorIcon, Document, Rect, Vec2, pos2, vec2};
 
 const SIDEBAR_WIDTH: f32 = 220.0;
 const RAIL_WIDTH: f32 = 44.0;
@@ -103,7 +102,6 @@ pub trait Viewport {
 }
 
 pub struct PanZoomUi {
-    document: Document,
     canvas: NodeRef,
     set_view: WriteSignal<Option<CanvasView>>,
     set_scale: WriteSignal<f32>,
@@ -111,7 +109,7 @@ pub struct PanZoomUi {
 }
 
 impl PanZoomUi {
-    pub fn new(viewport: Rc<dyn Viewport>) -> Self {
+    pub fn new(viewport: Rc<dyn Viewport>) -> (Self, NodeId) {
         let (canvas_view, set_view) = create_signal(None::<CanvasView>);
         let (scale, set_scale) = create_signal(1.0_f32);
         let (chrome, set_chrome) = create_signal(true);
@@ -120,64 +118,51 @@ impl PanZoomUi {
         let canvas = NodeRef::new();
         let canvas_ref = canvas.clone();
 
-        let document = build(move || {
-            let theme = use_theme();
-            let shown = create_memo(clone!(chrome open -> move || chrome.get() && open.get()));
-            let railed = create_memo(clone!(chrome open -> move || chrome.get() && !open.get()));
-            let panel = sidebar(
-                &viewport,
-                &scale,
-                &selected,
-                &set_selected,
-                &set_open,
-                &shown,
-            );
-            let rail = rail(&set_open, &railed);
-            let stage = stage(&canvas_ref, &canvas_view, &scale, &selected, &set_selected);
-            let children = vec![
-                size(panel, ItemSize::Fixed(SIDEBAR_WIDTH)),
-                size(rail, ItemSize::Fixed(RAIL_WIDTH)),
-                size(stage, ItemSize::Percent(100.0)),
-            ];
-            view! {
-                <Frame color={theme.background.clone()}>
-                    <Row spacing=0.0 children={children} />
-                </Frame>
-            }
-        });
+        let theme = use_theme();
+        let shown = create_memo(clone!(chrome open -> move || chrome.get() && open.get()));
+        let railed = create_memo(clone!(chrome open -> move || chrome.get() && !open.get()));
+        let panel = sidebar(
+            &viewport,
+            &scale,
+            &selected,
+            &set_selected,
+            &set_open,
+            &shown,
+        );
+        let rail = rail(&set_open, &railed);
+        let stage = stage(&canvas_ref, &canvas_view, &scale, &selected, &set_selected);
+        let children = vec![
+            size(panel, ItemSize::Fixed(SIDEBAR_WIDTH)),
+            size(rail, ItemSize::Fixed(RAIL_WIDTH)),
+            size(stage, ItemSize::Percent(100.0)),
+        ];
+        let root = view! {
+            <Frame color={theme.background.clone()}>
+                <Row spacing=0.0 children={children} />
+            </Frame>
+        };
 
-        Self {
-            document,
-            canvas,
-            set_view,
-            set_scale,
-            set_chrome,
-        }
+        (
+            Self {
+                canvas,
+                set_view,
+                set_scale,
+                set_chrome,
+            },
+            root,
+        )
     }
 
-    pub fn document(&self) -> &Document {
-        &self.document
-    }
-
-    pub fn canvas_rect(&self) -> Option<Rect> {
+    pub fn canvas_rect(&self, document: &Document) -> Option<Rect> {
         self.canvas
             .try_get()
-            .and_then(|canvas| self.document.node_rect(canvas))
+            .and_then(|canvas| document.node_rect(canvas))
     }
 
     pub fn set_view(&mut self, view: Option<CanvasView>, scale: f32, chrome: bool) {
-        let set_view = self.set_view.clone();
-        let set_scale = self.set_scale.clone();
-        let set_chrome = self.set_chrome.clone();
-        with_reactive_scope(&mut self.document, move || {
-            set_view.set(view);
-            set_scale.set(scale);
-            set_chrome.set(chrome);
-        });
-    }
-
-    pub fn show(&mut self, context: &Context, rect: Rect) {
-        self.document.show(context, rect);
+        self.set_view.set(view);
+        self.set_scale.set(scale);
+        self.set_chrome.set(chrome);
     }
 }
 

@@ -2,14 +2,14 @@ use std::rc::Rc;
 
 use block_client::blocks::checklist::{Checklist, ChecklistItem};
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, ForEach, Frame, ItemSize, KeyedStore, Scroll, Show, WriteSignal, build,
-    clone, create_memo, create_selector, create_signal, view, with_reactive_scope,
+    CenteredRow, Column, ForEach, Frame, ItemSize, KeyedStore, Scroll, Show, WriteSignal, clone,
+    create_memo, create_selector, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, TextInput,
     ToggleButton, use_theme,
 };
-use block_editor_plugin::beui::{Color32, Context, Document, NodeId, Rect, TextAlign};
+use block_editor_plugin::beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
 use super::ChecklistEditor;
@@ -19,40 +19,14 @@ const SECTION_SPACING: f32 = 18.0;
 
 type Items = KeyedStore<Uuid, ChecklistItem>;
 
-pub struct ChecklistUi {
-    document: Document,
-    checklist: Rc<ChecklistEditor>,
-}
+pub struct ChecklistUi;
 
 impl ChecklistUi {
-    pub(super) fn new(checklist: Rc<ChecklistEditor>) -> Self {
-        let root = checklist.clone();
-        let document = build(move || {
-            view! {
-                <ChecklistView checklist={root} />
-            }
-        });
-        Self {
-            document,
-            checklist,
-        }
-    }
-
-    pub fn document(&self) -> &Document {
-        &self.document
-    }
-
-    pub fn background(&self) -> Color32 {
-        self.document.theme().background
-    }
-
-    pub(super) fn pump(&mut self) {
-        let source = self.checklist.source().clone();
-        with_reactive_scope(&mut self.document, move || source.pump());
-    }
-
-    pub(super) fn show(&mut self, context: &Context, rect: Rect) {
-        self.document.show(context, rect);
+    pub(super) fn new(checklist: Rc<ChecklistEditor>) -> (Self, NodeId) {
+        let root = view! {
+            <ChecklistView checklist={checklist} />
+        };
+        (Self, root)
     }
 }
 

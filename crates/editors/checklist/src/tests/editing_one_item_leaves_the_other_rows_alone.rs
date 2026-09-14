@@ -7,9 +7,9 @@ fn editing_one_item_leaves_the_other_rows_alone() {
     editor.run();
 
     let rows = |editor: &mut BeuiTest<ChecklistApp>| {
-        let ui = editor.app().ui().expect("the checklist ui is not open");
         [first, second].map(|item| {
-            ui.document()
+            editor
+                .document()
                 .find_test_id(&format!("checklist.item.{item}.done"))
                 .expect("a checklist row was never drawn")
         })

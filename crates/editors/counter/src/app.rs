@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use block_client::blocks::counter::{Counter as CounterBlock, CounterOperation};
 use block_editor_plugin::EditorHost;
-use block_editor_plugin::beui::{Context, Rect};
+use block_editor_plugin::beui::NodeId;
 use block_reactive::BlockSource;
 use uuid::Uuid;
 
@@ -78,14 +78,19 @@ impl block_editor_plugin::BeuiApp for CounterApp {
         Ok(client.create_block(CounterBlock::default()).id())
     }
 
-    fn frame(&mut self, context: &Context, rect: Rect) {
-        let Some(counter) = self.counter.clone() else {
-            return;
-        };
-        let ui = self
-            .ui
-            .get_or_insert_with(|| CounterUi::new(counter.clone()));
-        ui.pump();
-        ui.show(context, rect);
+    fn view(&mut self) -> NodeId {
+        let counter = self
+            .counter
+            .clone()
+            .expect("connect is called before view is built");
+        let (ui, root) = CounterUi::new(counter);
+        self.ui = Some(ui);
+        root
+    }
+
+    fn update(&mut self) {
+        if let Some(counter) = &self.counter {
+            counter.source().pump();
+        }
     }
 }
