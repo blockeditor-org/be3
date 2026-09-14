@@ -102,9 +102,9 @@ impl Frame<'_> {
         }
     }
 
-    pub(crate) fn label(&self, id: Uuid) -> BlockLabel {
+    pub(crate) fn label(&self, id: Uuid, block_type: Uuid) -> BlockLabel {
         self.client.cached_block(id).map_or_else(
-            || BlockLabel::new(self.types, Uuid::nil(), None),
+            || BlockLabel::new(self.types, block_type, None),
             |cached| BlockLabel::for_cached(self.types, &cached),
         )
     }
@@ -428,18 +428,6 @@ impl WorkspaceUiApp {
         }
     }
 
-    pub fn go_back(&mut self) {
-        if let Some(tab) = self.active_tab() {
-            self.navigate(tab, Navigation::Back);
-        }
-    }
-
-    pub fn go_forward(&mut self) {
-        if let Some(tab) = self.active_tab() {
-            self.navigate(tab, Navigation::Forward);
-        }
-    }
-
     pub fn navigate_active(&mut self, id: Uuid, block_type: Uuid) {
         if let Some(tab) = self.active_tab() {
             self.navigate(tab, Navigation::Open(TabItem { id, block_type }));
@@ -580,7 +568,13 @@ impl TabViewer for Viewer<'_, '_> {
         match tab {
             DockTab::Files => "Files".into(),
             DockTab::Empty => "Workspace".into(),
-            DockTab::Block(tab) => self.frame.label(tab.current().id).rich_text().into(),
+            DockTab::Block(tab) => {
+                let item = tab.current();
+                self.frame
+                    .label(item.id, item.block_type)
+                    .rich_text()
+                    .into()
+            }
         }
     }
 

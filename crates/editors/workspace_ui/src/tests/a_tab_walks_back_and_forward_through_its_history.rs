@@ -12,12 +12,15 @@ fn a_tab_walks_back_and_forward_through_its_history() {
     assert_eq!(editor.app().open_blocks(), vec![second]);
     assert_eq!(host.focused_block().block_id, Some(second));
 
-    editor.app().go_back();
+    editor.find("workspace.back").click();
+    editor.step();
     editor.step();
     assert_eq!(editor.app().open_blocks(), vec![opened]);
     assert_eq!(host.focused_block().block_id, Some(opened));
 
-    editor.app().go_forward();
+    editor.find("workspace.forward").click();
+    editor.step();
     editor.step();
     assert_eq!(editor.app().open_blocks(), vec![second]);
+    assert_eq!(host.focused_block().block_id, Some(second));
 }

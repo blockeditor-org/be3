@@ -2,7 +2,7 @@ use block::{BlockAccess, BlockParent};
 use block_client::ReferenceList;
 use block_editor_plugin::{
     AccessLevel,
-    block_ui::BlockLabel,
+    block_ui::{BlockLabel, test_id::TestId},
     egui,
     egui_material_icons::icons::{
         ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_AUTO_AWESOME, ICON_CHEVRON_RIGHT,
@@ -41,7 +41,7 @@ pub(crate) fn show(
         artifact_bar(ui, frame, item.id, &mut outcome);
         linked_bar(ui, state, frame, item.id, &mut outcome);
     }
-    let label = frame.label(item.id);
+    let label = frame.label(item.id, item.block_type);
     let debug = state.debug_blocks.contains(&item.id);
     let mut mode = match debug {
         true => Mode::Debug,
@@ -65,6 +65,7 @@ pub(crate) fn show(
             ui.horizontal_wrapped(|ui| {
                 if ui
                     .add_enabled(can_go_back, egui::Button::new(ICON_ARROW_BACK))
+                    .test_id("workspace.back")
                     .on_hover_text("Back")
                     .clicked()
                 {
@@ -72,6 +73,7 @@ pub(crate) fn show(
                 }
                 if ui
                     .add_enabled(can_go_forward, egui::Button::new(ICON_ARROW_FORWARD))
+                    .test_id("workspace.forward")
                     .on_hover_text("Forward")
                     .clicked()
                 {
@@ -87,6 +89,7 @@ pub(crate) fn show(
                         history.is_some_and(|history| history.can_undo()),
                         egui::Button::new(ICON_UNDO),
                     )
+                    .test_id("workspace.undo")
                     .on_hover_text("Undo (Ctrl/Cmd+Z)")
                     .clicked()
                     || undo_requested)
@@ -99,6 +102,7 @@ pub(crate) fn show(
                         history.is_some_and(|history| history.can_redo()),
                         egui::Button::new(ICON_REDO),
                     )
+                    .test_id("workspace.redo")
                     .on_hover_text("Redo (Ctrl+Y or Ctrl/Cmd+Shift+Z)")
                     .clicked()
                     || redo_requested)
@@ -118,6 +122,7 @@ pub(crate) fn show(
                     frame.can_edit(item.id),
                     egui::Button::new(format!("{} Share", ICON_SHARE.codepoint)),
                 )
+                .test_id("workspace.share")
                 .on_hover_text("Share this block")
                 .on_disabled_hover_text("Only accounts that can edit a block may share it")
                 .clicked();
@@ -255,7 +260,7 @@ fn artifact_bar(ui: &mut egui::Ui, frame: &Frame<'_>, id: Uuid, outcome: &mut Ou
                     Some(artifact) if artifact.source.is_some() => {
                         let source = artifact.source.expect("the source was just checked");
                         ui.weak("Generated from");
-                        let label = frame.label(source);
+                        let label = frame.label(source, artifact.source_type);
                         if ui
                             .button(label.widget_text(ui.style()))
                             .on_hover_text(format!("Open the source block\n{source}"))
