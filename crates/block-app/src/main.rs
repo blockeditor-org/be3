@@ -1736,9 +1736,14 @@ impl BlockApp {
             self.watch_artifacts(watch);
         }
         let mut visible = HashSet::new();
-        for (id, editor) in &self.editors {
-            if *id != shell && editor.drawn() && editor.wants_presence() {
-                visible.insert(*id);
+        for id in editors::take_frame_editors(ui.ctx()) {
+            if id != shell
+                && self
+                    .editors
+                    .get(&id)
+                    .is_some_and(|editor| editor.drawn() && editor.wants_presence())
+            {
+                visible.insert(id);
             }
         }
         for editor in self.editors.values_mut() {
