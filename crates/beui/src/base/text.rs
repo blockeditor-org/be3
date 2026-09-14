@@ -32,15 +32,17 @@ pub enum TextAlign {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum SelectionEnd {
+pub(crate) enum TextHandle {
     Start,
     End,
+    Caret,
 }
 
-fn handle_center(end: SelectionEnd, anchor: Pos2) -> Pos2 {
-    match end {
-        SelectionEnd::Start => pos2(anchor.x - HANDLE_RADIUS, anchor.y + HANDLE_RADIUS),
-        SelectionEnd::End => pos2(anchor.x + HANDLE_RADIUS, anchor.y + HANDLE_RADIUS),
+fn handle_center(handle: TextHandle, anchor: Pos2) -> Pos2 {
+    match handle {
+        TextHandle::Start => pos2(anchor.x - HANDLE_RADIUS, anchor.y + HANDLE_RADIUS),
+        TextHandle::End => pos2(anchor.x + HANDLE_RADIUS, anchor.y + HANDLE_RADIUS),
+        TextHandle::Caret => pos2(anchor.x, anchor.y + HANDLE_RADIUS),
     }
 }
 
@@ -66,6 +68,7 @@ pub(crate) struct TextNode {
     caret: Option<usize>,
     selection: Vec<Range<usize>>,
     handles: bool,
+    handle_clip: Cell<Rect>,
     blink: Instant,
     offset: Cell<f32>,
     placed: RefCell<Option<Placed>>,
@@ -180,45 +183,56 @@ impl TextNode {
         }
     }
 
-    fn handle_anchors(&self) -> Vec<(SelectionEnd, Pos2)> {
-        let Some(range) = self.selection.first().filter(|_| self.handles) else {
+    fn handle_anchors(&self) -> Vec<(TextHandle, Pos2)> {
+        if !self.handles {
             return Vec::new();
-        };
+        }
         let placed = self.placed.borrow();
         let Some(placed) = placed.as_ref() else {
             return Vec::new();
         };
+        let indices = match (self.selection.first(), self.caret) {
+            (Some(range), _) => vec![
+                (TextHandle::Start, range.start),
+                (TextHandle::End, range.end),
+            ],
+            (None, Some(caret)) => vec![(TextHandle::Caret, caret)],
+            (None, None) => Vec::new(),
+        };
         let shown = (placed.rect.left() - HANDLE_VISIBILITY_SLACK)
             ..=(placed.rect.right() + HANDLE_VISIBILITY_SLACK);
-        [
-            (SelectionEnd::Start, range.start),
-            (SelectionEnd::End, range.end),
-        ]
-        .into_iter()
-        .filter_map(|(end, index)| {
-            let top = placed.galley.cursor_pos(placed.origin, index);
-            (!self.clip || shown.contains(&top.x)).then(|| {
-                (
-                    end,
-                    pos2(top.x, top.y + placed.galley.line_height() + HANDLE_GAP),
-                )
+        indices
+            .into_iter()
+            .filter_map(|(handle, index)| {
+                let top = placed.galley.cursor_pos(placed.origin, index);
+                (!self.clip || shown.contains(&top.x)).then(|| {
+                    (
+                        handle,
+                        pos2(top.x, top.y + placed.galley.line_height() + HANDLE_GAP),
+                    )
+                })
             })
-        })
-        .collect()
+            .collect()
     }
 
-    fn handle_at(&self, pos: Pos2) -> Option<SelectionEnd> {
+    fn handle_at(&self, pos: Pos2) -> Option<TextHandle> {
+        if !self.handle_clip.get().contains(pos) {
+            return None;
+        }
         self.handle_anchors()
             .into_iter()
-            .map(|(end, anchor)| (end, handle_center(end, anchor).distance(pos)))
+            .filter(|(_, anchor)| pos.y >= anchor.y - HANDLE_GAP)
+            .map(|(handle, anchor)| (handle, handle_center(handle, anchor).distance(pos)))
             .filter(|(_, distance)| *distance <= HANDLE_HIT_RADIUS)
             .min_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|(end, _)| end)
+            .map(|(handle, _)| handle)
     }
 
     fn paint_handles(&self, painter: &Painter) {
-        for (end, anchor) in self.handle_anchors() {
-            let center = handle_center(end, anchor);
+        self.handle_clip.set(painter.clip_rect());
+        let painter = painter.on_top();
+        for (handle, anchor) in self.handle_anchors() {
+            let center = handle_center(handle, anchor);
             painter.rect_filled(
                 Rect::from_min_size(
                     pos2(center.x - HANDLE_RADIUS, center.y - HANDLE_RADIUS),
@@ -227,12 +241,13 @@ impl TextNode {
                 HANDLE_RADIUS,
                 self.caret_color,
             );
-            let corner = match end {
-                SelectionEnd::Start => pos2(anchor.x - HANDLE_RADIUS, anchor.y),
-                SelectionEnd::End => anchor,
+            let point = match handle {
+                TextHandle::Start => pos2(anchor.x - HANDLE_RADIUS, anchor.y),
+                TextHandle::End => anchor,
+                TextHandle::Caret => pos2(anchor.x - HANDLE_RADIUS / 2.0, anchor.y),
             };
             painter.rect_filled(
-                Rect::from_min_size(corner, Vec2::splat(HANDLE_RADIUS)),
+                Rect::from_min_size(point, Vec2::splat(HANDLE_RADIUS)),
                 0.0,
                 self.caret_color,
             );
@@ -347,6 +362,7 @@ impl Document {
             caret: None,
             selection: Vec::new(),
             handles: false,
+            handle_clip: Cell::new(Rect::NOTHING),
             blink: Instant::now(),
             offset: Cell::new(0.0),
             placed: RefCell::new(None),
@@ -449,7 +465,7 @@ impl Document {
         }
     }
 
-    pub(crate) fn text_handle_at(&self, text: NodeId, pos: Pos2) -> Option<SelectionEnd> {
+    pub(crate) fn text_handle_at(&self, text: NodeId, pos: Pos2) -> Option<TextHandle> {
         self.arena.get_as::<TextNode>(text).handle_at(pos)
     }
 
@@ -463,7 +479,7 @@ impl Document {
             .get_as::<TextNode>(text)
             .handle_anchors()
             .into_iter()
-            .map(|(end, anchor)| handle_center(end, anchor))
+            .map(|(handle, anchor)| handle_center(handle, anchor))
             .collect()
     }
 }

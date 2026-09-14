@@ -15,8 +15,8 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) child: Option<NodeId>,
     pub(crate) cursor: CursorIcon,
     pub(crate) armed: bool,
-    pub(crate) captured: bool,
     pub(crate) capture_presses: bool,
+    pub(crate) repeat_drag: bool,
     pub(crate) key_active: bool,
     pub(crate) hovered: bool,
     pub(crate) active: bool,
@@ -37,8 +37,8 @@ impl ClickCatcherNode {
             child: None,
             cursor,
             armed: false,
-            captured: false,
             capture_presses: false,
+            repeat_drag: false,
             key_active: false,
             hovered: false,
             active: false,
@@ -112,37 +112,38 @@ impl Element for ClickCatcherNode {
         }
     }
 
+    fn captures(&mut self, _doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
+        (self.capture_presses && rect.contains(pos)) || self.capture_at.call(pos)
+    }
+
     fn interact(
         &mut self,
         doc: &mut Document,
         painter: &Painter,
         input: &InteractInput,
-        _id: NodeId,
+        id: NodeId,
         rect: Rect,
         _focus_target: &mut Option<NodeId>,
     ) -> Vec<NodeId> {
         if !input.pointer_down && !input.released_this_frame {
             self.armed = false;
-            self.captured = false;
+            self.dragged = None;
+        }
+        let captured = doc.pointer_capture == Some(id);
+        let yielded = doc.pointer_capture.is_some_and(|captor| captor != id);
+        if yielded {
+            self.armed = false;
             self.dragged = None;
         }
         let contains_pointer = input.pointer_pos.is_some_and(|pos| rect.contains(pos));
         if input.pressed_this_frame
+            && !yielded
+            && (contains_pointer || captured)
             && let Some(pos) = input.pointer_pos
         {
-            self.captured = (contains_pointer && self.capture_presses) || self.capture_at.call(pos);
-            if self.captured {
-                doc.capture_pointer();
-            }
-            if contains_pointer || self.captured {
-                self.armed = true;
-                let press = self.press(input, rect, pos);
-                self.on_press.call(press);
-            }
-        }
-        if doc.pointer_captured && !self.captured {
-            self.armed = false;
-            self.dragged = None;
+            self.armed = true;
+            let press = self.press(input, rect, pos);
+            self.on_press.call(press);
         }
         if contains_pointer
             && input.secondary_pressed_this_frame
@@ -151,12 +152,16 @@ impl Element for ClickCatcherNode {
             let press = self.press(input, rect, pos);
             self.on_secondary_press.call(press);
         }
-        if input.touch_cancelled || (input.touch_scrolling && !self.captured) {
+        if input.touch_cancelled || (input.touch_scrolling && !captured) {
             self.armed = false;
             self.dragged = None;
         }
         if input.released_this_frame {
-            if contains_pointer && self.armed && !input.touch_dragged && !input.touch_cancelled {
+            if self.armed
+                && (contains_pointer || captured)
+                && !input.touch_dragged
+                && !input.touch_cancelled
+            {
                 self.on_click.call();
                 if let Some(pos) = input.pointer_pos {
                     let press = self.press(input, rect, pos);
@@ -164,7 +169,6 @@ impl Element for ClickCatcherNode {
                 }
             }
             self.armed = false;
-            self.captured = false;
             self.dragged = None;
         }
         let hovered = contains_pointer && !input.touch_active && !input.touch_ended;
@@ -182,11 +186,14 @@ impl Element for ClickCatcherNode {
         }
         if self.armed
             && input.pointer_down
-            && (!input.touch_scrolling || self.captured)
+            && (!input.touch_scrolling || captured)
             && let Some(pos) = input.pointer_pos
-            && self.dragged != Some(pos)
+            && (self.repeat_drag || self.dragged != Some(pos))
         {
             self.dragged = Some(pos);
+            if self.repeat_drag {
+                painter.ctx().request_repaint();
+            }
             let press = self.press(input, rect, pos);
             self.on_drag.call(press);
         }
@@ -216,8 +223,8 @@ impl Document {
         self.arena.insert(ClickCatcherNode::new(cursor))
     }
 
-    pub(crate) fn capture_pointer(&mut self) {
-        self.pointer_captured = true;
+    pub(crate) fn capture_pointer(&mut self, captor: NodeId) {
+        self.pointer_capture = Some(captor);
         self.touch_scroll_target = None;
     }
 
@@ -244,6 +251,12 @@ impl Document {
         }
     }
 
+    pub(crate) fn set_click_catcher_repeat_drag(&mut self, id: NodeId, repeat_drag: bool) {
+        if self.arena.get_as::<ClickCatcherNode>(id).repeat_drag != repeat_drag {
+            self.arena.get_mut_as::<ClickCatcherNode>(id).repeat_drag = repeat_drag;
+        }
+    }
+
     pub(crate) fn set_click_catcher_key_active(&mut self, id: NodeId, key_active: bool) {
         if !self.contains(id) {
             return;
@@ -265,6 +278,7 @@ pub fn ClickCatcher(
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     key_active: Prop<bool>,
     capture_presses: Prop<bool>,
+    repeat_drag: Prop<bool>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
@@ -297,6 +311,11 @@ pub fn ClickCatcher(
     create_effect(move || {
         with_document(|document| {
             document.set_click_catcher_capture_presses(click_catcher, capture_presses.get())
+        })
+    });
+    create_effect(move || {
+        with_document(|document| {
+            document.set_click_catcher_repeat_drag(click_catcher, repeat_drag.get())
         })
     });
     create_effect(move || {

@@ -698,6 +698,9 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         text: String,
     },
+    PasteText {
+        instance: EditorInstanceId,
+    },
     AspectRatio {
         instance: EditorInstanceId,
         ratio: f32,
@@ -778,6 +781,7 @@ impl EditorMessage {
             | Self::ChildReplaced { instance, .. }
             | Self::ChildView { instance, .. }
             | Self::CopyText { instance, .. }
+            | Self::PasteText { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
             | Self::Performance { instance, .. }

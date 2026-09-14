@@ -33,6 +33,7 @@ pub(crate) struct EditorSession {
     created: Option<CreationOutcome>,
     artifact: Option<ArtifactState>,
     copied: Vec<String>,
+    paste_requested: bool,
     replacements: Vec<(u64, bool)>,
     generation: u64,
 }
@@ -370,6 +371,7 @@ impl EditorSession {
             created: None,
             artifact: None,
             copied: Vec::new(),
+            paste_requested: false,
             replacements: Vec::new(),
             generation: 0,
         }
@@ -605,6 +607,9 @@ impl EditorSession {
         }
         for text in std::mem::take(&mut self.copied) {
             messages.push(Message::Editor(EditorMessage::CopyText { instance, text }));
+        }
+        if std::mem::take(&mut self.paste_requested) {
+            messages.push(Message::Editor(EditorMessage::PasteText { instance }));
         }
         for (presence_id, data) in self.host.take_presence_publications() {
             messages.push(Message::Editor(EditorMessage::PublishPresence {
@@ -1124,6 +1129,7 @@ impl EditorSession {
         if let Some(text) = &output.copied_text {
             self.copied.push(text.clone());
         }
+        self.paste_requested |= output.paste_requested;
         Some(output)
     }
 

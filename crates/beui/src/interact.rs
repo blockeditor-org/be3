@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::context::Context;
-use crate::geometry::Rect;
+use crate::geometry::{Pos2, Rect};
 use crate::input::{Event, Key, KeyPress};
 use crate::painter::Painter;
 
@@ -48,6 +48,21 @@ pub(crate) fn interact(
             }
         });
     }
+    if input.pressed_this_frame
+        && let Some(pos) = input.pointer_pos
+    {
+        let layers: Vec<NodeId> = if doc.overlay_stack.is_empty() {
+            vec![root]
+        } else {
+            doc.overlay_stack.iter().rev().copied().collect()
+        };
+        if let Some(captor) = layers
+            .into_iter()
+            .find_map(|layer| captor(doc, rects, layer, pos))
+        {
+            doc.capture_pointer(captor);
+        }
+    }
     let input = InteractInput {
         touch_scroll_target: doc.touch_scroll_target,
         ..input
@@ -62,7 +77,7 @@ pub(crate) fn interact(
         }
     }
 
-    if !doc.pointer_captured
+    if doc.pointer_capture.is_none()
         && ((input.pressed_this_frame && !input.touch_started)
             || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
     {
@@ -134,8 +149,26 @@ pub(crate) fn interact(
         doc.touch_scroll_target = None;
     }
     if !input.pointer_down {
-        doc.pointer_captured = false;
+        doc.pointer_capture = None;
     }
+}
+
+fn captor(
+    doc: &mut Document,
+    rects: &HashMap<NodeId, Rect>,
+    id: NodeId,
+    pos: Pos2,
+) -> Option<NodeId> {
+    let rect = *rects.get(&id)?;
+    for child in doc.arena.get(id).children().into_iter().rev() {
+        if let Some(found) = captor(doc, rects, child, pos) {
+            return Some(found);
+        }
+    }
+    let mut element = doc.arena.take(id);
+    let captures = element.captures(doc, pos, rect);
+    doc.arena.put_back(id, element);
+    captures.then_some(id)
 }
 
 fn deepest_scroll(

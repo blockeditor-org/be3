@@ -69,6 +69,7 @@ struct Instance {
     picks: Vec<PendingPick>,
     fetches: Vec<PendingFetch>,
     pastes: Vec<PendingPaste>,
+    text_pastes: Vec<String>,
     audio: Option<AudioPlayer>,
     reported_audio: AudioStatus,
     reported_size: Option<egui::Vec2>,
@@ -136,6 +137,7 @@ impl Instance {
             picks: Vec::new(),
             fetches: Vec::new(),
             pastes: Vec::new(),
+            text_pastes: Vec::new(),
             audio: None,
             reported_audio: AudioStatus::default(),
             reported_size: None,
@@ -1416,6 +1418,23 @@ impl Instances {
                     image: pending.image,
                 }));
             }
+            let texts = std::mem::take(&mut entry.text_pastes);
+            if !texts.is_empty()
+                && let Some(screen) = entry
+                    .screens
+                    .values()
+                    .find(|screen| screen.input.focused())
+                    .or_else(|| entry.screens.get(&EditorRegion::Frame))
+                    .map(|screen| screen.request.screen)
+            {
+                messages.push(Message::Input(block_plugin_api::InputBatch {
+                    screen,
+                    events: texts
+                        .into_iter()
+                        .map(block_plugin_api::InputEvent::Paste)
+                        .collect(),
+                }));
+            }
             let entry = self.entries.get_mut(&instance).unwrap();
             if let Some(player) = &entry.audio {
                 let status = player.status();
@@ -1640,6 +1659,15 @@ impl Instances {
                 };
                 entry.context.copy_text(text);
                 false
+            }
+            EditorMessage::PasteText { instance } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry
+                    .text_pastes
+                    .extend(super::clipboard::read_clipboard_text());
+                true
             }
             EditorMessage::PublishPresence {
                 instance,

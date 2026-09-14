@@ -32,7 +32,8 @@ pub struct Document {
     pub(crate) inspectable: bool,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) touch_scroll_target: Option<NodeId>,
-    pub(crate) pointer_captured: bool,
+    pub(crate) pointer_capture: Option<NodeId>,
+    paste_requested: bool,
     test_ids: HashMap<String, NodeId>,
     layout_revision: u64,
     paint_revision: u64,
@@ -70,7 +71,8 @@ impl Document {
             inspectable: true,
             overlay_stack: Vec::new(),
             touch_scroll_target: None,
-            pointer_captured: false,
+            pointer_capture: None,
+            paste_requested: false,
             test_ids: HashMap::new(),
             layout_revision: 0,
             paint_revision: 0,
@@ -167,6 +169,10 @@ impl Document {
 
     pub(crate) fn copy_text(&mut self, text: impl Into<String>) {
         self.copied_text = Some(text.into());
+    }
+
+    pub(crate) fn request_paste(&mut self) {
+        self.paste_requested = true;
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
@@ -309,6 +315,9 @@ impl Document {
         if let Some(text) = self.copied_text.take() {
             ctx.copy_text(text);
         }
+        if std::mem::take(&mut self.paste_requested) {
+            ctx.request_paste();
+        }
         measurement.layout_passes +=
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.settle_layout(ctx, rect)
@@ -323,12 +332,14 @@ impl Document {
                     if let Some(root) = self.root {
                         paint::paint(self, &ctx.painter(), &self.rects, root);
                     }
+                    ctx.flush_top();
                     for overlay in self.overlay_stack.clone() {
                         if let Some(content) = self.overlay_content(overlay)
                             && self.rects.contains_key(&content)
                         {
                             paint::paint(self, &ctx.painter(), &self.rects, content);
                         }
+                        ctx.flush_top();
                     }
                 })
             });

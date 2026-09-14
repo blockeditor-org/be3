@@ -10,7 +10,7 @@ use crate::reactive::{
 };
 use crate::unstyled;
 use crate::unstyled::button::ButtonHandle;
-use crate::unstyled::text_input::TextInputHandle;
+use crate::unstyled::text_input::{TextInputHandle, TextInputMenu};
 use beui_macros::{component, view};
 use std::rc::Rc;
 
@@ -78,6 +78,7 @@ pub fn Select(
     search_caret_color: Prop<Color32>,
     search_padding_horizontal: Prop<f32>,
     search_content: Option<Render<TextInputHandle>>,
+    #[prop(default = TextInputMenu::default())] search_menu: TextInputMenu,
     trigger: Option<Render<SelectTriggerHandle>>,
     option: Option<RenderFn<SelectOptionHandle>>,
     #[prop(children)] popup: Option<Render<Child>>,
@@ -203,6 +204,7 @@ pub fn Select(
                             selection_color={search_selection_color}
                             caret_color={search_caret_color}
                             padding_horizontal={search_padding_horizontal}
+                            menu={search_menu}
                             content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
                             on_focus_change={move |has_focus: bool| blur(&search_blur, has_focus, Focus::Search)}
                             on_change={move |text: String| filter(&filter_state, &text)}

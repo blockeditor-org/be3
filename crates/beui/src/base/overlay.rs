@@ -341,7 +341,8 @@ impl Document {
                 .is_some_and(|rect| rect.contains(pos))
         });
         if !inside_any {
-            self.capture_pointer();
+            let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
+            self.capture_pointer(scrim);
             self.close_overlay_at(level);
         }
     }

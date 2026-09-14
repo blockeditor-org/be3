@@ -6,7 +6,7 @@ use crate::node::NodeId;
 use crate::reactive::{Callback, Child, Frame, Prop, Text, clone, create_memo};
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
 use crate::unstyled;
-use crate::unstyled::{MenuItem, MenuRowHandle};
+use crate::unstyled::{MenuItem, MenuRowHandle, TextInputMenu};
 
 const PADDING_HORIZONTAL: f32 = 14.0;
 const PADDING_VERTICAL: f32 = 6.0;
@@ -31,8 +31,15 @@ pub fn ContextMenu(
     }
 }
 
+pub(crate) fn text_input_menu() -> TextInputMenu {
+    TextInputMenu::new(
+        |handle| view! { <MenuRow handle /> },
+        |content| view! { <MenuPanel>{content}</MenuPanel> },
+    )
+}
+
 #[component]
-pub(crate) fn MenuRow(handle: MenuRowHandle) -> NodeId {
+fn MenuRow(handle: MenuRowHandle) -> NodeId {
     let MenuRowHandle {
         item,
         hovered,
@@ -63,7 +70,7 @@ pub(crate) fn MenuRow(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-pub(crate) fn MenuPanel(children: Child) -> NodeId {
+fn MenuPanel(children: Child) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame width=MENU_WIDTH color={theme.pick(|theme| theme.surface_raised)} outline={theme.pick(|theme| theme.border)} outline_width=BORDER_WIDTH radius=RADIUS outline_visible=true padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>

@@ -10,6 +10,7 @@ mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
+mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
@@ -59,6 +60,7 @@ mod evicting_a_virtual_scroll_row_disposes_its_effects;
 mod finding_a_node_by_its_test_id;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
+mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
 mod hovering_a_context_menu_item_moves_keyboard_focus_to_it;
 mod hovering_a_menu_item_with_children_opens_its_submenu_without_a_click;
 mod hovering_a_row_highlights_the_node_it_lists;
@@ -93,7 +95,9 @@ mod tab_moves_focus_from_one_text_input_to_the_next;
 mod tab_moves_focus_to_the_next_button;
 mod tabs_collapse_into_a_select_when_their_container_is_narrow;
 mod tapping_a_checkbox_with_touch_toggles_it;
+mod tapping_inside_a_selection_in_a_select_search_box_opens_its_menu;
 mod tapping_inside_a_touch_selection_opens_a_menu_that_copies_it;
+mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
 mod the_inspector_follows_nodes_added_to_the_document;
 mod the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated;
 mod the_inspector_keeps_the_rows_of_nodes_that_survive_an_update;
@@ -502,6 +506,10 @@ impl Element for Counted {
     fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect) {
         self.paints.set(self.paints.get() + 1);
         self.inner.paint(doc, painter, rects, rect);
+    }
+
+    fn captures(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
+        self.inner.captures(doc, pos, rect)
     }
 
     fn interact(

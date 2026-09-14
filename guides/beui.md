@@ -263,6 +263,16 @@ means:
 6. Return the root base node directly so component state and framework slots
    attach to the node callers receive.
 
+A press normally reaches every `ClickCatcher` under the pointer. A control that
+must win a press, or that reacts to presses outside its own rect, captures it:
+`capture_presses` claims presses inside the catcher and `capture_at` claims
+presses at positions its callback accepts. Before any node handles a press the
+document asks the topmost nodes first, and only the captor receives it: focus
+stays where it is, touch scrolling does not start, and no other catcher arms.
+Paint such parts with `Painter::on_top`, which draws above the rest of the
+document, or of the overlay being painted. The touch selection handles of
+`unstyled::TextInput` use both.
+
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control
 without undoing visual decisions.

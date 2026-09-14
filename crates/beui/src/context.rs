@@ -20,8 +20,10 @@ struct Inner {
     fonts: RefCell<Fonts>,
     input: RefCell<InputState>,
     shapes: RefCell<Vec<Shape>>,
+    top_shapes: RefCell<Vec<Shape>>,
     test_ids: RefCell<HashMap<String, Rect>>,
     copied_text: RefCell<Option<String>>,
+    paste_requested: Cell<bool>,
     cursor_icon: Cell<CursorIcon>,
     touch_emulation: Cell<bool>,
     pixels_per_point: Cell<f32>,
@@ -39,6 +41,7 @@ pub struct FrameOutput {
     test_ids: HashMap<String, Rect>,
     pub cursor_icon: CursorIcon,
     pub copied_text: Option<String>,
+    pub paste_requested: bool,
     pub repaint: bool,
     pub repaint_after: Duration,
     pub changed: bool,
@@ -80,8 +83,10 @@ impl Context {
                 fonts: RefCell::new(Fonts::new(sources)),
                 input: RefCell::new(InputState::default()),
                 shapes: RefCell::new(Vec::new()),
+                top_shapes: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
                 copied_text: RefCell::new(None),
+                paste_requested: Cell::new(false),
                 cursor_icon: Cell::new(CursorIcon::Default),
                 touch_emulation: Cell::new(false),
                 pixels_per_point: Cell::new(1.0),
@@ -100,8 +105,10 @@ impl Context {
         self.apply_pixels_per_point();
         self.inner.input.borrow_mut().begin_frame(raw);
         self.inner.shapes.borrow_mut().clear();
+        self.inner.top_shapes.borrow_mut().clear();
         self.inner.test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
+        self.inner.paste_requested.set(false);
         self.inner.cursor_icon.set(CursorIcon::Default);
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
@@ -122,6 +129,7 @@ impl Context {
             shapes,
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
             copied_text: self.inner.copied_text.borrow_mut().take(),
+            paste_requested: self.inner.paste_requested.replace(false),
             changed,
             repaint_after: self.inner.repaint_after.get(),
             cursor_icon: self.inner.cursor_icon.get(),
@@ -147,6 +155,10 @@ impl Context {
 
     pub fn copy_text(&self, text: String) {
         *self.inner.copied_text.borrow_mut() = Some(text);
+    }
+
+    pub fn request_paste(&self) {
+        self.inner.paste_requested.set(true);
     }
 
     pub fn set_cursor_icon(&self, cursor_icon: CursorIcon) {
@@ -289,6 +301,15 @@ impl Context {
 
     pub(crate) fn push(&self, shape: Shape) {
         self.inner.shapes.borrow_mut().push(shape);
+    }
+
+    pub(crate) fn push_top(&self, shape: Shape) {
+        self.inner.top_shapes.borrow_mut().push(shape);
+    }
+
+    pub(crate) fn flush_top(&self) {
+        let top = std::mem::take(&mut *self.inner.top_shapes.borrow_mut());
+        self.inner.shapes.borrow_mut().extend(top);
     }
 }
 

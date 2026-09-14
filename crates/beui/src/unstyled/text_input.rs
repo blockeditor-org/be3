@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use accesskit::{Node, Role};
 
@@ -11,13 +12,13 @@ use text_editor_core::{
 };
 
 use crate::color::Color32;
-use crate::geometry::{Pos2, Vec2};
+use crate::geometry::{Pos2, Vec2, pos2};
 use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 
 use crate::base::ItemSize;
 use crate::base::TextAlign;
 use crate::base::overlay::{Overlay, OverlayAnchor};
-use crate::base::text::SelectionEnd;
+use crate::base::text::TextHandle;
 use crate::base::text_index_at;
 use crate::document::Document;
 use crate::node::NodeId;
@@ -25,9 +26,10 @@ use crate::unstyled::{MenuItem, MenuRowHandle};
 use beui_macros::{component, view};
 
 use crate::reactive::{
-    Callback, Child, ClickCatcher, Column, Focusable, Frame, Memo, NodeRef, Prop, ReadSignal,
-    Render, RenderFn, Show, Text, WriteSignal, clone, component_accessibility, copy_text,
-    create_effect, create_memo, create_signal, intrinsic, set_component_state, with_document,
+    Callback, Child, ClickCatcher, Column, Dynamic, Focusable, Frame, Memo, NodeRef, Prop,
+    ReadSignal, Render, RenderFn, Show, Text, WriteSignal, clone, component_accessibility,
+    copy_text, create_effect, create_memo, create_signal, intrinsic, set_component_state,
+    with_document,
 };
 
 const FONT_SIZE: f32 = 14.0;
@@ -36,7 +38,7 @@ const WORD_CLICKS: u32 = 2;
 const LINE_CLICKS: u32 = 3;
 const ALL_CLICKS: u32 = 4;
 const MENU_SPACING: f32 = 2.0;
-const MENU: [MenuAction; 3] = [MenuAction::Copy, MenuAction::Cut, MenuAction::SelectAll];
+const AUTOSCROLL_STEP: Duration = Duration::from_millis(40);
 
 pub struct TextInputHandle {
     pub field: Child,
@@ -44,10 +46,23 @@ pub struct TextInputHandle {
     pub focused: ReadSignal<bool>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
+pub struct TextInputMenu(Option<(RenderFn<MenuRowHandle>, RenderFn<Child>)>);
+
+impl TextInputMenu {
+    pub fn new(
+        row: impl Fn(MenuRowHandle) -> NodeId + 'static,
+        panel: impl Fn(Child) -> NodeId + 'static,
+    ) -> Self {
+        Self(Some((RenderFn::new(row), RenderFn::new(panel))))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum MenuAction {
     Copy,
     Cut,
+    Paste,
     SelectAll,
 }
 
@@ -56,16 +71,25 @@ impl MenuAction {
         match self {
             MenuAction::Copy => "Copy",
             MenuAction::Cut => "Cut",
+            MenuAction::Paste => "Paste",
             MenuAction::SelectAll => "Select All",
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum Grab {
+    Selection(Position),
+    Caret,
 }
 
 struct Editor {
     core: Core,
     dragging: bool,
     touch: bool,
-    handle: Option<(Position, Vec2)>,
+    caret_handle: bool,
+    grab: Option<(Grab, Vec2)>,
+    last_step: Instant,
     text: NodeRef,
     menu_rows: Vec<NodeRef>,
     value: ReadSignal<String>,
@@ -73,7 +97,9 @@ struct Editor {
     set_caret: WriteSignal<Option<usize>>,
     set_selection: WriteSignal<Vec<Range<usize>>>,
     set_handles: WriteSignal<bool>,
+    set_autoscroll: WriteSignal<bool>,
     set_menu: WriteSignal<Option<Pos2>>,
+    set_menu_actions: WriteSignal<Vec<MenuAction>>,
     focused: ReadSignal<bool>,
     on_change: Callback<String>,
     on_submit: Callback<String>,
@@ -94,8 +120,7 @@ pub fn TextInput(
     caret_color: Prop<Color32>,
     padding_horizontal: Prop<f32>,
     padding_vertical: Prop<f32>,
-    menu_row: Option<RenderFn<MenuRowHandle>>,
-    menu_panel: Option<RenderFn<Child>>,
+    #[prop(default = TextInputMenu::default())] menu: TextInputMenu,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
@@ -111,7 +136,9 @@ pub fn TextInput(
     let (caret, set_caret) = create_signal(None);
     let (selection, set_selection) = create_signal(Vec::new());
     let (handles, set_handles) = create_signal(false);
-    let (menu, set_menu) = create_signal(None);
+    let (autoscroll, set_autoscroll) = create_signal(false);
+    let (menu_at, set_menu) = create_signal(None);
+    let (menu_actions, set_menu_actions) = create_signal(Vec::new());
     let text = NodeRef::new();
     let placeholder = create_memo(move || placeholder.get());
     let string = shown_string(&text_value, placeholder.clone());
@@ -128,15 +155,19 @@ pub fn TextInput(
         core: core(&initial),
         dragging: false,
         touch: false,
-        handle: None,
+        caret_handle: false,
+        grab: None,
+        last_step: Instant::now(),
         text: text.clone(),
-        menu_rows: MENU.iter().map(|_| NodeRef::new()).collect(),
+        menu_rows: Vec::new(),
         value: text_value.clone(),
         set_value,
         set_caret,
         set_selection,
         set_handles,
+        set_autoscroll: set_autoscroll.clone(),
         set_menu,
+        set_menu_actions,
         focused: focused.clone(),
         on_change,
         on_submit,
@@ -152,6 +183,7 @@ pub fn TextInput(
     let catcher = view! {
         <ClickCatcher
             cursor=CursorIcon::Text
+            repeat_drag={autoscroll}
             capture_at={{
                 let editor = editor.clone();
                 move |pos: Pos2| handle_at(&editor, pos).is_some()
@@ -167,6 +199,11 @@ pub fn TextInput(
             on_drag={{
                 let editor = editor.clone();
                 move |press: PointerPress| extend(&editor, press)
+            }}
+            on_active_change={move |active: bool| {
+                if !active {
+                    set_autoscroll.set(false);
+                }
             }}
             on_hover_change={move |is_hovered: bool| {
                 set_hovered.set(is_hovered);
@@ -199,10 +236,9 @@ pub fn TextInput(
         </ClickCatcher>
     };
     let mut children = vec![(catcher, Prop::Static(ItemSize::Percent(100.0)))];
-    children.extend(menu_row.map(|row| {
-        let panel = menu_panel.unwrap_or_else(|| RenderFn::new(|content| content));
+    children.extend(menu.0.map(|(row, panel)| {
         intrinsic(view! {
-            <TouchMenu editor={editor.clone()} menu row panel />
+            <TouchMenu editor={editor.clone()} at={menu_at} actions={menu_actions} row panel />
         })
     }));
 
@@ -214,10 +250,16 @@ pub fn TextInput(
                 move |is_focused: bool| {
                     set_focused.set(is_focused);
                     if !is_focused {
-                        let mut editor = editor.borrow_mut();
-                        editor.dragging = false;
-                        editor.handle = None;
-                        editor.core.external_edit();
+                        let set_autoscroll = {
+                            let mut editor = editor.borrow_mut();
+                            editor.dragging = false;
+                            editor.grab = None;
+                            editor.caret_handle = false;
+                            editor.core.external_edit();
+                            editor.set_autoscroll.clone()
+                        };
+                        set_autoscroll.set(false);
+                        close_menu(&editor);
                     }
                     show(&editor);
                     on_focus_change.call(is_focused);
@@ -242,28 +284,24 @@ pub fn TextInput(
 #[component]
 fn TouchMenu(
     editor: Handle,
-    menu: ReadSignal<Option<Pos2>>,
+    at: ReadSignal<Option<Pos2>>,
+    actions: ReadSignal<Vec<MenuAction>>,
     row: RenderFn<MenuRowHandle>,
     panel: RenderFn<Child>,
 ) -> NodeId {
-    let open = create_memo(clone!(menu -> move || menu.get().is_some()));
-    let anchor = create_memo(move || OverlayAnchor::Point(menu.get().unwrap_or(Pos2::ZERO)));
+    let open = create_memo(clone!(at -> move || at.get().is_some()));
+    let anchor = create_memo(move || OverlayAnchor::Point(at.get().unwrap_or(Pos2::ZERO)));
     view! {
         <Show condition={open.clone()}>
             {move || {
-                let rows: Vec<_> = MENU
-                    .iter()
-                    .enumerate()
-                    .map(|(index, action)| {
-                        intrinsic(view! {
-                            <TouchMenuRow editor={editor.clone()} index action={*action} row={row.clone()} />
-                        })
-                    })
-                    .collect();
                 let dismiss = editor.borrow().set_menu.clone();
                 view! {
                     <Overlay anchor open traps_focus=false on_dismiss={move || dismiss.set(None)}>
-                        {panel.call(view! { <Column spacing=MENU_SPACING children={rows} /> })}
+                        {panel.call(view! {
+                            <Dynamic value={actions}>
+                                {move |actions: Vec<MenuAction>| menu_rows(&editor, &row, actions)}
+                            </Dynamic>
+                        })}
                     </Overlay>
                 }
             }}
@@ -271,19 +309,33 @@ fn TouchMenu(
     }
 }
 
+fn menu_rows(editor: &Handle, row: &RenderFn<MenuRowHandle>, actions: Vec<MenuAction>) -> NodeId {
+    let slots: Vec<NodeRef> = actions.iter().map(|_| NodeRef::new()).collect();
+    editor.borrow_mut().menu_rows = slots.clone();
+    let rows: Vec<_> = actions
+        .into_iter()
+        .zip(slots)
+        .map(|(action, slot)| {
+            intrinsic(view! {
+                <TouchMenuRow editor={editor.clone()} slot action row={row.clone()} />
+            })
+        })
+        .collect();
+    view! { <Column spacing=MENU_SPACING children={rows} /> }
+}
+
 #[component]
 fn TouchMenuRow(
     editor: Handle,
-    index: usize,
+    slot: NodeRef,
     action: MenuAction,
     row: RenderFn<MenuRowHandle>,
 ) -> NodeId {
     let (hovered, set_hovered) = create_signal(false);
     let (focused, _) = create_signal(false);
-    let node = editor.borrow().menu_rows[index].clone();
     view! {
         <ClickCatcher
-            @node_ref=&node
+            @node_ref=&slot
             capture_presses=true
             on_click={move || menu_action(&editor, action)}
             on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
@@ -330,6 +382,10 @@ pub fn text_input_value(document: &Document, input: NodeId) -> String {
 
 pub fn text_input_focused(document: &Document, input: NodeId) -> ReadSignal<bool> {
     handle(document, input).borrow().focused.clone()
+}
+
+pub fn text_input_caret(document: &Document, input: NodeId) -> usize {
+    caret(&handle(document, input).borrow().core)
 }
 
 pub fn text_input_selection(document: &Document, input: NodeId) -> Vec<Range<usize>> {
@@ -389,6 +445,7 @@ fn selection(core: &Core) -> Vec<Range<usize>> {
 
 fn command(editor: &Handle, command: EditorCommand<'_>) {
     editor.borrow_mut().core.execute_command(command);
+    close_menu(editor);
     show(editor);
 }
 
@@ -401,10 +458,7 @@ fn show(editor: &Handle) {
         editor.set_caret.set(focused.then(|| caret(&editor.core)));
         editor
             .set_handles
-            .set(editor.touch && focused && !selection.is_empty());
-        if !focused || selection.is_empty() {
-            editor.set_menu.set(None);
-        }
+            .set(editor.touch && focused && (editor.caret_handle || !selection.is_empty()));
         editor.set_selection.set(selection);
         if editor.value.get_untracked() == value {
             return;
@@ -423,6 +477,7 @@ fn insert(editor: &Handle, typed: &str) {
     if typed.is_empty() {
         return;
     }
+    editor.borrow_mut().caret_handle = false;
     command(editor, EditorCommand::InsertText(typed.as_bytes()));
 }
 
@@ -434,36 +489,43 @@ fn click_mode(clicks: u32) -> DragSelectionMode {
     }
 }
 
-fn handle_at(editor: &Handle, pos: Pos2) -> Option<SelectionEnd> {
+fn handle_at(editor: &Handle, pos: Pos2) -> Option<TextHandle> {
     let text = editor.borrow().text.get();
     with_document(|document| document.text_handle_at(text, pos))
 }
 
 fn grab_handle(editor: &Handle, pos: Pos2) -> bool {
-    let Some(end) = handle_at(editor, pos) else {
+    let Some(handle) = handle_at(editor, pos) else {
         return false;
     };
-    let (text, range) = {
+    let (text, range, caret_index) = {
         let state = editor.borrow();
-        (state.text.get(), selection(&state.core).first().cloned())
+        (
+            state.text.get(),
+            selection(&state.core).first().cloned(),
+            caret(&state.core),
+        )
     };
-    let Some(range) = range else {
-        return false;
-    };
-    let (fixed, moving) = match end {
-        SelectionEnd::Start => (range.end, range.start),
-        SelectionEnd::End => (range.start, range.end),
+    let (fixed, moving) = match (handle, range) {
+        (TextHandle::Start, Some(range)) => (Some(range.end), range.start),
+        (TextHandle::End, Some(range)) => (Some(range.start), range.end),
+        (TextHandle::Caret, _) => (None, caret_index),
+        _ => return false,
     };
     let anchor = with_document(|document| document.text_caret_middle(text, moving));
     let mut state = editor.borrow_mut();
-    let fixed = state.core.position(fixed);
+    let grab = match fixed {
+        Some(fixed) => Grab::Selection(state.core.position(fixed)),
+        None => Grab::Caret,
+    };
     state.dragging = false;
-    state.handle = Some((fixed, pos - anchor));
+    state.last_step = Instant::now();
+    state.grab = Some((grab, pos - anchor));
     true
 }
 
 fn point(editor: &Handle, press: PointerPress) {
-    editor.borrow_mut().handle = None;
+    editor.borrow_mut().grab = None;
     if grab_handle(editor, press.pos) {
         return;
     }
@@ -474,7 +536,10 @@ fn point(editor: &Handle, press: PointerPress) {
         return;
     }
     let index = {
-        let text = editor.borrow().text.clone();
+        let mut state = editor.borrow_mut();
+        state.caret_handle = false;
+        let text = state.text.clone();
+        drop(state);
         text_index_at(&text, press.pos)
     };
     let position = editor.borrow().core.position(index);
@@ -496,26 +561,30 @@ fn point(editor: &Handle, press: PointerPress) {
 }
 
 fn tap(editor: &Handle, press: PointerPress) {
-    let (text, focused, grabbed) = {
+    let (text, focused, grab) = {
         let state = editor.borrow();
         (
             state.text.clone(),
             state.focused.get_untracked(),
-            state.handle.is_some(),
+            state.grab.map(|(grab, _)| grab),
         )
     };
-    if !press.touch || grabbed {
+    if !press.touch {
         return;
+    }
+    match grab {
+        Some(Grab::Caret) => return open_menu(editor, press.pos),
+        Some(Grab::Selection(_)) => return,
+        None => {}
     }
     let index = text_index_at(&text, press.pos);
     let inside_selection = selection(&editor.borrow().core)
         .iter()
         .any(|range| range.start <= index && index <= range.end);
     if focused && press.clicks == 1 && inside_selection {
-        let set_menu = editor.borrow().set_menu.clone();
-        set_menu.set(Some(press.pos));
-        return;
+        return open_menu(editor, press.pos);
     }
+    editor.borrow_mut().caret_handle = true;
     if press.clicks >= ALL_CLICKS {
         command(editor, EditorCommand::SelectAll);
         return;
@@ -533,17 +602,12 @@ fn tap(editor: &Handle, press: PointerPress) {
 }
 
 fn extend(editor: &Handle, press: PointerPress) {
-    let (text, handle, dragging) = {
+    let (text, grab, dragging) = {
         let state = editor.borrow();
-        (state.text.clone(), state.handle, state.dragging)
+        (state.text.clone(), state.grab, state.dragging)
     };
-    if let Some((fixed, offset)) = handle {
-        let index = text_index_at(&text, press.pos - offset);
-        let position = editor.borrow().core.position(index);
-        command(
-            editor,
-            EditorCommand::DragSelectionHandle { fixed, position },
-        );
+    if let Some((grab, offset)) = grab {
+        drag_handle(editor, &text, grab, press.pos - offset);
         return;
     }
     if !dragging || press.touch {
@@ -554,14 +618,100 @@ fn extend(editor: &Handle, press: PointerPress) {
     command(editor, EditorCommand::Drag(position));
 }
 
+fn drag_handle(editor: &Handle, text: &NodeRef, grab: Grab, target: Pos2) {
+    let node = text.get();
+    let Some((rect, line)) = with_document(|document| {
+        document
+            .node_rect(node)
+            .map(|rect| (rect, document.text_caret_middle(node, 0).y))
+    }) else {
+        return;
+    };
+    let beyond = if target.x < rect.left() {
+        Some(LRDirection::Left)
+    } else if target.x > rect.right() {
+        Some(LRDirection::Right)
+    } else {
+        None
+    };
+    let index = text_index_at(text, pos2(target.x.clamp(rect.left(), rect.right()), line));
+    let (position, set_autoscroll) = {
+        let state = editor.borrow();
+        (state.core.position(index), state.set_autoscroll.clone())
+    };
+    set_autoscroll.set(beyond.is_some());
+    command(
+        editor,
+        match grab {
+            Grab::Selection(fixed) => EditorCommand::DragSelectionHandle { fixed, position },
+            Grab::Caret => EditorCommand::SetSelection {
+                anchor: position,
+                focus: position,
+            },
+        },
+    );
+    let Some(direction) = beyond else {
+        return;
+    };
+    {
+        let mut state = editor.borrow_mut();
+        if state.last_step.elapsed() < AUTOSCROLL_STEP {
+            return;
+        }
+        state.last_step = Instant::now();
+    }
+    command(
+        editor,
+        EditorCommand::MoveCursorLeftRight {
+            mode: match grab {
+                Grab::Selection(_) => MoveMode::Select,
+                Grab::Caret => MoveMode::Move,
+            },
+            direction,
+            stop: CursorLeftRightStop::UnicodeGraphemeCluster,
+        },
+    );
+}
+
+fn open_menu(editor: &Handle, at: Pos2) {
+    let (set_actions, set_menu, selected) = {
+        let state = editor.borrow();
+        (
+            state.set_menu_actions.clone(),
+            state.set_menu.clone(),
+            !selection(&state.core).is_empty(),
+        )
+    };
+    set_actions.set(if selected {
+        vec![
+            MenuAction::Copy,
+            MenuAction::Cut,
+            MenuAction::Paste,
+            MenuAction::SelectAll,
+        ]
+    } else {
+        vec![MenuAction::Paste, MenuAction::SelectAll]
+    });
+    set_menu.set(Some(at));
+}
+
+fn close_menu(editor: &Handle) {
+    let set_menu = editor.borrow().set_menu.clone();
+    set_menu.set(None);
+}
+
 fn menu_action(editor: &Handle, action: MenuAction) {
     match action {
         MenuAction::Copy => copy(editor, CopyMode::Copy),
         MenuAction::Cut => copy(editor, CopyMode::Cut),
+        MenuAction::Paste => {
+            editor.borrow_mut().caret_handle = false;
+            with_document(|document| document.request_paste());
+            show(editor);
+        }
         MenuAction::SelectAll => command(editor, EditorCommand::SelectAll),
     }
-    let set_menu = editor.borrow().set_menu.clone();
-    set_menu.set(None);
+    close_menu(editor);
 }
 
 fn copy(editor: &Handle, mode: CopyMode) {
@@ -611,17 +761,20 @@ fn key(editor: &Handle, press: KeyPress) -> bool {
                 },
             },
         ),
-        Key::Backspace | Key::Delete => command(
-            editor,
-            EditorCommand::Delete {
-                direction: if press.key == Key::Backspace {
-                    LRDirection::Left
-                } else {
-                    LRDirection::Right
+        Key::Backspace | Key::Delete => {
+            editor.borrow_mut().caret_handle = false;
+            command(
+                editor,
+                EditorCommand::Delete {
+                    direction: if press.key == Key::Backspace {
+                        LRDirection::Left
+                    } else {
+                        LRDirection::Right
+                    },
+                    stop,
                 },
-                stop,
-            },
-        ),
+            );
+        }
         Key::C if modifiers.ctrl && !modifiers.alt => copy(editor, CopyMode::Copy),
         Key::X if modifiers.ctrl && !modifiers.alt => copy(editor, CopyMode::Cut),
         Key::A if modifiers.ctrl => command(editor, EditorCommand::SelectAll),

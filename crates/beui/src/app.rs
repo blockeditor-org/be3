@@ -145,6 +145,12 @@ impl Runner {
         if let Some(text) = &output.copied_text {
             self.clipboard.set(text.clone());
         }
+        if output.paste_requested
+            && let Some(text) = self.clipboard.get()
+        {
+            self.events.push(Event::Text(text));
+            surface.window.request_redraw();
+        }
         let touch_emulation = self.context.touch_emulation();
         if output.cursor_icon != surface.cursor_icon || touch_emulation != surface.touch_emulation {
             surface.cursor_icon = output.cursor_icon;

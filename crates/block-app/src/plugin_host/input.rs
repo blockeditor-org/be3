@@ -93,6 +93,10 @@ pub(super) struct InputAdapter {
 }
 
 impl InputAdapter {
+    pub(super) fn focused(&self) -> bool {
+        self.focused
+    }
+
     pub(super) fn update(
         &mut self,
         context: &egui::Context,

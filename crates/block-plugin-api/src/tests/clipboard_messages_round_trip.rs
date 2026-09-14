@@ -20,6 +20,9 @@ fn clipboard_messages_round_trip() {
             request_id: 4,
             image: ClipboardImage::Empty,
         }),
+        Message::Editor(EditorMessage::PasteText {
+            instance: EditorInstanceId(12),
+        }),
         Message::Input(InputBatch {
             screen: ScreenId(1),
             events: vec![InputEvent::Paste("pasted".into())],

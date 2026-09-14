@@ -23,11 +23,16 @@ pub enum Shape {
 pub struct Painter {
     context: Context,
     clip: Rect,
+    top: bool,
 }
 
 impl Painter {
     pub(crate) fn new(context: Context, clip: Rect) -> Self {
-        Self { context, clip }
+        Self {
+            context,
+            clip,
+            top: false,
+        }
     }
 
     pub fn ctx(&self) -> &Context {
@@ -42,6 +47,23 @@ impl Painter {
         Self {
             context: self.context.clone(),
             clip: self.clip.intersect(clip),
+            top: self.top,
+        }
+    }
+
+    pub fn on_top(&self) -> Self {
+        Self {
+            context: self.context.clone(),
+            clip: self.clip,
+            top: true,
+        }
+    }
+
+    fn push(&self, shape: Shape) {
+        if self.top {
+            self.context.push_top(shape);
+        } else {
+            self.context.push(shape);
         }
     }
 
@@ -53,7 +75,7 @@ impl Painter {
         if color.alpha() == 0 {
             return;
         }
-        self.context.push(Shape::Rect {
+        self.push(Shape::Rect {
             rect,
             corner_radius,
             stroke_width: 0.0,
@@ -66,7 +88,7 @@ impl Painter {
         if color.alpha() == 0 || width <= 0.0 {
             return;
         }
-        self.context.push(Shape::Rect {
+        self.push(Shape::Rect {
             rect,
             corner_radius,
             stroke_width: width,
@@ -79,7 +101,7 @@ impl Painter {
         if color.alpha() == 0 || galley.glyphs().is_empty() {
             return;
         }
-        self.context.push(Shape::Text {
+        self.push(Shape::Text {
             origin,
             galley,
             color,

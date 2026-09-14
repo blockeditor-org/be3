@@ -6,6 +6,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{Callback, Child, Frame, Prop, Text, clone, create_memo};
+use crate::styled::context_menu::text_input_menu;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, Theme, use_theme};
 use crate::unstyled;
 use crate::unstyled::{SelectOptionHandle, SelectTriggerHandle, TextInputHandle};
@@ -49,6 +50,7 @@ pub fn Select(
             search_caret_color={theme.pick(|theme| theme.accent)}
             search_padding_horizontal=PADDING_HORIZONTAL
             search_content={|handle| view! { <SearchField handle /> }}
+            search_menu={text_input_menu()}
             trigger={move |handle| view! { <SelectTrigger options={trigger_options} handle /> }}
             option={|handle| view! { <SelectOption handle /> }}
         >
