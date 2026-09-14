@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+#
+# Installs what a fresh Ubuntu machine needs to build, test and run the project.
+#
+# Everything here is idempotent, so running it again on a machine that is
+# already set up only reports what is already there. It assumes apt and an
+# unrestricted network: the Rust toolchain, cargo-nextest, Zig and Ghostty's
+# dependencies are all fetched from the internet.
+#
+# Usage:
+#   ./scripts/setup
+
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
+
+if [[ $# -ne 0 ]]; then
+    echo 'Usage: ./scripts/setup' >&2
+    exit 1
+fi
+
+cd "$repository"
+
+if [[ "$(uname -s)" != 'Linux' ]] || ! command -v apt-get > /dev/null; then
+    echo 'This script only knows how to set up Ubuntu. Install the equivalents of' >&2
+    echo 'the packages it lists by hand, then run ./scripts/verify.' >&2
+    exit 1
+fi
+
+sudo=''
+if [[ "$(id -u)" != '0' ]]; then
+    assert_command sudo 'Run this script as root instead.'
+    sudo='sudo'
+fi
+
+# What each group is for, since none of it is obvious from the names:
+#
+# The compiler cargo drives, and what the -sys crates locate libraries with.
+packages=(build-essential pkg-config)
+# build-ghostty-vt.sh clones Ghostty and unpacks a Zig release, which is .tar.xz.
+packages+=(curl git tar xz-utils)
+# The web build compiles HarfBuzz for wasm32-wasip1-threads with clang and
+# archives it with llvm-ar, neither of which comes from rustup.
+packages+=(clang llvm)
+# alsa-sys compiles against the ALSA headers; audio playback is behind it.
+packages+=(libasound2-dev)
+# wgpu opens libvulkan at runtime rather than linking it, and lavapipe out of
+# mesa-vulkan-drivers is the only adapter a machine with no GPU has. The beui
+# renderer tests fail outright without one, so this is not optional on a server.
+packages+=(libvulkan1 mesa-vulkan-drivers)
+# winit opens these the same way, when the app actually has a display to draw on.
+packages+=(
+    libx11-6
+    libxcursor1
+    libxrandr2
+    libxi6
+    libxkbcommon0
+    libxkbcommon-x11-0
+    libwayland-client0
+)
+# beui takes the first font it finds from a fixed list of paths, and DejaVu Sans
+# heads it. With no system font the text in the paint snapshots is not what the
+# accepted ones hold.
+packages+=(fonts-dejavu-core fonts-dejavu-mono)
+# ./scripts/run --smoke starts the app against a virtual display.
+packages+=(xvfb)
+
+missing=()
+for package in "${packages[@]}"; do
+    if ! dpkg-query --show --showformat='${db:Status-Status}\n' "$package" 2> /dev/null | grep -qx 'installed'; then
+        missing+=("$package")
+    fi
+done
+
+if [[ ${#missing[@]} -eq 0 ]]; then
+    echo "All ${#packages[@]} system packages are already installed."
+else
+    echo "Installing ${#missing[@]} system packages..."
+    $sudo apt-get update
+    DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y "${missing[@]}"
+fi
+
+# rust-toolchain.toml pins the channel and the wasm targets, so installing
+# rustup is enough to get all three; any cargo call in the repository then
+# fetches them. Asking for the toolchain here means that download happens now
+# rather than in the middle of the first build.
+if ! command -v rustup > /dev/null; then
+    echo 'Installing Rust from https://rustup.rs...'
+    curl --fail --location --proto '=https' --tlsv1.2 https://sh.rustup.rs \
+        | sh -s -- -y --no-modify-path
+    # The installer only edits the shell profile, which this shell already read.
+    PATH="$HOME/.cargo/bin:$PATH"
+    export PATH
+fi
+
+echo 'Installing the pinned Rust toolchain...'
+rustup show active-toolchain
+
+# rustup installs a toolchain with neither of these, and ./scripts/verify runs
+# both. A default profile would carry them, but the one a machine already has is
+# whatever it was set up with, so ask for them by name.
+echo 'Installing rustfmt and clippy...'
+rustup component add rustfmt clippy
+
+# ./scripts/verify runs the tests through nextest, which is not a rustup
+# component and has to be built.
+if cargo nextest --version > /dev/null 2>&1; then
+    echo "cargo-nextest is already installed: $(cargo nextest --version | head -1)"
+else
+    echo 'Installing cargo-nextest, which takes a few minutes...'
+    cargo install cargo-nextest --locked
+fi
+
+# The one prerequisite that is not a package: block-app links this, and cargo
+# builds none of it. The script fetches Zig and Ghostty's dependencies the first
+# time, which is the rest of what this setup needs the network for.
+echo 'Building libghostty-vt...'
+host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
+"$internal/build-ghostty-vt.sh" --triple "$host_triple" > /dev/null
+
+echo ''
+echo 'Setup finished. Check the workspace compiles with ./scripts/check, and run'
+echo './scripts/verify before committing.'
