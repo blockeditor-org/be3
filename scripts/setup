@@ -7,15 +7,29 @@
 # unrestricted network: the Rust toolchain, cargo-nextest, Zig and Ghostty's
 # dependencies are all fetched from the internet.
 #
+# It finishes by compiling everything ./scripts/verify needs, which is most of
+# what setting a machine up costs. Verify on a cold target directory spends a
+# quarter of an hour building before the first test runs and well under a
+# minute once it has been built once, so the wait belongs here, where a machine
+# is being prepared anyway, rather than in the first check someone runs.
+# --no-warm-cache leaves it out for a machine that only wants the prerequisites.
+#
 # Usage:
 #   ./scripts/setup
+#   ./scripts/setup --no-warm-cache
 
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
+warm=true
+if [[ "${1:-}" == '--no-warm-cache' ]]; then
+    warm=false
+    shift
+fi
+
 if [[ $# -ne 0 ]]; then
-    echo 'Usage: ./scripts/setup' >&2
+    echo 'Usage: ./scripts/setup [--no-warm-cache]' >&2
     exit 1
 fi
 
@@ -126,6 +140,22 @@ fi
 echo 'Building libghostty-vt...'
 host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
 "$internal/build-ghostty-vt.sh" --triple "$host_triple" > /dev/null
+
+# Everything above is a prerequisite, so a machine is usable from here even if
+# what follows does not finish. The tree being warmed is whatever is checked
+# out, which may well be mid-change and not compile; that is a thing to hear
+# about rather than a reason for a machine to fail to set itself up, so the
+# warming reports and setup still succeeds.
+if $warm; then
+    echo ''
+    echo 'Warming the build caches, which takes a while and is what saves the'
+    echo 'first ./scripts/verify from doing it instead...'
+    if ! "$internal/warm-cache.sh"; then
+        echo ''
+        echo 'The caches could not be warmed, which only means the first' >&2
+        echo './scripts/verify will be a slow one. Everything else is set up.' >&2
+    fi
+fi
 
 echo ''
 echo 'Setup finished. Check the workspace compiles with ./scripts/check, and run'

@@ -18,19 +18,31 @@
 # Arguments after --check go to cargo nextest run. A package named with -p
 # narrows the run to it; otherwise every plugin is tested.
 #
+# With --build-only everything a test needs is prepared and nothing is run,
+# which is what scripts/internal/warm-cache.sh wants: the sysroot, the runner,
+# the test modules and the artifacts Cranelift compiles them to.
+#
 # Usage:
 #   test-plugins.sh [nextest arguments...]            accepts whatever the tests paint
 #   test-plugins.sh --check [nextest arguments...]    reports a changed painting instead
+#   test-plugins.sh --build-only [-p plugin...]        compiles the tests without running them
 
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 check=false
-if [[ "${1:-}" == '--check' ]]; then
-    check=true
-    shift
-fi
+build_only=false
+case "${1:-}" in
+    --check)
+        check=true
+        shift
+        ;;
+    --build-only)
+        build_only=true
+        shift
+        ;;
+esac
 
 assert_command cargo 'Install Rust from https://rustup.rs.'
 cd "$repository"
@@ -89,6 +101,10 @@ build=(--cargo-profile plugin --target "$wasm_rust_target")
     if [[ ${#stale[@]} -gt 0 ]]; then
         echo "Compiling ${#stale[@]} plugin test modules..."
         "$runner" --precompile "${stale[@]}"
+    fi
+
+    if $build_only; then
+        exit 0
     fi
 
     if ! $check; then
