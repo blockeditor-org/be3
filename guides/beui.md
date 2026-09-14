@@ -179,8 +179,10 @@ rebuilding their children.
 
 Use `Show` for a lazy conditional subtree, `Dynamic` when a value replaces a
 subtree, `ForEach` for keyed retained children, and `VirtualList` for a large
-scrolling collection. These primitives own the scopes of nodes they add and
-remove, so effects and cleanup follow the retained tree.
+scrolling collection. Give `Dynamic` an `item_size` when its generated subtree
+must take a fixed or percentage share of the available space. These primitives
+own the scopes of nodes they add and remove, so effects and cleanup follow the
+retained tree.
 
 The [reactive guide](reactive.md) describes attribute syntax, children and
 render props, controlled state, keyed lists, scopes, context, and responsive

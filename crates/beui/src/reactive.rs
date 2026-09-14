@@ -665,7 +665,11 @@ pub fn Show(condition: Prop<bool>, #[prop(children)] then: Option<Render>) -> No
 }
 
 #[component]
-pub fn Dynamic<T>(value: Prop<T>, #[prop(children)] view: Option<RenderFn<T>>) -> NodeId
+pub fn Dynamic<T>(
+    value: Prop<T>,
+    #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
+    #[prop(children)] view: Option<RenderFn<T>>,
+) -> NodeId
 where
     T: Clone + Default + 'static,
 {
@@ -681,7 +685,7 @@ where
                 document.remove_child(parent, previous);
                 document.remove_node(previous);
             }
-            document.append_child(parent, child, ItemSize::Intrinsic);
+            document.append_child(parent, child, item_size);
         });
     });
     parent

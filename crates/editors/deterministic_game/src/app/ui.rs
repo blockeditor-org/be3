@@ -67,7 +67,7 @@ impl GameUi {
         let document = build(move || {
             view! {
                 <Frame color=BACKGROUND padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
-                    <Dynamic value={snapshot}>
+                    <Dynamic value={snapshot} item_size=ItemSize::Percent(100.0)>
                         {move |snapshot| game_view(game.clone(), snapshot)}
                     </Dynamic>
                 </Frame>

@@ -3,6 +3,7 @@ use super::*;
 mod a_closure_child_receives_the_handle_its_slot_hands_over;
 mod a_component_function_returns_its_base_node;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
+mod a_dynamic_child_can_fill_its_available_height;
 mod a_missing_required_prop_panics_at_the_view_that_wrote_it;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_nested_container_reports_its_own_width_not_the_windows;
