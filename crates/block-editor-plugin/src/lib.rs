@@ -40,17 +40,6 @@ pub fn surface_format() -> egui_wgpu::wgpu::TextureFormat {
     wasm::surface_format()
 }
 
-pub fn beui_fonts() -> beui::FontSources {
-    beui::FontSources {
-        proportional: vec![beui::FontSource::Memory(epaint_default_fonts::UBUNTU_LIGHT)],
-        monospace: vec![beui::FontSource::Memory(epaint_default_fonts::HACK_REGULAR)],
-        fallback: vec![beui::FontSource::Memory(
-            epaint_default_fonts::NOTO_EMOJI_REGULAR,
-        )],
-        icons: vec![beui::FontSource::Memory(beui::ICONS_FONT)],
-    }
-}
-
 pub trait BeuiApp: Default + 'static {
     fn connect(
         &mut self,

@@ -36,7 +36,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn for_region(app: A, region: Region) -> Self {
-        let context = Context::with_fonts(&block_editor_plugin::beui_fonts());
+        let context = Context::new();
         context.set_pixels_per_point(1.0);
         let mut editor = Self {
             app,

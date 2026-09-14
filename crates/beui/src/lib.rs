@@ -31,9 +31,7 @@ pub use base::{focus_within, Align, Direction, ItemSize, ScrollPosition, TextAli
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
 pub use document::Document;
-pub use font::{
-    FontFamily, FontId, FontSource, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT,
-};
+pub use font::{FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT};
 pub use geometry::{pos2, vec2, Pos2, Rect, Vec2};
 pub use input::{
     CursorIcon, Event, InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,

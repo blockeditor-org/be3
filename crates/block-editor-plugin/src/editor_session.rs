@@ -74,7 +74,7 @@ struct BeuiRegion {
 impl BeuiRegion {
     fn new() -> Self {
         Self {
-            context: beui::Context::with_fonts(&crate::beui_fonts()),
+            context: beui::Context::new(),
             events: Vec::new(),
             modifiers: beui::Modifiers::NONE,
             pointer: beui::Pos2::ZERO,

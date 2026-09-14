@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use std::ffi::CString;
 use std::ops::Range;
-use std::path::Path;
 use std::ptr;
 use std::rc::Rc;
 
@@ -190,50 +188,27 @@ struct GalleyKey {
 
 const GALLEY_CACHE_LIMIT: usize = 4096;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum FontSource {
-    File(&'static str),
-    Memory(&'static [u8]),
-}
-
 #[derive(Clone, Debug)]
 pub struct FontSources {
-    pub proportional: Vec<FontSource>,
-    pub monospace: Vec<FontSource>,
-    pub fallback: Vec<FontSource>,
-    pub icons: Vec<FontSource>,
-}
-
-impl FontSources {
-    pub fn installed() -> Self {
-        Self {
-            proportional: files(PROPORTIONAL_CANDIDATES),
-            monospace: files(MONOSPACE_CANDIDATES),
-            fallback: files(FALLBACK_CANDIDATES),
-            icons: vec![FontSource::Memory(ICONS_FONT)],
-        }
-    }
+    pub proportional: Vec<&'static [u8]>,
+    pub monospace: Vec<&'static [u8]>,
+    pub fallback: Vec<&'static [u8]>,
+    pub icons: Vec<&'static [u8]>,
 }
 
 impl Default for FontSources {
     fn default() -> Self {
-        Self::installed()
-    }
-}
-
-fn files(candidates: &[&'static str]) -> Vec<FontSource> {
-    candidates.iter().copied().map(FontSource::File).collect()
-}
-
-fn available(source: &FontSource) -> bool {
-    match source {
-        FontSource::File(path) => Path::new(path).exists(),
-        FontSource::Memory(_) => true,
+        Self {
+            proportional: vec![epaint_default_fonts::UBUNTU_LIGHT],
+            monospace: vec![epaint_default_fonts::HACK_REGULAR],
+            fallback: vec![epaint_default_fonts::NOTO_EMOJI_REGULAR],
+            icons: vec![ICONS_FONT],
+        }
     }
 }
 
 struct FaceData {
-    source: FontSource,
+    source: &'static [u8],
     face: ft::FT_Face,
     font: Owned<HbFont<'static>>,
 }
@@ -286,50 +261,35 @@ impl Fonts {
         self.icons = self.load_chain(&sources.icons);
     }
 
-    fn load_chain(&mut self, sources: &[FontSource]) -> Vec<usize> {
+    fn load_chain(&mut self, sources: &[&'static [u8]]) -> Vec<usize> {
         sources
             .iter()
-            .copied()
-            .filter(available)
             .filter_map(|source| self.load_face(source))
             .collect()
     }
 
-    fn load_face(&mut self, source: FontSource) -> Option<usize> {
-        if let Some(index) = self.faces.iter().position(|face| face.source == source) {
+    fn load_face(&mut self, source: &'static [u8]) -> Option<usize> {
+        if let Some(index) = self
+            .faces
+            .iter()
+            .position(|face| ptr::eq(face.source, source))
+        {
             return Some(index);
         }
         let mut face = ptr::null_mut();
-        let hb_face = match source {
-            FontSource::File(path) => {
-                let name = CString::new(path).ok()?;
-                unsafe {
-                    if ft::FT_New_Face(self.library, name.as_ptr(), 0, &mut face) != 0 {
-                        return None;
-                    }
-                }
-                HbFace::from_file(path, 0).ok()
+        unsafe {
+            if ft::FT_New_Memory_Face(
+                self.library,
+                source.as_ptr(),
+                source.len() as ft::FT_Long,
+                0,
+                &mut face,
+            ) != 0
+            {
+                return None;
             }
-            FontSource::Memory(bytes) => {
-                unsafe {
-                    if ft::FT_New_Memory_Face(
-                        self.library,
-                        bytes.as_ptr(),
-                        bytes.len() as ft::FT_Long,
-                        0,
-                        &mut face,
-                    ) != 0
-                    {
-                        return None;
-                    }
-                }
-                Some(HbFace::from_bytes(bytes, 0))
-            }
-        };
-        let Some(hb_face) = hb_face else {
-            unsafe { ft::FT_Done_Face(face) };
-            return None;
-        };
+        }
+        let hb_face = HbFace::from_bytes(source, 0);
         self.faces.push(FaceData {
             source,
             face,
@@ -726,37 +686,3 @@ fn pixels(bitmap: &ft::FT_Bitmap) -> Vec<u8> {
 }
 
 pub const ICONS_FONT: &[u8] = include_bytes!("../assets/icons/MaterialSymbolsRounded-Filled.ttf");
-
-const PROPORTIONAL_CANDIDATES: &[&str] = &[
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-    "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-    "/System/Library/Fonts/SFNS.ttf",
-    "/System/Library/Fonts/Supplemental/Arial.ttf",
-    "C:\\Windows\\Fonts\\segoeui.ttf",
-    "C:\\Windows\\Fonts\\arial.ttf",
-];
-
-const MONOSPACE_CANDIDATES: &[&str] = &[
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-    "/usr/share/fonts/dejavu/DejaVuSansMono.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-    "/usr/share/fonts/opentype/noto/NotoSansMono-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
-    "/System/Library/Fonts/SFNSMono.ttf",
-    "/System/Library/Fonts/Menlo.ttc",
-    "C:\\Windows\\Fonts\\consola.ttf",
-    "C:\\Windows\\Fonts\\cour.ttf",
-];
-
-const FALLBACK_CANDIDATES: &[&str] = &[
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansArabic-Regular.ttf",
-    "/usr/share/fonts/truetype/unifont/unifont.ttf",
-    "/System/Library/Fonts/PingFang.ttc",
-    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-    "C:\\Windows\\Fonts\\msyh.ttc",
-    "C:\\Windows\\Fonts\\seguisym.ttf",
-];

@@ -71,7 +71,7 @@ impl FrameOutput {
 
 impl Context {
     pub fn new() -> Self {
-        Self::with_fonts(&FontSources::installed())
+        Self::with_fonts(&FontSources::default())
     }
 
     pub fn with_fonts(sources: &FontSources) -> Self {
