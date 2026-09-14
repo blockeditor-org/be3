@@ -61,6 +61,8 @@ mod enter_toggles_the_focused_checkbox;
 mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
 mod evicting_a_virtual_scroll_row_disposes_its_effects;
 mod finding_a_node_by_its_test_id;
+mod flashing_changed_elements_outlines_the_node_that_changed;
+mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
@@ -101,6 +103,7 @@ mod tapping_a_checkbox_with_touch_toggles_it;
 mod tapping_inside_a_selection_in_a_select_search_box_opens_its_menu;
 mod tapping_inside_a_touch_selection_opens_a_menu_that_copies_it;
 mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
+mod the_frame_output_reports_the_region_whose_shapes_changed;
 mod the_inspector_follows_nodes_added_to_the_document;
 mod the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated;
 mod the_inspector_keeps_the_rows_of_nodes_that_survive_an_update;
@@ -319,6 +322,14 @@ impl Harness {
         self.node_center(self.inspector().touch_toggle_node())
     }
 
+    pub(crate) fn change_flash_toggle_center(&self) -> Pos2 {
+        self.node_center(self.inspector().change_flash_toggle_node())
+    }
+
+    pub(crate) fn damage_flash_toggle_center(&self) -> Pos2 {
+        self.node_center(self.inspector().damage_flash_toggle_node())
+    }
+
     pub(crate) fn accesskit_tab_center(&self) -> Pos2 {
         self.node_center(self.inspector().accesskit_tab_node())
     }
@@ -458,6 +469,48 @@ pub(crate) fn hello_column() -> HelloColumn {
         padding: padding.get(),
         text: text.get(),
     }
+}
+
+pub(crate) struct StackedPanels {
+    pub(crate) document: Document,
+    pub(crate) upper: NodeId,
+    pub(crate) lower: NodeId,
+}
+
+pub(crate) fn stacked_panels() -> StackedPanels {
+    let (upper, lower) = (NodeRef::new(), NodeRef::new());
+    let document = build({
+        let (upper, lower) = (upper.clone(), lower.clone());
+        move || {
+            view! {
+                <Column spacing=0.0>
+                    <Frame @node_ref=&upper height=100.0 color=Color32::WHITE radius=0 />
+                    <Frame @node_ref=&lower height=100.0 color={Color32::from_gray(40)} radius=0 />
+                </Column>
+            }
+        }
+    });
+    StackedPanels {
+        document,
+        upper: upper.get(),
+        lower: lower.get(),
+    }
+}
+
+pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32) -> bool {
+    output.shapes().iter().any(|shape| {
+        matches!(
+            shape,
+            crate::painter::Shape::Rect {
+                rect,
+                stroke_width,
+                color: painted,
+                ..
+            } if *rect == bounds
+                && *stroke_width > 0.0
+                && painted.to_array()[..3] == color.to_array()[..3]
+        )
+    })
 }
 
 pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {

@@ -13,6 +13,8 @@ use super::tree;
 const HIGHLIGHT: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 56);
 const HIGHLIGHT_MUTED: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 24);
 const OUTLINE_WIDTH: f32 = 1.0;
+const FLASH_FILL: f32 = 48.0;
+const FLASH_OUTLINE: f32 = 220.0;
 const LABEL_PADDING: f32 = 4.0;
 const LABEL_GAP: f32 = 2.0;
 
@@ -50,6 +52,24 @@ pub(crate) fn highlight(
     if strong {
         label(painter, rect, &tree::label(target, id));
     }
+}
+
+pub(crate) fn flash(painter: &Painter, rect: Rect, color: Color32, remaining: f32) {
+    if !rect.is_positive() {
+        return;
+    }
+    painter.rect_filled(rect, 0.0, faded(color, remaining * FLASH_FILL));
+    painter.rect_stroke(
+        rect,
+        0.0,
+        OUTLINE_WIDTH,
+        faded(color, remaining * FLASH_OUTLINE),
+    );
+}
+
+fn faded(color: Color32, alpha: f32) -> Color32 {
+    let [red, green, blue, _] = color.to_array();
+    Color32::from_rgba_unmultiplied(red, green, blue, alpha.round().clamp(0.0, 255.0) as u8)
 }
 
 fn label(painter: &Painter, rect: Rect, text: &str) {

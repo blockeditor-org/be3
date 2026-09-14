@@ -21,6 +21,7 @@ struct Inner {
     input: RefCell<InputState>,
     shapes: RefCell<Vec<Shape>>,
     top_shapes: RefCell<Vec<Shape>>,
+    damage: RefCell<Vec<Rect>>,
     test_ids: RefCell<HashMap<String, Rect>>,
     copied_text: RefCell<Option<String>>,
     paste_requested: Cell<bool>,
@@ -45,6 +46,7 @@ pub struct FrameOutput {
     pub repaint: bool,
     pub repaint_after: Duration,
     pub changed: bool,
+    damage: Rect,
     accessibility: Vec<Fragment>,
     pixels_per_point: f32,
 }
@@ -56,6 +58,10 @@ impl FrameOutput {
 
     pub fn pixels_per_point(&self) -> f32 {
         self.pixels_per_point
+    }
+
+    pub fn damage(&self) -> Option<Rect> {
+        self.damage.is_positive().then_some(self.damage)
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
@@ -84,6 +90,7 @@ impl Context {
                 input: RefCell::new(InputState::default()),
                 shapes: RefCell::new(Vec::new()),
                 top_shapes: RefCell::new(Vec::new()),
+                damage: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
                 copied_text: RefCell::new(None),
                 paste_requested: Cell::new(false),
@@ -106,6 +113,7 @@ impl Context {
         self.inner.input.borrow_mut().begin_frame(raw);
         self.inner.shapes.borrow_mut().clear();
         self.inner.top_shapes.borrow_mut().clear();
+        self.inner.damage.borrow_mut().clear();
         self.inner.test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste_requested.set(false);
@@ -125,8 +133,12 @@ impl Context {
         if changed {
             *previous = Some((shapes.clone(), scale));
         }
+        let damage = std::mem::take(&mut *self.inner.damage.borrow_mut())
+            .into_iter()
+            .fold(Rect::NOTHING, |region, rect| region.union(rect));
         FrameOutput {
             shapes,
+            damage,
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
             copied_text: self.inner.copied_text.borrow_mut().take(),
             paste_requested: self.inner.paste_requested.replace(false),
@@ -195,6 +207,12 @@ impl Context {
         let delay = self.inner.repaint_after.get();
         self.request_repaint_after(previous_delay);
         (self.inner.shapes.borrow_mut().split_off(start), delay)
+    }
+
+    pub(crate) fn report_damage(&self, rect: Rect) {
+        if rect.is_positive() {
+            self.inner.damage.borrow_mut().push(rect);
+        }
     }
 
     pub(crate) fn extend(&self, shapes: &[Shape]) {
@@ -266,6 +284,7 @@ impl Context {
             .input
             .replace_with(|input| input.scaled(scale.recip()));
         let shapes = self.inner.shapes.borrow().len();
+        let damage = self.inner.damage.borrow().len();
         let fragments = self.inner.accessibility.borrow().len();
         let test_ids = self.inner.test_ids.take();
         let result = content();
@@ -273,6 +292,9 @@ impl Context {
         self.inner.pixels_per_point.set(pixels_per_point);
         for shape in self.inner.shapes.borrow_mut().iter_mut().skip(shapes) {
             scale_shape(shape, scale);
+        }
+        for rect in self.inner.damage.borrow_mut().iter_mut().skip(damage) {
+            *rect = rect.scaled(scale);
         }
         for fragment in self
             .inner
