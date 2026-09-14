@@ -16,8 +16,6 @@ members = [
     "crates/tabletop_games/rules/connect_four",
     "crates/tabletop_games/rules/crazy_8s",
     "crates/tabletop_games/rules/tic_tac_toe",
-    "crates/citygame",
-    "crates/citygenerator",
     "crates/logicgame",
     "crates/cvl2",
     "crates/editors/audio_block",
