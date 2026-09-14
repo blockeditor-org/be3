@@ -212,6 +212,13 @@ impl Rect {
         )
     }
 
+    pub fn intersects(&self, other: Self) -> bool {
+        self.min.x < other.max.x
+            && other.min.x < self.max.x
+            && self.min.y < other.max.y
+            && other.min.y < self.max.y
+    }
+
     pub fn is_positive(&self) -> bool {
         self.min.x < self.max.x && self.min.y < self.max.y
     }

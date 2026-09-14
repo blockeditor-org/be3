@@ -1,5 +1,8 @@
 use super::*;
 
+mod a_canvas_lays_out_only_the_items_the_view_can_see;
+mod a_canvas_places_its_items_at_the_view_it_is_given;
+mod a_canvas_without_a_view_places_its_items_from_its_own_corner;
 mod a_closure_child_receives_the_handle_its_slot_hands_over;
 mod a_component_function_returns_its_base_node;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;

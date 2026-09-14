@@ -38,6 +38,7 @@ members = [
     "crates/editors/logic_grid",
     "crates/editors/map",
     "crates/editors/paint_review",
+    "crates/editors/pan_zoom",
     "crates/editors/pdf",
     "crates/editors/pixel_art",
     "crates/editors/pixel_ray_tracer",

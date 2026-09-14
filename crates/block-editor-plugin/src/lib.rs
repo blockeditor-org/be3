@@ -30,8 +30,8 @@ pub use block_plugin_api::{
 };
 pub use block_ui;
 pub use host::{
-    Artifact, ArtifactDescription, BlockDrag, BlockPicker, BlockSource, ChildHandle, EditorHost,
-    FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster, PastedImage,
+    Artifact, ArtifactDescription, BeuiView, BlockDrag, BlockPicker, BlockSource, ChildHandle,
+    EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster, PastedImage,
     PerformanceMeasurementGuard, PerformanceReporter, PickedBlock, PickedFile, Task, Waker,
 };
 

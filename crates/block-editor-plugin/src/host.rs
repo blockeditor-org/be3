@@ -349,6 +349,76 @@ struct View {
     scale: f32,
 }
 
+#[derive(Clone, Copy)]
+struct BeuiFrame {
+    ratio: f32,
+    chrome: bool,
+    content: Option<beui::Rect>,
+}
+
+impl Default for BeuiFrame {
+    fn default() -> Self {
+        Self {
+            ratio: 1.0,
+            chrome: true,
+            content: None,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct BeuiView {
+    host: EditorHost,
+}
+
+impl BeuiView {
+    pub fn rect(&self) -> Option<beui::Rect> {
+        let ratio = self.host.beui.get().ratio;
+        self.host.view().map(|rect| beui_rect(rect, ratio))
+    }
+
+    pub fn scale(&self) -> f32 {
+        self.host.view_scale().unwrap_or(1.0)
+    }
+
+    pub fn canvas(&self) -> Option<beui::reactive::CanvasView> {
+        let scale = self.scale();
+        self.rect()
+            .map(|rect| beui::reactive::CanvasView::new(rect.min, scale))
+    }
+
+    pub fn pan(&self, delta: beui::Vec2) {
+        let ratio = self.host.beui.get().ratio;
+        self.host
+            .pan_view(egui::vec2(delta.x / ratio, delta.y / ratio));
+    }
+
+    pub fn zoom(&self, factor: f32, anchor: Option<beui::Pos2>) {
+        let ratio = self.host.beui.get().ratio;
+        self.host.zoom_view(
+            factor,
+            anchor.map(|anchor| egui::pos2(anchor.x / ratio, anchor.y / ratio)),
+        );
+    }
+
+    pub fn fit(&self) {
+        self.host.fit_view();
+    }
+
+    pub fn set_content(&self, rect: beui::Rect) {
+        let mut frame = self.host.beui.get();
+        frame.content = Some(rect);
+        self.host.beui.set(frame);
+    }
+}
+
+fn beui_rect(rect: egui::Rect, ratio: f32) -> beui::Rect {
+    beui::Rect::from_min_max(
+        beui::pos2(rect.min.x * ratio, rect.min.y * ratio),
+        beui::pos2(rect.max.x * ratio, rect.max.y * ratio),
+    )
+}
+
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
@@ -395,6 +465,7 @@ pub struct EditorHost {
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     presence_publications: Rc<RefCell<Vec<PresencePublication>>>,
     hidden_bands: Rc<RefCell<HashSet<EditorBand>>>,
+    beui: Rc<Cell<BeuiFrame>>,
 }
 
 impl EditorHost {
@@ -768,6 +839,20 @@ impl EditorHost {
         !self.hidden_bands.borrow().contains(&band)
     }
 
+    pub fn beui_view(&self) -> BeuiView {
+        BeuiView { host: self.clone() }
+    }
+
+    pub fn chrome_shown(&self) -> bool {
+        self.beui.get().chrome
+    }
+
+    pub fn set_chrome_shown(&self, chrome: bool) {
+        let mut frame = self.beui.get();
+        frame.chrome = chrome;
+        self.beui.set(frame);
+    }
+
     pub fn presenting(&self) -> bool {
         self.presenting.get()
     }
@@ -891,6 +976,31 @@ impl EditorHost {
 
     pub fn set_view(&self, view: egui::Rect, scale: f32) {
         self.view.set(Some(View { rect: view, scale }));
+    }
+
+    pub fn set_beui_view(&self, view: beui::Rect, scale: f32) {
+        let ratio = self.beui.get().ratio;
+        let origin = self.region.get().origin;
+        let rect = egui::Rect::from_min_max(
+            egui::pos2(view.min.x / ratio, view.min.y / ratio),
+            egui::pos2(view.max.x / ratio, view.max.y / ratio),
+        );
+        self.set_view(rect.translate(-origin), scale);
+    }
+
+    pub fn begin_beui_frame(&self, ratio: f32, chrome: bool) {
+        self.beui.set(BeuiFrame {
+            ratio,
+            chrome,
+            content: None,
+        });
+    }
+
+    pub fn take_beui_content(&self) -> Option<beui::Rect> {
+        let mut frame = self.beui.get();
+        let content = frame.content.take();
+        self.beui.set(frame);
+        content
     }
 
     pub fn take_view_changes(&self) -> Vec<ViewChange> {

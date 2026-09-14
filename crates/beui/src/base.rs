@@ -1,3 +1,4 @@
+pub(crate) mod canvas;
 pub(crate) mod click_catcher;
 pub(crate) mod focusable;
 pub(crate) mod frame;

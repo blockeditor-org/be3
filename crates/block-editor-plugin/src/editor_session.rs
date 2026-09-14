@@ -1065,12 +1065,19 @@ impl EditorSession {
             .and_then(|state| state.frame.clone())
             .unwrap_or_default();
         let creating = self.creating;
+        let ratio = {
+            let beui = self.beui.as_mut()?;
+            let state = beui.entry(region).or_insert_with(BeuiRegion::new);
+            state.context.set_pixels_per_point(scale_factor);
+            scale_factor / state.context.pixels_per_point()
+        };
+        self.host.begin_region(region, host.min.to_vec2());
+        self.host
+            .begin_beui_frame(ratio, spec.chrome == FrameChrome::Drawn);
         let beui = self.beui.as_mut()?;
         let state = beui.entry(region).or_insert_with(BeuiRegion::new);
         let events = std::mem::take(&mut state.events);
         let context = state.context.clone();
-        context.set_pixels_per_point(scale_factor);
-        let ratio = scale_factor / context.pixels_per_point();
         let rect = scaled(host, ratio);
 
         let frame = beui::Rect::from_min_max(
@@ -1114,6 +1121,12 @@ impl EditorSession {
         self.used(region, host);
         let reported =
             |rect: beui::Rect| plugin_rect(scaled(egui_rect(rect), ratio.recip()), origin);
+        let reported_content = self
+            .host
+            .take_beui_content()
+            .map(|content| content.intersect(chrome.content))
+            .filter(|content| content.is_positive())
+            .unwrap_or(chrome.content);
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
             state.cursor = match context.touch_emulation() {
                 true => CursorIcon::Crosshair,
@@ -1121,7 +1134,7 @@ impl EditorSession {
             };
             state.report = (region == EditorRegion::Frame).then(|| FrameReport {
                 screen,
-                content: reported(chrome.content),
+                content: reported(reported_content),
                 painted: chrome.painted.iter().map(|rect| reported(*rect)).collect(),
                 floating: Vec::new(),
             });

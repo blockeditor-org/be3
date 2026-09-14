@@ -48,6 +48,7 @@ block_types! {
     map::Map;
     paint_review::PaintReview;
     paint_snapshot::PaintSnapshot;
+    pan_zoom::PanZoom;
     pdf::Pdf;
     pixel_art::PixelArt;
     pixel_ray_tracer::PixelRayTracer;
