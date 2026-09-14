@@ -1110,23 +1110,7 @@ impl EditorSession {
             EditorRegion::Frame => {
                 let drawn = spec.chrome == FrameChrome::Drawn;
                 let shown = beui_frame::show(context, frame, &spec.trail, drawn);
-                let content = match spec.content {
-                    Some(content) => {
-                        let content = scaled(host_rect(content, host.min.to_vec2()), ratio);
-                        beui::Rect::from_min_max(
-                            beui::pos2(
-                                content.min.x.max(shown.content.min.x),
-                                content.min.y.max(shown.content.min.y),
-                            ),
-                            beui::pos2(
-                                content.max.x.min(shown.content.max.x),
-                                content.max.y.min(shown.content.max.y),
-                            ),
-                        )
-                    }
-                    None => shown.content,
-                };
-                app.beui_frame(context, content);
+                app.beui_frame(context, shown.content);
                 chrome = Some(shown);
             }
             EditorRegion::Preview => app.beui_preview(context, frame),
@@ -1605,3 +1589,6 @@ fn wheel_unit(unit: WheelUnit) -> egui::MouseWheelUnit {
         WheelUnit::Pages => egui::MouseWheelUnit::Page,
     }
 }
+
+#[cfg(test)]
+mod tests;
