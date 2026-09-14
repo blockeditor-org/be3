@@ -27,22 +27,16 @@ fn editor() -> (BeuiTest<PanZoomApp>, EditorHost) {
 }
 
 fn shown(editor: &mut BeuiTest<PanZoomApp>, test_id: &str) -> String {
-    let app = editor.app();
-    let ui = app.ui().expect("the ui is not open yet");
-    let node = ui
+    let node = editor
         .document()
         .find_test_id(test_id)
         .unwrap_or_else(|| panic!("no node with test id {test_id:?}"));
-    ui.document()
+    editor
+        .document()
         .node_detail(node)
         .expect("the node has no text")
 }
 
 fn canvas(editor: &mut BeuiTest<PanZoomApp>) -> Rect {
-    editor
-        .app()
-        .ui()
-        .expect("the ui is not open yet")
-        .canvas_rect()
-        .expect("the canvas was not laid out")
+    editor.app().canvas().expect("the canvas was not laid out")
 }

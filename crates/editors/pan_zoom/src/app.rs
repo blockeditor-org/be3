@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use block_client::blocks::pan_zoom::PanZoom as PanZoomBlock;
 use block_editor_plugin::EditorHost;
-use block_editor_plugin::beui::{Context, Rect, Vec2};
+use block_editor_plugin::beui::{Document, NodeId, Rect, Vec2};
 
 mod ui;
 
@@ -19,8 +19,8 @@ pub struct PanZoomApp {
 }
 
 impl PanZoomApp {
-    pub fn ui(&self) -> Option<&PanZoomUi> {
-        self.ui.as_ref()
+    pub fn canvas(&self) -> Option<Rect> {
+        self.viewport.as_ref().map(|viewport| viewport.canvas.get())
     }
 }
 
@@ -59,7 +59,6 @@ impl block_editor_plugin::BeuiApp for PanZoomApp {
             host: host.clone(),
             canvas: Cell::new(Rect::ZERO),
         });
-        self.ui = Some(PanZoomUi::new(viewport.clone()));
         self.viewport = Some(viewport);
         self.host = Some(host);
     }
@@ -80,17 +79,32 @@ impl block_editor_plugin::BeuiApp for PanZoomApp {
         Some(ui::world_size())
     }
 
-    fn frame(&mut self, context: &Context, rect: Rect) {
-        let (Some(host), Some(ui), Some(viewport)) =
-            (self.host.as_ref(), self.ui.as_mut(), self.viewport.as_ref())
-        else {
+    fn view(&mut self) -> NodeId {
+        let viewport = self
+            .viewport
+            .clone()
+            .expect("connect is called before view is built");
+        let (ui, root) = PanZoomUi::new(viewport);
+        self.ui = Some(ui);
+        root
+    }
+
+    fn update(&mut self) {
+        let (Some(host), Some(ui)) = (self.host.as_ref(), self.ui.as_mut()) else {
             return;
         };
         let view = host.beui_view();
         ui.set_view(view.canvas(), view.scale(), host.chrome_shown());
-        ui.show(context, rect);
-        let canvas = ui.canvas_rect().unwrap_or(rect);
+    }
+
+    fn after_layout(&mut self, document: &Document) {
+        let (Some(host), Some(ui), Some(viewport)) =
+            (self.host.as_ref(), self.ui.as_ref(), self.viewport.as_ref())
+        else {
+            return;
+        };
+        let canvas = ui.canvas_rect(document).unwrap_or(viewport.canvas.get());
         viewport.canvas.set(canvas);
-        view.set_content(canvas);
+        host.beui_view().set_content(canvas);
     }
 }

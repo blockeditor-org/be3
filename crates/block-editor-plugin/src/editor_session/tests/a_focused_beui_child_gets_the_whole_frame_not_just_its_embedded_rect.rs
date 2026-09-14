@@ -1,16 +1,14 @@
 use super::*;
-use std::cell::Cell;
-
-thread_local! {
-    static LAST_RECT: Cell<Option<beui::Rect>> = const { Cell::new(None) };
-}
+use beui::reactive::{Frame, view};
 
 #[derive(Default)]
 struct RecordingApp;
 
 impl crate::BeuiApp for RecordingApp {
-    fn frame(&mut self, _context: &beui::Context, rect: beui::Rect) {
-        LAST_RECT.with(|cell| cell.set(Some(rect)));
+    fn view(&mut self) -> beui::NodeId {
+        view! {
+            <Frame />
+        }
     }
 }
 
@@ -59,14 +57,15 @@ fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
 
     session.run_beui(EditorRegion::Frame, 1);
 
-    let rect = LAST_RECT
-        .with(|cell| cell.get())
-        .expect("the beui app's frame() was never called");
+    let report = session
+        .regions
+        .get(&EditorRegion::Frame)
+        .and_then(|state| state.report.as_ref())
+        .expect("the frame region reports its content rect");
 
-    assert_eq!(rect.min.x, 0.0);
-    assert_eq!(rect.max.x, 800.0);
     assert!(
-        rect.height() > 400.0,
-        "expected the child to be given close to the full viewport height, got {rect:?}"
+        report.content.width > 400.0,
+        "expected the child's own content to span close to the full viewport width, got {:?}",
+        report.content
     );
 }

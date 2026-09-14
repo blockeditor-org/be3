@@ -7,7 +7,7 @@ use block_editor_plugin::beui::reactive::{
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Card, Heading, Paragraph, use_theme,
 };
-use block_editor_plugin::beui::{Color32, Context, Document, NodeId, Rect, TextAlign};
+use block_editor_plugin::beui::{Context, Document, NodeId, Rect, TextAlign};
 use game_api::{GameActionOption, GameScreen};
 
 const PAGE_PADDING: f32 = 24.0;
@@ -89,54 +89,35 @@ impl GameSnapshot {
 }
 
 pub struct GameUi {
-    document: Document,
     set_snapshot: WriteSignal<GameSnapshot>,
 }
 
 impl GameUi {
-    pub(super) fn new(game: Rc<dyn GameModel>, initial: GameSnapshot) -> Self {
+    pub(super) fn new(game: Rc<dyn GameModel>, initial: GameSnapshot) -> (Self, NodeId) {
         let (snapshot, set_snapshot) = create_signal(initial);
-        let document = build(move || {
-            let theme = use_theme();
-            view! {
-                <Frame
-                    color={theme.background.clone()}
-                    padding_horizontal=PAGE_PADDING
-                    padding_vertical=PAGE_PADDING
+        let theme = use_theme();
+        let root = view! {
+            <Frame
+                color={theme.background.clone()}
+                padding_horizontal=PAGE_PADDING
+                padding_vertical=PAGE_PADDING
+            >
+                <Keyed
+                    value={snapshot}
+                    key={|snapshot: GameSnapshot| snapshot.shape()}
+                    item_size=ItemSize::Percent(100.0)
                 >
-                    <Keyed
-                        value={snapshot}
-                        key={|snapshot: GameSnapshot| snapshot.shape()}
-                        item_size=ItemSize::Percent(100.0)
-                    >
-                        {move |snapshot: ReadSignal<GameSnapshot>| {
-                            game_view(game.clone(), snapshot)
-                        }}
-                    </Keyed>
-                </Frame>
-            }
-        });
-        Self {
-            document,
-            set_snapshot,
-        }
-    }
-
-    pub fn document(&self) -> &Document {
-        &self.document
-    }
-
-    pub fn background(&self) -> Color32 {
-        self.document.theme().background
+                    {move |snapshot: ReadSignal<GameSnapshot>| {
+                        game_view(game.clone(), snapshot)
+                    }}
+                </Keyed>
+            </Frame>
+        };
+        (Self { set_snapshot }, root)
     }
 
     pub(super) fn set_snapshot(&mut self, snapshot: GameSnapshot) {
-        let set_snapshot = self.set_snapshot.clone();
-        with_reactive_scope(&mut self.document, move || set_snapshot.set(snapshot));
-    }
-
-    pub(super) fn show(&mut self, context: &Context, rect: Rect) {
-        self.document.show(context, rect);
+        self.set_snapshot.set(snapshot);
     }
 }
 

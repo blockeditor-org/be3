@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use block_client::blocks::checklist::{Checklist, ChecklistOperation};
 use block_editor_plugin::EditorHost;
-use block_editor_plugin::beui::{Context, Rect};
+use block_editor_plugin::beui::NodeId;
 use block_reactive::BlockSource;
 use uuid::Uuid;
 
@@ -82,14 +82,19 @@ impl block_editor_plugin::BeuiApp for ChecklistApp {
         Ok(client.create_block(Checklist::default()).id())
     }
 
-    fn frame(&mut self, context: &Context, rect: Rect) {
-        let Some(checklist) = self.checklist.clone() else {
-            return;
-        };
-        let ui = self
-            .ui
-            .get_or_insert_with(|| ChecklistUi::new(checklist.clone()));
-        ui.pump();
-        ui.show(context, rect);
+    fn view(&mut self) -> NodeId {
+        let checklist = self
+            .checklist
+            .clone()
+            .expect("connect is called before view is built");
+        let (ui, root) = ChecklistUi::new(checklist);
+        self.ui = Some(ui);
+        root
+    }
+
+    fn update(&mut self) {
+        if let Some(checklist) = &self.checklist {
+            checklist.source().pump();
+        }
     }
 }

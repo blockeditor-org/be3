@@ -1,48 +1,25 @@
 use std::rc::Rc;
 
 use block_client::blocks::counter::Counter;
+use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, Frame, ItemSize, build, clone, create_memo, view, with_reactive_scope,
+    CenteredRow, Column, Frame, ItemSize, clone, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Display, use_theme};
-use block_editor_plugin::beui::{Color32, Context, Document, NodeId, Rect};
 
 use super::CounterEditor;
 
 const PADDING: f32 = 20.0;
 const BUTTON_WIDTH: f32 = 44.0;
 
-pub struct CounterUi {
-    document: Document,
-    counter: Rc<CounterEditor>,
-}
+pub struct CounterUi;
 
 impl CounterUi {
-    pub(super) fn new(counter: Rc<CounterEditor>) -> Self {
-        let root = counter.clone();
-        let document = build(move || {
-            view! {
-                <CounterView counter={root} />
-            }
-        });
-        Self { document, counter }
-    }
-
-    pub fn document(&self) -> &Document {
-        &self.document
-    }
-
-    pub fn background(&self) -> Color32 {
-        self.document.theme().background
-    }
-
-    pub(super) fn pump(&mut self) {
-        let source = self.counter.source().clone();
-        with_reactive_scope(&mut self.document, move || source.pump());
-    }
-
-    pub(super) fn show(&mut self, context: &Context, rect: Rect) {
-        self.document.show(context, rect);
+    pub(super) fn new(counter: Rc<CounterEditor>) -> (Self, NodeId) {
+        let root = view! {
+            <CounterView counter={counter} />
+        };
+        (Self, root)
     }
 }
 
