@@ -576,7 +576,7 @@ impl PluginEditor {
                 },
             );
             if !rendered {
-                paint_block_fallback(&painter, child.rect, None, editors);
+                paint_block_fallback(&painter, child.rect, child.block_id, editors);
             }
         } else if available && child.frame_owner && editors.is_frame_child(ui.ctx(), child.block_id)
         {

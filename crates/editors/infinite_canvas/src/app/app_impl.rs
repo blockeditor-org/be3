@@ -391,11 +391,9 @@ impl InfiniteCanvasEditor {
             let Some(block_id) = self.resolve_block_id(editors, block_id) else {
                 continue;
             };
-            let interaction = editors
-                .direct_editor_interaction(block_id)
-                .unwrap_or(DirectEditorInteraction::Preview);
+            let interaction = editors.direct_editor_interaction(block_id);
             let is_focused = self.focused_editor == Some(entity.id);
-            if interaction == DirectEditorInteraction::Preview && !is_focused {
+            if shows_preview(interaction, is_focused) {
                 continue;
             }
             let screen = direct_editor_layout(entity)
@@ -403,7 +401,7 @@ impl InfiniteCanvasEditor {
                 .unwrap_or_else(|| screen_rect(self, entity_bounds(entity), canvas_rect));
             let visible_screen = screen.intersect(canvas_clip_rect);
             direct_editor_rects.push(visible_screen);
-            if interaction == DirectEditorInteraction::Live
+            if interaction == Some(DirectEditorInteraction::Live)
                 && ui.ctx().input(|input| {
                     input.pointer.button_pressed(PointerButton::Primary)
                         && input

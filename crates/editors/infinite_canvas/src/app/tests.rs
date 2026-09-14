@@ -48,6 +48,7 @@ fn entities(block: &BlockHandle<InfiniteCanvas>) -> Vec<CanvasEntity> {
         .to_vec()
 }
 
+mod a_direct_editor_is_placed_live_until_the_host_calls_it_preview_only;
 mod attaching_component_fills_only_missing_selected_entities;
 mod removing_component_deletes_its_values_from_all_selected_entities;
 mod replacing_a_referenced_block_rewrites_the_entity;

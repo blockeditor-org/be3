@@ -260,6 +260,10 @@ impl ChildHandle {
         self.status.as_ref().is_some_and(|status| status.active)
     }
 
+    pub fn reported(&self) -> bool {
+        self.status.is_some()
+    }
+
     pub fn interaction(&self) -> InteractionMode {
         self.status
             .as_ref()

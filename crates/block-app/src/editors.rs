@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use block::{BlockAccess, BlockParent, BlockReference};
+use block::{BlockAccess, BlockParent};
 use block_client::{
     BlockClient, BlockHandleAccess, BlockHistoryHandle, BlockRelationships,
     blocks::{self, workspace_index::BlockEntry},
@@ -180,7 +180,7 @@ fn rect_corners(rect: egui::Rect) -> [egui::Pos2; 4] {
 fn paint_block_fallback(
     painter: &egui::Painter,
     rect: egui::Rect,
-    reference: Option<&BlockReference>,
+    block_id: Uuid,
     editors: &EditorAccess<'_>,
 ) {
     painter.rect_filled(rect, 5.0, egui::Color32::from_gray(28));
@@ -190,7 +190,10 @@ fn paint_block_fallback(
         egui::Stroke::new(1.0_f32, egui::Color32::from_gray(75)),
         egui::StrokeKind::Inside,
     );
-    let label = reference.map(|reference| BlockLabel::for_reference(editors.registry(), reference));
+    let label = editors
+        .client
+        .cached_block(block_id)
+        .map(|cached| BlockLabel::for_cached(editors.registry(), &cached));
     let center = rect.center();
     if let Some(icon) = label.as_ref().and_then(|label| label.icon) {
         painter.text(

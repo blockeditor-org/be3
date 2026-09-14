@@ -19,10 +19,14 @@ pub(crate) struct DirectEditorCapabilities {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ChildInfo {
     pub active: bool,
-    pub interaction: DirectEditorInteraction,
+    pub interaction: Option<DirectEditorInteraction>,
     pub capabilities: DirectEditorCapabilities,
     pub resize: DirectEditorResize,
     pub intrinsic: Option<egui::Vec2>,
+}
+
+pub(crate) fn shows_preview(interaction: Option<DirectEditorInteraction>, focused: bool) -> bool {
+    !focused && interaction == Some(DirectEditorInteraction::Preview)
 }
 
 #[derive(Default)]
@@ -78,7 +82,7 @@ impl Access {
     }
 
     pub(crate) fn direct_editor_interaction(&self, id: Uuid) -> Option<DirectEditorInteraction> {
-        self.info(id).map(|info| info.interaction)
+        self.info(id)?.interaction
     }
 
     pub(crate) fn direct_editor_capabilities(&self, id: Uuid) -> Option<DirectEditorCapabilities> {
@@ -199,7 +203,7 @@ impl Access {
             block_id,
             ChildInfo {
                 active: handle.active(),
-                interaction: handle.interaction(),
+                interaction: handle.reported().then(|| handle.interaction()),
                 capabilities: DirectEditorCapabilities {
                     allow_rotation: handle.capabilities().rotation,
                     preserve_aspect_ratio: handle.capabilities().preserve_aspect_ratio,

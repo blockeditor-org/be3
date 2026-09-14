@@ -202,9 +202,10 @@ pub(super) fn paint_entity(
             ];
             let resolved_id = editor.peek_block_id(*block_id);
             let preview = !live_editor_overlay
-                || (resolved_id.and_then(|id| editors.direct_editor_interaction(id))
-                    == Some(DirectEditorInteraction::Preview)
-                    && editor.focused_editor != Some(entity.id));
+                || shows_preview(
+                    resolved_id.and_then(|id| editors.direct_editor_interaction(id)),
+                    editor.focused_editor == Some(entity.id),
+                );
             let rendered = preview
                 && resolved_id.is_some_and(|id| editors.render(ui, id, content_corners, opacity));
             if preview && !rendered {

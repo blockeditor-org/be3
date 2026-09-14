@@ -53,7 +53,7 @@ use uuid::Uuid;
 
 use block_client::references;
 
-use crate::access::{Access, Children, DirectEditorInteraction, DirectEditorResize};
+use crate::access::{Access, Children, DirectEditorInteraction, DirectEditorResize, shows_preview};
 use crate::images::{image_filter, imported_image};
 use crate::viewport::Viewport as DirectEditorViewport;
 
