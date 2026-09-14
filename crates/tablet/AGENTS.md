@@ -1,1 +1,0 @@
-Optimize UI in crates/tablet for a grayscale e-ink display, preferring solid black and solid white colors.
