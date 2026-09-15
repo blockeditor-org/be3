@@ -20,6 +20,12 @@ env:
   # handed one that is not. Every job takes the write key from here, so any run
   # that has the secret fills the cache for the ones that don't: a pull request
   # from a fork sees an empty value and reads the same cache read-only.
+  #
+  # That store is the only compilation cache these jobs have, and Swatinem's
+  # target/ cache was dropped for it rather than kept beside it: this workflow
+  # never runs on main, and a GitHub Actions cache written on a pull request's
+  # branch can only be read back from that same branch, so nothing here ever
+  # wrote a key another run could restore.
   BUNNY_SCCACHE_PASSWORD: ${{ secrets.BUNNY_SCCACHE_PASSWORD }}
 
 jobs:
@@ -57,13 +63,6 @@ jobs:
           targets: wasm32-unknown-unknown, wasm32-wasip1-threads
 
       - uses: ./.github/actions/sccache
-
-      # Keyed to the LLVM version for the same reason as the web job: the C
-      # objects in target/ are built by whichever clang the scripts pick,
-      # which cargo cannot see a change in.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: llvm-20
 
       - uses: taiki-e/install-action@v2
         with:
@@ -114,15 +113,6 @@ jobs:
           targets: wasm32-unknown-unknown, wasm32-wasip1-threads
 
       - uses: ./.github/actions/sccache
-
-      # CC_wasm32_wasip1 names the compiler as plain "clang", resolved through
-      # PATH, so a cached target/ from a run with a different LLVM on PATH
-      # looks unchanged to cargo's own rebuild detection and gets reused as
-      # is. Keying the cache to the LLVM version forces a clean rebuild
-      # whenever that version changes instead of silently linking old objects.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: llvm-20
 
       # The build script installs this itself when it is missing; a prebuilt one
       # is much faster. The version has to match the wasm-bindgen crate.
@@ -199,13 +189,6 @@ jobs:
           targets: aarch64-linux-android, wasm32-wasip1-threads, wasm32-unknown-unknown
 
       - uses: ./.github/actions/sccache
-
-      # Keyed to the LLVM version for the same reason as the web job: the C
-      # objects in target/ are built by whichever "clang" PATH resolves to,
-      # which cargo cannot see a change in.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: llvm-20
 
       - name: Cache the WASI sysroot
         uses: actions/cache@v6
@@ -340,7 +323,6 @@ jobs:
       # neither toolchain ships llvm-ar. The Windows runners come with an LLVM
       # on PATH already.
       - name: Install LLVM
-        id: llvm
         if: matrix.client && runner.os != 'Windows'
         shell: bash
         run: |
@@ -353,7 +335,6 @@ jobs:
             bin=/usr/lib/llvm-20/bin
           fi
           echo "$bin" >> "$GITHUB_PATH"
-          echo "version=$("$bin/llvm-config" --version)" >> "$GITHUB_OUTPUT"
 
       # That LLVM goes on the front of PATH, where it also becomes the "clang"
       # the cc crate picks for the host target. Name Apple's explicitly for
@@ -371,13 +352,6 @@ jobs:
           targets: ${{ matrix.target }}
 
       - uses: ./.github/actions/sccache
-
-      # Keyed to the LLVM version for the same reason as the web job: the C
-      # objects in target/ are built by whichever "clang" PATH resolves to,
-      # which cargo cannot see a change in.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}-llvm-${{ steps.llvm.outputs.version }}
 
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
