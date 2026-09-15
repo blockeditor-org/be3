@@ -671,7 +671,7 @@ pub fn Dynamic<T>(
     #[prop(children)] view: Option<RenderFn<T>>,
 ) -> NodeId
 where
-    T: Clone + Default + 'static,
+    T: Clone + 'static,
 {
     let view = view.expect("dynamic requires a `view` callback");
     let parent = view! {
@@ -747,7 +747,7 @@ pub fn Keyed<T, K>(
     #[prop(children)] view: Option<RenderFn<ReadSignal<T>>>,
 ) -> NodeId
 where
-    T: Clone + Default + PartialEq + 'static,
+    T: Clone + PartialEq + 'static,
     K: PartialEq + 'static,
 {
     let key = key.expect("keyed requires a `key` callback");
@@ -780,7 +780,11 @@ where
 }
 
 #[component]
-pub fn Button(children: Children, disabled: Prop<bool>, on_click: ClickCallback) -> NodeId {
+pub fn Button(
+    children: Children,
+    #[prop(default = false)] disabled: Prop<bool>,
+    on_click: ClickCallback,
+) -> NodeId {
     view! {
         <unstyled::Button disabled on_click={move || on_click.call()} children />
     }

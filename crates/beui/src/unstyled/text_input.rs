@@ -110,7 +110,7 @@ type Handle = Rc<RefCell<Editor>>;
 #[component]
 pub fn TextInput(
     value: Prop<String>,
-    focused: Prop<bool>,
+    #[prop(default = false)] focused: Prop<bool>,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
     #[prop(default = FONT_SIZE)] font_size: Prop<f32>,
@@ -119,7 +119,7 @@ pub fn TextInput(
     selection_color: Prop<Color32>,
     caret_color: Prop<Color32>,
     padding_horizontal: Prop<f32>,
-    padding_vertical: Prop<f32>,
+    #[prop(default = 0.0)] padding_vertical: Prop<f32>,
     #[prop(default = TextInputMenu::default())] menu: TextInputMenu,
     on_change: Callback<String>,
     on_submit: Callback<String>,

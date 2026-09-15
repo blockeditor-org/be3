@@ -687,7 +687,7 @@ pub fn VirtualList(
     count: Prop<usize>,
     item_height: Prop<f32>,
     #[prop(children)] item: Option<RenderFn<usize>>,
-    focus_color: Prop<Color32>,
+    #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     on_change: Callback<ScrollPosition>,
 ) -> NodeId {
     let scroll = create_scroll(focus_color, on_change);
@@ -708,9 +708,9 @@ pub fn VirtualList(
 
 #[component]
 pub fn Scroll(
-    offset: Prop<f32>,
-    reveal: Prop<Option<usize>>,
-    focus_color: Prop<Color32>,
+    #[prop(default = 0.0)] offset: Prop<f32>,
+    #[prop(default = None)] reveal: Prop<Option<usize>>,
+    #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     on_change: Callback<ScrollPosition>,
     children: Children,
 ) -> NodeId {

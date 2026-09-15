@@ -234,7 +234,10 @@ impl Document {
 }
 
 #[component]
-pub fn Canvas(view: Prop<Option<CanvasView>>, children: Children) -> NodeId {
+pub fn Canvas(
+    #[prop(default = None)] view: Prop<Option<CanvasView>>,
+    children: Children,
+) -> NodeId {
     let canvas = with_document(Document::create_canvas);
     with_document(|document| {
         for (item, _) in children.into_items() {
