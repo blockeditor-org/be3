@@ -8,8 +8,8 @@
 # dependencies are all fetched from the internet.
 #
 # It finishes by compiling everything ./scripts/verify needs, which is most of
-# what setting a machine up costs. Verify on a cold target directory spends a
-# quarter of an hour building before the first test runs and well under a
+# what setting a machine up costs. Verify on a cold target directory spends
+# over ten minutes building before the first test runs and well under a
 # minute once it has been built once, so the wait belongs here, where a machine
 # is being prepared anyway, rather than in the first check someone runs.
 # --no-warm-cache leaves it out for a machine that only wants the prerequisites.

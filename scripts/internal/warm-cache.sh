@@ -4,11 +4,14 @@
 #
 # Verify is only slow the first time. On a machine whose target directory is
 # already populated it finishes in well under a minute; on a fresh checkout it
-# spends a quarter of an hour compiling before the first test runs, because
+# spends over ten minutes compiling before the first test runs, because
 # every phase of it wants a different set of artifacts: clippy wants the
 # workspace checked with every feature on, the test phase wants it built for
-# real, and the plugin phase wants a WASI sysroot, an optimised runner and
-# every plugin's tests compiled to wasm and handed to Cranelift.
+# real, and the plugin phase wants a WASI sysroot and every plugin's tests
+# compiled to wasm and handed to Cranelift. The runner Cranelift comes in is
+# the one thing it does not add to the pile: it is built from what the test
+# phase leaves behind, so it has to be warmed after that phase rather than
+# before it.
 #
 # This builds all of that and stops there. ./scripts/setup runs it so the
 # waiting happens once, while the machine is being prepared, rather than in the

@@ -50,10 +50,23 @@ load_plugins
 
 # The runner is what nextest starts in place of each test binary: it hands the
 # module to wasmtime with a plugin's imports linked, and opens a graphics
-# device only if a test calls the gpu abi. It is built optimised
-# because a debug Cranelift spends minutes on a module this size.
-cargo build --quiet --release -p plugin-test-runner
-runner="$repository/target/release/plugin-test-runner"
+# device only if a test calls the gpu abi. Cranelift is what makes that take
+# seconds rather than minutes on a module this size, and the workspace profile
+# already builds Cranelift optimised, so the runner needs no profile of its own.
+#
+# What it does need is the selection the native test run uses, plugins excluded
+# and --tests on. Cargo resolves features over the packages a call selects and
+# over the kinds of dependency it is about to build, so asking for this package
+# alone, or for a plain build rather than a test one, unifies them differently
+# and compiles wasmtime, wgpu and everything under them a second time. Asked
+# for the way the native run asks, every artifact it left behind is reused and
+# only the runner itself is linked.
+native=(--workspace)
+for plugin in "${plugins[@]}"; do
+    native+=(--exclude "$plugin")
+done
+cargo build --quiet "${native[@]}" --bin plugin-test-runner --tests
+runner="$repository/target/debug/plugin-test-runner"
 if [[ -f "$runner.exe" ]]; then
     runner+='.exe'
 fi
