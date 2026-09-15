@@ -106,14 +106,18 @@ turning off again.
 
 Presence is block data like any other, so an instance reads and publishes its
 own cursor straight on the block client it already holds - it is carried over
-the host's connection but is a client of its own to the server, and the
-presence it posts is attributed to that client, not to the host's. The host
-posts the coarse "someone is looking at this block" entry itself, under its
-own client, without the plugin's involvement; what the host still owes an
-instance is only whether its block is currently being viewed, so the instance
-knows when to start and stop publishing its own cursor. An instance that wants
-no cursor of its own ignores that. The host also asks an instance to reveal
-one client's cursor, when the user picks that person out of the list of
+the host's connection but is a client of its own to the server. Presence,
+though, is attributed to the connection rather than to the client that posted
+it: everything a host and the plugin clients it carries publish for a block
+arrives at everyone else under one client id, and none of it comes back to the
+connection it came from. That is what lets the host post the coarse "someone is
+looking at this block" entry under its own client while an instance posts the
+cursor under its own, and still have a reader join the two into one person -
+and what keeps a user's own presence out of their own view. What the host still
+owes an instance is only whether its block is currently being viewed, so the
+instance knows when to start and stop publishing its own cursor. An instance
+that wants no cursor of its own ignores that. The host also asks an instance to
+reveal one client's cursor, when the user picks that person out of the list of
 people viewing the block, which only the instance can do because only it
 knows where in its own content that cursor is; the instance finds that client
 among the presence it already reads for itself.
