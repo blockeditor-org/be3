@@ -1728,7 +1728,7 @@ impl BlockApp {
         }
         for (id, editor) in self.editors.iter_mut() {
             if *id != shell {
-                editor.finish_frame(&self.client);
+                editor.finish_frame();
             }
         }
         if let Some(action) = action {
@@ -1746,7 +1746,7 @@ impl BlockApp {
         self.forget_dynamic_artifact_dialogs(id);
         self.watched_artifacts.retain(|watched| *watched != id);
         if let Some(mut editor) = self.editors.remove(&id) {
-            editor.tab_closed(&self.client);
+            editor.tab_closed();
         }
     }
 

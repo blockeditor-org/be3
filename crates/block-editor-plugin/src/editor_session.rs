@@ -1,4 +1,7 @@
-use block_client::BlockClient;
+use block_client::{
+    BlockClient,
+    presence::{UserActive, pick_free_color},
+};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage,
@@ -23,6 +26,7 @@ pub(crate) struct EditorSession {
     instance: EditorInstanceId,
     regions: HashMap<EditorRegion, RegionState>,
     host: EditorHost,
+    block: Option<(Arc<BlockClient>, Uuid)>,
     drag: Option<(EditorRegion, BlockDrag)>,
     files: Option<(EditorRegion, crate::host::FileDrop)>,
     intrinsic: Option<egui::Vec2>,
@@ -401,6 +405,7 @@ impl EditorSession {
             instance,
             regions: HashMap::new(),
             host: EditorHost::new(waker),
+            block: None,
             drag: None,
             files: None,
             intrinsic: None,
@@ -463,6 +468,19 @@ impl EditorSession {
     }
 
     pub(crate) fn presence_visible(&mut self, visible: bool) {
+        if let Some((client, block_id)) = &self.block {
+            match visible {
+                true => {
+                    let used = client
+                        .presence::<UserActive>(*block_id)
+                        .into_iter()
+                        .map(|(_, user)| user.color);
+                    let color = pick_free_color(used);
+                    client.set_presence(*block_id, Some(&UserActive { color }));
+                }
+                false => client.set_presence::<UserActive>(*block_id, None),
+            }
+        }
         self.app.presence_visible(visible);
     }
 
@@ -488,6 +506,7 @@ impl EditorSession {
     }
 
     pub(crate) fn connect(&mut self, client: Arc<BlockClient>, block_id: Uuid) {
+        self.block = Some((Arc::clone(&client), block_id));
         self.app.connect(self.host.clone(), client, block_id);
     }
 

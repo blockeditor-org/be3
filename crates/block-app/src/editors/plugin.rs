@@ -1,8 +1,4 @@
-use block_client::{
-    BlockClient, BlockHandleAccess, blocks,
-    blocks::workspace_index::BlockEntry,
-    presence::{UserActive, pick_free_color},
-};
+use block_client::{BlockClient, BlockHandleAccess, blocks, blocks::workspace_index::BlockEntry};
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, ChildRect, CreationMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ViewChange,
@@ -348,7 +344,7 @@ impl PluginEditor {
             .map_or_else(EditorCapabilities::default, |plugin| plugin.capabilities)
     }
 
-    fn sync_active_presence(&mut self, client: &BlockClient, active: bool) {
+    fn sync_active_presence(&mut self, active: bool) {
         let Some(plugin) = &self.plugin else {
             return;
         };
@@ -356,17 +352,6 @@ impl PluginEditor {
             return;
         }
         self.presence_active = active;
-        let block_id = self.block.id();
-        if active {
-            let used = client
-                .presence::<UserActive>(block_id)
-                .into_iter()
-                .map(|(_, user)| user.color);
-            let color = pick_free_color(used);
-            client.set_presence(block_id, Some(&UserActive { color }));
-        } else {
-            client.set_presence::<UserActive>(block_id, None);
-        }
         crate::plugin_host::set_presence_visible(&plugin.identity.id, self.instance, active);
     }
 
@@ -1085,16 +1070,16 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn finish_frame(&mut self, client: &BlockClient) {
+    pub(crate) fn finish_frame(&mut self) {
         let active = std::mem::take(&mut self.active_this_frame);
-        self.sync_active_presence(client, active);
+        self.sync_active_presence(active);
         if !active {
             self.stop_presenting();
         }
     }
 
-    pub(crate) fn tab_closed(&mut self, client: &BlockClient) {
-        self.sync_active_presence(client, false);
+    pub(crate) fn tab_closed(&mut self) {
+        self.sync_active_presence(false);
         self.stop_presenting();
         self.close();
     }
