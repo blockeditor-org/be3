@@ -21,32 +21,43 @@ async fn presence_posted_by_a_connection_never_returns_to_that_connection() {
     let block_id = host_block.id();
     timeout(host_block.loaded()).await;
 
-    let (endpoint, carrier) = block_client::tunnel_channel();
-    let guest = BlockClient::tunneled(account_id, workspace_id, endpoint, || {});
-    let pump = tokio::spawn(carry(host.open_tunnel(|| {}), carrier));
-    let guest_block = guest.get_block::<Counter>(block_id);
-    timeout(guest_block.loaded()).await;
+    let (editor_endpoint, editor_carrier) = block_client::tunnel_channel();
+    let editor = BlockClient::tunneled(account_id, workspace_id, editor_endpoint, || {});
+    let editor_pump = tokio::spawn(carry(host.open_tunnel(|| {}), editor_carrier));
+    let editor_block = editor.get_block::<Counter>(block_id);
+    timeout(editor_block.loaded()).await;
 
-    host.set_presence(
+    let (shell_endpoint, shell_carrier) = block_client::tunnel_channel();
+    let shell = BlockClient::tunneled(account_id, workspace_id, shell_endpoint, || {});
+    let shell_pump = tokio::spawn(carry(host.open_tunnel(|| {}), shell_carrier));
+    let shell_block = shell.get_block::<Counter>(block_id);
+    timeout(shell_block.loaded()).await;
+
+    editor.set_presence(
         block_id,
         Some(&UserActive {
             color: PresenceColor::Red,
         }),
     );
-    guest.set_presence(block_id, Some(&Cursor { offset: 7 }));
-    timeout(host.synchronized()).await;
-    timeout(guest.synchronized()).await;
+    editor.set_presence(block_id, Some(&Cursor { offset: 7 }));
+    timeout(editor.synchronized()).await;
     settle().await;
 
-    assert_eq!(guest.presence::<UserActive>(block_id), Vec::new());
-    assert_eq!(guest.presence::<Cursor>(block_id), Vec::new());
+    assert_eq!(editor.presence::<UserActive>(block_id), Vec::new());
+    assert_eq!(editor.presence::<Cursor>(block_id), Vec::new());
+    assert_eq!(shell.presence::<UserActive>(block_id), Vec::new());
+    assert_eq!(shell.presence::<Cursor>(block_id), Vec::new());
     assert_eq!(host.presence::<UserActive>(block_id), Vec::new());
     assert_eq!(host.presence::<Cursor>(block_id), Vec::new());
 
-    drop(guest_block);
-    drop(guest);
-    pump.abort();
-    let _ = pump.await;
+    drop(editor_block);
+    drop(editor);
+    drop(shell_block);
+    drop(shell);
+    editor_pump.abort();
+    let _ = editor_pump.await;
+    shell_pump.abort();
+    let _ = shell_pump.await;
     drop(host_block);
     drop(host);
     server.abort();

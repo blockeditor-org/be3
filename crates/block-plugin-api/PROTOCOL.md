@@ -104,23 +104,27 @@ input events of their own alongside the text it already delivers: an input
 method turning on, the text being composed, the text it settled on, and its
 turning off again.
 
-Presence is block data like any other, so an instance reads and publishes its
-own cursor straight on the block client it already holds - it is carried over
-the host's connection but is a client of its own to the server. Presence,
-though, is attributed to the connection rather than to the client that posted
-it: everything a host and the plugin clients it carries publish for a block
-arrives at everyone else under one client id, and none of it comes back to the
-connection it came from. That is what lets the host post the coarse "someone is
-looking at this block" entry under its own client while an instance posts the
-cursor under its own, and still have a reader join the two into one person -
-and what keeps a user's own presence out of their own view. What the host still
-owes an instance is only whether its block is currently being viewed, so the
-instance knows when to start and stop publishing its own cursor. An instance
-that wants no cursor of its own ignores that. The host also asks an instance to
-reveal one client's cursor, when the user picks that person out of the list of
-people viewing the block, which only the instance can do because only it
-knows where in its own content that cursor is; the instance finds that client
-among the presence it already reads for itself.
+Presence is block data like any other and carries no messages of its own. All
+of it - the coarse "someone is looking at this block" entry as much as the
+cursor - is published on the one block client the plugin owns, the same client
+it reads the block through, so everything one person publishes for a block
+carries a single identity. The host publishes none of it. A plugin's client is
+carried over the host's connection but is a client of its own to the server,
+and presence is attributed to the connection rather than to the client that
+posted it, so nothing published anywhere on a connection - by the host, by the
+plugin drawing the block, or by another plugin alongside it - is ever delivered
+back to any client on that connection. A user is therefore never among the
+people their own editor shows.
+
+What the host owes an instance about presence is only whether its block is
+currently being viewed. The framework answers that by publishing and clearing
+the viewing entry itself, and passes it on so an instance knows when to start
+and stop publishing a cursor; an instance that wants no cursor of its own
+ignores it. The host also asks an instance to reveal one client's cursor, when
+the user picks that person out of the list of people viewing the block, which
+only the instance can do because only it knows where in its own content that
+cursor is; the instance finds that client among the presence it already reads
+for itself.
 
 An editor instance may be asked to replace one of the blocks it references with
 another - a copy the host made of a block being edited in two places at once -
