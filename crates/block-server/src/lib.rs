@@ -228,12 +228,14 @@ async fn handle_block_connection(
                             sink.send(Message::Text(serde_json::to_string(&response)?)).await?;
                             continue;
                         }
-                        let (client_id, outbound) = clients.get_or_open(&watch_hub, client);
+                        let (client_id, connection, outbound) =
+                            clients.get_or_open(&watch_hub, client);
                         let (response, notification) =
                             handle_command(
                                 &store,
                                 &watch_hub,
                                 client_id,
+                                connection,
                                 identity,
                                 outbound,
                                 command,
@@ -296,7 +298,7 @@ impl Clients {
         &mut self,
         watch_hub: &WatchHub,
         client: Option<Uuid>,
-    ) -> (ClientId, OutboundMessages) {
+    ) -> (ClientId, ClientId, OutboundMessages) {
         let client_id = match client {
             None => self.connection,
             Some(client) => *self
@@ -308,7 +310,7 @@ impl Clients {
             client,
             sender: self.sender.clone(),
         };
-        (client_id, outbound)
+        (client_id, self.connection, outbound)
     }
 
     async fn close(
@@ -554,6 +556,7 @@ async fn handle_command(
     store: &BlockStore,
     watch_hub: &WatchHub,
     client_id: ClientId,
+    connection: ClientId,
     identity: Identity,
     outbound: OutboundMessages,
     command: ClientMessage,
@@ -603,7 +606,9 @@ async fn handle_command(
             {
                 Ok(()) => {
                     if watch {
-                        watch_hub.watch(identity, id, client_id, outbound).await;
+                        watch_hub
+                            .watch(identity, id, client_id, connection, outbound)
+                            .await;
                     }
                     (
                         ServerMessage::Ok {
@@ -823,7 +828,9 @@ async fn handle_command(
             let access = store.target_access(identity, id).await;
             if !access.can_view() {
                 if watch {
-                    watch_hub.watch(identity, id, client_id, outbound).await;
+                    watch_hub
+                        .watch(identity, id, client_id, connection, outbound)
+                        .await;
                 }
                 return (
                     permission_denied(request_id, CommandKind::ReadBlock, id),
@@ -835,7 +842,9 @@ async fn handle_command(
             let response = match store.read_block_unlocked(workspace_id, id).await {
                 Ok(read) => {
                     if watch {
-                        watch_hub.watch(identity, id, client_id, outbound).await;
+                        watch_hub
+                            .watch(identity, id, client_id, connection, outbound)
+                            .await;
                     }
                     ServerMessage::ReadBlock {
                         request_id,
@@ -1128,6 +1137,7 @@ struct WatchHub {
 
 struct BlockWatch {
     identity: WatchIdentity,
+    connection: ClientId,
     outbound: OutboundMessages,
 
     presence: HashMap<Uuid, Vec<u8>>,
@@ -1136,6 +1146,17 @@ struct BlockWatch {
 struct ReferenceWatch {
     outbound: OutboundMessages,
     last: Vec<BlockReference>,
+}
+
+fn elsewhere(
+    entries: &HashMap<ClientId, BlockWatch>,
+    connection: ClientId,
+) -> Vec<(WatchIdentity, OutboundMessages)> {
+    entries
+        .values()
+        .filter(|watch| watch.connection != connection)
+        .map(|watch| (watch.identity, watch.outbound.clone()))
+        .collect()
 }
 
 impl WatchHub {
@@ -1156,15 +1177,19 @@ impl WatchHub {
         identity: Identity,
         id: Uuid,
         client_id: ClientId,
+        connection: ClientId,
         outbound: OutboundMessages,
     ) {
         let mut watchers = self.watchers.lock().await;
         let entries = watchers.entry((identity.workspace_id, id)).or_default();
-        for (&other_id, watch) in entries.iter() {
+        for watch in entries.values() {
+            if watch.connection == connection {
+                continue;
+            }
             for (&presence_id, data) in &watch.presence {
                 outbound.send(ServerMessage::Presence {
                     id,
-                    client_id: other_id,
+                    client_id: watch.connection,
                     presence_id,
                     data: Some(data.clone()),
                 });
@@ -1174,6 +1199,7 @@ impl WatchHub {
             client_id,
             BlockWatch {
                 identity: identity.into(),
+                connection,
                 outbound,
                 presence: HashMap::new(),
             },
@@ -1181,7 +1207,7 @@ impl WatchHub {
     }
 
     async fn unwatch(&self, store: &BlockStore, workspace_id: Uuid, id: Uuid, client_id: ClientId) {
-        let (presence, deliveries) = {
+        let (connection, presence, deliveries) = {
             let mut watchers = self.watchers.lock().await;
             let key = (workspace_id, id);
             let Some(entries) = watchers.get_mut(&key) else {
@@ -1190,16 +1216,13 @@ impl WatchHub {
             let Some(watch) = entries.remove(&client_id) else {
                 return;
             };
-            let deliveries = entries
-                .values()
-                .map(|watch| (watch.identity, watch.outbound.clone()))
-                .collect::<Vec<_>>();
+            let deliveries = elsewhere(entries, watch.connection);
             if entries.is_empty() {
                 watchers.remove(&key);
             }
-            (watch.presence, deliveries)
+            (watch.connection, watch.presence, deliveries)
         };
-        Self::notify_presence_cleared(store, id, client_id, presence, &deliveries).await;
+        Self::notify_presence_cleared(store, id, connection, presence, &deliveries).await;
     }
 
     async fn remove_client(&self, store: &BlockStore, client_id: ClientId) {
@@ -1210,11 +1233,8 @@ impl WatchHub {
                 if let Some(watch) = entries.remove(&client_id)
                     && !watch.presence.is_empty()
                 {
-                    let deliveries = entries
-                        .values()
-                        .map(|watch| (watch.identity, watch.outbound.clone()))
-                        .collect::<Vec<_>>();
-                    cleared.push((id, watch.presence, deliveries));
+                    let deliveries = elsewhere(entries, watch.connection);
+                    cleared.push((id, watch.connection, watch.presence, deliveries));
                 }
                 !entries.is_empty()
             });
@@ -1226,8 +1246,8 @@ impl WatchHub {
                 !entries.is_empty()
             });
         }
-        for (id, presence, deliveries) in cleared {
-            Self::notify_presence_cleared(store, id, client_id, presence, &deliveries).await;
+        for (id, connection, presence, deliveries) in cleared {
+            Self::notify_presence_cleared(store, id, connection, presence, &deliveries).await;
         }
     }
 
@@ -1240,7 +1260,7 @@ impl WatchHub {
         presence_id: Uuid,
         data: Vec<u8>,
     ) -> bool {
-        let deliveries = {
+        let (connection, deliveries) = {
             let mut watchers = self.watchers.lock().await;
             let Some(entries) = watchers.get_mut(&(workspace_id, id)) else {
                 return false;
@@ -1249,15 +1269,12 @@ impl WatchHub {
                 return false;
             };
             watch.presence.insert(presence_id, data.clone());
-            entries
-                .iter()
-                .filter(|&(&other_id, _)| other_id != client_id)
-                .map(|(_, watch)| (watch.identity, watch.outbound.clone()))
-                .collect::<Vec<_>>()
+            let connection = watch.connection;
+            (connection, elsewhere(entries, connection))
         };
         let message = ServerMessage::Presence {
             id,
-            client_id,
+            client_id: connection,
             presence_id,
             data: Some(data),
         };
@@ -1273,7 +1290,7 @@ impl WatchHub {
         client_id: ClientId,
         presence_id: Uuid,
     ) -> bool {
-        let deliveries = {
+        let (connection, deliveries) = {
             let mut watchers = self.watchers.lock().await;
             let Some(entries) = watchers.get_mut(&(workspace_id, id)) else {
                 return false;
@@ -1282,15 +1299,12 @@ impl WatchHub {
                 return false;
             };
             watch.presence.remove(&presence_id);
-            entries
-                .iter()
-                .filter(|&(&other_id, _)| other_id != client_id)
-                .map(|(_, watch)| (watch.identity, watch.outbound.clone()))
-                .collect::<Vec<_>>()
+            let connection = watch.connection;
+            (connection, elsewhere(entries, connection))
         };
         let message = ServerMessage::Presence {
             id,
-            client_id,
+            client_id: connection,
             presence_id,
             data: None,
         };
@@ -1301,14 +1315,14 @@ impl WatchHub {
     async fn notify_presence_cleared(
         store: &BlockStore,
         id: Uuid,
-        client_id: ClientId,
+        connection: ClientId,
         presence: HashMap<Uuid, Vec<u8>>,
         deliveries: &[(WatchIdentity, OutboundMessages)],
     ) {
         for presence_id in presence.into_keys() {
             let message = ServerMessage::Presence {
                 id,
-                client_id,
+                client_id: connection,
                 presence_id,
                 data: None,
             };

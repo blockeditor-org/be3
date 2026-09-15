@@ -1,7 +1,9 @@
 use std::{future::Future, time::Duration};
 
 use block::{Block, BlockParent, BlockReferenceList};
-use block_client::{BlockClient, ManagementClient, blocks::text::TextDocument};
+use block_client::{
+    BlockClient, ManagementClient, blocks::text::TextDocument, presence::PresenceKind,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, net::TcpListener};
 use uuid::Uuid;
@@ -11,6 +13,8 @@ mod a_tunnelled_client_shares_the_hosts_connection;
 mod batched_updates_are_observed_together;
 mod client_orders_parent_assignment_after_creation_and_reference_updates;
 mod crdt_text_clients_converge_after_concurrent_insertions;
+mod presence_from_one_connection_is_reported_under_a_single_client_id;
+mod presence_posted_by_a_connection_never_returns_to_that_connection;
 mod real_clients_synchronize_through_the_real_server;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -71,6 +75,34 @@ impl Block for ReferencingBlock {
     fn references(&self) -> Vec<Uuid> {
         self.references.clone()
     }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+struct Cursor {
+    offset: u32,
+}
+
+impl PresenceKind for Cursor {
+    const ID: Uuid = Uuid::from_u128(0x6375_7273_6f72_4000_8000_0000_0000_0001);
+}
+
+async fn carry(mut tunnel: block_client::Tunnel, mut carrier: block_client::TunnelCarrier) {
+    loop {
+        tokio::select! {
+            message = tunnel.recv() => match message {
+                Some(text) => carrier.send(text),
+                None => return,
+            },
+            message = carrier.recv() => match message {
+                Some(text) => tunnel.send(text),
+                None => return,
+            },
+        }
+    }
+}
+
+async fn settle() {
+    tokio::time::sleep(Duration::from_millis(200)).await;
 }
 
 async fn timeout(future: impl Future<Output = ()>) {

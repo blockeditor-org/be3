@@ -1,8 +1,9 @@
 use super::*;
+use block_client::presence::{PresenceColor, UserActive};
 
 #[tokio::test]
-async fn a_tunnelled_client_shares_the_hosts_connection() {
-    let data_dir = std::env::temp_dir().join(format!("block-e2e-test-{}", Uuid::new_v4()));
+async fn presence_posted_by_a_connection_never_returns_to_that_connection() {
+    let data_dir = std::env::temp_dir().join(format!("block-e2e-presence-self-{}", Uuid::new_v4()));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let server_data_dir = data_dir.clone();
@@ -23,18 +24,24 @@ async fn a_tunnelled_client_shares_the_hosts_connection() {
     let (endpoint, carrier) = block_client::tunnel_channel();
     let guest = BlockClient::tunneled(account_id, workspace_id, endpoint, || {});
     let pump = tokio::spawn(carry(host.open_tunnel(|| {}), carrier));
-
     let guest_block = guest.get_block::<Counter>(block_id);
     timeout(guest_block.loaded()).await;
-    assert_eq!(guest_block.read().unwrap().count, 0);
 
-    guest_block.operate(CounterOperation::Add(5));
-    timeout(guest.synchronized()).await;
-    timeout(host_block.wait_until(|counter| counter.count == 5)).await;
-
-    host_block.operate(CounterOperation::Add(2));
+    host.set_presence(
+        block_id,
+        Some(&UserActive {
+            color: PresenceColor::Red,
+        }),
+    );
+    guest.set_presence(block_id, Some(&Cursor { offset: 7 }));
     timeout(host.synchronized()).await;
-    timeout(guest_block.wait_until(|counter| counter.count == 7)).await;
+    timeout(guest.synchronized()).await;
+    settle().await;
+
+    assert_eq!(guest.presence::<UserActive>(block_id), Vec::new());
+    assert_eq!(guest.presence::<Cursor>(block_id), Vec::new());
+    assert_eq!(host.presence::<UserActive>(block_id), Vec::new());
+    assert_eq!(host.presence::<Cursor>(block_id), Vec::new());
 
     drop(guest_block);
     drop(guest);
