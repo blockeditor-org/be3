@@ -133,6 +133,26 @@ mouse. Its tree rows select and expand together: clicking a row, or pressing
 Enter or Space on it, selects the node it lists and opens or closes its
 children, and the arrow keys walk the tree.
 
+### Input simulation
+
+The inspector's Sim tab converts one input device into the other, so a pointer
+device can drive touch behavior and a touchscreen can drive pointer behavior.
+Both run inside `Document::show`, so they work the same in a standalone window
+and in a beui block editor plugin.
+
+"Emulate touch with mouse" turns mouse presses into touch events.
+
+"Simulate mouse with touch" turns the whole shown rectangle into a trackpad and
+paints a cursor the document reacts to. One finger moves the cursor, a tap
+clicks it, a tap followed by a press and drag drags with the primary button, and
+two fingers scroll smoothly. The strip along the bottom holds the left, middle,
+and right mouse buttons plus a keyboard toggle: a button stays held for as long
+as its finger is down, another finger can work the trackpad at the same time,
+and swiping up or down on the middle button scrolls a wheel tick at a time. The
+keyboard toggle opens an on-screen keyboard that sends `Event::Key` and
+`Event::Text`; its Shift, Ctrl, and Alt keys latch until the next key, and they
+also apply to clicks, so Ctrl+Shift+I on it reopens the inspector.
+
 Beui has three feature levels:
 
 - No features provides the document, components, layout, input model, and

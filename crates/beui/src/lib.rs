@@ -17,6 +17,7 @@ mod input;
 mod inspector;
 mod interact;
 mod layout;
+mod mouse_simulation;
 mod node;
 mod paint;
 mod painter;
