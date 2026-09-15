@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod beui_frame;
+mod editor;
 #[cfg(target_arch = "wasm32")]
 mod editor_session;
 mod host;
@@ -29,6 +30,7 @@ pub use block_plugin_api::{
     InteractionMode, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_ui;
+pub use editor::{BlockProjection, Creation, Editor};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
     ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster,
@@ -41,34 +43,19 @@ pub fn surface_format() -> egui_wgpu::wgpu::TextureFormat {
     wasm::surface_format()
 }
 
-pub trait BeuiApp: Default + 'static {
-    fn connect(
-        &mut self,
-        _host: EditorHost,
-        _client: Arc<block_client::BlockClient>,
-        _block_id: uuid::Uuid,
-    ) {
+pub trait BeuiApp: 'static {
+    fn view(editor: Editor) -> beui::NodeId;
+    fn creation_view(_creation: Creation) -> beui::NodeId {
+        beui::reactive::Frame().build()
     }
-    fn connect_creation(&mut self, _host: EditorHost, _client: Arc<block_client::BlockClient>) {}
-    fn creation_frame(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
-    fn create_block(&mut self) -> Result<uuid::Uuid, String> {
-        Err("this editor does not create blocks".into())
+    fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
+        creation.create_block()
     }
-    fn view(&mut self) -> beui::NodeId;
-    fn update(&mut self) {}
-    fn after_layout(&mut self, _document: &beui::Document) {}
-    fn preview(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
-    fn intrinsic_size(&mut self) -> Option<beui::Vec2> {
+    fn intrinsic_size() -> Option<beui::Vec2> {
         None
     }
-    fn set_intrinsic_size(&mut self, _size: beui::Vec2) {}
-    fn aspect_ratio(&mut self) -> Option<f32> {
+    fn aspect_ratio() -> Option<f32> {
         None
-    }
-    fn presence_visible(&mut self, _visible: bool) {}
-    fn reveal_presence(&mut self, _client_id: u64) {}
-    fn replace_child(&mut self, _old: uuid::Uuid, _new: uuid::Uuid) -> bool {
-        false
     }
 }
 

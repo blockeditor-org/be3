@@ -1,11 +1,10 @@
 use super::*;
 use beui::reactive::{Frame, view};
 
-#[derive(Default)]
 struct RecordingApp;
 
 impl crate::BeuiApp for RecordingApp {
-    fn view(&mut self) -> beui::NodeId {
+    fn view(_editor: crate::Editor) -> beui::NodeId {
         view! {
             <Frame />
         }

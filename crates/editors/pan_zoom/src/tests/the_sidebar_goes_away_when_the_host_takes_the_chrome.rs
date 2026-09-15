@@ -2,15 +2,15 @@ use super::*;
 
 #[test]
 fn the_sidebar_goes_away_when_the_host_takes_the_chrome() {
-    let (mut editor, host) = editor();
+    let (mut test, editor) = editor();
 
-    editor.run();
-    let with_sidebar = canvas(&mut editor);
+    test.run();
+    let with_sidebar = editor.content_rect();
 
-    host.set_chrome_shown(false);
-    editor.run();
+    editor.host().set_chrome_shown(false);
+    test.run();
 
-    let without_sidebar = canvas(&mut editor);
+    let without_sidebar = editor.content_rect();
     assert!(with_sidebar.left() > without_sidebar.left());
-    assert_eq!(without_sidebar, editor.rect());
+    assert_eq!(without_sidebar, test.rect());
 }

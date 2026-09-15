@@ -1,20 +1,12 @@
 use super::*;
 use beui::reactive::{Frame, ItemSize, NodeRef, Row, percent, size, view};
 
-#[derive(Default)]
-struct SidebarApp {
-    host: Option<EditorHost>,
-    canvas: NodeRef,
-}
+struct SidebarApp;
 
 impl crate::BeuiApp for SidebarApp {
-    fn connect(&mut self, host: EditorHost, _client: Arc<BlockClient>, _block_id: Uuid) {
-        self.host = Some(host);
-    }
-
-    fn view(&mut self) -> beui::NodeId {
+    fn view(editor: crate::Editor) -> beui::NodeId {
         let canvas = NodeRef::new();
-        self.canvas = canvas.clone();
+        editor.content(&canvas);
         let sidebar = view! {
             <Frame />
         };
@@ -24,15 +16,6 @@ impl crate::BeuiApp for SidebarApp {
         let children = vec![size(sidebar, ItemSize::Fixed(100.0)), percent(stage, 100.0)];
         view! {
             <Row spacing=0.0 children={children} />
-        }
-    }
-
-    fn after_layout(&mut self, document: &beui::Document) {
-        let (Some(host), Some(canvas)) = (self.host.as_ref(), self.canvas.try_get()) else {
-            return;
-        };
-        if let Some(rect) = document.node_rect(canvas) {
-            host.beui_view().set_content(rect);
         }
     }
 }

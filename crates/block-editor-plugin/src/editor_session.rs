@@ -8,7 +8,7 @@ use block_plugin_api::{
 };
 use block_ui::BlockCatalog;
 use eframe::egui;
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, marker::PhantomData, rc::Rc, sync::Arc};
 use uuid::Uuid;
 
 use crate::{EditorHost, Waker, beui_frame, beui_frame::BeuiFrame, host::BlockDrag};
@@ -245,40 +245,72 @@ impl<A: crate::App> AppUi for A {
 }
 
 struct BeuiHolder<A: crate::BeuiApp> {
-    app: A,
+    editor: Option<crate::Editor>,
+    creation: Option<crate::Creation>,
+    dialog: Option<beui::Document>,
+    app: PhantomData<A>,
+}
+
+impl<A: crate::BeuiApp> BeuiHolder<A> {
+    fn new() -> Self {
+        Self {
+            editor: None,
+            creation: None,
+            dialog: None,
+            app: PhantomData,
+        }
+    }
 }
 
 impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
     fn beui_view(&mut self) -> beui::NodeId {
-        crate::BeuiApp::view(&mut self.app)
+        let editor = self
+            .editor
+            .clone()
+            .expect("connect is called before the view is built");
+        A::view(editor)
     }
 
     fn beui_update(&mut self) {
-        crate::BeuiApp::update(&mut self.app);
+        if let Some(editor) = &self.editor {
+            editor.begin_frame();
+        }
     }
 
     fn beui_after_layout(&mut self, document: &beui::Document) {
-        crate::BeuiApp::after_layout(&mut self.app, document);
+        if let Some(editor) = &self.editor {
+            editor.end_frame(document);
+        }
     }
 
-    fn beui_preview(&mut self, context: &beui::Context, rect: beui::Rect) {
-        crate::BeuiApp::preview(&mut self.app, context, rect);
-    }
+    fn beui_preview(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
 
     fn beui_creation(&mut self, context: &beui::Context, rect: beui::Rect) {
-        crate::BeuiApp::creation_frame(&mut self.app, context, rect);
+        let (Some(creation), Some(dialog)) = (self.creation.as_ref(), self.dialog.as_mut()) else {
+            return;
+        };
+        let creation = creation.clone();
+        beui::reactive::with_reactive_scope(dialog, move || creation.begin_frame());
+        dialog.show(context, rect);
     }
 
     fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid) {
-        crate::BeuiApp::connect(&mut self.app, host, client, block_id);
+        self.editor = Some(crate::Editor::new(host, client, block_id));
     }
 
     fn connect_creation(&mut self, host: EditorHost, client: Arc<BlockClient>) {
-        crate::BeuiApp::connect_creation(&mut self.app, host, client);
+        let creation = crate::Creation::new(host, client);
+        let built = creation.clone();
+        self.dialog = Some(beui::reactive::build(move || A::creation_view(built)));
+        self.creation = Some(creation);
     }
 
     fn create_block(&mut self) -> Result<Uuid, String> {
-        crate::BeuiApp::create_block(&mut self.app)
+        let creation = self
+            .creation
+            .as_ref()
+            .ok_or("this editor is not creating a block")?;
+        A::create_block(creation)
     }
 
     fn creation_ui(&mut self, _ui: &mut egui::Ui) {}
@@ -314,27 +346,21 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
     fn preview_ui(&mut self, _ui: &mut egui::Ui) {}
 
     fn intrinsic_size(&mut self) -> Option<egui::Vec2> {
-        crate::BeuiApp::intrinsic_size(&mut self.app).map(|size| egui::vec2(size.x, size.y))
+        A::intrinsic_size().map(|size| egui::vec2(size.x, size.y))
     }
 
-    fn set_intrinsic_size(&mut self, size: egui::Vec2) {
-        crate::BeuiApp::set_intrinsic_size(&mut self.app, beui::vec2(size.x, size.y));
-    }
+    fn set_intrinsic_size(&mut self, _size: egui::Vec2) {}
 
     fn aspect_ratio(&mut self) -> Option<f32> {
-        crate::BeuiApp::aspect_ratio(&mut self.app)
+        A::aspect_ratio()
     }
 
-    fn presence_visible(&mut self, visible: bool) {
-        crate::BeuiApp::presence_visible(&mut self.app, visible);
-    }
+    fn presence_visible(&mut self, _visible: bool) {}
 
-    fn reveal_presence(&mut self, client_id: u64) {
-        crate::BeuiApp::reveal_presence(&mut self.app, client_id);
-    }
+    fn reveal_presence(&mut self, _client_id: u64) {}
 
-    fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        crate::BeuiApp::replace_child(&mut self.app, old, new)
+    fn replace_child(&mut self, _old: Uuid, _new: Uuid) -> bool {
+        false
     }
 }
 
@@ -353,7 +379,7 @@ impl EditorSession {
         waker: Waker,
     ) -> Self {
         Self::of(
-            Box::new(BeuiHolder { app: A::default() }),
+            Box::new(BeuiHolder::<A>::new()),
             Some(HashMap::new()),
             chrome,
             instance,

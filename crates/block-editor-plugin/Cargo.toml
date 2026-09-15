@@ -9,6 +9,7 @@ beui = { path = "../beui", default-features = false }
 block-client = { path = "../block-client" }
 block = { path = "../block" }
 block-plugin-api = { path = "../block-plugin-api" }
+block-reactive = { path = "../block-reactive" }
 block-ui = { path = "../block-ui" }
 eframe = { version = "0.34.3", default-features = false, features = ["default_fonts"] }
 egui_material_icons = "0.6.0"

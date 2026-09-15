@@ -3,7 +3,7 @@ use std::sync::Arc;
 use block_client::BlockClient;
 use block_client::blocks::pan_zoom::PanZoom;
 use block_editor_plugin::beui::{Rect, Vec2, pos2};
-use block_editor_plugin::{BeuiApp as _, EditorHost, ViewChange};
+use block_editor_plugin::{Editor, EditorHost, ViewChange};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -17,27 +17,21 @@ mod the_sidebar_goes_away_when_the_host_takes_the_chrome;
 mod the_stage_stays_transparent_so_the_host_canvas_shows_through;
 mod zooming_asks_the_host_instead_of_moving_the_view;
 
-fn editor() -> (BeuiTest<PanZoomApp>, EditorHost) {
+fn editor() -> (BeuiTest<PanZoomApp>, Editor) {
     let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
     let block = client.create_block(PanZoom::default());
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut app = PanZoomApp::default();
-    app.connect(host.clone(), client, block.id());
-    (BeuiTest::new(app), host)
+    let editor = Editor::new(host, client, block.id());
+    (BeuiTest::new(editor.clone()), editor)
 }
 
-fn shown(editor: &mut BeuiTest<PanZoomApp>, test_id: &str) -> String {
-    let node = editor
+fn shown(test: &mut BeuiTest<PanZoomApp>, test_id: &str) -> String {
+    let node = test
         .document()
         .find_test_id(test_id)
         .unwrap_or_else(|| panic!("no node with test id {test_id:?}"));
-    editor
-        .document()
+    test.document()
         .node_detail(node)
         .expect("the node has no text")
-}
-
-fn canvas(editor: &mut BeuiTest<PanZoomApp>) -> Rect {
-    editor.app().canvas().expect("the canvas was not laid out")
 }

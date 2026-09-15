@@ -1,18 +1,18 @@
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
-    Column, ForEach, Frame, ItemSize, Keyed, ReadSignal, Scroll, WriteSignal, build, clone,
-    create_memo, create_signal, view, with_reactive_scope,
+    Column, ForEach, Frame, ItemSize, Keyed, ReadSignal, Scroll, clone, component, create_memo,
+    view,
 };
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Card, Heading, Paragraph, use_theme,
 };
-use block_editor_plugin::beui::{Context, Document, NodeId, Rect, TextAlign};
+use block_editor_plugin::beui::{NodeId, TextAlign};
 use game_api::{GameActionOption, GameScreen};
 
 const PAGE_PADDING: f32 = 24.0;
 
-pub(super) trait GameModel {
+pub(crate) trait GameModel {
     fn choose(&self, effect: Vec<u8>);
 }
 
@@ -24,14 +24,14 @@ struct Action {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(super) struct Screen {
+pub(crate) struct Screen {
     description: String,
     actions: Vec<Action>,
     editable: bool,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(super) enum GameSnapshot {
+pub(crate) enum GameSnapshot {
     #[default]
     Loading,
     Error(String),
@@ -70,7 +70,7 @@ impl GameSnapshot {
 }
 
 impl GameSnapshot {
-    pub(super) fn screen(screen: GameScreen, editable: bool) -> Self {
+    pub(crate) fn screen(screen: GameScreen, editable: bool) -> Self {
         Self::Screen(Screen {
             description: screen.description,
             actions: screen
@@ -88,36 +88,23 @@ impl GameSnapshot {
     }
 }
 
-pub struct GameUi {
-    set_snapshot: WriteSignal<GameSnapshot>,
-}
-
-impl GameUi {
-    pub(super) fn new(game: Rc<dyn GameModel>, initial: GameSnapshot) -> (Self, NodeId) {
-        let (snapshot, set_snapshot) = create_signal(initial);
-        let theme = use_theme();
-        let root = view! {
-            <Frame
-                color={theme.background.clone()}
-                padding_horizontal=PAGE_PADDING
-                padding_vertical=PAGE_PADDING
+#[component]
+pub(crate) fn Game(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame
+            color={theme.background.clone()}
+            padding_horizontal=PAGE_PADDING
+            padding_vertical=PAGE_PADDING
+        >
+            <Keyed
+                value={snapshot}
+                key={|snapshot: GameSnapshot| snapshot.shape()}
+                item_size=ItemSize::Percent(100.0)
             >
-                <Keyed
-                    value={snapshot}
-                    key={|snapshot: GameSnapshot| snapshot.shape()}
-                    item_size=ItemSize::Percent(100.0)
-                >
-                    {move |snapshot: ReadSignal<GameSnapshot>| {
-                        game_view(game.clone(), snapshot)
-                    }}
-                </Keyed>
-            </Frame>
-        };
-        (Self { set_snapshot }, root)
-    }
-
-    pub(super) fn set_snapshot(&mut self, snapshot: GameSnapshot) {
-        self.set_snapshot.set(snapshot);
+                {move |snapshot: ReadSignal<GameSnapshot>| game_view(game.clone(), snapshot)}
+            </Keyed>
+        </Frame>
     }
 }
 
@@ -171,79 +158,52 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> Nod
     }
 }
 
-pub(super) trait GameCreationModel {
+pub(crate) trait GameCreationModel {
     fn choose_module(&self);
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(super) struct CreationSnapshot {
-    pub(super) chosen: Option<String>,
-    pub(super) picking: bool,
-    pub(super) error: Option<String>,
+pub(crate) struct CreationSnapshot {
+    pub(crate) chosen: Option<String>,
+    pub(crate) picking: bool,
+    pub(crate) error: Option<String>,
 }
 
-pub struct GameCreationUi {
-    document: Document,
-    set_snapshot: WriteSignal<CreationSnapshot>,
-}
-
-impl GameCreationUi {
-    pub(super) fn new(creation: Rc<dyn GameCreationModel>) -> Self {
-        let (snapshot, set_snapshot) = create_signal(CreationSnapshot::default());
-        let document = build(move || {
-            let picking = create_memo(clone!(snapshot -> move || snapshot.get().picking));
-            let status = create_memo(clone!(snapshot -> move || {
-                let snapshot = snapshot.get();
-                snapshot.error.unwrap_or_else(|| {
-                    snapshot
-                        .chosen
-                        .unwrap_or_else(|| "No game module chosen".to_owned())
-                })
-            }));
-            let theme = use_theme();
-            let status_color = create_memo(clone!(theme -> move || {
-                let theme = theme.get();
-                if snapshot.get().error.is_some() {
-                    theme.accent_hover
-                } else {
-                    theme.text_muted
-                }
-            }));
-            view! {
-                <Frame
-                    color={theme.background.clone()}
-                    padding_horizontal=12.0
-                    padding_vertical=10.0
-                >
-                    <Column spacing=8.0>
-                        <Button
-                            label="Choose game module..."
-                            variant=ButtonVariant::Secondary
-                            disabled={picking}
-                            @test_id={"game.choose"}
-                            on_click={move || creation.choose_module()}
-                        />
-                        <Body content={status} color={status_color} @test_id={"game.selection"} />
-                    </Column>
-                </Frame>
-            }
-        });
-        Self {
-            document,
-            set_snapshot,
+#[component]
+pub(crate) fn GameCreation(
+    creation: Rc<dyn GameCreationModel>,
+    snapshot: ReadSignal<CreationSnapshot>,
+) -> NodeId {
+    let picking = create_memo(clone!(snapshot -> move || snapshot.get().picking));
+    let status = create_memo(clone!(snapshot -> move || {
+        let snapshot = snapshot.get();
+        snapshot.error.unwrap_or_else(|| {
+            snapshot
+                .chosen
+                .unwrap_or_else(|| "No game module chosen".to_owned())
+        })
+    }));
+    let theme = use_theme();
+    let status_color = create_memo(clone!(theme snapshot -> move || {
+        let theme = theme.get();
+        if snapshot.get().error.is_some() {
+            theme.accent_hover
+        } else {
+            theme.text_muted
         }
-    }
-
-    pub fn document(&self) -> &Document {
-        &self.document
-    }
-
-    pub(super) fn set_snapshot(&mut self, snapshot: CreationSnapshot) {
-        let set_snapshot = self.set_snapshot.clone();
-        with_reactive_scope(&mut self.document, move || set_snapshot.set(snapshot));
-    }
-
-    pub(super) fn show(&mut self, context: &Context, rect: Rect) {
-        self.document.show(context, rect);
+    }));
+    view! {
+        <Frame color={theme.background.clone()} padding_horizontal=12.0 padding_vertical=10.0>
+            <Column spacing=8.0>
+                <Button
+                    label="Choose game module..."
+                    variant=ButtonVariant::Secondary
+                    disabled={picking}
+                    @test_id={"game.choose"}
+                    on_click={move || creation.choose_module()}
+                />
+                <Body content={status} color={status_color} @test_id={"game.selection"} />
+            </Column>
+        </Frame>
     }
 }
