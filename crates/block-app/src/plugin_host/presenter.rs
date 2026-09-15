@@ -290,6 +290,7 @@ pub(super) enum PresenterCommand {
         quad: Quad,
         source: egui::Rect,
         slot: u32,
+        drawn: Option<(u32, u32)>,
     },
     Release,
 }
@@ -310,6 +311,7 @@ impl PresenterCallback {
         quad: Quad,
         source: egui::Rect,
         slot: u32,
+        drawn: Option<(u32, u32)>,
     ) -> Self {
         Self {
             command: PresenterCommand::Present {
@@ -318,6 +320,7 @@ impl PresenterCallback {
                 quad,
                 source,
                 slot,
+                drawn,
             },
             status,
             surface,
@@ -357,14 +360,20 @@ impl egui_wgpu::CallbackTrait for PresenterCallback {
                 quad,
                 source,
                 slot,
+                drawn,
             } => {
                 let (frames, region) = {
                     let mut shared = shared.lock().unwrap();
                     let frames = std::mem::take(&mut shared.frames);
-                    (
-                        frames,
-                        Region::of(&shared.layout, self.surface, *screen, *quad, *source, *slot),
-                    )
+                    let placed = shared.layout.placement(*screen).map(|placement| {
+                        Region::of(&shared.layout, self.surface, *screen, *quad, *source, *slot)
+                            .filter(|_| {
+                                drawn.is_none_or(|drawn| {
+                                    drawn == (placement.width, placement.height)
+                                })
+                            })
+                    });
+                    (frames, placed.flatten())
                 };
                 let mut failure = None;
                 for frame in &frames {

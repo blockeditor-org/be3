@@ -34,6 +34,7 @@ impl InfiniteCanvasEditor {
             pending_file_drop_position: None,
             clipboard_image_paste: ImagePaster::default(),
             focused_editor: None,
+            confirmed_editor: None,
             viewport_center: CanvasPoint::default(),
             pointer_world: None,
             fit_selection_requested: false,

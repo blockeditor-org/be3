@@ -8,7 +8,7 @@ fn input_is_withheld_from_screens_the_plugin_no_longer_has() {
     instances.screen_set(screens);
     context.memory_mut(|memory| memory.request_focus(id));
 
-    let messages = instances.frame_input(&context, PASS);
+    let messages = instances.frame_input(&context, PASS, &FrameOverlay::default());
 
     assert!(matches!(
         messages.as_slice(),
@@ -18,5 +18,9 @@ fn input_is_withheld_from_screens_the_plugin_no_longer_has() {
     instances.screen_set(Vec::new());
     context.memory_mut(|memory| memory.surrender_focus(id));
 
-    assert!(instances.frame_input(&context, PASS).is_empty());
+    assert!(
+        instances
+            .frame_input(&context, PASS, &FrameOverlay::default())
+            .is_empty()
+    );
 }

@@ -956,7 +956,6 @@ impl EditorSession {
                     let outcome = block_ui::frame::Frame::new(egui::Id::new("plugin frame"))
                         .chrome(match spec.chrome {
                             FrameChrome::Drawn => block_ui::frame::Chrome::Drawn,
-                            FrameChrome::Reserved => block_ui::frame::Chrome::Reserved,
                             FrameChrome::None => block_ui::frame::Chrome::None,
                         })
                         .toolbar(band(EditorBand::Toolbar))

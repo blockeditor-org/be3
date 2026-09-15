@@ -34,7 +34,6 @@ pub struct ScreenRequest {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FrameChrome {
     Drawn,
-    Reserved,
     #[default]
     None,
 }

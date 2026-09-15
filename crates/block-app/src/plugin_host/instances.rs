@@ -98,6 +98,13 @@ pub(crate) struct Focus {
     pub(crate) via: Vec<Uuid>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct Held {
+    pub(super) rect: egui::Rect,
+    pub(super) clip: egui::Rect,
+    pub(super) drawn: (u32, u32),
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) struct EditorView {
     pub(crate) rect: egui::Rect,
@@ -190,6 +197,8 @@ struct Screen {
     placement: Option<Placement>,
     request: ScreenRequest,
     last_seen: u64,
+    presented: Option<(egui::Rect, egui::Rect)>,
+    holding: bool,
     used: Option<egui::Vec2>,
     report: Option<FrameReport>,
     dragging: bool,
@@ -215,12 +224,36 @@ struct Hole {
     occluders: Vec<egui::Rect>,
 }
 
+#[derive(Clone, Default)]
+pub(super) struct FrameOverlay {
+    pub(super) owner: Option<EditorInstanceId>,
+    pub(super) rects: Vec<egui::Rect>,
+}
+
+impl FrameOverlay {
+    pub(super) fn covering(&self, instance: EditorInstanceId) -> &[egui::Rect] {
+        match self.owner == Some(instance) {
+            true => &[],
+            false => &self.rects,
+        }
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Holes {
     holes: Vec<Hole>,
 }
 
 impl Holes {
+    pub(super) fn cover(&mut self, rects: &[egui::Rect]) {
+        for rect in rects {
+            self.holes.push(Hole {
+                rect: *rect,
+                occluders: Vec::new(),
+            });
+        }
+    }
+
     pub(super) fn contains(&self, position: egui::Pos2) -> bool {
         self.holes.iter().any(|hole| {
             hole.rect.contains(position)
@@ -342,6 +375,8 @@ impl Instances {
                     frame: frame.clone(),
                 },
                 last_seen: pass,
+                presented: None,
+                holding: false,
                 used: None,
                 report: None,
                 dragging: false,
@@ -358,6 +393,45 @@ impl Instances {
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
+    }
+
+    pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+        if let Some(screen) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+        {
+            screen.holding = true;
+        }
+    }
+
+    pub(super) fn held(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        rect: Option<egui::Rect>,
+        clip: egui::Rect,
+        drawn: Option<(u32, u32)>,
+    ) -> Option<Held> {
+        let screen = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))?;
+        let requested = (
+            screen.request.metrics.pixel_width,
+            screen.request.metrics.pixel_height,
+        );
+        let stale = drawn.filter(|drawn| *drawn != requested);
+        if screen.holding
+            && let (Some(drawn), Some((rect, clip))) = (stale, screen.presented)
+        {
+            return Some(Held { rect, clip, drawn });
+        }
+        screen.holding = false;
+        if let Some(rect) = rect {
+            screen.presented = Some((rect, clip));
+        }
+        None
     }
 
     pub(super) fn set_view(&mut self, instance: EditorInstanceId, view: EditorView) {
@@ -1290,7 +1364,12 @@ impl Instances {
         }
     }
 
-    pub(super) fn frame_input(&mut self, context: &egui::Context, pass: u64) -> Vec<Message> {
+    pub(super) fn frame_input(
+        &mut self,
+        context: &egui::Context,
+        pass: u64,
+        overlay: &FrameOverlay,
+    ) -> Vec<Message> {
         let announced = &self.announced;
         let mut placed: Vec<_> = self
             .entries
@@ -1308,7 +1387,9 @@ impl Instances {
         placed.sort_by_key(|(instance, _, screen, _)| (instance.0, screen.0));
         let mut messages = Vec::new();
         for (instance, region, screen, placement) in placed {
-            let (_, holes) = self.host_children(instance, region, placement.rect, placement.clip);
+            let (_, mut holes) =
+                self.host_children(instance, region, placement.rect, placement.clip);
+            holes.cover(overlay.covering(instance));
             let Some(response) = context.read_response(placement.id) else {
                 continue;
             };

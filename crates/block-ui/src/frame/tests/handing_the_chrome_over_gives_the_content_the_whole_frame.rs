@@ -1,11 +1,11 @@
 use super::*;
 
 #[test]
-fn the_content_band_survives_handing_the_chrome_over() {
+fn handing_the_chrome_over_gives_the_content_the_whole_frame() {
     let size = egui::vec2(1200.0, 800.0);
     let context = egui::Context::default();
     let mut drawn = FrameOutcome::default();
-    let mut reserved = FrameOutcome::default();
+    let mut handed = FrameOutcome::default();
     for pass in 0..4 {
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
@@ -15,20 +15,21 @@ fn the_content_band_survives_handing_the_chrome_over() {
         let _ = context.run_ui(input, |ui| {
             let chrome = match pass < 2 {
                 true => Chrome::Drawn,
-                false => Chrome::Reserved,
+                false => Chrome::None,
             };
             let outcome = frame().chrome(chrome).show(ui, &mut bands);
             match pass < 2 {
                 true => drawn = outcome,
-                false => reserved = outcome,
+                false => handed = outcome,
             }
         });
     }
     assert!(drawn.rects.toolbar.is_some());
     assert!(drawn.rects.left_sidebar.is_some());
     assert!(drawn.rects.right_sidebar.is_some());
-    assert_eq!(reserved.rects.content_band, drawn.rects.content_band);
-    assert_eq!(reserved.rects.toolbar, drawn.rects.toolbar);
-    assert_eq!(reserved.rects.left_sidebar, drawn.rects.left_sidebar);
-    assert_eq!(reserved.rects.right_sidebar, drawn.rects.right_sidebar);
+    assert!(drawn.rects.content_band.area() < handed.rects.content_band.area());
+    assert_eq!(handed.rects.content_band, handed.rects.frame);
+    assert_eq!(handed.rects.toolbar, None);
+    assert_eq!(handed.rects.left_sidebar, None);
+    assert_eq!(handed.rects.right_sidebar, None);
 }
