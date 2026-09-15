@@ -117,10 +117,7 @@ fn breadcrumb(trail: Vec<String>) -> NodeId {
     for (index, step) in trail.into_iter().enumerate() {
         if index > 0 {
             children.push(intrinsic(view! {
-                <Icon
-                    glyph={ICON_CHEVRON_RIGHT.to_owned()}
-                    color={theme.text_muted.clone()}
-                />
+                <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={theme.text_muted.clone()} />
             }));
         }
         let color = match index == last_index {
