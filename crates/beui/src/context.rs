@@ -9,6 +9,7 @@ use crate::accessibility::{self, Fragment};
 use crate::font::{FontId, FontSources, Fonts, Galley};
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, InputState, RawInput};
+use crate::mouse_simulation::MouseSimulation;
 use crate::painter::{Painter, Shape};
 
 #[derive(Clone)]
@@ -27,6 +28,7 @@ struct Inner {
     paste_requested: Cell<bool>,
     cursor_icon: Cell<CursorIcon>,
     touch_emulation: Cell<bool>,
+    mouse_simulation: RefCell<MouseSimulation>,
     pixels_per_point: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
@@ -96,6 +98,7 @@ impl Context {
                 paste_requested: Cell::new(false),
                 cursor_icon: Cell::new(CursorIcon::Default),
                 touch_emulation: Cell::new(false),
+                mouse_simulation: RefCell::new(MouseSimulation::default()),
                 pixels_per_point: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
@@ -110,6 +113,12 @@ impl Context {
 
     pub fn begin_frame(&self, raw: RawInput) {
         self.apply_pixels_per_point();
+        self.inner.repaint.set(false);
+        self.inner.repaint_after.set(Duration::MAX);
+        let (raw, wake) = self.inner.mouse_simulation.borrow_mut().translate(raw);
+        if let Some(delay) = wake {
+            self.request_repaint_after(delay);
+        }
         self.inner.input.borrow_mut().begin_frame(raw);
         self.inner.shapes.borrow_mut().clear();
         self.inner.top_shapes.borrow_mut().clear();
@@ -118,8 +127,6 @@ impl Context {
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste_requested.set(false);
         self.inner.cursor_icon.set(CursorIcon::Default);
-        self.inner.repaint.set(false);
-        self.inner.repaint_after.set(Duration::MAX);
         self.inner.accessibility.borrow_mut().clear();
     }
 
@@ -183,6 +190,53 @@ impl Context {
 
     pub(crate) fn set_touch_emulation(&self, enabled: bool) {
         self.inner.touch_emulation.set(enabled);
+    }
+
+    pub fn mouse_simulation(&self) -> bool {
+        self.inner.mouse_simulation.borrow().enabled()
+    }
+
+    pub(crate) fn set_mouse_simulation(&self, enabled: bool) {
+        self.inner
+            .mouse_simulation
+            .borrow_mut()
+            .set_enabled(enabled);
+    }
+
+    pub(crate) fn show_mouse_simulation(&self, viewport: Rect) {
+        let scale = self.native_pixels_per_point() / self.pixels_per_point();
+        let simulation = &self.inner.mouse_simulation;
+        simulation.borrow_mut().measure(viewport, scale);
+        if !simulation.borrow().painting() {
+            return;
+        }
+        self.scaled(scale, || {
+            let painter = self
+                .painter()
+                .with_clip_rect(viewport.scaled(scale.recip()));
+            let damage = simulation.borrow_mut().paint(&painter);
+            self.report_damage(damage);
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn simulated_cursor(&self) -> crate::geometry::Pos2 {
+        self.inner.mouse_simulation.borrow().cursor()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn simulated_button(&self, index: usize) -> crate::geometry::Pos2 {
+        self.inner.mouse_simulation.borrow().button_center(index)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn simulated_trackpad(&self) -> crate::geometry::Pos2 {
+        self.inner.mouse_simulation.borrow().trackpad_center()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn simulated_key(&self, label: &str) -> Option<crate::geometry::Pos2> {
+        self.inner.mouse_simulation.borrow().key_center(label)
     }
 
     pub fn request_repaint(&self) {

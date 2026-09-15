@@ -301,6 +301,7 @@ impl Document {
             inspector.show(self, ctx, content, panel, inspector_has_focus);
             self.inspector = Some(inspector);
         }
+        ctx.show_mouse_simulation(rect);
     }
 
     pub(crate) fn show_content(

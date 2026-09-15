@@ -15,10 +15,12 @@ mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
+mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
+mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
@@ -66,6 +68,7 @@ mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
+mod holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor;
 mod hovering_a_context_menu_item_moves_keyboard_focus_to_it;
 mod hovering_a_menu_item_with_children_opens_its_submenu_without_a_click;
 mod hovering_a_row_highlights_the_node_it_lists;
@@ -95,6 +98,7 @@ mod shift_tab_moves_focus_to_the_previous_button;
 mod show_lazily_builds_and_toggles_its_child_when_the_condition_changes;
 mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
 mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
+mod swiping_the_simulated_middle_button_scrolls_in_ticks;
 mod tab_focus_stays_in_the_active_document_when_the_inspector_is_open;
 mod tab_is_trapped_inside_an_open_context_menu;
 mod tab_moves_focus_from_one_text_input_to_the_next;
@@ -114,6 +118,7 @@ mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_scroll_position_is_reported_to_its_listener;
+mod the_simulated_keyboard_types_into_the_focused_input;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
@@ -223,11 +228,12 @@ impl Harness {
     }
 
     pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) {
+        self.finger(1, phase, pos);
+    }
+
+    pub(crate) fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) {
         self.frame(vec![Event::Touch {
-            id: TouchId {
-                device: 1,
-                finger: 1,
-            },
+            id: TouchId { device: 1, finger },
             phase,
             pos,
             force: None,
@@ -321,6 +327,60 @@ impl Harness {
 
     pub(crate) fn touch_toggle_center(&self) -> Pos2 {
         self.node_center(self.inspector().touch_toggle_node())
+    }
+
+    pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
+        self.node_center(self.inspector().mouse_toggle_node())
+    }
+
+    pub(crate) fn mouse_simulation(&self) -> bool {
+        self.context.mouse_simulation()
+    }
+
+    pub(crate) fn simulated_cursor(&self) -> Pos2 {
+        self.context.simulated_cursor()
+    }
+
+    pub(crate) fn simulated_button(&self, index: usize) -> Pos2 {
+        self.context.simulated_button(index)
+    }
+
+    pub(crate) fn simulated_trackpad(&self) -> Pos2 {
+        self.context.simulated_trackpad()
+    }
+
+    pub(crate) fn simulated_key(&self, label: &str) -> Pos2 {
+        self.context
+            .simulated_key(label)
+            .unwrap_or_else(|| panic!("the simulated keyboard has no {label:?} key"))
+    }
+
+    pub(crate) fn enable_mouse_simulation(&mut self) {
+        self.toggle_inspector();
+        let tab = self.simulation_tab_center();
+        self.click(tab);
+        self.frame(Vec::new());
+        let toggle = self.mouse_toggle_center();
+        self.click(toggle);
+        self.key(Key::Escape, Modifiers::NONE);
+        self.frame(Vec::new());
+    }
+
+    pub(crate) fn point_at(&mut self, target: Pos2) {
+        let origin = self.simulated_trackpad();
+        let jog = Vec2::new(0.0, -40.0);
+        let delta = target - self.simulated_cursor();
+        self.finger(9, TouchPhase::Start, origin);
+        self.finger(9, TouchPhase::Move, origin + jog);
+        self.finger(9, TouchPhase::Move, origin + delta);
+        self.finger(9, TouchPhase::End, origin + delta);
+    }
+
+    pub(crate) fn tap_trackpad(&mut self) {
+        let at = self.simulated_trackpad();
+        self.finger(1, TouchPhase::Start, at);
+        self.finger(1, TouchPhase::End, at);
+        self.frame(Vec::new());
     }
 
     pub(crate) fn change_flash_toggle_center(&self) -> Pos2 {

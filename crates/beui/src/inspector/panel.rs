@@ -126,6 +126,8 @@ pub(crate) struct Panel {
     #[cfg(test)]
     pub(crate) touch_toggle: NodeRef,
     #[cfg(test)]
+    pub(crate) mouse_toggle: NodeRef,
+    #[cfg(test)]
     pub(crate) change_flash_toggle: NodeRef,
     #[cfg(test)]
     pub(crate) damage_flash_toggle: NodeRef,
@@ -155,6 +157,8 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let tree_ref = tree.clone();
     let touch_toggle = NodeRef::new();
     let touch_toggle_ref = touch_toggle.clone();
+    let mouse_toggle = NodeRef::new();
+    let mouse_toggle_ref = mouse_toggle.clone();
     let change_flash_toggle = NodeRef::new();
     let change_flash_toggle_ref = change_flash_toggle.clone();
     let damage_flash_toggle = NodeRef::new();
@@ -312,6 +316,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     <SimulationPanel
                                         state={simulation_state.clone()}
                                         touch_toggle={touch_toggle_ref.clone()}
+                                        mouse_toggle={mouse_toggle_ref.clone()}
                                         pixel_ratio={pixel_ratio_ref.clone()}
                                         theme_choice={theme_choice_ref.clone()}
                                     />
@@ -361,6 +366,8 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         #[cfg(test)]
         touch_toggle,
         #[cfg(test)]
+        mouse_toggle,
+        #[cfg(test)]
         change_flash_toggle,
         #[cfg(test)]
         damage_flash_toggle,
@@ -381,6 +388,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
 fn SimulationPanel(
     state: Rc<State>,
     touch_toggle: NodeRef,
+    mouse_toggle: NodeRef,
     pixel_ratio: NodeRef,
     theme_choice: NodeRef,
 ) -> NodeId {
@@ -403,7 +411,8 @@ fn SimulationPanel(
         .iter()
         .map(|(label, _)| (*label).to_owned())
         .collect::<Vec<_>>();
-    let (touch_state, ratio_state, theme_state) = (state.clone(), state.clone(), state.clone());
+    let (touch_state, mouse_state, ratio_state, theme_state) =
+        (state.clone(), state.clone(), state.clone(), state.clone());
     view! {
         <Row spacing=BODY_SPACING>
             <Scroll
@@ -417,6 +426,12 @@ fn SimulationPanel(
                         label="Emulate touch with mouse"
                         checked={state.touch_emulation.get()}
                         on_change={move |enabled| touch_state.touch_emulation.set(enabled)}
+                    />
+                    <Checkbox
+                        @node_ref=&mouse_toggle
+                        label="Simulate mouse with touch"
+                        checked={state.mouse_simulation.get()}
+                        on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
                     />
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                     <Column spacing=TIMING_SPACING>
