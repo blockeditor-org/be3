@@ -6,6 +6,7 @@ Guides:
 - guides/adding_a_block.md
 - guides/adding_a_game.md
 - guides/adding_a_plugin_editor.md
+- guides/pan_and_zoom.md
 - guides/testing_a_gui.md
 
 Do not:

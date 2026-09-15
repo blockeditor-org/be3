@@ -118,7 +118,6 @@ impl PanZoomUi {
         let canvas = NodeRef::new();
         let canvas_ref = canvas.clone();
 
-        let theme = use_theme();
         let shown = create_memo(clone!(chrome open -> move || chrome.get() && open.get()));
         let railed = create_memo(clone!(chrome open -> move || chrome.get() && !open.get()));
         let panel = sidebar(
@@ -137,9 +136,7 @@ impl PanZoomUi {
             size(stage, ItemSize::Percent(100.0)),
         ];
         let root = view! {
-            <Frame color={theme.background.clone()}>
-                <Row spacing=0.0 children={children} />
-            </Frame>
+            <Row spacing=0.0 children={children} />
         };
 
         (
