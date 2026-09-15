@@ -27,5 +27,6 @@ fn editor() -> (
     app.connect(host.clone(), client, block.id());
     let mut editor = EditorTest::viewport(app, host.clone());
     editor.step();
+    editor.step_until("the lighting to land", |app| app.lighting_landed());
     (editor, block, host)
 }
