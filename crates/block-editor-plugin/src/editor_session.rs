@@ -484,8 +484,20 @@ impl EditorSession {
         self.app.presence_visible(visible);
     }
 
-    pub(crate) fn reveal_presence(&mut self, client_id: u64) {
-        self.app.reveal_presence(client_id);
+    fn viewers(&self) -> Vec<block_ui::frame::Viewer> {
+        let Some((client, block_id)) = &self.block else {
+            return Vec::new();
+        };
+        let mut viewers: Vec<_> = client
+            .presence::<UserActive>(*block_id)
+            .into_iter()
+            .map(|(client_id, user)| block_ui::frame::Viewer {
+                client_id,
+                color: user.color,
+            })
+            .collect();
+        viewers.sort_by_key(|viewer| viewer.client_id);
+        viewers
     }
 
     pub(crate) fn replace_child(&mut self, request_id: u64, old: Uuid, new: Uuid) {
@@ -958,6 +970,7 @@ impl EditorSession {
         let delivered_files = files.as_ref().is_some_and(|files| files.dropped);
         self.host.set_files(files);
         let delivered_drop = drag.is_some_and(|drag| drag.dropped);
+        let viewers = self.viewers();
         let app = &mut self.app;
         let plain =
             egui::Frame::central_panel(&context.global_style()).inner_margin(egui::Margin::ZERO);
@@ -978,6 +991,7 @@ impl EditorSession {
         let mut content = rect;
         let mut painted = Vec::new();
         let mut leaving = false;
+        let mut reveal = None;
         let mut content_band = rect;
         let output = context.run_ui(input, |ui| {
             ui.set_clip_rect(ui.clip_rect().intersect(visible_rect));
@@ -1011,8 +1025,10 @@ impl EditorSession {
                                 .map(|content| host_rect(content, rect.min.to_vec2())),
                         )
                         .trail(spec.trail.clone())
+                        .viewers(viewers.clone())
                         .show(ui, &mut bands);
                     leaving |= outcome.exit;
+                    reveal = outcome.reveal;
                     content_band = outcome.rects.content;
                     painted = outcome.rects.painted().collect();
                 }
@@ -1061,6 +1077,9 @@ impl EditorSession {
             self.files = None;
         }
         self.leaving |= leaving;
+        if let Some(client_id) = reveal {
+            self.app.reveal_presence(client_id);
+        }
         self.used(region, content);
         for command in &output.platform_output.commands {
             if let egui::OutputCommand::CopyText(text) = command {

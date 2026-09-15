@@ -9,12 +9,12 @@ use tokio::{fs, net::TcpListener};
 use uuid::Uuid;
 
 mod a_block_that_does_not_exist_leaves_the_client_synchronized;
+mod a_peers_colour_and_cursor_arrive_under_one_client_id;
 mod a_tunnelled_client_shares_the_hosts_connection;
 mod batched_updates_are_observed_together;
 mod client_orders_parent_assignment_after_creation_and_reference_updates;
 mod crdt_text_clients_converge_after_concurrent_insertions;
-mod presence_from_one_connection_is_reported_under_a_single_client_id;
-mod presence_posted_by_a_connection_never_returns_to_that_connection;
+mod presence_a_plugin_publishes_never_comes_back_to_it;
 mod real_clients_synchronize_through_the_real_server;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

@@ -818,13 +818,6 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn reveal_presence_cursor(&mut self, client_id: block::ClientId) {
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
-        crate::plugin_host::reveal_presence(&plugin.identity.id, self.instance, client_id);
-    }
-
     pub(crate) fn render(
         &mut self,
         context: BlockRenderContext<'_>,

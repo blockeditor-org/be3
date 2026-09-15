@@ -629,12 +629,6 @@ impl EditorHost {
             .push((block_id, BlockCommand::Artifact { action }));
     }
 
-    pub fn reveal_presence(&self, block_id: Uuid, client_id: u64) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::RevealPresence { client_id }));
-    }
-
     pub fn close_editor(&self, block_id: Uuid) {
         self.block_commands
             .borrow_mut()

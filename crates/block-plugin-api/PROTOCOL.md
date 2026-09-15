@@ -106,25 +106,22 @@ turning off again.
 
 Presence is block data like any other and carries no messages of its own. All
 of it - the coarse "someone is looking at this block" entry as much as the
-cursor - is published on the one block client the plugin owns, the same client
-it reads the block through, so everything one person publishes for a block
-carries a single identity. The host publishes none of it. A plugin's client is
-carried over the host's connection but is a client of its own to the server,
-and presence is attributed to the connection rather than to the client that
-posted it, so nothing published anywhere on a connection - by the host, by the
-plugin drawing the block, or by another plugin alongside it - is ever delivered
-back to any client on that connection. A user is therefore never among the
-people their own editor shows.
+cursor - is published and read on the one block client the plugin owns, the
+same client it reads the block through. The host publishes none of it, and no
+other plugin reads it for a block it is not itself drawing. That single client
+is what makes presence add up: a block's entries all carry one identity per
+person, so a reader can join a colour to a cursor, and the server never returns
+to a client the presence that client posted, so a user is never among the
+people their own editor shows them.
 
-What the host owes an instance about presence is only whether its block is
+The only thing the host owes an instance about presence is whether its block is
 currently being viewed. The framework answers that by publishing and clearing
 the viewing entry itself, and passes it on so an instance knows when to start
 and stop publishing a cursor; an instance that wants no cursor of its own
-ignores it. The host also asks an instance to reveal one client's cursor, when
-the user picks that person out of the list of people viewing the block, which
-only the instance can do because only it knows where in its own content that
-cursor is; the instance finds that client among the presence it already reads
-for itself.
+ignores it. The framework also draws the people viewing the block from the same
+client, and asks the instance to reveal one of their cursors when the user picks
+that person out, which only the instance can do because only it knows where in
+its own content that cursor is - an in-process call on the app, not a message.
 
 An editor instance may be asked to replace one of the blocks it references with
 another - a copy the host made of a block being edited in two places at once -

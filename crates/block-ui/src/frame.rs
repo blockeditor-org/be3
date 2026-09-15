@@ -1,4 +1,8 @@
+use block::ClientId;
+use block_client::presence::PresenceColor;
 use egui_material_icons::icons::{ICON_CHEVRON_RIGHT, ICON_CLOSE};
+
+const VIEWER_DOT: f32 = 10.0;
 
 pub const COMPACT_FRAME_WIDTH: f32 = 760.0;
 
@@ -64,6 +68,13 @@ impl FrameRects {
 pub struct FrameOutcome {
     pub rects: FrameRects,
     pub exit: bool,
+    pub reveal: Option<ClientId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Viewer {
+    pub client_id: ClientId,
+    pub color: PresenceColor,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -83,6 +94,7 @@ pub struct Frame {
     compact_width: f32,
     content: Option<egui::Rect>,
     trail: Vec<String>,
+    viewers: Vec<Viewer>,
 }
 
 impl Frame {
@@ -97,6 +109,7 @@ impl Frame {
             compact_width: COMPACT_FRAME_WIDTH,
             content: None,
             trail: Vec::new(),
+            viewers: Vec::new(),
         }
     }
 
@@ -135,6 +148,11 @@ impl Frame {
         self
     }
 
+    pub fn viewers(mut self, viewers: Vec<Viewer>) -> Self {
+        self.viewers = viewers;
+        self
+    }
+
     pub fn show(self, ui: &mut egui::Ui, bands: &mut dyn FrameBands) -> FrameOutcome {
         let frame = ui.available_rect_before_wrap();
         let compact = frame.width() < self.compact_width;
@@ -145,16 +163,18 @@ impl Frame {
                 ..FrameRects::default()
             },
             exit: false,
+            reveal: None,
         };
         if self.chrome != Chrome::Drawn {
             self.content_band(ui, bands, &mut outcome);
             return outcome;
         }
-        if self.toolbar || !self.trail.is_empty() {
+        if self.toolbar || !self.trail.is_empty() || !self.viewers.is_empty() {
             let shown = egui::Panel::top(self.id.with("toolbar"))
                 .show_separator_line(true)
                 .show_inside(ui, |ui| self.toolbar_band(ui, bands));
-            outcome.exit |= shown.inner;
+            outcome.exit |= shown.inner.0;
+            outcome.reveal = shown.inner.1;
             outcome.rects.toolbar = Some(shown.response.rect);
         }
         if compact {
@@ -226,21 +246,45 @@ impl Frame {
         ui.advance_cursor_after_rect(band);
     }
 
-    fn toolbar_band(&self, ui: &mut egui::Ui, bands: &mut dyn FrameBands) -> bool {
-        if self.trail.is_empty() {
+    fn toolbar_band(
+        &self,
+        ui: &mut egui::Ui,
+        bands: &mut dyn FrameBands,
+    ) -> (bool, Option<ClientId>) {
+        if self.trail.is_empty() && self.viewers.is_empty() {
             read_only_scope(ui, self.read_only, |ui| bands.toolbar_ui(ui));
-            return false;
+            return (false, None);
         }
         let band = ui.available_rect_before_wrap();
-        let mut crumbs = ui.new_child(
-            egui::UiBuilder::new()
-                .id_salt(self.id.with("breadcrumb"))
-                .max_rect(band)
-                .layout(egui::Layout::left_to_right(egui::Align::Center)),
-        );
-        let exit = breadcrumb(&mut crumbs, &self.trail);
-        let used = crumbs.min_rect();
-        let rest = band.with_min_x((used.right() + ui.spacing().item_spacing.x).min(band.right()));
+        let spacing = ui.spacing().item_spacing.x;
+        let mut rest = band;
+        let mut height = 0.0_f32;
+        let mut reveal = None;
+        if !self.viewers.is_empty() {
+            let mut dots = ui.new_child(
+                egui::UiBuilder::new()
+                    .id_salt(self.id.with("viewers"))
+                    .max_rect(rest)
+                    .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            );
+            reveal = viewers(&mut dots, &self.viewers);
+            let used = dots.min_rect();
+            height = height.max(used.height());
+            rest = rest.with_max_x((used.left() - spacing).max(rest.left()));
+        }
+        let mut exit = None;
+        if !self.trail.is_empty() {
+            let mut crumbs = ui.new_child(
+                egui::UiBuilder::new()
+                    .id_salt(self.id.with("breadcrumb"))
+                    .max_rect(rest)
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+            exit = Some(breadcrumb(&mut crumbs, &self.trail));
+            let used = crumbs.min_rect();
+            height = height.max(used.height());
+            rest = rest.with_min_x((used.right() + spacing).min(rest.right()));
+        }
         let mut inner = ui.new_child(
             egui::UiBuilder::new()
                 .id_salt(self.id.with("toolbar-contents"))
@@ -249,14 +293,18 @@ impl Frame {
         );
         inner.set_clip_rect(rest.intersect(ui.clip_rect()));
         read_only_scope(&mut inner, self.read_only, |ui| bands.toolbar_ui(ui));
-        let height = used.height().max(inner.min_rect().height());
+        let height = height.max(inner.min_rect().height());
         ui.advance_cursor_after_rect(egui::Rect::from_min_size(
             band.min,
             egui::vec2(band.width(), height),
         ));
-        exit || ui
-            .ctx()
-            .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        let exit = exit.is_some_and(|clicked| {
+            clicked
+                || ui
+                    .ctx()
+                    .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        });
+        (exit, reveal)
     }
 }
 
@@ -287,6 +335,24 @@ fn scrolled<R>(ui: &mut egui::Ui, read_only: bool, contents: impl FnOnce(&mut eg
         .auto_shrink([false, false])
         .show(ui, |ui| read_only_scope(ui, read_only, contents))
         .inner
+}
+
+fn viewers(ui: &mut egui::Ui, viewers: &[Viewer]) -> Option<ClientId> {
+    let mut reveal = None;
+    ui.horizontal(|ui| {
+        for viewer in viewers {
+            let (rect, response) =
+                ui.allocate_exact_size(egui::Vec2::splat(VIEWER_DOT), egui::Sense::click());
+            ui.painter()
+                .rect_filled(rect, 2.0, crate::presence_color(viewer.color));
+            let response = response
+                .on_hover_text("Someone else is viewing this block\nClick to jump to their cursor");
+            if response.clicked() {
+                reveal = Some(viewer.client_id);
+            }
+        }
+    });
+    reveal
 }
 
 fn breadcrumb(ui: &mut egui::Ui, trail: &[String]) -> bool {
