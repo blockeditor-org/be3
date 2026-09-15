@@ -1,5 +1,5 @@
 use block::{BlockParent, BlockReference};
-use block_client::{ReferenceList, presence::UserActive};
+use block_client::ReferenceList;
 use block_editor_plugin::{
     BlockSource,
     block_ui::{BlockLabel, BlockTypes},
@@ -36,30 +36,10 @@ pub(crate) fn show(
         .backrefs
         .get(&id)
         .map(|list| (list.is_loaded(), list.read()));
-    let viewers = frame.client.presence::<UserActive>(id);
     let mut navigate = None;
     let mut action = None;
     ui.horizontal_wrapped(|ui| {
         ui.label(format!("Type: {type_name}"));
-        if !viewers.is_empty() {
-            ui.separator();
-            ui.label("Also viewing:");
-            for (client_id, user) in &viewers {
-                let (rect, response) =
-                    ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::click());
-                ui.painter().rect_filled(
-                    rect,
-                    2.0,
-                    block_editor_plugin::block_ui::presence_color(user.color),
-                );
-                let response = response.on_hover_text(
-                    "Someone else is viewing this document\nClick to jump to their cursor",
-                );
-                if response.clicked() {
-                    frame.host.reveal_presence(id, *client_id);
-                }
-            }
-        }
         ui.separator();
         if parents != Some(true) {
             ui.label("Relationships loading\u{2026}");

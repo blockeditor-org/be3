@@ -7,7 +7,7 @@ mod session;
 pub use manifest::{ManifestDocument, manifest_from_json};
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 49;
+pub const PROTOCOL_VERSION: u16 = 50;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
@@ -683,10 +683,6 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         visible: bool,
     },
-    RevealPresence {
-        instance: EditorInstanceId,
-        client_id: u64,
-    },
     ReplaceChild {
         instance: EditorInstanceId,
         request_id: u64,
@@ -788,7 +784,6 @@ impl EditorMessage {
             | Self::Cursor { instance, .. }
             | Self::Ime { instance, .. }
             | Self::Presence { instance, .. }
-            | Self::RevealPresence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
             | Self::ChildView { instance, .. }
@@ -898,9 +893,6 @@ pub enum BlockCommand {
     },
     SimulateAccess {
         access: AccessLevel,
-    },
-    RevealPresence {
-        client_id: u64,
     },
     CloseEditor,
     Unlink {

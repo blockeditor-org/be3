@@ -269,14 +269,6 @@ impl Screens {
                     session.presence_visible(*visible);
                 }
             }
-            Message::Editor(EditorMessage::RevealPresence {
-                instance,
-                client_id,
-            }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.reveal_presence(*client_id);
-                }
-            }
             Message::Editor(EditorMessage::ChildView {
                 instance,
                 child,

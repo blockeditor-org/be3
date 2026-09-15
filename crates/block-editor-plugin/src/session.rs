@@ -106,7 +106,6 @@ impl ClientSession {
                     | block_plugin_api::EditorMessage::ViewChanged { instance, .. }
                     | block_plugin_api::EditorMessage::Resized { instance, .. }
                     | block_plugin_api::EditorMessage::Presence { instance, .. }
-                    | block_plugin_api::EditorMessage::RevealPresence { instance, .. }
                     | block_plugin_api::EditorMessage::ReplaceChild { instance, .. }
                     | block_plugin_api::EditorMessage::ChildView { instance, .. }
                     | block_plugin_api::EditorMessage::ShowBlock { instance, .. }

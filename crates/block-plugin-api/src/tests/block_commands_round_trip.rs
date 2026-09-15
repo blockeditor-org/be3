@@ -41,7 +41,6 @@ fn block_commands_round_trip() {
         BlockCommand::SimulateAccess {
             access: AccessLevel::View,
         },
-        BlockCommand::RevealPresence { client_id: 42 },
         BlockCommand::CloseEditor,
     ] {
         let message = Message::Editor(EditorMessage::BlockCommand {

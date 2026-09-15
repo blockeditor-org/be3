@@ -1993,11 +1993,6 @@ impl BlockApp {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
             BlockCommand::Artifact { action } => self.act_on_artifact(id, action),
-            BlockCommand::RevealPresence { client_id } => {
-                if let Some(editor) = self.editors.get_mut(&id) {
-                    editor.reveal_presence_cursor(client_id);
-                }
-            }
             BlockCommand::CloseEditor => self.close_editor(id),
             BlockCommand::SimulateAccess { access } => {
                 let access = match access {

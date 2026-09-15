@@ -1158,15 +1158,6 @@ pub(crate) fn replace_child(
     .flatten()
 }
 
-pub(crate) fn reveal_presence(plugin_id: &str, instance: EditorInstanceId, client_id: u64) {
-    with(plugin_id, |runtime| {
-        runtime.send(vec![Message::Editor(EditorMessage::RevealPresence {
-            instance,
-            client_id,
-        })]);
-    });
-}
-
 pub(crate) fn resized(plugin_id: &str, instance: EditorInstanceId, size: egui::Vec2) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.resized(instance, size);
