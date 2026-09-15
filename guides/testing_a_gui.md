@@ -69,6 +69,18 @@ run() paints until the editor asks for no more immediate repaints, so an editor 
 animating — a recording playing, a spinner turning — never lets it return. Drive those a
 frame at a time with step(), which paints once however much the editor wanted.
 
+An editor that hands work to another thread paints a spinner until the work lands, so which
+of the two a test captures is down to whether the thread beat it to the frame: a snapshot
+that passes on an idle machine and fails when the suite is running thirty editors at once.
+step_until paints a frame at a time until the editor says it is done waiting, and fails the
+test rather than the painting if it never is.
+
+    editor.step_until("the lighting to land", |app| app.lighting_landed());
+
+The predicate reads the app, so the editor needs something to ask — a #[cfg(test)] accessor
+over whatever it was waiting on. Wait for the work rather than for a number of frames: a few
+more step() calls is the same race with a wider margin, which is how one of these hid.
+
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 is built with EditorTest::viewport(app, host) — the host it was connected to — instead of
 EditorTest::new(app). The harness then does what the host does around the main region: it

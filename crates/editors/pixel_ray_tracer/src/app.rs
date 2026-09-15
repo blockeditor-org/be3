@@ -978,6 +978,15 @@ pub struct PixelRayTracerApp {
     creation: Option<Arc<BlockClient>>,
 }
 
+#[cfg(test)]
+impl PixelRayTracerApp {
+    pub(crate) fn lighting_landed(&self) -> bool {
+        self.editor
+            .as_ref()
+            .is_some_and(|editor| editor.texture.is_some())
+    }
+}
+
 impl block_editor_plugin::App for PixelRayTracerApp {
     fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid) {
         self.editor = Some(Editor::new(host, client.get_block(block_id)));

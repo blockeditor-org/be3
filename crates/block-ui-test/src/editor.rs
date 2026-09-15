@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use block_editor_plugin::{App, EditorHost, ViewChange};
 use egui_kittest::kittest::{Queryable as _, by};
 use egui_kittest::{Harness, Node};
@@ -10,6 +12,8 @@ const SIDEBAR_WIDTH: f32 = 160.0;
 const SEPARATOR_WIDTH: f32 = 12.0;
 const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
+const SETTLE_STEPS: usize = 2000;
+const SETTLE_PAUSE: Duration = Duration::from_millis(1);
 
 pub struct EditorTest<'a, A: App> {
     harness: Harness<'a, A>,
@@ -77,6 +81,17 @@ impl<A: App> EditorTest<'_, A> {
 
     pub fn step(&mut self) {
         self.harness.step();
+    }
+
+    pub fn step_until(&mut self, what: &str, settled: impl Fn(&A) -> bool) {
+        for _ in 0..SETTLE_STEPS {
+            if settled(self.harness.state()) {
+                return;
+            }
+            self.step();
+            std::thread::sleep(SETTLE_PAUSE);
+        }
+        panic!("the editor drew {SETTLE_STEPS} frames and is still waiting for {what}");
     }
 
     pub fn find<'t>(&'t self, test_id: &'t str) -> Node<'t> {
