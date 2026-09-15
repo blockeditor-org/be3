@@ -347,3 +347,70 @@ precompile_plugin_wasm() {
     echo "Compiling ${#stale[@]} plugins for $triple..."
     "$precompiler" --target "$triple" "${stale[@]}"
 }
+
+# sccache stands between cargo and rustc and answers a compilation from a shared
+# object store whenever some other machine has already compiled that crate with
+# those flags, which is most of what a cold checkout or a CI runner spends its
+# first build on. Every profile in Cargo.toml already turns incremental
+# compilation off, so nothing is given up by routing rustc through it.
+#
+# The store is a Bunny storage zone. Its read-only key is in the clear on
+# purpose: a fresh clone and a pull request from a fork can both read what the
+# project has already built without holding a secret. Writing needs the key that
+# is not public, which arrives as BUNNY_SCCACHE_PASSWORD, from a repository
+# secret in CI and from the environment of whoever has it locally. Without it
+# the cache is read-only, which costs a miss nothing but a locally reported
+# write error.
+sccache_version='0.18.0'
+sccache_directory="$repository/target/tools/sccache"
+sccache_bucket='sccache'
+sccache_read_only_password='11737dc0-6417-4dcc-a076dc81ac00-71a7-461f'
+
+# internal/install-sccache.sh puts one under target, and CI installs one on
+# PATH; either will do. Cargo spawns the wrapper itself rather than through a
+# shell, so the one on PATH is left as a bare name for cargo to resolve, and
+# only the installed copy travels as a path, which on Windows has to be a form
+# a native program can open.
+find_sccache() {
+    if [[ -x "$sccache_directory/sccache" ]]; then
+        native_path "$sccache_directory/sccache"
+    elif command -v sccache > /dev/null; then
+        echo 'sccache'
+    fi
+}
+
+# Sourcing this file is what turns the cache on, so every script that builds
+# gets it without having to ask. A machine with no sccache installed, one whose
+# cargo is already pointed at a wrapper, and one that set BE3_NO_SCCACHE are all
+# left exactly as they were.
+configure_sccache() {
+    if [[ -n "${RUSTC_WRAPPER:-}" || -n "${BE3_NO_SCCACHE:-}" ]]; then
+        return
+    fi
+    local binary
+    binary="$(find_sccache)"
+    if [[ -z "$binary" ]]; then
+        return
+    fi
+
+    export RUSTC_WRAPPER="$binary"
+    export SCCACHE_BUCKET="$sccache_bucket"
+    export SCCACHE_ENDPOINT='https://de-s3.storage.bunnycdn.com'
+    # Bunny serves one region per endpoint and pays no attention to this, but
+    # the S3 signature it does check is computed over the region name, so both
+    # ends have to spell it the same way.
+    export SCCACHE_REGION='de'
+    # Bunny's S3 gateway takes the storage zone as the access key and a zone
+    # password as the secret.
+    export AWS_ACCESS_KEY_ID="$sccache_bucket"
+    if [[ -n "${BUNNY_SCCACHE_PASSWORD:-}" ]]; then
+        export AWS_SECRET_ACCESS_KEY="$BUNNY_SCCACHE_PASSWORD"
+        export SCCACHE_S3_RW_MODE='READ_WRITE'
+    else
+        export AWS_SECRET_ACCESS_KEY="$sccache_read_only_password"
+        # Left out, sccache would upload every miss and take a 403 for it.
+        export SCCACHE_S3_RW_MODE='READ_ONLY'
+    fi
+}
+
+configure_sccache

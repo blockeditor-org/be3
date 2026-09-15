@@ -15,6 +15,12 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  # scripts/internal/common.sh routes rustc through sccache against a shared
+  # object store, reading with a key that is public and writing only when it is
+  # handed one that is not. Every job takes the write key from here, so any run
+  # that has the secret fills the cache for the ones that don't: a pull request
+  # from a fork sees an empty value and reads the same cache read-only.
+  BUNNY_SCCACHE_PASSWORD: ${{ secrets.BUNNY_SCCACHE_PASSWORD }}
 
 jobs:
   check:
@@ -50,6 +56,8 @@ jobs:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown, wasm32-wasip1-threads
 
+      - uses: ./.github/actions/sccache
+
       # Keyed to the LLVM version for the same reason as the web job: the C
       # objects in target/ are built by whichever clang the scripts pick,
       # which cargo cannot see a change in.
@@ -76,6 +84,12 @@ jobs:
 
       - run: ./scripts/verify --check
 
+      # What the shared cache answered for this job, which is the only way to
+      # see from a run whether it is being hit and filled.
+      - name: sccache statistics
+        if: always()
+        run: sccache --show-stats
+
   web:
     name: web bundle
     runs-on: ubuntu-24.04
@@ -98,6 +112,8 @@ jobs:
       - uses: ./.github/actions/rust-toolchain
         with:
           targets: wasm32-unknown-unknown, wasm32-wasip1-threads
+
+      - uses: ./.github/actions/sccache
 
       # CC_wasm32_wasip1 names the compiler as plain "clang", resolved through
       # PATH, so a cached target/ from a run with a different LLVM on PATH
@@ -128,6 +144,10 @@ jobs:
           version: 0.16.0
 
       - run: ./scripts/build --target web --release
+
+      - name: sccache statistics
+        if: always()
+        run: sccache --show-stats
 
       - uses: actions/upload-artifact@v7
         with:
@@ -177,6 +197,8 @@ jobs:
       - uses: ./.github/actions/rust-toolchain
         with:
           targets: aarch64-linux-android, wasm32-wasip1-threads, wasm32-unknown-unknown
+
+      - uses: ./.github/actions/sccache
 
       # Keyed to the LLVM version for the same reason as the web job: the C
       # objects in target/ are built by whichever "clang" PATH resolves to,
@@ -239,6 +261,10 @@ jobs:
           --android-sdk "$ANDROID_SDK_ROOT"
           --application-id com.be3.block.ci
           --label "Block (CI)"
+
+      - name: sccache statistics
+        if: always()
+        run: sccache --show-stats
 
       - uses: actions/upload-artifact@v7
         with:
@@ -344,6 +370,8 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - uses: ./.github/actions/sccache
+
       # Keyed to the LLVM version for the same reason as the web job: the C
       # objects in target/ are built by whichever "clang" PATH resolves to,
       # which cargo cannot see a change in.
@@ -379,6 +407,10 @@ jobs:
           ./scripts/build --target ${{ matrix.target }} --release --output dist
           ${{ matrix.client && ' ' || '--no-client' }}
           ${{ runner.os == 'macOS' && '--sign-identity -' || ' ' }}
+
+      - name: sccache statistics
+        if: always()
+        run: sccache --show-stats
 
       - uses: actions/upload-artifact@v7
         with:
