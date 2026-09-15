@@ -15,13 +15,14 @@ use std::sync::{
 use uuid::Uuid;
 
 pub(crate) mod discovery;
+mod unsupported;
 
 use super::{
-    ArtifactSession, ArtifactStatus, BlockEditor, BlockRenderContext, CreationStep,
-    DirectEditorCapabilities, DirectEditorInteraction, DirectEditorResize, DirectEditorViewport,
-    DirectEditorViewportCommand, DirectEditorViewportInput, EditorAccess, EditorAction,
-    EditorRegistry, FocusReport, FrameSlot, PendingCreation, embedded_editor_ui, frame_child_ui,
-    own_frame_child_ui, paint_block_fallback, rect_corners,
+    ArtifactSession, ArtifactStatus, BlockRenderContext, CreationStep, DirectEditorCapabilities,
+    DirectEditorInteraction, DirectEditorResize, DirectEditorViewport, DirectEditorViewportCommand,
+    DirectEditorViewportInput, EditorAccess, EditorAction, EditorRegistry, FocusReport, FrameSlot,
+    PendingCreation, embedded_editor_ui, frame_child_ui, own_frame_child_ui, paint_block_fallback,
+    rect_corners,
 };
 use crate::{
     block_picker::BlockPicker,
@@ -30,6 +31,8 @@ use crate::{
         HostChild, HostChildStatus, InstanceRole,
     },
 };
+
+use self::unsupported::UnsupportedBlock;
 
 fn child_interaction(editors: &EditorAccess<'_>, block_id: Uuid) -> InteractionMode {
     match editors.direct_editor_interaction(block_id) {
@@ -214,7 +217,7 @@ impl PendingCreation for PluginCreation {
         CreationStep::Working
     }
 
-    fn create(&mut self, client: &BlockClient) -> Result<Option<Box<dyn BlockEditor>>, String> {
+    fn create(&mut self, client: &BlockClient) -> Result<Option<PluginEditor>, String> {
         match &self.state {
             CreationState::Starting => return Ok(None),
             CreationState::Failed(error) => {
@@ -235,10 +238,7 @@ impl PendingCreation for PluginCreation {
                 let block_type = Uuid::from_bytes(self.plugin.block_type);
                 let block = blocks::open(client, block_id, block_type)
                     .ok_or_else(|| format!("{block_type} is not a block type this app knows"))?;
-                Ok(Some(Box::new(PluginEditor::new(
-                    Arc::clone(&self.plugin),
-                    block,
-                ))))
+                Ok(Some(PluginEditor::new(Arc::clone(&self.plugin), block)))
             }
             Some(Err(error)) => {
                 self.committed = false;
@@ -253,10 +253,10 @@ impl PendingCreation for PluginCreation {
 
 const CHILD_UNAVAILABLE: &str = "the block is already open above this editor";
 const CREATION_DIALOG_HEIGHT: f32 = 96.0;
-const PLUGIN_MIN_ZOOM: f32 = 1.0 / 64.0;
+const UNSUPPORTED_EDITOR_SIZE: egui::Vec2 = egui::vec2(400.0, 120.0);
 
-pub(super) struct PluginEditor {
-    plugin: Arc<PluginManifest>,
+pub(crate) struct PluginEditor {
+    plugin: Option<Arc<PluginManifest>>,
     block: Box<dyn BlockHandleAccess>,
     instance: EditorInstanceId,
     context: Option<egui::Context>,
@@ -319,6 +319,14 @@ fn serve_block_pick(
 
 impl PluginEditor {
     pub(super) fn new(plugin: Arc<PluginManifest>, block: Box<dyn BlockHandleAccess>) -> Self {
+        Self::open(Some(plugin), block)
+    }
+
+    pub(super) fn unsupported(id: Uuid, block_type: Uuid) -> Self {
+        Self::open(None, Box::new(UnsupportedBlock::new(id, block_type)))
+    }
+
+    fn open(plugin: Option<Arc<PluginManifest>>, block: Box<dyn BlockHandleAccess>) -> Self {
         Self {
             plugin,
             block,
@@ -332,7 +340,16 @@ impl PluginEditor {
         }
     }
 
+    fn capabilities(&self) -> EditorCapabilities {
+        self.plugin
+            .as_ref()
+            .map_or_else(EditorCapabilities::default, |plugin| plugin.capabilities)
+    }
+
     fn sync_active_presence(&mut self, client: &BlockClient, active: bool) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
         if active == self.presence_active {
             return;
         }
@@ -348,14 +365,19 @@ impl PluginEditor {
         } else {
             client.set_presence::<UserActive>(block_id, None);
         }
-        crate::plugin_host::set_presence_visible(&self.plugin.identity.id, self.instance, active);
+        crate::plugin_host::set_presence_visible(&plugin.identity.id, self.instance, active);
     }
 
     fn presenting(&self) -> bool {
-        crate::plugin_host::presenting(&self.plugin.identity.id, self.instance)
+        self.plugin.as_ref().is_some_and(|plugin| {
+            crate::plugin_host::presenting(&plugin.identity.id, self.instance)
+        })
     }
 
     fn stop_presenting(&mut self) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
         let fullscreen = std::mem::take(&mut self.fullscreen);
         let Some(context) = self.context.clone() else {
             return;
@@ -364,7 +386,7 @@ impl PluginEditor {
             context.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
         }
         if self.presenting() {
-            crate::plugin_host::present(&context, &self.plugin.identity.id, self.instance, false);
+            crate::plugin_host::present(&context, &plugin.identity.id, self.instance, false);
             context.request_repaint();
         }
     }
@@ -400,8 +422,15 @@ impl PluginEditor {
         action
     }
 
-    fn has_region(&self, region: EditorRegion) -> bool {
-        self.plugin.regions.contains(&region)
+    fn unsupported_ui(&self, ui: &mut egui::Ui) -> Option<EditorAction> {
+        ui.centered_and_justified(|ui| {
+            ui.vertical_centered(|ui| {
+                ui.heading("Unsupported block type");
+                ui.label(format!("Block: {}", self.block.id()));
+                ui.label(format!("Type: {}", self.block.block_type()));
+            });
+        });
+        None
     }
 
     fn frame_editor_ui(
@@ -411,6 +440,9 @@ impl PluginEditor {
         viewport: &mut DirectEditorViewport,
         chrome: bool,
     ) -> Option<EditorAction> {
+        if self.plugin.is_none() {
+            return self.unsupported_ui(ui);
+        }
         self.active_this_frame = true;
         self.context = Some(ui.ctx().clone());
         if self.presenting() {
@@ -418,10 +450,10 @@ impl PluginEditor {
         }
         self.stop_presenting();
         let rect = ui.available_rect_before_wrap();
-        if self.plugin.capabilities.pan_and_zoom {
+        if self.capabilities().pan_and_zoom {
             viewport.auto_fit(self.block.id());
         }
-        let view = self.plugin.capabilities.pan_and_zoom.then(|| EditorView {
+        let view = self.capabilities().pan_and_zoom.then(|| EditorView {
             rect: viewport
                 .content_rect()
                 .unwrap_or(rect)
@@ -461,14 +493,15 @@ impl PluginEditor {
         size: egui::Vec2,
         view: Option<EditorView>,
     ) -> Option<EditorAction> {
-        if !self.has_region(region) {
+        let plugin = self.plugin.clone()?;
+        if !plugin.regions.contains(&region) {
             return None;
         }
         self.context = Some(ui.ctx().clone());
         let presentation = crate::plugin_host::editor_ui(
             ui,
             crate::plugin_host::EditorSlot {
-                plugin: &self.plugin,
+                plugin: &plugin,
                 block_types: editors.registry().plugin_block_types(),
                 client: editors.client_handle(),
                 client_id: editors.client_id(),
@@ -507,7 +540,7 @@ impl PluginEditor {
         let mut statuses = Vec::new();
         let mut views = Vec::new();
         let mut child_viewport = DirectEditorViewport::new();
-        child_viewport.set_gestures_read(self.plugin.capabilities.pan_and_zoom);
+        child_viewport.set_gestures_read(plugin.capabilities.pan_and_zoom);
         for child in presentation
             .children
             .iter()
@@ -558,12 +591,7 @@ impl PluginEditor {
         }
         presentation.present_floating(ui);
         presentation.report(statuses);
-        crate::plugin_host::report_child_views(
-            &self.plugin.identity.id,
-            self.instance,
-            region,
-            views,
-        );
+        crate::plugin_host::report_child_views(&plugin.identity.id, self.instance, region, views);
         if region == EditorRegion::Frame {
             self.block_pick_ui(ui, editors);
         }
@@ -666,6 +694,9 @@ impl PluginEditor {
         corners: [egui::Pos2; 4],
         opacity: f32,
     ) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
         if presentation.children.is_empty() {
             return;
         }
@@ -700,7 +731,7 @@ impl PluginEditor {
             });
         }
         crate::plugin_host::report_children(
-            &self.plugin.identity.id,
+            &plugin.identity.id,
             self.instance,
             EditorRegion::Preview,
             statuses,
@@ -708,8 +739,11 @@ impl PluginEditor {
     }
 
     fn block_pick_ui(&mut self, ui: &mut egui::Ui, editors: &mut EditorAccess<'_>) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
         serve_block_pick(
-            &self.plugin.identity.id,
+            &plugin.identity.id,
             self.instance,
             &mut self.block_pick,
             ui,
@@ -720,11 +754,13 @@ impl PluginEditor {
     }
 
     fn take_view_changes(&mut self, rect: egui::Rect, viewport: &mut DirectEditorViewport) {
-        if !self.plugin.capabilities.pan_and_zoom {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
+        if !plugin.capabilities.pan_and_zoom {
             return;
         }
-        for change in crate::plugin_host::take_view_changes(&self.plugin.identity.id, self.instance)
-        {
+        for change in crate::plugin_host::take_view_changes(&plugin.identity.id, self.instance) {
             match change {
                 ViewChange::Pan { x, y } => viewport.pan(egui::vec2(x, y)),
                 ViewChange::Zoom { factor, anchor } => {
@@ -737,53 +773,75 @@ impl PluginEditor {
     }
 
     fn close(&mut self) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
         if let Some(context) = self.context.take() {
-            crate::plugin_host::close(&context, &self.plugin.identity.id, self.instance);
+            crate::plugin_host::close(&context, &plugin.identity.id, self.instance);
         }
     }
-}
 
-impl Drop for PluginEditor {
-    fn drop(&mut self) {
-        self.stop_presenting();
-        self.close();
-    }
-}
-
-impl BlockEditor for PluginEditor {
-    fn block(&self) -> &dyn BlockHandleAccess {
+    pub(crate) fn block(&self) -> &dyn BlockHandleAccess {
         self.block.as_ref()
     }
 
-    fn replace_child(&self, old: Uuid, new: BlockEntry) -> Option<bool> {
-        if !self.plugin.children.replace {
+    pub(crate) fn id(&self) -> Uuid {
+        self.block.id()
+    }
+
+    pub(crate) fn block_type(&self) -> Uuid {
+        self.block.block_type()
+    }
+
+    pub(crate) fn set_parent(&self, parent: block::BlockParent) {
+        self.block.set_parent(parent);
+    }
+
+    pub(crate) fn add_child(&self, entry: BlockEntry) -> Option<bool> {
+        self.block.add_child(entry.id)
+    }
+
+    pub(crate) fn delete_child(&self, entry: BlockEntry) -> Option<bool> {
+        self.block.delete_child(entry.id)
+    }
+
+    pub(crate) fn replace_child(&self, old: Uuid, new: BlockEntry) -> Option<bool> {
+        let Some(plugin) = &self.plugin else {
+            return self.block.replace_child(old, new.id);
+        };
+        if !plugin.children.replace {
             return None;
         }
-        match crate::plugin_host::replace_child(
-            &self.plugin.identity.id,
-            self.instance,
-            old,
-            new.id,
-        ) {
+        match crate::plugin_host::replace_child(&plugin.identity.id, self.instance, old, new.id) {
             Some(true) => Some(true),
             Some(false) => self.block.replace_child(old, new.id),
             None => None,
         }
     }
 
-    fn reveal_presence_cursor(&mut self, client_id: block::ClientId) {
-        crate::plugin_host::reveal_presence(&self.plugin.identity.id, self.instance, client_id);
+    pub(crate) fn reveal_presence_cursor(&mut self, client_id: block::ClientId) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
+        crate::plugin_host::reveal_presence(&plugin.identity.id, self.instance, client_id);
     }
 
-    fn render(&mut self, context: BlockRenderContext<'_>, editors: &mut EditorAccess<'_>) -> bool {
-        if !self.has_region(EditorRegion::Preview) {
+    pub(crate) fn render(
+        &mut self,
+        context: BlockRenderContext<'_>,
+        editors: &mut EditorAccess<'_>,
+    ) -> bool {
+        let Some(plugin) = self.plugin.clone() else {
+            return false;
+        };
+        if !plugin.regions.contains(&EditorRegion::Preview) {
             return false;
         }
         self.context = Some(context.painter.ctx().clone());
         let presentation = crate::plugin_host::preview(
             context.painter,
             crate::plugin_host::PreviewSlot {
-                plugin: &self.plugin,
+                plugin: &plugin,
                 block_types: editors.registry().plugin_block_types(),
                 client: editors.client_handle(),
                 client_id: editors.client_id(),
@@ -804,47 +862,48 @@ impl BlockEditor for PluginEditor {
         presentation.drawn
     }
 
-    fn render_aspect_ratio(&self) -> Option<f32> {
-        crate::plugin_host::aspect_ratio(&self.plugin.identity.id, self.instance)
+    pub(crate) fn render_aspect_ratio(&self) -> Option<f32> {
+        let plugin = self.plugin.as_ref()?;
+        crate::plugin_host::aspect_ratio(&plugin.identity.id, self.instance)
     }
 
-    fn direct_editor_capabilities(&self) -> DirectEditorCapabilities {
+    pub(crate) fn direct_editor_capabilities(&self) -> DirectEditorCapabilities {
+        let capabilities = self.capabilities();
         DirectEditorCapabilities {
-            allow_rotation: self.plugin.capabilities.rotation,
-            preserve_aspect_ratio: self.plugin.capabilities.preserve_aspect_ratio,
-            supports_pan_and_zoom: self.plugin.capabilities.pan_and_zoom,
+            allow_rotation: capabilities.rotation,
+            preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
+            supports_pan_and_zoom: capabilities.pan_and_zoom,
         }
     }
 
-    fn direct_editor_fills_viewport(&self) -> bool {
-        self.plugin.capabilities.pan_and_zoom
+    pub(crate) fn direct_editor_fills_viewport(&self) -> bool {
+        self.capabilities().pan_and_zoom
     }
 
-    fn direct_editor_min_zoom(&self) -> f32 {
-        PLUGIN_MIN_ZOOM
-    }
-
-    fn direct_editor_viewport_input(
-        &self,
-        _editors: &EditorAccess<'_>,
-    ) -> DirectEditorViewportInput {
-        if self.plugin.capabilities.pan_and_zoom {
+    pub(crate) fn direct_editor_viewport_input(&self) -> DirectEditorViewportInput {
+        if self.capabilities().pan_and_zoom {
             DirectEditorViewportInput::Viewport
         } else {
             DirectEditorViewportInput::Background
         }
     }
 
-    fn direct_editor_interaction(&self) -> DirectEditorInteraction {
-        match self.plugin.interaction {
+    pub(crate) fn direct_editor_interaction(&self) -> DirectEditorInteraction {
+        let Some(plugin) = &self.plugin else {
+            return DirectEditorInteraction::Preview;
+        };
+        match plugin.interaction {
             InteractionMode::Preview => DirectEditorInteraction::Preview,
             InteractionMode::Live => DirectEditorInteraction::Live,
             InteractionMode::Playback => DirectEditorInteraction::Playback,
         }
     }
 
-    fn direct_editor_resize(&self) -> DirectEditorResize {
-        match self.plugin.resize {
+    pub(crate) fn direct_editor_resize(&self) -> DirectEditorResize {
+        let Some(plugin) = &self.plugin else {
+            return DirectEditorResize::None;
+        };
+        match plugin.resize {
             ResizeMode::None => DirectEditorResize::None,
             ResizeMode::Horizontal => DirectEditorResize::Horizontal,
             ResizeMode::Vertical => DirectEditorResize::Vertical,
@@ -852,32 +911,40 @@ impl BlockEditor for PluginEditor {
         }
     }
 
-    fn direct_editor_intrinsic_size(
-        &mut self,
-        _editors: &mut EditorAccess<'_>,
-    ) -> Option<egui::Vec2> {
+    pub(crate) fn direct_editor_intrinsic_size(&mut self) -> Option<egui::Vec2> {
+        let Some(plugin) = &self.plugin else {
+            return Some(UNSUPPORTED_EDITOR_SIZE);
+        };
         Some(
-            crate::plugin_host::intrinsic_size(&self.plugin.identity.id, self.instance)
+            crate::plugin_host::intrinsic_size(&plugin.identity.id, self.instance)
                 .unwrap_or_else(|| egui::vec2(420.0, 240.0)),
         )
     }
 
-    fn set_direct_editor_intrinsic_size(
-        &mut self,
-        size: egui::Vec2,
-        _editors: &mut EditorAccess<'_>,
-    ) -> bool {
-        crate::plugin_host::resized(&self.plugin.identity.id, self.instance, size);
+    pub(crate) fn set_direct_editor_intrinsic_size(&mut self, size: egui::Vec2) -> bool {
+        let Some(plugin) = &self.plugin else {
+            return false;
+        };
+        crate::plugin_host::resized(&plugin.identity.id, self.instance, size);
         false
     }
 
-    fn direct_editor_owns_frame(&self) -> bool {
-        true
+    pub(crate) fn direct_editor_owns_frame(&self) -> bool {
+        self.plugin.is_some()
     }
 
-    fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>, from: Option<Uuid>) {
+    pub(crate) fn show_block(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        via: Option<Uuid>,
+        from: Option<Uuid>,
+    ) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
         crate::plugin_host::show_block(
-            &self.plugin.identity.id,
+            &plugin.identity.id,
             self.instance,
             id,
             block_type,
@@ -886,36 +953,48 @@ impl BlockEditor for PluginEditor {
         );
     }
 
-    fn take_focus_report(&self) -> Option<FocusReport> {
-        crate::plugin_host::take_focus_report(&self.plugin.identity.id, self.instance).map(
-            |focus| FocusReport {
+    pub(crate) fn take_focus_report(&self) -> Option<FocusReport> {
+        let plugin = self.plugin.as_ref()?;
+        crate::plugin_host::take_focus_report(&plugin.identity.id, self.instance).map(|focus| {
+            FocusReport {
                 block: focus.block,
                 via: focus.via,
-            },
-        )
+            }
+        })
     }
 
-    fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
-        crate::plugin_host::take_artifact_watch(&self.plugin.identity.id, self.instance)
+    pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
+        let plugin = self.plugin.as_ref()?;
+        crate::plugin_host::take_artifact_watch(&plugin.identity.id, self.instance)
     }
 
-    fn set_artifact_states(&self, states: Vec<block_plugin_api::ArtifactState>) {
-        crate::plugin_host::set_artifact_states(&self.plugin.identity.id, self.instance, states);
+    pub(crate) fn set_artifact_states(&self, states: Vec<block_plugin_api::ArtifactState>) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
+        crate::plugin_host::set_artifact_states(&plugin.identity.id, self.instance, states);
     }
 
-    fn direct_editor_frame_child(&mut self, _editors: &mut EditorAccess<'_>) -> Option<Uuid> {
-        crate::plugin_host::frame_child(&self.plugin.identity.id, self.instance)
+    pub(crate) fn direct_editor_frame_child(&mut self) -> Option<Uuid> {
+        let plugin = self.plugin.as_ref()?;
+        crate::plugin_host::frame_child(&plugin.identity.id, self.instance)
     }
 
-    fn clear_direct_editor_frame_child(&mut self, _editors: &mut EditorAccess<'_>) {
-        crate::plugin_host::revoke_frame_child(&self.plugin.identity.id, self.instance);
+    pub(crate) fn clear_direct_editor_frame_child(&mut self) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
+        crate::plugin_host::revoke_frame_child(&plugin.identity.id, self.instance);
     }
 
-    fn take_direct_editor_frame_exit(&mut self) -> bool {
-        crate::plugin_host::take_leaving(&self.plugin.identity.id, self.instance)
+    pub(crate) fn take_direct_editor_frame_exit(&mut self) -> bool {
+        let Some(plugin) = &self.plugin else {
+            return false;
+        };
+        crate::plugin_host::take_leaving(&plugin.identity.id, self.instance)
     }
 
-    fn direct_editor_frame_ui(
+    pub(crate) fn direct_editor_frame_ui(
         &mut self,
         ui: &mut egui::Ui,
         editors: &mut EditorAccess<'_>,
@@ -929,10 +1008,10 @@ impl BlockEditor for PluginEditor {
         }
         self.stop_presenting();
         let rect = slot.frame;
-        if self.plugin.capabilities.pan_and_zoom {
+        if self.capabilities().pan_and_zoom {
             viewport.auto_fit(self.block.id());
         }
-        let view = self.plugin.capabilities.pan_and_zoom.then(|| EditorView {
+        let view = self.capabilities().pan_and_zoom.then(|| EditorView {
             rect: viewport
                 .content_rect()
                 .unwrap_or(rect)
@@ -961,14 +1040,17 @@ impl BlockEditor for PluginEditor {
         action
     }
 
-    fn direct_editor_viewport_rect(&self, frame: egui::Rect) -> egui::Rect {
-        crate::plugin_host::frame_rects(&self.plugin.identity.id, self.instance)
+    pub(crate) fn direct_editor_viewport_rect(&self, frame: egui::Rect) -> egui::Rect {
+        let Some(plugin) = &self.plugin else {
+            return frame;
+        };
+        crate::plugin_host::frame_rects(&plugin.identity.id, self.instance)
             .map(|rects| rects.content.translate(frame.min.to_vec2()))
             .filter(|content| content.is_positive())
             .unwrap_or(frame)
     }
 
-    fn direct_editor_ui(
+    pub(crate) fn direct_editor_ui(
         &mut self,
         ui: &mut egui::Ui,
         editors: &mut EditorAccess<'_>,
@@ -977,22 +1059,13 @@ impl BlockEditor for PluginEditor {
         self.frame_editor_ui(ui, editors, viewport, false)
     }
 
-    fn embedded_direct_editor_ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        editors: &mut EditorAccess<'_>,
-        viewport: &mut DirectEditorViewport,
-    ) -> Option<EditorAction> {
-        self.frame_editor_ui(ui, editors, viewport, false)
-    }
-
-    fn set_tab_active(&mut self, active: bool) {
+    pub(crate) fn set_tab_active(&mut self, active: bool) {
         if active {
             self.active_this_frame = true;
         }
     }
 
-    fn finish_frame(&mut self, client: &BlockClient) {
+    pub(crate) fn finish_frame(&mut self, client: &BlockClient) {
         let active = std::mem::take(&mut self.active_this_frame);
         self.sync_active_presence(client, active);
         if !active {
@@ -1000,8 +1073,15 @@ impl BlockEditor for PluginEditor {
         }
     }
 
-    fn tab_closed(&mut self, client: &BlockClient) {
+    pub(crate) fn tab_closed(&mut self, client: &BlockClient) {
         self.sync_active_presence(client, false);
+        self.stop_presenting();
+        self.close();
+    }
+}
+
+impl Drop for PluginEditor {
+    fn drop(&mut self) {
         self.stop_presenting();
         self.close();
     }

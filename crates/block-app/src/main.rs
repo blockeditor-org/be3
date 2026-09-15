@@ -32,8 +32,8 @@ use block_client::{
 };
 use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation};
 use editors::{
-    ArtifactSession, ArtifactStatus, BlockEditor, BlockLabel, EditorAccess, EditorAction,
-    EditorRegistry, SidebarDragPayload, SidebarDragSource, direct_editor_tab_ui,
+    ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
+    PluginEditor, SidebarDragPayload, SidebarDragSource, direct_editor_tab_ui,
 };
 use eframe::egui;
 use egui_material_icons::icons::{
@@ -166,7 +166,7 @@ struct BlockApp {
     ui_settings: Option<BlockHandle<UiSettings>>,
     block_types: HashMap<Uuid, Uuid>,
     registry: EditorRegistry,
-    editors: HashMap<Uuid, Box<dyn BlockEditor>>,
+    editors: HashMap<Uuid, PluginEditor>,
 
     editor_access: HashMap<Uuid, BlockAccess>,
 
@@ -1690,7 +1690,7 @@ impl BlockApp {
         shell.show_block(id, block_type, via, from);
     }
 
-    fn show_shell(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame) {
+    fn show_shell(&mut self, ui: &mut egui::Ui) {
         let Some(shell) = self.ensure_shell() else {
             ui.centered_and_justified(|ui| {
                 ui.spinner();
@@ -1698,7 +1698,6 @@ impl BlockApp {
             return;
         };
         for editor in self.editors.values_mut() {
-            editor.update(frame);
             editor.set_tab_active(false);
         }
         let Some(mut editor) = self.editors.remove(&shell) else {
@@ -1716,7 +1715,7 @@ impl BlockApp {
                 &mut self.editors,
                 &self.editor_access,
             );
-            direct_editor_tab_ui(editor.as_mut(), ui, &mut editors)
+            direct_editor_tab_ui(&mut editor, ui, &mut editors)
         };
         let focus = editor.take_focus_report();
         let watch = editor.take_artifact_watch();
@@ -2296,7 +2295,7 @@ impl BlockApp {
                 ui.separator();
                 self.show_status_bar(ui);
             });
-        self.show_shell(ui, frame);
+        self.show_shell(ui);
         self.poll_artifacts(ui);
         self.show_discard_confirmation(ui.ctx());
         performance::show(ui.ctx());
