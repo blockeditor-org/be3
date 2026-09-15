@@ -1,15 +1,11 @@
 pub(crate) mod plugin;
-mod unsupported;
 
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use block::{BlockAccess, BlockParent};
-use block_client::{
-    BlockClient, BlockHandleAccess,
-    blocks::{self, workspace_index::BlockEntry},
-};
+use block::BlockAccess;
+use block_client::{BlockClient, blocks};
 use block_plugin_api::PluginManifest;
 pub(super) use block_ui::{BlockLabel, paint_name};
 use block_ui::{BlockTypeEntry, BlockTypes};
@@ -17,9 +13,9 @@ use eframe::egui;
 use egui_material_icons::{MaterialIcon, icons::ICON_LOCK};
 use uuid::Uuid;
 
-use self::unsupported::UnsupportedEditor;
+pub(crate) use self::plugin::PluginEditor;
 
-const DIRECT_EDITOR_MIN_ZOOM: f32 = 0.25;
+const DIRECT_EDITOR_MIN_ZOOM: f32 = 1.0 / 64.0;
 const DIRECT_EDITOR_MAX_ZOOM: f32 = 32.0;
 pub struct FocusReport {
     pub block: Option<(Uuid, Uuid)>,
@@ -230,7 +226,7 @@ pub struct EditorAccess<'a> {
     client: &'a Arc<BlockClient>,
     client_id: Uuid,
     registry: &'a EditorRegistry,
-    editors: &'a mut HashMap<Uuid, Box<dyn BlockEditor>>,
+    editors: &'a mut HashMap<Uuid, PluginEditor>,
     simulated: &'a HashMap<Uuid, BlockAccess>,
 }
 
@@ -284,7 +280,7 @@ impl<'a> EditorAccess<'a> {
         client: &'a Arc<BlockClient>,
         client_id: Uuid,
         registry: &'a EditorRegistry,
-        editors: &'a mut HashMap<Uuid, Box<dyn BlockEditor>>,
+        editors: &'a mut HashMap<Uuid, PluginEditor>,
         simulated: &'a HashMap<Uuid, BlockAccess>,
     ) -> Self {
         Self {
@@ -329,7 +325,7 @@ impl<'a> EditorAccess<'a> {
         self.registry
     }
 
-    pub fn insert(&mut self, editor: Box<dyn BlockEditor>) {
+    pub fn insert(&mut self, editor: PluginEditor) {
         let id = editor.id();
         assert!(
             !self.active.contains(&id),
@@ -355,13 +351,13 @@ impl<'a> EditorAccess<'a> {
     fn with_editor<T>(
         &mut self,
         id: Uuid,
-        callback: impl FnOnce(&mut dyn BlockEditor, &mut Self) -> T,
+        callback: impl FnOnce(&mut PluginEditor, &mut Self) -> T,
     ) -> Option<T> {
         let mut editor = self.editors.remove(&id)?;
         let nested = self.access_for(id);
         let access = std::mem::replace(&mut self.access, nested);
         self.active.push(id);
-        let result = callback(editor.as_mut(), self);
+        let result = callback(&mut editor, self);
         assert_eq!(self.active.pop(), Some(id));
         self.access = access;
         self.editors.insert(id, editor);
@@ -372,7 +368,7 @@ impl<'a> EditorAccess<'a> {
         &mut self,
         id: Uuid,
         ui: &mut egui::Ui,
-        callback: impl FnOnce(&mut dyn BlockEditor, &mut Self, &mut egui::Ui) -> T,
+        callback: impl FnOnce(&mut PluginEditor, &mut Self, &mut egui::Ui) -> T,
     ) -> Option<T> {
         let access = self.access_for(id);
         if !access.can_view() {
@@ -419,22 +415,20 @@ impl<'a> EditorAccess<'a> {
     pub fn direct_editor_viewport_input(&self, id: Uuid) -> DirectEditorViewportInput {
         self.editors
             .get(&id)
-            .map(|editor| editor.direct_editor_viewport_input(self))
+            .map(PluginEditor::direct_editor_viewport_input)
             .unwrap_or(DirectEditorViewportInput::Background)
     }
 
     pub fn direct_editor_intrinsic_size(&mut self, id: Uuid) -> Option<egui::Vec2> {
-        self.with_editor(id, |editor, editors| {
-            editor.direct_editor_intrinsic_size(editors)
-        })?
+        self.with_editor(id, |editor, _| editor.direct_editor_intrinsic_size())?
     }
 
     pub fn set_direct_editor_intrinsic_size(&mut self, id: Uuid, size: egui::Vec2) -> bool {
         if !self.access_for(id).can_edit() {
             return false;
         }
-        self.with_editor(id, |editor, editors| {
-            editor.set_direct_editor_intrinsic_size(size, editors)
+        self.with_editor(id, |editor, _| {
+            editor.set_direct_editor_intrinsic_size(size)
         })
         .unwrap_or(false)
     }
@@ -446,7 +440,7 @@ impl<'a> EditorAccess<'a> {
         viewport: &mut DirectEditorViewport,
     ) -> Option<EditorAction> {
         self.with_editor_ui(id, ui, |editor, editors, ui| {
-            editor.embedded_direct_editor_ui(ui, editors, viewport)
+            editor.direct_editor_ui(ui, editors, viewport)
         })?
     }
 
@@ -458,9 +452,7 @@ impl<'a> EditorAccess<'a> {
     }
 
     pub fn direct_editor_frame_child(&mut self, id: Uuid) -> Option<Uuid> {
-        self.with_editor(id, |editor, editors| {
-            editor.direct_editor_frame_child(editors)
-        })?
+        self.with_editor(id, |editor, _| editor.direct_editor_frame_child())?
     }
 
     pub fn is_frame_child(&self, context: &egui::Context, id: Uuid) -> bool {
@@ -468,8 +460,8 @@ impl<'a> EditorAccess<'a> {
     }
 
     pub fn clear_direct_editor_frame_child(&mut self, id: Uuid) {
-        self.with_editor(id, |editor, editors| {
-            editor.clear_direct_editor_frame_child(editors);
+        self.with_editor(id, |editor, _| {
+            editor.clear_direct_editor_frame_child();
         });
     }
 
@@ -518,158 +510,6 @@ pub enum SidebarDragSource {
     Block(Uuid),
 }
 
-pub trait BlockEditor {
-    fn block(&self) -> &dyn BlockHandleAccess;
-    fn id(&self) -> Uuid {
-        self.block().id()
-    }
-    fn block_type(&self) -> Uuid {
-        self.block().block_type()
-    }
-    fn set_parent(&self, parent: BlockParent) {
-        self.block().set_parent(parent);
-    }
-    fn add_child(&self, entry: BlockEntry) -> Option<bool> {
-        self.block().add_child(entry.id)
-    }
-    fn delete_child(&self, entry: BlockEntry) -> Option<bool> {
-        self.block().delete_child(entry.id)
-    }
-    fn replace_child(&self, old: Uuid, new: BlockEntry) -> Option<bool> {
-        self.block().replace_child(old, new.id)
-    }
-    fn update(&mut self, _frame: &eframe::Frame) {}
-    fn finish_frame(&mut self, _client: &BlockClient) {}
-
-    fn show_block(&self, _id: Uuid, _block_type: Uuid, _via: Option<Uuid>, _from: Option<Uuid>) {}
-
-    fn take_focus_report(&self) -> Option<FocusReport> {
-        None
-    }
-
-    fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
-        None
-    }
-
-    fn set_artifact_states(&self, _states: Vec<block_plugin_api::ArtifactState>) {}
-    fn set_tab_active(&mut self, _active: bool) {}
-    fn tab_closed(&mut self, _client: &BlockClient) {}
-
-    fn reveal_presence_cursor(&mut self, _client_id: block::ClientId) {}
-    fn render(
-        &mut self,
-        _context: BlockRenderContext<'_>,
-        _editors: &mut EditorAccess<'_>,
-    ) -> bool {
-        false
-    }
-    fn render_aspect_ratio(&self) -> Option<f32> {
-        None
-    }
-    fn direct_editor_capabilities(&self) -> DirectEditorCapabilities;
-    fn direct_editor_interaction(&self) -> DirectEditorInteraction {
-        DirectEditorInteraction::Preview
-    }
-    fn direct_editor_resize(&self) -> DirectEditorResize {
-        DirectEditorResize::None
-    }
-    fn direct_editor_fills_viewport(&self) -> bool {
-        false
-    }
-
-    fn direct_editor_max_zoom(&self) -> f32 {
-        DIRECT_EDITOR_MAX_ZOOM
-    }
-    fn direct_editor_min_zoom(&self) -> f32 {
-        DIRECT_EDITOR_MIN_ZOOM
-    }
-    fn direct_editor_viewport_input(
-        &self,
-        _editors: &EditorAccess<'_>,
-    ) -> DirectEditorViewportInput {
-        DirectEditorViewportInput::Background
-    }
-    fn direct_editor_intrinsic_size(
-        &mut self,
-        _editors: &mut EditorAccess<'_>,
-    ) -> Option<egui::Vec2> {
-        None
-    }
-    fn set_direct_editor_intrinsic_size(
-        &mut self,
-        _size: egui::Vec2,
-        _editors: &mut EditorAccess<'_>,
-    ) -> bool {
-        false
-    }
-    fn direct_editor_owns_frame(&self) -> bool {
-        false
-    }
-    fn direct_editor_frame_child(&mut self, _editors: &mut EditorAccess<'_>) -> Option<Uuid> {
-        None
-    }
-    fn clear_direct_editor_frame_child(&mut self, _editors: &mut EditorAccess<'_>) {}
-    fn take_direct_editor_frame_exit(&mut self) -> bool {
-        false
-    }
-    fn direct_editor_frame_ui(
-        &mut self,
-        _ui: &mut egui::Ui,
-        _editors: &mut EditorAccess<'_>,
-        _slot: &FrameSlot,
-        _viewport: &mut DirectEditorViewport,
-    ) -> Option<EditorAction> {
-        None
-    }
-    fn direct_editor_viewport_rect(&self, frame: egui::Rect) -> egui::Rect {
-        frame
-    }
-    fn direct_editor_top_bar(
-        &mut self,
-        _ui: &mut egui::Ui,
-        _editors: &mut EditorAccess<'_>,
-        _viewport: &mut DirectEditorViewport,
-    ) -> Option<EditorAction> {
-        None
-    }
-    fn direct_editor_has_left_sidebar(&self, _editors: &mut EditorAccess<'_>) -> bool {
-        false
-    }
-    fn direct_editor_left_sidebar(
-        &mut self,
-        _ui: &mut egui::Ui,
-        _editors: &mut EditorAccess<'_>,
-    ) -> Option<EditorAction> {
-        None
-    }
-    fn direct_editor_has_right_sidebar(&self, _editors: &mut EditorAccess<'_>) -> bool {
-        false
-    }
-    fn direct_editor_right_sidebar(
-        &mut self,
-        _ui: &mut egui::Ui,
-        _editors: &mut EditorAccess<'_>,
-    ) -> Option<EditorAction> {
-        None
-    }
-    fn direct_editor_ui(
-        &mut self,
-        _ui: &mut egui::Ui,
-        _editors: &mut EditorAccess<'_>,
-        _viewport: &mut DirectEditorViewport,
-    ) -> Option<EditorAction> {
-        None
-    }
-    fn embedded_direct_editor_ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        editors: &mut EditorAccess<'_>,
-        viewport: &mut DirectEditorViewport,
-    ) -> Option<EditorAction> {
-        self.direct_editor_ui(ui, editors, viewport)
-    }
-}
-
 #[derive(Clone)]
 pub struct FrameSlot {
     pub frame: egui::Rect,
@@ -713,7 +553,7 @@ fn take_frame_exit(context: &egui::Context) -> bool {
 }
 
 pub fn direct_editor_tab_ui(
-    editor: &mut dyn BlockEditor,
+    editor: &mut PluginEditor,
     ui: &mut egui::Ui,
     editors: &mut EditorAccess<'_>,
 ) -> Option<EditorAction> {
@@ -721,7 +561,7 @@ pub fn direct_editor_tab_ui(
     let clip = frame.intersect(ui.clip_rect());
     let mut stack = Vec::new();
     let mut trail = vec![editors.block_label(editor.id())];
-    let mut child = editor.direct_editor_frame_child(editors);
+    let mut child = editor.direct_editor_frame_child();
     while let Some(id) = child {
         if stack.contains(&id) {
             break;
@@ -756,7 +596,7 @@ pub fn direct_editor_tab_ui(
     let exit = own_exit || take_frame_exit(ui.ctx());
     if exit {
         match stack.len() {
-            0 | 1 => editor.clear_direct_editor_frame_child(editors),
+            0 | 1 => editor.clear_direct_editor_frame_child(),
             depth => {
                 let parent = stack[depth - 2];
                 editors.clear_direct_editor_frame_child(parent);
@@ -868,7 +708,7 @@ pub fn frame_child_ui(
 }
 
 pub(crate) fn direct_editor_frame_ui(
-    editor: &mut dyn BlockEditor,
+    editor: &mut PluginEditor,
     ui: &mut egui::Ui,
     editors: &mut EditorAccess<'_>,
     slot: &FrameSlot,
@@ -886,8 +726,6 @@ pub(crate) fn direct_editor_frame_ui(
         true => block_ui::frame::Chrome::None,
         false => slot.chrome,
     };
-    let has_left_sidebar = !owns_frame && editor.direct_editor_has_left_sidebar(editors);
-    let has_right_sidebar = !owns_frame && editor.direct_editor_has_right_sidebar(editors);
     let drawn = chrome == block_ui::frame::Chrome::Drawn;
     let mut bands = DirectEditorTabBands {
         id,
@@ -895,8 +733,6 @@ pub(crate) fn direct_editor_frame_ui(
         slot: slot.clone(),
         viewport_id,
         capabilities: editor.direct_editor_capabilities(),
-        max_zoom: editor.direct_editor_max_zoom(),
-        min_zoom: editor.direct_editor_min_zoom(),
         read_only,
         viewport: DirectEditorViewport::new(),
         viewport_state,
@@ -916,8 +752,6 @@ pub(crate) fn direct_editor_frame_ui(
     let outcome = block_ui::frame::Frame::new(egui::Id::new(("direct-editor-tab", id)))
         .chrome(chrome)
         .toolbar(!owns_frame)
-        .left_sidebar(has_left_sidebar)
-        .right_sidebar(has_right_sidebar)
         .read_only(read_only)
         .content(match owns_frame {
             true => None,
@@ -939,12 +773,10 @@ struct DirectEditorTabBands<'a, 'b> {
     exit: bool,
     viewport_id: egui::Id,
     capabilities: DirectEditorCapabilities,
-    max_zoom: f32,
-    min_zoom: f32,
     read_only: bool,
     viewport: DirectEditorViewport,
     viewport_state: DirectEditorTabViewport,
-    editor: &'a mut dyn BlockEditor,
+    editor: &'a mut PluginEditor,
     editors: &'a mut EditorAccess<'b>,
     outer: Option<&'a mut DirectEditorViewport>,
     action: Option<EditorAction>,
@@ -991,7 +823,7 @@ impl DirectEditorTabBands<'_, '_> {
             })
             .inner;
         self.record(action);
-        let input = self.editor.direct_editor_viewport_input(self.editors);
+        let input = self.editor.direct_editor_viewport_input();
         let viewport = match &mut self.outer {
             Some(outer) => outer,
             None => &mut self.viewport,
@@ -1009,23 +841,6 @@ impl DirectEditorTabBands<'_, '_> {
 }
 
 impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
-    fn toolbar_ui(&mut self, ui: &mut egui::Ui) {
-        let action = self
-            .editor
-            .direct_editor_top_bar(ui, self.editors, &mut self.viewport);
-        self.record(action);
-    }
-
-    fn left_sidebar_ui(&mut self, ui: &mut egui::Ui) {
-        let action = self.editor.direct_editor_left_sidebar(ui, self.editors);
-        self.record(action);
-    }
-
-    fn right_sidebar_ui(&mut self, ui: &mut egui::Ui) {
-        let action = self.editor.direct_editor_right_sidebar(ui, self.editors);
-        self.record(action);
-    }
-
     fn content_ui(&mut self, ui: &mut egui::Ui) {
         if self.outer.is_some() {
             self.child_content_ui(ui);
@@ -1040,7 +855,7 @@ impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
             .max(egui::Vec2::splat(1.0));
         let intrinsic_size = self
             .editor
-            .direct_editor_intrinsic_size(self.editors)
+            .direct_editor_intrinsic_size()
             .unwrap_or_default();
         let content_size = egui::vec2(
             viewport_size.x.max(intrinsic_size.x),
@@ -1076,7 +891,7 @@ impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
         self.viewport.replace_scale(self.viewport_state.zoom);
         let fills_viewport = self.editor.direct_editor_fills_viewport();
 
-        let mut viewport_input = self.editor.direct_editor_viewport_input(self.editors);
+        let mut viewport_input = self.editor.direct_editor_viewport_input();
         if self.read_only && viewport_input == DirectEditorViewportInput::Editor {
             viewport_input = DirectEditorViewportInput::Background;
         }
@@ -1124,7 +939,8 @@ impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
                 }
                 DirectEditorViewportCommand::Zoom { factor, anchor } => {
                     let old_zoom = self.viewport_state.zoom;
-                    let new_zoom = (old_zoom * factor).clamp(self.min_zoom, self.max_zoom);
+                    let new_zoom =
+                        (old_zoom * factor).clamp(DIRECT_EDITOR_MIN_ZOOM, DIRECT_EDITOR_MAX_ZOOM);
                     if new_zoom != old_zoom {
                         let anchor = anchor.unwrap_or_else(|| viewport_rect.center());
                         self.viewport_state.pan = (anchor - viewport_rect.center())
@@ -1141,7 +957,6 @@ impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
                         &mut self.viewport_state,
                         viewport_size,
                         content_size,
-                        self.min_zoom,
                     );
                     if let Some(auto_fit) = &mut self.viewport_state.auto_fit {
                         auto_fit.enabled = false;
@@ -1163,7 +978,6 @@ impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
                             &mut self.viewport_state,
                             viewport_size,
                             content_size,
-                            self.min_zoom,
                         );
                     }
                 }
@@ -1174,7 +988,6 @@ impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
                             &mut self.viewport_state,
                             viewport_size,
                             content_size,
-                            self.min_zoom,
                         );
                     }
                 }
@@ -1237,12 +1050,11 @@ fn fit_direct_editor_viewport(
     viewport: &mut DirectEditorTabViewport,
     viewport_size: egui::Vec2,
     content_size: egui::Vec2,
-    min_zoom: f32,
 ) {
     viewport.zoom = (viewport_size.x / content_size.x)
         .min(viewport_size.y / content_size.y)
         .min(1.0)
-        .clamp(min_zoom, DIRECT_EDITOR_MAX_ZOOM);
+        .clamp(DIRECT_EDITOR_MIN_ZOOM, DIRECT_EDITOR_MAX_ZOOM);
     viewport.pan = egui::Vec2::ZERO;
 }
 
@@ -1271,7 +1083,7 @@ impl Default for DirectEditorTabViewport {
     }
 }
 
-type OpenEditor = Box<dyn Fn(&BlockClient, Uuid) -> Box<dyn BlockEditor>>;
+type OpenEditor = Box<dyn Fn(&BlockClient, Uuid) -> PluginEditor>;
 type CreateOptions = Box<dyn Fn() -> Box<dyn PendingCreation>>;
 
 struct ArtifactProvider(Arc<PluginManifest>);
@@ -1306,7 +1118,7 @@ pub(super) enum ArtifactStatus {
 
 pub(super) trait PendingCreation {
     fn ui(&mut self, ui: &mut egui::Ui, editors: &mut EditorAccess<'_>) -> CreationStep;
-    fn create(&mut self, client: &BlockClient) -> Result<Option<Box<dyn BlockEditor>>, String>;
+    fn create(&mut self, client: &BlockClient) -> Result<Option<PluginEditor>, String>;
 }
 
 pub(super) enum CreationStep {
@@ -1412,7 +1224,7 @@ impl EditorRegistry {
                 Box::new(move |client, id| {
                     let block = blocks::open(client, id, block_type)
                         .expect("a registered plugin block type is in the erased table");
-                    Box::new(plugin::PluginEditor::new(Arc::clone(&manifest), block))
+                    PluginEditor::new(Arc::clone(&manifest), block)
                 })
             },
             can_add_child: manifest.children.add,
@@ -1490,9 +1302,9 @@ impl EditorRegistry {
         Some(options())
     }
 
-    pub fn open(&self, client: &BlockClient, id: Uuid, block_type: Uuid) -> Box<dyn BlockEditor> {
+    pub fn open(&self, client: &BlockClient, id: Uuid, block_type: Uuid) -> PluginEditor {
         self.registrations.get(&block_type).map_or_else(
-            || Box::new(UnsupportedEditor::new(id, block_type)) as Box<dyn BlockEditor>,
+            || PluginEditor::unsupported(id, block_type),
             |registration| (registration.open)(client, id),
         )
     }

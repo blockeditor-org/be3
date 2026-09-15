@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     editors::{
-        BlockEditor, BlockLabel, CreationStep, EditorAccess, EditorRegistry, PendingCreation,
+        BlockLabel, CreationStep, EditorAccess, EditorRegistry, PendingCreation, PluginEditor,
     },
     slide_templates::SlideTemplate,
 };
@@ -304,7 +304,7 @@ impl BlockPicker {
 
     fn finish_creation(
         editors: &mut EditorAccess<'_>,
-        editor: Box<dyn BlockEditor>,
+        editor: PluginEditor,
         block_type: Uuid,
         parent: BlockParent,
     ) -> BlockPickerResult {
