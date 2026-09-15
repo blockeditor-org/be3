@@ -1,5 +1,9 @@
 [profile.default]
 status-level = "slow"
 
+# CI reports on the whole suite rather than stopping at the first failure, so
+# one broken test does not hide the others behind "cancelling due to test
+# failure".
 [profile.ci]
 status-level = "all"
+fail-fast = false
