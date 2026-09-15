@@ -702,8 +702,10 @@ pub fn frame_child_ui(
         trail: tab.trail[..depth + 2].to_vec(),
     };
     let previous = viewport.replace_content_rect(Some(content));
+    let previous_scale = viewport.replace_scale(embedded_scale(editors, block_id, content));
     let action = editors.direct_editor_frame_ui(block_id, ui, id_salt, &slot, viewport);
     viewport.replace_content_rect(previous);
+    viewport.replace_scale(previous_scale);
     action
 }
 
@@ -783,13 +785,23 @@ struct DirectEditorTabBands<'a, 'b> {
 }
 
 impl DirectEditorTabBands<'_, '_> {
+    fn outer_is_placed(&self) -> bool {
+        self.outer
+            .as_deref()
+            .is_some_and(|outer| outer.content_rect().is_some())
+    }
+
     fn draw(&mut self, ui: &mut egui::Ui) -> Option<EditorAction> {
         let read_only = self.read_only;
         let owns_frame = self.owns_frame;
         let slot = self.slot.clone();
-        let viewport = match &mut self.outer {
-            Some(outer) => outer,
-            None => &mut self.viewport,
+        let placed = self.outer_is_placed();
+        let viewport = if placed {
+            self.outer
+                .as_deref_mut()
+                .expect("outer_is_placed implies outer is Some")
+        } else {
+            &mut self.viewport
         };
         let editor = &mut *self.editor;
         let editors = &mut *self.editors;
@@ -824,10 +836,10 @@ impl DirectEditorTabBands<'_, '_> {
             .inner;
         self.record(action);
         let input = self.editor.direct_editor_viewport_input();
-        let viewport = match &mut self.outer {
-            Some(outer) => outer,
-            None => &mut self.viewport,
-        };
+        let viewport = self
+            .outer
+            .as_deref_mut()
+            .expect("child_content_ui is only reached once outer_is_placed()");
         if input == DirectEditorViewportInput::Viewport && !viewport.gestures_read() {
             viewport_gesture_input(ui.ctx(), band.intersect(ui.clip_rect()), None, viewport);
         }
@@ -842,7 +854,7 @@ impl DirectEditorTabBands<'_, '_> {
 
 impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
     fn content_ui(&mut self, ui: &mut egui::Ui) {
-        if self.outer.is_some() {
+        if self.outer_is_placed() {
             self.child_content_ui(ui);
             return;
         }
