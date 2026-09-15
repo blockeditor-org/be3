@@ -351,7 +351,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # scripts/internal/common.sh leaves rustc unwrapped on Windows, where
+      # sccache cannot spawn the compiler for a crate whose command line is
+      # over the 32k cap, so those jobs have nothing to install it for.
       - uses: ./.github/actions/sccache
+        if: runner.os != 'Windows'
 
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
@@ -383,7 +387,7 @@ jobs:
           ${{ runner.os == 'macOS' && '--sign-identity -' || ' ' }}
 
       - name: sccache statistics
-        if: always()
+        if: always() && runner.os != 'Windows'
         run: sccache --show-stats
 
       - uses: actions/upload-artifact@v7

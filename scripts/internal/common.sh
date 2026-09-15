@@ -387,6 +387,16 @@ configure_sccache() {
     if [[ -n "${RUSTC_WRAPPER:-}" || -n "${BE3_NO_SCCACHE:-}" ]]; then
         return
     fi
+    # Windows caps a command line at about 32k characters. Cargo stays under it
+    # by handing rustc a response file, but sccache reads that file and then
+    # spawns rustc itself with every argument written out, to collect the
+    # crate's dependencies. web-sys names all four thousand of its features in
+    # one --check-cfg and is past the cap on its own, so the plugin build dies
+    # there with "The filename or extension is too long". Nothing on this side
+    # can shorten that command line, so Windows compiles uncached.
+    if [[ "${OS:-}" == 'Windows_NT' ]]; then
+        return
+    fi
     local binary
     binary="$(find_sccache)"
     if [[ -z "$binary" ]]; then
