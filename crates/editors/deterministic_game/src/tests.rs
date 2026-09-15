@@ -4,7 +4,7 @@ use block::Block as _;
 use block_client::BlockClient;
 use block_client::blocks::deterministic_game::DeterministicGame;
 use block_client::blocks::game_module::GameModule;
-use block_editor_plugin::{BeuiApp as _, EditorHost};
+use block_editor_plugin::{Creation, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -24,15 +24,11 @@ fn editor(module: Vec<u8>) -> BeuiTest<DeterministicGameApp> {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(ACCOUNT);
-    let mut app = DeterministicGameApp::default();
-    app.connect(host, client, block.id());
-    BeuiTest::new(app)
+    BeuiTest::new(Editor::new(host, client, block.id()))
 }
 
 fn creation_editor() -> BeuiTest<DeterministicGameApp> {
     let client = Arc::new(BlockClient::new(ACCOUNT, WORKSPACE));
     let host = EditorHost::default();
-    let mut app = DeterministicGameApp::default();
-    app.connect_creation(host, client);
-    BeuiTest::creation(app)
+    BeuiTest::creation(Creation::new(host, client))
 }

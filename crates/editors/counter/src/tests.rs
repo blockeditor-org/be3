@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use block_client::blocks::counter::Counter;
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::{BeuiApp as _, EditorHost};
+use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -17,9 +17,8 @@ fn editor() -> (BeuiTest<CounterApp>, BlockHandle<Counter>) {
     let block = client.create_block(Counter::default());
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut app = CounterApp::default();
-    app.connect(host, client, block.id());
-    (BeuiTest::new(app), block)
+    let editor = Editor::new(host, client, block.id());
+    (BeuiTest::new(editor), block)
 }
 
 fn shown(editor: &mut BeuiTest<CounterApp>) -> String {

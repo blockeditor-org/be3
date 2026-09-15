@@ -207,12 +207,10 @@ describes.
 Keep a projection cheap and pure. It runs while the block is read-locked, so it
 must not operate on the block; write through `BlockSource::operate`, which
 applies the operation and pumps, so a local edit is visible in the frame that
-made it. An editor calls `pump` once at the top of its frame, inside its
-document's reactive scope:
-
-```rust
-with_reactive_scope(&mut self.document, move || source.pump());
-```
+made it. An editor does not pump by hand: `Editor::block::<B>()` hands back a
+`BlockProjection` over the same machinery, which the plugin framework pumps once
+at the top of every frame inside the document's reactive scope, and whose
+`operate` is already held behind whether the host says the block may be edited.
 
 `BlockWatch` is the watch half on its own, for an editor whose view is computed
 from several blocks rather than projected from one.

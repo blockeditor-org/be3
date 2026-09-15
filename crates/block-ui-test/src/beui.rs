@@ -2,8 +2,9 @@ use beui::{
     Color32, Context, Document, Event, Key, Modifiers, PointerButton, Pos2, Rect, TouchId,
     TouchPhase, Vec2,
 };
-use block_editor_plugin::BeuiApp;
 use block_editor_plugin::beui_frame::BeuiFrame;
+use block_editor_plugin::{BeuiApp, Creation, Editor};
+use std::marker::PhantomData;
 
 use crate::snapshot;
 
@@ -12,60 +13,60 @@ mod capture;
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 
 pub struct BeuiTest<A: BeuiApp> {
-    app: A,
     region: Region,
-    frame: Option<BeuiFrame>,
     context: Context,
     size: Vec2,
     pixels_per_point: f32,
     events: Vec<Event>,
     modifiers: Modifiers,
     output: Option<beui::FrameOutput>,
+    app: PhantomData<A>,
 }
 
-#[derive(Clone, Copy)]
 enum Region {
-    Frame,
-    Creation,
+    Frame(Editor, BeuiFrame),
+    Creation(Creation, Document),
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
-    pub fn new(mut app: A) -> Self {
-        let frame = BeuiFrame::build(|| app.view());
-        Self::for_region(app, Region::Frame, Some(frame))
+    pub fn new(editor: Editor) -> Self {
+        let frame = BeuiFrame::build({
+            let editor = editor.clone();
+            move || A::view(editor)
+        });
+        Self::for_region(Region::Frame(editor, frame))
     }
 
-    pub fn creation(app: A) -> Self {
-        Self::for_region(app, Region::Creation, None)
+    pub fn creation(creation: Creation) -> Self {
+        let document = beui::reactive::build({
+            let creation = creation.clone();
+            move || A::creation_view(creation)
+        });
+        Self::for_region(Region::Creation(creation, document))
     }
 
-    fn for_region(app: A, region: Region, frame: Option<BeuiFrame>) -> Self {
+    fn for_region(region: Region) -> Self {
         let context = Context::new();
         context.set_pixels_per_point(1.0);
         let mut editor = Self {
-            app,
             region,
-            frame,
             context,
             size: SIZE,
             pixels_per_point: 1.0,
             events: Vec::new(),
             modifiers: Modifiers::NONE,
             output: None,
+            app: PhantomData,
         };
         editor.run();
         editor
     }
 
-    pub fn app(&mut self) -> &mut A {
-        &mut self.app
-    }
-
     pub fn document(&self) -> &Document {
-        self.frame
-            .as_ref()
-            .expect("the editor is showing a creation dialog, which has no retained document")
-            .document()
+        match &self.region {
+            Region::Frame(_, frame) => frame.document(),
+            Region::Creation(_, document) => document,
+        }
     }
 
     pub fn rect(&self) -> Rect {
@@ -84,24 +85,26 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn step(&mut self, events: Vec<Event>) {
         let rect = self.rect();
-        let app = &mut self.app;
-        let region = self.region;
-        let frame = &mut self.frame;
-        if let (Region::Frame, Some(frame)) = (region, frame.as_mut()) {
-            beui::reactive::with_reactive_scope(frame.document_mut(), || app.update());
+        let context = self.context.clone();
+        let region = &mut self.region;
+        match region {
+            Region::Frame(editor, frame) => {
+                let editor = editor.clone();
+                beui::reactive::with_reactive_scope(frame.document_mut(), move || {
+                    editor.begin_frame();
+                });
+            }
+            Region::Creation(creation, document) => {
+                let creation = creation.clone();
+                beui::reactive::with_reactive_scope(document, move || creation.begin_frame());
+            }
         }
-        let output = self
-            .context
-            .run(beui::RawInput { events }, |context| match region {
-                Region::Frame => frame
-                    .as_mut()
-                    .expect("the frame document is always built for Region::Frame")
-                    .document_mut()
-                    .show(context, rect),
-                Region::Creation => app.creation_frame(context, rect),
-            });
-        if let (Region::Frame, Some(frame)) = (region, frame.as_ref()) {
-            app.after_layout(frame.document());
+        let output = context.run(beui::RawInput { events }, |context| match region {
+            Region::Frame(_, frame) => frame.document_mut().show(context, rect),
+            Region::Creation(_, document) => document.show(context, rect),
+        });
+        if let Region::Frame(editor, frame) = &self.region {
+            editor.end_frame(frame.document());
         }
         self.output = Some(output);
     }

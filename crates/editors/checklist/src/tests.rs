@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use block_client::blocks::checklist::{Checklist, ChecklistOperation};
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::{BeuiApp as _, EditorHost};
+use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -28,9 +28,8 @@ fn editor(items: &[(&str, bool)]) -> (BeuiTest<ChecklistApp>, BlockHandle<Checkl
 
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut app = ChecklistApp::default();
-    app.connect(host, client, block.id());
-    (BeuiTest::new(app), block)
+    let editor = Editor::new(host, client, block.id());
+    (BeuiTest::new(editor), block)
 }
 
 fn items(block: &BlockHandle<Checklist>) -> Vec<(String, bool)> {

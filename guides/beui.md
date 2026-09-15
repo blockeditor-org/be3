@@ -235,21 +235,41 @@ the document to display new data.
 
 ## Use beui in a block editor plugin
 
-A beui editor implements `block_editor_plugin::BeuiApp` and uses
-`block_editor_plugin::beui_plugin!` instead of the egui `App` and `plugin!`.
-Build and retain the editor's `Document`, then show it from `frame`:
+A beui editor is a `#[component]` function. It implements
+`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`
+instead of the egui `App` and `plugin!`. The type it names holds no state: the
+framework builds the view once, keeps the `Document` it produced, and shows it
+every frame.
 
 ```rust
-impl block_editor_plugin::BeuiApp for Editor {
-    fn frame(&mut self, context: &beui::Context, rect: beui::Rect) {
-        self.document.show(context, rect);
+#[component]
+pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
+    let counter = editor.block::<CounterBlock>();
+    let count = counter.project(CounterBlock::count);
+    view! { ... }
+}
+
+pub struct CounterApp;
+
+impl block_editor_plugin::BeuiApp for CounterApp {
+    fn view(editor: block_editor_plugin::Editor) -> NodeId {
+        view! {
+            <Counter editor={editor} />
+        }
+    }
+
+    fn create_block(creation: &block_editor_plugin::Creation) -> Result<Uuid, String> {
+        Ok(creation.client().create_block(CounterBlock::default()).id())
     }
 }
 
-block_editor_plugin::beui_plugin!(Editor, "../manifest.json");
+block_editor_plugin::beui_plugin!(CounterApp, "../manifest.json");
 ```
 
-The host supplies input, fonts, clipboard integration, rendering, and the frame
+`Editor` is everything the instance was given: the host, the runtime's client,
+the block, the view the host is showing the content through, and
+`each_frame(...)` for work that is neither a block projection nor a signal. The
+host supplies input, fonts, clipboard integration, rendering, and the frame
 rectangle. A plugin normally depends on beui without the window runner:
 
 ```toml
@@ -260,9 +280,12 @@ The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
 creation flow, host connection, and current beui plugin capability limits.
 
-A plugin with `"creation": "Dialog"` implements `creation_frame` to show a
-separate retained document in the host's creation dialog. Host services such as
-`BlockPicker` work there in the same way they do from an egui creation UI.
+A plugin with `"creation": "Dialog"` implements `creation_view` instead, one
+more `#[component]` function that the framework builds a separate document of
+and shows in the host's creation dialog. It says what the dialog makes with
+`creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
+filled in. Host services such as `BlockPicker` work there in the same way they
+do from an egui creation UI, polled from `creation.each_frame(...)`.
 
 ## Develop an unstyled component
 
@@ -393,9 +416,10 @@ repository keeps one test per file. The document tests use their `Harness` to
 build a `Document`, send `Event` values through a `Context`, and inspect
 component state, layout, accessibility, or painting output.
 
-For a beui block editor, use `block_ui_test::BeuiTest`. Give every interacted
-node an `@test_id`, call `run` after queued gestures, assert the resulting block
-state, and snapshot only when the painting is meaningful. `BeuiTest` also
+For a beui block editor, use `block_ui_test::BeuiTest`, built from an `Editor`
+(or a `Creation`, for a dialog) so the test holds the same handle the component
+was handed. Give every interacted node an `@test_id`, call `run` after queued
+gestures, assert the resulting block state, and snapshot only when the painting is meaningful. `BeuiTest` also
 supports key presses, text, hover, pointer clicks, and touch gestures. See the
 [GUI testing guide](testing_a_gui.md) and the counter editor tests for examples.
 

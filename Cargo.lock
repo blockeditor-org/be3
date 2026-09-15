@@ -838,6 +838,7 @@ dependencies = [
  "block-gpu-abi",
  "block-gpu-guest",
  "block-plugin-api",
+ "block-reactive",
  "block-ui",
  "eframe",
  "egui_material_icons",

@@ -1,100 +1,26 @@
-use std::rc::Rc;
-use std::sync::Arc;
-
-use block_client::blocks::checklist::{Checklist, ChecklistOperation};
-use block_editor_plugin::EditorHost;
+use block_client::blocks::checklist::Checklist as ChecklistBlock;
 use block_editor_plugin::beui::NodeId;
-use block_reactive::BlockSource;
+use block_editor_plugin::beui::reactive::view;
+use block_editor_plugin::{Creation, Editor};
 use uuid::Uuid;
 
 mod ui;
 
-use ui::ChecklistUi;
+use ui::Checklist;
 
-#[derive(Default)]
-pub struct ChecklistApp {
-    ui: Option<ChecklistUi>,
-    checklist: Option<Rc<ChecklistEditor>>,
-    creation: Option<Arc<block_client::BlockClient>>,
-}
-
-impl ChecklistApp {
-    pub fn ui(&self) -> Option<&ChecklistUi> {
-        self.ui.as_ref()
-    }
-}
-
-pub(crate) struct ChecklistEditor {
-    source: Rc<BlockSource<Checklist>>,
-    host: EditorHost,
-}
-
-impl ChecklistEditor {
-    pub(crate) fn source(&self) -> &Rc<BlockSource<Checklist>> {
-        &self.source
-    }
-
-    fn operate(&self, operation: ChecklistOperation) {
-        if self.host.editable() {
-            self.source.operate(operation);
-        }
-    }
-
-    pub(crate) fn add(&self, text: String) {
-        self.operate(ChecklistOperation::add(text));
-    }
-
-    pub(crate) fn set_done(&self, id: Uuid, done: bool) {
-        self.operate(ChecklistOperation::SetDone { id, done });
-    }
-
-    pub(crate) fn remove(&self, id: Uuid) {
-        self.operate(ChecklistOperation::Remove { id });
-    }
-
-    pub(crate) fn clear_done(&self) {
-        self.operate(ChecklistOperation::ClearDone);
-    }
-}
+pub struct ChecklistApp;
 
 impl block_editor_plugin::BeuiApp for ChecklistApp {
-    fn connect(
-        &mut self,
-        host: EditorHost,
-        client: Arc<block_client::BlockClient>,
-        block_id: Uuid,
-    ) {
-        let waker = host.waker();
-        let source = BlockSource::new(client.get_block(block_id), move || waker.wake());
-        self.checklist = Some(Rc::new(ChecklistEditor { source, host }));
-        self.ui = None;
-    }
-
-    fn connect_creation(&mut self, _host: EditorHost, client: Arc<block_client::BlockClient>) {
-        self.creation = Some(client);
-    }
-
-    fn create_block(&mut self) -> Result<Uuid, String> {
-        let client = self
-            .creation
-            .as_ref()
-            .ok_or("this editor is not creating a block")?;
-        Ok(client.create_block(Checklist::default()).id())
-    }
-
-    fn view(&mut self) -> NodeId {
-        let checklist = self
-            .checklist
-            .clone()
-            .expect("connect is called before view is built");
-        let (ui, root) = ChecklistUi::new(checklist);
-        self.ui = Some(ui);
-        root
-    }
-
-    fn update(&mut self) {
-        if let Some(checklist) = &self.checklist {
-            checklist.source().pump();
+    fn view(editor: Editor) -> NodeId {
+        view! {
+            <Checklist editor={editor} />
         }
+    }
+
+    fn create_block(creation: &Creation) -> Result<Uuid, String> {
+        Ok(creation
+            .client()
+            .create_block(ChecklistBlock::default())
+            .id())
     }
 }
