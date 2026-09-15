@@ -19,7 +19,7 @@ use super::{
     RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Platform},
     input,
-    instances::{Focus, Instances, OpenRequest, Placement},
+    instances::{Focus, FrameOverlay, Instances, OpenRequest, Placement},
     presenter::{
         self, MAX_SURFACES, PresenterCallback, PresenterState, PresenterStatus, Quad, Shared,
     },
@@ -40,6 +40,7 @@ struct Host {
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
     grabbed: bool,
+    overlay: FrameOverlay,
 }
 
 impl Host {
@@ -49,6 +50,7 @@ impl Host {
             runtimes: HashMap::new(),
             focus: Focus::default(),
             grabbed: false,
+            overlay: FrameOverlay::default(),
         }
     }
 
@@ -207,12 +209,14 @@ impl Runtime {
         self.pump();
     }
 
-    fn begin_frame(&mut self, frame: &eframe::Frame, pass: u64) {
+    fn begin_frame(&mut self, frame: &eframe::Frame, pass: u64, overlay: &FrameOverlay) {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
         }
         let mut messages = match self.pass + 1 == pass {
-            true => self.instances.frame_input(&self.context, self.pass),
+            true => self
+                .instances
+                .frame_input(&self.context, self.pass, overlay),
             false => Vec::new(),
         };
         messages.extend(
@@ -377,6 +381,7 @@ impl Runtime {
         screen: ScreenId,
         quad: Quad,
         source: egui::Rect,
+        drawn: Option<(u32, u32)>,
     ) -> egui::epaint::PaintCallback {
         self.presented = true;
         let slot = self.next_slot;
@@ -391,6 +396,7 @@ impl Runtime {
                 quad,
                 source,
                 slot,
+                drawn,
             ),
         )
     }
@@ -443,6 +449,7 @@ pub(crate) struct EditorPresentation {
     screen: Option<ScreenId>,
     quad: Option<Quad>,
     clip: egui::Rect,
+    drawn: Option<(u32, u32)>,
     floating: Vec<egui::Rect>,
     pub(crate) open: Option<OpenRequest>,
     pub(crate) drag: Option<(Uuid, Uuid)>,
@@ -461,6 +468,7 @@ impl EditorPresentation {
             screen: None,
             quad: None,
             clip: egui::Rect::ZERO,
+            drawn: None,
             floating: Vec::new(),
             open: None,
             drag: None,
@@ -493,7 +501,8 @@ impl EditorPresentation {
                         (piece.max.y - base.min.y) / base.height(),
                     ),
                 );
-                let callback = runtime.present(piece, screen, Quad::upright(piece), source);
+                let callback =
+                    runtime.present(piece, screen, Quad::upright(piece), source, self.drawn);
                 ui.painter().with_clip_rect(self.clip).add(callback);
             }
         });
@@ -575,6 +584,17 @@ pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresen
         if let Some(view) = view {
             runtime.instances.set_view(instance, view);
         }
+        let drawn = runtime
+            .layout
+            .placement(screen)
+            .map(|placement| (placement.width, placement.height));
+        let held = runtime.instances.held(
+            instance,
+            region,
+            cropped.as_ref().map(|(quad, _)| quad.rect),
+            ui.clip_rect(),
+            drawn,
+        );
         let (children, holes) =
             runtime
                 .instances
@@ -618,24 +638,34 @@ pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresen
             id: Some(response.id),
             loading_rect: plugin_loading_rect(&runtime.layout, screen, response.rect),
             screen: Some(screen),
-            quad: cropped.map(|(quad, _)| quad),
-            clip: ui.clip_rect(),
-            floating: runtime
-                .instances
-                .frame_report(instance)
-                .map(|report| {
-                    report
-                        .floating
-                        .iter()
-                        .map(|rect| {
-                            egui::Rect::from_min_size(
-                                egui::pos2(rect.x, rect.y) + response.rect.min.to_vec2(),
-                                egui::vec2(rect.width, rect.height),
-                            )
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
+            quad: match held {
+                Some(held) => Some(Quad::upright(held.rect)),
+                None => cropped.map(|(quad, _)| quad),
+            },
+            clip: match held {
+                Some(held) => held.clip,
+                None => ui.clip_rect(),
+            },
+            drawn: held.map(|held| held.drawn),
+            floating: match held {
+                Some(_) => Vec::new(),
+                None => runtime
+                    .instances
+                    .frame_report(instance)
+                    .map(|report| {
+                        report
+                            .floating
+                            .iter()
+                            .map(|rect| {
+                                egui::Rect::from_min_size(
+                                    egui::pos2(rect.x, rect.y) + response.rect.min.to_vec2(),
+                                    egui::vec2(rect.width, rect.height),
+                                )
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            },
             open: runtime.instances.take_open(instance),
             drag: runtime.instances.take_block_drag(instance),
             command: runtime.instances.take_block_command(instance),
@@ -844,6 +874,7 @@ pub(crate) fn preview(painter: &egui::Painter, slot: PreviewSlot<'_>) -> Preview
                 screen,
                 quad,
                 UNIT,
+                None,
             ));
         }
         PreviewPresentation {
@@ -868,10 +899,11 @@ pub(crate) fn poll(context: &egui::Context, frame: &eframe::Frame) {
     let pass = context.cumulative_pass_nr();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
+        let overlay = std::mem::take(&mut host.overlay);
         for runtime in host.runtimes.values_mut() {
             runtime.detect_error();
             runtime.pump();
-            runtime.begin_frame(frame, pass);
+            runtime.begin_frame(frame, pass, &overlay);
         }
         let grabbed = host
             .runtimes
@@ -1049,6 +1081,26 @@ pub(crate) fn take_leaving(plugin_id: &str, instance: EditorInstanceId) -> bool 
         runtime.instances.take_leaving(instance)
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn hold(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
+    with(plugin_id, |runtime| {
+        runtime.instances.hold(instance, region)
+    });
+}
+
+pub(crate) fn cover_frame(plugin_id: &str, instance: EditorInstanceId, frame: egui::Rect) {
+    let Some(rects) = frame_rects(plugin_id, instance).map(|rects| {
+        super::pieces::subtract(frame, &[rects.content.translate(frame.min.to_vec2())])
+    }) else {
+        return;
+    };
+    HOST.with(|host| {
+        host.borrow_mut().overlay = FrameOverlay {
+            owner: Some(instance),
+            rects,
+        };
+    });
 }
 
 pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option<HostFrame> {

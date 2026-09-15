@@ -296,6 +296,9 @@ impl InfiniteCanvasEditor {
         if self.focused_editor.is_some() && focused.is_none() {
             self.focused_editor = None;
         }
+        if self.focused_editor.is_none() {
+            self.confirmed_editor = None;
+        }
 
         let mut action = None;
         let (response, painter) =
@@ -426,8 +429,15 @@ impl InfiniteCanvasEditor {
             let Some(handle) = editors.place(ui, block_id, screen, 0.0, 1.0, mode) else {
                 continue;
             };
-            if is_focused && !handle.active() && editors.is_frame_child(block_id) {
-                self.focused_editor = None;
+            if is_focused {
+                match handle.active() {
+                    true => self.confirmed_editor = Some(entity.id),
+                    false if self.confirmed_editor == Some(entity.id) => {
+                        self.focused_editor = None;
+                        self.confirmed_editor = None;
+                    }
+                    false => {}
+                }
             }
             for change in handle.take_view_changes() {
                 match change {

@@ -265,6 +265,7 @@ pub(crate) struct PluginEditor {
     active_this_frame: bool,
     presence_active: bool,
     main_region_id: Option<egui::Id>,
+    framed: bool,
 }
 
 struct PendingBlockPick {
@@ -337,6 +338,7 @@ impl PluginEditor {
             active_this_frame: false,
             presence_active: false,
             main_region_id: None,
+            framed: false,
         }
     }
 
@@ -433,6 +435,17 @@ impl PluginEditor {
         None
     }
 
+    fn set_framed(&mut self, framed: bool) {
+        if self.framed == framed {
+            return;
+        }
+        self.framed = framed;
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
+        crate::plugin_host::hold(&plugin.identity.id, self.instance, EditorRegion::Frame);
+    }
+
     fn frame_editor_ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -443,6 +456,7 @@ impl PluginEditor {
         if self.plugin.is_none() {
             return self.unsupported_ui(ui);
         }
+        self.set_framed(false);
         self.active_this_frame = true;
         self.context = Some(ui.ctx().clone());
         if self.presenting() {
@@ -1001,6 +1015,7 @@ impl PluginEditor {
         slot: &FrameSlot,
         viewport: &mut DirectEditorViewport,
     ) -> Option<EditorAction> {
+        self.set_framed(slot.content.is_some());
         self.active_this_frame = true;
         self.context = Some(ui.ctx().clone());
         if self.presenting() {
@@ -1021,7 +1036,6 @@ impl PluginEditor {
         let frame = FrameSpec {
             chrome: match slot.chrome {
                 block_ui::frame::Chrome::Drawn => FrameChrome::Drawn,
-                block_ui::frame::Chrome::Reserved => FrameChrome::Reserved,
                 block_ui::frame::Chrome::None => FrameChrome::None,
             },
             content: slot.content.map(|content| {
@@ -1037,6 +1051,12 @@ impl PluginEditor {
         };
         let action = self.frame_ui(ui, editors, frame, rect.size(), view);
         self.take_view_changes(rect, viewport);
+        if slot.content.is_some()
+            && slot.chrome == block_ui::frame::Chrome::Drawn
+            && let Some(plugin) = &self.plugin
+        {
+            crate::plugin_host::cover_frame(&plugin.identity.id, self.instance, rect);
+        }
         action
     }
 

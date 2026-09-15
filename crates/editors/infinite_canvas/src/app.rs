@@ -321,6 +321,7 @@ pub(crate) struct InfiniteCanvasEditor {
     pending_file_drop_position: Option<CanvasPoint>,
     clipboard_image_paste: ImagePaster,
     focused_editor: Option<Uuid>,
+    confirmed_editor: Option<Uuid>,
     viewport_center: CanvasPoint,
 
     pointer_world: Option<CanvasPoint>,

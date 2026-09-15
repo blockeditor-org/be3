@@ -18,7 +18,6 @@ pub(crate) struct DirectEditorCapabilities {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ChildInfo {
-    pub active: bool,
     pub interaction: Option<DirectEditorInteraction>,
     pub capabilities: DirectEditorCapabilities,
     pub resize: DirectEditorResize,
@@ -124,10 +123,6 @@ impl Access {
         self.children.borrow_mut().types.insert(id, block_type);
     }
 
-    pub(crate) fn is_frame_child(&self, id: Uuid) -> bool {
-        self.info(id).is_some_and(|info| info.active)
-    }
-
     pub(crate) fn block_type(&self, id: Uuid) -> Option<Uuid> {
         self.children
             .borrow()
@@ -202,7 +197,6 @@ impl Access {
         self.children.borrow_mut().known.insert(
             block_id,
             ChildInfo {
-                active: handle.active(),
                 interaction: handle.reported().then(|| handle.interaction()),
                 capabilities: DirectEditorCapabilities {
                     allow_rotation: handle.capabilities().rotation,

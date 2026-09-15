@@ -48,6 +48,8 @@ fn placed() -> (Instances, egui::Context, egui::Id) {
     (instances, context, id)
 }
 
+mod a_frame_childs_chrome_is_withheld_from_the_editor_it_covers;
+mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod an_instance_the_plugin_never_opened_is_not_closed;

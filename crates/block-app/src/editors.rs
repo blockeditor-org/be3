@@ -587,7 +587,7 @@ pub fn direct_editor_tab_ui(
         clip,
         content: None,
         chrome: match owner {
-            Some(_) => block_ui::frame::Chrome::Reserved,
+            Some(_) => block_ui::frame::Chrome::None,
             None => block_ui::frame::Chrome::Drawn,
         },
         trail: Vec::new(),
@@ -647,7 +647,7 @@ pub fn own_frame_child_ui(
         clip,
         content: None,
         chrome: match owner {
-            Some(_) => block_ui::frame::Chrome::Reserved,
+            Some(_) => block_ui::frame::Chrome::None,
             None => block_ui::frame::Chrome::Drawn,
         },
         trail: Vec::new(),
@@ -697,7 +697,7 @@ pub fn frame_child_ui(
         content: Some(content.intersect(clip_rect)),
         chrome: match depth + 1 == tab.stack.len() {
             true => block_ui::frame::Chrome::Drawn,
-            false => block_ui::frame::Chrome::Reserved,
+            false => block_ui::frame::Chrome::None,
         },
         trail: tab.trail[..depth + 2].to_vec(),
     };
