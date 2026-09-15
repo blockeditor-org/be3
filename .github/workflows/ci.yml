@@ -3,6 +3,7 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -384,3 +385,25 @@ jobs:
           name: block-${{ matrix.name }}
           path: dist
           retention-days: 14
+
+  # allow adding a PR to the merge queue before its checks pass
+  ci-ok-pr:
+    name: ${{ github.event_name == 'pull_request' && 'CI OK' || 'CI OK (pull requests only)' }}
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - run: exit 0
+
+  # require checks to actually pass once in the merge queue
+  ci-ok-queue:
+    name: ${{ github.event_name != 'pull_request' && 'CI OK' || 'CI gate (merge queue only)' }}
+    if: always() && github.event_name != 'pull_request'
+    needs: [check, web, android, native]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every job to have passed
+        if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'skipped')
+        run: exit 1
