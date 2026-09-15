@@ -19,7 +19,7 @@ const FOCUS_RING_OFFSET: f32 = 3.0;
 #[component]
 pub fn TextInput(
     value: Prop<String>,
-    placeholder: Prop<String>,
+    #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
     on_change: Callback<String>,
     on_submit: Callback<String>,

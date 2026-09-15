@@ -497,12 +497,6 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
             } else {
                 quote! { self.#ident.unwrap_or_else(|| #default) }
             }
-        } else if prop.reactive_inner_ty.is_some() {
-            quote! {
-                self.#ident.unwrap_or_else(|| {
-                    ::beui::reactive::Prop::Static(::core::default::Default::default())
-                })
-            }
         } else if prop.callback_args.is_some() || prop.is_click_callback {
             quote! { self.#ident.unwrap_or_default() }
         } else {

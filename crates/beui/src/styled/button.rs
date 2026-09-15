@@ -43,7 +43,7 @@ impl ButtonVariant {
 pub fn Button(
     label: Prop<String>,
     variant: ButtonVariant,
-    disabled: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
 ) -> NodeId {
     view! {

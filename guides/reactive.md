@@ -342,7 +342,23 @@ built, and `@sizing` gives the node its `ItemSize` among its siblings. Writing
 those three, is a compile error from `view!`.
 
 A tag whose required props are missing panics from the `view!` line that wrote
-it, not from inside the generated builder.
+it, not from inside the generated builder. Every prop is required unless its
+type or its attributes say otherwise: `Prop<T>` is as required as a plain `T`,
+and a component that wants a prop to be optional says so with
+`#[prop(default = <expr>)]`, or takes `Option<Prop<T>>` when it needs to tell
+"unset" apart from any value the caller could have passed. `Callback`,
+`ClickCallback`, and `Children` props keep their empty default, since a callback
+nobody listens to and a tag with no children are ordinary states rather than
+omissions.
+
+```rust
+#[component]
+fn Badge(
+    label: Prop<String>,                                  // required
+    #[prop(default = Color32::WHITE)] color: Prop<Color32>, // optional, with a default
+    tooltip: Option<Prop<String>>,                        // optional, absence is visible
+) -> NodeId
+```
 
 The base elements and the structural primitives that insert and remove nodes for
 a living — `show`, `dynamic`, `keyed`, `for_each`, `virtual_list` — are the only code that

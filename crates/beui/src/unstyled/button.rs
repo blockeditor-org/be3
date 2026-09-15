@@ -25,9 +25,9 @@ struct State {
 pub fn Button(
     children: Option<Child>,
     content: Option<Render<ButtonHandle>>,
-    disabled: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
-    focused: Prop<bool>,
+    #[prop(default = false)] focused: Prop<bool>,
     on_click: ClickCallback,
     on_key: Callback<KeyPress, bool>,
     on_text: Callback<String>,

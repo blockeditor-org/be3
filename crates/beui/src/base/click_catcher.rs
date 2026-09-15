@@ -276,9 +276,9 @@ impl Document {
 #[component]
 pub fn ClickCatcher(
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
-    key_active: Prop<bool>,
-    capture_presses: Prop<bool>,
-    repeat_drag: Prop<bool>,
+    #[prop(default = false)] key_active: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = false)] repeat_drag: Prop<bool>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
