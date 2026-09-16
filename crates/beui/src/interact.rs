@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::context::Context;
 use crate::base::list::Direction;
+use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{Event, Key, KeyPress};
 use crate::painter::Painter;

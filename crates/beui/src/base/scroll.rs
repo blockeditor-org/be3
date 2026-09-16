@@ -294,12 +294,7 @@ fn rubber_band(distance: f32, viewport: f32) -> f32 {
     magnitude.copysign(distance)
 }
 
-fn revealed_offset(
-    direction: Direction,
-    viewport: Rect,
-    item: Rect,
-    offset: f32,
-) -> Option<f32> {
+fn revealed_offset(direction: Direction, viewport: Rect, item: Rect, offset: f32) -> Option<f32> {
     let length = direction.main(viewport.size());
     let start = direction.main(item.min - viewport.min) + offset;
     let end = direction.main(item.max - viewport.min) + offset;
@@ -726,7 +721,8 @@ impl Document {
             let Some(index) = node.items.iter().position(|id| *id == item) else {
                 continue;
             };
-            let start = direction.main(rect.min.to_vec2()) + lengths[..index].iter().sum::<f32>()
+            let start = direction.main(rect.min.to_vec2())
+                + lengths[..index].iter().sum::<f32>()
                 + node.leading(0.0)
                 - node.offset;
             let placed = item_rect(direction, rect, start, lengths[index]);

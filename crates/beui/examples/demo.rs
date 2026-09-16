@@ -456,7 +456,7 @@ fn CanvasCard() -> NodeId {
                 />
                 <Caption
                     content="Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom, \
-                     and drag with the middle button."
+                     and drag with the middle button. Tab to it for arrows, + and -."
                 />
             </Column>
         </Card>
@@ -476,9 +476,9 @@ fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) 
     view! {
         <PanZoom view on_change={move |view| on_change.call(view)}>
             {move |handle: PanZoomHandle| {
-                let PanZoomHandle { view, scale, .. } = handle;
+                let PanZoomHandle { view, scale, focused, .. } = handle;
                 view! {
-                    <CanvasBoard view scale />
+                    <CanvasBoard view scale focused />
                 }
             }}
         </PanZoom>
@@ -486,15 +486,27 @@ fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) 
 }
 
 #[component]
-fn CanvasBoard(view: Memo<Option<CanvasView>>, scale: Memo<f32>) -> NodeId {
+fn CanvasBoard(
+    view: Memo<Option<CanvasView>>,
+    scale: Memo<f32>,
+    focused: ReadSignal<bool>,
+) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
+    let theme = use_theme();
     view! {
-        <Canvas view>
-            <StageCard card=first scale={scale.clone()} />
-            <StageCard card=second scale={scale.clone()} />
-            <StageCard card=third scale={scale.clone()} />
-            <StageCard card=fourth scale />
-        </Canvas>
+        <Frame
+            outline={theme.accent.clone()}
+            outline_width=2.0
+            outline_visible={focused}
+            radius=RADIUS
+        >
+            <Canvas view>
+                <StageCard card=first scale={scale.clone()} />
+                <StageCard card=second scale={scale.clone()} />
+                <StageCard card=third scale={scale.clone()} />
+                <StageCard card=fourth scale />
+            </Canvas>
+        </Frame>
     }
 }
 
