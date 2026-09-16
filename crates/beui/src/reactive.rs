@@ -560,10 +560,6 @@ impl Children {
         });
     }
 
-    pub fn only(self) -> Option<NodeId> {
-        self.0.into_iter().next().map(|(child, _)| child)
-    }
-
     pub(crate) fn into_items(self) -> Vec<(NodeId, Prop<ItemSize>)> {
         self.0
     }
@@ -587,6 +583,27 @@ impl OneChild for [(NodeId, Prop<ItemSize>); 1] {
     fn one_child(self) -> NodeId {
         let [(child, _)] = self;
         child
+    }
+}
+
+#[diagnostic::on_unimplemented(
+    message = "this component builds at most one child",
+    label = "write one child between these tags, or none at all"
+)]
+pub trait AtMostOneChild {
+    fn at_most_one_child(self) -> Option<NodeId>;
+}
+
+impl AtMostOneChild for [(NodeId, Prop<ItemSize>); 0] {
+    fn at_most_one_child(self) -> Option<NodeId> {
+        None
+    }
+}
+
+impl AtMostOneChild for [(NodeId, Prop<ItemSize>); 1] {
+    fn at_most_one_child(self) -> Option<NodeId> {
+        let [(child, _)] = self;
+        Some(child)
     }
 }
 
@@ -649,16 +666,13 @@ pub fn Spacer() -> NodeId {
 }
 
 #[component]
-pub fn Show(condition: Prop<bool>, #[prop(children)] then: Option<Render>) -> NodeId {
-    let mut then = then;
+pub fn Show(condition: Prop<bool>, #[prop(children)] then: Render) -> NodeId {
+    let mut then = Some(then);
     let visibility = with_document(Document::create_frame);
-    let built: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
     create_effect(move || {
         let visible = condition.get();
-        if visible && built.get().is_none() {
-            let build = then.take().expect("show requires a `then` callback");
+        if visible && let Some(build) = then.take() {
             let child = in_new_scope(|| build.call(()));
-            built.set(Some(child));
             with_document(|document| document.set_frame_child(visibility, child));
         }
         with_document(|document| document.set_visible(visibility, visible));
@@ -670,12 +684,11 @@ pub fn Show(condition: Prop<bool>, #[prop(children)] then: Option<Render>) -> No
 pub fn Dynamic<T>(
     value: Prop<T>,
     #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
-    #[prop(children)] view: Option<RenderFn<T>>,
+    #[prop(children)] view: RenderFn<T>,
 ) -> NodeId
 where
     T: Clone + 'static,
 {
-    let view = view.expect("dynamic requires a `view` callback");
     let parent = view! {
         <Column spacing=0.0 />
     };
@@ -699,13 +712,12 @@ where
 pub fn ForEach<K>(
     spacing: f32,
     keys: Prop<Vec<K>>,
-    #[prop(children)] view: Option<RenderFn<K>>,
+    #[prop(children)] view: RenderFn<K>,
     #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,
 {
-    let view = view.expect("for_each requires a `view` callback");
     let parent = view! {
         <Column spacing />
     };
@@ -744,16 +756,14 @@ where
 #[component]
 pub fn Keyed<T, K>(
     value: Prop<T>,
-    key: Option<Func<T, K>>,
+    key: Func<T, K>,
     #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
-    #[prop(children)] view: Option<RenderFn<ReadSignal<T>>>,
+    #[prop(children)] view: RenderFn<ReadSignal<T>>,
 ) -> NodeId
 where
     T: Clone + PartialEq + 'static,
     K: PartialEq + 'static,
 {
-    let key = key.expect("keyed requires a `key` callback");
-    let view = view.expect("keyed requires a `view` callback");
     let parent = view! {
         <Column spacing=0.0 />
     };
@@ -783,7 +793,7 @@ where
 
 #[component]
 pub fn Button(
-    children: Children,
+    children: Child,
     #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
 ) -> NodeId {

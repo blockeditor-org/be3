@@ -5,8 +5,8 @@ use crate::input::CursorIcon;
 
 use crate::node::NodeId;
 use crate::reactive::{
-    self, Callback, Child, ClickCallback, ClickCatcher, Focusable, Prop, clone,
-    component_accessibility, create_memo, create_signal, untrack,
+    Callback, Child, ClickCallback, ClickCatcher, Focusable, Prop, clone, component_accessibility,
+    create_memo, create_signal, untrack,
 };
 
 #[component]
@@ -42,7 +42,7 @@ pub fn Pressable(
                 on_click={click}
                 on_hover_change={move |hovered| on_hover_change.call(hovered)}
                 on_active_change={move |active| on_active_change.call(active)}
-                children={children.map(reactive::intrinsic)}
+                children={children}
             />
         </Focusable>
     }
