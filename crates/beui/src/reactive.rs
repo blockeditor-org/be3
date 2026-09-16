@@ -205,6 +205,8 @@ pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
     create_effect(move || set_accessibility(&component, node.get()));
 }
 
+pub struct MissingProp;
+
 #[derive(Clone, Default)]
 pub struct NodeRef(Rc<Cell<Option<NodeId>>>);
 

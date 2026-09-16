@@ -339,8 +339,9 @@ built, and `@sizing` gives the node its `ItemSize` among its siblings. Writing
 `test_id=` or `node_ref=` without the `@`, or an `@name` that is not one of
 those three, is a compile error from `view!`.
 
-A tag whose required props are missing panics from the `view!` line that wrote
-it, not from inside the generated builder. Every prop is required unless its
+A tag whose required props are missing is a compile error at the tag that wrote
+it, not a panic from inside the generated builder, and so is a prop written
+twice on one tag. Every prop is required unless its
 type or its attributes say otherwise: `Prop<T>` is as required as a plain `T`,
 and a component that wants a prop to be optional says so with
 `#[prop(default = <expr>)]`, or takes `Option<Prop<T>>` when it needs to tell
@@ -396,8 +397,8 @@ create_effect(clone!(set_value -> move || set_value.set(value.get())));
 A component's child arity is part of its signature. A prop named `children`
 typed `Children` takes however many are written between its tags; typed `Child`
 it takes exactly one and arrives as the `NodeId` itself, so wrappers use
-`{children}` in their `view!` without unwrapping, and a caller who writes none
-gets a panic naming the component. `Option<Child>` is the same for a wrapper
+`{children}` in their `view!` without unwrapping, and a caller who writes none,
+or more than one, does not compile. `Option<Child>` is the same for a wrapper
 whose child is optional, like `fill` or a `button` that takes `content` instead.
 
 A `view!` with more than one root is a `Children` rather than a `NodeId`, so a
