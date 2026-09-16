@@ -30,6 +30,8 @@ pub(crate) struct InteractInput {
     pub(crate) middle_pressed_this_frame: bool,
     pub(crate) scroll: Vec2,
     pub(crate) zoom: f32,
+    pub(crate) touch_pan: Vec2,
+    pub(crate) zoom_pos: Option<Pos2>,
     pub(crate) wheel_target: Option<NodeId>,
     pub(crate) zoom_target: Option<NodeId>,
     pub(crate) touch_started: bool,

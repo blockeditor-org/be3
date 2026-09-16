@@ -216,8 +216,9 @@ view! {
 }
 ```
 
-A scroll pans, Shift+scroll pans sideways, dragging with the middle button
-pans, and Ctrl+scroll or a trackpad pinch zooms around the pointer. The handle
+A scroll pans, Shift+scroll pans sideways, dragging with the middle button or
+with two fingers pans, and Ctrl+scroll, a trackpad pinch or a two-finger pinch
+zooms around the pointer or the point between the fingers. The handle
 carries the camera as a `CanvasView` ready for a `<Canvas>`, the `scale` for
 content that should grow with the zoom, and whether a middle-button pan is in
 progress. Because the view is the caller's, a toolbar button, a fit command or
