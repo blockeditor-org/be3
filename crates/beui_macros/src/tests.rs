@@ -1,5 +1,8 @@
 use super::*;
 
+mod a_callback_prop_with_too_many_type_arguments_is_rejected;
+mod a_children_prop_that_cannot_hold_children_is_rejected;
+mod a_component_marking_two_children_props_is_rejected;
 mod a_framework_slot_written_twice_on_one_tag_is_rejected;
 mod a_prop_written_twice_on_one_tag_is_rejected;
 mod children_written_as_a_prop_and_between_the_tags_are_rejected;

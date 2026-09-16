@@ -399,7 +399,11 @@ typed `Children` takes however many are written between its tags; typed `Child`
 it takes exactly one and arrives as the `NodeId` itself, so wrappers use
 `{children}` in their `view!` without unwrapping, and a caller who writes none,
 or more than one, does not compile. `Option<Child>` is the same for a wrapper
-whose child is optional, like `fill` or a `button` that takes `content` instead.
+whose child is optional, like `fill` or a `button` that takes `content` instead:
+none or one compiles and two do not, rather than the extras being dropped.
+A `Children` value cannot be handed to a `Child` or `Option<Child>` prop, since
+its arity is only known once it is built; a wrapper that forwards its children
+into a single-child slot declares that arity itself.
 
 A `view!` with more than one root is a `Children` rather than a `NodeId`, so a
 fixed set of siblings can be written in one place and handed to a `Children`
@@ -454,6 +458,9 @@ unbuilt until the component asks for them.
 
 Either way the block is exactly one child, because a `Render` returns one
 `NodeId`; two tags there are a compile error naming the tag that wrote them.
+A slot the component always calls is a required prop like any other, so a
+`Show` with nothing between its tags, or a `ForEach` with no closure, does not
+compile rather than panicking once the view runs.
 Handing a slot a `Render`/`RenderFn` a component was given itself stays an
 attribute, like `panel={panel.clone()}` — only a closure or a tag block can be
 written between the tags.

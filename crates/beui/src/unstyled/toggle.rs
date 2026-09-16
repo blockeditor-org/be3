@@ -6,9 +6,8 @@ use crate::input::CursorIcon;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    self, Callback, ClickCatcher, Focusable, Prop, ReadSignal, Render, clone,
-    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
-    untrack,
+    Callback, ClickCatcher, Focusable, Prop, ReadSignal, Render, clone, component_accessibility,
+    create_effect, create_memo, create_signal, set_component_state, untrack,
 };
 
 pub struct ToggleHandle {
@@ -72,7 +71,7 @@ pub fn Toggle(
                 on_click={toggle_checked}
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
                 on_active_change={move |active: bool| set_active.set(active)}
-                children={content_node.map(reactive::intrinsic)}
+                children={content_node}
             />
         </Focusable>
     }

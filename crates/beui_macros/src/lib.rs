@@ -21,7 +21,7 @@ struct Prop {
     is_children: bool,
     is_child: bool,
     is_optional_child: bool,
-    callback_args: Option<Vec<Type>>,
+    callback_signature: Option<proc_macro2::TokenStream>,
     is_click_callback: bool,
     default: Option<Expr>,
     is_children_slot: bool,
@@ -45,6 +45,18 @@ fn render_kind(ty: &Type) -> Option<Render> {
         })
     } else {
         None
+    }
+}
+
+fn callback_signature(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
+    let args = generic_args(ty, "Callback").unwrap_or_default();
+    match args.as_slice() {
+        [value] => Ok(quote! { ::core::ops::FnMut(#value) }),
+        [value, result] => Ok(quote! { ::core::ops::FnMut(#value) -> #result }),
+        _ => Err(syn::Error::new_spanned(
+            ty,
+            "a `Callback` prop takes one or two type arguments, as `Callback<Value>` or `Callback<Value, Result>`",
+        )),
     }
 }
 
@@ -163,11 +175,8 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
             method: block,
             generics: quote! { <ChildrenBlock> },
             args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-            where_clause: quote! { where ChildrenBlock: Into<::beui::reactive::Children> },
-            value: quote! { {
-                let children: ::beui::reactive::Children = children().into();
-                children.only()
-            } },
+            where_clause: quote! { where ChildrenBlock: ::beui::reactive::AtMostOneChild },
+            value: quote! { ::beui::reactive::AtMostOneChild::at_most_one_child(children()) },
         }];
     }
     if prop.is_child {
@@ -211,11 +220,8 @@ fn named_setter(prop: &Prop) -> Setter {
         )
     } else if prop.is_optional_child {
         plain(
-            quote! { value: impl Into<::beui::reactive::Children> },
-            quote! { {
-                let children: ::beui::reactive::Children = value.into();
-                children.only()
-            } },
+            quote! { value: impl Into<Option<::beui::reactive::Child>> },
+            quote! { value.into() },
         )
     } else if let Some(render) = &prop.optional_render {
         render_setter(ident, render, |build| quote! { Some(#build) })
@@ -244,12 +250,7 @@ fn named_setter(prop: &Prop) -> Setter {
             quote! { value: impl ::core::ops::FnMut() + 'static },
             quote! { ::beui::reactive::ClickCallback::new(value) },
         )
-    } else if let Some(args) = &prop.callback_args {
-        let signature = match args.as_slice() {
-            [value] => quote! { ::core::ops::FnMut(#value) },
-            [value, result] => quote! { ::core::ops::FnMut(#value) -> #result },
-            _ => panic!("`Callback` props take one or two type arguments"),
-        };
+    } else if let Some(signature) = &prop.callback_signature {
         plain(
             quote! { value: impl #signature + 'static },
             quote! { ::beui::reactive::Callback::new(value) },
@@ -274,7 +275,7 @@ fn prop_is_required(prop: &Prop) -> bool {
     if prop.is_child {
         return true;
     }
-    prop.default.is_none() && prop.callback_args.is_none() && !prop.is_click_callback
+    prop.default.is_none() && prop.callback_signature.is_none() && !prop.is_click_callback
 }
 
 fn angle_bracketed(items: &[proc_macro2::TokenStream]) -> proc_macro2::TokenStream {
@@ -308,13 +309,13 @@ struct PropAttr {
     children: bool,
 }
 
-fn take_prop_attr(attrs: &mut Vec<Attribute>) -> PropAttr {
+fn take_prop_attr(attrs: &mut Vec<Attribute>) -> syn::Result<PropAttr> {
     let mut parsed = PropAttr {
         default: None,
         children: false,
     };
     let Some(position) = attrs.iter().position(|attr| attr.path().is_ident("prop")) else {
-        return parsed;
+        return Ok(parsed);
     };
     let attr = attrs.remove(position);
     attr.parse_nested_meta(|meta| {
@@ -327,9 +328,8 @@ fn take_prop_attr(attrs: &mut Vec<Attribute>) -> PropAttr {
             return Ok(());
         }
         Err(meta.error("expected `children` or `default = <expr>`"))
-    })
-    .expect("#[prop(...)] expects `children`, `default = <expr>`, or both");
-    parsed
+    })?;
+    Ok(parsed)
 }
 
 fn generic_inner(ty: &Type, name: &str) -> Option<Type> {
@@ -394,12 +394,20 @@ fn is_named_type(ty: &Type, name: &str) -> bool {
 #[proc_macro_attribute]
 pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
     parse_macro_input!(attr as syn::parse::Nothing);
+    let item = parse_macro_input!(item as ItemFn);
+    match expand_component(item) {
+        Ok(expanded) => expanded.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let ItemFn {
         attrs,
         vis,
         mut sig,
         block,
-    } = parse_macro_input!(item as ItemFn);
+    } = item;
     let name = sig.ident.to_string();
     let component_ident = sig.ident.clone();
     let builder_ident = format_ident!("{}Builder", name);
@@ -410,13 +418,22 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
         .iter_mut()
         .map(|arg| {
             let FnArg::Typed(PatType { attrs, pat, ty, .. }) = arg else {
-                panic!("#[component] functions cannot take `self`");
+                return Err(syn::Error::new_spanned(
+                    arg,
+                    "a `#[component]` function cannot take `self`",
+                ));
             };
-            let ident = match pat.as_ref() {
-                Pat::Ident(pat_ident) => pat_ident.ident.clone(),
-                _ => panic!("#[component] props must be simple identifiers"),
+            let Pat::Ident(pat_ident) = pat.as_ref() else {
+                return Err(syn::Error::new_spanned(
+                    pat,
+                    "a `#[component]` prop must be a plain name rather than a pattern",
+                ));
             };
-            let PropAttr { default, children } = take_prop_attr(attrs);
+            let ident = pat_ident.ident.clone();
+            let PropAttr { default, children } = take_prop_attr(attrs)?;
+            let callback_signature = is_named_type(ty, "Callback")
+                .then(|| callback_signature(ty))
+                .transpose()?;
             let inner_ty = generic_inner(ty, "Option");
             let optional_reactive_inner_ty = inner_ty
                 .as_ref()
@@ -429,7 +446,7 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
             let is_optional_child = inner_ty
                 .as_ref()
                 .is_some_and(|inner| is_named_type(inner, "Child"));
-            Prop {
+            Ok(Prop {
                 ident,
                 ty: (**ty).clone(),
                 inner_ty,
@@ -442,13 +459,13 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
                 is_children,
                 is_child,
                 is_optional_child,
-                callback_args: generic_args(ty, "Callback"),
+                callback_signature,
                 is_click_callback: is_named_type(ty, "ClickCallback"),
                 default,
                 is_children_slot: children,
-            }
+            })
         })
-        .collect();
+        .collect::<syn::Result<_>>()?;
 
     let designated: Vec<usize> = props
         .iter()
@@ -456,17 +473,23 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
         .filter(|(_, prop)| prop.is_children_slot)
         .map(|(index, _)| index)
         .collect();
-    if designated.len() > 1 {
-        panic!("component `{name}` marks more than one prop `#[prop(children)]`");
+    if let [_, second, ..] = designated.as_slice() {
+        return Err(syn::Error::new_spanned(
+            &props[*second].ident,
+            format!("component `{name}` already marks another prop `#[prop(children)]`"),
+        ));
     }
     let named_children = props.iter().position(|prop| prop.ident == "children");
     if let (Some(slot), Some(children)) = (designated.first().copied(), named_children)
         && slot != children
     {
-        panic!(
-            "component `{name}` already takes its children through `children`, so `{}` cannot be `#[prop(children)]`",
-            props[slot].ident,
-        );
+        return Err(syn::Error::new_spanned(
+            &props[slot].ident,
+            format!(
+                "component `{name}` already takes its children through `children`, so `{}` cannot be `#[prop(children)]`",
+                props[slot].ident,
+            ),
+        ));
     }
     let children_slot = designated.first().copied().or(named_children);
     if let Some(slot) = children_slot {
@@ -477,10 +500,13 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
             || prop.render.is_some()
             || prop.optional_render.is_some();
         if !known {
-            panic!(
-                "prop `{}` of component `{name}` is `#[prop(children)]`, so it must be typed `Children`, `Child`, `Option<Child>`, `Render<_>`, or `RenderFn<_>`",
-                prop.ident,
-            );
+            return Err(syn::Error::new_spanned(
+                &prop.ty,
+                format!(
+                    "prop `{}` of component `{name}` takes its children, so it must be typed `Children`, `Child`, `Option<Child>`, `Render<_>`, or `RenderFn<_>`",
+                    prop.ident,
+                ),
+            ));
         }
     }
 
@@ -786,7 +812,7 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let finish = quote! { ::beui::reactive::component(move || #block) };
 
-    quote! {
+    Ok(quote! {
         #(#req_trait_defs)*
 
         #(#attrs)*
@@ -839,8 +865,7 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
                 node
             }
         }
-    }
-    .into()
+    })
 }
 
 struct ViewAttr {
@@ -1159,7 +1184,7 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
         .map(|prop| {
             let key = &prop.key;
             let value = &prop.value;
-            quote! { .#key(#value) }
+            quote_spanned! { key.span() => .#key(#value) }
         })
         .collect::<Vec<_>>();
 

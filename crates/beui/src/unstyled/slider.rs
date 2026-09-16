@@ -6,9 +6,8 @@ use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    self, Callback, ClickCatcher, Focusable, Prop, ReadSignal, Render, clone,
-    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
-    untrack,
+    Callback, ClickCatcher, Focusable, Prop, ReadSignal, Render, clone, component_accessibility,
+    create_effect, create_memo, create_signal, set_component_state, untrack,
 };
 
 const STEP: f32 = 0.05;
@@ -103,7 +102,7 @@ pub fn Slider(
                     set_dragging.set(dragging);
                     on_drag_change.call(dragging);
                 }}
-                children={content_node.map(reactive::intrinsic)}
+                children={content_node}
             />
         </Focusable>
     }
