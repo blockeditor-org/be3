@@ -37,6 +37,7 @@ pub(crate) struct FrameNode {
     pub(crate) child: Option<NodeId>,
     pub(crate) width: Option<f32>,
     pub(crate) height: Option<f32>,
+    pub(crate) aspect_ratio: Option<f32>,
     pub(crate) padding_horizontal: f32,
     pub(crate) padding_vertical: f32,
     pub(crate) style: FrameStyle,
@@ -51,6 +52,40 @@ impl FrameNode {
     fn shown(&self) -> Option<NodeId> {
         self.child.filter(|_| self.visible)
     }
+
+    fn size(&self, available: Vec2) -> Vec2 {
+        let size = vec2(
+            self.width.unwrap_or(available.x),
+            self.height.unwrap_or(available.y),
+        );
+        match self.aspect_ratio {
+            Some(ratio) if ratio > 0.0 => contain(size, ratio),
+            _ => size,
+        }
+    }
+
+    fn box_rect(&self, rect: Rect) -> Rect {
+        let size = self.size(rect.size());
+        match self.aspect_ratio {
+            Some(ratio) if ratio > 0.0 => centered(rect, size),
+            _ => Rect::from_min_size(rect.min, size),
+        }
+    }
+}
+
+fn contain(size: Vec2, ratio: f32) -> Vec2 {
+    let width = size.x.min(size.y * ratio);
+    vec2(width, width / ratio)
+}
+
+fn cover(size: Vec2, ratio: f32) -> Vec2 {
+    let width = size.x.max(size.y * ratio);
+    vec2(width, width / ratio)
+}
+
+fn centered(rect: Rect, size: Vec2) -> Rect {
+    let offset = (rect.size() - size) * 0.5;
+    Rect::from_min_size(rect.min + offset, size)
 }
 
 impl Default for FrameNode {
@@ -59,6 +94,7 @@ impl Default for FrameNode {
             child: None,
             width: None,
             height: None,
+            aspect_ratio: None,
             padding_horizontal: 0.0,
             padding_vertical: 0.0,
             style: FrameStyle::default(),
@@ -84,10 +120,14 @@ impl Element for FrameNode {
             None => Vec2::ZERO,
         };
         let padded = inner + self.amount();
-        vec2(
+        let size = vec2(
             self.width.unwrap_or(padded.x),
             self.height.unwrap_or(padded.y),
-        )
+        );
+        match self.aspect_ratio {
+            Some(ratio) if ratio > 0.0 => cover(size, ratio),
+            _ => size,
+        }
     }
 
     fn layout(
@@ -98,11 +138,7 @@ impl Element for FrameNode {
         out: &mut HashMap<NodeId, Rect>,
     ) {
         if let Some(child) = self.shown() {
-            let size = vec2(
-                self.width.unwrap_or(rect.width()),
-                self.height.unwrap_or(rect.height()),
-            );
-            let outer = Rect::from_min_size(rect.min, size);
+            let outer = self.box_rect(rect);
             let inner = Rect::from_min_max(
                 outer.min + vec2(self.padding_horizontal, self.padding_vertical),
                 outer.max - vec2(self.padding_horizontal, self.padding_vertical),
@@ -115,13 +151,7 @@ impl Element for FrameNode {
         if !self.visible {
             return;
         }
-        let rect = Rect::from_min_size(
-            rect.min,
-            vec2(
-                self.width.unwrap_or(rect.width()),
-                self.height.unwrap_or(rect.height()),
-            ),
-        );
+        let rect = self.box_rect(rect);
         if self.style.fill.to_array()[3] > 0 {
             painter.rect_filled(rect, f32::from(self.style.radius), self.style.fill);
         }
@@ -201,6 +231,12 @@ impl Document {
         }
     }
 
+    pub(crate) fn set_frame_aspect_ratio(&mut self, frame: NodeId, ratio: Option<f32>) {
+        if self.arena.get_as::<FrameNode>(frame).aspect_ratio != ratio {
+            self.arena.get_mut_as::<FrameNode>(frame).aspect_ratio = ratio;
+        }
+    }
+
     pub(crate) fn set_frame_padding(&mut self, frame: NodeId, horizontal: f32, vertical: f32) {
         let node = self.arena.get_as::<FrameNode>(frame);
         if node.padding_horizontal == horizontal && node.padding_vertical == vertical {
@@ -247,6 +283,7 @@ impl Document {
 pub fn Frame(
     width: Option<Prop<f32>>,
     height: Option<Prop<f32>>,
+    aspect_ratio: Option<Prop<f32>>,
     #[prop(default = 0.0)] padding_horizontal: Prop<f32>,
     #[prop(default = 0.0)] padding_vertical: Prop<f32>,
     #[prop(default = Color32::TRANSPARENT)] color: Prop<Color32>,
@@ -273,6 +310,13 @@ pub fn Frame(
     if let Some(height) = height {
         create_effect(move || {
             with_document(|document| document.set_frame_height(frame, Some(height.get())))
+        });
+    }
+    if let Some(aspect_ratio) = aspect_ratio {
+        create_effect(move || {
+            with_document(|document| {
+                document.set_frame_aspect_ratio(frame, Some(aspect_ratio.get()));
+            })
         });
     }
     create_effect(move || {

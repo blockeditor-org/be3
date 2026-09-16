@@ -11,5 +11,9 @@ egui = "0.34.3"
 egui_kittest = { version = "0.34", default-features = false }
 paint-snapshot = { path = "../paint-snapshot" }
 
+[dev-dependencies]
+block-client = { path = "../block-client" }
+uuid = "1"
+
 [lints]
 workspace = true

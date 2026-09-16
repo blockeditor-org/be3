@@ -70,10 +70,11 @@ impl Element for CanvasNode {
         out: &mut HashMap<NodeId, Rect>,
     ) {
         let view = self.placement(rect);
+        let clipped = painter.with_clip_rect(rect);
         for item in &self.items {
             let placed = view.rect_to_screen(doc.canvas_item_rect(*item));
             if placed.intersects(rect) {
-                crate::layout::layout(doc, painter, *item, placed, out);
+                crate::layout::layout(doc, &clipped, *item, placed, out);
             }
         }
     }

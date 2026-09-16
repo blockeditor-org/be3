@@ -2,15 +2,80 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use beui::reactive::{CanvasView, KeyedStore, NodeRef, ReadSignal, WriteSignal, create_signal};
+use beui::reactive::{
+    Callback, CanvasView, EmbedSlot, KeyedStore, NodeRef, Prop, ReadSignal, WriteSignal,
+    create_signal, on_cleanup,
+};
 use beui::{Document, Rect, Vec2};
 use block::Block;
 use block_client::{BlockClient, BlockHandle};
+use block_plugin_api::{ChildId, ChildLayer, ChildMode};
 use block_reactive::BlockSource;
+use block_ui::BlockCatalog;
 use std::hash::Hash;
 use uuid::Uuid;
 
-use crate::EditorHost;
+use crate::{BlockFilter, BlockPicker, EditorHost, PickedBlock};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChildTarget {
+    pub id: Uuid,
+    pub block_type: Uuid,
+}
+
+impl ChildTarget {
+    pub fn new(id: Uuid, block_type: Uuid) -> Self {
+        Self { id, block_type }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ChildState {
+    pub placed: bool,
+    pub available: bool,
+    pub hovered: bool,
+    pub active: bool,
+    pub intrinsic_size: Option<Vec2>,
+    pub aspect_ratio: Option<f32>,
+    pub error: Option<String>,
+}
+
+impl ChildState {
+    fn of(host: &EditorHost, child: Option<ChildId>) -> Self {
+        let Some(status) = child.and_then(|child| host.child_status(child)) else {
+            return Self {
+                placed: child.is_some(),
+                ..Self::default()
+            };
+        };
+        Self {
+            placed: true,
+            available: status.available,
+            hovered: status.hovered,
+            active: status.active,
+            intrinsic_size: (status.intrinsic_width > 0.0 && status.intrinsic_height > 0.0)
+                .then(|| Vec2::new(status.intrinsic_width, status.intrinsic_height)),
+            aspect_ratio: (status.aspect_ratio > 0.0).then_some(status.aspect_ratio),
+            error: status.error,
+        }
+    }
+}
+
+struct ChildRecord {
+    slot: EmbedSlot,
+    block: Prop<Option<ChildTarget>>,
+    mode: Prop<ChildMode>,
+    layer: Prop<ChildLayer>,
+    state: WriteSignal<ChildState>,
+    read: ReadSignal<ChildState>,
+    report: Callback<ChildState>,
+    child: Cell<Option<ChildId>>,
+}
+
+struct PendingPick {
+    picker: BlockPicker,
+    picked: Rc<dyn Fn(Result<PickedBlock, String>)>,
+}
 
 type Work = RefCell<Vec<Rc<dyn Fn()>>>;
 
@@ -34,8 +99,14 @@ struct EditorState {
     set_canvas: WriteSignal<Option<CanvasView>>,
     set_scale: WriteSignal<f32>,
     set_chrome: WriteSignal<bool>,
+    presenting: ReadSignal<bool>,
+    set_presenting: WriteSignal<bool>,
     content: RefCell<Option<NodeRef>>,
     content_rect: Cell<Rect>,
+    intrinsic: Cell<Option<Vec2>>,
+    children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
+    next_child: Cell<u64>,
+    pick: RefCell<Option<PendingPick>>,
     each_frame: Work,
 }
 
@@ -44,6 +115,7 @@ impl Editor {
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
         let (scale, set_scale) = create_signal(1.0_f32);
         let (chrome, set_chrome) = create_signal(true);
+        let (presenting, set_presenting) = create_signal(false);
         Self(Rc::new(EditorState {
             host,
             client,
@@ -54,8 +126,14 @@ impl Editor {
             set_canvas,
             set_scale,
             set_chrome,
+            presenting,
+            set_presenting,
             content: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
+            intrinsic: Cell::new(None),
+            children: RefCell::new(Vec::new()),
+            next_child: Cell::new(0),
+            pick: RefCell::new(None),
             each_frame: RefCell::new(Vec::new()),
         }))
     }
@@ -103,6 +181,98 @@ impl Editor {
         self.0.chrome.clone()
     }
 
+    pub fn presenting(&self) -> ReadSignal<bool> {
+        self.0.presenting.clone()
+    }
+
+    pub fn present(&self, presenting: bool) {
+        self.0.host.present(presenting);
+    }
+
+    pub fn block_types(&self) -> Rc<BlockCatalog> {
+        self.0.host.block_types()
+    }
+
+    pub fn set_intrinsic_size(&self, size: Option<Vec2>) {
+        self.0.intrinsic.set(size);
+    }
+
+    pub fn intrinsic_size(&self) -> Option<Vec2> {
+        self.0.intrinsic.get()
+    }
+
+    pub fn pick_block(
+        &self,
+        filter: BlockFilter,
+        picked: impl Fn(Result<PickedBlock, String>) + 'static,
+    ) {
+        let mut picker = BlockPicker::default();
+        picker.open(&self.0.host, filter);
+        *self.0.pick.borrow_mut() = Some(PendingPick {
+            picker,
+            picked: Rc::new(picked),
+        });
+    }
+
+    pub(crate) fn register_child(
+        &self,
+        slot: EmbedSlot,
+        block: Prop<Option<ChildTarget>>,
+        mode: Prop<ChildMode>,
+        layer: Prop<ChildLayer>,
+        report: Callback<ChildState>,
+    ) -> ReadSignal<ChildState> {
+        let (state, set_state) = create_signal(ChildState::default());
+        let key = self.0.next_child.get();
+        self.0.next_child.set(key + 1);
+        self.0.children.borrow_mut().push((
+            key,
+            Rc::new(ChildRecord {
+                slot,
+                block,
+                mode,
+                layer,
+                state: set_state,
+                read: state.clone(),
+                report,
+                child: Cell::new(None),
+            }),
+        ));
+        let editor = Rc::clone(&self.0);
+        on_cleanup(move || {
+            editor
+                .children
+                .borrow_mut()
+                .retain(|(other, _)| *other != key);
+        });
+        state
+    }
+
+    fn records(&self) -> Vec<Rc<ChildRecord>> {
+        self.0
+            .children
+            .borrow()
+            .iter()
+            .map(|(_, record)| Rc::clone(record))
+            .collect()
+    }
+
+    fn poll_pick(&self) {
+        let picked = {
+            let mut pending = self.0.pick.borrow_mut();
+            let Some(pick) = pending.as_mut() else {
+                return;
+            };
+            let Some(picked) = pick.picker.poll(&self.0.host) else {
+                return;
+            };
+            pending.take().map(|pick| (pick.picked, picked))
+        };
+        if let Some((callback, picked)) = picked {
+            callback(picked);
+        }
+    }
+
     pub fn content(&self, node: &NodeRef) {
         *self.0.content.borrow_mut() = Some(node.clone());
     }
@@ -137,16 +307,46 @@ impl Editor {
         self.0.set_canvas.set(view.canvas());
         self.0.set_scale.set(view.scale());
         self.0.set_chrome.set(self.0.host.chrome_shown());
+        self.0.set_presenting.set(self.0.host.presenting());
+        for record in self.records() {
+            let state = ChildState::of(&self.0.host, record.child.get());
+            if record.read.get_untracked() == state {
+                continue;
+            }
+            record.state.set(state.clone());
+            record.report.call(state);
+        }
+        self.poll_pick();
         run(&self.0.each_frame);
     }
 
     pub fn end_frame(&self, document: &Document) {
+        for record in self.records() {
+            record.child.set(self.place_child(document, &record));
+        }
         let node = self.0.content.borrow().as_ref().and_then(NodeRef::try_get);
         let Some(rect) = node.and_then(|node| document.node_rect(node)) else {
             return;
         };
         self.0.content_rect.set(rect);
         self.0.host.beui_view().set_content(rect);
+    }
+}
+
+impl Editor {
+    fn place_child(&self, document: &Document, record: &ChildRecord) -> Option<ChildId> {
+        let node = record.slot.node()?;
+        let rect = document.node_rect(node)?;
+        let placement = record.slot.placement()?;
+        let target = record.block.peek()?;
+        Some(self.0.host.place_beui_child(
+            target.id,
+            target.block_type,
+            rect,
+            placement.clip,
+            record.mode.peek(),
+            record.layer.peek(),
+        ))
     }
 }
 

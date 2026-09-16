@@ -160,11 +160,11 @@ need:
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
-  `Scroll`, `VirtualList`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher` —
-  and it stays small because most things are compositions of those. Add a base
-  component only when the retained tree genuinely lacks a primitive: a new way
-  to lay out, paint, or receive input that cannot be expressed by arranging the
-  existing nodes. If a new concern can share `Frame`'s single-child box model,
+  `Scroll`, `VirtualList`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher`,
+  `Embed` — and it stays small because most things are compositions of those.
+  Add a base component only when the retained tree genuinely lacks a primitive:
+  a new way to lay out, paint, or receive input that cannot be expressed by
+  arranging the existing nodes. If a new concern can share `Frame`'s single-child box model,
   extend `Frame` rather than adding another pass-through node.
 
 `unstyled::Button` shows the split. It composes `Focusable` and `ClickCatcher`,
@@ -178,8 +178,12 @@ Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
 
 The main base building blocks are `Row`, `Column`, `List`, `Frame`, `Text`,
-`Scroll`, and `VirtualList`; `Frame` combines optional sizing, padding, fill,
-outline, and visibility on one retained node. `Scroll` and `VirtualList` take a
+`Scroll`, and `VirtualList`; `Frame` combines optional sizing, an aspect ratio
+it centres its box within, padding, fill, outline, and visibility on one
+retained node. `Embed` reserves a rectangle for something outside the document —
+an editor the host composites behind the surface — painting nothing itself and
+publishing the rectangle and the clip it was laid out in through the `EmbedSlot`
+it was given. `Scroll` and `VirtualList` take a
 `direction`, so the same node is a column of rows or a strip of cards; a
 horizontal one answers Shift+wheel, a sideways trackpad swipe, a touch drag and
 the left and right arrows, and `styled::Scrollbar` takes the same `direction`.
@@ -188,9 +192,9 @@ horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
 `Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, and `Stack`. The styled
-module supplies themed buttons, text styles, cards, checkboxes, switches,
-choices, inputs, menus, tabs, trees, progress, scrollbars, and responsive
-layout. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
+module supplies themed buttons, icon buttons, text styles, cards, checkboxes,
+switches, choices, inputs, menus, tabs, trees, progress, scrollbars, and
+responsive layout. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 lists.
 
 ### Pan and zoom

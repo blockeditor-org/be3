@@ -17,9 +17,5 @@
     "Frame",
     "Preview"
   ],
-  "chrome": [
-    "Toolbar",
-    "LeftSidebar"
-  ],
   "entry_point": "presentation.wasm"
 }

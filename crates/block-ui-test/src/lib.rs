@@ -1,6 +1,8 @@
 mod beui;
 mod editor;
 mod snapshot;
+#[cfg(test)]
+mod tests;
 mod textures;
 
 pub use beui::BeuiTest;
