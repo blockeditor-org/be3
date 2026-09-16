@@ -250,6 +250,8 @@ impl<A: crate::App> AppUi for A {
 
 struct BeuiHolder<A: crate::BeuiApp> {
     editor: Option<crate::Editor>,
+    preview: Option<crate::Editor>,
+    preview_document: Option<beui::Document>,
     creation: Option<crate::Creation>,
     dialog: Option<beui::Document>,
     app: PhantomData<A>,
@@ -259,6 +261,8 @@ impl<A: crate::BeuiApp> BeuiHolder<A> {
     fn new() -> Self {
         Self {
             editor: None,
+            preview: None,
+            preview_document: None,
             creation: None,
             dialog: None,
             app: PhantomData,
@@ -287,7 +291,19 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         }
     }
 
-    fn beui_preview(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
+    fn beui_preview(&mut self, context: &beui::Context, rect: beui::Rect) {
+        let Some(editor) = self.preview.clone() else {
+            return;
+        };
+        let document = self.preview_document.get_or_insert_with(|| {
+            let built = editor.clone();
+            beui::reactive::build(move || A::preview_view(built))
+        });
+        let begun = editor.clone();
+        beui::reactive::with_reactive_scope(document, move || begun.begin_frame());
+        document.show(context, rect);
+        editor.end_frame(document);
+    }
 
     fn beui_creation(&mut self, context: &beui::Context, rect: beui::Rect) {
         let (Some(creation), Some(dialog)) = (self.creation.as_ref(), self.dialog.as_mut()) else {
@@ -299,7 +315,13 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
     }
 
     fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid) {
-        self.editor = Some(crate::Editor::new(host, client, block_id));
+        self.editor = Some(crate::Editor::new(
+            host.clone(),
+            Arc::clone(&client),
+            block_id,
+        ));
+        self.preview = Some(crate::Editor::new(host, client, block_id));
+        self.preview_document = None;
     }
 
     fn connect_creation(&mut self, host: EditorHost, client: Arc<BlockClient>) {
@@ -350,7 +372,11 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
     fn preview_ui(&mut self, _ui: &mut egui::Ui) {}
 
     fn intrinsic_size(&mut self) -> Option<egui::Vec2> {
-        A::intrinsic_size().map(|size| egui::vec2(size.x, size.y))
+        self.editor
+            .as_ref()
+            .and_then(crate::Editor::intrinsic_size)
+            .or_else(A::intrinsic_size)
+            .map(|size| egui::vec2(size.x, size.y))
     }
 
     fn set_intrinsic_size(&mut self, _size: egui::Vec2) {}
@@ -1215,6 +1241,7 @@ impl EditorSession {
             EditorRegion::ArtifactSettings => {}
         });
 
+        let (placed, occluders) = self.host.end_region(region);
         let origin = host.min.to_vec2();
         let screen = self.placement(region).map(|placement| placement.screen);
         let content = content_rect.unwrap_or(frame);
@@ -1229,6 +1256,8 @@ impl EditorSession {
             .filter(|reported| reported.is_positive())
             .unwrap_or(content);
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
+            state.children = placed;
+            state.occluders = occluders;
             state.cursor = match context.touch_emulation() {
                 true => CursorIcon::Crosshair,
                 false => beui_cursor(output.cursor_icon),

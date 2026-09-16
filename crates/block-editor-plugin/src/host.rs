@@ -253,6 +253,29 @@ struct Children {
     next: u64,
 }
 
+impl Children {
+    fn identify(&mut self, region: EditorRegion, block_id: Uuid) -> ChildId {
+        let ordinal = {
+            let ordinal = self.ordinals.entry(block_id).or_default();
+            let current = *ordinal;
+            *ordinal += 1;
+            current
+        };
+        let key = (region, block_id, ordinal);
+        let child = match self.identities.get(&key) {
+            Some(child) => *child,
+            None => {
+                self.next += 1;
+                let child = ChildId(self.next);
+                self.identities.insert(key, child);
+                child
+            }
+        };
+        self.used.push(key);
+        child
+    }
+}
+
 pub struct ChildHandle {
     host: EditorHost,
     index: usize,
@@ -445,6 +468,13 @@ impl BeuiView {
         frame.content = Some(rect);
         self.host.beui.set(frame);
     }
+}
+
+fn host_rect(rect: beui::Rect, ratio: f32) -> egui::Rect {
+    egui::Rect::from_min_max(
+        egui::pos2(rect.min.x / ratio, rect.min.y / ratio),
+        egui::pos2(rect.max.x / ratio, rect.max.y / ratio),
+    )
 }
 
 fn beui_rect(rect: egui::Rect, ratio: f32) -> beui::Rect {
@@ -1007,6 +1037,43 @@ impl EditorHost {
         });
     }
 
+    pub fn place_beui_child(
+        &self,
+        block_id: Uuid,
+        block_type: Uuid,
+        rect: beui::Rect,
+        clip: beui::Rect,
+        mode: ChildMode,
+        layer: ChildLayer,
+    ) -> ChildId {
+        let ratio = self.beui.get().ratio;
+        let state = self.region.get();
+        let rect = host_rect(rect, ratio);
+        let clip = host_rect(clip, ratio).intersect(rect);
+        let mut children = self.children.borrow_mut();
+        let child = children.identify(state.region.unwrap_or(EditorRegion::Frame), block_id);
+        children.placements.push(ChildPlacement {
+            child,
+            block_id: block_id.into_bytes(),
+            block_type: block_type.into_bytes(),
+            rect: child_rect(rect.translate(-state.origin)),
+            clip: child_rect(clip.translate(-state.origin)),
+            own_frame: false,
+            corner_radius: 0.0,
+            layer,
+            mode,
+            intrinsic_width: 0.0,
+            intrinsic_height: 0.0,
+            rotation: 0.0,
+            opacity: 1.0,
+        });
+        child
+    }
+
+    pub fn child_status(&self, child: ChildId) -> Option<ChildStatus> {
+        self.child_statuses.borrow().get(&child).cloned()
+    }
+
     fn place_child(
         &self,
         ui: &mut egui::Ui,
@@ -1020,23 +1087,7 @@ impl EditorHost {
         let state = self.region.get();
         let region = state.region.unwrap_or(EditorRegion::Frame);
         let mut children = self.children.borrow_mut();
-        let ordinal = {
-            let ordinal = children.ordinals.entry(block_id).or_default();
-            let current = *ordinal;
-            *ordinal += 1;
-            current
-        };
-        let key = (region, block_id, ordinal);
-        let child = match children.identities.get(&key) {
-            Some(child) => *child,
-            None => {
-                children.next += 1;
-                let child = ChildId(children.next);
-                children.identities.insert(key, child);
-                child
-            }
-        };
-        children.used.push(key);
+        let child = children.identify(region, block_id);
         let shape = painter.add(self.child_shape(rect, 0.0, layer));
         let index = children.placements.len();
         children.placements.push(ChildPlacement {
@@ -1172,7 +1223,7 @@ impl EditorHost {
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub(crate) fn begin_region(&self, region: EditorRegion, origin: egui::Vec2) {
+    pub fn begin_region(&self, region: EditorRegion, origin: egui::Vec2) {
         self.region.set(Region {
             region: Some(region),
             origin,
@@ -1184,8 +1235,7 @@ impl EditorHost {
         children.used.clear();
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
+    pub fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
         self.region.set(Region::default());
         let mut children = self.children.borrow_mut();
         let used = std::mem::take(&mut children.used);
@@ -1198,23 +1248,20 @@ impl EditorHost {
         )
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn set_child_statuses(&self, statuses: Vec<ChildStatus>) {
+    pub fn set_child_statuses(&self, statuses: Vec<ChildStatus>) {
         let mut current = self.child_statuses.borrow_mut();
         for status in statuses {
             current.insert(status.child, status);
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn retain_child_statuses(&self, live: &[ChildId]) {
+    pub fn retain_child_statuses(&self, live: &[ChildId]) {
         self.child_statuses
             .borrow_mut()
             .retain(|child, _| live.contains(child));
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn set_presenting(&self, presenting: bool) {
+    pub fn set_presenting(&self, presenting: bool) {
         self.presenting.set(presenting);
     }
 

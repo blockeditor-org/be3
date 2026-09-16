@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod beui_frame;
+mod child;
 mod editor;
 #[cfg(target_arch = "wasm32")]
 mod editor_session;
@@ -26,11 +27,13 @@ mod wasm;
 
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockFilter, BlockPick, ChildId, ChildLayer,
-    ChildMode, ClipboardImage, EditorBand, EditorCapabilities, EditorRegion, FetchResult,
-    InteractionMode, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
+    ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorBand, EditorCapabilities,
+    EditorInstanceId, EditorRegion, FetchResult, InteractionMode, Occluder, ResizeMode, ViewChange,
+    WebViewCommand, WebViewEvent,
 };
 pub use block_ui;
-pub use editor::{BlockProjection, Creation, Editor};
+pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
+pub use editor::{BlockProjection, ChildState, ChildTarget, Creation, Editor};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
     ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster,
@@ -45,6 +48,9 @@ pub fn surface_format() -> egui_wgpu::wgpu::TextureFormat {
 
 pub trait BeuiApp: 'static {
     fn view(editor: Editor) -> beui::NodeId;
+    fn preview_view(_editor: Editor) -> beui::NodeId {
+        beui::reactive::Frame().build()
+    }
     fn creation_view(_creation: Creation) -> beui::NodeId {
         beui::reactive::Frame().build()
     }

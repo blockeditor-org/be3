@@ -375,6 +375,7 @@ impl Element for ScrollNode {
         let offset = position.offset + self.overscroll;
         let start = self.direction.main(rect.min.to_vec2());
         let mut cursor = start + self.leading(offset);
+        let clipped = painter.with_clip_rect(rect);
         for (&item, length) in self.items.iter().zip(&lengths) {
             if cursor >= start + main {
                 break;
@@ -382,7 +383,7 @@ impl Element for ScrollNode {
             if cursor + length > start {
                 crate::layout::layout(
                     doc,
-                    painter,
+                    &clipped,
                     item,
                     item_rect(self.direction, rect, cursor, *length),
                     out,

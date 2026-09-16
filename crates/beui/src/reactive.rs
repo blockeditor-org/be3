@@ -639,6 +639,7 @@ impl<F> UnitHandle<()> for F {}
 
 pub use crate::base::canvas::{Canvas, CanvasItem, CanvasView};
 pub use crate::base::click_catcher::ClickCatcher;
+pub use crate::base::embed::{Embed, EmbedPlacement, EmbedSlot};
 pub use crate::base::focusable::Focusable;
 pub use crate::base::frame::Frame;
 pub use crate::base::scroll::{Scroll, VirtualList};

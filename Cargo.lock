@@ -949,10 +949,12 @@ name = "block-ui-test"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "block-client",
  "block-editor-plugin",
  "egui",
  "egui_kittest",
  "paint-snapshot",
+ "uuid",
 ]
 
 [[package]]
@@ -5221,9 +5223,11 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 name = "presentation"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
+ "block-ui-test",
  "uuid",
 ]
 

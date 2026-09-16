@@ -3,7 +3,7 @@ use beui::{
     TouchPhase, Vec2,
 };
 use block_editor_plugin::beui_frame::BeuiFrame;
-use block_editor_plugin::{BeuiApp, Creation, Editor};
+use block_editor_plugin::{BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorRegion};
 use std::marker::PhantomData;
 
 use crate::snapshot;
@@ -20,11 +20,13 @@ pub struct BeuiTest<A: BeuiApp> {
     events: Vec<Event>,
     modifiers: Modifiers,
     output: Option<beui::FrameOutput>,
+    children: Vec<ChildPlacement>,
     app: PhantomData<A>,
 }
 
 enum Region {
     Frame(Editor, BeuiFrame),
+    Preview(Editor, Document),
     Creation(Creation, Document),
 }
 
@@ -35,6 +37,14 @@ impl<A: BeuiApp> BeuiTest<A> {
             move || A::view(editor)
         });
         Self::for_region(Region::Frame(editor, frame))
+    }
+
+    pub fn preview(editor: Editor) -> Self {
+        let document = beui::reactive::build({
+            let editor = editor.clone();
+            move || A::preview_view(editor)
+        });
+        Self::for_region(Region::Preview(editor, document))
     }
 
     pub fn creation(creation: Creation) -> Self {
@@ -56,6 +66,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             events: Vec::new(),
             modifiers: Modifiers::NONE,
             output: None,
+            children: Vec::new(),
             app: PhantomData,
         };
         editor.run();
@@ -65,8 +76,36 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn document(&self) -> &Document {
         match &self.region {
             Region::Frame(_, frame) => frame.document(),
-            Region::Creation(_, document) => document,
+            Region::Preview(_, document) | Region::Creation(_, document) => document,
         }
+    }
+
+    pub fn children(&self) -> &[ChildPlacement] {
+        &self.children
+    }
+
+    pub fn report_children(&mut self, report: impl Fn(&ChildPlacement) -> ChildStatus) {
+        let statuses: Vec<_> = self.children.iter().map(report).collect();
+        self.editor_host().set_child_statuses(statuses);
+    }
+
+    pub fn available_children(&mut self) {
+        let region = self.region();
+        self.report_children(|placement| ChildStatus {
+            instance: block_editor_plugin::EditorInstanceId(0),
+            region,
+            child: placement.child,
+            available: true,
+            intrinsic_width: 0.0,
+            intrinsic_height: 0.0,
+            aspect_ratio: 0.0,
+            hovered: false,
+            active: false,
+            interaction: block_editor_plugin::InteractionMode::Preview,
+            capabilities: block_editor_plugin::EditorCapabilities::default(),
+            resize: block_editor_plugin::ResizeMode::None,
+            error: None,
+        });
     }
 
     pub fn rect(&self) -> Rect {
@@ -86,6 +125,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn step(&mut self, events: Vec<Event>) {
         let rect = self.rect();
         let context = self.context.clone();
+        let placement = self.region();
+        self.editor_host()
+            .begin_region(placement, block_editor_plugin::egui::Vec2::ZERO);
         let region = &mut self.region;
         match region {
             Region::Frame(editor, frame) => {
@@ -94,6 +136,10 @@ impl<A: BeuiApp> BeuiTest<A> {
                     editor.begin_frame();
                 });
             }
+            Region::Preview(editor, document) => {
+                let editor = editor.clone();
+                beui::reactive::with_reactive_scope(document, move || editor.begin_frame());
+            }
             Region::Creation(creation, document) => {
                 let creation = creation.clone();
                 beui::reactive::with_reactive_scope(document, move || creation.begin_frame());
@@ -101,16 +147,44 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         let output = context.run(beui::RawInput { events }, |context| match region {
             Region::Frame(_, frame) => frame.document_mut().show(context, rect),
-            Region::Creation(_, document) => document.show(context, rect),
+            Region::Preview(_, document) | Region::Creation(_, document) => {
+                document.show(context, rect)
+            }
         });
-        if let Region::Frame(editor, frame) = &self.region {
-            editor.end_frame(frame.document());
+        match &self.region {
+            Region::Frame(editor, frame) => editor.end_frame(frame.document()),
+            Region::Preview(editor, document) => editor.end_frame(document),
+            Region::Creation(..) => {}
         }
+        let (children, _) = self.editor_host().end_region(placement);
+        self.children = children;
         self.output = Some(output);
+    }
+
+    fn region(&self) -> EditorRegion {
+        match &self.region {
+            Region::Preview(..) => EditorRegion::Preview,
+            Region::Frame(..) | Region::Creation(..) => EditorRegion::Frame,
+        }
+    }
+
+    fn editor_host(&self) -> block_editor_plugin::EditorHost {
+        match &self.region {
+            Region::Frame(editor, _) | Region::Preview(editor, _) => editor.host().clone(),
+            Region::Creation(creation, _) => creation.host().clone(),
+        }
     }
 
     pub fn hover_at(&mut self, pos: Pos2) {
         self.events.push(Event::PointerMoved(pos));
+    }
+
+    pub fn shown(&self, test_id: &str) -> bool {
+        self.output
+            .as_ref()
+            .expect("the editor has not drawn a frame yet")
+            .test_id_rect(test_id)
+            .is_some()
     }
 
     pub fn rect_of(&self, test_id: &str) -> Rect {
@@ -139,6 +213,25 @@ impl<A: BeuiApp> BeuiTest<A> {
         });
         self.events.push(Event::PointerButton {
             pos,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: self.modifiers,
+        });
+    }
+
+    pub fn drag(&mut self, from: Pos2, to: Pos2) {
+        self.hover_at(from);
+        self.events.push(Event::PointerButton {
+            pos: from,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: self.modifiers,
+        });
+        self.events.push(Event::PointerMoved(to));
+        self.events
+            .push(Event::PointerMoved(to + Vec2::new(0.0, 0.5)));
+        self.events.push(Event::PointerButton {
+            pos: to,
             button: PointerButton::Primary,
             pressed: false,
             modifiers: self.modifiers,
