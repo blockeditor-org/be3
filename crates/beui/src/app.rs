@@ -74,7 +74,7 @@ struct Surface {
     touch_cursor: CustomCursor,
     prepared_size: Option<(Vec2, f32)>,
     clear_color: Option<Color32>,
-    repaint: Repaint,
+    pending: Option<Repaint>,
     retained: Option<Retained>,
     accessibility: AccessKitAdapter,
 }
@@ -223,8 +223,11 @@ impl Runner {
             },
             _ => Repaint::Everything,
         };
-        let changed = output.changed || stale;
-        if changed {
+        if output.changed || stale {
+            let repaint = match surface.pending {
+                Some(pending) => pending.union(repaint),
+                None => repaint,
+            };
             surface.renderer.prepare(
                 &surface.device,
                 &surface.queue,
@@ -234,15 +237,15 @@ impl Runner {
                 repaint,
             );
             surface.prepared_size = Some(size);
-            surface.repaint = repaint;
+            surface.pending = Some(repaint);
         }
         surface.clear_color = Some(clear_color);
         self.next_update = Instant::now().checked_add(output.repaint_after);
-        changed
+        surface.pending.is_some()
     }
 
     fn redraw(&mut self) {
-        let changed = self.update();
+        self.update();
         let Some(surface) = &mut self.surface else {
             return;
         };
@@ -269,20 +272,20 @@ impl Runner {
                 label: Some("beui encoder"),
             });
         let clear = clear_color(self.app.clear_color());
-        let repaint = surface.repaint;
         surface.retain();
+        let pending = surface.pending.take();
         let retained = surface.retained.as_ref();
         let (target, load) = match retained {
             Some(retained) => (
                 &retained.view,
-                match repaint {
-                    Repaint::Everything => wgpu::LoadOp::Clear(clear),
-                    Repaint::Region { .. } => wgpu::LoadOp::Load,
+                match pending {
+                    Some(Repaint::Region { .. }) => wgpu::LoadOp::Load,
+                    _ => wgpu::LoadOp::Clear(clear),
                 },
             ),
             None => (&view, wgpu::LoadOp::Clear(clear)),
         };
-        if changed || retained.is_none() {
+        if pending.is_some() || retained.is_none() {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("beui pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -655,7 +658,7 @@ async fn create_surface(
         touch_cursor,
         prepared_size: None,
         clear_color: None,
-        repaint: Repaint::Everything,
+        pending: None,
         retained: None,
         accessibility,
     })

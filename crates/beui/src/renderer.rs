@@ -154,6 +154,24 @@ pub enum Repaint {
     Region { region: Rect, background: Color32 },
 }
 
+impl Repaint {
+    pub fn union(self, other: Self) -> Self {
+        match (self, other) {
+            (
+                Self::Region { region, .. },
+                Self::Region {
+                    region: added,
+                    background,
+                },
+            ) => Self::Region {
+                region: region.union(added),
+                background,
+            },
+            _ => Self::Everything,
+        }
+    }
+}
+
 pub struct Renderer {
     srgb: bool,
     pipeline: wgpu::RenderPipeline,

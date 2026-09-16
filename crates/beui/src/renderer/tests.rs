@@ -6,6 +6,7 @@ mod a_filled_rectangle_covers_its_bounds;
 mod a_frame_paints_its_outline_over_its_fill;
 mod an_icon_glyph_paints_over_the_background;
 mod repainting_a_damaged_region_keeps_the_rest_of_the_retained_frame;
+mod repainting_covers_every_region_gathered_since_the_last_draw;
 mod text_at_a_fractional_origin_lands_on_whole_pixels;
 mod text_paints_glyphs_over_the_background;
 
