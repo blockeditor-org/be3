@@ -4,6 +4,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::time::Instant;
 
+use crate::base::list::Direction;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
@@ -21,6 +22,7 @@ const RUBBER_BAND_FACTOR: f32 = 0.55;
 const SPRING_DAMPING: f32 = 24.0;
 const SPRING_STIFFNESS: f32 = 180.0;
 const MAX_ANIMATION_STEP: f32 = 0.05;
+const STEP: f32 = 40.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ScrollPosition {
@@ -58,11 +60,12 @@ pub(crate) struct VirtualItems {
 }
 
 enum ScrollAnchor {
-    Node { id: NodeId, top: f32 },
-    VirtualItem { index: usize, top: f32 },
+    Node { id: NodeId, start: f32 },
+    VirtualItem { index: usize, start: f32 },
 }
 
 pub(crate) struct ScrollNode {
+    pub(crate) direction: Direction,
     pub(crate) items: Vec<NodeId>,
     pub(crate) virtual_items: Option<VirtualItems>,
     pub(crate) offset: f32,
@@ -81,6 +84,7 @@ pub(crate) struct ScrollNode {
 impl ScrollNode {
     pub(crate) fn new() -> Self {
         Self {
+            direction: Direction::Vertical,
             items: Vec::new(),
             virtual_items: None,
             offset: 0.0,
@@ -97,10 +101,10 @@ impl ScrollNode {
         }
     }
 
-    fn heights(&self, doc: &Document, painter: &Painter, width: f32) -> Vec<f32> {
+    fn lengths(&self, doc: &Document, painter: &Painter, cross: f32) -> Vec<f32> {
         self.items
             .iter()
-            .map(|&item| height(doc, painter, item, width))
+            .map(|&item| length(doc, painter, item, self.direction, cross))
             .collect()
     }
 
@@ -111,58 +115,59 @@ impl ScrollNode {
         }
     }
 
-    fn top(&self, offset: f32) -> f32 {
+    fn leading(&self, offset: f32) -> f32 {
         match &self.virtual_items {
             Some(items) => items.first as f32 * items.estimated - offset,
             None => -offset,
         }
     }
 
-    fn anchored_offset(&self, heights: &[f32]) -> f32 {
+    fn anchored_offset(&self, lengths: &[f32]) -> f32 {
         match &self.anchor {
-            Some(ScrollAnchor::Node { id, top }) => self
+            Some(ScrollAnchor::Node { id, start }) => self
                 .items
                 .iter()
                 .position(|item| item == id)
                 .map_or(self.offset, |index| {
-                    heights[..index].iter().sum::<f32>() - top
+                    lengths[..index].iter().sum::<f32>() - start
                 }),
-            Some(ScrollAnchor::VirtualItem { index, top }) => self
+            Some(ScrollAnchor::VirtualItem { index, start }) => self
                 .virtual_items
                 .as_ref()
-                .map_or(self.offset, |items| *index as f32 * items.estimated - top),
+                .map_or(self.offset, |items| *index as f32 * items.estimated - start),
             None => self.offset,
         }
     }
 
-    fn remember_anchor(&mut self, doc: &Document, painter: &Painter, width: f32) {
+    fn remember_anchor(&mut self, doc: &Document, painter: &Painter, cross: f32) {
         if let Some(items) = &self.virtual_items {
             self.anchor = (items.count > 0).then_some(ScrollAnchor::VirtualItem {
                 index: items.first,
-                top: items.first as f32 * items.estimated - self.offset,
+                start: items.first as f32 * items.estimated - self.offset,
             });
             return;
         }
-        let mut top = -self.offset;
+        let mut start = -self.offset;
         self.anchor = None;
-        for (&id, height) in self.items.iter().zip(self.heights(doc, painter, width)) {
-            if top + height > 0.0 {
-                self.anchor = Some(ScrollAnchor::Node { id, top });
+        for (&id, length) in self.items.iter().zip(self.lengths(doc, painter, cross)) {
+            if start + length > 0.0 {
+                self.anchor = Some(ScrollAnchor::Node { id, start });
                 break;
             }
-            top += height;
+            start += length;
         }
     }
 
     fn position(&self, doc: &Document, painter: &Painter, rect: Rect) -> ScrollPosition {
-        let heights = match self.virtual_items {
+        let (main, cross) = self.direction.main_and_cross(rect.size());
+        let lengths = match self.virtual_items {
             Some(_) => Vec::new(),
-            None => self.heights(doc, painter, rect.width()),
+            None => self.lengths(doc, painter, cross),
         };
         ScrollPosition {
-            offset: self.anchored_offset(&heights),
-            content: self.content(heights.iter().sum()),
-            viewport: rect.height(),
+            offset: self.anchored_offset(&lengths),
+            content: self.content(lengths.iter().sum()),
+            viewport: main,
         }
     }
 
@@ -171,7 +176,7 @@ impl ScrollNode {
             return;
         };
         let owner = items.owner.clone();
-        let width = rect.width();
+        let (main, cross) = self.direction.main_and_cross(rect.size());
         let first = if items.estimated > 0.0 {
             ((self.offset / items.estimated) as usize).min(items.count.saturating_sub(1))
         } else {
@@ -185,13 +190,13 @@ impl ScrollNode {
             }
         } else if first < items.first {
             let mut head = Vec::new();
-            let mut bottom = first as f32 * items.estimated - self.offset;
+            let mut end = first as f32 * items.estimated - self.offset;
             for index in first..items.first {
-                if bottom >= rect.height() {
+                if end >= main {
                     break;
                 }
                 let item = build_item(doc, owner.clone(), &mut items.build, index);
-                bottom += height(doc, painter, item, width);
+                end += length(doc, painter, item, self.direction, cross);
                 head.push(item);
             }
             head.append(&mut self.items);
@@ -199,27 +204,27 @@ impl ScrollNode {
         }
         items.first = first;
 
-        let mut bottom = first as f32 * items.estimated - self.offset;
+        let mut end = first as f32 * items.estimated - self.offset;
         let mut kept = 0;
         for &item in &self.items {
-            if bottom >= rect.height() {
+            if end >= main {
                 break;
             }
-            bottom += height(doc, painter, item, width);
+            end += length(doc, painter, item, self.direction, cross);
             kept += 1;
         }
         for item in self.items.drain(kept..) {
             doc.remove_node(item);
         }
 
-        while bottom < rect.height() && first + self.items.len() < items.count {
+        while end < main && first + self.items.len() < items.count {
             let item = build_item(
                 doc,
                 owner.clone(),
                 &mut items.build,
                 first + self.items.len(),
             );
-            bottom += height(doc, painter, item, width);
+            end += length(doc, painter, item, self.direction, cross);
             self.items.push(item);
         }
 
@@ -289,6 +294,25 @@ fn rubber_band(distance: f32, viewport: f32) -> f32 {
     magnitude.copysign(distance)
 }
 
+fn revealed_offset(
+    direction: Direction,
+    viewport: Rect,
+    item: Rect,
+    offset: f32,
+) -> Option<f32> {
+    let length = direction.main(viewport.size());
+    let start = direction.main(item.min - viewport.min) + offset;
+    let end = direction.main(item.max - viewport.min) + offset;
+    let revealed = if start < offset {
+        start
+    } else if end > offset + length {
+        (end - length).min(start)
+    } else {
+        return None;
+    };
+    Some(revealed.max(0.0))
+}
+
 fn build_item(
     doc: &mut Document,
     owner: Option<ScopeContext>,
@@ -313,23 +337,29 @@ impl Element for ScrollNode {
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,
     ) {
-        let heights = self.heights(doc, painter, rect.width());
-        let content = self.content(heights.iter().sum());
+        let (main, cross) = self.direction.main_and_cross(rect.size());
+        let lengths = self.lengths(doc, painter, cross);
+        let content = self.content(lengths.iter().sum());
         let offset = self
-            .anchored_offset(&heights)
-            .clamp(0.0, (content - rect.height()).max(0.0))
+            .anchored_offset(&lengths)
+            .clamp(0.0, (content - main).max(0.0))
             + self.overscroll;
-        let mut cursor = rect.top() + self.top(offset);
-        for (&item, height) in self.items.iter().zip(&heights) {
-            if cursor >= rect.bottom() {
+        let start = self.direction.main(rect.min.to_vec2());
+        let mut cursor = start + self.leading(offset);
+        for (&item, length) in self.items.iter().zip(&lengths) {
+            if cursor >= start + main {
                 break;
             }
-            if cursor + height > rect.top() {
-                let child_rect =
-                    Rect::from_min_size(pos2(rect.left(), cursor), vec2(rect.width(), *height));
-                crate::layout::layout(doc, painter, item, child_rect, out);
+            if cursor + length > start {
+                crate::layout::layout(
+                    doc,
+                    painter,
+                    item,
+                    item_rect(self.direction, rect, cursor, *length),
+                    out,
+                );
             }
-            cursor += height;
+            cursor += length;
         }
     }
 
@@ -370,21 +400,23 @@ impl Element for ScrollNode {
             self.drag_offset = None;
             self.animate(&mut position, elapsed);
         }
-        if input.wheel_target == Some(id) && input.scroll.y != 0.0 {
+        let wheel = self.direction.main(input.scroll);
+        if input.wheel_target == Some(id) && wheel != 0.0 {
             self.velocity = 0.0;
             self.overscroll = 0.0;
-            position.offset -= input.scroll.y;
+            position.offset -= wheel;
         }
         if touch_target {
             if input.touch_started {
                 self.drag_offset = Some(position.offset);
                 self.velocity = 0.0;
             }
-            if input.touch_scroll_delta != 0.0 {
-                self.drag(&mut position, input.touch_scroll_delta);
+            let dragged = self.direction.main(input.touch_scroll_delta);
+            if dragged != 0.0 {
+                self.drag(&mut position, dragged);
             }
             if input.touch_ended {
-                self.release(-input.touch_velocity);
+                self.release(-self.direction.main(input.touch_velocity));
             } else if input.touch_cancelled {
                 self.release(0.0);
             }
@@ -397,7 +429,7 @@ impl Element for ScrollNode {
         }
         self.realize(doc, painter, rect);
         if self.anchor.is_none() || position.offset != anchored_offset || self.items.is_empty() {
-            self.remember_anchor(doc, painter, rect.width());
+            self.remember_anchor(doc, painter, self.direction.main_and_cross(rect.size()).1);
         }
         self.position = Some(position);
         if !self.on_change.is_empty() && self.reported != Some(position) {
@@ -420,13 +452,21 @@ impl Element for ScrollNode {
     }
 
     fn detail(&self) -> Option<String> {
-        let items = self.virtual_items.as_ref()?;
-        Some(format!(
-            "{}..{} of {}",
-            items.first,
-            items.first + self.items.len(),
-            items.count
-        ))
+        let horizontal = (self.direction == Direction::Horizontal).then_some("horizontal");
+        let realized = self.virtual_items.as_ref().map(|items| {
+            format!(
+                "{}..{} of {}",
+                items.first,
+                items.first + self.items.len(),
+                items.count
+            )
+        });
+        let detail = [horizontal.map(str::to_string), realized]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" ");
+        (!detail.is_empty()).then_some(detail)
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -438,13 +478,44 @@ impl Element for ScrollNode {
     }
 }
 
-fn height(doc: &Document, painter: &Painter, item: NodeId, width: f32) -> f32 {
-    crate::layout::measure(doc, painter, item, vec2(width, f32::INFINITY)).y
+fn length(
+    doc: &Document,
+    painter: &Painter,
+    item: NodeId,
+    direction: Direction,
+    cross: f32,
+) -> f32 {
+    direction.main(crate::layout::measure(
+        doc,
+        painter,
+        item,
+        direction.axes(f32::INFINITY, cross),
+    ))
+}
+
+fn item_rect(direction: Direction, rect: Rect, start: f32, length: f32) -> Rect {
+    match direction {
+        Direction::Horizontal => {
+            Rect::from_min_size(pos2(start, rect.top()), vec2(length, rect.height()))
+        }
+        Direction::Vertical => {
+            Rect::from_min_size(pos2(rect.left(), start), vec2(rect.width(), length))
+        }
+    }
 }
 
 impl Document {
     pub(crate) fn create_scroll(&mut self) -> NodeId {
         self.arena.insert(ScrollNode::new())
+    }
+
+    pub(crate) fn set_scroll_direction(&mut self, scroll: NodeId, direction: Direction) {
+        if self.arena.get_as::<ScrollNode>(scroll).direction == direction {
+            return;
+        }
+        let node = self.arena.get_mut_as::<ScrollNode>(scroll);
+        node.direction = direction;
+        node.anchor = None;
     }
 
     pub(crate) fn append_scroll_item(&mut self, scroll: NodeId, child: NodeId) {
@@ -535,17 +606,12 @@ impl Document {
         let (Some(viewport), Some(item)) = (self.node_rect(scroll), self.node_rect(item)) else {
             return;
         };
+        let direction = self.arena.get_as::<ScrollNode>(scroll).direction;
         let offset = self.scroll_offset(scroll);
-        let top = item.top() - viewport.top() + offset;
-        let bottom = item.bottom() - viewport.top() + offset;
-        let revealed = if top < offset {
-            top
-        } else if bottom > offset + viewport.height() {
-            (bottom - viewport.height()).min(top)
-        } else {
+        let Some(revealed) = revealed_offset(direction, viewport, item, offset) else {
             return;
         };
-        self.set_scroll_offset(scroll, revealed.max(0.0));
+        self.set_scroll_offset(scroll, revealed);
     }
 
     pub(crate) fn set_scroll_focus_color(&mut self, scroll: NodeId, color: Color32) {
@@ -556,12 +622,17 @@ impl Document {
         if press.modifiers.ctrl || press.modifiers.alt {
             return false;
         }
-        let Some(position) = self.arena.get_as::<ScrollNode>(scroll).position else {
+        let node = self.arena.get_as::<ScrollNode>(scroll);
+        let (Some(position), direction) = (node.position, node.direction) else {
             return false;
         };
+        let (forwards, backwards) = match direction {
+            Direction::Horizontal => (Key::ArrowRight, Key::ArrowLeft),
+            Direction::Vertical => (Key::ArrowDown, Key::ArrowUp),
+        };
         let offset = match press.key {
-            Key::ArrowDown => position.offset + 40.0,
-            Key::ArrowUp => position.offset - 40.0,
+            key if key == forwards => position.offset + STEP,
+            key if key == backwards => position.offset - STEP,
             Key::PageDown | Key::Space if !press.modifiers.shift => {
                 position.offset + position.viewport
             }
@@ -582,7 +653,14 @@ impl Document {
     pub(crate) fn key_scroll_ancestor(&mut self, press: KeyPress) -> bool {
         if !matches!(
             press.key,
-            Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End | Key::PageUp | Key::PageDown
+            Key::ArrowUp
+                | Key::ArrowDown
+                | Key::ArrowLeft
+                | Key::ArrowRight
+                | Key::Home
+                | Key::End
+                | Key::PageUp
+                | Key::PageDown
         ) {
             return false;
         }
@@ -642,28 +720,23 @@ impl Document {
             let Some(rect) = self.node_rect(scroll) else {
                 continue;
             };
-            let heights = node.heights(self, painter, rect.width());
+            let direction = node.direction;
+            let (_, cross) = direction.main_and_cross(rect.size());
+            let lengths = node.lengths(self, painter, cross);
             let Some(index) = node.items.iter().position(|id| *id == item) else {
                 continue;
             };
-            let top = heights[..index].iter().sum::<f32>() + node.top(0.0);
-            let item_rect = Rect::from_min_size(
-                pos2(rect.left(), rect.top() + top - node.offset),
-                vec2(rect.width(), heights[index]),
-            );
+            let start = direction.main(rect.min.to_vec2()) + lengths[..index].iter().sum::<f32>()
+                + node.leading(0.0)
+                - node.offset;
+            let placed = item_rect(direction, rect, start, lengths[index]);
             let mut rects = HashMap::new();
-            crate::layout::layout(self, painter, item, item_rect, &mut rects);
-            let target = rects.get(&focused).copied().unwrap_or(item_rect);
-            let top = target.top() - rect.top() + node.offset;
-            let bottom = target.bottom() - rect.top() + node.offset;
-            let offset = if top < node.offset {
-                top
-            } else if bottom > node.offset + rect.height() {
-                (bottom - rect.height()).min(top)
-            } else {
+            crate::layout::layout(self, painter, item, placed, &mut rects);
+            let target = rects.get(&focused).copied().unwrap_or(placed);
+            let Some(offset) = revealed_offset(direction, rect, target, node.offset) else {
                 continue;
             };
-            self.set_scroll_offset(scroll, offset.max(0.0));
+            self.set_scroll_offset(scroll, offset);
         }
     }
 
@@ -685,17 +758,18 @@ impl Document {
 #[component]
 pub fn VirtualList(
     count: Prop<usize>,
-    item_height: Prop<f32>,
+    item_size: Prop<f32>,
+    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(children)] item: Option<RenderFn<usize>>,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     on_change: Callback<ScrollPosition>,
 ) -> NodeId {
-    let scroll = create_scroll(focus_color, on_change);
+    let scroll = create_scroll(direction, focus_color, on_change);
     let item = item.expect("virtual_list requires an `item` builder");
     let (count_read, set_count) = create_signal(0);
     let (height_read, set_height) = create_signal(0.0);
     create_effect(move || set_count.set(count.get()));
-    create_effect(move || set_height.set(item_height.get()));
+    create_effect(move || set_height.set(item_size.get()));
     create_effect(move || {
         let (count, height) = (count_read.get(), height_read.get());
         let item = item.clone();
@@ -710,11 +784,12 @@ pub fn VirtualList(
 pub fn Scroll(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
+    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     on_change: Callback<ScrollPosition>,
     children: Children,
 ) -> NodeId {
-    let scroll = create_scroll(focus_color, on_change);
+    let scroll = create_scroll(direction, focus_color, on_change);
     children.mount_scroll_items(scroll);
     create_effect(move || {
         with_document(|document| document.set_scroll_offset(scroll, offset.get()))
@@ -729,11 +804,18 @@ pub fn Scroll(
     scroll
 }
 
-fn create_scroll(focus_color: Prop<Color32>, on_change: Callback<ScrollPosition>) -> NodeId {
+fn create_scroll(
+    direction: Prop<Direction>,
+    focus_color: Prop<Color32>,
+    on_change: Callback<ScrollPosition>,
+) -> NodeId {
     let scroll = with_document(|document| {
         let scroll = document.create_scroll();
         document.set_scroll_on_change(scroll, move |position| on_change.call(position));
         scroll
+    });
+    create_effect(move || {
+        with_document(|document| document.set_scroll_direction(scroll, direction.get()))
     });
     create_effect(move || {
         with_document(|document| document.set_scroll_focus_color(scroll, focus_color.get()))

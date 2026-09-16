@@ -2,16 +2,19 @@ use beui_macros::{component, view};
 
 use crate::color::Color32;
 
-use crate::base::ScrollPosition;
+use crate::base::{Direction, ScrollPosition};
 use crate::node::NodeId;
-use crate::reactive::{Column, Frame, ItemSize, Prop, Spacer, clone, create_memo};
+use crate::reactive::{Frame, ItemSize, List, Prop, Spacer, clone, create_memo};
 use crate::styled::theme::{ThemeStore, use_theme};
 
 const RADIUS: u8 = 3;
 const MINIMUM_THUMB: f32 = 0.08;
 
 #[component]
-pub fn Scrollbar(position: Prop<ScrollPosition>) -> NodeId {
+pub fn Scrollbar(
+    position: Prop<ScrollPosition>,
+    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+) -> NodeId {
     let position = create_memo(move || position.get());
     let theme = use_theme();
 
@@ -22,11 +25,11 @@ pub fn Scrollbar(position: Prop<ScrollPosition>) -> NodeId {
 
     view! {
         <Frame color={theme.surface_raised.clone()} radius=RADIUS>
-            <Column spacing=0.0>
+            <List direction spacing=0.0>
                 <Spacer @sizing={before} />
                 <Frame @sizing={thumb} color radius=RADIUS></Frame>
                 <Spacer @sizing={after} />
-            </Column>
+            </List>
         </Frame>
     }
 }

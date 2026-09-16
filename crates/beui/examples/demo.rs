@@ -13,7 +13,8 @@ use beui::unstyled::{
     Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, TreeItem, narrower_than,
 };
 use beui::{
-    Color32, Context, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign, unstyled,
+    Color32, Context, Direction, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign,
+    unstyled,
 };
 use beui_macros::component;
 
@@ -45,6 +46,9 @@ const TREE_NODES: [(&str, usize); 9] = [
     ("README.md", 1),
     ("Cargo.toml", 1),
 ];
+const STRIP_COUNT: usize = 200;
+const STRIP_HEIGHT: f32 = 52.0;
+const STRIP_ITEM_WIDTH: f32 = 120.0;
 const STAGE_HEIGHT: f32 = 260.0;
 const STAGE_VIEW: PanZoomView = PanZoomView::new(beui::pos2(200.0, 120.0), 0.8);
 const STAGE_CARDS: [(f32, f32, f32, f32, &str); 4] = [
@@ -387,7 +391,7 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                         <VirtualList
                             @sizing=ItemSize::Percent(100.0)
                             count=ROW_COUNT
-                            item_height={row_height}
+                            item_size={row_height}
                             focus_color={use_theme().accent.clone()}
                             on_change={move |position| set_scroll_position.set(position)}
                         >
@@ -541,7 +545,7 @@ fn ControlPanels(rows: Rows) -> NodeId {
     view! {
         <Column spacing=16.0>
             <ResponsiveTabs
-                labels={vec!["List".to_string(), "Load".to_string(), "Name".to_string(), "Choices".to_string(), "Menus".to_string(), "Tree".to_string()]}
+                labels={vec!["List".to_string(), "Strip".to_string(), "Load".to_string(), "Name".to_string(), "Choices".to_string(), "Menus".to_string(), "Tree".to_string()]}
                 selected=0
                 breakpoint=TABS_NARROW_WIDTH
                 on_change={move |selected| {
@@ -553,18 +557,21 @@ fn ControlPanels(rows: Rows) -> NodeId {
                     <ListControls rows=list_rows />
                 </Show>
                 <Show condition={tab.memo(1)}>
-                    <LoadControls />
+                    <StripControls />
                 </Show>
                 <Show condition={tab.memo(2)}>
-                    <NameControls />
+                    <LoadControls />
                 </Show>
                 <Show condition={tab.memo(3)}>
-                    <ChoiceControls />
+                    <NameControls />
                 </Show>
                 <Show condition={tab.memo(4)}>
-                    <MenuControls />
+                    <ChoiceControls />
                 </Show>
                 <Show condition={tab.memo(5)}>
+                    <MenuControls />
+                </Show>
+                <Show condition={tab.memo(6)}>
                     <TreeControls />
                 </Show>
             </Column>
@@ -590,6 +597,58 @@ fn ListControls(rows: Rows) -> NodeId {
                 <Body @sizing=ItemSize::Percent(100.0) content="Compact rows" />
             </CenteredRow>
         </Column>
+    }
+}
+
+#[component]
+fn StripControls() -> NodeId {
+    let (position, set_position) = create_signal(ScrollPosition::ZERO);
+    let theme = use_theme();
+
+    view! {
+        <Column spacing=12.0>
+            <Paragraph
+                content="A horizontal list scrolls with Shift+scroll, a sideways trackpad swipe, \
+                 a touch drag, or the arrow keys once something in it has focus."
+            />
+            <VirtualList
+                @sizing=ItemSize::Fixed(STRIP_HEIGHT)
+                direction=Direction::Horizontal
+                count=STRIP_COUNT
+                item_size=STRIP_ITEM_WIDTH
+                focus_color={theme.accent.clone()}
+                on_change={move |position| set_position.set(position)}
+            >
+                {move |index: usize| view! {
+                    <StripCard index />
+                }}
+            </VirtualList>
+            <Scrollbar
+                @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
+                direction=Direction::Horizontal
+                position={position}
+            />
+        </Column>
+    }
+}
+
+#[component]
+fn StripCard(index: usize) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame padding_horizontal=4.0 padding_vertical=0.0>
+            <Frame
+                color={theme.surface_raised.clone()}
+                outline={theme.border.clone()}
+                outline_width=1.0
+                outline_visible=true
+                radius=RADIUS
+                padding_horizontal=12.0
+                padding_vertical=10.0
+            >
+                <Body content={format!("Card {index}")} align=TextAlign::Center />
+            </Frame>
+        </Frame>
     }
 }
 
