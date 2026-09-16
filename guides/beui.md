@@ -87,11 +87,11 @@ view! {
 }
 ```
 
-and not `Button().label("Save").variant(...).build()`. The macro is what reports
-a missing required prop at the line that wrote the tag rather than from inside
-generated code, what routes `@test_id`, `@node_ref` and `@sizing` to the right
-place, what enforces a component's child arity, and what keeps render props
-unbuilt until the component calls them. Hand-written builder chains lose the
+and not `Button().label("Save").variant(...).build()`. The macro is what rejects
+a missing required prop and a prop written twice at the line that wrote the tag
+rather than from inside generated code, what routes `@test_id`, `@node_ref` and
+`@sizing` to the right place, what enforces a component's child arity, and what
+keeps render props unbuilt until the component calls them. Hand-written builder chains lose the
 diagnostics, are invisible to the `view!` formatter that `./scripts/verify`
 runs, and read nothing like the rest of the tree. The same applies to a
 component you want to pass around: hand over a `Render`/`RenderFn` closure that
