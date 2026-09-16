@@ -218,10 +218,12 @@ view! {
 
 A scroll pans, Shift+scroll pans sideways, dragging with the middle button or
 with two fingers pans, and Ctrl+scroll, a trackpad pinch or a two-finger pinch
-zooms around the pointer or the point between the fingers. The handle
-carries the camera as a `CanvasView` ready for a `<Canvas>`, the `scale` for
-content that should grow with the zoom, and whether a middle-button pan is in
-progress. Because the view is the caller's, a toolbar button, a fit command or
+zooms around the pointer or the point between the fingers. It is a tab stop as
+well: the arrows pan it, `+` and `-` zoom around the middle of the viewport,
+and `0` returns the scale to one. The handle carries the camera as a
+`CanvasView` ready for a `<Canvas>`, the `scale` for content that should grow
+with the zoom, whether a pan is in progress, and whether it has focus, which is
+what a caller paints a focus ring from. Because the view is the caller's, a toolbar button, a fit command or
 a host that syncs several editors writes the same signal the gestures do; the
 camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor
 the same way. Anything between the gesture and the camera - momentum, snapping,

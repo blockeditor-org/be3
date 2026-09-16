@@ -22,10 +22,13 @@ pub enum Key {
     Enter,
     Escape,
     Home,
+    Minus,
     PageDown,
     PageUp,
+    Plus,
     Space,
     Tab,
+    Zero,
     A,
     B,
     C,
@@ -528,17 +531,15 @@ impl TouchState {
 
     fn measure_pinch(&mut self) {
         let mut points = self.points.values();
-        let (Some(first), Some(second), None) = (points.next(), points.next(), points.next()) else {
+        let (Some(first), Some(second), None) = (points.next(), points.next(), points.next())
+        else {
             self.pinch_center = None;
             self.pinch_span = None;
             return;
         };
         let (first, second) = (first.pos, second.pos);
         let span = first.distance(second);
-        let center = Pos2::new(
-            (first.x + second.x) * 0.5,
-            (first.y + second.y) * 0.5,
-        );
+        let center = Pos2::new((first.x + second.x) * 0.5, (first.y + second.y) * 0.5);
         if let (Some(previous_span), Some(previous_center)) = (self.pinch_span, self.pinch_center)
             && previous_span > 0.0
             && span > 0.0

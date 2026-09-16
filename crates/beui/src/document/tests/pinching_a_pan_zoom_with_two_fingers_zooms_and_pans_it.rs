@@ -20,7 +20,11 @@ fn pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it() {
     harness.frame(Vec::new());
 
     let view = pan_zoom_view(harness.document(), harness.find("stage")).get();
-    assert!((view.scale - 2.0).abs() < 0.01, "the view reached {}", view.scale);
+    assert!(
+        (view.scale - 2.0).abs() < 0.01,
+        "the view reached {}",
+        view.scale
+    );
     assert!(
         harness.rect(item).max.distance(corner) < 0.01,
         "the corner between the fingers moved to {:?}",
@@ -30,7 +34,14 @@ fn pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it() {
     harness.move_fingers(pos2(240.0, 200.0), pos2(440.0, 200.0));
     harness.frame(Vec::new());
 
-    assert!((pan_zoom_view(harness.document(), harness.find("stage")).get().scale - 2.0).abs() < 0.01);
+    assert!(
+        (pan_zoom_view(harness.document(), harness.find("stage"))
+            .get()
+            .scale
+            - 2.0)
+            .abs()
+            < 0.01
+    );
     assert!(
         harness.rect(item).max.distance(pos2(340.0, 200.0)) < 0.01,
         "the two finger pan moved the corner to {:?}",
