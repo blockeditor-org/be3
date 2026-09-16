@@ -1,14 +1,17 @@
 use beui::reactive::{
-    CenteredRow, Column, Frame, Memo, ReadSignal, Row, Selector, Show, Spacer, VirtualList,
-    WriteSignal, build, clone, create_memo, create_selector, create_signal, view,
+    Callback, Canvas, CanvasItem, CanvasView, CenteredRow, Column, Frame, Memo, ReadSignal, Row,
+    Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
+    create_selector, create_signal, view,
 };
-use beui::styled::theme::{NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
+use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
     Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
     Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, use_theme,
 };
-use beui::unstyled::{Container, TreeItem, narrower_than};
+use beui::unstyled::{
+    Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, TreeItem, narrower_than,
+};
 use beui::{
     Color32, Context, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign, unstyled,
 };
@@ -42,6 +45,17 @@ const TREE_NODES: [(&str, usize); 9] = [
     ("README.md", 1),
     ("Cargo.toml", 1),
 ];
+const STAGE_HEIGHT: f32 = 260.0;
+const STAGE_VIEW: PanZoomView = PanZoomView::new(beui::pos2(200.0, 120.0), 0.8);
+const STAGE_CARDS: [(f32, f32, f32, f32, &str); 4] = [
+    (0.0, 0.0, 170.0, 90.0, "Inbox"),
+    (230.0, 30.0, 150.0, 80.0, "Notes"),
+    (50.0, 150.0, 210.0, 110.0, "Canvas"),
+    (320.0, 190.0, 130.0, 70.0, "Archive"),
+];
+const STAGE_ZOOM_STEP: f32 = 1.3;
+const STAGE_LABEL_SIZE: f32 = 15.0;
+const STAGE_PADDING: f32 = 10.0;
 const ROW_PADDING_HORIZONTAL: f32 = 12.0;
 const ROW_PADDING_VERTICAL: f32 = 9.0;
 const COMPACT_ROW_PADDING_VERTICAL: f32 = 4.0;
@@ -357,6 +371,7 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                 </Column>
             </Card>
             <Controls rows={rows.clone()} />
+            <CanvasCard @sizing=ItemSize::Fixed(STAGE_HEIGHT) />
             <Card @sizing={rows_size}>
                 <Column spacing=12.0>
                     <CenteredRow spacing=12.0>
@@ -392,6 +407,114 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                 </Column>
             </Card>
         </Column>
+    }
+}
+
+#[component]
+fn CanvasCard() -> NodeId {
+    let (stage_view, set_stage_view) = create_signal(STAGE_VIEW);
+    let zoom_out = set_stage_view.clone();
+    let zoom_in = set_stage_view.clone();
+    let stage = set_stage_view.clone();
+    let zoom_label = create_memo(clone!(stage_view -> move || {
+        format!("{:.0}%", stage_view.get().scale * 100.0)
+    }));
+
+    view! {
+        <Card>
+            <Column spacing=12.0>
+                <CenteredRow spacing=12.0>
+                    <Heading @sizing=ItemSize::Percent(100.0) content="Canvas" />
+                    <Caption content={zoom_label} />
+                    <Button
+                        @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
+                        label="-"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || zoom_out.update(scale_out)}
+                    />
+                    <Button
+                        @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
+                        label="+"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || zoom_in.update(scale_in)}
+                    />
+                    <Button
+                        label="Reset"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || set_stage_view.set(STAGE_VIEW)}
+                    />
+                </CenteredRow>
+                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <CanvasStage
+                    @sizing=ItemSize::Percent(100.0)
+                    view={stage_view}
+                    on_change={move |view| stage.set(view)}
+                />
+                <Caption
+                    content="Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom, \
+                     and drag with the middle button."
+                />
+            </Column>
+        </Card>
+    }
+}
+
+fn scale_out(view: &mut PanZoomView) {
+    view.scale = (view.scale / STAGE_ZOOM_STEP).clamp(MIN_SCALE, MAX_SCALE);
+}
+
+fn scale_in(view: &mut PanZoomView) {
+    view.scale = (view.scale * STAGE_ZOOM_STEP).clamp(MIN_SCALE, MAX_SCALE);
+}
+
+#[component]
+fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) -> NodeId {
+    view! {
+        <PanZoom view on_change={move |view| on_change.call(view)}>
+            {move |handle: PanZoomHandle| {
+                let PanZoomHandle { view, scale, .. } = handle;
+                view! {
+                    <CanvasBoard view scale />
+                }
+            }}
+        </PanZoom>
+    }
+}
+
+#[component]
+fn CanvasBoard(view: Memo<Option<CanvasView>>, scale: Memo<f32>) -> NodeId {
+    let [first, second, third, fourth] = STAGE_CARDS;
+    view! {
+        <Canvas view>
+            <StageCard card=first scale={scale.clone()} />
+            <StageCard card=second scale={scale.clone()} />
+            <StageCard card=third scale={scale.clone()} />
+            <StageCard card=fourth scale />
+        </Canvas>
+    }
+}
+
+#[component]
+fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> NodeId {
+    let (x, y, width, height, label) = card;
+    let theme = use_theme();
+    let font_size = create_memo(clone!(scale -> move || STAGE_LABEL_SIZE * scale.get()));
+    let padding = create_memo(clone!(scale -> move || STAGE_PADDING * scale.get()));
+
+    view! {
+        <CanvasItem x y width height>
+            <Frame
+                color={theme.surface_raised.clone()}
+                outline={theme.border.clone()}
+                outline_width=1.0
+                outline_visible=true
+                radius=CARD_RADIUS
+                padding_horizontal={padding.clone()}
+                padding_vertical={padding}
+            >
+                <Text string={label.to_string()} font_size={font_size} color={theme.text.clone()} />
+            </Frame>
+        </CanvasItem>
     }
 }
 

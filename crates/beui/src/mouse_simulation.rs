@@ -236,6 +236,7 @@ impl MouseSimulation {
             out.push(self.button_event(index, false, modifiers));
         }
         if self.scroll != Vec2::ZERO {
+            out.push(Event::Modifiers(modifiers));
             out.push(Event::Scroll(std::mem::replace(
                 &mut self.scroll,
                 Vec2::ZERO,

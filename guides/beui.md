@@ -181,11 +181,45 @@ The main base building blocks are `Row`, `Column`, `List`, `Frame`, `Text`,
 `Scroll`, and `VirtualList`; `Frame` combines optional sizing, padding, fill,
 outline, and visibility on one retained node. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `Container`, and `Stack`. The styled
+`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, and `Stack`. The styled
 module supplies themed buttons, text styles, cards, checkboxes, switches,
 choices, inputs, menus, tabs, trees, progress, scrollbars, and responsive
 layout. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 lists.
+
+### Pan and zoom
+
+`unstyled::PanZoom` turns wheel, trackpad and middle-button gestures over a
+rectangle into camera movement, and owns none of the camera itself. The caller
+keeps a `PanZoomView` - the world point shown at the middle of the viewport and
+a scale - passes it in, and writes back what `on_change` reports:
+
+```rust
+let (view, set_view) = create_signal(PanZoomView::IDENTITY);
+view! {
+    <PanZoom view on_change={move |view| set_view.set(view)}>
+        {move |handle: PanZoomHandle| {
+            let PanZoomHandle { view, scale, .. } = handle;
+            view! {
+                <Canvas view>
+                    <CanvasItem x=0.0 y=0.0 width=100.0 height=50.0 />
+                </Canvas>
+            }
+        }}
+    </PanZoom>
+}
+```
+
+A scroll pans, Shift+scroll pans sideways, dragging with the middle button
+pans, and Ctrl+scroll or a trackpad pinch zooms around the pointer. The handle
+carries the camera as a `CanvasView` ready for a `<Canvas>`, the `scale` for
+content that should grow with the zoom, and whether a middle-button pan is in
+progress. Because the view is the caller's, a toolbar button, a fit command or
+a host that syncs several editors writes the same signal the gestures do; the
+camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor
+the same way. Anything between the gesture and the camera - momentum, snapping,
+clamping the camera to the content - belongs to the caller, apart from the
+scale limits `min_scale` and `max_scale`.
 
 ## Use beui in a standalone app
 

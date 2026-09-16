@@ -54,6 +54,7 @@ pub struct Document {
     theme: ThemeStore,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     sizes: HashMap<NodeId, Vec<SizeWatcher>>,
+    placements: HashMap<NodeId, Vec<PlacementWatcher>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: HashMap<NodeId, Node>,
@@ -66,6 +67,11 @@ pub struct Document {
 struct SizeWatcher {
     read: ::reactive::ReadSignal<Vec2>,
     write: ::reactive::WriteSignal<Vec2>,
+}
+
+struct PlacementWatcher {
+    read: ::reactive::ReadSignal<Rect>,
+    write: ::reactive::WriteSignal<Rect>,
 }
 
 impl Document {
@@ -101,6 +107,7 @@ impl Document {
             theme,
             node_scopes: HashMap::new(),
             sizes: HashMap::new(),
+            placements: HashMap::new(),
             component_states: HashMap::new(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: HashMap::new(),
@@ -286,6 +293,7 @@ impl Document {
         self.arena.remove(id);
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
+        self.placements.remove(&id);
         self.component_states.remove(&id);
         self.accessibility.remove(&id);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
@@ -512,6 +520,38 @@ impl Document {
         read
     }
 
+    pub(crate) fn watch_placement(&mut self, id: NodeId) -> ::reactive::ReadSignal<Rect> {
+        if let Some(watcher) = self
+            .placements
+            .get(&id)
+            .and_then(|watchers| watchers.first())
+        {
+            return watcher.read.clone();
+        }
+        let rect = self.rects.get(&id).copied().unwrap_or(Rect::ZERO);
+        let (read, write) = ::reactive::create_signal(rect);
+        self.placements
+            .entry(id)
+            .or_default()
+            .push(PlacementWatcher {
+                read: read.clone(),
+                write,
+            });
+        read
+    }
+
+    pub(crate) fn register_placement_watcher(
+        &mut self,
+        id: NodeId,
+        read: ::reactive::ReadSignal<Rect>,
+        write: ::reactive::WriteSignal<Rect>,
+    ) {
+        self.placements
+            .entry(id)
+            .or_default()
+            .push(PlacementWatcher { read, write });
+    }
+
     pub(crate) fn register_size_watcher(
         &mut self,
         id: NodeId,
@@ -542,15 +582,15 @@ impl Document {
         let mut passes = 0;
         for _ in 0..SIZE_PASSES {
             passes += usize::from(self.update_layout(ctx, rect));
-            if !self.publish_sizes() {
+            if !self.publish_measurements() {
                 return passes;
             }
         }
         passes + usize::from(self.update_layout(ctx, rect))
     }
 
-    fn publish_sizes(&mut self) -> bool {
-        let changed: Vec<(::reactive::WriteSignal<Vec2>, Vec2)> = self
+    fn publish_measurements(&mut self) -> bool {
+        let sizes: Vec<(::reactive::WriteSignal<Vec2>, Vec2)> = self
             .sizes
             .iter()
             .flat_map(|(id, watchers)| {
@@ -561,13 +601,27 @@ impl Document {
                     .map(move |watcher| (watcher.write.clone(), size))
             })
             .collect();
-        if changed.is_empty() {
+        let placements: Vec<(::reactive::WriteSignal<Rect>, Rect)> = self
+            .placements
+            .iter()
+            .flat_map(|(id, watchers)| {
+                let rect = self.rects.get(id).copied().unwrap_or(Rect::ZERO);
+                watchers
+                    .iter()
+                    .filter(move |watcher| watcher.read.get_untracked() != rect)
+                    .map(move |watcher| (watcher.write.clone(), rect))
+            })
+            .collect();
+        if sizes.is_empty() && placements.is_empty() {
             return false;
         }
         let _guard = crate::reactive::install(self);
         crate::reactive::settle(|| {
-            for (write, size) in changed {
+            for (write, size) in sizes {
                 write.set(size);
+            }
+            for (write, rect) in placements {
+                write.set(rect);
             }
         });
         true

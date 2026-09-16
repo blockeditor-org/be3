@@ -1356,15 +1356,16 @@ impl EditorSession {
                     ctrl: modifiers.control || modifiers.command,
                     shift: modifiers.shift,
                 };
+                state.events.push(beui::Event::Modifiers(state.modifiers));
+            }
+            InputEvent::Zoom { factor } => {
+                state.events.push(beui::Event::Zoom(*factor));
             }
             InputEvent::Focus(false) => {
                 state.emulated_touch = false;
                 state.events.push(beui::Event::Focus(false));
             }
-            InputEvent::PointerMotion { .. }
-            | InputEvent::Zoom { .. }
-            | InputEvent::Ime(_)
-            | InputEvent::Focus(_) => {}
+            InputEvent::PointerMotion { .. } | InputEvent::Ime(_) | InputEvent::Focus(_) => {}
         }
     }
 

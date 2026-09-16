@@ -22,7 +22,11 @@ pub(crate) fn interact(
         pressed_this_frame: ctx.input(|input| input.pointer.primary_pressed()),
         released_this_frame: ctx.input(|input| input.pointer.primary_released()),
         secondary_pressed_this_frame: ctx.input(|input| input.pointer.secondary_pressed()),
-        scroll_delta: ctx.input(|input| input.scroll_delta.y),
+        middle_down: ctx.input(|input| input.pointer.middle_down),
+        middle_pressed_this_frame: ctx.input(|input| input.pointer.middle_pressed()),
+        scroll: ctx.input(|input| input.scroll_delta),
+        zoom: ctx.input(|input| input.zoom_factor),
+        gesture_target: None,
         touch_started: ctx.input(|input| input.touch.started()),
         touch_active: ctx.input(|input| input.touch.active()),
         touch_ended: ctx.input(|input| input.touch.ended()),
@@ -63,8 +67,23 @@ pub(crate) fn interact(
             doc.capture_pointer(captor);
         }
     }
+    let gesture_target = if input.scroll == crate::geometry::Vec2::ZERO && input.zoom == 1.0 {
+        None
+    } else {
+        input.pointer_pos.and_then(|pos| {
+            if doc.overlay_stack.is_empty() {
+                deepest_gesture_catcher(doc, rects, root, pos)
+            } else {
+                doc.overlay_stack
+                    .iter()
+                    .rev()
+                    .find_map(|overlay| deepest_gesture_catcher(doc, rects, *overlay, pos))
+            }
+        })
+    };
     let input = InteractInput {
         touch_scroll_target: doc.touch_scroll_target,
+        gesture_target,
         ..input
     };
 
@@ -188,6 +207,27 @@ fn deepest_scroll(
     }
     node.as_any()
         .is::<crate::base::scroll::ScrollNode>()
+        .then_some(id)
+}
+
+fn deepest_gesture_catcher(
+    doc: &Document,
+    rects: &HashMap<NodeId, Rect>,
+    id: NodeId,
+    pos: Pos2,
+) -> Option<NodeId> {
+    if !rects.get(&id).is_some_and(|rect| rect.contains(pos)) {
+        return None;
+    }
+    let node = doc.arena.get(id);
+    for child in node.children().into_iter().rev() {
+        if let Some(catcher) = deepest_gesture_catcher(doc, rects, child, pos) {
+            return Some(catcher);
+        }
+    }
+    node.as_any()
+        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
+        .is_some_and(crate::base::click_catcher::ClickCatcherNode::wants_gestures)
         .then_some(id)
 }
 

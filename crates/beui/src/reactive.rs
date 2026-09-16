@@ -8,7 +8,7 @@ pub use crate::base::ItemSize;
 
 use crate::base::{Align, Direction};
 use crate::document::Document;
-use crate::geometry::Vec2;
+use crate::geometry::{Rect, Vec2};
 use crate::node::{ClickHandler, Handler, NodeId};
 use crate::unstyled;
 
@@ -31,6 +31,7 @@ struct ComponentContext {
     states: RefCell<Vec<Box<dyn Any>>>,
     accessibility: RefCell<Option<accesskit::Node>>,
     size: RefCell<Option<(ReadSignal<Vec2>, WriteSignal<Vec2>)>>,
+    placement: RefCell<Option<(ReadSignal<Rect>, WriteSignal<Rect>)>>,
 }
 
 struct ActiveDocumentGuard;
@@ -119,6 +120,10 @@ pub fn node_size(node: NodeId) -> ReadSignal<Vec2> {
     with_document(|document| document.watch_size(node))
 }
 
+pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
+    with_document(|document| document.watch_placement(node))
+}
+
 pub fn copy_text(text: impl Into<String>) {
     let text = text.into();
     with_document(|document| document.copy_text(text));
@@ -146,6 +151,7 @@ pub fn component(f: impl FnOnce() -> NodeId) -> NodeId {
     let states = context.states.take();
     let accessibility = context.accessibility.take();
     let size = context.size.take();
+    let placement = context.placement.take();
     with_document(|document| {
         for state in states {
             document.set_component_state_dyn(root, state);
@@ -155,6 +161,9 @@ pub fn component(f: impl FnOnce() -> NodeId) -> NodeId {
         }
         if let Some((read, write)) = size {
             document.register_size_watcher(root, read, write);
+        }
+        if let Some((read, write)) = placement {
+            document.register_placement_watcher(root, read, write);
         }
         document.register_node_scope(root, scope);
     });
@@ -177,6 +186,19 @@ pub fn component_size() -> ReadSignal<Vec2> {
     }
     let (read, write) = create_signal(Vec2::ZERO);
     component.size.replace(Some((read.clone(), write)));
+    read
+}
+
+pub fn component_rect() -> ReadSignal<Rect> {
+    let component = current_component();
+    if let Some(target) = component.target.get() {
+        return node_rect(target);
+    }
+    if let Some((read, _)) = component.placement.borrow().as_ref() {
+        return read.clone();
+    }
+    let (read, write) = create_signal(Rect::ZERO);
+    component.placement.replace(Some((read.clone(), write)));
     read
 }
 

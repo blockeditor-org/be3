@@ -2,7 +2,7 @@ use std::any::Any;
 use std::collections::HashMap;
 
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{CursorIcon, PointerPress};
+use crate::input::{CursorIcon, PointerPress, ScrollGesture, ZoomGesture};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -21,6 +21,8 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) hovered: bool,
     pub(crate) active: bool,
     pub(crate) dragged: Option<Pos2>,
+    pub(crate) middle_active: bool,
+    pub(crate) middle_dragged: Option<Pos2>,
     pub(crate) on_click: ClickCallback,
     pub(crate) on_click_at: Callback<PointerPress>,
     pub(crate) on_hover_change: Callback<bool>,
@@ -28,6 +30,10 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) on_press: Callback<PointerPress>,
     pub(crate) on_secondary_press: Callback<PointerPress>,
     pub(crate) on_drag: Callback<PointerPress>,
+    pub(crate) on_middle_drag: Callback<Vec2>,
+    pub(crate) on_middle_active_change: Callback<bool>,
+    pub(crate) on_scroll: Callback<ScrollGesture>,
+    pub(crate) on_zoom: Callback<ZoomGesture>,
     pub(crate) capture_at: Callback<Pos2, bool>,
 }
 
@@ -43,6 +49,8 @@ impl ClickCatcherNode {
             hovered: false,
             active: false,
             dragged: None,
+            middle_active: false,
+            middle_dragged: None,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
@@ -50,12 +58,41 @@ impl ClickCatcherNode {
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
             on_drag: Callback::empty(),
+            on_middle_drag: Callback::empty(),
+            on_middle_active_change: Callback::empty(),
+            on_scroll: Callback::empty(),
+            on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
         }
     }
 
+    pub(crate) fn wants_gestures(&self) -> bool {
+        !self.on_scroll.is_empty() || !self.on_zoom.is_empty()
+    }
+
     pub(crate) fn is_active(&self) -> bool {
         self.armed || self.key_active
+    }
+
+    fn middle_drag(&mut self, input: &InteractInput, contains_pointer: bool) {
+        if input.middle_pressed_this_frame && contains_pointer {
+            self.middle_dragged = input.pointer_pos;
+        }
+        if !input.middle_down {
+            self.middle_dragged = None;
+        }
+        let active = self.middle_dragged.is_some();
+        if active != self.middle_active {
+            self.middle_active = active;
+            self.on_middle_active_change.call(active);
+        }
+        if let Some(previous) = self.middle_dragged
+            && let Some(pos) = input.pointer_pos
+            && pos != previous
+        {
+            self.middle_dragged = Some(pos);
+            self.on_middle_drag.call(pos - previous);
+        }
     }
 
     fn press(&self, input: &InteractInput, rect: Rect, pos: Pos2) -> PointerPress {
@@ -197,6 +234,24 @@ impl Element for ClickCatcherNode {
             let press = self.press(input, rect, pos);
             self.on_drag.call(press);
         }
+        self.middle_drag(input, contains_pointer);
+        if input.gesture_target == Some(id)
+            && let Some(pos) = input.pointer_pos
+        {
+            if input.scroll != Vec2::ZERO {
+                self.on_scroll.call(ScrollGesture {
+                    delta: input.scroll,
+                    pos,
+                    modifiers: input.modifiers,
+                });
+            }
+            if input.zoom != 1.0 {
+                self.on_zoom.call(ZoomGesture {
+                    factor: input.zoom,
+                    pos,
+                });
+            }
+        }
 
         self.child.into_iter().collect()
     }
@@ -286,6 +341,10 @@ pub fn ClickCatcher(
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
+    on_middle_drag: Callback<Vec2>,
+    on_middle_active_change: Callback<bool>,
+    on_scroll: Callback<ScrollGesture>,
+    on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
     children: Option<Child>,
 ) -> NodeId {
@@ -299,6 +358,10 @@ pub fn ClickCatcher(
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
         node.on_drag = on_drag;
+        node.on_middle_drag = on_middle_drag;
+        node.on_middle_active_change = on_middle_active_change;
+        node.on_scroll = on_scroll;
+        node.on_zoom = on_zoom;
         node.capture_at = capture_at;
         if let Some(child) = children {
             document.set_click_catcher_child(click_catcher, child);

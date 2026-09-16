@@ -4,6 +4,7 @@ mod container;
 mod context_menu;
 mod disclosure;
 mod menu;
+mod pan_zoom;
 mod pressable;
 mod select;
 mod slider;
@@ -22,6 +23,7 @@ pub use menu::{
     MenuItem, MenuRowHandle, menu_list_len, menu_list_root_focusable, menu_list_row_button,
     menu_list_row_submenu_content,
 };
+pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, pan_zoom_view};
 pub use pressable::Pressable;
 pub use select::{
     Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,
