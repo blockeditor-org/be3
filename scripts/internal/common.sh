@@ -132,7 +132,11 @@ build_games() {
         arguments+=(-p "$game")
     done
     echo "Building ${#games[@]} games..."
-    (cd "$repository" && cargo build "${arguments[@]}")
+    (
+        cd "$repository"
+        unwrap_rustc_for_wasm
+        cargo build "${arguments[@]}"
+    )
 
     games_directory="$repository/target/wasm32-unknown-unknown/$profile"
     for game in "${games[@]}"; do
@@ -196,6 +200,7 @@ wasi_sysroot_is_complete() {
 
 export_wasi_toolchain() {
     local requested="${1:-}"
+    unwrap_rustc_for_wasm
     pick_wasm_clang
     if ! rustup target list --installed | grep -qx "$wasm_rust_target"; then
         echo "Installing the $wasm_rust_target Rust target..."
@@ -387,16 +392,6 @@ configure_sccache() {
     if [[ -n "${RUSTC_WRAPPER:-}" || -n "${BE3_NO_SCCACHE:-}" ]]; then
         return
     fi
-    # Windows caps a command line at about 32k characters. Cargo stays under it
-    # by handing rustc a response file, but sccache reads that file and then
-    # spawns rustc itself with every argument written out, to collect the
-    # crate's dependencies. web-sys names all four thousand of its features in
-    # one --check-cfg and is past the cap on its own, so the plugin build dies
-    # there with "The filename or extension is too long". Nothing on this side
-    # can shorten that command line, so Windows compiles uncached.
-    if [[ "${OS:-}" == 'Windows_NT' ]]; then
-        return
-    fi
     local binary
     binary="$(find_sccache)"
     if [[ -z "$binary" ]]; then
@@ -424,3 +419,22 @@ configure_sccache() {
 }
 
 configure_sccache
+
+# What a Windows job cannot cache, and why it is only the wasm half of one.
+#
+# Cargo lists every feature a crate declares in a single --check-cfg when it
+# compiles that crate, and web-sys declares four thousand of them: one argument
+# past the 32k a Windows command line holds. Cargo stays under the cap by
+# handing rustc a response file, but sccache reads that file and spawns rustc
+# itself with every argument written out, so the compile dies with "The
+# filename or extension is too long".
+#
+# Nothing on this side can shorten that argument, so a wasm cargo call on
+# Windows goes straight to rustc. The native build keeps the cache, which is
+# where a Windows job spends most of its time and where nothing compiled comes
+# near the cap.
+unwrap_rustc_for_wasm() {
+    if [[ "${OS:-}" == 'Windows_NT' ]]; then
+        unset RUSTC_WRAPPER
+    fi
+}
