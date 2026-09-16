@@ -18,6 +18,13 @@ Which of these is authoritative for a given frame depends on how the editor was 
 
 An infinite canvas applies this on its own side too: every frame it loops over the children it has placed, takes each one's queued `ViewChange`s (`Pan`, `Zoom`, `ResumeAutoFit`) and applies them straight to its own `Viewport`, the same struct that answers the canvas's own scroll and pinch gestures. `Fit` is the one exception - fitting a child means fitting that child's rect into the canvas's world, which only the canvas knows how to compute, so it is remembered as "fit this entity" and resolved the next frame instead of being applied directly. This loop is what makes the camera actually shared rather than merely handed down once: a zoom the focused child requests becomes a `ViewChange` the canvas's own viewport absorbs, which is why panning or zooming while focused into a card moves the canvas under it too.
 
+A beui view that needs the same gestures without a host to hand it a camera -
+a standalone canvas, or the demo's stage - composes `beui::unstyled::PanZoom`
+instead, which reads wheel, pinch and middle-drag over its own rectangle and
+reports a camera its caller owns. It is the gesture half of the same idea, not
+a second camera: an editor placed on a host still takes the camera it is given
+rather than keeping a `PanZoom` of its own.
+
 ## Drawing through it
 
 An egui editor gets an `EditorView { rect, scale }`: `rect` is the `content_rect` translated into the frame's own local coordinates, `scale` is the camera's scale, and it is up to the editor to lay its own content out inside that rectangle at that scale (a pixel art editor divides its image's pixel size by the scale; a world with map units draws a unit that many pixels wide).

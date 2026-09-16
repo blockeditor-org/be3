@@ -414,6 +414,7 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
                     ctrl: state.control_key() || state.super_key(),
                     shift: state.shift_key(),
                 };
+                self.push(Event::Modifiers(self.modifiers));
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.pointer = self.logical(position);
@@ -494,6 +495,9 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
                     }
                 };
                 self.push(Event::Scroll(delta));
+            }
+            WindowEvent::PinchGesture { delta, .. } => {
+                self.push(Event::Zoom(1.0 + delta as f32));
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let pressed = event.state == ElementState::Pressed;

@@ -370,10 +370,13 @@ impl Element for ScrollNode {
             self.drag_offset = None;
             self.animate(&mut position, elapsed);
         }
-        if input.scroll_delta != 0.0 && input.pointer_pos.is_some_and(|pos| rect.contains(pos)) {
+        if input.scroll.y != 0.0
+            && input.gesture_target.is_none()
+            && input.pointer_pos.is_some_and(|pos| rect.contains(pos))
+        {
             self.velocity = 0.0;
             self.overscroll = 0.0;
-            position.offset -= input.scroll_delta;
+            position.offset -= input.scroll.y;
         }
         if touch_target {
             if input.touch_started {

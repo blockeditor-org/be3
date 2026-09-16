@@ -11,6 +11,7 @@ mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_nested_container_reports_its_own_width_not_the_windows;
+mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
@@ -50,10 +51,12 @@ mod clicking_the_padding_around_a_button_label_activates_it;
 mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod ctrl_a_selects_everything_so_typing_replaces_the_value;
+mod ctrl_scrolling_a_pan_zoom_zooms_around_the_pointer;
 mod ctrl_shift_f_moves_focus_between_the_inspector_and_the_document;
 mod ctrl_shift_i_opens_and_closes_the_inspector;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod double_clicking_a_word_selects_it_so_typing_replaces_it;
+mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_slider_moves_its_value;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
@@ -85,6 +88,7 @@ mod performance_measurements_report_work_and_cache_hits;
 mod picking_a_node_leaves_the_document_alone;
 mod picking_a_node_reveals_it_in_the_tree;
 mod picking_a_node_scrolls_the_inspector_tree_to_its_row;
+mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
@@ -95,11 +99,14 @@ mod resizing_an_element_damages_where_it_was_and_where_it_moved_to;
 mod resizing_rows_preserves_the_scroll_anchor;
 mod right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item;
 mod right_click_opens_a_context_menu_at_the_cursor_position;
+mod scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone;
+mod scrolling_a_pan_zoom_pans_it;
 mod scrolling_a_virtual_scroll_replaces_the_items_in_view;
 mod scrolling_a_virtual_scroll_reuses_overlapping_items;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
+mod shift_scrolling_a_pan_zoom_pans_it_sideways;
 mod shift_tab_moves_focus_to_the_previous_button;
 mod show_lazily_builds_and_toggles_its_child_when_the_condition_changes;
 mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
@@ -137,6 +144,7 @@ mod typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view;
 mod view_attributes_can_be_written_without_braces;
 mod view_attributes_can_pun_a_bare_name_as_its_own_value;
 mod view_children_can_pick_fixed_and_percent_sizing;
+mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -150,8 +158,8 @@ use crate::input::{TouchId, TouchPhase};
 use crate::base::list::{Direction, ItemSize};
 use crate::inspector::Inspector;
 use crate::reactive::{
-    ClickCallback, Column, Frame, NodeRef, Spacer, Text, VirtualList, build, intrinsic,
-    with_document,
+    Canvas, CanvasItem, ClickCallback, Column, Frame, NodeRef, Spacer, Text, VirtualList, build,
+    intrinsic, with_document,
 };
 use crate::styled;
 use crate::unstyled;
@@ -228,6 +236,35 @@ impl Harness {
         self.frame(vec![Event::PointerButton {
             pos: to,
             button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }]);
+    }
+
+    pub(crate) fn scroll(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {
+        self.frame(vec![
+            Event::PointerMoved(pos),
+            Event::Modifiers(modifiers),
+            Event::Scroll(delta),
+        ]);
+    }
+
+    pub(crate) fn pinch(&mut self, pos: Pos2, factor: f32) {
+        self.frame(vec![Event::PointerMoved(pos), Event::Zoom(factor)]);
+    }
+
+    pub(crate) fn middle_drag(&mut self, from: Pos2, to: Pos2) {
+        self.frame(vec![Event::PointerMoved(from)]);
+        self.frame(vec![Event::PointerButton {
+            pos: from,
+            button: PointerButton::Middle,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        }]);
+        self.frame(vec![Event::PointerMoved(to)]);
+        self.frame(vec![Event::PointerButton {
+            pos: to,
+            button: PointerButton::Middle,
             pressed: false,
             modifiers: Modifiers::NONE,
         }]);
@@ -495,6 +532,25 @@ pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
         <unstyled::Button on_click={move || on_click.call()}>
             <ButtonFace label />
         </unstyled::Button>
+    }
+}
+
+#[component]
+pub(crate) fn PanZoomStage(
+    view: crate::reactive::Prop<unstyled::PanZoomView>,
+    on_change: crate::reactive::Callback<unstyled::PanZoomView>,
+) -> NodeId {
+    view! {
+        <unstyled::PanZoom @test_id="stage" view on_change={move |view| on_change.call(view)}>
+            {move |handle: unstyled::PanZoomHandle| {
+                let unstyled::PanZoomHandle { view, .. } = handle;
+                view! {
+                    <Canvas view>
+                        <CanvasItem @test_id="item" x=0.0 y=0.0 width=100.0 height=50.0 />
+                    </Canvas>
+                }
+            }}
+        </unstyled::PanZoom>
     }
 }
 

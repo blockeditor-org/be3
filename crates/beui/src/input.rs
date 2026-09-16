@@ -101,6 +101,19 @@ pub struct PointerPress {
     pub touch: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ScrollGesture {
+    pub delta: Vec2,
+    pub pos: Pos2,
+    pub modifiers: Modifiers,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ZoomGesture {
+    pub factor: f32,
+    pub pos: Pos2,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PointerButton {
     Primary,
@@ -132,6 +145,7 @@ pub struct TouchPoint {
 #[derive(Clone, PartialEq, Debug)]
 pub enum Event {
     Focus(bool),
+    Modifiers(Modifiers),
     Key {
         key: Key,
         pressed: bool,
@@ -154,6 +168,7 @@ pub enum Event {
         pos: Pos2,
         force: Option<f32>,
     },
+    Zoom(f32),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -176,13 +191,27 @@ pub struct RawInput {
     pub events: Vec<Event>,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct InputState {
     pub events: Vec<Event>,
     pub pointer: Pointer,
     pub touch: TouchState,
     pub scroll_delta: Vec2,
+    pub zoom_factor: f32,
     pub modifiers: Modifiers,
+}
+
+impl Default for InputState {
+    fn default() -> Self {
+        Self {
+            events: Vec::new(),
+            pointer: Pointer::default(),
+            touch: TouchState::default(),
+            scroll_delta: Vec2::ZERO,
+            zoom_factor: 1.0,
+            modifiers: Modifiers::default(),
+        }
+    }
 }
 
 impl InputState {
@@ -220,6 +249,7 @@ impl InputState {
         self.pointer.begin_frame();
         self.touch.begin_frame(&mut self.pointer);
         self.scroll_delta = Vec2::ZERO;
+        self.zoom_factor = 1.0;
         let suppress_mouse = self.pointer.from_touch
             || raw
                 .events
@@ -232,12 +262,14 @@ impl InputState {
                     self.pointer.pos = None;
                     self.pointer.primary_down = false;
                     self.pointer.secondary_down = false;
+                    self.pointer.middle_down = false;
                 }
                 Event::Focus(false) => {
                     self.touch.cancel(&mut self.pointer);
                     self.pointer.pos = None;
                     self.pointer.primary_down = false;
                     self.pointer.secondary_down = false;
+                    self.pointer.middle_down = false;
                 }
                 Event::PointerButton {
                     pos,
@@ -265,11 +297,21 @@ impl InputState {
                                 self.pointer.secondary_released = true;
                             }
                         }
-                        PointerButton::Middle => {}
+                        PointerButton::Middle => {
+                            self.pointer.middle_down = *pressed;
+                            if *pressed {
+                                self.pointer.middle_pressed = true;
+                            } else {
+                                self.pointer.middle_released = true;
+                            }
+                        }
                     }
                 }
                 Event::Scroll(delta) => self.scroll_delta = self.scroll_delta + *delta,
-                Event::Key { modifiers, .. } => self.modifiers = *modifiers,
+                Event::Zoom(factor) => self.zoom_factor *= *factor,
+                Event::Key { modifiers, .. } | Event::Modifiers(modifiers) => {
+                    self.modifiers = *modifiers;
+                }
                 Event::Touch {
                     id,
                     phase,
@@ -294,6 +336,9 @@ pub struct Pointer {
     pub secondary_down: bool,
     pub secondary_pressed: bool,
     pub secondary_released: bool,
+    pub middle_down: bool,
+    pub middle_pressed: bool,
+    pub middle_released: bool,
     clicks: u32,
     last_click: Option<(Instant, Pos2)>,
     from_touch: bool,
@@ -525,6 +570,8 @@ impl Pointer {
         self.primary_released = false;
         self.secondary_pressed = false;
         self.secondary_released = false;
+        self.middle_pressed = false;
+        self.middle_released = false;
     }
 
     fn count_click(&mut self, pos: Pos2) {
@@ -563,5 +610,13 @@ impl Pointer {
 
     pub fn secondary_released(&self) -> bool {
         self.secondary_released
+    }
+
+    pub fn middle_pressed(&self) -> bool {
+        self.middle_pressed
+    }
+
+    pub fn middle_released(&self) -> bool {
+        self.middle_released
     }
 }
