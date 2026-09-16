@@ -22,6 +22,13 @@ impl Key {
             Key::Node(id) | Key::AccessKit(id) => id,
         }
     }
+
+    pub(crate) fn test_id(self) -> String {
+        match self {
+            Key::Node(id) => format!("inspector.row.node.{}", id.index()),
+            Key::AccessKit(id) => format!("inspector.row.accesskit.{}", id.index()),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
