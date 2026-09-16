@@ -191,13 +191,124 @@ if [[ -n "$zig_cpu" ]]; then
     zig_arguments+=("-Dcpu=$zig_cpu")
 fi
 
+build_libghostty() {
+    (
+        cd "$source_directory"
+        "$zig" "${zig_arguments[@]}" \
+            --prefix "$install_prefix" \
+            --cache-dir "$repository/target/ghostty-vt/zig-cache"
+    )
+}
+
+# Checks a git dependency out at the commit it is pinned to, without its .git,
+# which is the same tree zig would have produced and hashes to the same package
+# name. Asking the remote for the one commit is what works for a commit that no
+# branch points at any more; a server that refuses that is cloned whole instead.
+prefetch_git() {
+    local remote="$1" commit="$2" directory="$3"
+    rm -rf "$directory.tmp"
+    mkdir -p "$directory.tmp"
+    git -C "$directory.tmp" init --quiet
+    git -C "$directory.tmp" remote add origin "$remote"
+    if [[ -n "$commit" ]] \
+        && git -C "$directory.tmp" fetch --quiet --depth 1 origin "$commit" 2> /dev/null; then
+        git -C "$directory.tmp" checkout --quiet FETCH_HEAD
+    else
+        rm -rf "$directory.tmp"
+        # Blobless, because this is the fallback for a server that would not
+        # hand over the one commit, and a manifest naming something that no
+        # longer exists should cost a listing rather than a whole repository.
+        git clone --quiet --filter=blob:none "$remote" "$directory.tmp" 2> /dev/null || return 1
+        if [[ -n "$commit" ]]; then
+            git -C "$directory.tmp" checkout --quiet "$commit" 2> /dev/null || return 1
+        fi
+    fi
+    rm -rf "$directory.tmp/.git"
+    mv "$directory.tmp" "$directory"
+}
+
+# Hands `zig fetch` one dependency that was downloaded with something else, so
+# that it lands in the package cache the build reads and is never fetched over
+# the network again. A tarball keeps its extension, because that is how zig
+# recognises the compression. A GitHub tarball that will not download is
+# checked out instead: some networks serve the git endpoints and not the
+# archive ones, and a repository's archive of a commit holds what a checkout of
+# it does.
+prefetch_url() {
+    local url="$1" name path remote commit
+    name="$(printf '%s' "$url" | git hash-object --stdin)"
+    case "$url" in
+        git+*)
+            remote="${url#git+}"
+            commit=''
+            case "$remote" in
+                *'#'*)
+                    commit="${remote##*#}"
+                    remote="${remote%%#*}"
+                    ;;
+            esac
+            remote="${remote%%\?*}"
+            path="$prefetch_directory/$name"
+            [[ -d "$path" ]] || prefetch_git "$remote" "$commit" "$path" || return 1
+            ;;
+        *)
+            path="$prefetch_directory/$name-$(basename "$url")"
+            if [[ ! -s "$path" ]] \
+                && ! curl --fail --silent --location --output "$path" "$url"; then
+                rm -f "$path"
+                case "$url" in
+                    https://github.com/*/archive/*)
+                        remote="${url%/archive/*}"
+                        commit="$(basename "$url")"
+                        commit="${commit%%.tar*}"
+                        commit="${commit%%.zip}"
+                        path="$prefetch_directory/$name"
+                        [[ -d "$path" ]] || prefetch_git "$remote" "$commit" "$path" || return 1
+                        ;;
+                    *) return 1 ;;
+                esac
+            fi
+            ;;
+    esac
+    (cd "$source_directory" && "$zig" fetch "$path" > /dev/null)
+}
+
+# Zig's package fetcher speaks TLS itself and knows nothing about HTTPS_PROXY,
+# so on a machine whose egress is a proxy - a CI sandbox, a corporate network -
+# every dependency download fails and the build never starts. curl and git do
+# go through a proxy, so when the build fails this fetches what the manifests
+# name with those instead and hands each one to `zig fetch`. Unpacking a
+# package reveals the manifest of its own dependencies, so this repeats until a
+# pass turns up nothing new. A URL that cannot be fetched is left to the build
+# to complain about: several of them are optional packages for platforms this
+# library is not built for, and one is a placeholder in Ghostty's own
+# documentation.
+prefetch_dependencies() {
+    echo 'Fetching Ghostty dependencies without zig, for a proxied network...' >&2
+    mkdir -p "$prefetch_directory"
+    local seen=' ' url pass found
+    for pass in 1 2 3 4 5; do
+        found=0
+        while read -r url; do
+            [[ -z "$url" || "$seen" == *" $url "* ]] && continue
+            seen+="$url "
+            found=1
+            prefetch_url "$url" || true
+        done < <(grep -rho '\.url = "[^"]*"' "$source_directory" --include='*.zon' \
+            | sed -e 's/^\.url = "//' -e 's/"$//' | sort -u)
+        if [[ "$found" -eq 0 ]]; then
+            break
+        fi
+    done
+}
+
+prefetch_directory="$repository/target/ghostty-vt/prefetch"
+
 echo "Building libghostty-vt for $triple ($zig_target)..." >&2
-(
-    cd "$source_directory"
-    "$zig" "${zig_arguments[@]}" \
-        --prefix "$install_prefix" \
-        --cache-dir "$repository/target/ghostty-vt/zig-cache"
-)
+if ! build_libghostty; then
+    prefetch_dependencies
+    build_libghostty
+fi
 
 built="$install_prefix/lib/$built_name"
 if [[ ! -f "$built" ]]; then

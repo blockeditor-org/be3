@@ -160,7 +160,12 @@ fi
 # time, which is the rest of what this setup needs the network for.
 echo 'Building libghostty-vt...'
 host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
-"$internal/build-ghostty-vt.sh" --triple "$host_triple" > /dev/null
+if ! "$internal/build-ghostty-vt.sh" --triple "$host_triple" > /dev/null; then
+    echo '' >&2
+    echo 'libghostty-vt could not be built. block-app links it and cargo builds none' >&2
+    echo 'of it, so the workspace does not compile without it and setup stops here.' >&2
+    exit 1
+fi
 
 # Everything above is a prerequisite, so a machine is usable from here even if
 # what follows does not finish. The tree being warmed is whatever is checked
