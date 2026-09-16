@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
@@ -10,7 +9,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
     CenteredRow, Column, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
-    WriteSignal, clone, component, create_memo, create_signal, on_cleanup, view,
+    WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use crate::styled::{
@@ -105,13 +104,6 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
     }
 }
 
-pub(crate) struct Row {
-    #[cfg(test)]
-    pub(crate) row: NodeRef,
-}
-
-type Rows = Rc<RefCell<HashMap<Key, Row>>>;
-
 type Entries = ReadSignal<HashMap<Key, Entry>>;
 
 pub(crate) struct Panel {
@@ -123,24 +115,6 @@ pub(crate) struct Panel {
     pub(crate) set_selection: WriteSignal<Option<Key>>,
     pub(crate) set_reveal: WriteSignal<Option<Key>>,
     pub(crate) tree: NodeRef,
-    #[cfg(test)]
-    pub(crate) touch_toggle: NodeRef,
-    #[cfg(test)]
-    pub(crate) mouse_toggle: NodeRef,
-    #[cfg(test)]
-    pub(crate) change_flash_toggle: NodeRef,
-    #[cfg(test)]
-    pub(crate) damage_flash_toggle: NodeRef,
-    #[cfg(test)]
-    pub(crate) tabs: NodeRef,
-    #[cfg(test)]
-    pub(crate) performance_panel: NodeRef,
-    #[cfg(test)]
-    pub(crate) pixel_ratio: NodeRef,
-    #[cfg(test)]
-    pub(crate) theme_choice: NodeRef,
-    #[cfg(test)]
-    pub(crate) rows: Rows,
 }
 
 pub(crate) fn build(state: &Rc<State>) -> Panel {
@@ -152,25 +126,8 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let (position, set_position) = create_signal(ScrollPosition::ZERO);
     let (selection, set_selection) = create_signal(None);
     let (reveal, set_reveal) = create_signal(None);
-    let rows: Rows = Rc::default();
     let tree = NodeRef::new();
     let tree_ref = tree.clone();
-    let touch_toggle = NodeRef::new();
-    let touch_toggle_ref = touch_toggle.clone();
-    let mouse_toggle = NodeRef::new();
-    let mouse_toggle_ref = mouse_toggle.clone();
-    let change_flash_toggle = NodeRef::new();
-    let change_flash_toggle_ref = change_flash_toggle.clone();
-    let damage_flash_toggle = NodeRef::new();
-    let damage_flash_toggle_ref = damage_flash_toggle.clone();
-    let tabs = NodeRef::new();
-    let tabs_ref = tabs.clone();
-    let performance_panel = NodeRef::new();
-    let performance_panel_ref = performance_panel.clone();
-    let pixel_ratio = NodeRef::new();
-    let pixel_ratio_ref = pixel_ratio.clone();
-    let theme_choice = NodeRef::new();
-    let theme_choice_ref = theme_choice.clone();
     let simulation_state = state.clone();
     let performance_state = state.clone();
     let tab_state = state.clone();
@@ -211,7 +168,6 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
         let (select_state, expand_state, hover_state) =
             (state.clone(), state.clone(), state.clone());
-        let list_rows = rows.clone();
         let row_entries = entries.clone();
         let item_entries = entries.clone();
         let pick_state = state.clone();
@@ -241,7 +197,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     </Show>
                                 </CenteredRow>
                                 <Tabs
-                                    @node_ref=&tabs_ref
+                                    @test_id={"inspector.tabs"}
                                     labels={vec!["Beui".to_owned(), "A11y".to_owned(), "Perf".to_owned(), "Sim".to_owned()]}
                                     selected=0
                                     on_change={move |index| {
@@ -286,7 +242,6 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                                     <TreeCells
                                                         row_key={key}
                                                         entries={row_entries.clone()}
-                                                        rows={list_rows.clone()}
                                                     />
                                                 }}
                                             </Tree>
@@ -302,24 +257,16 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     condition={body_performance_visible}
                                 >
                                     <PerformancePanel
-                                        @node_ref=&performance_panel_ref
+                                        @test_id={"inspector.performance"}
                                         performance={performance.clone()}
                                         state={performance_state.clone()}
-                                        change_flash_toggle={change_flash_toggle_ref.clone()}
-                                        damage_flash_toggle={damage_flash_toggle_ref.clone()}
                                     />
                                 </Show>
                                 <Show
                                     @sizing=ItemSize::Percent(100.0)
                                     condition={body_simulation_visible}
                                 >
-                                    <SimulationPanel
-                                        state={simulation_state.clone()}
-                                        touch_toggle={touch_toggle_ref.clone()}
-                                        mouse_toggle={mouse_toggle_ref.clone()}
-                                        pixel_ratio={pixel_ratio_ref.clone()}
-                                        theme_choice={theme_choice_ref.clone()}
-                                    />
+                                    <SimulationPanel state={simulation_state.clone()} />
                                 </Show>
                             </Column>
                         </Frame>
@@ -363,35 +310,11 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         set_selection,
         set_reveal,
         tree,
-        #[cfg(test)]
-        touch_toggle,
-        #[cfg(test)]
-        mouse_toggle,
-        #[cfg(test)]
-        change_flash_toggle,
-        #[cfg(test)]
-        damage_flash_toggle,
-        #[cfg(test)]
-        tabs,
-        #[cfg(test)]
-        performance_panel,
-        #[cfg(test)]
-        pixel_ratio,
-        #[cfg(test)]
-        theme_choice,
-        #[cfg(test)]
-        rows,
     }
 }
 
 #[component]
-fn SimulationPanel(
-    state: Rc<State>,
-    touch_toggle: NodeRef,
-    mouse_toggle: NodeRef,
-    pixel_ratio: NodeRef,
-    theme_choice: NodeRef,
-) -> NodeId {
+fn SimulationPanel(state: Rc<State>) -> NodeId {
     let (position, set_position) = create_signal(ScrollPosition::ZERO);
     let simulated = state.simulated_pixels_per_point.get();
     let selected = PIXEL_RATIOS
@@ -422,13 +345,13 @@ fn SimulationPanel(
             >
                 <Column spacing=PERFORMANCE_SPACING>
                     <Checkbox
-                        @node_ref=&touch_toggle
+                        @test_id={"inspector.simulation.touch_emulation"}
                         label="Emulate touch with mouse"
                         checked={state.touch_emulation.get()}
                         on_change={move |enabled| touch_state.touch_emulation.set(enabled)}
                     />
                     <Checkbox
-                        @node_ref=&mouse_toggle
+                        @test_id={"inspector.simulation.mouse_simulation"}
                         label="Simulate mouse with touch"
                         checked={state.mouse_simulation.get()}
                         on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
@@ -437,7 +360,7 @@ fn SimulationPanel(
                     <Column spacing=TIMING_SPACING>
                         <Heading content="Device pixel ratio" />
                         <RadioGroup
-                            @node_ref=&pixel_ratio
+                            @test_id={"inspector.simulation.pixel_ratio"}
                             labels
                             selected={Some(selected)}
                             on_change={move |index: Option<usize>| {
@@ -450,7 +373,7 @@ fn SimulationPanel(
                     <Column spacing=TIMING_SPACING>
                         <Heading content="Theme" />
                         <RadioGroup
-                            @node_ref=&theme_choice
+                            @test_id={"inspector.simulation.theme"}
                             labels={theme_labels}
                             selected={Some(selected_theme)}
                             on_change={move |index: Option<usize>| {
@@ -475,12 +398,7 @@ pub(crate) fn total_label(total: usize) -> String {
 }
 
 #[component]
-fn PerformancePanel(
-    performance: ReadSignal<PerformanceSummary>,
-    state: Rc<State>,
-    change_flash_toggle: NodeRef,
-    damage_flash_toggle: NodeRef,
-) -> NodeId {
+fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State>) -> NodeId {
     let (position, set_position) = create_signal(ScrollPosition::ZERO);
     let (change_state, damage_state) = (state.clone(), state.clone());
     let latest_work = performance_text(&performance, |summary| &summary.latest_work);
@@ -523,13 +441,13 @@ fn PerformancePanel(
                     <Column spacing=TIMING_SPACING>
                         <Heading content="Visualize" />
                         <Checkbox
-                            @node_ref=&change_flash_toggle
+                            @test_id={"inspector.performance.flash_changes"}
                             label="Flash changed elements"
                             checked={state.flash_changes.get()}
                             on_change={move |enabled| change_state.flash_changes.set(enabled)}
                         />
                         <Checkbox
-                            @node_ref=&damage_flash_toggle
+                            @test_id={"inspector.performance.flash_damage"}
                             label="Flash repainted regions"
                             checked={state.flash_damage.get()}
                             on_change={move |enabled| damage_state.flash_damage.set(enabled)}
@@ -643,26 +561,14 @@ fn entry_field<T: Clone + Default + PartialEq + 'static>(
 }
 
 #[component]
-fn TreeCells(row_key: Key, entries: Entries, rows: Rows) -> NodeId {
+fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
     let key = row_key;
     let kind = entry_field(&entries, key, |entry| entry.kind.to_owned());
     let detail = entry_field(&entries, key, |entry| entry.detail.clone());
     let size = entry_field(&entries, key, |entry| entry.size.clone());
 
-    let row = NodeRef::new();
-    rows.borrow_mut().insert(
-        key,
-        Row {
-            #[cfg(test)]
-            row: row.clone(),
-        },
-    );
-    on_cleanup(move || {
-        rows.borrow_mut().remove(&key);
-    });
-
     view! {
-        <CenteredRow @node_ref=&row spacing=ROW_SPACING>
+        <CenteredRow @test_id={key.test_id()} spacing=ROW_SPACING>
             <Code content={kind} />
             <Code @sizing=ItemSize::Percent(100.0) content={detail} color={THEME.text_muted} />
             <Code content={size} color={THEME.text_muted} align=TextAlign::End />

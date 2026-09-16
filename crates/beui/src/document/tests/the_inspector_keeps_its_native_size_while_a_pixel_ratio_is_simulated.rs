@@ -6,7 +6,7 @@ fn the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated() {
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());
     harness.frame(vec![]);
-    let tab = harness.inspector().simulation_tab_node();
+    let tab = harness.simulation_tab_node();
     let native = harness
         .inspector()
         .document

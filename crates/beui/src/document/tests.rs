@@ -332,11 +332,11 @@ impl Harness {
     }
 
     pub(crate) fn touch_toggle_center(&self) -> Pos2 {
-        self.node_center(self.inspector().touch_toggle_node())
+        self.inspector_center("inspector.simulation.touch_emulation")
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
-        self.node_center(self.inspector().mouse_toggle_node())
+        self.inspector_center("inspector.simulation.mouse_simulation")
     }
 
     pub(crate) fn mouse_simulation(&self) -> bool {
@@ -390,38 +390,58 @@ impl Harness {
     }
 
     pub(crate) fn change_flash_toggle_center(&self) -> Pos2 {
-        self.node_center(self.inspector().change_flash_toggle_node())
+        self.inspector_center("inspector.performance.flash_changes")
     }
 
     pub(crate) fn damage_flash_toggle_center(&self) -> Pos2 {
-        self.node_center(self.inspector().damage_flash_toggle_node())
+        self.inspector_center("inspector.performance.flash_damage")
     }
 
     pub(crate) fn accesskit_tab_center(&self) -> Pos2 {
-        self.node_center(self.inspector().accesskit_tab_node())
+        self.node_center(self.tab_node(1))
     }
 
     pub(crate) fn performance_tab_center(&self) -> Pos2 {
-        self.node_center(self.inspector().performance_tab_node())
+        self.node_center(self.tab_node(2))
     }
 
     pub(crate) fn simulation_tab_center(&self) -> Pos2 {
-        self.node_center(self.inspector().simulation_tab_node())
+        self.node_center(self.simulation_tab_node())
+    }
+
+    pub(crate) fn simulation_tab_node(&self) -> NodeId {
+        self.tab_node(3)
     }
 
     pub(crate) fn pixel_ratio_option_center(&self, index: usize) -> Pos2 {
-        self.node_center(self.inspector().pixel_ratio_option_node(index))
+        let option = self
+            .inspector()
+            .option_node("inspector.simulation.pixel_ratio", index);
+        self.node_center(option)
     }
 
     pub(crate) fn theme_option_center(&self, index: usize) -> Pos2 {
-        self.node_center(self.inspector().theme_option_node(index))
+        let option = self
+            .inspector()
+            .option_node("inspector.simulation.theme", index);
+        self.node_center(option)
     }
 
     pub(crate) fn performance_panel_visible(&self) -> bool {
-        self.inspector()
+        let inspector = self.inspector();
+        inspector
             .document
-            .node_rect(self.inspector().performance_panel_node())
+            .find_test_id("inspector.performance")
+            .and_then(|panel| inspector.document.node_rect(panel))
             .is_some()
+    }
+
+    fn tab_node(&self, index: usize) -> NodeId {
+        self.inspector().option_node("inspector.tabs", index)
+    }
+
+    fn inspector_center(&self, test_id: &str) -> Pos2 {
+        self.node_center(self.inspector().find(test_id))
     }
 
     pub(crate) fn touch_emulation(&self) -> bool {

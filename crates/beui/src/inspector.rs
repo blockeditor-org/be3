@@ -15,7 +15,7 @@ use crate::painter::Painter;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{WriteSignal, with_document, with_reactive_scope};
+use crate::reactive::{NodeRef, WriteSignal, with_document, with_reactive_scope};
 use crate::styled::Theme;
 
 use panel::Summary;
@@ -153,25 +153,7 @@ pub(crate) struct Inspector {
     set_performance: WriteSignal<panel::PerformanceSummary>,
     set_selection: WriteSignal<Option<Key>>,
     set_reveal: WriteSignal<Option<Key>>,
-    #[cfg(test)]
-    rows: Rc<RefCell<HashMap<Key, panel::Row>>>,
-    tree: crate::reactive::NodeRef,
-    #[cfg(test)]
-    touch_toggle: crate::reactive::NodeRef,
-    #[cfg(test)]
-    mouse_toggle: crate::reactive::NodeRef,
-    #[cfg(test)]
-    change_flash_toggle: crate::reactive::NodeRef,
-    #[cfg(test)]
-    damage_flash_toggle: crate::reactive::NodeRef,
-    #[cfg(test)]
-    tabs: crate::reactive::NodeRef,
-    #[cfg(test)]
-    performance_panel: crate::reactive::NodeRef,
-    #[cfg(test)]
-    pixel_ratio: crate::reactive::NodeRef,
-    #[cfg(test)]
-    theme_choice: crate::reactive::NodeRef,
+    tree: NodeRef,
     pub(crate) width: f32,
     grabbed: Option<f32>,
     grip: bool,
@@ -186,25 +168,7 @@ impl Inspector {
         Self {
             document: panel.document,
             entries: Vec::new(),
-            #[cfg(test)]
-            rows: panel.rows,
             tree: panel.tree,
-            #[cfg(test)]
-            touch_toggle: panel.touch_toggle,
-            #[cfg(test)]
-            mouse_toggle: panel.mouse_toggle,
-            #[cfg(test)]
-            change_flash_toggle: panel.change_flash_toggle,
-            #[cfg(test)]
-            damage_flash_toggle: panel.damage_flash_toggle,
-            #[cfg(test)]
-            tabs: panel.tabs,
-            #[cfg(test)]
-            performance_panel: panel.performance_panel,
-            #[cfg(test)]
-            pixel_ratio: panel.pixel_ratio,
-            #[cfg(test)]
-            theme_choice: panel.theme_choice,
             state,
             set_keys: panel.set_keys,
             set_entries: panel.set_entries,
@@ -222,66 +186,24 @@ impl Inspector {
 
     #[cfg(test)]
     pub(crate) fn row_node(&self, index: usize) -> NodeId {
-        let key = self.entries[index].key;
-        self.rows.borrow()[&key].row.get()
+        self.find(&self.entries[index].key.test_id())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn find(&self, test_id: &str) -> NodeId {
+        self.document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("the inspector has no node with test id {test_id:?}"))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn option_node(&self, test_id: &str, index: usize) -> NodeId {
+        self.document.children(self.find(test_id))[index]
     }
 
     #[cfg(test)]
     pub(crate) fn focused_row(&self) -> Option<Key> {
         crate::unstyled::tree_focused::<Key>(&self.document, self.tree.get())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn touch_toggle_node(&self) -> NodeId {
-        self.touch_toggle.get()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn mouse_toggle_node(&self) -> NodeId {
-        self.mouse_toggle.get()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn change_flash_toggle_node(&self) -> NodeId {
-        self.change_flash_toggle.get()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn damage_flash_toggle_node(&self) -> NodeId {
-        self.damage_flash_toggle.get()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn accesskit_tab_node(&self) -> NodeId {
-        let tabs = self.tabs.get();
-        self.document.children(tabs)[1]
-    }
-
-    #[cfg(test)]
-    pub(crate) fn performance_tab_node(&self) -> NodeId {
-        let tabs = self.tabs.get();
-        self.document.children(tabs)[2]
-    }
-
-    #[cfg(test)]
-    pub(crate) fn simulation_tab_node(&self) -> NodeId {
-        let tabs = self.tabs.get();
-        self.document.children(tabs)[3]
-    }
-
-    #[cfg(test)]
-    pub(crate) fn pixel_ratio_option_node(&self, index: usize) -> NodeId {
-        self.document.children(self.pixel_ratio.get())[index]
-    }
-
-    #[cfg(test)]
-    pub(crate) fn theme_option_node(&self, index: usize) -> NodeId {
-        self.document.children(self.theme_choice.get())[index]
-    }
-
-    #[cfg(test)]
-    pub(crate) fn performance_panel_node(&self) -> NodeId {
-        self.performance_panel.get()
     }
 
     pub(crate) fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
