@@ -89,6 +89,7 @@ mod performance_measurements_report_work_and_cache_hits;
 mod picking_a_node_leaves_the_document_alone;
 mod picking_a_node_reveals_it_in_the_tree;
 mod picking_a_node_scrolls_the_inspector_tree_to_its_row;
+mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
@@ -174,6 +175,15 @@ const VIEWPORT: Vec2 = Vec2::new(400.0, 300.0);
 const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
+
+fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
+    Event::Touch {
+        id: TouchId { device: 1, finger },
+        phase,
+        pos,
+        force: None,
+    }
+}
 
 pub(crate) struct Harness {
     context: Context,
@@ -275,17 +285,19 @@ impl Harness {
         }]);
     }
 
+    pub(crate) fn move_fingers(&mut self, first: Pos2, second: Pos2) {
+        self.frame(vec![
+            touch_event(1, TouchPhase::Move, first),
+            touch_event(2, TouchPhase::Move, second),
+        ]);
+    }
+
     pub(crate) fn touch(&mut self, phase: TouchPhase, pos: Pos2) {
         self.finger(1, phase, pos);
     }
 
     pub(crate) fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) {
-        self.frame(vec![Event::Touch {
-            id: TouchId { device: 1, finger },
-            phase,
-            pos,
-            force: None,
-        }]);
+        self.frame(vec![touch_event(finger, phase, pos)]);
     }
 
     pub(crate) fn key(&mut self, key: Key, modifiers: Modifiers) {

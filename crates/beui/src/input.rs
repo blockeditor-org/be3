@@ -238,6 +238,9 @@ impl InputState {
         touch.start = touch.start.map(scale);
         touch.previous = touch.previous.map(scale);
         touch.scroll_delta = touch.scroll_delta * factor;
+        touch.pinch_pan = touch.pinch_pan * factor;
+        touch.pinch_center = touch.pinch_center.map(scale);
+        touch.pinch_span = touch.pinch_span.map(|span| span * factor);
         for (_, pos) in &mut touch.samples {
             *pos = scale(*pos);
         }
@@ -352,7 +355,7 @@ enum TouchDirection {
     Vertical,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct TouchState {
     points: HashMap<TouchId, TouchPoint>,
     primary: Option<TouchId>,
@@ -367,6 +370,34 @@ pub struct TouchState {
     scroll_delta: Vec2,
     samples: VecDeque<(Instant, Pos2)>,
     velocity: Vec2,
+    pinch: f32,
+    pinch_pan: Vec2,
+    pinch_center: Option<Pos2>,
+    pinch_span: Option<f32>,
+}
+
+impl Default for TouchState {
+    fn default() -> Self {
+        Self {
+            points: HashMap::new(),
+            primary: None,
+            start: None,
+            previous: None,
+            direction: TouchDirection::Undecided,
+            multi: false,
+            started: false,
+            ended: false,
+            cancelled: false,
+            dragged: false,
+            scroll_delta: Vec2::ZERO,
+            samples: VecDeque::new(),
+            velocity: Vec2::ZERO,
+            pinch: 1.0,
+            pinch_pan: Vec2::ZERO,
+            pinch_center: None,
+            pinch_span: None,
+        }
+    }
 }
 
 impl TouchState {
@@ -375,6 +406,8 @@ impl TouchState {
         self.ended = false;
         self.cancelled = false;
         self.scroll_delta = Vec2::ZERO;
+        self.pinch = 1.0;
+        self.pinch_pan = Vec2::ZERO;
         if self.primary.is_none() {
             self.start = None;
             self.previous = None;
@@ -383,6 +416,8 @@ impl TouchState {
             self.dragged = false;
             self.samples.clear();
             self.velocity = Vec2::ZERO;
+            self.pinch_center = None;
+            self.pinch_span = None;
             if pointer.from_touch {
                 pointer.pos = None;
                 pointer.from_touch = false;
@@ -408,6 +443,7 @@ impl TouchState {
 
     fn start(&mut self, id: TouchId, pos: Pos2, force: Option<f32>, pointer: &mut Pointer) {
         self.points.insert(id, TouchPoint { id, pos, force });
+        self.measure_pinch();
         if self.primary.is_some() {
             self.cancelled = true;
             self.dragged = true;
@@ -437,6 +473,7 @@ impl TouchState {
         };
         point.pos = pos;
         point.force = force;
+        self.measure_pinch();
         if self.primary != Some(id) {
             return;
         }
@@ -473,6 +510,8 @@ impl TouchState {
     ) {
         self.move_to(id, pos, force, pointer);
         self.points.remove(&id);
+        self.pinch_span = None;
+        self.pinch_center = None;
         if self.primary != Some(id) {
             return;
         }
@@ -485,6 +524,30 @@ impl TouchState {
         if cancelled {
             pointer.pos = None;
         }
+    }
+
+    fn measure_pinch(&mut self) {
+        let mut points = self.points.values();
+        let (Some(first), Some(second), None) = (points.next(), points.next(), points.next()) else {
+            self.pinch_center = None;
+            self.pinch_span = None;
+            return;
+        };
+        let (first, second) = (first.pos, second.pos);
+        let span = first.distance(second);
+        let center = Pos2::new(
+            (first.x + second.x) * 0.5,
+            (first.y + second.y) * 0.5,
+        );
+        if let (Some(previous_span), Some(previous_center)) = (self.pinch_span, self.pinch_center)
+            && previous_span > 0.0
+            && span > 0.0
+        {
+            self.pinch *= span / previous_span;
+            self.pinch_pan = self.pinch_pan + (center - previous_center);
+        }
+        self.pinch_span = Some(span);
+        self.pinch_center = Some(center);
     }
 
     fn along(&self, movement: Vec2) -> Vec2 {
@@ -508,6 +571,8 @@ impl TouchState {
         self.dragged = false;
         self.samples.clear();
         self.velocity = Vec2::ZERO;
+        self.pinch_span = None;
+        self.pinch_center = None;
         pointer.from_touch = false;
     }
 
@@ -579,6 +644,18 @@ impl TouchState {
 
     pub fn velocity(&self) -> Vec2 {
         self.velocity
+    }
+
+    pub fn pinch(&self) -> f32 {
+        self.pinch
+    }
+
+    pub fn pinch_pan(&self) -> Vec2 {
+        self.pinch_pan
+    }
+
+    pub fn pinch_center(&self) -> Option<Pos2> {
+        self.pinch_center
     }
 }
 

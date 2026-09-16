@@ -160,8 +160,8 @@ pub fn PanZoom(
                 }
             }}
             on_zoom={move |gesture: ZoomGesture| zoom_camera.zoom(gesture.factor, gesture.pos)}
-            on_middle_drag={move |delta: Vec2| camera.pan(delta)}
-            on_middle_active_change={move |panning: bool| set_panning.set(panning)}
+            on_pan_drag={move |delta: Vec2| camera.pan(delta)}
+            on_pan_active_change={move |panning: bool| set_panning.set(panning)}
             children={Some(content_node)}
         />
     }

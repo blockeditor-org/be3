@@ -33,7 +33,9 @@ pub(crate) fn interact(
         middle_down: ctx.input(|input| input.pointer.middle_down),
         middle_pressed_this_frame: ctx.input(|input| input.pointer.middle_pressed()),
         scroll: wheel,
-        zoom: ctx.input(|input| input.zoom_factor),
+        zoom: ctx.input(|input| input.zoom_factor * input.touch.pinch()),
+        touch_pan: ctx.input(|input| input.touch.pinch_pan()),
+        zoom_pos: ctx.input(|input| input.touch.pinch_center().or(input.pointer.interact_pos())),
         wheel_target: None,
         zoom_target: None,
         touch_started: ctx.input(|input| input.touch.started()),
@@ -79,8 +81,8 @@ pub(crate) fn interact(
             })
         })
         .flatten();
-    let zoom_target = (input.zoom != 1.0)
-        .then(|| target(doc, rects, root, input.pointer_pos, &wants_gestures))
+    let zoom_target = (input.zoom != 1.0 || input.touch_pan != Vec2::ZERO)
+        .then(|| target(doc, rects, root, input.zoom_pos, &wants_gestures))
         .flatten();
     let (vertical, horizontal) = ctx.input(|state| {
         (
