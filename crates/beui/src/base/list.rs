@@ -13,6 +13,26 @@ pub enum Direction {
     Vertical,
 }
 
+impl Direction {
+    pub(crate) fn axes(self, main: f32, cross: f32) -> Vec2 {
+        match self {
+            Direction::Horizontal => vec2(main, cross),
+            Direction::Vertical => vec2(cross, main),
+        }
+    }
+
+    pub(crate) fn main(self, size: Vec2) -> f32 {
+        self.main_and_cross(size).0
+    }
+
+    pub(crate) fn main_and_cross(self, size: Vec2) -> (f32, f32) {
+        match self {
+            Direction::Horizontal => (size.x, size.y),
+            Direction::Vertical => (size.y, size.x),
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Align {
     Start,
@@ -47,19 +67,11 @@ impl ListNode {
     }
 
     fn axes(&self, main: f32, cross: f32) -> Vec2 {
-        if self.horizontal() {
-            vec2(main, cross)
-        } else {
-            vec2(cross, main)
-        }
+        self.direction.axes(main, cross)
     }
 
     fn main_and_cross(&self, size: Vec2) -> (f32, f32) {
-        if self.horizontal() {
-            (size.x, size.y)
-        } else {
-            (size.y, size.x)
-        }
+        self.direction.main_and_cross(size)
     }
 
     fn item_sizes(&self, doc: &Document) -> Vec<ItemSize> {

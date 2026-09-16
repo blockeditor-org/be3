@@ -179,7 +179,13 @@ components directly, because they have no interaction behavior to delegate.
 
 The main base building blocks are `Row`, `Column`, `List`, `Frame`, `Text`,
 `Scroll`, and `VirtualList`; `Frame` combines optional sizing, padding, fill,
-outline, and visibility on one retained node. The unstyled module contains
+outline, and visibility on one retained node. `Scroll` and `VirtualList` take a
+`direction`, so the same node is a column of rows or a strip of cards; a
+horizontal one answers Shift+wheel, a sideways trackpad swipe, a touch drag and
+the left and right arrows, and `styled::Scrollbar` takes the same `direction`.
+A plain wheel is left to whatever is around it, the way a browser leaves a
+horizontal strip alone, and a wheel only ever reaches the innermost scroll
+under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
 `Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, and `Stack`. The styled
 module supplies themed buttons, text styles, cards, checkboxes, switches,

@@ -278,7 +278,8 @@ impl Document {
 
     pub(crate) fn capture_pointer(&mut self, captor: NodeId) {
         self.pointer_capture = Some(captor);
-        self.touch_scroll_target = None;
+        self.touch_scroll_vertical = None;
+        self.touch_scroll_horizontal = None;
     }
 
     pub(crate) fn set_click_catcher_child(&mut self, click_catcher: NodeId, child: NodeId) {

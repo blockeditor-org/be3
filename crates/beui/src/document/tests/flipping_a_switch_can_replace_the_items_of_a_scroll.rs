@@ -35,7 +35,7 @@ fn check_compact_rows(inset: f32) {
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
-                        item_height
+                        item_size={item_height}
                     >
                         {move |index: usize| {
                             sink.borrow_mut().push(index);

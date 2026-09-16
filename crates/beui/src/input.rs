@@ -359,6 +359,7 @@ pub struct TouchState {
     start: Option<Pos2>,
     previous: Option<Pos2>,
     direction: TouchDirection,
+    multi: bool,
     started: bool,
     ended: bool,
     cancelled: bool,
@@ -378,6 +379,7 @@ impl TouchState {
             self.start = None;
             self.previous = None;
             self.direction = TouchDirection::Undecided;
+            self.multi = false;
             self.dragged = false;
             self.samples.clear();
             self.velocity = Vec2::ZERO;
@@ -409,7 +411,8 @@ impl TouchState {
         if self.primary.is_some() {
             self.cancelled = true;
             self.dragged = true;
-            self.direction = TouchDirection::Horizontal;
+            self.multi = true;
+            self.direction = TouchDirection::Undecided;
             return;
         }
         self.primary = Some(id);
@@ -439,6 +442,10 @@ impl TouchState {
         }
         let previous = self.previous.replace(pos).unwrap_or(pos);
         pointer.pos = Some(pos);
+        if self.multi {
+            self.sample(pos);
+            return;
+        }
         let movement = pos - self.start.unwrap_or(pos);
         if self.direction == TouchDirection::Undecided
             && movement.x.hypot(movement.y) >= TOUCH_DRAG_THRESHOLD
@@ -449,11 +456,9 @@ impl TouchState {
             } else {
                 TouchDirection::Horizontal
             };
-            if self.direction == TouchDirection::Vertical {
-                self.scroll_delta = self.scroll_delta + movement;
-            }
-        } else if self.direction == TouchDirection::Vertical {
-            self.scroll_delta = self.scroll_delta + (pos - previous);
+            self.scroll_delta = self.scroll_delta + self.along(movement);
+        } else if self.direction != TouchDirection::Undecided {
+            self.scroll_delta = self.scroll_delta + self.along(pos - previous);
         }
         self.sample(pos);
     }
@@ -482,6 +487,14 @@ impl TouchState {
         }
     }
 
+    fn along(&self, movement: Vec2) -> Vec2 {
+        match self.direction {
+            TouchDirection::Vertical => Vec2::new(0.0, movement.y),
+            TouchDirection::Horizontal => Vec2::new(movement.x, 0.0),
+            TouchDirection::Undecided => Vec2::ZERO,
+        }
+    }
+
     fn cancel(&mut self, pointer: &mut Pointer) {
         if self.primary.is_some() {
             self.cancelled = true;
@@ -491,6 +504,7 @@ impl TouchState {
         self.start = None;
         self.previous = None;
         self.direction = TouchDirection::Undecided;
+        self.multi = false;
         self.dragged = false;
         self.samples.clear();
         self.velocity = Vec2::ZERO;
@@ -553,6 +567,10 @@ impl TouchState {
 
     pub fn scrolling(&self) -> bool {
         self.direction == TouchDirection::Vertical
+    }
+
+    pub fn scrolling_horizontally(&self) -> bool {
+        self.direction == TouchDirection::Horizontal
     }
 
     pub fn scroll_delta(&self) -> Vec2 {

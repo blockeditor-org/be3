@@ -7,6 +7,7 @@ mod a_closure_child_receives_the_handle_its_slot_hands_over;
 mod a_component_function_returns_its_base_node;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_dynamic_child_can_fill_its_available_height;
+mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_multi_root_view_fills_a_children_prop_in_order;
@@ -108,6 +109,7 @@ mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
 mod shift_scrolling_a_pan_zoom_pans_it_sideways;
+mod shift_scrolling_a_horizontal_scroll_moves_it_sideways;
 mod shift_tab_moves_focus_to_the_previous_button;
 mod show_lazily_builds_and_toggles_its_child_when_the_condition_changes;
 mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
@@ -131,8 +133,10 @@ mod the_inspector_shows_document_performance;
 mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
+mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
 mod the_scroll_position_is_reported_to_its_listener;
 mod the_simulated_keyboard_types_into_the_focused_input;
+mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
@@ -567,7 +571,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
-                        item_height=VIRTUAL_ITEM_HEIGHT
+                        item_size=VIRTUAL_ITEM_HEIGHT
                     >
                         {move |index: usize| {
                             sink.borrow_mut().push(index);

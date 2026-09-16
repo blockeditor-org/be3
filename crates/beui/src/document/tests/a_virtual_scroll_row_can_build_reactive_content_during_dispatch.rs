@@ -13,7 +13,7 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
-                        item_height=VIRTUAL_ITEM_HEIGHT
+                        item_size=VIRTUAL_ITEM_HEIGHT
                     >
                         {|index: usize| view! {
                             <Text string={format!("Row {index}")} />

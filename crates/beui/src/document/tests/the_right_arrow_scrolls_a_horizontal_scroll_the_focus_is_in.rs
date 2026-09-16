@@ -1,0 +1,44 @@
+use super::*;
+use crate::base::Direction;
+use crate::reactive::{ItemSize, Scroll, build, intrinsic, view};
+
+#[test]
+fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {
+    let document = build(move || {
+        let items = (0..40)
+            .map(|index| {
+                intrinsic(view! {
+                    <Frame width=120.0>
+                        <LabelledButton label={format!("Card {index}")} on_click={move || {}} />
+                    </Frame>
+                })
+            })
+            .collect::<Vec<_>>();
+        view! {
+            <Column spacing=0.0>
+                <Scroll
+                    @sizing=ItemSize::Percent(100.0)
+                    @test_id="strip"
+                    direction=Direction::Horizontal
+                    children={items}
+                />
+            </Column>
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    let strip = harness.find("strip");
+
+    harness.key(Key::Tab, Modifiers::NONE);
+    harness.key(Key::ArrowRight, Modifiers::NONE);
+    harness.frame(Vec::new());
+    assert_eq!(harness.document().scroll_offset(strip), 40.0);
+
+    harness.key(Key::End, Modifiers::NONE);
+    harness.frame(Vec::new());
+    assert!(harness.document().scroll_offset(strip) > 40.0);
+
+    harness.key(Key::Home, Modifiers::NONE);
+    harness.frame(Vec::new());
+    assert_eq!(harness.document().scroll_offset(strip), 0.0);
+}

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::context::Context;
+use crate::base::list::Direction;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{Event, Key, KeyPress};
 use crate::painter::Painter;
@@ -40,16 +41,21 @@ pub(crate) fn interact(
         touch_ended: ctx.input(|input| input.touch.ended()),
         touch_cancelled: ctx.input(|input| input.touch.cancelled()),
         touch_dragged: ctx.input(|input| input.touch.dragged()),
-        touch_scrolling: ctx.input(|input| input.touch.scrolling()),
-        touch_scroll_delta: ctx.input(|input| input.touch.scroll_delta().y),
-        touch_velocity: ctx.input(|input| input.touch.velocity().y),
+        touch_scrolling: false,
+        touch_scroll_delta: ctx.input(|input| input.touch.scroll_delta()),
+        touch_velocity: ctx.input(|input| input.touch.velocity()),
         touch_scroll_target: None,
         clicks: ctx.input(|input| input.pointer.clicks()),
         modifiers,
     };
 
     if input.touch_started {
-        doc.touch_scroll_target = target(doc, rects, root, input.pointer_pos, &is_scroll);
+        doc.touch_scroll_vertical = target(doc, rects, root, input.pointer_pos, &|element| {
+            scrolls_along(element, Direction::Vertical)
+        });
+        doc.touch_scroll_horizontal = target(doc, rects, root, input.pointer_pos, &|element| {
+            scrolls_along(element, Direction::Horizontal)
+        });
     }
     if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
@@ -69,15 +75,27 @@ pub(crate) fn interact(
     let wheel_target = (input.scroll != Vec2::ZERO)
         .then(|| {
             target(doc, rects, root, input.pointer_pos, &|element| {
-                is_scroll(element) || wants_gestures(element)
+                wants_wheel(element, input.scroll) || wants_gestures(element)
             })
         })
         .flatten();
     let zoom_target = (input.zoom != 1.0)
         .then(|| target(doc, rects, root, input.pointer_pos, &wants_gestures))
         .flatten();
+    let (vertical, horizontal) = ctx.input(|state| {
+        (
+            state.touch.scrolling(),
+            state.touch.scrolling_horizontally(),
+        )
+    });
+    let touch_scroll_target = match (vertical, horizontal) {
+        (true, _) => doc.touch_scroll_vertical,
+        (_, true) => doc.touch_scroll_horizontal,
+        _ => None,
+    };
     let input = InteractInput {
-        touch_scroll_target: doc.touch_scroll_target,
+        touch_scrolling: vertical || (horizontal && touch_scroll_target.is_some()),
+        touch_scroll_target,
         wheel_target,
         zoom_target,
         ..input
@@ -161,7 +179,8 @@ pub(crate) fn interact(
     }
     doc.validate_focus();
     if input.touch_ended || input.touch_cancelled {
-        doc.touch_scroll_target = None;
+        doc.touch_scroll_vertical = None;
+        doc.touch_scroll_horizontal = None;
     }
     if !input.pointer_down {
         doc.pointer_capture = None;
@@ -186,8 +205,18 @@ fn captor(
     captures.then_some(id)
 }
 
-fn is_scroll(element: &dyn crate::node::Element) -> bool {
-    element.as_any().is::<crate::base::scroll::ScrollNode>()
+fn scrolls_along(element: &dyn crate::node::Element, direction: Direction) -> bool {
+    element
+        .as_any()
+        .downcast_ref::<crate::base::scroll::ScrollNode>()
+        .is_some_and(|scroll| scroll.direction == direction)
+}
+
+fn wants_wheel(element: &dyn crate::node::Element, wheel: Vec2) -> bool {
+    element
+        .as_any()
+        .downcast_ref::<crate::base::scroll::ScrollNode>()
+        .is_some_and(|scroll| scroll.direction.main(wheel) != 0.0)
 }
 
 fn wants_gestures(element: &dyn crate::node::Element) -> bool {
