@@ -370,10 +370,7 @@ impl Element for ScrollNode {
             self.drag_offset = None;
             self.animate(&mut position, elapsed);
         }
-        if input.scroll.y != 0.0
-            && input.gesture_target.is_none()
-            && input.pointer_pos.is_some_and(|pos| rect.contains(pos))
-        {
+        if input.wheel_target == Some(id) && input.scroll.y != 0.0 {
             self.velocity = 0.0;
             self.overscroll = 0.0;
             position.offset -= input.scroll.y;

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::context::Context;
-use crate::geometry::{Pos2, Rect};
+use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{Event, Key, KeyPress};
 use crate::painter::Painter;
 
@@ -16,6 +16,13 @@ pub(crate) fn interact(
     root: NodeId,
     keyboard_interactive: bool,
 ) {
+    let modifiers = ctx.input(|input| input.modifiers);
+    let wheel = ctx.input(|input| input.scroll_delta);
+    let wheel = if modifiers.shift && wheel.x == 0.0 {
+        vec2(wheel.y, 0.0)
+    } else {
+        wheel
+    };
     let input = InteractInput {
         pointer_pos: ctx.input(|input| input.pointer.interact_pos()),
         pointer_down: ctx.input(|input| input.pointer.primary_down),
@@ -24,9 +31,10 @@ pub(crate) fn interact(
         secondary_pressed_this_frame: ctx.input(|input| input.pointer.secondary_pressed()),
         middle_down: ctx.input(|input| input.pointer.middle_down),
         middle_pressed_this_frame: ctx.input(|input| input.pointer.middle_pressed()),
-        scroll: ctx.input(|input| input.scroll_delta),
+        scroll: wheel,
         zoom: ctx.input(|input| input.zoom_factor),
-        gesture_target: None,
+        wheel_target: None,
+        zoom_target: None,
         touch_started: ctx.input(|input| input.touch.started()),
         touch_active: ctx.input(|input| input.touch.active()),
         touch_ended: ctx.input(|input| input.touch.ended()),
@@ -37,20 +45,11 @@ pub(crate) fn interact(
         touch_velocity: ctx.input(|input| input.touch.velocity().y),
         touch_scroll_target: None,
         clicks: ctx.input(|input| input.pointer.clicks()),
-        modifiers: ctx.input(|input| input.modifiers),
+        modifiers,
     };
 
     if input.touch_started {
-        doc.touch_scroll_target = input.pointer_pos.and_then(|pos| {
-            if doc.overlay_stack.is_empty() {
-                deepest_scroll(doc, rects, root, pos)
-            } else {
-                doc.overlay_stack
-                    .iter()
-                    .rev()
-                    .find_map(|overlay| deepest_scroll(doc, rects, *overlay, pos))
-            }
-        });
+        doc.touch_scroll_target = target(doc, rects, root, input.pointer_pos, &is_scroll);
     }
     if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
@@ -67,23 +66,20 @@ pub(crate) fn interact(
             doc.capture_pointer(captor);
         }
     }
-    let gesture_target = if input.scroll == crate::geometry::Vec2::ZERO && input.zoom == 1.0 {
-        None
-    } else {
-        input.pointer_pos.and_then(|pos| {
-            if doc.overlay_stack.is_empty() {
-                deepest_gesture_catcher(doc, rects, root, pos)
-            } else {
-                doc.overlay_stack
-                    .iter()
-                    .rev()
-                    .find_map(|overlay| deepest_gesture_catcher(doc, rects, *overlay, pos))
-            }
+    let wheel_target = (input.scroll != Vec2::ZERO)
+        .then(|| {
+            target(doc, rects, root, input.pointer_pos, &|element| {
+                is_scroll(element) || wants_gestures(element)
+            })
         })
-    };
+        .flatten();
+    let zoom_target = (input.zoom != 1.0)
+        .then(|| target(doc, rects, root, input.pointer_pos, &wants_gestures))
+        .flatten();
     let input = InteractInput {
         touch_scroll_target: doc.touch_scroll_target,
-        gesture_target,
+        wheel_target,
+        zoom_target,
         ..input
     };
 
@@ -190,45 +186,51 @@ fn captor(
     captures.then_some(id)
 }
 
-fn deepest_scroll(
-    doc: &Document,
-    rects: &HashMap<NodeId, Rect>,
-    id: NodeId,
-    pos: crate::Pos2,
-) -> Option<NodeId> {
-    if !rects.get(&id).is_some_and(|rect| rect.contains(pos)) {
-        return None;
-    }
-    let node = doc.arena.get(id);
-    for child in node.children().into_iter().rev() {
-        if let Some(scroll) = deepest_scroll(doc, rects, child, pos) {
-            return Some(scroll);
-        }
-    }
-    node.as_any()
-        .is::<crate::base::scroll::ScrollNode>()
-        .then_some(id)
+fn is_scroll(element: &dyn crate::node::Element) -> bool {
+    element.as_any().is::<crate::base::scroll::ScrollNode>()
 }
 
-fn deepest_gesture_catcher(
+fn wants_gestures(element: &dyn crate::node::Element) -> bool {
+    element
+        .as_any()
+        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
+        .is_some_and(crate::base::click_catcher::ClickCatcherNode::wants_gestures)
+}
+
+fn target(
+    doc: &Document,
+    rects: &HashMap<NodeId, Rect>,
+    root: NodeId,
+    pos: Option<Pos2>,
+    wants: &dyn Fn(&dyn crate::node::Element) -> bool,
+) -> Option<NodeId> {
+    let pos = pos?;
+    if doc.overlay_stack.is_empty() {
+        return deepest(doc, rects, root, pos, wants);
+    }
+    doc.overlay_stack
+        .iter()
+        .rev()
+        .find_map(|overlay| deepest(doc, rects, *overlay, pos, wants))
+}
+
+fn deepest(
     doc: &Document,
     rects: &HashMap<NodeId, Rect>,
     id: NodeId,
     pos: Pos2,
+    wants: &dyn Fn(&dyn crate::node::Element) -> bool,
 ) -> Option<NodeId> {
     if !rects.get(&id).is_some_and(|rect| rect.contains(pos)) {
         return None;
     }
     let node = doc.arena.get(id);
     for child in node.children().into_iter().rev() {
-        if let Some(catcher) = deepest_gesture_catcher(doc, rects, child, pos) {
-            return Some(catcher);
+        if let Some(found) = deepest(doc, rects, child, pos, wants) {
+            return Some(found);
         }
     }
-    node.as_any()
-        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
-        .is_some_and(crate::base::click_catcher::ClickCatcherNode::wants_gestures)
-        .then_some(id)
+    wants(node).then_some(id)
 }
 
 fn interact_node(
