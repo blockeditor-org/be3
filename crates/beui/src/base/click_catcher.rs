@@ -235,17 +235,15 @@ impl Element for ClickCatcherNode {
             self.on_drag.call(press);
         }
         self.middle_drag(input, contains_pointer);
-        if input.gesture_target == Some(id)
-            && let Some(pos) = input.pointer_pos
-        {
-            if input.scroll != Vec2::ZERO {
+        if let Some(pos) = input.pointer_pos {
+            if input.wheel_target == Some(id) && input.scroll != Vec2::ZERO {
                 self.on_scroll.call(ScrollGesture {
                     delta: input.scroll,
                     pos,
                     modifiers: input.modifiers,
                 });
             }
-            if input.zoom != 1.0 {
+            if input.zoom_target == Some(id) && input.zoom != 1.0 {
                 self.on_zoom.call(ZoomGesture {
                     factor: input.zoom,
                     pos,

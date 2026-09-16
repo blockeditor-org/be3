@@ -107,14 +107,6 @@ impl Camera {
     }
 }
 
-fn wheel_pan(gesture: ScrollGesture) -> Vec2 {
-    if gesture.modifiers.shift && gesture.delta.x == 0.0 {
-        Vec2::new(gesture.delta.y, 0.0)
-    } else {
-        gesture.delta
-    }
-}
-
 #[component]
 pub fn PanZoom(
     view: Prop<PanZoomView>,
@@ -164,7 +156,7 @@ pub fn PanZoom(
                     let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
                     scroll_camera.zoom(factor, gesture.pos);
                 } else {
-                    scroll_camera.pan(wheel_pan(gesture));
+                    scroll_camera.pan(gesture.delta);
                 }
             }}
             on_zoom={move |gesture: ZoomGesture| zoom_camera.zoom(gesture.factor, gesture.pos)}

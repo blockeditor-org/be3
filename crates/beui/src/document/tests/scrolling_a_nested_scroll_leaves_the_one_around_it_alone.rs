@@ -1,0 +1,45 @@
+use super::*;
+use crate::geometry::vec2;
+use crate::reactive::{ItemSize, Scroll, view};
+
+#[test]
+fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
+    let document = build(move || {
+        let mut items = vec![intrinsic(view! {
+            <Frame height=150.0>
+                <Scroll @test_id="inner" children={rows(20)} />
+            </Frame>
+        })];
+        items.extend(rows(20));
+        view! {
+            <Column spacing=0.0>
+                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer" children={items} />
+            </Column>
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    let (inner, outer) = (harness.find("inner"), harness.find("outer"));
+
+    harness.scroll(pos2(200.0, 75.0), vec2(0.0, -20.0), Modifiers::NONE);
+    harness.frame(Vec::new());
+
+    assert_eq!(harness.document().scroll_offset(inner), 20.0);
+    assert_eq!(harness.document().scroll_offset(outer), 0.0);
+
+    harness.scroll(pos2(200.0, 250.0), vec2(0.0, -20.0), Modifiers::NONE);
+    harness.frame(Vec::new());
+
+    assert_eq!(harness.document().scroll_offset(inner), 20.0);
+    assert_eq!(harness.document().scroll_offset(outer), 20.0);
+}
+
+fn rows(count: usize) -> Vec<(NodeId, crate::reactive::Prop<ItemSize>)> {
+    (0..count)
+        .map(|index| {
+            intrinsic(view! {
+                <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
+            })
+        })
+        .collect()
+}
