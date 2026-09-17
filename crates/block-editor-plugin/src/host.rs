@@ -1045,6 +1045,7 @@ impl EditorHost {
         clip: beui::Rect,
         mode: ChildMode,
         layer: ChildLayer,
+        own_frame: bool,
     ) -> ChildId {
         let ratio = self.beui.get().ratio;
         let state = self.region.get();
@@ -1058,7 +1059,7 @@ impl EditorHost {
             block_type: block_type.into_bytes(),
             rect: child_rect(rect.translate(-state.origin)),
             clip: child_rect(clip.translate(-state.origin)),
-            own_frame: false,
+            own_frame,
             corner_radius: 0.0,
             layer,
             mode,

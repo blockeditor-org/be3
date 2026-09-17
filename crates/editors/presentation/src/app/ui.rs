@@ -50,13 +50,15 @@ impl Drag {
 pub fn PresentationView(editor: Editor) -> NodeId {
     let slides = Slides::new(&editor);
     let presenting = editor.presenting();
-    let chrome = editor.chrome_shown();
     let stage = NodeRef::new();
     editor.content(&stage);
 
     let theme = use_theme();
-    let editing =
-        create_memo(clone!(chrome presenting -> move || chrome.get() && !presenting.get()));
+    let editing = create_memo(clone!(presenting -> move || !presenting.get()));
+    let mode = create_memo(clone!(presenting -> move || match presenting.get() {
+        true => ChildMode::Preview,
+        false => ChildMode::Live,
+    }));
     let background = create_memo(clone!(theme presenting -> move || match presenting.get() {
         true => Color32::BLACK,
         false => theme.background.get(),
@@ -79,7 +81,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                         <Toolbar
                             editor={editor.clone()}
                             slides={Rc::clone(&slides)}
-                            shown={editing}
+                            shown={editing.clone()}
                         />
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
@@ -87,6 +89,8 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                             editor={editor.clone()}
                             slides={Rc::clone(&slides)}
                             selected={slides.selected()}
+                            mode={mode}
+                            own_frame={editing}
                             report_size=true
                         />
                         <Playback editor={editor} slides={slides} shown={presenting} />
@@ -103,7 +107,14 @@ pub fn PresentationPreview(editor: Editor) -> NodeId {
     let first =
         create_memo(clone!(slides -> move || slides.keys().with(|keys| keys.first().copied())));
     view! {
-        <Stage editor={editor} slides={slides} selected={first} report_size=false />
+        <Stage
+            editor={editor}
+            slides={slides}
+            selected={first}
+            mode=ChildMode::Preview
+            own_frame=false
+            report_size=false
+        />
     }
 }
 
@@ -126,15 +137,12 @@ fn Stage(
     editor: Editor,
     slides: Rc<Slides>,
     selected: Prop<Option<Uuid>>,
+    mode: Prop<ChildMode>,
+    own_frame: Prop<bool>,
     report_size: bool,
 ) -> NodeId {
     let target = create_memo(clone!(slides -> move || slides.target(selected.get())));
     let (ratio, set_ratio) = create_signal(DEFAULT_RATIO);
-    let presenting = editor.presenting();
-    let mode = create_memo(move || match presenting.get() {
-        true => ChildMode::Preview,
-        false => ChildMode::Live,
-    });
     let sized = editor.clone();
     let report = move |state: ChildState| {
         let ratio = state.aspect_ratio.unwrap_or(DEFAULT_RATIO);
@@ -146,7 +154,13 @@ fn Stage(
 
     view! {
         <Frame aspect_ratio={ratio}>
-            <ChildBlock editor={editor} block={target} mode={mode} on_state={report}>
+            <ChildBlock
+                editor={editor}
+                block={target}
+                mode={mode}
+                own_frame={own_frame}
+                on_state={report}
+            >
                 {move |handle: ChildBlockHandle| view! {
                     <SlideStatus state={handle.state} />
                 }}

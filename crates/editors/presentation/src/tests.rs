@@ -14,6 +14,7 @@ mod detaching_a_slide_takes_it_off_the_deck;
 mod dragging_a_slide_onto_another_reorders_the_deck;
 mod presenting_hides_the_filmstrip_and_the_toolbar;
 mod the_filmstrip_places_a_child_editor_for_every_slide;
+mod the_filmstrip_stays_while_a_slide_holds_the_frame;
 mod the_stage_shows_the_slide_the_filmstrip_selected;
 
 fn editor(count: usize) -> (BeuiTest<PresentationApp>, Editor, BlockHandle<Presentation>) {
