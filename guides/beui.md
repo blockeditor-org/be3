@@ -376,7 +376,9 @@ namespace so a component can name its props whatever it likes:
 - `@sizing` selects the child's `ItemSize` among its siblings in a list, and
   only a list accepts it. Children are intrinsic by default; fixed children
   reserve a logical-point size, and percent children share the remaining
-  bounded space by weight.
+  bounded space by weight. On the single root of a `view!` it builds a
+  `ListChild`, which is what the row builder of a `Dynamic`, `ForEach` or
+  `Keyed` returns.
 
 A children slot names the type of child it takes, which is what confines
 `@sizing` to a list. `children: Children<ListChild>` takes any number of

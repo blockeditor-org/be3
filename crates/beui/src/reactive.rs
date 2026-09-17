@@ -359,43 +359,43 @@ fn in_component<R>(owner: Option<Rc<ComponentContext>>, f: impl FnOnce() -> R) -
     f()
 }
 
-pub struct Render<H = ()> {
+pub struct Render<H = (), C = NodeId> {
     owner: Option<Rc<ComponentContext>>,
-    render: Box<dyn FnOnce(H) -> NodeId>,
+    render: Box<dyn FnOnce(H) -> C>,
 }
 
-impl<H> Render<H> {
-    pub fn new(render: impl FnOnce(H) -> NodeId + 'static) -> Self {
+impl<H, C> Render<H, C> {
+    pub fn new(render: impl FnOnce(H) -> C + 'static) -> Self {
         Self {
             owner: CURRENT_COMPONENT.with(|cell| cell.borrow().clone()),
             render: Box::new(render),
         }
     }
 
-    pub fn call(self, handle: H) -> NodeId {
+    pub fn call(self, handle: H) -> C {
         in_component(self.owner, || (self.render)(handle))
     }
 }
 
-pub struct RenderFn<H> {
+pub struct RenderFn<H, C = NodeId> {
     owner: Option<Rc<ComponentContext>>,
-    render: Rc<dyn Fn(H) -> NodeId>,
+    render: Rc<dyn Fn(H) -> C>,
 }
 
-impl<H> RenderFn<H> {
-    pub fn new(render: impl Fn(H) -> NodeId + 'static) -> Self {
+impl<H, C> RenderFn<H, C> {
+    pub fn new(render: impl Fn(H) -> C + 'static) -> Self {
         Self {
             owner: CURRENT_COMPONENT.with(|cell| cell.borrow().clone()),
             render: Rc::new(render),
         }
     }
 
-    pub fn call(&self, handle: H) -> NodeId {
+    pub fn call(&self, handle: H) -> C {
         in_component(self.owner.clone(), || (self.render)(handle))
     }
 }
 
-impl<H> Clone for RenderFn<H> {
+impl<H, C> Clone for RenderFn<H, C> {
     fn clone(&self) -> Self {
         Self {
             owner: self.owner.clone(),
@@ -438,34 +438,34 @@ impl<V, R> IntoFunc<V, R> for Func<V, R> {
     }
 }
 
-pub trait IntoRender<H> {
-    fn into_render(self) -> Render<H>;
+pub trait IntoRender<H, C> {
+    fn into_render(self) -> Render<H, C>;
 }
 
-impl<H, F: FnOnce(H) -> NodeId + 'static> IntoRender<H> for F {
-    fn into_render(self) -> Render<H> {
-        Render::new(self)
+impl<H, C, R: IntoChild<C>, F: FnOnce(H) -> R + 'static> IntoRender<H, C> for F {
+    fn into_render(self) -> Render<H, C> {
+        Render::new(move |handle| self(handle).into_child())
     }
 }
 
-impl<H> IntoRender<H> for Render<H> {
-    fn into_render(self) -> Render<H> {
+impl<H, C> IntoRender<H, C> for Render<H, C> {
+    fn into_render(self) -> Render<H, C> {
         self
     }
 }
 
-pub trait IntoRenderFn<H> {
-    fn into_render_fn(self) -> RenderFn<H>;
+pub trait IntoRenderFn<H, C> {
+    fn into_render_fn(self) -> RenderFn<H, C>;
 }
 
-impl<H, F: Fn(H) -> NodeId + 'static> IntoRenderFn<H> for F {
-    fn into_render_fn(self) -> RenderFn<H> {
-        RenderFn::new(self)
+impl<H, C, R: IntoChild<C>, F: Fn(H) -> R + 'static> IntoRenderFn<H, C> for F {
+    fn into_render_fn(self) -> RenderFn<H, C> {
+        RenderFn::new(move |handle| self(handle).into_child())
     }
 }
 
-impl<H> IntoRenderFn<H> for RenderFn<H> {
-    fn into_render_fn(self) -> RenderFn<H> {
+impl<H, C> IntoRenderFn<H, C> for RenderFn<H, C> {
+    fn into_render_fn(self) -> RenderFn<H, C> {
         self
     }
 }
@@ -614,6 +614,25 @@ impl ListChild {
             size: size.into_prop(),
         }
     }
+
+    fn watch(self, parent: NodeId) -> (NodeId, ItemSize) {
+        let initial = self.size.peek();
+        let ListChild { node, size } = self;
+        if let Prop::Dynamic(read) = size {
+            create_effect(move || {
+                let size = read();
+                with_document(|document| document.set_child_size(parent, node, size));
+            });
+        }
+        (node, initial)
+    }
+}
+
+fn build_row(parent: NodeId, build: impl FnOnce() -> ListChild) -> (NodeId, ItemSize) {
+    let scope = with_document(|document| node_scope(document, None));
+    let (node, size) = scope.context().run(|| build().watch(parent));
+    with_document(|document| document.register_node_scope(node, scope));
+    (node, size)
 }
 
 #[diagnostic::on_unimplemented(
@@ -690,28 +709,9 @@ impl<T> Children<T> {
 
 impl Children<ListChild> {
     fn mount(self, parent: NodeId) {
-        let initial_sizes: Vec<ItemSize> = untrack(|| {
-            self.0
-                .iter()
-                .map(|child| match &child.size {
-                    Prop::Static(size) => *size,
-                    Prop::Dynamic(read) => read(),
-                })
-                .collect()
-        });
-        with_document(|document| {
-            for (child, size) in self.0.iter().zip(&initial_sizes) {
-                document.append_child(parent, child.node, *size);
-            }
-        });
         for child in self.0 {
-            let ListChild { node, size } = child;
-            if let Prop::Dynamic(read) = size {
-                create_effect(move || {
-                    let size = read();
-                    with_document(|document| document.set_child_size(parent, node, size));
-                });
-            }
+            let (node, size) = child.watch(parent);
+            with_document(|document| document.append_child(parent, node, size));
         }
     }
 }
@@ -837,11 +837,7 @@ pub fn Show(condition: Prop<bool>, #[prop(children)] then: Render) -> NodeId {
 }
 
 #[component]
-pub fn Dynamic<T>(
-    value: Prop<T>,
-    #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
-    #[prop(children)] view: RenderFn<T>,
-) -> NodeId
+pub fn Dynamic<T>(value: Prop<T>, #[prop(children)] view: RenderFn<T, ListChild>) -> NodeId
 where
     T: Clone + 'static,
 {
@@ -851,14 +847,14 @@ where
     let built: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
     create_effect(move || {
         let value = value.get();
-        let child = in_new_scope(|| view.call(value));
+        let (child, size) = build_row(parent, || view.call(value));
         let previous = built.replace(Some(child));
         with_document(|document| {
             if let Some(previous) = previous {
                 document.remove_child(parent, previous);
                 document.remove_node(previous);
             }
-            document.append_child(parent, child, item_size);
+            document.append_child(parent, child, size);
         });
     });
     parent
@@ -868,8 +864,7 @@ where
 pub fn ForEach<K>(
     spacing: f32,
     keys: Prop<Vec<K>>,
-    #[prop(children)] view: RenderFn<K>,
-    #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
+    #[prop(children)] view: RenderFn<K, ListChild>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,
@@ -883,16 +878,17 @@ where
         let mut existing = existing.borrow_mut();
         let mut next = HashMap::with_capacity(keys.len());
         let mut children = Vec::with_capacity(keys.len());
+        let sizes = with_document(|document| document.child_sizes(parent));
         for key in keys {
-            let node = match existing.remove(&key) {
-                Some(node) => node,
+            let (node, size) = match existing.remove(&key) {
+                Some(node) => (node, sizes.get(&node).copied().unwrap_or_default()),
                 None => {
                     let build = key.clone();
                     let view = view.clone();
-                    in_new_scope(move || view.call(build))
+                    build_row(parent, move || view.call(build))
                 }
             };
-            children.push((node, item_size));
+            children.push((node, size));
             assert!(
                 next.insert(key, node).is_none(),
                 "for_each was given the same key twice"
@@ -913,8 +909,7 @@ where
 pub fn Keyed<T, K>(
     value: Prop<T>,
     key: Func<T, K>,
-    #[prop(default = ItemSize::Intrinsic)] item_size: ItemSize,
-    #[prop(children)] view: RenderFn<ReadSignal<T>>,
+    #[prop(children)] view: RenderFn<ReadSignal<T>, ListChild>,
 ) -> NodeId
 where
     T: Clone + PartialEq + 'static,
@@ -935,10 +930,10 @@ where
         }
         let current = current.clone();
         let view = view.clone();
-        let child = in_new_scope(move || view.call(current));
+        let (child, size) = build_row(parent, move || view.call(current));
         let previous = built.replace((next, child));
         with_document(|document| {
-            document.set_children(parent, &[(child, item_size)]);
+            document.set_children(parent, &[(child, size)]);
             if let Some((_, previous)) = previous {
                 document.remove_node(previous);
             }

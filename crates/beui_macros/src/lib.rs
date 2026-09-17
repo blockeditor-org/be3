@@ -30,21 +30,30 @@ struct Prop {
 struct Render {
     once: bool,
     handle: Option<Type>,
+    child: Option<Type>,
 }
 
 fn render_kind(ty: &Type) -> Option<Render> {
-    if is_named_type(ty, "Render") {
-        Some(Render {
-            once: true,
-            handle: generic_inner(ty, "Render"),
-        })
+    let once = if is_named_type(ty, "Render") {
+        true
     } else if is_named_type(ty, "RenderFn") {
-        Some(Render {
-            once: false,
-            handle: generic_inner(ty, "RenderFn"),
-        })
+        false
     } else {
-        None
+        return None;
+    };
+    let name = if once { "Render" } else { "RenderFn" };
+    let args = generic_args(ty, name).unwrap_or_default();
+    Some(Render {
+        once,
+        handle: args.first().cloned(),
+        child: args.get(1).cloned(),
+    })
+}
+
+fn render_child(render: &Render) -> proc_macro2::TokenStream {
+    match &render.child {
+        Some(child) => quote! { #child },
+        None => quote! { ::beui::reactive::Child },
     }
 }
 
@@ -96,21 +105,22 @@ fn render_setter(
     render: &Render,
     wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
 ) -> Setter {
+    let child = render_child(render);
     let (signature, build) = match (&render.handle, render.once) {
         (Some(handle), true) => (
-            quote! { ::beui::reactive::IntoRender<#handle> },
+            quote! { ::beui::reactive::IntoRender<#handle, #child> },
             quote! { ::beui::reactive::IntoRender::into_render(value) },
         ),
         (Some(handle), false) => (
-            quote! { ::beui::reactive::IntoRenderFn<#handle> },
+            quote! { ::beui::reactive::IntoRenderFn<#handle, #child> },
             quote! { ::beui::reactive::IntoRenderFn::into_render_fn(value) },
         ),
         (None, true) => (
-            quote! { ::core::ops::FnOnce() -> ::beui::NodeId + 'static },
+            quote! { ::core::ops::FnOnce() -> #child + 'static },
             quote! { ::beui::reactive::Render::new(move |()| value()) },
         ),
         (None, false) => (
-            quote! { ::core::ops::Fn() -> ::beui::NodeId + 'static },
+            quote! { ::core::ops::Fn() -> #child + 'static },
             quote! { ::beui::reactive::RenderFn::new(move |()| value()) },
         ),
     };
@@ -131,6 +141,7 @@ fn render_children_block(
         .handle
         .clone()
         .unwrap_or_else(|| syn::parse_quote!(()));
+    let child = render_child(render);
     let (bound, build) = if render.once {
         (
             quote! { ::core::ops::FnOnce() -> ChildrenBlock + 'static },
@@ -153,7 +164,7 @@ fn render_children_block(
         where_clause: quote! {
             where
                 ChildrenFn: #bound + ::beui::reactive::UnitHandle<#handle>,
-                ChildrenBlock: ::beui::reactive::OneChild<::beui::reactive::Child> + 'static,
+                ChildrenBlock: ::beui::reactive::OneChild<#child> + 'static,
         },
         value: wrap(build),
     }
@@ -1249,19 +1260,19 @@ impl Parse for View {
 
 fn expand_view(view: &View) -> proc_macro2::TokenStream {
     if let [root] = view.roots.as_slice() {
-        if let ViewChildKind::Node(ViewNode {
-            sizing: Some(sizing),
-            ..
-        }) = &root.kind
-        {
-            return syn::Error::new(
-                sizing.span,
-                "`@sizing` gives a child its share of its siblings' space, and a `view!` with one root builds that node on its own; write the sizing where the node is used as a child",
-            )
-            .to_compile_error();
-        }
         return match &root.kind {
-            ViewChildKind::Node(node) => expand_view_node(node),
+            ViewChildKind::Node(node) => {
+                let built = expand_view_node(node);
+                match &node.sizing {
+                    None => built,
+                    Some(sizing) => {
+                        let value = &sizing.value;
+                        quote_spanned! { sizing.span =>
+                            ::beui::reactive::size(#built, #value)
+                        }
+                    }
+                }
+            }
             ViewChildKind::Expr(expr) => quote! { #expr },
         };
     }
