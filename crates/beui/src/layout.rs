@@ -11,6 +11,9 @@ pub(crate) fn measure(doc: &mut Document, painter: &Painter, id: NodeId, availab
         return Vec2::ZERO;
     }
     doc.deliver_constraint(id, available);
+    if !doc.arena.contains(id) {
+        return Vec2::ZERO;
+    }
     if let Some(size) = doc.measured(id, available) {
         return size;
     }
