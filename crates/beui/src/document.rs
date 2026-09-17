@@ -687,7 +687,9 @@ impl Document {
 
     pub(crate) fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
         self.forget_stale_measurements();
-        self.measurements.get(&Measured::new(id, available)).copied()
+        self.measurements
+            .get(&Measured::new(id, available))
+            .copied()
     }
 
     pub(crate) fn remember_measurement(&mut self, id: NodeId, available: Vec2, size: Vec2) {
