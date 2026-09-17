@@ -63,6 +63,11 @@ impl Slides {
         known.then(|| self.store.get(&id).get())
     }
 
+    fn known(&self, id: Uuid) -> Option<Slide> {
+        let known = self.store.keys().with_untracked(|keys| keys.contains(&id));
+        known.then(|| self.store.get(&id).get_untracked())
+    }
+
     pub fn target(&self, id: Option<Uuid>) -> Option<ChildTarget> {
         self.slide(id?)?.target
     }
@@ -182,16 +187,23 @@ impl Slides {
                     .borrow_mut()
                     .resolve(client, referencing, entry.block_id);
                 let reference = resolved.and_then(|id| metadata.get(&id));
-                let slide = Slide {
-                    target: reference
-                        .map(|reference| ChildTarget::new(reference.id, reference.block_type)),
-                    name: match reference {
-                        Some(reference) => {
-                            BlockLabel::for_reference(types.as_ref(), reference).name
-                        }
-                        None if resolved.is_some() => "Loading…".to_owned(),
-                        None => "Broken link".to_owned(),
+                let slide = match reference {
+                    Some(reference) => Slide {
+                        target: Some(ChildTarget::new(reference.id, reference.block_type)),
+                        name: BlockLabel::for_reference(types.as_ref(), reference).name,
                     },
+                    None => self
+                        .known(entry.id)
+                        .filter(|slide| {
+                            slide.target.map(|target| target.id) == resolved && resolved.is_some()
+                        })
+                        .unwrap_or_else(|| Slide {
+                            target: None,
+                            name: match resolved {
+                                Some(_) => "Loading…".to_owned(),
+                                None => "Broken link".to_owned(),
+                            },
+                        }),
                 };
                 (entry.id, slide)
             })
