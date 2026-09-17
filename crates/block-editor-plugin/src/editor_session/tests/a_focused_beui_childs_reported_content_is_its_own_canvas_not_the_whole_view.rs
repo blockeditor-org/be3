@@ -28,7 +28,7 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
         Waker::default(),
     );
     let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    session.connect(client, Uuid::new_v4());
+    session.connect(client, Uuid::new_v4(), Uuid::new_v4());
     session.regions.insert(
         EditorRegion::Frame,
         RegionState {

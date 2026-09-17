@@ -517,8 +517,10 @@ impl EditorSession {
         self.files = files;
     }
 
-    pub(crate) fn connect(&mut self, client: Arc<BlockClient>, block_id: Uuid) {
-        self.block = Some((Arc::clone(&client), block_id));
+    pub(crate) fn connect(&mut self, client: Arc<BlockClient>, block_id: Uuid, block_type: Uuid) {
+        if block_client::blocks::watch(&client, block_id, block_type) {
+            self.block = Some((Arc::clone(&client), block_id));
+        }
         self.app.connect(self.host.clone(), client, block_id);
     }
 

@@ -106,11 +106,11 @@ impl Screens {
             Message::Editor(EditorMessage::Open {
                 instance,
                 block_id,
+                block_type,
                 account_id,
                 workspace_id,
                 client_id,
                 editable,
-                ..
             }) => {
                 let client = self.client(
                     Uuid::from_bytes(*account_id),
@@ -122,7 +122,11 @@ impl Screens {
                 session.set_block_types(Rc::clone(&self.block_types));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_editable(*editable);
-                session.connect(client, Uuid::from_bytes(*block_id));
+                session.connect(
+                    client,
+                    Uuid::from_bytes(*block_id),
+                    Uuid::from_bytes(*block_type),
+                );
             }
             Message::Editor(EditorMessage::OpenCreation {
                 instance,
