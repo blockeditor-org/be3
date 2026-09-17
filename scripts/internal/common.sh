@@ -464,11 +464,24 @@ configure_sccache() {
     # caches a C compile the same way it caches a Rust one, so point cc-rs at it
     # too. Only the host compilers are wrapped; the wasm ones are set by
     # export_wasi_toolchain, which needs the real clang for its own flags.
-    if [[ -z "${CC:-}" ]] && command -v cc > /dev/null; then
-        export CC="$binary cc"
-    fi
-    if [[ -z "${CXX:-}" ]] && command -v c++ > /dev/null; then
-        export CXX="$binary c++"
+    #
+    # Everywhere but Windows, cc-rs would have run the cc and c++ on PATH
+    # anyway, so naming them here changes nothing but who spawns them. On a
+    # Windows target it would change the compiler: cc-rs pays no attention to
+    # PATH there and asks the registry for the MSVC cl.exe cargo links objects
+    # with, while the cc a POSIX shell finds is the mingw gcc the runner image
+    # happens to ship. Setting CC hands zstd and SQLite to that gcc, and
+    # link.exe then has objects wanting libgcc's ___chkstk_ms and a real
+    # fprintf, which the UCRT only has as an inline. So the C half of the cache
+    # is for the platforms whose compiler is the one on PATH; the Rust half,
+    # which is nearly all of a Windows job, is wrapped there as everywhere.
+    if [[ "${OS:-}" != 'Windows_NT' ]]; then
+        if [[ -z "${CC:-}" ]] && command -v cc > /dev/null; then
+            export CC="$binary cc"
+        fi
+        if [[ -z "${CXX:-}" ]] && command -v c++ > /dev/null; then
+            export CXX="$binary c++"
+        fi
     fi
     export SCCACHE_BUCKET="$sccache_bucket"
     export SCCACHE_ENDPOINT='https://de-s3.storage.bunnycdn.com'
