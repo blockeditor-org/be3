@@ -288,7 +288,7 @@ fn CardView(
     scale: ReadSignal<f32>,
     selected: ReadSignal<Option<usize>>,
     set_selected: WriteSignal<Option<usize>>,
-) -> NodeId {
+) -> CanvasItem {
     let card: &'static Card = &CARDS[index];
     let theme = use_theme();
     let chosen = create_memo(clone!(selected -> move || selected.get() == Some(index)));
