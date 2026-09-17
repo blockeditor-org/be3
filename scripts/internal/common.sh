@@ -23,6 +23,65 @@ manifest_field() {
     sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$1" | head -1
 }
 
+# What a full build is, and what a default one leaves out.
+#
+# Three things in the workspace cost far more than they contribute to a check of
+# everything else. libghostty-vt has to be compiled out of a Ghostty checkout by
+# a Zig toolchain before cargo can link the app at all, which is half a gigabyte
+# of downloads and the one prerequisite a restricted network cannot fetch; the
+# embedded browser is fifty-nine crates that nothing else in the workspace
+# needs; and cvl2 has nothing depending on it at all.
+#
+# So a default build leaves all three out, which is what makes a fresh checkout
+# compile with nothing but cargo, and a full build puts them back. ./scripts/check
+# and ./scripts/verify take --full, every script reads BE3_FULL, and CI sets it,
+# so what ships and what is linted is still the whole app.
+full_build() {
+    [[ -n "${BE3_FULL:-}" ]]
+}
+
+# Packages only a full build compiles. ghostty-vt is not merely unused without
+# one: its build script has no archive to point cargo at, so it fails to build.
+optional_packages=(ghostty-vt cvl2)
+
+# The packages a workspace-wide cargo call in these scripts is for, in the
+# variable `selection`. Feature selection travels with it, because a call that
+# named the packages one way and the features another would resolve features
+# over a different graph and compile everything a second time.
+workspace_selection() {
+    selection=(--workspace)
+    local package
+    if full_build; then
+        selection+=(--features block-app/full)
+    else
+        for package in "${optional_packages[@]}"; do
+            selection+=(--exclude "$package")
+        done
+    fi
+}
+
+# The same selection without the plugins, whose tests are compiled to wasm and
+# run by internal/test-plugins.sh rather than by the native run.
+native_selection() {
+    load_plugins
+    workspace_selection
+    local plugin
+    for plugin in "${plugins[@]}"; do
+        selection+=(--exclude "$plugin")
+    done
+}
+
+# Builds libghostty-vt, and only when there is a build to link it into. Every
+# script that compiles the app calls this rather than the script itself, so the
+# Zig toolchain and the Ghostty checkout are a cost a full build pays and
+# nothing else even has to have.
+ensure_ghostty_vt() {
+    if ! full_build; then
+        return 0
+    fi
+    "$internal/build-ghostty-vt.sh" --triple "$1" > /dev/null
+}
+
 load_plugins() {
     plugins=()
     local manifest
@@ -399,6 +458,18 @@ configure_sccache() {
     fi
 
     export RUSTC_WRAPPER="$binary"
+    # The -sys crates compile their C with cc-rs rather than with rustc, and
+    # RUSTC_WRAPPER never sees any of it: HarfBuzz, zstd and the bundled SQLite
+    # alone are a minute of every cold build, repeated on every machine. sccache
+    # caches a C compile the same way it caches a Rust one, so point cc-rs at it
+    # too. Only the host compilers are wrapped; the wasm ones are set by
+    # export_wasi_toolchain, which needs the real clang for its own flags.
+    if [[ -z "${CC:-}" ]] && command -v cc > /dev/null; then
+        export CC="$binary cc"
+    fi
+    if [[ -z "${CXX:-}" ]] && command -v c++ > /dev/null; then
+        export CXX="$binary c++"
+    fi
     export SCCACHE_BUCKET="$sccache_bucket"
     export SCCACHE_ENDPOINT='https://de-s3.storage.bunnycdn.com'
     # Bunny serves one region per endpoint and pays no attention to this, but

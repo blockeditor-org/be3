@@ -15,6 +15,13 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  # A default build leaves out the debug terminal, which needs a Zig toolchain
+  # and a Ghostty checkout before cargo can link anything, the embedded browser,
+  # which is a dependency tree nothing else in the workspace shares, and cvl2,
+  # which nothing depends on. That keeps a local checkout and the check someone
+  # runs a hundred times a day cheap. What ships and what is linted is still the
+  # whole of it, so every job here asks for a full build.
+  BE3_FULL: 1
   # scripts/internal/common.sh routes rustc through sccache against a shared
   # object store, reading with a key that is public and writing only when it is
   # handed one that is not. Every job takes the write key from here, so any run

@@ -35,15 +35,16 @@ cd "$repository"
 
 # The plugins are excluded from the native run for the same reason verify
 # excludes them: their tests are wasm, and the plugin phase below builds those.
-load_plugins
-native=(--workspace)
-for plugin in "${plugins[@]}"; do
-    native+=(--exclude "$plugin")
-done
+# The selection is otherwise verify's, so what is warmed is what verify asks
+# for rather than something close to it.
+native_selection
+native=("${selection[@]}")
 
-echo 'Warming libghostty-vt...'
-host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
-"$internal/build-ghostty-vt.sh" --triple "$host_triple" > /dev/null
+if full_build; then
+    echo 'Warming libghostty-vt...'
+    host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
+    ensure_ghostty_vt "$host_triple"
+fi
 
 echo 'Warming crates/fix-rust-source...'
 cargo build --quiet -p fix-rust-source
@@ -59,7 +60,8 @@ cargo build --quiet -p fix-rust-source
 # fired in: --keep-going carries the rest of the workspace on, and the failure
 # itself is passed over.
 echo 'Warming cargo clippy...'
-if ! cargo clippy --quiet --keep-going --workspace --all-targets --all-features -- -D warnings; then
+workspace_selection
+if ! cargo clippy --quiet --keep-going "${selection[@]}" --all-targets -- -D warnings; then
     echo 'Clippy has something to say about this checkout; ./scripts/verify will say it.'
 fi
 

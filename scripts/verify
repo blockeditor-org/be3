@@ -14,33 +14,41 @@
 # Usage:
 #   ./scripts/verify
 #   ./scripts/verify --check
+#   ./scripts/verify --full
 
 set -uo pipefail
 
 check=false
-if [[ "${1:-}" == "--check" ]]; then
-    check=true
-fi
+for argument in "$@"; do
+    case "$argument" in
+        --check) check=true ;;
+        --full) export BE3_FULL=1 ;;
+        *)
+            echo "Unknown argument: $argument" >&2
+            echo 'Usage: ./scripts/verify [--check] [--full]' >&2
+            exit 1
+            ;;
+    esac
+done
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 cd "$repository"
 
 # A plugin's tests run in wasm rather than natively, so the workspace run skips
-# them and internal/test-plugins.sh runs them afterwards.
-load_plugins
-native=(--workspace)
-for plugin in "${plugins[@]}"; do
-    native+=(--exclude "$plugin")
-done
+# them and internal/test-plugins.sh runs them afterwards. What a default build
+# leaves out is skipped here as well; --full puts it back.
+native_selection
+native=("${selection[@]}")
 
 failed=false
 
 # block-app links libghostty-vt, the terminal emulator behind the debug
 # terminal window. It is Zig rather than Rust, so nothing cargo does builds it,
-# and clippy and the tests cannot link the app without it.
+# and clippy and the tests cannot link the app without it. A default build does
+# not compile the terminal at all, so this is a full build's cost alone.
 echo 'libghostty-vt...'
 host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
-if ! "$repository/scripts/internal/build-ghostty-vt.sh" --triple "$host_triple" > /dev/null; then
+if ! ensure_ghostty_vt "$host_triple"; then
     echo 'Verification failed.'
     exit 1
 fi
@@ -74,8 +82,14 @@ else
     t cargo run --quiet -p fix-rust-source
 fi
 
-# Tests and examples are linted too, so a warning cannot hide in them.
-clippy_targets=(--workspace --all-targets --all-features)
+# Tests and examples are linted too, so a warning cannot hide in them. The
+# plugins are in, because linting them natively is the only lint they get from
+# this run. What is out is --all-features: the one workspace feature it turned
+# on that is not on already is block-wasm-host/all-arch, which builds Cranelift
+# for every architecture instead of this one and has no first-party code behind
+# it to lint.
+workspace_selection
+clippy_targets=("${selection[@]}" --all-targets)
 
 echo 'cargo clippy...'
 if $check; then

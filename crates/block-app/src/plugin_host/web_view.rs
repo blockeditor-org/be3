@@ -3,14 +3,30 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use block_plugin_api::{WebViewCommand, WebViewEvent};
 use eframe::egui;
 
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(all(
+    feature = "web-view",
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
 mod native;
-#[cfg(any(target_os = "android", target_arch = "wasm32"))]
+#[cfg(any(
+    not(feature = "web-view"),
+    target_os = "android",
+    target_arch = "wasm32"
+))]
 mod unsupported;
 
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(all(
+    feature = "web-view",
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
 use native::WebView;
-#[cfg(any(target_os = "android", target_arch = "wasm32"))]
+#[cfg(any(
+    not(feature = "web-view"),
+    target_os = "android",
+    target_arch = "wasm32"
+))]
 use unsupported::WebView;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

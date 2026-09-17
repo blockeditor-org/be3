@@ -13,7 +13,8 @@ pub fn wasm() {
         .join("game-modules");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
 
-    let status = Command::new(cargo)
+    let mut command = Command::new(cargo);
+    command
         .args([
             "build",
             "--package",
@@ -30,9 +31,12 @@ pub fn wasm() {
         .env_remove("CARGO_BUILD_TARGET")
         .env_remove("CARGO_MAKEFLAGS")
         .env_remove("RUSTC")
-        .env_remove("RUSTC_WRAPPER")
         .env_remove("RUSTC_WORKSPACE_WRAPPER")
-        .env_remove("RUSTFLAGS")
+        .env_remove("RUSTFLAGS");
+    if cfg!(windows) {
+        command.env_remove("RUSTC_WRAPPER");
+    }
+    let status = command
         .status()
         .unwrap_or_else(|error| panic!("could not run cargo for {package}: {error}"));
     if !status.success() {

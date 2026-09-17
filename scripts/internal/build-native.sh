@@ -101,6 +101,12 @@ selection=()
 building=()
 if $client; then
     selection+=(-p block-app --bin block-app)
+    # The terminal and the embedded browser, which a default build leaves out
+    # so that a checkout compiles with nothing but cargo. What ships is a full
+    # build, and CI sets BE3_FULL for exactly that reason.
+    if full_build; then
+        selection+=(--features block-app/full)
+    fi
     building+=('the app')
 fi
 if $server; then
@@ -131,9 +137,10 @@ if [[ ${#building[@]} -ne 0 ]]; then
     description="${description%, } and $last"
 fi
 # The terminal emulator the debug terminal window is built on is Zig, and is
-# compiled and cached for the target before cargo links it in.
+# compiled and cached for the target before cargo links it in. Only a full
+# build has a terminal to link, and only that build pays for Zig.
 if $client; then
-    "$internal/build-ghostty-vt.sh" --triple "$target_triple" > /dev/null
+    ensure_ghostty_vt "$target_triple"
 fi
 
 echo "Building $description..."
