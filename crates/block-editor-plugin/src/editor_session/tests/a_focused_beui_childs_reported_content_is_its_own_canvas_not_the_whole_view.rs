@@ -11,11 +11,11 @@ impl crate::BeuiApp for SidebarApp {
             <Frame />
         };
         let stage = view! {
-            <Frame @node_ref={&canvas} />
+            <Frame @node_ref=&canvas />
         };
         let children = vec![size(sidebar, ItemSize::Fixed(100.0)), percent(stage, 100.0)];
         view! {
-            <Row spacing=0.0 children={children} />
+            <Row spacing=0.0 children=children />
         }
     }
 }

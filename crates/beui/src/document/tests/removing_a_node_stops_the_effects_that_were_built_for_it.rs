@@ -7,7 +7,7 @@ fn removing_a_node_stops_the_effects_that_were_built_for_it() {
     let (label, set_label) = create_signal("one".to_owned());
     let (document, [caption]) = toolbar_of(|| {
         [view! {
-            <Caption content={label} />
+            <Caption content=label />
         }]
     });
     let list = document.root().expect("the toolbar is the root");

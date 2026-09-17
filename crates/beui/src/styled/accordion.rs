@@ -30,7 +30,7 @@ pub fn Accordion(
             spacing=SPACING
             on_toggle={move |open| on_toggle.call(open)}
             header={move |handle| view! {
-                <AccordionHeader handle title={title_text} />
+                <AccordionHeader handle title=title_text />
             }}
             open
         >
@@ -54,30 +54,30 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     let title_color = theme.text.clone();
     view! {
         <Frame
-            color={header_color}
+            color=header_color
             outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
             outline_offset=2.0
-            outline_visible={focused}
+            outline_visible=focused
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
             <CenteredRow spacing=SPACING>
                 <Frame width=MARKER_WIDTH>
                     <Text
-                        string={marker_glyph}
+                        string=marker_glyph
                         font_size=FONT_SMALL
-                        color={marker_color}
+                        color=marker_color
                         monospace=true
                         align=TextAlign::Center
                     />
                 </Frame>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
-                    string={title}
+                    string=title
                     font_size=FONT_HEADING
-                    color={title_color}
+                    color=title_color
                     align=TextAlign::Start
                 />
             </CenteredRow>

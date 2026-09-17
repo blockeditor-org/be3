@@ -190,10 +190,10 @@ pub fn Select(
         <Column spacing=0.0>
             <unstyled::Button
                 @node_ref={&state.trigger}
-                accessibility={trigger_accessibility}
+                accessibility=trigger_accessibility
                 focused={focused.memo(Focus::Trigger)}
                 on_focus_change={move |has_focus: bool| blur(&trigger_blur, has_focus, Focus::Trigger)}
-                content={trigger_content}
+                content=trigger_content
                 on_click={move || open(&open_state)}
                 on_key={move |press: KeyPress| trigger_key(&key_state, press)}
             />
@@ -207,16 +207,16 @@ pub fn Select(
                     <Column spacing=6.0>
                         <unstyled::TextInput
                             @node_ref={&state.search}
-                            value={search_text}
+                            value=search_text
                             focused={focused.memo(Focus::Search)}
-                            placeholder={search_placeholder}
-                            font_size={search_font_size}
-                            color={search_color}
-                            placeholder_color={search_placeholder_color}
-                            selection_color={search_selection_color}
-                            caret_color={search_caret_color}
-                            padding_horizontal={search_padding_horizontal}
-                            menu={search_menu}
+                            placeholder=search_placeholder
+                            font_size=search_font_size
+                            color=search_color
+                            placeholder_color=search_placeholder_color
+                            selection_color=search_selection_color
+                            caret_color=search_caret_color
+                            padding_horizontal=search_padding_horizontal
+                            menu=search_menu
                             content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
                             on_focus_change={move |has_focus: bool| blur(&search_blur, has_focus, Focus::Search)}
                             on_change={move |text: String| filter(&filter_state, &text)}
@@ -227,11 +227,7 @@ pub fn Select(
                             }}
                             on_key_override={move |press: KeyPress| navigate(&navigate_state, press)}
                         />
-                        <Scroll
-                            @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT)
-                            reveal
-                            children={items}
-                        />
+                        <Scroll @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT) reveal children=items />
                     </Column>
                 })}
             </Overlay>

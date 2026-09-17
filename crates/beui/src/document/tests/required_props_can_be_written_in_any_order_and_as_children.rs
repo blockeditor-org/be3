@@ -6,7 +6,7 @@ fn Joined(prefix: Prop<String>, suffix: Prop<String>, children: Child) -> NodeId
     let joined = create_memo(move || format!("{}-{}", prefix.get(), suffix.get()));
     view! {
         <Column spacing=0.0>
-            <Text string={joined} />
+            <Text string=joined />
             {children}
         </Column>
     }

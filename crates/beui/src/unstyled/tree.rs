@@ -117,7 +117,7 @@ where
                 let hover = on_hover_change.clone();
                 view! {
                     <TreeRow
-                        row_key={key}
+                        row_key=key
                         item
                         selected
                         tab_stop={tab_stops.clone()}

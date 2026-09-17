@@ -85,9 +85,9 @@ where
     let marker = view! {
         <Frame width=MARKER_WIDTH>
             <Text
-                string={glyph}
+                string=glyph
                 font_size=FONT_SMALL
-                color={marker_color}
+                color=marker_color
                 monospace=true
                 align=TextAlign::Center
             />
@@ -100,15 +100,15 @@ where
     ];
     view! {
         <Frame
-            color={fill}
+            color=fill
             outline={theme.accent.clone()}
             outline_width=OUTLINE_WIDTH
             radius=RADIUS
-            outline_visible={focused}
+            outline_visible=focused
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
-            <CenteredRow spacing=SPACING children={cells} />
+            <CenteredRow spacing=SPACING children=cells />
         </Frame>
     }
 }

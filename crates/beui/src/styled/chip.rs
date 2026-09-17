@@ -23,7 +23,7 @@ pub fn Chip(label: Prop<String>) -> NodeId {
             padding_vertical=PADDING_VERTICAL
         >
             <Text
-                string={label_text}
+                string=label_text
                 font_size=FONT_SMALL
                 color={theme.text.clone()}
                 align=TextAlign::Center

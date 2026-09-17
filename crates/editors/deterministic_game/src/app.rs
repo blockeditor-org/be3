@@ -216,7 +216,7 @@ impl block_editor_plugin::BeuiApp for DeterministicGameApp {
         }));
         let model: Rc<dyn GameModel> = game;
         view! {
-            <GameView game={model} snapshot={snapshot} />
+            <GameView game=model snapshot=snapshot />
         }
     }
 
@@ -227,7 +227,7 @@ impl block_editor_plugin::BeuiApp for DeterministicGameApp {
         creation.on_create(clone!(dialog -> move || dialog.create_block()));
         let model: Rc<dyn GameCreationModel> = dialog;
         view! {
-            <GameCreationView creation={model} snapshot={snapshot} />
+            <GameCreationView creation=model snapshot=snapshot />
         }
     }
 

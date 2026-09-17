@@ -12,7 +12,7 @@ pub struct PanZoomApp;
 impl block_editor_plugin::BeuiApp for PanZoomApp {
     fn view(editor: Editor) -> NodeId {
         view! {
-            <PanZoom editor={editor} />
+            <PanZoom editor=editor />
         }
     }
 

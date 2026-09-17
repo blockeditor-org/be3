@@ -34,11 +34,11 @@ fn ListRowFace(handle: ButtonHandle, children: Child) -> NodeId {
         create_memo(clone!(theme -> move || background(&theme, hovered.get(), active.get())));
     view! {
         <Frame
-            color={fill_color}
+            color=fill_color
             outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
-            outline_visible={focused}
+            outline_visible=focused
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >

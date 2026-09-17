@@ -102,7 +102,7 @@ pub fn Slider(
                     set_dragging.set(dragging);
                     on_drag_change.call(dragging);
                 }}
-                children={content_node}
+                children=content_node
             />
         </Focusable>
     }

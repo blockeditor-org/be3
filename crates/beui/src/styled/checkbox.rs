@@ -55,25 +55,25 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible=focused
         >
             <CenteredRow spacing=SPACING>
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    color={fill_color}
-                    outline={box_border}
+                    color=fill_color
+                    outline=box_border
                     outline_width=BORDER_WIDTH
                     radius=CHIP_RADIUS
-                    outline_visible={border_visible}
+                    outline_visible=border_visible
                 >
                     <CenteredRow spacing=0.0>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Frame
-                            visible={checked}
+                            visible=checked
                             width=MARK_SIZE
                             height=MARK_SIZE
-                            color={mark_color}
+                            color=mark_color
                             radius=MARK_RADIUS
                         />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -81,9 +81,9 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                 </Frame>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
-                    string={label}
+                    string=label
                     font_size=FONT_BODY
-                    color={label_color}
+                    color=label_color
                     align=TextAlign::Start
                 />
             </CenteredRow>

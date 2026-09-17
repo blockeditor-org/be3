@@ -33,11 +33,11 @@ pub fn ResponsiveTabs(
     view! {
         <Column spacing=0.0>
             <Show
-                condition={wide}
+                condition=wide
                 then={move || view! {
                     <Tabs
-                        labels={tab_labels}
-                        selected={tab_selected}
+                        labels=tab_labels
+                        selected=tab_selected
                         on_change={move |index| {
                             tab_set.set(index);
                             tab_change.call(index);
@@ -46,11 +46,11 @@ pub fn ResponsiveTabs(
                 }}
             />
             <Show
-                condition={narrow}
+                condition=narrow
                 then={move || view! {
                     <Select
-                        options={labels}
-                        selected={highlighted}
+                        options=labels
+                        selected=highlighted
                         on_change={move |index: Option<usize>| {
                             if let Some(index) = index {
                                 set_selected.set(index);

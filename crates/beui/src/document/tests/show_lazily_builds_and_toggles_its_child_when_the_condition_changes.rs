@@ -21,7 +21,7 @@ fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
                     </Button>
                     <Show
                         @node_ref=&panel
-                        condition={visible}
+                        condition=visible
                         then={move || {
                             sink.set(sink.get() + 1);
                             view! {

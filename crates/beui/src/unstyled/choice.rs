@@ -157,7 +157,7 @@ pub fn Choice(
         Direction::Vertical
     };
     view! {
-        <List direction spacing=6.0 children={buttons} />
+        <List direction spacing=6.0 children=buttons />
     }
 }
 

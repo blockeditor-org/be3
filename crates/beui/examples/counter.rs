@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn HistoryEntry(value: ReadSignal<i64>) -> NodeId {
     let text = create_memo(move || value.get().to_string());
     view! {
-        <Text string={text} />
+        <Text string=text />
     }
 }
 
@@ -78,15 +78,15 @@ fn App() -> NodeId {
     view! {
         <Column spacing=8.0>
             <Row spacing=8.0>
-                <Button disabled={is_zero} on_click={decrement_click}>
+                <Button disabled=is_zero on_click=decrement_click>
                     <Text string="-" />
                 </Button>
-                <Text string={count_text} />
-                <Button on_click={increment_click}>
+                <Text string=count_text />
+                <Button on_click=increment_click>
                     <Text string="+" />
                 </Button>
-                <Show condition={is_nonzero}>
-                    <Button on_click={reset_click}>
+                <Show condition=is_nonzero>
+                    <Button on_click=reset_click>
                         <Text string="reset" />
                     </Button>
                 </Show>

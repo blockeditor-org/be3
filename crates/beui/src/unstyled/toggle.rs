@@ -63,15 +63,15 @@ pub fn Toggle(
         <Focusable
             on_focus_change={move |focused: bool| set_focused.set(focused)}
             on_activate_change={move |pressed: bool| set_key_active.set(pressed)}
-            on_activate={key_toggle}
+            on_activate=key_toggle
         >
             <ClickCatcher
                 cursor=CursorIcon::PointingHand
                 key_active
-                on_click={toggle_checked}
+                on_click=toggle_checked
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
                 on_active_change={move |active: bool| set_active.set(active)}
-                children={content_node}
+                children=content_node
             />
         </Focusable>
     }

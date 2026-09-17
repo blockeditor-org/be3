@@ -20,7 +20,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                             <Button @node_ref=&toggle on_click={move || set_visible.set(true)}>
                                 <Text string="toggle" />
                             </Button>
-                            <Show condition={visible}>
+                            <Show condition=visible>
                                 <Stack spacing=0.0 breakpoint=BREAKPOINT>
                                     <Frame
                                         @sizing=ItemSize::Percent(50.0)

@@ -464,7 +464,7 @@ pub(crate) fn MenuRegion() -> NodeId {
 pub(crate) fn ButtonFace(label: String) -> NodeId {
     view! {
         <Frame color=Color32::from_gray(60) radius=4 padding_horizontal=20.0 padding_vertical=12.0>
-            <Text string={label} font_size=14.0 color=Color32::WHITE />
+            <Text string=label font_size=14.0 color=Color32::WHITE />
         </Frame>
     }
 }
@@ -552,7 +552,7 @@ pub(crate) fn stacked_panels() -> StackedPanels {
             view! {
                 <Column spacing=0.0>
                     <Frame @node_ref=&upper height=100.0 color=Color32::WHITE radius=0 />
-                    <Frame @node_ref=&lower height=100.0 color={Color32::from_gray(40)} radius=0 />
+                    <Frame @node_ref=&lower height=100.0 color=Color32::from_gray(40) radius=0 />
                 </Column>
             }
         }

@@ -157,7 +157,7 @@ pub(crate) fn MenuList(
         <Column spacing=0.0>
             <Focusable
                 @node_ref={&state.root}
-                tab_stop={root_tab_stop}
+                tab_stop=root_tab_stop
                 focused={focused.memo(Focus::Root)}
                 on_focus_change={move |has_focus: bool| {
                     if !has_focus && blur_focus.get_untracked() == Focus::Root {
@@ -166,7 +166,7 @@ pub(crate) fn MenuList(
                 }}
                 on_key={move |press: KeyPress| root_key(&key_state, press)}
             />
-            <Column spacing=2.0 children={lines} />
+            <Column spacing=2.0 children=lines />
         </Column>
     }
 }
@@ -226,7 +226,7 @@ fn MenuRow(
                 }}
                 on_key={move |press: KeyPress| key(&key_state, index, parent.clone(), press)}
             />
-            <Show condition={has_children}>
+            <Show condition=has_children>
                 {move || {
                 let select_state = submenu_state.clone();
                 let leave_state = submenu_state.clone();
@@ -253,10 +253,10 @@ fn MenuRow(
                         {panel.call(view! {
                             <MenuList
                                 @node_ref={&submenu.content}
-                                items={children}
+                                items=children
                                 row
                                 panel={panel.clone()}
-                                parent={leave}
+                                parent=leave
                                 active={submenu.open.clone()}
                                 focus_first=true
                                 on_select={move |mut path: Vec<usize>| {

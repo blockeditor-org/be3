@@ -4,7 +4,7 @@ use super::*;
 fn format_views_collapses_an_element_whose_children_are_expressions() {
     let source = r#"fn build() -> NodeId {
     view! {
-        <Frame visible={open}>
+        <Frame visible=open>
             {children}
         </Frame>
     }
@@ -15,7 +15,7 @@ fn format_views_collapses_an_element_whose_children_are_expressions() {
         formatted(source),
         r#"fn build() -> NodeId {
     view! {
-        <Frame visible={open}>{children}</Frame>
+        <Frame visible=open>{children}</Frame>
     }
 }
 "#

@@ -40,16 +40,16 @@ pub(super) fn ChoiceOption(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
         create_memo(clone!(theme -> move || background(&theme, selected.get(), hovered.get())));
     view! {
         <Frame
-            color={fill_color}
+            color=fill_color
             outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
             outline_offset=1.0
-            outline_visible={focused}
+            outline_visible=focused
             padding_horizontal=14.0
             padding_vertical=6.0
         >
-            <ChoiceLabel kind label color={label_color} checked />
+            <ChoiceLabel kind label color=label_color checked />
         </Frame>
     }
 }
@@ -63,13 +63,13 @@ fn ChoiceLabel(kind: Kind, label: String, color: Prop<Color32>, checked: Memo<bo
     };
     if kind != Kind::Radio {
         return view! {
-            <Text string={label} font_size=FONT_BODY color align />
+            <Text string=label font_size=FONT_BODY color align />
         };
     }
     view! {
         <CenteredRow spacing=MARK_SPACING>
             <RadioMark checked />
-            <Text @sizing=ItemSize::Percent(100.0) string={label} font_size=FONT_BODY color align />
+            <Text @sizing=ItemSize::Percent(100.0) string=label font_size=FONT_BODY color align />
         </CenteredRow>
     }
 }
@@ -89,7 +89,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
             <CenteredRow spacing=0.0>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Frame
-                    visible={checked}
+                    visible=checked
                     width=MARK_DOT
                     height=MARK_DOT
                     color={theme.accent.clone()}

@@ -31,18 +31,18 @@ pub fn Pressable(
 
     view! {
         <Focusable
-            tab_stop={enabled}
+            tab_stop=enabled
             on_focus_change={move |focused| on_focus_change.call(focused)}
             on_activate_change={move |pressed| set_key_active.set(pressed)}
-            on_activate={key_click}
+            on_activate=key_click
         >
             <ClickCatcher
                 cursor=CursorIcon::PointingHand
                 key_active
-                on_click={click}
+                on_click=click
                 on_hover_change={move |hovered| on_hover_change.call(hovered)}
                 on_active_change={move |active| on_active_change.call(active)}
-                children={children}
+                children=children
             />
         </Focusable>
     }

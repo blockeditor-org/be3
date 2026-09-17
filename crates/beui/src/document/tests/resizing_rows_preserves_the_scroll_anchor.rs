@@ -16,7 +16,7 @@ fn resizing_rows_preserves_the_scroll_anchor() {
                 .map(|(index, row)| {
                     intrinsic(view! {
                         <Frame
-                            @node_ref={row}
+                            @node_ref=row
                             padding_horizontal=0.0
                             padding_vertical={10.0 + (index % 3) as f32}
                         >
@@ -29,7 +29,7 @@ fn resizing_rows_preserves_the_scroll_anchor() {
                 <Scroll
                     @node_ref=&scroll
                     on_change={move |position| sink.set(Some(position))}
-                    children={items}
+                    children=items
                 />
             }
         }

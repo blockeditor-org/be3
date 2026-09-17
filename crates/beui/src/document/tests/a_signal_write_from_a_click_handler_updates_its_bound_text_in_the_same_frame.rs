@@ -12,7 +12,7 @@ fn a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame(
                 </Button>
             },
             view! {
-                <Text string={create_memo(move || count.get().to_string())} />
+                <Text string=create_memo(move || count.get().to_string()) />
             },
         ]
     });

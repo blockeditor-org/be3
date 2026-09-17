@@ -80,7 +80,7 @@ pub fn Button(
     view! {
         <Focusable
             tab_stop
-            focused={focus_request}
+            focused=focus_request
             on_key={move |press| on_key.call(press)}
             on_text={move |text| on_text.call(text)}
             on_focus_change={move |has_focus: bool| {
@@ -88,15 +88,15 @@ pub fn Button(
                 on_focus_change.call(has_focus);
             }}
             on_activate_change={move |pressed: bool| set_key_active.set(pressed)}
-            on_activate={key_click}
+            on_activate=key_click
         >
             <ClickCatcher
                 cursor=CursorIcon::PointingHand
                 key_active
-                on_click={click}
+                on_click=click
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
                 on_active_change={move |active: bool| set_active.set(active)}
-                children={content_node}
+                children=content_node
             />
         </Focusable>
     }

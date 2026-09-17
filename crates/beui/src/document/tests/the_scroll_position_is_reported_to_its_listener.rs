@@ -11,7 +11,7 @@ fn the_scroll_position_is_reported_to_its_listener() {
             .into_iter()
             .map(|row| {
                 intrinsic(view! {
-                    <Text string={row} font_size=14.0 color=Color32::WHITE />
+                    <Text string=row font_size=14.0 color=Color32::WHITE />
                 })
             })
             .collect();
@@ -20,7 +20,7 @@ fn the_scroll_position_is_reported_to_its_listener() {
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     on_change={move |position| sink.set(Some(position))}
-                    children={items}
+                    children=items
                 />
             </Column>
         }

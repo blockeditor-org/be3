@@ -106,18 +106,18 @@ pub fn Checklist(editor: Editor) -> NodeId {
             <Column spacing=SECTION_SPACING>
                 <Column spacing=6.0>
                     <Heading content="Checklist" />
-                    <Caption content={summary} />
-                    <Progress value={progress} label="Checklist completion" />
+                    <Caption content=summary />
+                    <Progress value=progress label="Checklist completion" />
                 </Column>
                 <Card>
                     <Column spacing=12.0>
                         <CenteredRow spacing=10.0>
                             <TextInput
                                 @sizing=ItemSize::Percent(100.0)
-                                value={draft}
+                                value=draft
                                 placeholder="What needs doing?"
                                 label="New checklist item"
-                                @test_id={"checklist.draft"}
+                                @test_id="checklist.draft"
                                 on_change={move |value| set_draft.set(value)}
                                 on_submit={move |value| {
                                     add_item(&submit_checklist, &submit_draft, value);
@@ -126,7 +126,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                             <Button
                                 label="Add task"
                                 variant=ButtonVariant::Primary
-                                @test_id={"checklist.add"}
+                                @test_id="checklist.add"
                                 on_click={move || {
                                     add_item(&add_checklist, &add_set_draft, add_draft.get());
                                 }}
@@ -137,27 +137,27 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 <ToggleButton
                                     label="All"
                                     pressed={selected_filter.memo(Filter::All)}
-                                    @test_id={"checklist.filter.all"}
+                                    @test_id="checklist.filter.all"
                                     on_change={move |_| set_filter.set(Filter::All)}
                                 />
                                 <ToggleButton
                                     label="Open"
                                     pressed={selected_filter.memo(Filter::Open)}
-                                    @test_id={"checklist.filter.open"}
+                                    @test_id="checklist.filter.open"
                                     on_change={move |_| set_open_filter.set(Filter::Open)}
                                 />
                                 <ToggleButton
                                     label="Done"
                                     pressed={selected_filter.memo(Filter::Done)}
-                                    @test_id={"checklist.filter.done"}
+                                    @test_id="checklist.filter.done"
                                     on_change={move |_| set_done_filter.set(Filter::Done)}
                                 />
                             </CenteredRow>
                             <Button
                                 label="Clear completed"
                                 variant=ButtonVariant::Secondary
-                                disabled={clear_disabled}
-                                @test_id={"checklist.clear-done"}
+                                disabled=clear_disabled
+                                @test_id="checklist.clear-done"
                                 on_click={move || {
                                     clear_checklist.operate(ChecklistOperation::ClearDone);
                                 }}
@@ -167,11 +167,11 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 </Card>
                 <Card @sizing=ItemSize::Percent(100.0)>
                     <Column spacing=10.0>
-                        <Show condition={empty}>
+                        <Show condition=empty>
                             <Body content="No tasks match this view." align=TextAlign::Center />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                            <ForEach spacing=8.0 keys={visible} view={rows} />
+                            <ForEach spacing=8.0 keys=visible view=rows />
                         </Scroll>
                     </Column>
                 </Card>
@@ -206,8 +206,8 @@ fn ChecklistRow(checklist: List, items: Items, id: Uuid) -> NodeId {
             <CenteredRow spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)
-                    label={label}
-                    checked={done}
+                    label=label
+                    checked=done
                     @test_id={format!("checklist.item.{id}.done")}
                     on_change={move |done| {
                         toggle.operate(ChecklistOperation::SetDone { id, done });

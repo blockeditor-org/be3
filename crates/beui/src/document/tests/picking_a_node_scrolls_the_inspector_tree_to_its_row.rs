@@ -19,7 +19,7 @@ fn picking_a_node_scrolls_the_inspector_tree_to_its_row() {
                 })
                 .collect();
             view! {
-                <Column spacing=0.0 children={children} />
+                <Column spacing=0.0 children=children />
             }
         }
     });

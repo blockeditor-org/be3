@@ -34,8 +34,8 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
     view! {
         <Frame height=HEIGHT color={theme.track.clone()} radius=RADIUS>
             <Row spacing=0.0>
-                <Frame @sizing={filled} color={theme.accent.clone()} radius=RADIUS />
-                <Spacer @sizing={rest} />
+                <Frame @sizing=filled color={theme.accent.clone()} radius=RADIUS />
+                <Spacer @sizing=rest />
             </Row>
         </Frame>
     }

@@ -24,7 +24,7 @@ pub fn Code(
     #[prop(default = text_color())] color: Prop<Color32>,
 ) -> NodeId {
     view! {
-        <Text string={content} font_size=FONT_SMALL color align monospace=true />
+        <Text string=content font_size=FONT_SMALL color align monospace=true />
     }
 }
 
@@ -38,7 +38,7 @@ pub fn Icon(glyph: String, #[prop(default = text_color())] color: Prop<Color32>)
 #[component]
 pub fn IconSized(glyph: String, font_size: Prop<f32>, color: Prop<Color32>) -> NodeId {
     view! {
-        <Text string={glyph} font_size color align=TextAlign::Center icon=true />
+        <Text string=glyph font_size color align=TextAlign::Center icon=true />
     }
 }
 
@@ -51,7 +51,7 @@ fn Line(
 ) -> NodeId {
     let text = create_memo(move || content.get());
     view! {
-        <Text string={text} font_size color align />
+        <Text string=text font_size color align />
     }
 }
 
@@ -117,6 +117,6 @@ pub fn Paragraph(
 ) -> NodeId {
     let text = create_memo(move || content.get());
     view! {
-        <Text string={text} font_size=FONT_BODY color wrap=true />
+        <Text string=text font_size=FONT_BODY color wrap=true />
     }
 }

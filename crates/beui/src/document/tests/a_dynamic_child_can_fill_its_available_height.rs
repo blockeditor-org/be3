@@ -10,7 +10,7 @@ fn a_dynamic_child_can_fill_its_available_height() {
             let (state, _) = create_signal(false);
             view! {
                 <Frame>
-                    <Dynamic value={state} item_size=ItemSize::Percent(100.0)>
+                    <Dynamic value=state item_size=ItemSize::Percent(100.0)>
                         {move |_: bool| {
                             let scroll = scroll.clone();
                             view! {

@@ -9,7 +9,7 @@ fn finding_a_node_by_its_test_id() {
         [view! {
             <LabelledButton
                 label="Click me"
-                @test_id={"toolbar.button"}
+                @test_id="toolbar.button"
                 on_click={move || counter.set(counter.get() + 1)}
             />
         }]

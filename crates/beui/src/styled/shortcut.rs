@@ -13,10 +13,10 @@ pub fn Shortcut(keys: Prop<String>, description: Prop<String>) -> NodeId {
     let theme = use_theme();
     view! {
         <CenteredRow spacing=SPACING>
-            <Chip label={keys} />
+            <Chip label=keys />
             <Text
                 @sizing=ItemSize::Percent(100.0)
-                string={description}
+                string=description
                 font_size=FONT_SMALL
                 color={theme.text_muted.clone()}
                 align=TextAlign::Start

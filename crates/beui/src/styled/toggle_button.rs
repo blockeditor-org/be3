@@ -23,9 +23,9 @@ pub fn ToggleButton(label: Prop<String>, pressed: Prop<bool>, on_change: Callbac
     });
 
     view! {
-        <Toggle checked={pressed} accessibility on_change={move |pressed| on_change.call(pressed)}>
+        <Toggle checked=pressed accessibility on_change={move |pressed| on_change.call(pressed)}>
             {move |handle| view! {
-                <ToggleButtonFace handle label={label_text} />
+                <ToggleButtonFace handle label=label_text />
             }}
         </Toggle>
     }
@@ -58,18 +58,18 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
             outline_width=2.0
             radius=RADIUS
             outline_offset=3.0
-            outline_visible={focused}
+            outline_visible=focused
         >
             <Frame
-                color={fill_color}
-                outline={border_color}
+                color=fill_color
+                outline=border_color
                 outline_width=1.0
                 radius=RADIUS
                 outline_visible=true
                 padding_horizontal=14.0
                 padding_vertical=8.0
             >
-                <Text string={label} font_size=FONT_BODY color={theme.text.clone()} />
+                <Text string=label font_size=FONT_BODY color={theme.text.clone()} />
             </Frame>
         </Frame>
     }

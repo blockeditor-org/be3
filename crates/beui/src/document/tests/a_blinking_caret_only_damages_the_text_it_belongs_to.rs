@@ -11,7 +11,7 @@ fn a_blinking_caret_only_damages_the_text_it_belongs_to() {
         move || {
             view! {
                 <Column spacing=0.0>
-                    <Frame @node_ref=&panel height={PANEL_HEIGHT} color=Color32::WHITE radius=0 />
+                    <Frame @node_ref=&panel height=PANEL_HEIGHT color=Color32::WHITE radius=0 />
                     <Text
                         @node_ref=&text
                         string="hello"

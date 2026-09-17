@@ -172,21 +172,21 @@ fn ScrollRowFace(
 
     view! {
         <Frame
-            color={fill_color}
+            color=fill_color
             outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
-            outline_visible={focused}
+            outline_visible=focused
             padding_horizontal=ROW_PADDING_HORIZONTAL
-            padding_vertical={vertical}
+            padding_vertical=vertical
         >
             <CenteredRow spacing=12.0>
                 <Body @sizing=ItemSize::Percent(100.0) content={format!("Row {index}")} />
-                <Frame visible={timings}>
+                <Frame visible=timings>
                     <Caption
                         content={format!("{} ms", 7 + index * 3 % 91)}
                         align=TextAlign::End
-                        color={value_color}
+                        color=value_color
                     />
                 </Frame>
             </CenteredRow>
@@ -206,7 +206,7 @@ fn DemoShell(count: ReadSignal<i64>, set_count: WriteSignal<i64>) -> NodeId {
     });
     view! {
         <Column spacing=0.0>
-            <DemoHeader @sizing={header_height} set_count />
+            <DemoHeader @sizing=header_height set_count />
             <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
             <DemoBody @sizing=ItemSize::Percent(100.0) count />
         </Column>
@@ -228,11 +228,11 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
     });
     let theme = use_theme();
     view! {
-        <Frame color={theme.surface.clone()} padding_horizontal={horizontal}>
+        <Frame color={theme.surface.clone()} padding_horizontal=horizontal>
             <CenteredRow spacing=10.0>
                 <CenteredRow spacing=10.0>
                     <Title content="beui" />
-                    <Frame visible={wide}>
+                    <Frame visible=wide>
                         <Caption content="retained mode ui" />
                     </Frame>
                 </CenteredRow>
@@ -276,7 +276,7 @@ fn DemoBody(count: ReadSignal<i64>) -> NodeId {
         }
     });
     view! {
-        <Frame padding_horizontal={padding.clone()} padding_vertical={padding}>
+        <Frame padding_horizontal={padding.clone()} padding_vertical=padding>
             <Stack spacing=BODY_SPACING>
                 <Sidebar @sizing=ItemSize::Percent(32.0) />
                 <MainPanel @sizing=ItemSize::Percent(68.0) count />
@@ -300,7 +300,7 @@ fn Sidebar() -> NodeId {
                     />
                 </Accordion>
                 <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                <Accordion title="Keyboard" open={keyboard_open}>
+                <Accordion title="Keyboard" open=keyboard_open>
                     <Column spacing=12.0>
                         <Shortcut keys="Tab" description="move focus to the next control" />
                         <Shortcut keys="Shift+Tab" description="move focus back" />
@@ -349,7 +349,7 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                 <Column spacing=4.0>
                     <Caption content="Counter" />
                     <Display
-                        content={create_memo(clone!(count -> move || count.get().to_string()))}
+                        content=create_memo(clone!(count -> move || count.get().to_string()))
                     />
                     <Paragraph
                         content="Click the header buttons, or focus one with Tab and press Enter."
@@ -357,13 +357,13 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                 </Column>
             </Card>
             <Controls rows={rows.clone()} />
-            <Card @sizing={rows_size}>
+            <Card @sizing=rows_size>
                 <Column spacing=12.0>
                     <CenteredRow spacing=12.0>
                         <Heading content={format!("Rows ({ROW_COUNT})")} />
                         <Caption
                             @sizing=ItemSize::Percent(100.0)
-                            content={status_text}
+                            content=status_text
                             align=TextAlign::End
                         />
                     </CenteredRow>
@@ -372,7 +372,7 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                         <VirtualList
                             @sizing=ItemSize::Percent(100.0)
                             count=ROW_COUNT
-                            item_height={row_height}
+                            item_height=row_height
                             focus_color={use_theme().accent.clone()}
                             on_change={move |position| set_scroll_position.set(position)}
                         >
@@ -386,7 +386,7 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                         </VirtualList>
                         <Scrollbar
                             @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
-                            position={scroll_position}
+                            position=scroll_position
                         />
                     </Row>
                 </Column>
@@ -481,7 +481,7 @@ fn LoadControls() -> NodeId {
                 <Caption content="Simulated load" />
                 <Caption
                     @sizing=ItemSize::Percent(100.0)
-                    content={create_memo(move || percent_label(readout_value.get()))}
+                    content=create_memo(move || percent_label(readout_value.get()))
                     align=TextAlign::End
                 />
             </CenteredRow>
@@ -491,7 +491,7 @@ fn LoadControls() -> NodeId {
                     set_progress_value.set(value);
                 }}
             />
-            <Progress value={progress_value} />
+            <Progress value=progress_value />
         </Column>
     }
 }
@@ -506,7 +506,7 @@ fn NameControls() -> NodeId {
                 <Caption content="Display name" />
                 <Caption
                     @sizing=ItemSize::Percent(100.0)
-                    content={greeting_text}
+                    content=greeting_text
                     align=TextAlign::End
                 />
             </CenteredRow>
@@ -556,7 +556,7 @@ fn ChoiceControls() -> NodeId {
                         }
                     }}
                 />
-                <Caption content={mode_status_text} />
+                <Caption content=mode_status_text />
                 <ToggleButton
                     label="Pin selection"
                     pressed=false
@@ -570,7 +570,7 @@ fn ChoiceControls() -> NodeId {
                         set_pin_status_text.set(text);
                     }}
                 />
-                <Caption content={pin_status_text} />
+                <Caption content=pin_status_text />
             </Column>
             <Column @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <Caption content="Highlight color (type to search)" />
@@ -584,7 +584,7 @@ fn ChoiceControls() -> NodeId {
                         }
                     }}
                 />
-                <Caption content={color_status_text} />
+                <Caption content=color_status_text />
             </Column>
         </Stack>
     }
@@ -624,7 +624,7 @@ fn TreeControls() -> NodeId {
                     <Body content={TREE_NODES[row].0} />
                 }}
             </Tree>
-            <Caption content={status_text} />
+            <Caption content=status_text />
         </Column>
     }
 }
@@ -688,7 +688,7 @@ fn MenuControls() -> NodeId {
             <Column @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <Caption content="Favorite fruit (type to search)" />
                 <Select
-                    options={fruits}
+                    options=fruits
                     selected=Some(0)
                     on_change={move |selected| {
                         let text = selected
@@ -700,7 +700,7 @@ fn MenuControls() -> NodeId {
                         set_fruit_status_text.set(text);
                     }}
                 />
-                <Caption content={fruit_status_text} />
+                <Caption content=fruit_status_text />
             </Column>
             <Column @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <ContextMenu
@@ -725,7 +725,7 @@ fn MenuControls() -> NodeId {
                         </Column>
                     </Card>
                 </ContextMenu>
-                <Caption content={menu_status_text} />
+                <Caption content=menu_status_text />
             </Column>
         </Stack>
     }

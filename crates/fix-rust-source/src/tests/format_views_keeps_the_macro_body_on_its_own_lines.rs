@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn format_views_keeps_the_macro_body_on_its_own_lines() {
     let source = r#"fn build() -> NodeId {
-    view! { <Text string={label} /> }
+    view! { <Text string=label /> }
 }
 
 fn nested() -> NodeId {
@@ -17,7 +17,7 @@ fn nested() -> NodeId {
         formatted(source),
         r#"fn build() -> NodeId {
     view! {
-        <Text string={label} />
+        <Text string=label />
     }
 }
 

@@ -13,7 +13,7 @@ pub struct ChecklistApp;
 impl block_editor_plugin::BeuiApp for ChecklistApp {
     fn view(editor: Editor) -> NodeId {
         view! {
-            <Checklist editor={editor} />
+            <Checklist editor=editor />
         }
     }
 

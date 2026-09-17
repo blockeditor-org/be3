@@ -106,18 +106,18 @@ pub fn PanZoom(editor: Editor) -> NodeId {
             <Sidebar
                 @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
                 editor={editor.clone()}
-                shown={panel_shown}
+                shown=panel_shown
                 selected={selected.clone()}
                 set_selected={set_selected.clone()}
                 set_open={set_open.clone()}
             />
-            <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) shown={rail_shown} set_open={set_open} />
+            <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) shown=rail_shown set_open=set_open />
             <Stage
                 @sizing=ItemSize::Percent(100.0)
-                @node_ref={&stage}
-                editor={editor}
-                selected={selected}
-                set_selected={set_selected}
+                @node_ref=&stage
+                editor=editor
+                selected=selected
+                set_selected=set_selected
             />
         </Row>
     }
@@ -145,18 +145,14 @@ fn Sidebar(
     let rows: Vec<_> = (0..CARDS.len())
         .map(|index| {
             intrinsic(view! {
-                <FocusRow
-                    index={index}
-                    editor={editor.clone()}
-                    set_selected={set_selected.clone()}
-                />
+                <FocusRow index=index editor={editor.clone()} set_selected={set_selected.clone()} />
             })
         })
         .collect();
 
     view! {
         <Frame
-            visible={shown}
+            visible=shown
             color={theme.surface.clone()}
             padding_horizontal=PANEL_PADDING
             padding_vertical=PANEL_PADDING
@@ -166,48 +162,48 @@ fn Sidebar(
                     string="Pan and Zoom"
                     font_size=HEADING_SIZE
                     color={theme.text.clone()}
-                    @test_id={"pan_zoom.title"}
+                    @test_id="pan_zoom.title"
                 />
                 <Text
-                    string={readout}
+                    string=readout
                     font_size=LABEL_SIZE
                     color={theme.text_muted.clone()}
-                    @test_id={"pan_zoom.zoom"}
+                    @test_id="pan_zoom.zoom"
                 />
                 <Row spacing=6.0>
                     <Button
                         label="-"
                         variant=ButtonVariant::Secondary
-                        on_click={zoom_out}
-                        @test_id={"pan_zoom.zoom_out"}
+                        on_click=zoom_out
+                        @test_id="pan_zoom.zoom_out"
                     />
                     <Button
                         label="+"
                         variant=ButtonVariant::Secondary
-                        on_click={zoom_in}
-                        @test_id={"pan_zoom.zoom_in"}
+                        on_click=zoom_in
+                        @test_id="pan_zoom.zoom_in"
                     />
                     <Button
                         label="Fit"
                         variant=ButtonVariant::Secondary
-                        on_click={fit}
-                        @test_id={"pan_zoom.fit"}
+                        on_click=fit
+                        @test_id="pan_zoom.fit"
                     />
                 </Row>
                 <Separator />
                 <Text
-                    string={chosen}
+                    string=chosen
                     font_size=LABEL_SIZE
                     color={theme.text_muted.clone()}
-                    @test_id={"pan_zoom.selected"}
+                    @test_id="pan_zoom.selected"
                 />
-                <Column spacing=4.0 children={rows} />
+                <Column spacing=4.0 children=rows />
                 <Separator />
                 <Button
                     label="Hide sidebar"
                     variant=ButtonVariant::Secondary
-                    on_click={hide}
-                    @test_id={"pan_zoom.hide_sidebar"}
+                    on_click=hide
+                    @test_id="pan_zoom.hide_sidebar"
                 />
             </Column>
         </Frame>
@@ -225,7 +221,7 @@ fn FocusRow(editor: Editor, index: usize, set_selected: WriteSignal<Option<usize
         <Button
             label={card.name}
             variant=ButtonVariant::Secondary
-            on_click={focus}
+            on_click=focus
             @test_id={format!("pan_zoom.focus.{index}")}
         />
     }
@@ -237,13 +233,13 @@ fn Rail(shown: Prop<bool>, set_open: WriteSignal<bool>) -> NodeId {
     let show = clone!(set_open -> move || set_open.set(true));
     view! {
         <Frame
-            visible={shown}
+            visible=shown
             color={theme.surface.clone()}
             padding_horizontal=6.0
             padding_vertical=PANEL_PADDING
         >
             <Column spacing=0.0>
-                <unstyled::Button on_click={show} @test_id={"pan_zoom.show_sidebar"}>
+                <unstyled::Button on_click=show @test_id="pan_zoom.show_sidebar">
                     <Frame
                         color={theme.surface_raised.clone()}
                         radius=6
@@ -269,7 +265,7 @@ fn Stage(
         .map(|index| {
             intrinsic(view! {
                 <CardView
-                    index={index}
+                    index=index
                     scale={scale.clone()}
                     selected={selected.clone()}
                     set_selected={set_selected.clone()}
@@ -278,7 +274,7 @@ fn Stage(
         })
         .collect();
     view! {
-        <Canvas view={editor.canvas()} children={cards} />
+        <Canvas view={editor.canvas()} children=cards />
     }
 }
 
@@ -316,25 +312,21 @@ fn CardView(
             height={card.height}
             @test_id={format!("pan_zoom.card.{index}")}
         >
-            <ClickCatcher cursor=CursorIcon::PointingHand on_click={select}>
+            <ClickCatcher cursor=CursorIcon::PointingHand on_click=select>
                 <Frame
                     color={theme.surface_raised.clone()}
-                    outline={outline}
-                    outline_width={outline_width}
+                    outline=outline
+                    outline_width=outline_width
                     outline_visible=true
-                    radius={radius}
+                    radius=radius
                     padding_horizontal={padding.clone()}
-                    padding_vertical={padding}
+                    padding_vertical=padding
                 >
-                    <Column spacing={spacing}>
+                    <Column spacing=spacing>
+                        <Text string={card.name} font_size=title_size color={theme.text.clone()} />
                         <Text
-                            string={card.name}
-                            font_size={title_size}
-                            color={theme.text.clone()}
-                        />
-                        <Text
-                            string={position}
-                            font_size={label_size}
+                            string=position
+                            font_size=label_size
                             color={theme.text_muted.clone()}
                         />
                     </Column>

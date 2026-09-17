@@ -8,7 +8,7 @@ fn a_canvas_places_its_items_at_the_view_it_is_given() {
 
     let document = build(move || {
         let canvas = view! {
-            <Canvas view={Some(CanvasView::new(pos2(50.0, 20.0), 2.0))}>
+            <Canvas view=Some(CanvasView::new(pos2(50.0, 20.0), 2.0))>
                 <CanvasItem x=0.0 y=0.0 width=10.0 height=10.0 />
                 <CanvasItem x=30.0 y=40.0 width=20.0 height=5.0 />
             </Canvas>

@@ -216,6 +216,16 @@ impl Parser<'_> {
         Some(self.tokens[start].range.start..self.tokens[self.index - 1].range.end)
     }
 
+    fn braced_value(&mut self) -> Option<Value> {
+        let open = self.index;
+        let range = self.group()?;
+        let close = self.index - 1;
+        if is_bare_value(&self.tokens[open + 1..close]) {
+            return Some(Value::Bare(range));
+        }
+        Some(Value::Braced(range))
+    }
+
     fn children(&mut self) -> Option<Vec<Child>> {
         let mut children = Vec::new();
         while self.index < self.tokens.len() {
@@ -249,7 +259,7 @@ impl Parser<'_> {
             let key = self.identifier()?;
             let value = if self.eat("=") {
                 if self.at(0, "{") {
-                    Some(Value::Braced(self.group()?))
+                    Some(self.braced_value()?)
                 } else {
                     Some(Value::Bare(self.bare_value()?))
                 }
@@ -284,6 +294,14 @@ impl Parser<'_> {
             children: Some(children),
         })
     }
+}
+
+fn is_bare_value(tokens: &[Token]) -> bool {
+    if tokens.is_empty() {
+        return false;
+    }
+    let mut parser = Parser { tokens, index: 0 };
+    parser.bare_value().is_some() && parser.index == tokens.len()
 }
 
 fn is_literal(kind: SyntaxKind) -> bool {

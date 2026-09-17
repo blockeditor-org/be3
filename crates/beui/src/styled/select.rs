@@ -52,9 +52,9 @@ pub fn Select(
             search_content={|handle| view! {
                 <SearchField handle />
             }}
-            search_menu={text_input_menu()}
+            search_menu=text_input_menu()
             trigger={move |handle| view! {
-                <SelectTrigger options={trigger_options} handle />
+                <SelectTrigger options=trigger_options handle />
             }}
             option={|handle| view! {
                 <SelectOption handle />
@@ -86,20 +86,20 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible=focused
         >
             <Frame
                 width=TRIGGER_WIDTH
                 height=HEIGHT
                 color={theme.surface_raised.clone()}
-                outline={border}
+                outline=border
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_visible=true
                 padding_horizontal=PADDING_HORIZONTAL
             >
                 <Text
-                    string={label_text}
+                    string=label_text
                     font_size=FONT_BODY
                     color={theme.text.clone()}
                     align=TextAlign::Start
@@ -124,7 +124,7 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         <Frame
             height=HEIGHT
             color={theme.surface.clone()}
-            outline={border}
+            outline=border
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
@@ -148,13 +148,13 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
     );
     view! {
         <Frame
-            color={fill_color}
+            color=fill_color
             radius=RADIUS
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=OPTION_PADDING_VERTICAL
         >
             <Text
-                string={label}
+                string=label
                 font_size=FONT_BODY
                 color={theme.text.clone()}
                 align=TextAlign::Start

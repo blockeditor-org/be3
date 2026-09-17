@@ -28,7 +28,7 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
                         {move |index: u32| {
                             let item = rows.get(&index);
                             view! {
-                                <Text string={item} />
+                                <Text string=item />
                             }
                         }}
                     </ForEach>

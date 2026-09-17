@@ -77,10 +77,10 @@ fn ButtonFace(
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 4}
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible=focused
         >
             <Frame
-                color={fill_color}
+                color=fill_color
                 outline={theme.border.clone()}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
@@ -89,9 +89,9 @@ fn ButtonFace(
                 padding_vertical=PADDING_VERTICAL
             >
                 <Text
-                    string={label}
+                    string=label
                     font_size=FONT_BODY
-                    color={create_memo(clone!(theme -> move || variant.label(&theme)))}
+                    color=create_memo(clone!(theme -> move || variant.label(&theme)))
                     align=TextAlign::Center
                 />
             </Frame>

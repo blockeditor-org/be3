@@ -28,7 +28,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                         <Stack spacing=0.0 breakpoint=BREAKPOINT>
                             <Spacer @sizing=ItemSize::Percent(50.0) />
                             <Column @sizing=ItemSize::Percent(50.0) spacing=0.0>
-                                <Column @sizing={size} spacing=0.0>
+                                <Column @sizing=size spacing=0.0>
                                     <VirtualList
                                         @sizing=ItemSize::Percent(100.0)
                                         @node_ref=&scroll

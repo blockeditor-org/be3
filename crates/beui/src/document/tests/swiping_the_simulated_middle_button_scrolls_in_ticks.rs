@@ -16,7 +16,7 @@ fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
             .collect::<Vec<_>>();
         view! {
             <Column spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children=items />
             </Column>
         }
     });

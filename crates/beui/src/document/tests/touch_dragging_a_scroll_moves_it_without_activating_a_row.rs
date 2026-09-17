@@ -23,7 +23,7 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
             .collect::<Vec<_>>();
         view! {
             <Column spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children=items />
             </Column>
         }
     });

@@ -183,7 +183,7 @@ pub fn TextInput(
     let catcher = view! {
         <ClickCatcher
             cursor=CursorIcon::Text
-            repeat_drag={autoscroll}
+            repeat_drag=autoscroll
             capture_at={{
                 let editor = editor.clone();
                 move |pos: Pos2| handle_at(&editor, pos).is_some()
@@ -212,10 +212,7 @@ pub fn TextInput(
         >
             {{
                 let field = view! {
-                    <Frame
-                        padding_horizontal={padding_horizontal}
-                        padding_vertical={padding_vertical}
-                    >
+                    <Frame padding_horizontal=padding_horizontal padding_vertical=padding_vertical>
                         <Text
                             @node_ref=&text
                             string
@@ -241,13 +238,13 @@ pub fn TextInput(
     let mut children = vec![(catcher, Prop::Static(ItemSize::Percent(100.0)))];
     children.extend(menu.0.map(|(row, panel)| {
         intrinsic(view! {
-            <TouchMenu editor={editor.clone()} at={menu_at} actions={menu_actions} row panel />
+            <TouchMenu editor={editor.clone()} at=menu_at actions=menu_actions row panel />
         })
     }));
 
     view! {
         <Focusable
-            focused={focus_request}
+            focused=focus_request
             on_focus_change={{
                 let editor = editor.clone();
                 move |is_focused: bool| {
@@ -301,7 +298,7 @@ fn TouchMenu(
                 view! {
                     <Overlay anchor open traps_focus=false on_dismiss={move || dismiss.set(None)}>
                         {panel.call(view! {
-                            <Dynamic value={actions}>
+                            <Dynamic value=actions>
                                 {move |actions: Vec<MenuAction>| menu_rows(&editor, &row, actions)}
                             </Dynamic>
                         })}
@@ -325,7 +322,7 @@ fn menu_rows(editor: &Handle, row: &RenderFn<MenuRowHandle>, actions: Vec<MenuAc
         })
         .collect();
     view! {
-        <Column spacing=MENU_SPACING children={rows} />
+        <Column spacing=MENU_SPACING children=rows />
     }
 }
 

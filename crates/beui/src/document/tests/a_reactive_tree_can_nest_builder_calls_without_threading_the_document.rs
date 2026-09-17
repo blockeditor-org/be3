@@ -11,7 +11,7 @@ fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
     let document = build(move || {
         let (count, set_count) = create_signal(0i64);
         let value_node = view! {
-            <Text string={create_memo(move || count.get().to_string())} />
+            <Text string=create_memo(move || count.get().to_string()) />
         };
         let increment_node = view! {
             <Button

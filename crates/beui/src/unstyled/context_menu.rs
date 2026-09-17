@@ -60,7 +60,7 @@ pub fn ContextMenu(
                     open
                     on_dismiss={move || dismiss.set(false)}
                 >
-                    <Dynamic value={items}>
+                    <Dynamic value=items>
                         {move |items: Vec<MenuItem>| {
                             let (row, panel, close) = (row.clone(), panel.clone(), close.clone());
                             let content = content.clone();

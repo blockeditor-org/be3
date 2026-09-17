@@ -13,7 +13,7 @@ fn key_handlers_can_move_focus_and_change_their_tab_stop() {
             [
                 view! {
                     <unstyled::Button
-                        tab_stop={create_memo(move || !skipped.get())}
+                        tab_stop=create_memo(move || !skipped.get())
                         on_key={move |press: KeyPress| {
                             if press.key != Key::ArrowRight || !press.pressed {
                                 return false;

@@ -233,11 +233,11 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     <Heading content="Inspector" />
                                     <Caption
                                         @sizing=ItemSize::Percent(100.0)
-                                        content={count_text}
+                                        content=count_text
                                         align=TextAlign::End
                                     />
-                                    <Show condition={header_tree_visible}>
-                                        <PickToggle state={pick_state} picking />
+                                    <Show condition=header_tree_visible>
+                                        <PickToggle state=pick_state picking />
                                     </Show>
                                 </CenteredRow>
                                 <Tabs
@@ -258,10 +258,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                             padding_vertical=BODY_PADDING
                         >
                             <Column spacing=0.0>
-                                <Show
-                                    @sizing=ItemSize::Percent(100.0)
-                                    condition={body_tree_visible}
-                                >
+                                <Show @sizing=ItemSize::Percent(100.0) condition=body_tree_visible>
                                     <Row spacing=BODY_SPACING>
                                         <Scroll
                                             @sizing=ItemSize::Percent(100.0)
@@ -272,7 +269,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                                 @node_ref=&tree_ref
                                                 keys
                                                 item={move |key: Key| item(&item_entries, key)}
-                                                selected={selection}
+                                                selected=selection
                                                 reveal
                                                 on_select={move |key: Key| select_state.select(key.node())}
                                                 on_expand={move |(key, expanded): (Key, bool)| {
@@ -284,7 +281,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                             >
                                                 {move |key: Key| view! {
                                                     <TreeCells
-                                                        row_key={key}
+                                                        row_key=key
                                                         entries={row_entries.clone()}
                                                         rows={list_rows.clone()}
                                                     />
@@ -299,7 +296,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 </Show>
                                 <Show
                                     @sizing=ItemSize::Percent(100.0)
-                                    condition={body_performance_visible}
+                                    condition=body_performance_visible
                                 >
                                     <PerformancePanel
                                         @node_ref=&performance_panel_ref
@@ -311,7 +308,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 </Show>
                                 <Show
                                     @sizing=ItemSize::Percent(100.0)
-                                    condition={body_simulation_visible}
+                                    condition=body_simulation_visible
                                 >
                                     <SimulationPanel
                                         state={simulation_state.clone()}
@@ -326,22 +323,22 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                         <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                         <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
                             <Column spacing=0.0>
-                                <Show condition={footer_tree_visible}>
+                                <Show condition=footer_tree_visible>
                                     <Column spacing=FOOTER_SPACING>
-                                        <Code content={selection_text} />
-                                        <Code content={bounds_text} color={THEME.text_muted} />
+                                        <Code content=selection_text />
+                                        <Code content=bounds_text color={THEME.text_muted} />
                                     </Column>
                                 </Show>
-                                <Show condition={footer_performance_visible}>
+                                <Show condition=footer_performance_visible>
                                     <Button
                                         label="Reset samples"
                                         variant=ButtonVariant::Secondary
                                         on_click={move || reset_state.reset_performance()}
                                     />
                                 </Show>
-                                <Show condition={footer_simulation_visible}>
+                                <Show condition=footer_simulation_visible>
                                     <Code
-                                        content={native_pixel_ratio_text}
+                                        content=native_pixel_ratio_text
                                         color={THEME.text_muted}
                                     />
                                 </Show>
@@ -439,7 +436,7 @@ fn SimulationPanel(
                         <RadioGroup
                             @node_ref=&pixel_ratio
                             labels
-                            selected={Some(selected)}
+                            selected=Some(selected)
                             on_change={move |index: Option<usize>| {
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
                                 ratio_state.simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
@@ -451,8 +448,8 @@ fn SimulationPanel(
                         <Heading content="Theme" />
                         <RadioGroup
                             @node_ref=&theme_choice
-                            labels={theme_labels}
-                            selected={Some(selected_theme)}
+                            labels=theme_labels
+                            selected=Some(selected_theme)
                             on_change={move |index: Option<usize>| {
                                 if let Some((_, theme)) = index.and_then(|index| THEMES.get(index)) {
                                     theme_state.choose_theme(*theme);
@@ -501,9 +498,9 @@ fn PerformancePanel(
             >
                 <Column spacing=PERFORMANCE_SPACING>
                     <Column spacing=FOOTER_SPACING>
-                        <Code content={latest_work} />
-                        <Code content={scene} color={THEME.text_muted} />
-                        <Code content={cache} color={THEME.text_muted} />
+                        <Code content=latest_work />
+                        <Code content=scene color={THEME.text_muted} />
+                        <Code content=cache color={THEME.text_muted} />
                     </Column>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                     <Column spacing=TIMING_SPACING>
@@ -512,12 +509,12 @@ fn PerformancePanel(
                             <Caption content="milliseconds" />
                         </CenteredRow>
                         <TimingHeader />
-                        <TimingRow label="Document" values={total} />
-                        <TimingRow label="Layout" values={layout} />
-                        <TimingRow label="Interaction" values={interaction} />
-                        <TimingRow label="Paint" values={paint} />
-                        <TimingRow label="Accessibility" values={accessibility} />
-                        <TimingRow label="Other" values={other} />
+                        <TimingRow label="Document" values=total />
+                        <TimingRow label="Layout" values=layout />
+                        <TimingRow label="Interaction" values=interaction />
+                        <TimingRow label="Paint" values=paint />
+                        <TimingRow label="Accessibility" values=accessibility />
+                        <TimingRow label="Other" values=other />
                     </Column>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                     <Column spacing=TIMING_SPACING>
@@ -559,10 +556,10 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
         <Row spacing=TIMING_SPACING>
-            <Caption @sizing=ItemSize::Percent(100.0) content={label} />
-            <Code @sizing=ItemSize::Fixed(54.0) content={current} align=TextAlign::End />
-            <Code @sizing=ItemSize::Fixed(54.0) content={average} align=TextAlign::End />
-            <Code @sizing=ItemSize::Fixed(54.0) content={peak} align=TextAlign::End />
+            <Caption @sizing=ItemSize::Percent(100.0) content=label />
+            <Code @sizing=ItemSize::Fixed(54.0) content=current align=TextAlign::End />
+            <Code @sizing=ItemSize::Fixed(54.0) content=average align=TextAlign::End />
+            <Code @sizing=ItemSize::Fixed(54.0) content=peak align=TextAlign::End />
         </Row>
     }
 }
@@ -619,7 +616,7 @@ fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
     view! {
         <unstyled::Pressable on_click={move || picker.toggle_picking()}>
             <Frame
-                color={fill_color}
+                color=fill_color
                 outline={THEME.border}
                 outline_width=BORDER_WIDTH
                 radius=CHIP_RADIUS
@@ -627,7 +624,7 @@ fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
                 padding_horizontal=TOGGLE_PADDING_HORIZONTAL
                 padding_vertical=TOGGLE_PADDING_VERTICAL
             >
-                <Code content="Pick" align=TextAlign::Center color={label_color} />
+                <Code content="Pick" align=TextAlign::Center color=label_color />
             </Frame>
         </unstyled::Pressable>
     }
@@ -663,9 +660,9 @@ fn TreeCells(row_key: Key, entries: Entries, rows: Rows) -> NodeId {
 
     view! {
         <CenteredRow @node_ref=&row spacing=ROW_SPACING>
-            <Code content={kind} />
-            <Code @sizing=ItemSize::Percent(100.0) content={detail} color={THEME.text_muted} />
-            <Code content={size} color={THEME.text_muted} align=TextAlign::End />
+            <Code content=kind />
+            <Code @sizing=ItemSize::Percent(100.0) content=detail color={THEME.text_muted} />
+            <Code content=size color={THEME.text_muted} align=TextAlign::End />
         </CenteredRow>
     }
 }

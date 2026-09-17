@@ -35,7 +35,7 @@ pub fn Switch(
         node
     });
     view! {
-        <Toggle checked={on} accessibility on_change={move |on| on_change.call(on)}>
+        <Toggle checked=on accessibility on_change={move |on| on_change.call(on)}>
             {move |handle: ToggleHandle| {
                 view! {
                     <SwitchTrack handle />
@@ -65,31 +65,31 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible=focused
         >
             <Frame
                 width=WIDTH
                 height=HEIGHT
-                color={track_color}
-                outline={control_outline(&theme)}
+                color=track_color
+                outline=control_outline(&theme)
                 outline_width=BORDER_WIDTH
-                outline_visible={control_outline_visible(&theme)}
+                outline_visible=control_outline_visible(&theme)
                 radius=TRACK_RADIUS
                 padding_horizontal=PADDING
                 padding_vertical=PADDING
             >
                 <CenteredRow spacing=0.0>
-                    <Spacer @sizing={before_percent} />
+                    <Spacer @sizing=before_percent />
                     <Frame
                         width=KNOB_SIZE
                         height=KNOB_SIZE
                         color={theme.knob.clone()}
-                        outline={control_outline(&theme)}
+                        outline=control_outline(&theme)
                         outline_width=BORDER_WIDTH
-                        outline_visible={control_outline_visible(&theme)}
+                        outline_visible=control_outline_visible(&theme)
                         radius=KNOB_RADIUS
                     />
-                    <Spacer @sizing={after_percent} />
+                    <Spacer @sizing=after_percent />
                 </CenteredRow>
             </Frame>
         </Frame>

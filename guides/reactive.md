@@ -164,7 +164,7 @@ That handle is what a row binds to, which is why `for_each` takes keys rather
 than values:
 
 ```rust
-<ForEach spacing=8.0 keys={visible}>
+<ForEach spacing=8.0 keys=visible>
     {move |id: Uuid| {
         let item = items.get(&id);
         view! { <Row item /> }
@@ -288,7 +288,7 @@ fn App() -> beui::NodeId {
                 <Button on_click={move || decrement.update(|count| *count -= 1)}>
                     <Text string="-" />
                 </Button>
-                <Text string={count_text} /> // updates itself when `count` changes
+                <Text string=count_text /> // updates itself when `count` changes
                 <Button on_click={move || set_count.update(|count| *count += 1)}>
                     <Text string="+" />
                 </Button>
@@ -313,8 +313,10 @@ name its own props whatever it likes.
 
 An attribute value in braces is any expression at all, and that is what closures,
 blocks, method chains, and anything containing `<` or `>` need. Values simple
-enough to read on their own may drop the braces: literals, paths, a call on a
-path, a unary expression, and a reference to a path.
+enough to read on their own are written without the braces: literals, paths, a
+call on a path, a unary expression, and a reference to a path. `./scripts/verify`
+drops the braces from those for you, so `content={"Inspector"}` becomes
+`content="Inspector"`, and leaves them on everything else.
 
 ```rust
 <Frame color=SURFACE>
@@ -325,9 +327,9 @@ path, a unary expression, and a reference to a path.
 ```
 
 An attribute written as a bare name takes the value of the binding with that
-name, so `<List direction spacing children />` is `direction={direction}
-spacing={spacing} children={children}`. There is no boolean shorthand: `visible`
-means `visible={visible}`, never `visible={true}`.
+name, so `<List direction spacing children />` is `direction=direction
+spacing=spacing children=children`. There is no boolean shorthand: `visible`
+means `visible=visible`, never `visible=true`.
 
 A prop typed `String`, `Option<String>`, or `Prop<String>` accepts a string
 literal directly, so `content="Inspector"` needs no `to_string()`.
@@ -371,7 +373,7 @@ actually changes.
 
 ```rust
 let fill = create_memo(move || if hovered.get() { HOVER } else { REST });
-view! { <Frame color={fill} radius=RADIUS>{child}</Frame> }
+view! { <Frame color=fill radius=RADIUS>{child}</Frame> }
 ```
 
 `Prop<T>` reads with `get()`, which subscribes the computation around it, and
@@ -412,10 +414,10 @@ the `NodeId` it has always been.
 
 ```rust
 let toolbar = view! {
-    <Button label="Open" on_click={open} />
-    <Button label="Save" on_click={save} />
+    <Button label="Open" on_click=open />
+    <Button label="Save" on_click=save />
 };
-view! { <Row spacing=8.0 children={toolbar} /> }
+view! { <Row spacing=8.0 children=toolbar /> }
 ```
 
 Roots take the same `@` sizing prefixes and `{expr}` form that children between
@@ -519,7 +521,7 @@ need the value itself rather than a boolean, like a menu whose items can be
 swapped out.
 
 ```rust
-<Dynamic value={items}>{move |items: Vec<MenuItem>| view! { <MenuList items /> }}</Dynamic>
+<Dynamic value=items>{move |items: Vec<MenuItem>| view! { <MenuList items /> }}</Dynamic>
 ```
 
 `dynamic` rebuilds on every change of its value, which is right when the value
@@ -529,7 +531,7 @@ the two: it rebuilds when its `key` changes and hands its `view` a
 while the branch itself stays put.
 
 ```rust
-<Keyed value={state} key={|state: State| state.shape()}>
+<Keyed value=state key={|state: State| state.shape()}>
     {|state: ReadSignal<State>| view! { <Screen state /> }}
 </Keyed>
 ```
@@ -545,7 +547,7 @@ returned `ItemSize::Percent` in a row, for instance.
 ```rust
 <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
 <Caption @sizing=ItemSize::Percent(100.0) content=count_text align=TextAlign::End />
-<Card @sizing={rows_size}>
+<Card @sizing=rows_size>
 ```
 
 An attribute has nothing to attach to on an `{expr}` child, which is always

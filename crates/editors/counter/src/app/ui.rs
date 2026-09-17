@@ -21,27 +21,27 @@ pub fn Counter(editor: Editor) -> NodeId {
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
             <Column spacing=16.0>
-                <Display content={shown} @test_id={"counter.value"} />
+                <Display content=shown @test_id="counter.value" />
                 <CenteredRow spacing=10.0>
                     <Button
                         @sizing=ItemSize::Fixed(BUTTON_WIDTH)
                         label="-"
                         variant=ButtonVariant::Primary
-                        @test_id={"counter.decrement"}
-                        on_click={decrement}
+                        @test_id="counter.decrement"
+                        on_click=decrement
                     />
                     <Button
                         @sizing=ItemSize::Fixed(BUTTON_WIDTH)
                         label="+"
                         variant=ButtonVariant::Primary
-                        @test_id={"counter.increment"}
-                        on_click={increment}
+                        @test_id="counter.increment"
+                        on_click=increment
                     />
                     <Button
                         label="Reset"
                         variant=ButtonVariant::Secondary
-                        @test_id={"counter.reset"}
-                        on_click={reset}
+                        @test_id="counter.reset"
+                        on_click=reset
                     />
                 </CenteredRow>
             </Column>

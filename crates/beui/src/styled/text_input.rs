@@ -43,7 +43,7 @@ pub fn TextInput(
             selection_color={theme.accent_soft.clone()}
             caret_color={theme.accent.clone()}
             padding_horizontal=PADDING_HORIZONTAL
-            menu={text_input_menu()}
+            menu=text_input_menu()
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
         >
@@ -71,12 +71,12 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible=focused
         >
             <Frame
                 height=HEIGHT
                 color={theme.surface_raised.clone()}
-                outline={border}
+                outline=border
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_visible=true

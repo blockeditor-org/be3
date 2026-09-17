@@ -50,12 +50,15 @@ justification:
 - rustfmt gives up on `view!` because the body is not Rust syntax, so nothing else keeps it tidy and tag lines had grown past 240 columns
 - a canonical shape means diffs show what changed in the ui rather than how someone happened to wrap it
 - agents write views by pattern-matching nearby code, so one consistent shape is a better example than a mix
+- an attribute value the macro accepts bare reads the same with or without `{...}`, so writing `def={"ghi"}` as `def="ghi"` drops a pair of braces the reader has to look past, and keeps the two spellings from drifting apart across the codebase
 
 counter:
 - the expressions inside `{...}` are still only re-indented, never reflowed, so a long one can push a line past 100 columns anyway
 - a component child always takes its own line, so a one-child wrapper costs three lines where one read fine
 - `view!` never collapses, so `build(|| view! { <App /> })` spans three lines, as does every one-line callback that builds a view in an attribute
 - it is a second formatter to keep in step with rustfmt, and the two can disagree about a line rustfmt rewraps around a view
+- unwrapping braces means the fixer has to agree with `parse_unbraced_value` in `beui_macros` about which values may be written bare, so widening that grammar without widening the fixer's leaves the two out of step
+- always-braced would be one rule instead of two shapes, and a value only stays bare until someone extends it into an expression the macro will not take unbraced
 
 empirical:
 - the first run reformatted 77 files and the workspace still compiled unchanged

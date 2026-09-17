@@ -23,9 +23,9 @@ pub fn Scrollbar(position: Prop<ScrollPosition>) -> NodeId {
     view! {
         <Frame color={theme.surface_raised.clone()} radius=RADIUS>
             <Column spacing=0.0>
-                <Spacer @sizing={before} />
-                <Frame @sizing={thumb} color radius=RADIUS></Frame>
-                <Spacer @sizing={after} />
+                <Spacer @sizing=before />
+                <Frame @sizing=thumb color radius=RADIUS></Frame>
+                <Spacer @sizing=after />
             </Column>
         </Frame>
     }

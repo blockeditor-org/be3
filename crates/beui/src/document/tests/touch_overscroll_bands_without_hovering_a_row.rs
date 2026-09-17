@@ -26,7 +26,7 @@ fn touch_overscroll_bands_without_hovering_a_row() {
         }));
         view! {
             <Column spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children=items />
             </Column>
         }
     });

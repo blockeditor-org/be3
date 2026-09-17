@@ -63,11 +63,11 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible=focused
         >
             <CenteredRow spacing=0.0>
                 <Frame
-                    @sizing={filled_percent}
+                    @sizing=filled_percent
                     height=TRACK_HEIGHT
                     color={theme.accent.clone()}
                     radius=TRACK_RADIUS
@@ -75,14 +75,14 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
-                    color={knob_color}
-                    outline={control_outline(&theme)}
+                    color=knob_color
+                    outline=control_outline(&theme)
                     outline_width=BORDER_WIDTH
-                    outline_visible={control_outline_visible(&theme)}
+                    outline_visible=control_outline_visible(&theme)
                     radius=KNOB_RADIUS
                 />
                 <Frame
-                    @sizing={rest_percent}
+                    @sizing=rest_percent
                     height=TRACK_HEIGHT
                     color={theme.track.clone()}
                     radius=TRACK_RADIUS

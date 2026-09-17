@@ -18,13 +18,8 @@ fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
             let height = create_memo(move || if tall.get() { TALL } else { SHORT });
             view! {
                 <Column spacing=0.0>
-                    <Frame height={height} color=Color32::WHITE radius=0 />
-                    <Frame
-                        @node_ref=&bottom
-                        height={BOTTOM}
-                        color={Color32::from_gray(40)}
-                        radius=0
-                    />
+                    <Frame height=height color=Color32::WHITE radius=0 />
+                    <Frame @node_ref=&bottom height=BOTTOM color=Color32::from_gray(40) radius=0 />
                 </Column>
             }
         }

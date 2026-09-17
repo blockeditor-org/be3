@@ -11,7 +11,7 @@ fn fix_repository_formats_views() {
         source.join("lib.rs"),
         r#"pub fn build() -> NodeId {
     view! {
-        <Frame color={surface} outline={border} outline_width=BORDER_WIDTH radius=CARD_RADIUS padding=PADDING>
+        <Frame color=surface outline=border outline_width=BORDER_WIDTH radius=CARD_RADIUS padding=PADDING>
             {children}
         </Frame>
     }
@@ -24,7 +24,7 @@ fn fix_repository_formats_views() {
     fix(&root, false).unwrap();
 
     let formatted = fs::read_to_string(source.join("lib.rs")).unwrap();
-    assert!(formatted.contains("        <Frame\n            color={surface}\n"));
+    assert!(formatted.contains("        <Frame\n            color=surface\n"));
     assert!(formatted.lines().all(|line| line.len() <= 100));
     assert!(fix(&root, true).is_ok());
 

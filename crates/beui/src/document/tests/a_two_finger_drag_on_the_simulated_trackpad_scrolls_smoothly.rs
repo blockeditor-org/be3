@@ -15,7 +15,7 @@ fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
             .collect::<Vec<_>>();
         view! {
             <Column spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children=items />
             </Column>
         }
     });

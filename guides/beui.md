@@ -50,8 +50,8 @@ fn LabeledValue(label: Prop<String>, value: Prop<String>) -> NodeId {
     let text = create_memo(move || value.get());
     view! {
         <Column spacing=4.0>
-            <Text string={label} />
-            <Text string={text} />
+            <Text string=label />
+            <Text string=text />
         </Column>
     }
 }
@@ -83,7 +83,7 @@ an API to call by hand. Write
 
 ```rust
 view! {
-    <Button label="Save" variant=ButtonVariant::Primary on_click={save} />
+    <Button label="Save" variant=ButtonVariant::Primary on_click=save />
 }
 ```
 
@@ -214,7 +214,7 @@ fn Counter() -> NodeId {
     view! {
         <Frame color={theme.background.clone()}>
             <Column spacing=8.0>
-                <Display content={label} />
+                <Display content=label />
                 <Button
                     label="Decrease"
                     variant=ButtonVariant::Secondary
@@ -358,7 +358,7 @@ pub struct CounterApp;
 impl block_editor_plugin::BeuiApp for CounterApp {
     fn view(editor: block_editor_plugin::Editor) -> NodeId {
         view! {
-            <Counter editor={editor} />
+            <Counter editor=editor />
         }
     }
 
@@ -489,7 +489,7 @@ follows the `Prop<Theme>` it is given:
 
 ```rust
 view! {
-    <ThemeProvider theme={theme_signal}>
+    <ThemeProvider theme=theme_signal>
         <Settings />
     </ThemeProvider>
 }

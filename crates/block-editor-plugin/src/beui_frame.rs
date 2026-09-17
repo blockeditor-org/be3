@@ -38,7 +38,7 @@ impl BeuiFrame {
             };
             let children = vec![intrinsic(top_bar), percent(content, 100.0)];
             view! {
-                <Column spacing=0.0 children={children} />
+                <Column spacing=0.0 children=children />
             }
         });
         Self {
@@ -87,12 +87,12 @@ pub(crate) fn TopBar(
     let trail = create_memo(move || trail.get());
     let visible = create_memo(clone!(trail -> move || shown.get() && !trail.get().is_empty()));
     view! {
-        <Frame visible={visible} color={theme.surface.clone()}>
+        <Frame visible=visible color={theme.surface.clone()}>
             <Column spacing=0.0>
                 <Frame padding_horizontal=BAND_PADDING_H padding_vertical=BAND_PADDING_V>
                     <CenteredRow spacing=12.0>
                         <CenteredRow @sizing=ItemSize::Percent(100.0) spacing=STEP_SPACING>
-                            <Dynamic value={trail}>
+                            <Dynamic value=trail>
                                 {move |trail: Vec<String>| breadcrumb(trail)}
                             </Dynamic>
                         </CenteredRow>
@@ -100,7 +100,7 @@ pub(crate) fn TopBar(
                             label="Close"
                             variant=ButtonVariant::Secondary
                             on_click={move || on_exit.call()}
-                            @test_id={"editor.close"}
+                            @test_id="editor.close"
                         />
                     </CenteredRow>
                 </Frame>
@@ -125,11 +125,11 @@ fn breadcrumb(trail: Vec<String>) -> NodeId {
             false => theme.text_muted.clone(),
         };
         children.push(intrinsic(view! {
-            <Text string={step} color={color} />
+            <Text string=step color=color />
         }));
     }
     view! {
-        <CenteredRow spacing=STEP_SPACING children={children} />
+        <CenteredRow spacing=STEP_SPACING children=children />
     }
 }
 

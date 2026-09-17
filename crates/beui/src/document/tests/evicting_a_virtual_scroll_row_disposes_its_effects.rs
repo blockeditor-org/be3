@@ -19,7 +19,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
                         {move |index: usize| {
                             let shown = shown.clone();
                             view! {
-                                <Frame visible={shown}>
+                                <Frame visible=shown>
                                     <Text string={format!("Row {index}")} />
                                 </Frame>
                             }

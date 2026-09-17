@@ -26,7 +26,7 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
                 })
             }));
             view! {
-                <Scroll @node_ref=&scroll children={items} />
+                <Scroll @node_ref=&scroll children=items />
             }
         }
     });

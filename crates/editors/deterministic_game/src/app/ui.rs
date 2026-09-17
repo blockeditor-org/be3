@@ -98,7 +98,7 @@ pub(crate) fn Game(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) 
             padding_vertical=PAGE_PADDING
         >
             <Keyed
-                value={snapshot}
+                value=snapshot
                 key={|snapshot: GameSnapshot| snapshot.shape()}
                 item_size=ItemSize::Percent(100.0)
             >
@@ -119,7 +119,7 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> Nod
                 <Card>
                     <Column spacing=8.0>
                         <Heading content="Game unavailable" />
-                        <Paragraph content={error} @test_id={"game.error"} />
+                        <Paragraph content=error @test_id="game.error" />
                     </Column>
                 </Card>
             }
@@ -131,9 +131,9 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> Nod
             let editable = create_memo(clone!(screen -> move || screen.get().editable));
             view! {
                 <Column spacing=16.0>
-                    <Heading content={description} />
+                    <Heading content=description />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <ForEach spacing=10.0 keys={actions}>
+                        <ForEach spacing=10.0 keys=actions>
                             {move |action: Action| {
                                 let effect = action.effect;
                                 let game = game.clone();
@@ -144,7 +144,7 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> Nod
                                     <Button
                                         label={action.label}
                                         variant=ButtonVariant::Primary
-                                        disabled={disabled}
+                                        disabled=disabled
                                         @test_id={format!("game.action.{}", action.index)}
                                         on_click={move || game.choose(effect.clone())}
                                     />
@@ -198,11 +198,11 @@ pub(crate) fn GameCreation(
                 <Button
                     label="Choose game module..."
                     variant=ButtonVariant::Secondary
-                    disabled={picking}
-                    @test_id={"game.choose"}
+                    disabled=picking
+                    @test_id="game.choose"
                     on_click={move || creation.choose_module()}
                 />
-                <Body content={status} color={status_color} @test_id={"game.selection"} />
+                <Body content=status color=status_color @test_id="game.selection" />
             </Column>
         </Frame>
     }

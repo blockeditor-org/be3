@@ -11,7 +11,7 @@ pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
         <Frame
             outline={theme.border.clone()}
             outline_width=BORDER_WIDTH
-            radius={corner_radius}
+            radius=corner_radius
             outline_offset=0.0
             outline_visible=true
         >

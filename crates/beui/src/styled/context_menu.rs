@@ -70,7 +70,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         create_memo(clone!(theme -> move || row_background(&theme, focused.get(), hovered.get())));
     view! {
         <Frame
-            color={fill_color}
+            color=fill_color
             radius=RADIUS
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL

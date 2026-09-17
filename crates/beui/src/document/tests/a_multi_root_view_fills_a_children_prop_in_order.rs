@@ -17,7 +17,7 @@ fn a_multi_root_view_fills_a_children_prop_in_order() {
                 }}
             };
             view! {
-                <Column @node_ref=&column spacing=0.0 children={toolbar} />
+                <Column @node_ref=&column spacing=0.0 children=toolbar />
             }
         }
     });

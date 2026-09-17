@@ -13,7 +13,7 @@ pub struct CounterApp;
 impl block_editor_plugin::BeuiApp for CounterApp {
     fn view(editor: Editor) -> NodeId {
         view! {
-            <Counter editor={editor} />
+            <Counter editor=editor />
         }
     }
 
