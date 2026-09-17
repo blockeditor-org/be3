@@ -534,6 +534,18 @@ while the branch itself stays put.
 </Keyed>
 ```
 
+All three hold their child in a list of their own, so a row says how much room
+it wants the way any child of a list does — `@sizing` on the root it returns, or
+`intrinsic`, `fixed`, `percent` and `size` around a node built elsewhere. A row
+builder that returns a plain node is intrinsic, and each row is free to differ
+from the others and to change its mind reactively.
+
+```rust
+<ForEach spacing=0.0 keys>
+    {move |key: Uuid| view! { <Row @sizing={row_size(key)} key /> }}
+</ForEach>
+```
+
 `@sizing` on a child inside `view!`, or on a root of a multi-root one, gives it
 an `ItemSize` in the `row`/`column` that lays it out, and a child without one is
 `ItemSize::Intrinsic`. The value is `impl IntoProp<ItemSize>`, so it takes a
@@ -551,8 +563,10 @@ returned `ItemSize::Percent` in a row, for instance.
 An attribute has nothing to attach to on an `{expr}` child, which is always
 intrinsic; wrap the expression with `intrinsic`, `fixed`, `percent`, or `size`
 and pass the list as `children={...}` when such a child needs a size of its own.
-`@sizing` on the single root of a `view!` is a compile error, since that root is
-built on its own rather than as somebody's child. A percent child takes its share of
+`@sizing` on the single root of a `view!` makes that `view!` build a `ListChild`
+rather than a `NodeId`, which is what the row builder of a `Dynamic`, `ForEach`
+or `Keyed` returns, so a row picks its own size the same way any other child
+does. A percent child takes its share of
 what is left over, so it needs a bounded main axis: inside a list that is being
 measured intrinsically there is no leftover space to share, and percent children
 fall back to their intrinsic length there, the way `height: 50%` of an

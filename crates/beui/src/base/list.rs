@@ -351,6 +351,15 @@ impl Document {
             .collect();
     }
 
+    pub(crate) fn child_sizes(&self, parent: NodeId) -> HashMap<NodeId, ItemSize> {
+        self.arena
+            .get_as::<ListNode>(parent)
+            .items
+            .iter()
+            .map(|item| (item.child, item.size))
+            .collect()
+    }
+
     pub(crate) fn set_child_size(&mut self, parent: NodeId, child: NodeId, size: ItemSize) {
         if self
             .arena
@@ -361,13 +370,15 @@ impl Document {
         {
             return;
         }
-        let item = self
+        let Some(item) = self
             .arena
             .get_mut_as::<ListNode>(parent)
             .items
             .iter_mut()
             .find(|item| item.child == child)
-            .expect("child is not in the list");
+        else {
+            return;
+        };
         item.size = size;
     }
 }
