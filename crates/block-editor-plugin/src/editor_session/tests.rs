@@ -2,3 +2,4 @@ use super::*;
 
 mod a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect;
 mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
+mod an_editor_watches_its_block_so_it_can_publish_presence;

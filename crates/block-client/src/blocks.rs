@@ -65,3 +65,7 @@ block_types! {
     workspace_index::WorkspaceIndex;
     workspace_ui::WorkspaceUi;
 }
+
+pub fn watch(client: &BlockClient, id: Uuid, block_type: Uuid) -> bool {
+    open(client, id, block_type).is_some()
+}

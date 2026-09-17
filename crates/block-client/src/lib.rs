@@ -963,6 +963,10 @@ impl BlockClient {
             .is_some_and(|registered| registered.erased.is_dynamic_artifact())
     }
 
+    pub fn watches_block(&self, id: Uuid) -> bool {
+        self.registered_blocks.read().contains_key(&id)
+    }
+
     pub fn block_debug_data(&self, id: Uuid) -> Option<String> {
         self.registered_blocks
             .read()
