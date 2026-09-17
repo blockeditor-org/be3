@@ -146,28 +146,35 @@ pub fn in_new_scope(f: impl FnOnce() -> NodeId) -> NodeId {
 pub fn component<T: ChildValue>(f: impl FnOnce() -> T) -> T {
     let scope = Scope::new();
     let context = Rc::new(ComponentContext::default());
-    let value = in_component(Some(context.clone()), || scope.run(f));
-    let root = value.anchor();
-    context.target.set(Some(root));
+    let mut value = in_component(Some(context.clone()), || scope.run(f));
+    let anchor = value.anchor();
+    context.target.set(anchor);
     let states = context.states.take();
     let accessibility = context.accessibility.take();
     let size = context.size.take();
     let placement = context.placement.take();
-    with_document(|document| {
-        for state in states {
-            document.set_component_state_dyn(root, state);
-        }
-        if let Some(node) = accessibility {
-            document.set_accessibility(root, node);
-        }
-        if let Some((read, write)) = size {
-            document.register_size_watcher(root, read, write);
-        }
-        if let Some((read, write)) = placement {
-            document.register_placement_watcher(root, read, write);
-        }
-        document.register_node_scope(root, scope);
-    });
+    match anchor {
+        Some(root) => with_document(|document| {
+            for state in states {
+                document.set_component_state_dyn(root, state);
+            }
+            if let Some(node) = accessibility {
+                document.set_accessibility(root, node);
+            }
+            if let Some((read, write)) = size {
+                document.register_size_watcher(root, read, write);
+            }
+            if let Some((read, write)) = placement {
+                document.register_placement_watcher(root, read, write);
+            }
+        }),
+        None => assert!(
+            states.is_empty() && accessibility.is_none() && size.is_none() && placement.is_none(),
+            "a component that builds no node has nothing for `component_state`, \
+             `component_accessibility`, `component_size` or `component_rect` to watch"
+        ),
+    }
+    value.adopt_scope(scope);
     value
 }
 
@@ -553,22 +560,45 @@ pub fn size(node: NodeId, size: impl IntoProp<ItemSize>) -> ListChild {
 pub type Child = NodeId;
 
 #[diagnostic::on_unimplemented(
-    message = "a `#[component]` function returns a node or a value built around one",
-    label = "give this component a return type that names the node it builds"
+    message = "a `#[component]` function returns a node, a value built around one, or a value that keeps a `ChildScope`",
+    label = "implement `ChildValue` for this component's return type"
 )]
 pub trait ChildValue {
-    fn anchor(&self) -> NodeId;
+    fn anchor(&self) -> Option<NodeId>;
+    fn adopt_scope(&mut self, scope: Scope);
 }
 
 impl ChildValue for NodeId {
-    fn anchor(&self) -> NodeId {
-        *self
+    fn anchor(&self) -> Option<NodeId> {
+        Some(*self)
+    }
+
+    fn adopt_scope(&mut self, scope: Scope) {
+        let node = *self;
+        with_document(|document| document.register_node_scope(node, scope));
     }
 }
 
 impl ChildValue for ListChild {
-    fn anchor(&self) -> NodeId {
-        self.node
+    fn anchor(&self) -> Option<NodeId> {
+        Some(self.node)
+    }
+
+    fn adopt_scope(&mut self, scope: Scope) {
+        self.node.adopt_scope(scope);
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ChildScope(Option<Rc<Scope>>);
+
+impl ChildScope {
+    pub fn adopt(&mut self, scope: Scope) {
+        self.0 = Some(Rc::new(scope));
+    }
+
+    pub fn is_alive(&self) -> bool {
+        self.0.as_ref().is_some_and(|scope| !scope.is_disposed())
     }
 }
 

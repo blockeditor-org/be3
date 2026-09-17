@@ -7,7 +7,9 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::node::{Element, InteractInput, NodeId};
 use crate::painter::Painter;
-use crate::reactive::{Child, ChildValue, Children, IntoChild, Prop, create_effect, with_document};
+use crate::reactive::{
+    Child, ChildValue, Children, IntoChild, Prop, Scope, create_effect, with_document,
+};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct CanvasView {
@@ -239,8 +241,12 @@ pub struct CanvasItem {
 }
 
 impl ChildValue for CanvasItem {
-    fn anchor(&self) -> NodeId {
-        self.node
+    fn anchor(&self) -> Option<NodeId> {
+        Some(self.node)
+    }
+
+    fn adopt_scope(&mut self, scope: Scope) {
+        self.node.adopt_scope(scope);
     }
 }
 
