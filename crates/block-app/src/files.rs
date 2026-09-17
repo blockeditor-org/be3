@@ -89,6 +89,7 @@ impl BlockApp {
                         ui.close();
                     }
                     crate::debug::inspect::debug_on_hover_toggle(ui);
+                    #[cfg(feature = "terminal")]
                     if ui.button("Terminal").clicked() {
                         crate::debug::terminal::open();
                         ui.close();

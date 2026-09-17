@@ -90,11 +90,15 @@ cd "$repository"
 # an APK carries is the app itself.
 android_libraries=(libblock_app_lib.so)
 # The terminal emulator the debug terminal window is built on is Zig, and picks
-# the NDK up from the environment exported above.
-"$internal/build-ghostty-vt.sh" --triple aarch64-linux-android > /dev/null
+# the NDK up from the environment exported above. Only a full build has one.
+ensure_ghostty_vt aarch64-linux-android
 
+app_features=()
+if full_build; then
+    app_features=(--features block-app/full)
+fi
 echo 'Building the app for aarch64-linux-android...'
-cargo build --lib --target aarch64-linux-android -p block-app
+cargo build --lib --target aarch64-linux-android -p block-app "${app_features[@]}"
 
 # An APK holds what the app reads, so this is a staging step whatever the
 # layout: assets are flattened the way a native build lays them out beside the

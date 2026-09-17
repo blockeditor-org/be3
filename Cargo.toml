@@ -81,9 +81,20 @@ too_many_arguments = "allow"
 debug = "line-tables-only"
 incremental = false
 
+# Line tables are worth having for the code in this repository, because a
+# backtrace through it is a backtrace someone is about to act on. For the six
+# hundred crates underneath it they are debug info nobody reads, emitted by
+# rustc and then carried through every link. "*" is dependencies only, so the
+# workspace keeps what the profile above gives it.
+[profile.dev.package."*"]
+debug = false
+
 [profile.test]
 debug = "line-tables-only"
 incremental = false
+
+[profile.test.package."*"]
+debug = false
 
 [profile.release-check]
 inherits = "dev"
@@ -114,6 +125,11 @@ strip = "debuginfo"
 # off with the optimisation going on. Compiling the plugin test modules is a
 # minute of every verify, and the app pays the same price whenever it opens a
 # plugin it has no artifact for.
+#
+# opt-level 1 was measured against this and is a worse trade, not a cheaper one:
+# cranelift-codegen compiles 44 seconds faster, and compiling six plugin modules
+# with the result goes from 22 seconds to 34. A verify compiles closer to seventy
+# of them, so what the build saves the plugins pay back three times over.
 
 [profile.dev.package.cranelift-assembler-x64]
 opt-level = 2

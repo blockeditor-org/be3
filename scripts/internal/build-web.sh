@@ -71,11 +71,16 @@ export_wasi_toolchain "$wasi_sysroot"
 # guest carrying a backend it cannot use.
 load_plugins
 # The terminal emulator the debug terminal window is built on, as a freestanding
-# WebAssembly archive the app's own module links in.
-"$internal/build-ghostty-vt.sh" --triple "$rust_target" > /dev/null
+# WebAssembly archive the app's own module links in. Only a full build has a
+# terminal, so only a full build needs Zig to cross-compile one.
+ensure_ghostty_vt "$rust_target"
 
+app_features=()
+if full_build; then
+    app_features=(--features block-app/full)
+fi
 echo "Building the app for $rust_target..."
-cargo build --lib --target "$rust_target" "${cargo_arguments[@]}" -p block-app
+cargo build --lib --target "$rust_target" "${cargo_arguments[@]}" -p block-app "${app_features[@]}"
 
 # The shim is the only other module the browser needs bindings for. It holds a
 # real wgpu device on the plugin's canvas and answers the gpu abi from it.

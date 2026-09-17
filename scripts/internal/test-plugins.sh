@@ -61,11 +61,8 @@ load_plugins
 # and compiles wasmtime, wgpu and everything under them a second time. Asked
 # for the way the native run asks, every artifact it left behind is reused and
 # only the runner itself is linked.
-native=(--workspace)
-for plugin in "${plugins[@]}"; do
-    native+=(--exclude "$plugin")
-done
-cargo build --quiet "${native[@]}" --bin plugin-test-runner --tests
+native_selection
+cargo build --quiet "${selection[@]}" --bin plugin-test-runner --tests
 runner="$repository/target/debug/plugin-test-runner"
 if [[ -f "$runner.exe" ]]; then
     runner+='.exe'

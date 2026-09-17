@@ -4,8 +4,13 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
+if [[ "${1:-}" == '--full' ]]; then
+    export BE3_FULL=1
+    shift
+fi
+
 if [[ $# -ne 0 ]]; then
-    echo 'Usage: ./scripts/check' >&2
+    echo 'Usage: ./scripts/check [--full]' >&2
     exit 1
 fi
 
@@ -14,7 +19,14 @@ cd "$repository"
 
 host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
 echo 'Preparing native build prerequisites...'
-"$internal/build-ghostty-vt.sh" --triple "$host_triple" > /dev/null
+ensure_ghostty_vt "$host_triple"
 
+# --all-features is what this used to ask for, and the only feature in the
+# workspace it turned on that is not on already is block-wasm-host/all-arch.
+# That gives Cranelift the backends for every architecture rather than this
+# one, which is three minutes of compiling on top of a clean build, and no
+# first-party code sits behind it: only internal/build-plugins.sh wants it, for
+# cross-compiling a plugin, and it asks for it in a cargo call of its own.
+workspace_selection
 echo 'Checking the complete workspace...'
-cargo check --workspace --all-targets --all-features
+cargo check "${selection[@]}" --all-targets

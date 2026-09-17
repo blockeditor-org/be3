@@ -2277,6 +2277,7 @@ impl BlockApp {
         self.share.show(ui.ctx(), &self.client);
         self.show_client_debug(ui.ctx());
         self.show_network_debug(ui.ctx());
+        #[cfg(feature = "terminal")]
         debug::terminal::show(ui.ctx());
         debug::inspect::show(ui.ctx());
         debug::plugins::show(ui.ctx());
