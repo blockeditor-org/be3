@@ -375,15 +375,22 @@ it was placed, handed over before its subtree is laid out. Both flow downward,
 so a component that rebuilds from either is rebuilt before anything under it is
 placed, and the pass that caused the change absorbs it.
 
-The contract this rests on is that a delivery only ever restructures the subtree
-below the node it was delivered to. Waking an effect that changes an ancestor or
-an already-placed sibling would leave that node holding a rect computed from a
-tree that no longer exists; a debug assertion catches it. The practical form of
-the rule is the one container queries on the web settle on: a component may
-query the space it was given, but it must not be the thing that decides that
-space on the axis it queries. A `Container` sized by its own contents on the
-axis it reports is a cycle, and beui resolves it in favour of the constraint its
-parent offered.
+The contract this rests on is that laying a node out only ever changes that node
+and the tree below it. Changing an ancestor or an already-placed sibling would
+leave that node holding a rect computed from a tree that no longer exists; a
+debug assertion catches it. The practical form of the rule is the one container
+queries on the web settle on: a component may query the space it was given, but
+it must not be the thing that decides that space on the axis it queries. A
+`Container` sized by its own contents on the axis it reports is a cycle, and
+beui resolves it in favour of the constraint its parent offered.
+
+A signal written while the tree is being laid out has to take effect before the
+walk moves on, so anything a node writes as it is laid out — a `Scroll`
+reporting its position to a sibling scrollbar, a row built into a virtual list —
+is written inside `settle`. A write left queued lands at whatever the next
+`settle` happens to be, by which time the node that reads it may already have
+been placed, and it is then laid out from the previous frame's value. The layout
+walk settles after every node and blames the node that left something queued.
 
 ### Update a document from outside its events
 

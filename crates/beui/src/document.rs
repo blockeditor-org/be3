@@ -669,6 +669,12 @@ impl Document {
         });
     }
 
+    pub(crate) fn settle_effects(&mut self) {
+        if self.delivering {
+            ::reactive::settle(|| {});
+        }
+    }
+
     pub(crate) fn assert_confined(
         &self,
         id: NodeId,
@@ -679,7 +685,9 @@ impl Document {
             for changed in self.arena.changed_since(watermark) {
                 assert!(
                     *changed == id || !placed.contains_key(changed),
-                    "laying out {id:?} restructured {changed:?}, which this pass had already placed"
+                    "laying out {id:?} ({}) restructured {changed:?} ({}), which this pass had already placed",
+                    self.node_kind(id),
+                    self.node_kind(*changed),
                 );
             }
         }

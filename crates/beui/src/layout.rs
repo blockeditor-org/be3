@@ -45,4 +45,7 @@ pub(crate) fn layout(
     let mut element = doc.arena.take(id);
     element.layout(doc, painter, rect, out);
     doc.arena.put_back(id, element);
+    let settled = doc.arena.changed_len();
+    doc.settle_effects();
+    doc.assert_confined(id, settled, out);
 }
