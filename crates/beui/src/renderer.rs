@@ -175,13 +175,33 @@ impl Repaint {
 pub struct Renderer {
     srgb: bool,
     pipeline: wgpu::RenderPipeline,
+    punch_pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
     instance_capacity: usize,
-    instance_count: u32,
+    runs: Vec<Run>,
     scissor: Option<[u32; 4]>,
     atlas: Atlas,
+}
+
+struct Run {
+    punch: bool,
+    start: u32,
+    count: u32,
+}
+
+impl Run {
+    fn push(runs: &mut Vec<Self>, punch: bool, at: u32) {
+        match runs.last_mut() {
+            Some(run) if run.punch == punch => run.count += 1,
+            _ => runs.push(Self {
+                punch,
+                start: at,
+                count: 1,
+            }),
+        }
+    }
 }
 
 impl Renderer {
@@ -223,31 +243,30 @@ impl Renderer {
             bind_group_layouts: &[Some(&bind_group_layout)],
             immediate_size: 0,
         });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("beui pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vertex"),
-                compilation_options: Default::default(),
-                buffers: &[Instance::layout()],
+        let erase = wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::Zero,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation: wgpu::BlendOperation::Add,
+        };
+        let punch_pipeline = pipeline(
+            device,
+            &layout,
+            &shader,
+            format,
+            "beui punch pipeline",
+            wgpu::BlendState {
+                color: erase,
+                alpha: erase,
             },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fragment"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
+        );
+        let pipeline = pipeline(
+            device,
+            &layout,
+            &shader,
+            format,
+            "beui pipeline",
+            wgpu::BlendState::ALPHA_BLENDING,
+        );
 
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("beui uniforms"),
@@ -280,11 +299,12 @@ impl Renderer {
         Self {
             srgb: format.is_srgb(),
             pipeline,
+            punch_pipeline,
             bind_group,
             uniform_buffer,
             instance_buffer,
             instance_capacity,
-            instance_count: 0,
+            runs: Vec::new(),
             scissor: None,
             atlas,
         }
@@ -312,10 +332,12 @@ impl Renderer {
         );
 
         let mut instances = Vec::new();
+        let mut runs = Vec::new();
         let damaged = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, background } => {
                 let region = physical(region, screen, pixels_per_point);
+                Run::push(&mut runs, false, instances.len() as u32);
                 instances.push(Instance {
                     rect: region,
                     clip: region,
@@ -338,6 +360,7 @@ impl Renderer {
                     if skipped(damaged, expand(rect, stroke_width), clip) {
                         continue;
                     }
+                    Run::push(&mut runs, false, instances.len() as u32);
                     instances.push(Instance {
                         rect,
                         clip,
@@ -358,6 +381,7 @@ impl Renderer {
                     let Some(uv) = self.atlas.insert(queue, glyph.id, &glyph.image) else {
                         continue;
                     };
+                    Run::push(&mut runs, false, instances.len() as u32);
                     instances.push(Instance {
                         rect,
                         clip,
@@ -366,11 +390,28 @@ impl Renderer {
                         params: [0.0, 0.0, 1.0, 0.0],
                     });
                 }
+                Quad::Punch {
+                    rect,
+                    clip,
+                    corner_radius,
+                } => {
+                    if skipped(damaged, rect, clip) {
+                        continue;
+                    }
+                    Run::push(&mut runs, true, instances.len() as u32);
+                    instances.push(Instance {
+                        rect,
+                        clip,
+                        uv: [0.0; 4],
+                        color: [0.0, 0.0, 0.0, 1.0],
+                        params: [corner_radius, 0.0, 0.0, 0.0],
+                    });
+                }
             }
         }
 
         self.scissor = damaged.map(scissor);
-        self.instance_count = instances.len() as u32;
+        self.runs = runs;
         if instances.is_empty() {
             return;
         }
@@ -394,7 +435,7 @@ impl Renderer {
     }
 
     pub fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
-        if self.instance_count == 0 {
+        if self.runs.is_empty() {
             return;
         }
         if let Some([left, top, width, height]) = self.scissor {
@@ -403,10 +444,15 @@ impl Renderer {
             }
             pass.set_scissor_rect(left, top, width, height);
         }
-        pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        pass.draw(0..6, 0..self.instance_count);
+        for run in &self.runs {
+            pass.set_pipeline(match run.punch {
+                true => &self.punch_pipeline,
+                false => &self.pipeline,
+            });
+            pass.draw(0..6, run.start..run.start + run.count);
+        }
     }
 }
 
@@ -461,6 +507,41 @@ pub fn clear_color(color: Color32) -> wgpu::Color {
         b: blue as f64,
         a: alpha as f64,
     }
+}
+
+fn pipeline(
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    shader: &wgpu::ShaderModule,
+    format: wgpu::TextureFormat,
+    label: &str,
+    blend: wgpu::BlendState,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(label),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vertex"),
+            compilation_options: Default::default(),
+            buffers: &[Instance::layout()],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some("fragment"),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(blend),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        multiview_mask: None,
+        cache: None,
+    })
 }
 
 fn bind_group(

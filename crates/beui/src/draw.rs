@@ -18,6 +18,11 @@ pub enum Quad {
         color: Color32,
         glyph: Glyph,
     },
+    Punch {
+        rect: [f32; 4],
+        clip: [f32; 4],
+        corner_radius: f32,
+    },
 }
 
 pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Vec<Quad> {
@@ -70,6 +75,20 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Vec<Quad> {
                         glyph: glyph.clone(),
                     });
                 }
+            }
+            Shape::Punch {
+                rect,
+                corner_radius,
+                clip,
+            } => {
+                if !rect.is_positive() {
+                    continue;
+                }
+                quads.push(Quad::Punch {
+                    rect: snapped(*rect, pixels_per_point),
+                    clip: bounds(*clip, pixels_per_point),
+                    corner_radius: corner_radius * pixels_per_point,
+                });
             }
         }
     }

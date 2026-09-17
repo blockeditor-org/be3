@@ -181,12 +181,14 @@ The main base building blocks are `Row`, `Column`, `List`, `Frame`, `Text`,
 `Scroll`, and `VirtualList`; `Frame` combines optional sizing, an aspect ratio
 it centres its box within, padding, fill, outline, and visibility on one
 retained node. `Embed` reserves a rectangle for something outside the document —
-an editor the host composites behind the surface — painting nothing itself and
-publishing the rectangle and the clip it was laid out in through the `EmbedSlot`
-it was given. `Scroll` and `VirtualList` take a
-`direction`, so the same node is a column of rows or a strip of cards; a
-horizontal one answers Shift+wheel, a sideways trackpad swipe, a touch drag and
-the left and right arrows, and `styled::Scrollbar` takes the same `direction`.
+an editor the host composites behind the surface — publishing the rectangle and
+the clip it was laid out in through the `EmbedSlot` it was given and cutting
+that rectangle out of the surface so what is behind shows through. `punch=false`
+keeps the surface whole, for something the host draws over it instead.
+`Scroll` and `VirtualList` take a `direction`, so the same node is a column of
+rows or a strip of cards; a horizontal one answers Shift+wheel, a sideways
+trackpad swipe, a touch drag and the left and right arrows, and
+`styled::Scrollbar` takes the same `direction`.
 A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains

@@ -44,6 +44,7 @@ pub(crate) struct EmbedNode {
     child: Option<NodeId>,
     width: Option<f32>,
     height: Option<f32>,
+    punch: bool,
     state: Rc<EmbedState>,
 }
 
@@ -75,14 +76,17 @@ impl Element for EmbedNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect) {
+        if self.punch {
+            painter.punch(rect, 0.0);
+        }
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
     }
 
     fn paints(&self) -> bool {
-        false
+        self.punch
     }
 
     fn interact(
@@ -129,6 +133,7 @@ impl Document {
             child: None,
             width: None,
             height: None,
+            punch: false,
             state,
         })
     }
@@ -136,6 +141,12 @@ impl Document {
     pub(crate) fn set_embed_child(&mut self, embed: NodeId, child: NodeId) {
         if self.arena.get_as::<EmbedNode>(embed).child != Some(child) {
             self.arena.get_mut_as::<EmbedNode>(embed).child = Some(child);
+        }
+    }
+
+    pub(crate) fn set_embed_punch(&mut self, embed: NodeId, punch: bool) {
+        if self.arena.get_as::<EmbedNode>(embed).punch != punch {
+            self.arena.get_mut_as::<EmbedNode>(embed).punch = punch;
         }
     }
 
@@ -160,6 +171,7 @@ pub fn Embed(
     slot: EmbedSlot,
     width: Option<Prop<f32>>,
     height: Option<Prop<f32>>,
+    #[prop(default = true)] punch: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let state = Rc::clone(&slot.0);
@@ -175,6 +187,10 @@ pub fn Embed(
         let width = width.as_ref().map(Prop::get);
         let height = height.as_ref().map(Prop::get);
         with_document(|document| document.set_embed_size(embed, width, height));
+    });
+    create_effect(move || {
+        let punch = punch.get();
+        with_document(|document| document.set_embed_punch(embed, punch));
     });
     embed
 }

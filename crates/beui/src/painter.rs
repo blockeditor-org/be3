@@ -18,6 +18,11 @@ pub enum Shape {
         color: Color32,
         clip: Rect,
     },
+    Punch {
+        rect: Rect,
+        corner_radius: f32,
+        clip: Rect,
+    },
 }
 
 pub struct Painter {
@@ -93,6 +98,17 @@ impl Painter {
             corner_radius,
             stroke_width: width,
             color,
+            clip: self.clip,
+        });
+    }
+
+    pub fn punch(&self, rect: Rect, corner_radius: f32) {
+        if !rect.is_positive() {
+            return;
+        }
+        self.push(Shape::Punch {
+            rect,
+            corner_radius,
             clip: self.clip,
         });
     }

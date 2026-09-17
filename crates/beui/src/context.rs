@@ -526,6 +526,15 @@ fn scale_shape(shape: &mut Shape, scale: f32) {
             *origin = pos2(origin.x * scale, origin.y * scale);
             *clip = clip.scaled(scale);
         }
+        Shape::Punch {
+            rect,
+            corner_radius,
+            clip,
+        } => {
+            *rect = rect.scaled(scale);
+            *corner_radius *= scale;
+            *clip = clip.scaled(scale);
+        }
     }
 }
 
