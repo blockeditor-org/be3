@@ -86,29 +86,33 @@ impl ListNode {
 
     fn intrinsic_lengths(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         main: f32,
         cross: f32,
     ) -> Vec<f32> {
-        let measured = |item: &ListItem| {
-            let available = self.axes(f32::INFINITY, cross);
-            let size = crate::layout::measure(doc, painter, item.child, available);
-            self.main_and_cross(size).0
-        };
-        self.items
-            .iter()
-            .map(|item| match item.size {
-                ItemSize::Intrinsic => measured(item),
-                ItemSize::Percent(_) if !main.is_finite() => measured(item),
-                ItemSize::Fixed(_) | ItemSize::Percent(_) => 0.0,
-            })
-            .collect()
+        let mut lengths = Vec::with_capacity(self.items.len());
+        for item in &self.items {
+            let intrinsic = match item.size {
+                ItemSize::Intrinsic => true,
+                ItemSize::Percent(_) => !main.is_finite(),
+                ItemSize::Fixed(_) => false,
+            };
+            lengths.push(match intrinsic {
+                true => {
+                    let available = self.axes(f32::INFINITY, cross);
+                    let size = crate::layout::measure(doc, painter, item.child, available);
+                    self.main_and_cross(size).0
+                }
+                false => 0.0,
+            });
+        }
+        lengths
     }
 }
 
 impl Element for ListNode {
-    fn measure(&self, doc: &Document, painter: &Painter, available: Vec2) -> Vec2 {
+    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (available_main, available_cross) = self.main_and_cross(available);
 
         let sizes = self.item_sizes(doc);
@@ -134,7 +138,7 @@ impl Element for ListNode {
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,

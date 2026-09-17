@@ -128,7 +128,7 @@ fn fraction(rect: Rect, pos: Pos2) -> Vec2 {
 }
 
 impl Element for ClickCatcherNode {
-    fn measure(&self, doc: &Document, painter: &Painter, available: Vec2) -> Vec2 {
+    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),
             None => Vec2::ZERO,
@@ -137,7 +137,7 @@ impl Element for ClickCatcherNode {
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,

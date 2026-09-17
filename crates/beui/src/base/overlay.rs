@@ -96,13 +96,13 @@ fn resolve_rect(
 }
 
 impl Element for OverlayNode {
-    fn measure(&self, _doc: &Document, _painter: &Painter, _available: Vec2) -> Vec2 {
+    fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         Vec2::ZERO
     }
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         _rect: Rect,
         out: &mut HashMap<NodeId, Rect>,

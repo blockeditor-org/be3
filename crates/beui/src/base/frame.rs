@@ -68,7 +68,7 @@ impl Default for FrameNode {
 }
 
 impl Element for FrameNode {
-    fn measure(&self, doc: &Document, painter: &Painter, available: Vec2) -> Vec2 {
+    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         if !self.visible {
             return Vec2::ZERO;
         }
@@ -92,7 +92,7 @@ impl Element for FrameNode {
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,

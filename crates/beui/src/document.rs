@@ -10,7 +10,7 @@ use crate::accessibility;
 use crate::context::Context;
 use crate::damage::Damage;
 use crate::flash::FlashLog;
-use crate::geometry::{Rect, Vec2, pos2};
+use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::input::{Event, Key};
 
 use crate::inspector::Inspector;
@@ -21,8 +21,6 @@ use crate::paint::{self, PaintCache, Painted};
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, PerformanceSnapshot, PerformanceTracker};
 use crate::styled::{Theme, ThemeStore};
-
-const SIZE_PASSES: usize = 4;
 
 pub struct Document {
     pub(crate) arena: Arena,
@@ -42,6 +40,9 @@ pub struct Document {
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
     paint_revision: u64,
+    delivering: bool,
+    measurements: HashMap<Measured, Vec2>,
+    measurement_revision: u64,
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
     paint_cache: RefCell<PaintCache>,
@@ -70,6 +71,36 @@ struct SizeWatcher {
     write: ::reactive::WriteSignal<Vec2>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct Measured {
+    node: NodeId,
+    width: u32,
+    height: u32,
+}
+
+impl Measured {
+    fn new(node: NodeId, available: Vec2) -> Self {
+        Self {
+            node,
+            width: available.x.to_bits(),
+            height: available.y.to_bits(),
+        }
+    }
+}
+
+fn constrained(held: Vec2, available: Vec2) -> Vec2 {
+    vec2(
+        match available.x.is_finite() {
+            true => available.x,
+            false => held.x,
+        },
+        match available.y.is_finite() {
+            true => available.y,
+            false => held.y,
+        },
+    )
+}
+
 struct PlacementWatcher {
     read: ::reactive::ReadSignal<Rect>,
     write: ::reactive::WriteSignal<Rect>,
@@ -96,6 +127,9 @@ impl Document {
             node_test_ids: HashMap::new(),
             layout_revision: 0,
             paint_revision: 0,
+            delivering: false,
+            measurements: HashMap::new(),
+            measurement_revision: 0,
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
@@ -384,10 +418,6 @@ impl Document {
             self.arena.invalidate();
             self.viewport = Some((ctx.clone(), rect, scale));
         }
-        measurement.layout_passes +=
-            FrameMeasurement::measure(&mut measurement.timings.layout, || {
-                self.settle_layout(ctx, rect)
-            });
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             let actions = ctx.take_accessibility_actions(self.accessibility_id);
             if !actions.is_empty() {
@@ -402,11 +432,6 @@ impl Document {
                 });
             }
         });
-        for (test_id, id) in &self.test_ids {
-            if let Some(node_rect) = self.rects.get(id) {
-                ctx.publish_test_id(test_id, *node_rect);
-            }
-        }
 
         if interactive {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
@@ -437,10 +462,15 @@ impl Document {
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
         }
-        measurement.layout_passes +=
+        measurement.layout_passes =
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
-                self.settle_layout(ctx, rect)
+                usize::from(self.update_layout(ctx, rect))
             });
+        for (test_id, id) in &self.test_ids {
+            if let Some(node_rect) = self.rects.get(id) {
+                ctx.publish_test_id(test_id, *node_rect);
+            }
+        }
         let now = Instant::now();
         self.changes.prune(now);
         self.damage_flashes.prune(now);
@@ -582,53 +612,84 @@ impl Document {
             .unwrap_or_else(|| panic!("component has no {} state", std::any::type_name::<T>()))
     }
 
-    fn settle_layout(&mut self, ctx: &Context, rect: Rect) -> usize {
-        let mut passes = 0;
-        for _ in 0..SIZE_PASSES {
-            passes += usize::from(self.update_layout(ctx, rect));
-            if !self.publish_measurements() {
-                return passes;
-            }
+    pub(crate) fn deliver_constraint(&mut self, id: NodeId, available: Vec2) {
+        if !self.delivering {
+            return;
         }
-        passes + usize::from(self.update_layout(ctx, rect))
-    }
-
-    fn publish_measurements(&mut self) -> bool {
-        let sizes: Vec<(::reactive::WriteSignal<Vec2>, Vec2)> = self
-            .sizes
+        let Some(watchers) = self.sizes.get(&id) else {
+            return;
+        };
+        let writes: Vec<(::reactive::WriteSignal<Vec2>, Vec2)> = watchers
             .iter()
-            .flat_map(|(id, watchers)| {
-                let size = self.rects.get(id).map_or(Vec2::ZERO, Rect::size);
-                watchers
-                    .iter()
-                    .filter(move |watcher| watcher.read.get_untracked() != size)
-                    .map(move |watcher| (watcher.write.clone(), size))
+            .filter_map(|watcher| {
+                let held = watcher.read.get_untracked();
+                let offered = constrained(held, available);
+                (offered != held).then(|| (watcher.write.clone(), offered))
             })
             .collect();
-        let placements: Vec<(::reactive::WriteSignal<Rect>, Rect)> = self
-            .placements
-            .iter()
-            .flat_map(|(id, watchers)| {
-                let rect = self.rects.get(id).copied().unwrap_or(Rect::ZERO);
-                watchers
-                    .iter()
-                    .filter(move |watcher| watcher.read.get_untracked() != rect)
-                    .map(move |watcher| (watcher.write.clone(), rect))
-            })
-            .collect();
-        if sizes.is_empty() && placements.is_empty() {
-            return false;
+        if writes.is_empty() {
+            return;
         }
-        let _guard = crate::reactive::install(self);
-        crate::reactive::settle(|| {
-            for (write, size) in sizes {
+        ::reactive::settle(|| {
+            for (write, size) in writes {
                 write.set(size);
             }
-            for (write, rect) in placements {
+        });
+    }
+
+    pub(crate) fn deliver_placement(&mut self, id: NodeId, rect: Rect) {
+        if !self.delivering {
+            return;
+        }
+        let Some(watchers) = self.placements.get(&id) else {
+            return;
+        };
+        let writes: Vec<::reactive::WriteSignal<Rect>> = watchers
+            .iter()
+            .filter(|watcher| watcher.read.get_untracked() != rect)
+            .map(|watcher| watcher.write.clone())
+            .collect();
+        if writes.is_empty() {
+            return;
+        }
+        ::reactive::settle(|| {
+            for write in writes {
                 write.set(rect);
             }
         });
-        true
+    }
+
+    pub(crate) fn assert_confined(
+        &self,
+        id: NodeId,
+        watermark: usize,
+        placed: &HashMap<NodeId, Rect>,
+    ) {
+        if cfg!(debug_assertions) {
+            for changed in self.arena.changed_since(watermark) {
+                assert!(
+                    *changed == id || !placed.contains_key(changed),
+                    "laying out {id:?} restructured {changed:?}, which this pass had already placed"
+                );
+            }
+        }
+    }
+
+    pub(crate) fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
+        self.forget_stale_measurements();
+        self.measurements.get(&Measured::new(id, available)).copied()
+    }
+
+    pub(crate) fn remember_measurement(&mut self, id: NodeId, available: Vec2, size: Vec2) {
+        self.forget_stale_measurements();
+        self.measurements.insert(Measured::new(id, available), size);
+    }
+
+    fn forget_stale_measurements(&mut self) {
+        if self.measurement_revision != self.arena.revision {
+            self.measurements.clear();
+            self.measurement_revision = self.arena.revision;
+        }
     }
 
     fn paints(&self, id: NodeId) -> bool {
@@ -650,7 +711,19 @@ impl Document {
         }
         let mut rects = HashMap::new();
         if let Some(root) = self.root {
-            layout::layout(self, &ctx.painter(), root, rect, &mut rects);
+            let painter = ctx.painter();
+            let context = self.reactive_scope().context();
+            let placed = &mut rects;
+            self.delivering = true;
+            {
+                let _guard = crate::reactive::install(self);
+                context.run(|| {
+                    crate::reactive::with_document(|document| {
+                        layout::layout(document, &painter, root, rect, placed);
+                    });
+                });
+            }
+            self.delivering = false;
         }
         let previous = std::mem::replace(&mut self.rects, Rc::new(rects));
         for (id, placed) in self.rects.iter() {

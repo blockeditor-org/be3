@@ -256,13 +256,13 @@ impl TextNode {
 }
 
 impl Element for TextNode {
-    fn measure(&self, _doc: &Document, painter: &Painter, available: Vec2) -> Vec2 {
+    fn measure(&self, _doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         self.galley(painter, &self.content, available.x).size()
     }
 
     fn layout(
         &self,
-        _doc: &Document,
+        _doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         _out: &mut HashMap<NodeId, Rect>,

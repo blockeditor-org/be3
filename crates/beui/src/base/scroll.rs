@@ -101,7 +101,7 @@ impl ScrollNode {
         }
     }
 
-    fn lengths(&self, doc: &Document, painter: &Painter, cross: f32) -> Vec<f32> {
+    fn lengths(&self, doc: &mut Document, painter: &Painter, cross: f32) -> Vec<f32> {
         self.items
             .iter()
             .map(|&item| length(doc, painter, item, self.direction, cross))
@@ -139,7 +139,7 @@ impl ScrollNode {
         }
     }
 
-    fn remember_anchor(&mut self, doc: &Document, painter: &Painter, cross: f32) {
+    fn remember_anchor(&mut self, doc: &mut Document, painter: &Painter, cross: f32) {
         if let Some(items) = &self.virtual_items {
             self.anchor = (items.count > 0).then_some(ScrollAnchor::VirtualItem {
                 index: items.first,
@@ -158,7 +158,28 @@ impl ScrollNode {
         }
     }
 
-    fn position(&self, doc: &Document, painter: &Painter, rect: Rect) -> ScrollPosition {
+    fn revealing(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        rect: Rect,
+        item: NodeId,
+        focused: NodeId,
+    ) -> Option<f32> {
+        let (_, cross) = self.direction.main_and_cross(rect.size());
+        let lengths = self.lengths(doc, painter, cross);
+        let index = self.items.iter().position(|id| *id == item)?;
+        let start = self.direction.main(rect.min.to_vec2()) + lengths[..index].iter().sum::<f32>()
+            + self.leading(0.0)
+            - self.offset;
+        let placed = item_rect(self.direction, rect, start, lengths[index]);
+        let mut rects = HashMap::new();
+        crate::layout::layout(doc, painter, item, placed, &mut rects);
+        let target = rects.get(&focused).copied().unwrap_or(placed);
+        revealed_offset(self.direction, rect, target, self.offset)
+    }
+
+    fn position(&self, doc: &mut Document, painter: &Painter, rect: Rect) -> ScrollPosition {
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let lengths = match self.virtual_items {
             Some(_) => Vec::new(),
@@ -321,13 +342,13 @@ fn build_item(
 }
 
 impl Element for ScrollNode {
-    fn measure(&self, _doc: &Document, _painter: &Painter, _available: Vec2) -> Vec2 {
+    fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         Vec2::ZERO
     }
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,
@@ -474,7 +495,7 @@ impl Element for ScrollNode {
 }
 
 fn length(
-    doc: &Document,
+    doc: &mut Document,
     painter: &Painter,
     item: NodeId,
     direction: Direction,
@@ -709,30 +730,26 @@ impl Document {
         }
         for pair in path.windows(2).rev() {
             let (scroll, item) = (pair[0], pair[1]);
-            let Some(node) = self.arena.get(scroll).as_any().downcast_ref::<ScrollNode>() else {
+            if !self
+                .arena
+                .get(scroll)
+                .as_any()
+                .is::<ScrollNode>()
+            {
                 continue;
-            };
+            }
             let Some(rect) = self.node_rect(scroll) else {
                 continue;
             };
-            let direction = node.direction;
-            let (_, cross) = direction.main_and_cross(rect.size());
-            let lengths = node.lengths(self, painter, cross);
-            let Some(index) = node.items.iter().position(|id| *id == item) else {
-                continue;
-            };
-            let start = direction.main(rect.min.to_vec2())
-                + lengths[..index].iter().sum::<f32>()
-                + node.leading(0.0)
-                - node.offset;
-            let placed = item_rect(direction, rect, start, lengths[index]);
-            let mut rects = HashMap::new();
-            crate::layout::layout(self, painter, item, placed, &mut rects);
-            let target = rects.get(&focused).copied().unwrap_or(placed);
-            let Some(offset) = revealed_offset(direction, rect, target, node.offset) else {
-                continue;
-            };
-            self.set_scroll_offset(scroll, offset);
+            let element = self.arena.take(scroll);
+            let offset = element
+                .as_any()
+                .downcast_ref::<ScrollNode>()
+                .and_then(|node| node.revealing(self, painter, rect, item, focused));
+            self.arena.put_back(scroll, element);
+            if let Some(offset) = offset {
+                self.set_scroll_offset(scroll, offset);
+            }
         }
     }
 
