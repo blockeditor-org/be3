@@ -449,7 +449,9 @@ impl Document {
         }
         for id in self.arena.take_changed() {
             self.changes.record(id, now);
-            if let Some(node) = self.rects.get(&id) {
+            if let Some(node) = self.rects.get(&id)
+                && self.paints(id)
+            {
                 self.damage.add(*node);
             }
             self.damage.add(self.paint_cache.borrow().bounds(id));
@@ -629,6 +631,13 @@ impl Document {
         true
     }
 
+    fn paints(&self, id: NodeId) -> bool {
+        match self.arena.contains(id) {
+            true => self.arena.get(id).paints(),
+            false => true,
+        }
+    }
+
     pub(crate) fn viewport_rect(&self) -> Rect {
         self.viewport
             .as_ref()
@@ -646,13 +655,17 @@ impl Document {
         let previous = std::mem::replace(&mut self.rects, Rc::new(rects));
         for (id, placed) in self.rects.iter() {
             if previous.get(id) != Some(placed) {
-                self.damage.add(*placed);
+                if self.paints(*id) {
+                    self.damage.add(*placed);
+                }
                 self.damage.add(self.paint_cache.borrow().bounds(*id));
             }
         }
         for (id, placed) in previous.iter() {
             if !self.rects.contains_key(id) {
-                self.damage.add(*placed);
+                if self.paints(*id) {
+                    self.damage.add(*placed);
+                }
                 self.damage.add(self.paint_cache.borrow().bounds(*id));
             }
         }

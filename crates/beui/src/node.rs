@@ -63,6 +63,10 @@ pub(crate) trait Element: Any {
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect);
 
+    fn paints(&self) -> bool {
+        true
+    }
+
     fn captures(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
         false
     }

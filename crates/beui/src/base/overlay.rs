@@ -136,6 +136,10 @@ impl Element for OverlayNode {
     ) {
     }
 
+    fn paints(&self) -> bool {
+        false
+    }
+
     fn interact(
         &mut self,
         _doc: &mut Document,
