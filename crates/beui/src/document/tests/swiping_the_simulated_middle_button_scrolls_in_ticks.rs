@@ -1,6 +1,6 @@
 use super::*;
 use crate::mouse_simulation::{SCROLL_TICK, WHEEL_LINE};
-use crate::reactive::{ItemSize, NodeRef, Scroll, build, intrinsic, view};
+use crate::reactive::{ItemSize, NodeRef, Scroll, build, view};
 
 #[test]
 fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
@@ -9,9 +9,9 @@ fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
     let document = build(move || {
         let items = (0..100)
             .map(|index| {
-                intrinsic(view! {
+                view! {
                     <LabelledButton label={format!("Row {index}")} />
-                })
+                }
             })
             .collect::<Vec<_>>();
         view! {

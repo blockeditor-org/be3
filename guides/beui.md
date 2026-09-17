@@ -354,12 +354,25 @@ ones from `beui::unstyled`.
 `view!` supports three framework attributes on every tag, in their own `@`
 namespace so a component can name its props whatever it likes:
 
-- `@sizing` selects the child's `ItemSize` among its siblings in a list.
-  Children are intrinsic by default; fixed children reserve a logical-point
-  size, and percent children share the remaining bounded space by weight.
 - `@test_id` gives a node a stable name for headless interaction tests.
 - `@node_ref` fills a `NodeRef` when enclosing code genuinely needs the
   resulting `NodeId`.
+- `@sizing` selects the child's `ItemSize` among its siblings in a list, and
+  only a list accepts it. Children are intrinsic by default; fixed children
+  reserve a logical-point size, and percent children share the remaining
+  bounded space by weight.
+
+A children slot names the type of child it takes, which is what confines
+`@sizing` to a list. `children: Children<ListChild>` takes any number of
+children that each carry an `ItemSize`, and `Row`, `Column`, `CenteredRow`,
+`List` and `Stack` are written that way; `children: Children<NodeId>` takes any
+number of plain nodes, as `Scroll` and `Canvas` do; `children: Child` and
+`children: Option<Child>` take one node. A plain node converts into whatever a
+slot asks for, so `<Row><Text content="hi" /></Row>` needs no ceremony and a
+`Vec<NodeId>` handed to `children=` gets intrinsic sizing per item. Writing
+`@sizing` on the child of a slot that does not size its children is a compile
+error rather than an attribute that quietly does nothing, and the same goes for
+a hand-built `Vec<ListChild>` from `intrinsic`, `fixed`, `percent` or `size`.
 
 Use `Frame`'s `width` and `height` props to constrain a component's own size,
 and `@sizing` to describe how it participates among siblings in a `Row`,

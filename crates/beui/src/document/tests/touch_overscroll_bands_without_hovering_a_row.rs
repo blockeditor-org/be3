@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    ClickCatcher, Column, Frame, ItemSize, NodeRef, Scroll, Spacer, build, intrinsic, view,
+    ClickCatcher, Column, Frame, ItemSize, NodeRef, Scroll, Spacer, build, view,
 };
 
 #[test]
@@ -10,19 +10,19 @@ fn touch_overscroll_bands_without_hovering_a_row() {
     let scroll = NodeRef::new();
     let scroll_ref = scroll.clone();
     let document = build(move || {
-        let mut items = vec![intrinsic(view! {
+        let mut items = vec![view! {
             <ClickCatcher on_hover_change={move |value| hover_sink.set(value)}>
                 <Frame padding_horizontal=0.0 padding_vertical=20.0>
                     <Spacer />
                 </Frame>
             </ClickCatcher>
-        })];
+        }];
         items.extend((0..20).map(|_| {
-            intrinsic(view! {
+            view! {
                 <Frame padding_horizontal=0.0 padding_vertical=20.0>
                     <Spacer />
                 </Frame>
-            })
+            }
         }));
         view! {
             <Column spacing=0.0>

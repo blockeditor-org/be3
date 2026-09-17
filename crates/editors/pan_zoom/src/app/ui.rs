@@ -267,14 +267,14 @@ fn Stage(
     let scale = editor.scale();
     let cards: Vec<_> = (0..CARDS.len())
         .map(|index| {
-            intrinsic(view! {
+            view! {
                 <CardView
                     index={index}
                     scale={scale.clone()}
                     selected={selected.clone()}
                     set_selected={set_selected.clone()}
                 />
-            })
+            }
         })
         .collect();
     view! {

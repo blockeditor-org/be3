@@ -15,7 +15,6 @@ use crate::color::Color32;
 use crate::geometry::{Pos2, Vec2, pos2};
 use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 
-use crate::base::ItemSize;
 use crate::base::TextAlign;
 use crate::base::overlay::{Overlay, OverlayAnchor};
 use crate::base::text::TextHandle;
@@ -28,7 +27,7 @@ use beui_macros::{component, view};
 use crate::reactive::{
     Callback, Child, ClickCatcher, Column, Dynamic, Focusable, Frame, Memo, NodeRef, Prop,
     ReadSignal, Render, RenderFn, Show, Text, WriteSignal, clone, component_accessibility,
-    copy_text, create_effect, create_memo, create_signal, intrinsic, set_component_state,
+    copy_text, create_effect, create_memo, create_signal, intrinsic, percent, set_component_state,
     with_document,
 };
 
@@ -238,7 +237,7 @@ pub fn TextInput(
             }}
         </ClickCatcher>
     };
-    let mut children = vec![(catcher, Prop::Static(ItemSize::Percent(100.0)))];
+    let mut children = vec![percent(catcher, 100.0)];
     children.extend(menu.0.map(|(row, panel)| {
         intrinsic(view! {
             <TouchMenu editor={editor.clone()} at={menu_at} actions={menu_actions} row panel />

@@ -153,7 +153,7 @@ fn render_children_block(
         where_clause: quote! {
             where
                 ChildrenFn: #bound + ::beui::reactive::UnitHandle<#handle>,
-                ChildrenBlock: ::beui::reactive::OneChild + 'static,
+                ChildrenBlock: ::beui::reactive::OneChild<::beui::reactive::Child> + 'static,
         },
         value: wrap(build),
     }
@@ -162,29 +162,35 @@ fn render_children_block(
 fn children_setters(prop: &Prop) -> Vec<Setter> {
     let block = format_ident!("children_block");
     if prop.is_children {
+        let ty = &prop.ty;
         return vec![Setter {
             method: block,
             generics: quote! { <ChildrenBlock> },
             args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-            where_clause: quote! { where ChildrenBlock: Into<::beui::reactive::Children> },
+            where_clause: quote! { where ChildrenBlock: Into<#ty> },
             value: quote! { children().into() },
         }];
     }
     if prop.is_optional_child {
+        let item = prop
+            .inner_ty
+            .as_ref()
+            .expect("an optional child has an inner type");
         return vec![Setter {
             method: block,
             generics: quote! { <ChildrenBlock> },
             args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-            where_clause: quote! { where ChildrenBlock: ::beui::reactive::AtMostOneChild },
+            where_clause: quote! { where ChildrenBlock: ::beui::reactive::AtMostOneChild<#item> },
             value: quote! { ::beui::reactive::AtMostOneChild::at_most_one_child(children()) },
         }];
     }
     if prop.is_child {
+        let ty = &prop.ty;
         return vec![Setter {
             method: block,
             generics: quote! { <ChildrenBlock> },
             args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-            where_clause: quote! { where ChildrenBlock: ::beui::reactive::OneChild },
+            where_clause: quote! { where ChildrenBlock: ::beui::reactive::OneChild<#ty> },
             value: quote! { ::beui::reactive::OneChild::one_child(children()) },
         }];
     }
@@ -214,13 +220,15 @@ fn named_setter(prop: &Prop) -> Setter {
         value,
     };
     if prop.is_children {
-        plain(
-            quote! { value: impl Into<::beui::reactive::Children> },
-            quote! { value.into() },
-        )
+        let ty = &prop.ty;
+        plain(quote! { value: impl Into<#ty> }, quote! { value.into() })
     } else if prop.is_optional_child {
+        let item = prop
+            .inner_ty
+            .as_ref()
+            .expect("an optional child has an inner type");
         plain(
-            quote! { value: impl Into<Option<::beui::reactive::Child>> },
+            quote! { value: impl Into<Option<#item>> },
             quote! { value.into() },
         )
     } else if let Some(render) = &prop.optional_render {
@@ -503,7 +511,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
             return Err(syn::Error::new_spanned(
                 &prop.ty,
                 format!(
-                    "prop `{}` of component `{name}` takes its children, so it must be typed `Children`, `Child`, `Option<Child>`, `Render<_>`, or `RenderFn<_>`",
+                    "prop `{}` of component `{name}` takes its children, so it must be typed `Children<_>`, `Child`, `Option<Child>`, `Render<_>`, or `RenderFn<_>`",
                     prop.ident,
                 ),
             ));
@@ -1159,10 +1167,12 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
                 ViewChildKind::Expr(expr) => (quote! { #expr }, None),
             };
             match sizing {
-                None => quote! { ::beui::reactive::intrinsic(#node) },
+                None => quote! { ::beui::reactive::into_child(#node) },
                 Some(sizing) => {
                     let value = &sizing.value;
-                    quote! { ::beui::reactive::size(#node, #value) }
+                    quote_spanned! { sizing.span =>
+                        ::beui::reactive::into_child(::beui::reactive::size(#node, #value))
+                    }
                 }
             }
         })

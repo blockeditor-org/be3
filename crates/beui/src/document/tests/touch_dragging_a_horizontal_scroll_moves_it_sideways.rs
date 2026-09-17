@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, Scroll, build, intrinsic, view};
+use crate::reactive::{ItemSize, Scroll, build, view};
 
 #[test]
 fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
@@ -10,14 +10,14 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
         let items = (0..40)
             .map(|index| {
                 let click_sink = click_sink.clone();
-                intrinsic(view! {
+                view! {
                     <Frame width=120.0>
                         <LabelledButton
                             label={format!("Card {index}")}
                             on_click={move || click_sink.set(click_sink.get() + 1)}
                         />
                     </Frame>
-                })
+                }
             })
             .collect::<Vec<_>>();
         view! {

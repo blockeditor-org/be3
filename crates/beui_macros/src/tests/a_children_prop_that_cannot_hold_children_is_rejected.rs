@@ -15,6 +15,6 @@ fn a_children_prop_that_cannot_hold_children_is_rejected() {
 
     assert_eq!(
         error.to_string(),
-        "prop `rows` of component `Listing` takes its children, so it must be typed `Children`, `Child`, `Option<Child>`, `Render<_>`, or `RenderFn<_>`"
+        "prop `rows` of component `Listing` takes its children, so it must be typed `Children<_>`, `Child`, `Option<Child>`, `Render<_>`, or `RenderFn<_>`"
     );
 }

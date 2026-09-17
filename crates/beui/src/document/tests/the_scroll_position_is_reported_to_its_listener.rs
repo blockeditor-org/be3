@@ -10,9 +10,9 @@ fn the_scroll_position_is_reported_to_its_listener() {
         let items: Vec<_> = rows
             .into_iter()
             .map(|row| {
-                intrinsic(view! {
+                view! {
                     <Text string={row} font_size=14.0 color=Color32::WHITE />
-                })
+                }
             })
             .collect();
         view! {
