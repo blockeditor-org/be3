@@ -169,7 +169,8 @@ impl ScrollNode {
         let (_, cross) = self.direction.main_and_cross(rect.size());
         let lengths = self.lengths(doc, painter, cross);
         let index = self.items.iter().position(|id| *id == item)?;
-        let start = self.direction.main(rect.min.to_vec2()) + lengths[..index].iter().sum::<f32>()
+        let start = self.direction.main(rect.min.to_vec2())
+            + lengths[..index].iter().sum::<f32>()
             + self.leading(0.0)
             - self.offset;
         let placed = item_rect(self.direction, rect, start, lengths[index]);
@@ -744,12 +745,7 @@ impl Document {
         }
         for pair in path.windows(2).rev() {
             let (scroll, item) = (pair[0], pair[1]);
-            if !self
-                .arena
-                .get(scroll)
-                .as_any()
-                .is::<ScrollNode>()
-            {
+            if !self.arena.get(scroll).as_any().is::<ScrollNode>() {
                 continue;
             }
             let Some(rect) = self.node_rect(scroll) else {
