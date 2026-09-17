@@ -54,7 +54,7 @@ pub(crate) trait Element: Any {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2;
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,

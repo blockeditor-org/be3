@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -41,6 +41,7 @@ pub struct Document {
     layout_revision: u64,
     paint_revision: u64,
     delivering: bool,
+    constrained: HashSet<NodeId>,
     measurements: HashMap<Measured, Vec2>,
     measurement_revision: u64,
     viewport: Option<(Context, Rect, f32)>,
@@ -128,6 +129,7 @@ impl Document {
             layout_revision: 0,
             paint_revision: 0,
             delivering: false,
+            constrained: HashSet::new(),
             measurements: HashMap::new(),
             measurement_revision: 0,
             viewport: None,
@@ -616,6 +618,7 @@ impl Document {
         if !self.delivering {
             return;
         }
+        self.constrained.insert(id);
         let Some(watchers) = self.sizes.get(&id) else {
             return;
         };
@@ -635,6 +638,13 @@ impl Document {
                 write.set(size);
             }
         });
+    }
+
+    pub(crate) fn deliver_unmeasured_constraint(&mut self, id: NodeId, available: Vec2) {
+        if self.constrained.contains(&id) {
+            return;
+        }
+        self.deliver_constraint(id, available);
     }
 
     pub(crate) fn deliver_placement(&mut self, id: NodeId, rect: Rect) {
@@ -714,6 +724,7 @@ impl Document {
             let painter = ctx.painter();
             let context = self.reactive_scope().context();
             let placed = &mut rects;
+            self.constrained.clear();
             self.delivering = true;
             {
                 let _guard = crate::reactive::install(self);

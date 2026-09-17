@@ -136,7 +136,7 @@ impl Element for ClickCatcherNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,

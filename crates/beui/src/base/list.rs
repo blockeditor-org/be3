@@ -137,7 +137,7 @@ impl Element for ListNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,

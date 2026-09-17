@@ -261,7 +261,7 @@ impl Element for TextNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         _doc: &mut Document,
         painter: &Painter,
         rect: Rect,

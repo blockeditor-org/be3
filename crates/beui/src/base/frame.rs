@@ -91,7 +91,7 @@ impl Element for FrameNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,

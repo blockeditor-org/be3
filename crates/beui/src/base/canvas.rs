@@ -63,7 +63,7 @@ impl Element for CanvasNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
@@ -135,7 +135,7 @@ impl Element for CanvasItemNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,

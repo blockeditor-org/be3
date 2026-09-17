@@ -33,12 +33,13 @@ pub(crate) fn layout(
     }
     out.insert(id, rect);
     let watermark = doc.arena.changed_len();
+    doc.deliver_unmeasured_constraint(id, rect.size());
     doc.deliver_placement(id, rect);
     doc.assert_confined(id, watermark, out);
     if !doc.arena.contains(id) {
         return;
     }
-    let element = doc.arena.take(id);
+    let mut element = doc.arena.take(id);
     element.layout(doc, painter, rect, out);
     doc.arena.put_back(id, element);
 }

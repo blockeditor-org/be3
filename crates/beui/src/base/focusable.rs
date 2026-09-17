@@ -53,7 +53,7 @@ impl Element for FocusableNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
