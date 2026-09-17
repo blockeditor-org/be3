@@ -112,6 +112,10 @@ impl Element for ClickCatcherNode {
         }
     }
 
+    fn paints(&self) -> bool {
+        false
+    }
+
     fn captures(&mut self, _doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
         (self.capture_presses && rect.contains(pos)) || self.capture_at.call(pos)
     }
