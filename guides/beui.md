@@ -21,12 +21,13 @@ this guide is about using beui itself.
 
 These four cover most review comments on beui code.
 
-### Every function that returns a `NodeId` is a `#[component]`
+### Every function that builds a node is a `#[component]`
 
-If a function returns a `NodeId`, annotate it `#[component]` and name it in
-`CamelCase`. The attribute is not decoration. It gives the function its own
-reactive scope, registered against the node it returns, so that removing that
-node disposes exactly the effects the function created. A plain helper that
+If a function returns a `NodeId`, or a value built around one such as a
+`CanvasItem`, annotate it `#[component]` and name it in `CamelCase`. The
+attribute is not decoration. It gives the function its own reactive scope,
+registered against the node it builds, so that removing that node disposes
+exactly the effects the function created. A plain helper that
 builds nodes leaves its effects in the caller's scope, where they outlive the
 subtree they bind and panic with "node was removed" the next time one of their
 inputs changes. `#[component]` is also what makes the function usable as a tag,
@@ -34,10 +35,13 @@ gives it `@test_id`, `@node_ref` and `@sizing`, and makes
 `component_state`, `component_accessibility` and `component_size` available
 inside it.
 
-Functions that return something other than a `NodeId` are ordinary functions.
-Deriving a colour from theme tokens and interaction state, mapping a value to a
-label, reading state back out of a built node — write those as plain functions,
-as `styled/checkbox.rs` does with `box_fill` and `checkbox_checked`.
+Functions that build no node are ordinary functions. Deriving a colour from
+theme tokens and interaction state, mapping a value to a label, reading state
+back out of a built node — write those as plain functions, as
+`styled/checkbox.rs` does with `box_fill` and `checkbox_checked`. A component
+that returns its own type implements `ChildValue` to name the node the scope
+hangs on, and `IntoChild` for the slot that takes it, as `base/canvas.rs` does
+for `CanvasItem`.
 
 ### A component ends with one `view!` and nothing after it
 
@@ -366,10 +370,12 @@ A children slot names the type of child it takes, which is what confines
 `@sizing` to a list. `children: Children<ListChild>` takes any number of
 children that each carry an `ItemSize`, and `Row`, `Column`, `CenteredRow`,
 `List` and `Stack` are written that way; `children: Children<NodeId>` takes any
-number of plain nodes, as `Scroll` and `Canvas` do; `children: Child` and
+number of plain nodes, as `Scroll` does; `children: Children<CanvasItem>` takes
+only the items a `Canvas` can place; `children: Child` and
 `children: Option<Child>` take one node. A plain node converts into whatever a
-slot asks for, so `<Row><Text content="hi" /></Row>` needs no ceremony and a
-`Vec<NodeId>` handed to `children=` gets intrinsic sizing per item. Writing
+slot asks for that takes one, so `<Row><Text content="hi" /></Row>` needs no
+ceremony and a `Vec<NodeId>` handed to `children=` gets intrinsic sizing per
+item. Writing
 `@sizing` on the child of a slot that does not size its children is a compile
 error rather than an attribute that quietly does nothing, and the same goes for
 a hand-built `Vec<ListChild>` from `intrinsic`, `fixed`, `percent` or `size`.

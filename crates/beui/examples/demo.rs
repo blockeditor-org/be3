@@ -511,7 +511,7 @@ fn CanvasBoard(
 }
 
 #[component]
-fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> NodeId {
+fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> CanvasItem {
     let (x, y, width, height, label) = card;
     let theme = use_theme();
     let font_size = create_memo(clone!(scale -> move || STAGE_LABEL_SIZE * scale.get()));

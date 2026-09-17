@@ -143,10 +143,11 @@ pub fn in_new_scope(f: impl FnOnce() -> NodeId) -> NodeId {
     node
 }
 
-pub fn component(f: impl FnOnce() -> NodeId) -> NodeId {
+pub fn component<T: ChildValue>(f: impl FnOnce() -> T) -> T {
     let scope = Scope::new();
     let context = Rc::new(ComponentContext::default());
-    let root = in_component(Some(context.clone()), || scope.run(f));
+    let value = in_component(Some(context.clone()), || scope.run(f));
+    let root = value.anchor();
     context.target.set(Some(root));
     let states = context.states.take();
     let accessibility = context.accessibility.take();
@@ -167,7 +168,7 @@ pub fn component(f: impl FnOnce() -> NodeId) -> NodeId {
         }
         document.register_node_scope(root, scope);
     });
-    root
+    value
 }
 
 fn current_component() -> Rc<ComponentContext> {
@@ -550,6 +551,26 @@ pub fn size(node: NodeId, size: impl IntoProp<ItemSize>) -> ListChild {
 }
 
 pub type Child = NodeId;
+
+#[diagnostic::on_unimplemented(
+    message = "a `#[component]` function returns a node or a value built around one",
+    label = "give this component a return type that names the node it builds"
+)]
+pub trait ChildValue {
+    fn anchor(&self) -> NodeId;
+}
+
+impl ChildValue for NodeId {
+    fn anchor(&self) -> NodeId {
+        *self
+    }
+}
+
+impl ChildValue for ListChild {
+    fn anchor(&self) -> NodeId {
+        self.node
+    }
+}
 
 pub struct ListChild {
     pub node: NodeId,

@@ -7,7 +7,7 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::node::{Element, InteractInput, NodeId};
 use crate::painter::Painter;
-use crate::reactive::{Child, Children, Prop, create_effect, with_document};
+use crate::reactive::{Child, ChildValue, Children, IntoChild, Prop, create_effect, with_document};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct CanvasView {
@@ -234,15 +234,31 @@ impl Document {
     }
 }
 
+pub struct CanvasItem {
+    node: NodeId,
+}
+
+impl ChildValue for CanvasItem {
+    fn anchor(&self) -> NodeId {
+        self.node
+    }
+}
+
+impl IntoChild<CanvasItem> for CanvasItem {
+    fn into_child(self) -> CanvasItem {
+        self
+    }
+}
+
 #[component]
 pub fn Canvas(
     #[prop(default = None)] view: Prop<Option<CanvasView>>,
-    children: Children<NodeId>,
+    children: Children<CanvasItem>,
 ) -> NodeId {
     let canvas = with_document(Document::create_canvas);
     with_document(|document| {
         for item in children.into_items() {
-            document.append_canvas_item(canvas, item);
+            document.append_canvas_item(canvas, item.node);
         }
     });
     create_effect(move || with_document(|document| document.set_canvas_view(canvas, view.get())));
@@ -256,7 +272,7 @@ pub fn CanvasItem(
     width: Prop<f32>,
     height: Prop<f32>,
     children: Option<Child>,
-) -> NodeId {
+) -> CanvasItem {
     let item = with_document(|document| {
         let item = document.create_canvas_item();
         if let Some(child) = children {
@@ -269,5 +285,5 @@ pub fn CanvasItem(
             Rect::from_min_size(pos2(x.get(), y.get()), Vec2::new(width.get(), height.get()));
         with_document(|document| document.set_canvas_item_rect(item, rect));
     });
-    item
+    CanvasItem { node: item }
 }
