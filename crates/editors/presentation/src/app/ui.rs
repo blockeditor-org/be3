@@ -22,7 +22,10 @@ const THUMBNAIL_WIDTH: f32 = 176.0;
 const PLAYBACK_HEIGHT: f32 = 48.0;
 const SLIDE_HEIGHT: f32 = 540.0;
 const DEFAULT_RATIO: f32 = 16.0 / 9.0;
+const FILL: f32 = 0.0;
 const PANEL_PADDING: f32 = 10.0;
+const FILMSTRIP_PADDING: f32 = 6.0;
+const TILE_INSET: f32 = 4.0;
 const TILE_SPACING: f32 = 8.0;
 
 #[derive(Clone)]
@@ -77,11 +80,21 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                         slides={Rc::clone(&slides)}
                         shown={editing.clone()}
                     />
+                    <Frame
+                        visible={editing.clone()}
+                        width=theme::BORDER_WIDTH
+                        color={theme.border.clone()}
+                    />
                     <Column @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <Toolbar
                             editor={editor.clone()}
                             slides={Rc::clone(&slides)}
                             shown={editing.clone()}
+                        />
+                        <Frame
+                            visible={editing.clone()}
+                            height=theme::BORDER_WIDTH
+                            color={theme.border.clone()}
                         />
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
@@ -91,6 +104,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                             selected={slides.selected()}
                             mode={mode}
                             own_frame={editing}
+                            fit={presenting.clone()}
                             report_size=true
                         />
                         <Playback editor={editor} slides={slides} shown={presenting} />
@@ -113,6 +127,7 @@ pub fn PresentationPreview(editor: Editor) -> NodeId {
             selected={first}
             mode=ChildMode::Preview
             own_frame=false
+            fit=true
             report_size=false
         />
     }
@@ -139,6 +154,7 @@ fn Stage(
     selected: Prop<Option<Uuid>>,
     mode: Prop<ChildMode>,
     own_frame: Prop<bool>,
+    fit: Prop<bool>,
     report_size: bool,
 ) -> NodeId {
     let target = create_memo(clone!(slides -> move || slides.target(selected.get())));
@@ -151,15 +167,20 @@ fn Stage(
             sized.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * ratio, SLIDE_HEIGHT)));
         }
     };
+    let fitted = create_memo(clone!(ratio -> move || match fit.get() {
+        true => ratio.get(),
+        false => FILL,
+    }));
 
     view! {
-        <Frame aspect_ratio={ratio}>
+        <Frame aspect_ratio={fitted}>
             <ChildBlock
                 editor={editor}
                 block={target}
                 mode={mode}
                 own_frame={own_frame}
                 on_state={report}
+                @test_id={"presentation.stage"}
             >
                 {move |handle: ChildBlockHandle| view! {
                     <SlideStatus state={handle.state} />
@@ -330,15 +351,19 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
         <Frame
             visible={shown}
             color={theme.surface.clone()}
-            padding_horizontal=PANEL_PADDING
-            padding_vertical=PANEL_PADDING
+            padding_horizontal=FILMSTRIP_PADDING
+            padding_vertical=FILMSTRIP_PADDING
         >
             <Column spacing=TILE_SPACING>
                 <Show condition={empty}>
                     <Caption content="Add a slide to start this deck." />
                 </Show>
-                <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                    <ForEach spacing=TILE_SPACING keys={keys} view={tiles} />
+                <Scroll
+                    @sizing=ItemSize::Percent(100.0)
+                    @test_id={"presentation.filmstrip"}
+                    focus_color={theme.accent.clone()}
+                >
+                    <ForEach spacing=0.0 keys={keys} view={tiles} />
                 </Scroll>
             </Column>
         </Frame>
@@ -411,52 +436,54 @@ fn SlideTile(
     let remove = clone!(slides -> move || slides.remove(id));
 
     view! {
-        <Frame
-            color={theme.surface_raised.clone()}
-            outline={outline}
-            outline_width={width}
-            outline_visible=true
-            radius=theme::RADIUS
-            padding_horizontal=6.0
-            padding_vertical=6.0
-        >
-            <Column spacing=6.0>
-                <ClickCatcher
-                    cursor=CursorIcon::PointingHand
-                    on_click={select}
-                    on_press={hold}
-                    on_drag={reorder}
-                    on_active_change={release}
-                    on_hover_change={enter}
-                    @test_id={format!("presentation.slide.{id}")}
-                >
-                    <Frame width=THUMBNAIL_WIDTH aspect_ratio={ratio}>
-                        <ChildBlock
-                            editor={editor}
-                            block={target}
-                            mode=ChildMode::Preview
-                            on_state={move |state: ChildState| {
-                                set_ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
-                            }}
-                        >
-                            {move |handle: ChildBlockHandle| view! {
-                                <SlideStatus state={handle.state} />
-                            }}
-                        </ChildBlock>
-                    </Frame>
-                </ClickCatcher>
-                <CenteredRow spacing=6.0>
-                    <Caption content={number} />
-                    <Caption @sizing=ItemSize::Percent(100.0) content={name} />
-                    <IconButton
-                        glyph={ICON_DELETE.to_owned()}
-                        label="Detach slide"
-                        disabled={!editable}
-                        on_click={remove}
-                        @test_id={format!("presentation.slide.{id}.remove")}
-                    />
-                </CenteredRow>
-            </Column>
+        <Frame padding_horizontal=TILE_INSET padding_vertical=TILE_INSET>
+            <Frame
+                color={theme.surface_raised.clone()}
+                outline={outline}
+                outline_width={width}
+                outline_visible=true
+                radius=theme::RADIUS
+                padding_horizontal=6.0
+                padding_vertical=6.0
+            >
+                <Column spacing=6.0>
+                    <ClickCatcher
+                        cursor=CursorIcon::PointingHand
+                        on_click={select}
+                        on_press={hold}
+                        on_drag={reorder}
+                        on_active_change={release}
+                        on_hover_change={enter}
+                        @test_id={format!("presentation.slide.{id}")}
+                    >
+                        <Frame width=THUMBNAIL_WIDTH aspect_ratio={ratio}>
+                            <ChildBlock
+                                editor={editor}
+                                block={target}
+                                mode=ChildMode::Preview
+                                on_state={move |state: ChildState| {
+                                    set_ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
+                                }}
+                            >
+                                {move |handle: ChildBlockHandle| view! {
+                                    <SlideStatus state={handle.state} />
+                                }}
+                            </ChildBlock>
+                        </Frame>
+                    </ClickCatcher>
+                    <CenteredRow spacing=6.0>
+                        <Caption content={number} />
+                        <Caption @sizing=ItemSize::Percent(100.0) content={name} />
+                        <IconButton
+                            glyph={ICON_DELETE.to_owned()}
+                            label="Detach slide"
+                            disabled={!editable}
+                            on_click={remove}
+                            @test_id={format!("presentation.slide.{id}.remove")}
+                        />
+                    </CenteredRow>
+                </Column>
+            </Frame>
         </Frame>
     }
 }
