@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, Scroll, build, intrinsic, view};
+use crate::reactive::{NodeRef, Scroll, build, view};
 
 #[test]
 fn tabbing_to_an_offscreen_control_reveals_it() {
@@ -12,9 +12,9 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
                 .iter()
                 .enumerate()
                 .map(|(index, button)| {
-                    intrinsic(view! {
+                    view! {
                         <LabelledButton @node_ref={button} label={format!("Button {index}")} />
-                    })
+                    }
                 })
                 .collect();
             view! {

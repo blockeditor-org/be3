@@ -8,15 +8,15 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
     let reported = Rc::new(Cell::new(None));
     let sink = reported.clone();
     let document = build(move || {
-        let mut items = vec![intrinsic(view! {
+        let mut items = vec![view! {
             <Frame height=200.0>
                 <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
             </Frame>
-        })];
+        }];
         items.extend((0..20).map(|index| {
-            intrinsic(view! {
+            view! {
                 <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
-            })
+            }
         }));
         view! {
             <Column spacing=0.0>

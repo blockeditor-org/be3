@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, NodeRef, Scroll, build, intrinsic, view};
+use crate::reactive::{ItemSize, NodeRef, Scroll, build, view};
 
 #[test]
 fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
@@ -8,9 +8,9 @@ fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
     let document = build(move || {
         let items = (0..100)
             .map(|index| {
-                intrinsic(view! {
+                view! {
                     <LabelledButton label={format!("Row {index}")} />
-                })
+                }
             })
             .collect::<Vec<_>>();
         view! {

@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, NodeRef, Scroll, build, intrinsic, view};
+use crate::reactive::{ItemSize, NodeRef, Scroll, build, view};
 
 #[test]
 fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
@@ -9,17 +9,17 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
     let (first_ref, second_ref) = (first.clone(), second.clone());
     let document = build(move || {
         let mut items = vec![
-            intrinsic(view! {
+            view! {
                 <Frame @node_ref=&first_ref width=120.0 />
-            }),
-            intrinsic(view! {
+            },
+            view! {
                 <Frame @node_ref=&second_ref width=120.0 />
-            }),
+            },
         ];
         items.extend((0..4).map(|_| {
-            intrinsic(view! {
+            view! {
                 <Frame width=120.0 />
-            })
+            }
         }));
         view! {
             <Column spacing=0.0>

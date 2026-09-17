@@ -6,7 +6,7 @@ use crate::node::NodeId;
 use crate::reactive::{
     Callback, Child, Column, Frame, ItemSize, Memo, NodeRef, Prop, ReadSignal, Render, RenderFn,
     Scroll, Selector, WriteSignal, clone, create_effect, create_memo, create_selector,
-    create_signal, intrinsic, set_component_state,
+    create_signal, set_component_state,
 };
 use crate::unstyled;
 use crate::unstyled::button::ButtonHandle;
@@ -161,7 +161,7 @@ pub fn Select(
         .iter()
         .enumerate()
         .map(|(index, row)| {
-            intrinsic(view! {
+            view! {
                 <SelectRow
                     state={state.clone()}
                     index
@@ -169,7 +169,7 @@ pub fn Select(
                     option={option.clone()}
                     highlight={highlight.clone()}
                 />
-            })
+            }
         })
         .collect();
 

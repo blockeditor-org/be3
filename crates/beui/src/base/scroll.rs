@@ -812,7 +812,7 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     on_change: Callback<ScrollPosition>,
-    children: Children,
+    children: Children<NodeId>,
 ) -> NodeId {
     let scroll = create_scroll(direction, focus_color, on_change);
     children.mount_scroll_items(scroll);

@@ -527,69 +527,151 @@ impl<T: Clone + PartialEq + 'static> IntoProp<T> for Memo<T> {
     }
 }
 
-pub fn intrinsic(node: NodeId) -> (NodeId, Prop<ItemSize>) {
-    (node, Prop::Static(ItemSize::Intrinsic))
+pub fn intrinsic(node: NodeId) -> ListChild {
+    ListChild::new(node, ItemSize::Intrinsic)
 }
 
-pub fn fixed(node: NodeId, size: impl IntoProp<f32>) -> (NodeId, Prop<ItemSize>) {
-    (node, size.into_prop().map(ItemSize::Fixed))
+pub fn fixed(node: NodeId, size: impl IntoProp<f32>) -> ListChild {
+    ListChild {
+        node,
+        size: size.into_prop().map(ItemSize::Fixed),
+    }
 }
 
-pub fn percent(node: NodeId, weight: impl IntoProp<f32>) -> (NodeId, Prop<ItemSize>) {
-    (node, weight.into_prop().map(ItemSize::Percent))
+pub fn percent(node: NodeId, weight: impl IntoProp<f32>) -> ListChild {
+    ListChild {
+        node,
+        size: weight.into_prop().map(ItemSize::Percent),
+    }
 }
 
-pub fn size(node: NodeId, size: impl IntoProp<ItemSize>) -> (NodeId, Prop<ItemSize>) {
-    (node, size.into_prop())
+pub fn size(node: NodeId, size: impl IntoProp<ItemSize>) -> ListChild {
+    ListChild::new(node, size)
 }
 
 pub type Child = NodeId;
 
-#[derive(Default)]
-pub struct Children(Vec<(NodeId, Prop<ItemSize>)>);
+pub struct ListChild {
+    pub node: NodeId,
+    pub size: Prop<ItemSize>,
+}
 
-impl Children {
+impl ListChild {
+    pub fn new(node: NodeId, size: impl IntoProp<ItemSize>) -> Self {
+        Self {
+            node,
+            size: size.into_prop(),
+        }
+    }
+}
+
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be a child of this component",
+    label = "this component takes `{T}` children"
+)]
+pub trait IntoChild<T> {
+    fn into_child(self) -> T;
+}
+
+pub fn into_child<T>(child: impl IntoChild<T>) -> T {
+    child.into_child()
+}
+
+impl IntoChild<NodeId> for NodeId {
+    fn into_child(self) -> NodeId {
+        self
+    }
+}
+
+impl IntoChild<ListChild> for NodeId {
+    fn into_child(self) -> ListChild {
+        ListChild::new(self, ItemSize::Intrinsic)
+    }
+}
+
+#[diagnostic::on_unimplemented(
+    message = "`@sizing` only applies to a child of a list",
+    label = "remove `@sizing`, or put this child in a `Row`, `Column`, `List` or `Stack`",
+    note = "`intrinsic`, `fixed`, `percent` and `size` give a child a size too, so a hand-built \
+            `Vec<ListChild>` only fits a list"
+)]
+pub trait AcceptsSizing {
+    fn from_list_child(child: ListChild) -> Self;
+}
+
+impl AcceptsSizing for ListChild {
+    fn from_list_child(child: ListChild) -> Self {
+        child
+    }
+}
+
+impl<T: AcceptsSizing> IntoChild<T> for ListChild {
+    fn into_child(self) -> T {
+        T::from_list_child(self)
+    }
+}
+
+pub struct Children<T>(Vec<T>);
+
+impl<T> Default for Children<T> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl<T, const N: usize> From<[T; N]> for Children<T> {
+    fn from(children: [T; N]) -> Self {
+        Self(Vec::from(children))
+    }
+}
+
+impl<T, U: IntoChild<T>> From<Vec<U>> for Children<T> {
+    fn from(children: Vec<U>) -> Self {
+        Self(children.into_iter().map(IntoChild::into_child).collect())
+    }
+}
+
+impl<T> Children<T> {
+    pub fn into_items(self) -> Vec<T> {
+        self.0
+    }
+}
+
+impl Children<ListChild> {
     fn mount(self, parent: NodeId) {
         let initial_sizes: Vec<ItemSize> = untrack(|| {
             self.0
                 .iter()
-                .map(|(_, size)| match size {
+                .map(|child| match &child.size {
                     Prop::Static(size) => *size,
                     Prop::Dynamic(read) => read(),
                 })
                 .collect()
         });
         with_document(|document| {
-            for ((child, _), size) in self.0.iter().zip(&initial_sizes) {
-                document.append_child(parent, *child, *size);
+            for (child, size) in self.0.iter().zip(&initial_sizes) {
+                document.append_child(parent, child.node, *size);
             }
         });
-        for (child, size) in self.0 {
+        for child in self.0 {
+            let ListChild { node, size } = child;
             if let Prop::Dynamic(read) = size {
                 create_effect(move || {
                     let size = read();
-                    with_document(|document| document.set_child_size(parent, child, size));
+                    with_document(|document| document.set_child_size(parent, node, size));
                 });
             }
         }
     }
+}
 
+impl Children<NodeId> {
     pub(crate) fn mount_scroll_items(self, scroll: NodeId) {
         with_document(|document| {
-            for (child, _) in &self.0 {
+            for child in &self.0 {
                 document.append_scroll_item(scroll, *child);
             }
         });
-    }
-
-    pub(crate) fn into_items(self) -> Vec<(NodeId, Prop<ItemSize>)> {
-        self.0
-    }
-}
-
-impl<I: IntoIterator<Item = (NodeId, Prop<ItemSize>)>> From<I> for Children {
-    fn from(children: I) -> Self {
-        Children(children.into_iter().collect())
     }
 }
 
@@ -597,13 +679,13 @@ impl<I: IntoIterator<Item = (NodeId, Prop<ItemSize>)>> From<I> for Children {
     message = "this component builds exactly one child",
     label = "write one child between these tags"
 )]
-pub trait OneChild {
-    fn one_child(self) -> NodeId;
+pub trait OneChild<T> {
+    fn one_child(self) -> T;
 }
 
-impl OneChild for [(NodeId, Prop<ItemSize>); 1] {
-    fn one_child(self) -> NodeId {
-        let [(child, _)] = self;
+impl<T> OneChild<T> for [T; 1] {
+    fn one_child(self) -> T {
+        let [child] = self;
         child
     }
 }
@@ -612,19 +694,19 @@ impl OneChild for [(NodeId, Prop<ItemSize>); 1] {
     message = "this component builds at most one child",
     label = "write one child between these tags, or none at all"
 )]
-pub trait AtMostOneChild {
-    fn at_most_one_child(self) -> Option<NodeId>;
+pub trait AtMostOneChild<T> {
+    fn at_most_one_child(self) -> Option<T>;
 }
 
-impl AtMostOneChild for [(NodeId, Prop<ItemSize>); 0] {
-    fn at_most_one_child(self) -> Option<NodeId> {
+impl<T> AtMostOneChild<T> for [T; 0] {
+    fn at_most_one_child(self) -> Option<T> {
         None
     }
 }
 
-impl AtMostOneChild for [(NodeId, Prop<ItemSize>); 1] {
-    fn at_most_one_child(self) -> Option<NodeId> {
-        let [(child, _)] = self;
+impl<T> AtMostOneChild<T> for [T; 1] {
+    fn at_most_one_child(self) -> Option<T> {
+        let [child] = self;
         Some(child)
     }
 }
@@ -650,7 +732,7 @@ pub fn List(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = Align::Stretch)] align: Prop<Align>,
     spacing: Prop<f32>,
-    children: Children,
+    children: Children<ListChild>,
 ) -> NodeId {
     let list = with_document(|document| document.create_list(direction.peek(), 0.0));
     create_effect(move || {
@@ -663,21 +745,21 @@ pub fn List(
 }
 
 #[component]
-pub fn Row(spacing: Prop<f32>, children: Children) -> NodeId {
+pub fn Row(spacing: Prop<f32>, children: Children<ListChild>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing children />
     }
 }
 
 #[component]
-pub fn Column(spacing: Prop<f32>, children: Children) -> NodeId {
+pub fn Column(spacing: Prop<f32>, children: Children<ListChild>) -> NodeId {
     view! {
         <List direction=Direction::Vertical spacing children />
     }
 }
 
 #[component]
-pub fn CenteredRow(spacing: Prop<f32>, children: Children) -> NodeId {
+pub fn CenteredRow(spacing: Prop<f32>, children: Children<ListChild>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing children />
     }

@@ -1,7 +1,7 @@
 use beui_macros::{component, view};
 
 use crate::node::NodeId;
-use crate::reactive::{Children, Prop};
+use crate::reactive::{Children, ListChild, Prop};
 use crate::styled::theme::NARROW_WIDTH;
 use crate::unstyled;
 use crate::unstyled::narrower_than;
@@ -10,7 +10,7 @@ use crate::unstyled::narrower_than;
 pub fn Stack(
     spacing: Prop<f32>,
     #[prop(default = NARROW_WIDTH)] breakpoint: f32,
-    children: Children,
+    children: Children<ListChild>,
 ) -> NodeId {
     let narrow = narrower_than(breakpoint);
     view! {

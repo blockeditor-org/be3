@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Embed, EmbedSlot, ItemSize, Scroll, build, intrinsic, view};
+use crate::reactive::{Embed, EmbedSlot, ItemSize, Scroll, build, view};
 
 #[test]
 fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
@@ -10,15 +10,15 @@ fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
 
     let document = build(move || {
         let rows = vec![
-            intrinsic(view! {
+            view! {
                 <Embed slot={first} height=200.0 />
-            }),
-            intrinsic(view! {
+            },
+            view! {
                 <Embed slot={second} height=200.0 />
-            }),
-            intrinsic(view! {
+            },
+            view! {
                 <Embed slot={EmbedSlot::new()} height=200.0 />
-            }),
+            },
         ];
         view! {
             <Column spacing=0.0>

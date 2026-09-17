@@ -5,11 +5,11 @@ use crate::reactive::{ItemSize, Scroll, view};
 #[test]
 fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
     let document = build(move || {
-        let mut items = vec![intrinsic(view! {
+        let mut items = vec![view! {
             <Frame height=150.0>
                 <Scroll @test_id="inner" children={rows(20)} />
             </Frame>
-        })];
+        }];
         items.extend(rows(20));
         view! {
             <Column spacing=0.0>
@@ -34,12 +34,12 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
     assert_eq!(harness.document().scroll_offset(outer), 20.0);
 }
 
-fn rows(count: usize) -> Vec<(NodeId, crate::reactive::Prop<ItemSize>)> {
+fn rows(count: usize) -> Vec<NodeId> {
     (0..count)
         .map(|index| {
-            intrinsic(view! {
+            view! {
                 <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
-            })
+            }
         })
         .collect()
 }

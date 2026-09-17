@@ -1,14 +1,14 @@
 use super::*;
 use crate::base::Direction;
 use crate::geometry::vec2;
-use crate::reactive::{ItemSize, Scroll, build, intrinsic, view};
+use crate::reactive::{ItemSize, Scroll, build, view};
 
 #[test]
 fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
     let document = build(move || {
         let items = (0..20)
             .map(|index| {
-                intrinsic(view! {
+                view! {
                     <Frame width=120.0>
                         <Text
                             string={format!("Card {index}")}
@@ -16,7 +16,7 @@ fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
                             color=Color32::WHITE
                         />
                     </Frame>
-                })
+                }
             })
             .collect::<Vec<_>>();
         view! {

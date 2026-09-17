@@ -1,17 +1,17 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, Scroll, build, intrinsic, view};
+use crate::reactive::{ItemSize, Scroll, build, view};
 
 #[test]
 fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {
     let document = build(move || {
         let items = (0..40)
             .map(|index| {
-                intrinsic(view! {
+                view! {
                     <Frame width=120.0>
                         <LabelledButton label={format!("Card {index}")} on_click={move || {}} />
                     </Frame>
-                })
+                }
             })
             .collect::<Vec<_>>();
         view! {
