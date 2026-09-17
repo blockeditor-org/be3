@@ -725,6 +725,10 @@ impl Document {
             .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
     }
 
+    pub fn pixels_per_point(&self) -> f32 {
+        self.viewport.as_ref().map_or(1.0, |(_, _, scale)| *scale)
+    }
+
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> bool {
         if self.layout_revision == self.arena.revision {
             return false;
