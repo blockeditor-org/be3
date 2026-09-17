@@ -272,7 +272,9 @@ fn interact_node(
     id: NodeId,
     focus_target: &mut Option<NodeId>,
 ) {
-    let rect = rects[&id];
+    let Some(&rect) = rects.get(&id) else {
+        return;
+    };
     let mut element = doc.arena.take(id);
     let children = element.interact(doc, painter, input, id, rect, focus_target);
     doc.arena.put_back(id, element);

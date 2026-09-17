@@ -709,13 +709,13 @@ struct Counted {
 }
 
 impl Element for Counted {
-    fn measure(&self, doc: &Document, painter: &Painter, available: Vec2) -> Vec2 {
+    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         self.inner.measure(doc, painter, available)
     }
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,

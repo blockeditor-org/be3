@@ -58,13 +58,13 @@ impl CanvasNode {
 }
 
 impl Element for CanvasNode {
-    fn measure(&self, _doc: &Document, _painter: &Painter, _available: Vec2) -> Vec2 {
+    fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         Vec2::ZERO
     }
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,
@@ -130,13 +130,13 @@ pub(crate) struct CanvasItemNode {
 }
 
 impl Element for CanvasItemNode {
-    fn measure(&self, _doc: &Document, _painter: &Painter, _available: Vec2) -> Vec2 {
+    fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         self.rect.size()
     }
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,

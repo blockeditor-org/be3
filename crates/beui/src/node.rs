@@ -51,11 +51,11 @@ pub type Handler<V, R = ()> = Box<dyn FnMut(V) -> R>;
 pub type ClickHandler = Box<dyn FnMut()>;
 
 pub(crate) trait Element: Any {
-    fn measure(&self, doc: &Document, painter: &Painter, available: Vec2) -> Vec2;
+    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2;
 
     fn layout(
         &self,
-        doc: &Document,
+        doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,
@@ -164,6 +164,14 @@ impl Arena {
     pub(crate) fn invalidate_node(&mut self, id: NodeId) {
         self.revision = self.revision.wrapping_add(1);
         self.changed.push(id);
+    }
+
+    pub(crate) fn changed_len(&self) -> usize {
+        self.changed.len()
+    }
+
+    pub(crate) fn changed_since(&self, watermark: usize) -> &[NodeId] {
+        self.changed.get(watermark..).unwrap_or_default()
     }
 
     pub(crate) fn take_changed(&mut self) -> Vec<NodeId> {
