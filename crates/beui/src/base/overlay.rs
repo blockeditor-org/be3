@@ -101,7 +101,7 @@ impl Element for OverlayNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         _rect: Rect,

@@ -347,19 +347,31 @@ impl Element for ScrollNode {
     }
 
     fn layout(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,
     ) {
         let (main, cross) = self.direction.main_and_cross(rect.size());
-        let lengths = self.lengths(doc, painter, cross);
+        let virtualised = self.virtual_items.is_some();
+        let mut lengths = match virtualised {
+            true => Vec::new(),
+            false => self.lengths(doc, painter, cross),
+        };
+        self.offset = self.anchored_offset(&lengths).max(0.0);
+        if virtualised {
+            self.realize(doc, painter, rect);
+            lengths = self.lengths(doc, painter, cross);
+        }
         let content = self.content(lengths.iter().sum());
-        let offset = self
-            .anchored_offset(&lengths)
-            .clamp(0.0, (content - main).max(0.0))
-            + self.overscroll;
+        let position = ScrollPosition {
+            offset: self.offset.clamp(0.0, (content - main).max(0.0)),
+            content,
+            viewport: main,
+        };
+        self.offset = position.offset;
+        let offset = position.offset + self.overscroll;
         let start = self.direction.main(rect.min.to_vec2());
         let mut cursor = start + self.leading(offset);
         for (&item, length) in self.items.iter().zip(&lengths) {
@@ -376,6 +388,14 @@ impl Element for ScrollNode {
                 );
             }
             cursor += length;
+        }
+        if self.anchor.is_none() {
+            self.remember_anchor(doc, painter, cross);
+        }
+        self.position = Some(position);
+        if !self.on_change.is_empty() && self.reported != Some(position) {
+            self.reported = Some(position);
+            self.on_change.call(position);
         }
     }
 
@@ -443,14 +463,8 @@ impl Element for ScrollNode {
             doc.arena.invalidate_node(id);
             self.offset = position.offset;
         }
-        self.realize(doc, painter, rect);
-        if self.anchor.is_none() || position.offset != anchored_offset || self.items.is_empty() {
-            self.remember_anchor(doc, painter, self.direction.main_and_cross(rect.size()).1);
-        }
-        self.position = Some(position);
-        if !self.on_change.is_empty() && self.reported != Some(position) {
-            self.reported = Some(position);
-            self.on_change.call(position);
+        if position.offset != anchored_offset {
+            self.anchor = None;
         }
         if self.animating() {
             painter.ctx().request_repaint();

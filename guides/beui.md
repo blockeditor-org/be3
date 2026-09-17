@@ -361,6 +361,30 @@ and `@sizing` to describe how it participates among siblings in a `Row`,
 container-responsive state; `unstyled::Stack` and `styled::Stack` switch between
 a row and a column without rebuilding their children.
 
+### One layout per frame
+
+A frame is input, then layout, then paint. Input is dispatched against the rects
+the previous frame painted, which is what the reader was looking at when they
+clicked, and the tree is laid out exactly once afterwards.
+
+That holds even though `component_size` and `component_rect` feed measurements
+back into the tree, because both are delivered during the layout walk rather
+than after it. `component_size` reports the space a component's parent offered
+it, handed over before the component is measured; `component_rect` reports where
+it was placed, handed over before its subtree is laid out. Both flow downward,
+so a component that rebuilds from either is rebuilt before anything under it is
+placed, and the pass that caused the change absorbs it.
+
+The contract this rests on is that a delivery only ever restructures the subtree
+below the node it was delivered to. Waking an effect that changes an ancestor or
+an already-placed sibling would leave that node holding a rect computed from a
+tree that no longer exists; a debug assertion catches it. The practical form of
+the rule is the one container queries on the web settle on: a component may
+query the space it was given, but it must not be the thing that decides that
+space on the axis it queries. A `Container` sized by its own contents on the
+axis it reports is a cycle, and beui resolves it in favour of the constraint its
+parent offered.
+
 ### Update a document from outside its events
 
 Component callbacks run with their `Document` installed, so signal writes from
@@ -550,6 +574,20 @@ Put the node in `crates/beui/src/base/<name>.rs` and register the module in
 - `Document::create_*` and `Document::set_*` methods plus a public
   `#[component]` wrapper. The wrapper creates the node with `with_document` and
   binds reactive props to setters with `create_effect`.
+
+`measure` takes `&self` and must not mutate; `layout` takes `&mut self` and may
+update the node's own retained state, which is how a virtual `Scroll` realises
+the rows the viewport and offset call for. Both receive `&mut Document` and are
+reached through `crate::layout::measure` and `crate::layout::layout`, which take
+the element out of the arena for the duration so an effect woken mid-walk cannot
+alias it. Reach children through those two functions rather than calling another
+element's methods directly, or the node you descend into is never handed its
+constraint.
+
+Measurements are memoised per available size and dropped whenever the arena
+changes, so measuring a child repeatedly within a pass is cheap, but a `measure`
+that is not a pure function of the node and its constraint will return a stale
+answer.
 
 Only invalidate retained state when a setter actually changes a value. A
 spurious mutation invalidates layout or paint caching for the entire document.
