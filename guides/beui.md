@@ -21,7 +21,7 @@ this guide is about using beui itself.
 
 These four cover most review comments on beui code.
 
-### Every function that builds a node is a `#[component]`
+### Every function that builds part of a view is a `#[component]`
 
 If a function returns a `NodeId`, or a value built around one such as a
 `CanvasItem`, annotate it `#[component]` and name it in `CamelCase`. The
@@ -35,13 +35,25 @@ gives it `@test_id`, `@node_ref` and `@sizing`, and makes
 `component_state`, `component_accessibility` and `component_size` available
 inside it.
 
-Functions that build no node are ordinary functions. Deriving a colour from
-theme tokens and interaction state, mapping a value to a label, reading state
-back out of a built node — write those as plain functions, as
-`styled/checkbox.rs` does with `box_fill` and `checkbox_checked`. A component
-that returns its own type implements `ChildValue` to name the node the scope
-hangs on, and `IntoChild` for the slot that takes it, as `base/canvas.rs` does
-for `CanvasItem`.
+A component that returns its own type implements `ChildValue` to name the node
+the scope hangs on, and `IntoChild` for the slot that takes it, as
+`base/canvas.rs` does for `CanvasItem`.
+
+A child needs no node at all. A `ChildValue` whose `anchor` is `None` keeps a
+`ChildScope` field instead, which the component's scope is moved into, so
+dropping the value disposes exactly the effects that building it created and
+the owner tree does the rest. That is how an item made of data rather than
+nodes — a label, a key, a callback — can still be a component, with its own
+scope, context, memos and cleanups, and still be written as a tag. Such a
+component has nothing for `component_state`, `component_accessibility`,
+`component_size` or `component_rect` to watch, and `@test_id` and `@node_ref`
+name a node it does not have, so all six panic rather than going quietly
+nowhere.
+
+Functions that build no part of a view are ordinary functions. Deriving a
+colour from theme tokens and interaction state, mapping a value to a label,
+reading state back out of a built node — write those as plain functions, as
+`styled/checkbox.rs` does with `box_fill` and `checkbox_checked`.
 
 ### A component ends with one `view!` and nothing after it
 

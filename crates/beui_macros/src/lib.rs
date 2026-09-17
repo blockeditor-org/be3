@@ -864,14 +864,19 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 let node_ref = self.with_node_ref;
                 #(#field_lets)*
                 let node = #finish;
-                let anchor = ::beui::reactive::ChildValue::anchor(&node);
+                let anchor = || {
+                    ::beui::reactive::ChildValue::anchor(&node).expect(
+                        "`@test_id` and `@node_ref` name a node, and this component builds none",
+                    )
+                };
                 if let Some(test_id) = test_id {
+                    let anchor = anchor();
                     ::beui::reactive::with_document(|document| {
                         document.set_test_id(anchor, test_id)
                     });
                 }
                 if let Some(node_ref) = node_ref {
-                    node_ref.fill(anchor);
+                    node_ref.fill(anchor());
                 }
                 node
             }
