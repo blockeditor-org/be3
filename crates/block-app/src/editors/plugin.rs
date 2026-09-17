@@ -119,6 +119,20 @@ pub(super) fn block_type_descriptors(
         .collect()
 }
 
+fn keep_arrow_keys(context: &egui::Context, id: egui::Id) {
+    context.memory_mut(|memory| {
+        memory.set_focus_lock_filter(
+            id,
+            egui::EventFilter {
+                tab: false,
+                horizontal_arrows: true,
+                vertical_arrows: true,
+                escape: false,
+            },
+        );
+    });
+}
+
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
 fn next_instance() -> EditorInstanceId {
@@ -517,6 +531,9 @@ impl PluginEditor {
         );
         if region == EditorRegion::Frame {
             self.main_region_id = presentation.id;
+        }
+        if let Some(id) = presentation.id {
+            keep_arrow_keys(ui.ctx(), id);
         }
         let mut action = presentation
             .command
