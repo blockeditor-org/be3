@@ -396,7 +396,8 @@ impl Element for ScrollNode {
         self.position = Some(position);
         if !self.on_change.is_empty() && self.reported != Some(position) {
             self.reported = Some(position);
-            self.on_change.call(position);
+            let on_change = &self.on_change;
+            settle(|| on_change.call(position));
         }
     }
 
