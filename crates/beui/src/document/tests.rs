@@ -9,6 +9,7 @@ mod a_component_that_builds_no_node_owns_its_scope_through_the_value;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_for_each_row_picks_and_changes_its_own_size;
+mod a_fragment_sits_beside_the_children_written_around_it;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
@@ -699,7 +700,7 @@ pub(crate) fn toolbar_of<const N: usize>(
         let nodes = controls();
         sink.set(Some(nodes));
         view! {
-            <Column spacing=8.0 children={nodes.map(intrinsic)} />
+            <Column spacing=8.0 children={nodes.to_vec()} />
         }
     });
     let nodes = built.get().expect("the toolbar was built");

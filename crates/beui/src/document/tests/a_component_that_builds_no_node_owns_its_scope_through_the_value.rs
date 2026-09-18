@@ -1,8 +1,7 @@
 use super::*;
 use crate::node::NodeId;
 use crate::reactive::{
-    ChildScope, ChildValue, Children, IntoChild, Prop, Scope, Text, build, component, on_cleanup,
-    view,
+    ChildScope, ChildValue, Children, Prop, Scope, Text, build, component, on_cleanup, view,
 };
 
 type Disposals = Rc<Cell<usize>>;
@@ -22,11 +21,7 @@ impl ChildValue for Note {
     }
 }
 
-impl IntoChild<Note> for Note {
-    fn into_child(self) -> Note {
-        self
-    }
-}
+crate::child_type!(Note);
 
 #[component]
 fn Noted(label: Prop<String>, disposals: Disposals) -> Note {

@@ -681,7 +681,78 @@ impl<T: AcceptsSizing> IntoChild<T> for ListChild {
     }
 }
 
-pub struct Children<T>(Vec<T>);
+pub enum ChildSegment<T> {
+    One(T),
+    Many(Vec<T>),
+}
+
+impl<T> ChildSegment<T> {
+    fn items(self) -> Vec<T> {
+        match self {
+            ChildSegment::One(item) => vec![item],
+            ChildSegment::Many(items) => items,
+        }
+    }
+}
+
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be written between these tags",
+    label = "this component takes `{T}` children"
+)]
+pub trait IntoSegment<T> {
+    fn into_segment(self) -> ChildSegment<T>;
+}
+
+pub fn into_segment<T>(child: impl IntoSegment<T>) -> ChildSegment<T> {
+    child.into_segment()
+}
+
+fn one_segment<T>(child: impl IntoChild<T>) -> ChildSegment<T> {
+    ChildSegment::One(child.into_child())
+}
+
+impl<T> IntoSegment<T> for Children<T> {
+    fn into_segment(self) -> ChildSegment<T> {
+        ChildSegment::Many(self.into_items())
+    }
+}
+
+impl IntoSegment<NodeId> for NodeId {
+    fn into_segment(self) -> ChildSegment<NodeId> {
+        one_segment(self)
+    }
+}
+
+impl IntoSegment<ListChild> for NodeId {
+    fn into_segment(self) -> ChildSegment<ListChild> {
+        one_segment(self)
+    }
+}
+
+impl<T: AcceptsSizing> IntoSegment<T> for ListChild {
+    fn into_segment(self) -> ChildSegment<T> {
+        one_segment(self)
+    }
+}
+
+#[macro_export]
+macro_rules! child_type {
+    ($ty:ty) => {
+        impl $crate::reactive::IntoChild<$ty> for $ty {
+            fn into_child(self) -> $ty {
+                self
+            }
+        }
+
+        impl $crate::reactive::IntoSegment<$ty> for $ty {
+            fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
+                $crate::reactive::ChildSegment::One(self)
+            }
+        }
+    };
+}
+
+pub struct Children<T>(Vec<ChildSegment<T>>);
 
 impl<T> Default for Children<T> {
     fn default() -> Self {
@@ -689,27 +760,32 @@ impl<T> Default for Children<T> {
     }
 }
 
-impl<T, const N: usize> From<[T; N]> for Children<T> {
-    fn from(children: [T; N]) -> Self {
-        Self(Vec::from(children))
+impl<T, const N: usize> From<[ChildSegment<T>; N]> for Children<T> {
+    fn from(segments: [ChildSegment<T>; N]) -> Self {
+        Self(Vec::from(segments))
     }
 }
 
 impl<T, U: IntoChild<T>> From<Vec<U>> for Children<T> {
     fn from(children: Vec<U>) -> Self {
-        Self(children.into_iter().map(IntoChild::into_child).collect())
+        Self(
+            children
+                .into_iter()
+                .map(|child| ChildSegment::One(child.into_child()))
+                .collect(),
+        )
     }
 }
 
 impl<T> Children<T> {
     pub fn into_items(self) -> Vec<T> {
-        self.0
+        self.0.into_iter().flat_map(ChildSegment::items).collect()
     }
 }
 
 impl Children<ListChild> {
     fn mount(self, parent: NodeId) {
-        for child in self.0 {
+        for child in self.into_items() {
             let (node, size) = child.watch(parent);
             with_document(|document| document.append_child(parent, node, size));
         }
@@ -718,9 +794,10 @@ impl Children<ListChild> {
 
 impl Children<NodeId> {
     pub(crate) fn mount_scroll_items(self, scroll: NodeId) {
+        let items = self.into_items();
         with_document(|document| {
-            for child in &self.0 {
-                document.append_scroll_item(scroll, *child);
+            for child in items {
+                document.append_scroll_item(scroll, child);
             }
         });
     }
@@ -734,10 +811,17 @@ pub trait OneChild<T> {
     fn one_child(self) -> T;
 }
 
-impl<T> OneChild<T> for [T; 1] {
+impl<T> OneChild<T> for [ChildSegment<T>; 1] {
     fn one_child(self) -> T {
         let [child] = self;
-        child
+        let mut items = child.items();
+        assert_eq!(
+            items.len(),
+            1,
+            "this component builds exactly one child, and what is written between its tags builds {} of them",
+            items.len()
+        );
+        items.remove(0)
     }
 }
 
@@ -749,16 +833,22 @@ pub trait AtMostOneChild<T> {
     fn at_most_one_child(self) -> Option<T>;
 }
 
-impl<T> AtMostOneChild<T> for [T; 0] {
+impl<T> AtMostOneChild<T> for [ChildSegment<T>; 0] {
     fn at_most_one_child(self) -> Option<T> {
         None
     }
 }
 
-impl<T> AtMostOneChild<T> for [T; 1] {
+impl<T> AtMostOneChild<T> for [ChildSegment<T>; 1] {
     fn at_most_one_child(self) -> Option<T> {
         let [child] = self;
-        Some(child)
+        let mut items = child.items();
+        assert!(
+            items.len() <= 1,
+            "this component builds at most one child, and what is written between its tags builds {} of them",
+            items.len()
+        );
+        items.pop()
     }
 }
 
