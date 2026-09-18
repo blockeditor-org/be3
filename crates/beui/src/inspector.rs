@@ -60,7 +60,7 @@ pub(crate) struct State {
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
     pub(crate) screen_reader: Cell<bool>,
     pub(crate) curtain_opacity: Cell<f32>,
-    pub(crate) curtain_frost: Cell<bool>,
+    pub(crate) hide_text: Cell<bool>,
     commands: RefCell<Vec<Command>>,
     pub(crate) theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
@@ -84,7 +84,7 @@ impl State {
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
             screen_reader: Cell::new(false),
             curtain_opacity: Cell::new(DEFAULT_OPACITY),
-            curtain_frost: Cell::new(true),
+            hide_text: Cell::new(true),
             commands: RefCell::new(Vec::new()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
@@ -132,8 +132,8 @@ impl State {
         self.touch();
     }
 
-    fn frost_curtain(&self, frost: bool) {
-        self.curtain_frost.set(frost);
+    fn hide_text(&self, hidden: bool) {
+        self.hide_text.set(hidden);
         self.touch();
     }
 
@@ -309,6 +309,7 @@ impl Inspector {
         target.track_changes(self.state.flash_changes.get());
         target.track_damage(self.state.flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
+        target.hide_text(self.state.screen_reader.get() && self.state.hide_text.get());
         if let Some(theme) = self.state.requested_theme.take() {
             target.set_theme(theme);
             ctx.request_repaint();
@@ -319,7 +320,7 @@ impl Inspector {
         self.read(target, ctx, content, keyboard_interactive);
         self.paint(target, ctx, content, panel);
         if self.reader.painting() {
-            self.cover(target, ctx, content);
+            self.cover(ctx, content);
         }
         if target.flashing() {
             ctx.request_repaint();
@@ -334,7 +335,6 @@ impl Inspector {
         self.reader.configure(
             self.state.screen_reader.get(),
             self.state.curtain_opacity.get(),
-            self.state.curtain_frost.get(),
         );
         let commands = self.state.take_commands();
         self.reader
@@ -345,13 +345,13 @@ impl Inspector {
         }
     }
 
-    fn cover(&mut self, target: &Document, ctx: &Context, content: Rect) {
+    fn cover(&mut self, ctx: &Context, content: Rect) {
         let scale = scale(ctx);
         let local = scale.recip();
         let Self { reader, .. } = self;
         ctx.scaled(scale, || {
             let painter = ctx.painter().with_clip_rect(content.scaled(local));
-            let damage = reader.paint(&painter, target, local);
+            let damage = reader.paint(&painter, local);
             ctx.report_damage(damage);
         });
     }

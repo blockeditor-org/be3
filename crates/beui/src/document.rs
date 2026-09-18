@@ -31,6 +31,7 @@ pub struct Document {
     pub(crate) rects: Rc<HashMap<NodeId, Rect>>,
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
+    pub(crate) text_hidden: bool,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
     pub(crate) touch_scroll_horizontal: Option<NodeId>,
@@ -119,6 +120,7 @@ impl Document {
             rects: Rc::new(HashMap::new()),
             inspector: None,
             inspectable: true,
+            text_hidden: false,
             overlay_stack: Vec::new(),
             touch_scroll_vertical: None,
             touch_scroll_horizontal: None,
@@ -242,6 +244,14 @@ impl Document {
         self.performance.clear();
     }
 
+    pub(crate) fn hide_text(&mut self, hidden: bool) {
+        if self.text_hidden == hidden {
+            return;
+        }
+        self.text_hidden = hidden;
+        self.arena.invalidate();
+    }
+
     pub(crate) fn track_changes(&mut self, enabled: bool) {
         self.changes.set_enabled(enabled);
     }
@@ -282,6 +292,7 @@ impl Document {
         self.paint_base.set(base);
     }
 
+    #[cfg(test)]
     pub(crate) fn shapes(&self) -> &[Shape] {
         &self.shapes
     }
@@ -382,6 +393,7 @@ impl Document {
         if self.inspector.is_none() {
             self.track_changes(false);
             self.track_damage(false);
+            self.hide_text(false);
         }
 
         let (content, panel) = match &mut self.inspector {
