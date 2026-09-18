@@ -50,6 +50,7 @@ pub struct GlyphId {
     face: usize,
     glyph: u32,
     pixel_size: u32,
+    subpixel: u32,
 }
 
 pub struct GlyphImage {
@@ -187,6 +188,14 @@ struct GalleyKey {
 }
 
 const GALLEY_CACHE_LIMIT: usize = 4096;
+const SUBPIXEL_POSITIONS: u32 = 4;
+
+fn split_subpixel(x: f32) -> (f32, u32) {
+    let positions = SUBPIXEL_POSITIONS as f32;
+    let steps = (x * positions).round();
+    let whole = (steps / positions).floor();
+    (whole, (steps - whole * positions) as u32)
+}
 
 #[derive(Clone, Debug)]
 pub struct FontSources {
@@ -400,16 +409,18 @@ impl Fonts {
         pen: f32,
         baseline: f32,
     ) -> Option<Glyph> {
+        let (whole, subpixel) = split_subpixel(pen + glyph.x_offset);
         let id = GlyphId {
             face: glyph.face,
             glyph: glyph.glyph,
             pixel_size,
+            subpixel,
         };
         let image = self.image(id)?;
         if image.width == 0 || image.height == 0 {
             return None;
         }
-        let x = (pen + glyph.x_offset).round() + image.left as f32;
+        let x = whole + image.left as f32;
         let y = (baseline - glyph.y_offset).round() - image.top as f32;
         Some(Glyph {
             id,
@@ -437,6 +448,10 @@ impl Fonts {
                 return None;
             }
             let slot = (*face).glyph;
+            if (*slot).format == ft::FT_Glyph_Format::FT_GLYPH_FORMAT_OUTLINE {
+                let shift = (key.subpixel as ft::FT_Pos * 64) / SUBPIXEL_POSITIONS as ft::FT_Pos;
+                ft::FT_Outline_Translate(&(*slot).outline, shift, 0);
+            }
             if ft::FT_Render_Glyph(slot, ft::FT_Render_Mode::FT_RENDER_MODE_NORMAL) != 0 {
                 return None;
             }
@@ -686,3 +701,6 @@ fn pixels(bitmap: &ft::FT_Bitmap) -> Vec<u8> {
 }
 
 pub const ICONS_FONT: &[u8] = include_bytes!("../assets/icons/MaterialSymbolsRounded-Filled.ttf");
+
+#[cfg(test)]
+mod tests;

@@ -30,7 +30,6 @@ Verification:
 - `./scripts/build --target web`: run this for changes that affect features specific to web
 - `./scripts/run --smoke`: run this for changes that could affect native startup or runtime integration. It performs a bounded automated launch in a virtual display with isolated data; it does not require GUI interaction.
 - You may run non-GUI binaries, examples, and headless test harnesses when they exercise changed behavior.
-- Do not perform manual GUI verification, interact with the GUI app, or use the browser tool. Use headless tests from `guides/testing_a_gui.md` for GUI behavior.
 
 Do:
 - Use commit message format `type: message`. Include Co-Authored-By: (model name).
