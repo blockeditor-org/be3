@@ -87,6 +87,16 @@ changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
 components with a `Dynamic` or a `Show` choosing between them.
 
+None of those four builds a node of its own. They keep a run of children in a
+slot of the parent they are written in, so their children are laid out by that
+parent, with its direction, spacing and alignment, and the children written
+around them keep their places however the run changes. That is why a `ForEach`
+has no spacing of its own, why `@sizing` belongs on the rows rather than on the
+`ForEach`, and why `@test_id` and `@node_ref` on one of them panics: there is
+no node to name. Each needs a parent that keeps its children in slots - a
+list, a `Scroll` or a `Canvas` - so a single-child slot like `Frame`'s takes a
+`Column` around one.
+
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with
 effects. Above the base layer, one `view!` is the shape.
@@ -128,13 +138,21 @@ rows that stayed keep their nodes untouched, and only the bindings reading what
 actually changed run.
 
 ```rust
-<ForEach spacing=8.0 keys={items.keys()}>
-    {move |id: Uuid| {
-        let item = items.get(&id);
-        view! { <Row item /> }
-    }}
-</ForEach>
+<Column spacing=8.0>
+    <ForEach keys={items.keys()}>
+        {move |id: Uuid| {
+            let item = items.get(&id);
+            view! { <Row item /> }
+        }}
+    </ForEach>
+</Column>
 ```
+
+The kind of child a run builds is the kind its parent takes, and the parent is
+what decides it: the rows of a `ForEach` in a list are `ListChild`s and can
+carry `@sizing`, the rows of one in a `Scroll` are plain nodes and are items of
+that scroll, and the rows of one in a `Canvas` are `CanvasItem`s. A row builder
+that returns the wrong kind for the parent is a compile error.
 
 Key by identity, never by content: a key containing the row's text changes
 whenever the text does, which destroys and rebuilds the row — exactly what
@@ -393,6 +411,13 @@ item. Writing
 `@sizing` on the child of a slot that does not size its children is a compile
 error rather than an attribute that quietly does nothing, and the same goes for
 a hand-built `Vec<ListChild>` from `intrinsic`, `fixed`, `percent` or `size`.
+
+A slot holds its children in runs rather than one flat list, so a child can
+stand for none, one or many of them and change how many as it goes: that is how
+a fragment written among siblings takes the places between them, and how
+`Show`, `Dynamic`, `Keyed` and `ForEach` fill a parent they do not own. `Row`,
+`Column`, `List`, `Stack`, `Scroll` and `Canvas` all keep their children that
+way.
 
 Use `Frame`'s `width` and `height` props to constrain a component's own size,
 and `@sizing` to describe how it participates among siblings in a `Row`,
