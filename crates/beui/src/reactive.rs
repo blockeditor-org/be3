@@ -88,25 +88,24 @@ pub fn with_reactive_scope<R>(document: &mut Document, f: impl FnOnce() -> R) ->
 }
 
 pub fn with_document<R>(f: impl FnOnce(&mut Document) -> R) -> R {
+    try_with_document(f).expect(
+        "beui::reactive binding used without an active document; \
+         call it from inside build(), or from inside event dispatch",
+    )
+}
+
+pub fn try_with_document<R>(f: impl FnOnce(&mut Document) -> R) -> Option<R> {
     CURRENT_DOCUMENT.with(|cell| match cell.try_borrow_mut() {
         Ok(mut slot) => {
-            let document = slot.as_mut().expect(
-                "beui::reactive binding used without an active document; \
-                 call it from inside build(), or from inside event dispatch",
-            );
+            let document = slot.as_mut()?;
             let ptr: *mut Document = document;
             ACTIVE_DOCUMENT.with(|active| active.set(ptr));
             let _guard = ActiveDocumentGuard;
-            f(document)
+            Some(f(document))
         }
         Err(_) => {
             let ptr = ACTIVE_DOCUMENT.with(Cell::get);
-            assert!(
-                !ptr.is_null(),
-                "beui::reactive binding used without an active document; \
-                 call it from inside build(), or from inside event dispatch"
-            );
-            f(unsafe { &mut *ptr })
+            (!ptr.is_null()).then(|| f(unsafe { &mut *ptr }))
         }
     })
 }
@@ -1035,19 +1034,41 @@ pub fn Spacer() -> NodeId {
     with_document(Document::create_frame)
 }
 
+type ShownChild<C> = Rc<RefCell<Option<(<C as SlotChild>::Stored, Scope)>>>;
+
 #[component]
-pub fn Show(condition: Prop<bool>, #[prop(children)] then: Render) -> NodeId {
-    let mut then = Some(then);
-    let visibility = with_document(Document::create_frame);
-    create_effect(move || {
-        let visible = condition.get();
-        if visible && let Some(build) = then.take() {
-            let child = in_new_scope(|| build.call(()));
-            with_document(|document| document.set_frame_child(visibility, child));
-        }
-        with_document(|document| document.set_visible(visibility, visible));
-    });
-    visibility
+pub fn Show<C>(condition: Prop<bool>, #[prop(children)] then: Render<(), C>) -> DynamicSegment<C>
+where
+    C: SlotChild,
+{
+    DynamicSegment::new(move |parent, slot| {
+        let held: ShownChild<C> = Rc::new(RefCell::new(None));
+        let parked = held.clone();
+        on_cleanup(move || {
+            let held = parked.borrow_mut().take();
+            if let Some((stored, _)) = held {
+                try_with_document(|document| document.remove_node(C::stored_node(&stored)));
+            }
+        });
+        let mut then = Some(then);
+        create_effect(move || {
+            let visible = condition.get();
+            let mut held = held.borrow_mut();
+            if visible
+                && held.is_none()
+                && let Some(build) = then.take()
+            {
+                let scope = Scope::detached();
+                let stored = scope.context().run(|| build.call(()).store(parent));
+                *held = Some((stored, scope));
+            }
+            let items = match (visible, held.as_ref()) {
+                (true, Some((stored, _))) => vec![stored.clone()],
+                _ => Vec::new(),
+            };
+            C::fill_slot(parent, slot, items);
+        });
+    })
 }
 
 #[component]

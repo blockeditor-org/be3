@@ -9,11 +9,11 @@ fn a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings() {
         move || {
             view! {
                 <Column spacing=0.0>
-                    <Show @sizing=ItemSize::Percent(100.0) condition=false>
-                        <Frame />
+                    <Show condition=false>
+                        <Frame @sizing=ItemSize::Percent(100.0) />
                     </Show>
-                    <Show @sizing=ItemSize::Percent(100.0) @node_ref=&shown condition=true>
-                        <Frame />
+                    <Show condition=true>
+                        <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&shown />
                     </Show>
                 </Column>
             }

@@ -214,11 +214,8 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                             padding_vertical=BODY_PADDING
                         >
                             <Column spacing=0.0>
-                                <Show
-                                    @sizing=ItemSize::Percent(100.0)
-                                    condition={body_tree_visible}
-                                >
-                                    <Row spacing=BODY_SPACING>
+                                <Show condition={body_tree_visible}>
+                                    <Row @sizing=ItemSize::Percent(100.0) spacing=BODY_SPACING>
                                         <Scroll
                                             @sizing=ItemSize::Percent(100.0)
                                             focus_color={THEME.accent}
@@ -252,21 +249,19 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                         />
                                     </Row>
                                 </Show>
-                                <Show
-                                    @sizing=ItemSize::Percent(100.0)
-                                    condition={body_performance_visible}
-                                >
+                                <Show condition={body_performance_visible}>
                                     <PerformancePanel
+                                        @sizing=ItemSize::Percent(100.0)
                                         @test_id={"inspector.performance"}
                                         performance={performance.clone()}
                                         state={performance_state.clone()}
                                     />
                                 </Show>
-                                <Show
-                                    @sizing=ItemSize::Percent(100.0)
-                                    condition={body_simulation_visible}
-                                >
-                                    <SimulationPanel state={simulation_state.clone()} />
+                                <Show condition={body_simulation_visible}>
+                                    <SimulationPanel
+                                        @sizing=ItemSize::Percent(100.0)
+                                        state={simulation_state.clone()}
+                                    />
                                 </Show>
                             </Column>
                         </Frame>
