@@ -4,6 +4,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::time::Instant;
 
+use crate::base::child_list::{ChildList, SlotId};
 use crate::base::list::Direction;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
@@ -66,7 +67,7 @@ enum ScrollAnchor {
 
 pub(crate) struct ScrollNode {
     pub(crate) direction: Direction,
-    pub(crate) items: Vec<NodeId>,
+    pub(crate) items: ChildList<NodeId>,
     pub(crate) virtual_items: Option<VirtualItems>,
     pub(crate) offset: f32,
     overscroll: f32,
@@ -85,7 +86,7 @@ impl ScrollNode {
     pub(crate) fn new() -> Self {
         Self {
             direction: Direction::Vertical,
-            items: Vec::new(),
+            items: ChildList::default(),
             virtual_items: None,
             offset: 0.0,
             overscroll: 0.0,
@@ -106,6 +107,10 @@ impl ScrollNode {
             .iter()
             .map(|&item| length(doc, painter, item, self.direction, cross))
             .collect()
+    }
+
+    fn nodes(&self) -> Vec<NodeId> {
+        self.items.nodes()
     }
 
     fn content(&self, measured: f32) -> f32 {
@@ -197,6 +202,7 @@ impl ScrollNode {
         let Some(mut items) = self.virtual_items.take() else {
             return;
         };
+        let mut realized = self.items.take_all();
         let owner = items.owner.clone();
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let first = if items.estimated > 0.0 {
@@ -206,8 +212,8 @@ impl ScrollNode {
         };
 
         if first > items.first {
-            let dropped = (first - items.first).min(self.items.len());
-            for item in self.items.drain(..dropped) {
+            let dropped = (first - items.first).min(realized.len());
+            for item in realized.drain(..dropped) {
                 doc.remove_node(item);
             }
         } else if first < items.first {
@@ -221,35 +227,31 @@ impl ScrollNode {
                 end += length(doc, painter, item, self.direction, cross);
                 head.push(item);
             }
-            head.append(&mut self.items);
-            self.items = head;
+            head.append(&mut realized);
+            realized = head;
         }
         items.first = first;
 
         let mut end = first as f32 * items.estimated - self.offset;
         let mut kept = 0;
-        for &item in &self.items {
+        for &item in &realized {
             if end >= main {
                 break;
             }
             end += length(doc, painter, item, self.direction, cross);
             kept += 1;
         }
-        for item in self.items.drain(kept..) {
+        for item in realized.drain(kept..) {
             doc.remove_node(item);
         }
 
-        while end < main && first + self.items.len() < items.count {
-            let item = build_item(
-                doc,
-                owner.clone(),
-                &mut items.build,
-                first + self.items.len(),
-            );
+        while end < main && first + realized.len() < items.count {
+            let item = build_item(doc, owner.clone(), &mut items.build, first + realized.len());
             end += length(doc, painter, item, self.direction, cross);
-            self.items.push(item);
+            realized.push(item);
         }
 
+        self.items.set_all(realized);
         self.virtual_items = Some(items);
     }
 
@@ -404,7 +406,7 @@ impl Element for ScrollNode {
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect) {
         let clipped = painter.with_clip_rect(rect);
-        for item in &self.items {
+        for item in self.items.iter() {
             if rects.contains_key(item) {
                 crate::paint::paint(doc, &clipped, rects, *item);
             }
@@ -473,11 +475,11 @@ impl Element for ScrollNode {
             painter.ctx().request_repaint();
         }
 
-        self.items.clone()
+        self.nodes()
     }
 
     fn children(&self) -> Vec<NodeId> {
-        self.items.clone()
+        self.nodes()
     }
 
     fn kind(&self) -> &'static str {
@@ -558,6 +560,16 @@ impl Document {
             .push(child);
     }
 
+    pub(crate) fn open_scroll_slot(&mut self, scroll: NodeId) -> SlotId {
+        self.arena.get_mut_as::<ScrollNode>(scroll).items.open()
+    }
+
+    pub(crate) fn fill_scroll_slot(&mut self, scroll: NodeId, slot: SlotId, items: Vec<NodeId>) {
+        let node = self.arena.get_mut_as::<ScrollNode>(scroll);
+        node.items.fill(slot, items);
+        node.anchor = None;
+    }
+
     pub(crate) fn set_scroll_virtual_items(
         &mut self,
         scroll: NodeId,
@@ -569,7 +581,7 @@ impl Document {
         if matches!(node.anchor, Some(ScrollAnchor::Node { .. })) {
             node.anchor = None;
         }
-        let items = std::mem::take(&mut node.items);
+        let items = node.items.take_all();
         for item in items {
             self.remove_node(item);
         }
@@ -815,7 +827,7 @@ pub fn Scroll(
     children: Children<NodeId>,
 ) -> NodeId {
     let scroll = create_scroll(direction, focus_color, on_change);
-    children.mount_scroll_items(scroll);
+    children.mount(scroll);
     create_effect(move || {
         with_document(|document| document.set_scroll_offset(scroll, offset.get()))
     });

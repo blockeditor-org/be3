@@ -630,16 +630,15 @@ impl ListChild {
     }
 }
 
-fn build_in_slot(
+fn build_in_slot<C: SlotChild>(
     parent: NodeId,
     slot: SlotId,
-    build: impl FnOnce() -> ListChild,
+    build: impl FnOnce() -> C,
 ) -> (NodeId, Scope) {
     let scope = Scope::detached();
-    let (node, size) = scope.context().run(|| build().watch(parent));
-    with_document(|document| {
-        document.fill_list_slot(parent, slot, vec![ListItem { child: node, size }]);
-    });
+    let stored = scope.context().run(|| build().store(parent));
+    let node = C::stored_node(&stored);
+    C::fill_slot(parent, slot, vec![stored]);
     (node, scope)
 }
 
@@ -760,6 +759,69 @@ impl<T> IntoSegment<T> for DynamicSegment<T> {
 }
 
 #[diagnostic::on_unimplemented(
+    message = "a `{Self}` is not something a parent can keep a run of",
+    label = "a keyed or dynamic run builds `ListChild`, `Child` or `CanvasItem` children"
+)]
+pub trait SlotChild: Sized + 'static {
+    type Stored: Clone + 'static;
+
+    fn store(self, parent: NodeId) -> Self::Stored;
+    fn stored_node(stored: &Self::Stored) -> NodeId;
+    fn open_slot(parent: NodeId) -> SlotId;
+    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<Self::Stored>);
+    fn append(parent: NodeId, stored: Self::Stored);
+}
+
+impl SlotChild for ListChild {
+    type Stored = ListItem;
+
+    fn store(self, parent: NodeId) -> ListItem {
+        let (child, size) = self.watch(parent);
+        ListItem { child, size }
+    }
+
+    fn stored_node(stored: &ListItem) -> NodeId {
+        stored.child
+    }
+
+    fn open_slot(parent: NodeId) -> SlotId {
+        with_document(|document| document.open_list_slot(parent))
+    }
+
+    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<ListItem>) {
+        with_document(|document| document.fill_list_slot(parent, slot, items));
+    }
+
+    fn append(parent: NodeId, stored: ListItem) {
+        with_document(|document| document.append_child(parent, stored.child, stored.size));
+    }
+}
+
+impl SlotChild for NodeId {
+    type Stored = NodeId;
+
+    fn store(self, _parent: NodeId) -> NodeId {
+        self
+    }
+
+    fn stored_node(stored: &NodeId) -> NodeId {
+        *stored
+    }
+
+    fn open_slot(parent: NodeId) -> SlotId {
+        with_document(|document| document.open_scroll_slot(parent))
+    }
+
+    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<NodeId>) {
+        with_document(|document| document.fill_scroll_slot(parent, slot, items));
+    }
+
+    fn append(parent: NodeId, stored: NodeId) {
+        with_document(|document| document.append_scroll_item(parent, stored));
+    }
+}
+
+#[diagnostic::on_unimplemented(
     message = "a `{Self}` cannot be written between these tags",
     label = "this component takes `{T}` children"
 )]
@@ -847,33 +909,21 @@ impl<T> Children<T> {
     }
 }
 
-impl Children<ListChild> {
-    fn mount(self, parent: NodeId) {
+impl<T: SlotChild> Children<T> {
+    pub(crate) fn mount(self, parent: NodeId) {
         for segment in self.0 {
             match segment {
                 ChildSegment::Dynamic(segment) => {
-                    let slot = with_document(|document| document.open_list_slot(parent));
+                    let slot = T::open_slot(parent);
                     segment.mount(parent, slot);
                 }
                 segment => {
                     for child in segment.items() {
-                        let (node, size) = child.watch(parent);
-                        with_document(|document| document.append_child(parent, node, size));
+                        T::append(parent, child.store(parent));
                     }
                 }
             }
         }
-    }
-}
-
-impl Children<NodeId> {
-    pub(crate) fn mount_scroll_items(self, scroll: NodeId) {
-        let items = self.into_items();
-        with_document(|document| {
-            for child in items {
-                document.append_scroll_item(scroll, child);
-            }
-        });
     }
 }
 
@@ -1001,12 +1051,10 @@ pub fn Show(condition: Prop<bool>, #[prop(children)] then: Render) -> NodeId {
 }
 
 #[component]
-pub fn Dynamic<T>(
-    value: Prop<T>,
-    #[prop(children)] view: RenderFn<T, ListChild>,
-) -> DynamicSegment<ListChild>
+pub fn Dynamic<T, C>(value: Prop<T>, #[prop(children)] view: RenderFn<T, C>) -> DynamicSegment<C>
 where
     T: Clone + 'static,
+    C: SlotChild,
 {
     DynamicSegment::new(move |parent, slot| {
         let held: Rc<RefCell<Option<(NodeId, Scope)>>> = Rc::new(RefCell::new(None));
@@ -1022,28 +1070,25 @@ where
 }
 
 #[component]
-pub fn ForEach<K>(
+pub fn ForEach<K, C>(
     keys: Prop<Vec<K>>,
-    #[prop(children)] view: RenderFn<K, ListChild>,
-) -> DynamicSegment<ListChild>
+    #[prop(children)] view: RenderFn<K, C>,
+) -> DynamicSegment<C>
 where
     K: Clone + Hash + Eq + 'static,
+    C: SlotChild,
 {
     DynamicSegment::new(move |parent, slot| {
-        let rows = Rc::new(KeyedItems::new(move |key: K| {
-            let child = view.call(key);
-            let (node, size) = child.watch(parent);
-            ListItem { child: node, size }
-        }));
+        let rows = Rc::new(KeyedItems::new(move |key: K| view.call(key).store(parent)));
         let owned = rows.clone();
         on_cleanup(move || drop(owned));
         create_effect(move || {
             let keys = keys.get();
             rows.map(keys).commit(|items, removed| {
+                C::fill_slot(parent, slot, items);
                 with_document(|document| {
-                    document.fill_list_slot(parent, slot, items);
-                    for row in removed {
-                        document.remove_node(row.child);
+                    for row in &removed {
+                        document.remove_node(C::stored_node(row));
                     }
                 });
             });
@@ -1052,14 +1097,15 @@ where
 }
 
 #[component]
-pub fn Keyed<T, K>(
+pub fn Keyed<T, K, C>(
     value: Prop<T>,
     key: Func<T, K>,
-    #[prop(children)] view: RenderFn<ReadSignal<T>, ListChild>,
-) -> DynamicSegment<ListChild>
+    #[prop(children)] view: RenderFn<ReadSignal<T>, C>,
+) -> DynamicSegment<C>
 where
     T: Clone + PartialEq + 'static,
     K: PartialEq + 'static,
+    C: SlotChild,
 {
     DynamicSegment::new(move |parent, slot| {
         let (current, set_current) = create_signal(value.peek());
