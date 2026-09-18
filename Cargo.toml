@@ -1,6 +1,9 @@
 [workspace]
 members = [
     "crates/be-commit",
+    "crates/be-graph",
+    "crates/be-protocol",
+    "crates/be-server",
     "crates/be-store",
     "crates/beui",
     "crates/beui_macros",
