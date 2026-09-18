@@ -1186,11 +1186,11 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
                 ViewChildKind::Expr(expr) => (quote! { #expr }, None),
             };
             match sizing {
-                None => quote! { ::beui::reactive::into_child(#node) },
+                None => quote! { ::beui::reactive::into_segment(#node) },
                 Some(sizing) => {
                     let value = &sizing.value;
                     quote_spanned! { sizing.span =>
-                        ::beui::reactive::into_child(::beui::reactive::size(#node, #value))
+                        ::beui::reactive::into_segment(::beui::reactive::size(#node, #value))
                     }
                 }
             }
