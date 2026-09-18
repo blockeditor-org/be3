@@ -164,12 +164,14 @@ That handle is what a row binds to, which is why `for_each` takes keys rather
 than values:
 
 ```rust
-<ForEach spacing=8.0 keys={visible}>
-    {move |id: Uuid| {
-        let item = items.get(&id);
-        view! { <Row item /> }
-    }}
-</ForEach>
+<Column spacing=8.0>
+    <ForEach keys={visible}>
+        {move |id: Uuid| {
+            let item = items.get(&id);
+            view! { <Row item /> }
+        }}
+    </ForEach>
+</Column>
 ```
 
 Give the row the key and let it read its own item. A key that contains the row's
@@ -456,8 +458,8 @@ unbuilt until the component asks for them.
 <Show condition={tab.memo(0)}><ListControls rows=list_rows /></Show>
 ```
 
-Either way the block is exactly one child, because a `Render` returns one
-`NodeId`; two tags there are a compile error naming the tag that wrote them.
+Either way the block is exactly one child, because a `Render` returns one of
+them; two tags there are a compile error naming the tag that wrote them.
 A slot the component always calls is a required prop like any other, so a
 `Show` with nothing between its tags, or a `ForEach` with no closure, does not
 compile rather than panicking once the view runs.
@@ -534,11 +536,23 @@ while the branch itself stays put.
 </Keyed>
 ```
 
-All three hold their child in a list of their own, so a row says how much room
-it wants the way any child of a list does — `@sizing` on the root it returns, or
-`intrinsic`, `fixed`, `percent` and `size` around a node built elsewhere. A row
-builder that returns a plain node is intrinsic, and each row is free to differ
-from the others and to change its mind reactively.
+None of `show`, `dynamic`, `keyed` or `for_each` builds a node. Each keeps a
+run of children — none, one, or many — in a slot of the parent it is written
+in, so its children are laid out by that parent and the children written around
+it keep their places however the run changes. A hidden `show` is a slot with
+nothing in it, so its siblings take the room because nothing is there.
+
+The kind of child a run builds is the kind its parent takes: `ListChild`s in a
+list, plain nodes in a `scroll`, `CanvasItem`s in a `canvas`. So a row says how
+much room it wants the way any child of a list does — `@sizing` on the root it
+returns, or `intrinsic`, `fixed`, `percent` and `size` around a node built
+elsewhere — and a row builder that returns a plain node is intrinsic. Each row
+is free to differ from the others and to change its mind reactively.
+
+Because they build no node, `@test_id` and `@node_ref` on one of them panic,
+and a slot that takes exactly one node — `frame`'s child, a `render` prop —
+needs a `column` around one. When the closure form of a render prop leaves the
+kind of child ambiguous, `intrinsic` around what it builds says which.
 
 ```rust
 <ForEach spacing=0.0 keys>
