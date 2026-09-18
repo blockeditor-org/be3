@@ -97,7 +97,6 @@ mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
 mod flicking_across_the_screen_reader_curtain_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
-mod hiding_the_text_behind_the_screen_reader_curtain_paints_none_of_it;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
 mod holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor;
 mod hovering_a_context_menu_item_moves_keyboard_focus_to_it;
@@ -171,8 +170,10 @@ mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
 mod the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach;
 mod the_screen_reader_curtain_keeps_clicks_away_from_the_document;
+mod the_screen_reader_curtain_paints_above_the_filters_that_blur_the_document;
 mod the_screen_reader_highlight_goes_under_the_curtain_that_hides_it;
 mod the_scroll_position_is_reported_to_its_listener;
+mod the_simulate_tab_filters_the_document_without_the_screen_reader;
 mod the_simulated_keyboard_types_into_the_focused_input;
 mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
@@ -546,6 +547,29 @@ impl Harness {
             .inspector()
             .option_node("inspector.simulation.pixel_ratio", index);
         self.node_center(option)
+    }
+
+    pub(crate) fn color_vision_option_center(&self, index: usize) -> Pos2 {
+        let option = self
+            .inspector()
+            .option_node("inspector.simulation.color_vision", index);
+        self.node_center(option)
+    }
+
+    pub(crate) fn drag_simulation_slider(&mut self, control: &str, fraction: f32) {
+        let track = self.inspector_rect(&format!("inspector.simulation.{control}"));
+        let y = track.center().y;
+        let to = pos2(track.left() + track.width() * fraction.clamp(0.0, 1.0), y);
+        self.drag(pos2(track.center().x, y), to);
+    }
+
+    fn inspector_rect(&self, test_id: &str) -> Rect {
+        let inspector = self.inspector();
+        let rect = inspector
+            .document
+            .node_rect(inspector.find(test_id))
+            .expect("the control was not laid out");
+        rect.scaled(crate::inspector::scale(&self.context))
     }
 
     pub(crate) fn theme_option_center(&self, index: usize) -> Pos2 {

@@ -71,6 +71,7 @@ pub(crate) struct ScreenReader {
     scrolled: bool,
     scroll_travel: f32,
     last_tap: Option<Instant>,
+    focus_painted: Rect,
     painted: Rect,
 }
 
@@ -92,6 +93,7 @@ impl Default for ScreenReader {
             scrolled: false,
             scroll_travel: 0.0,
             last_tap: None,
+            focus_painted: Rect::NOTHING,
             painted: Rect::NOTHING,
         }
     }
@@ -440,22 +442,32 @@ impl ScreenReader {
         self.go(ctx, index);
     }
 
-    pub(crate) fn paint(&mut self, painter: &Painter, scale: f32) -> Rect {
-        let content = painter.clip_rect();
+    pub(crate) fn paint_focus(&mut self, painter: &Painter, scale: f32) {
+        let focus = match self.enabled {
+            true => self.current().map(|item| item.rect),
+            false => None,
+        };
+        self.focus_painted = match focus {
+            Some(rect) => curtain::paint_focus(painter, scale, rect),
+            None => Rect::NOTHING,
+        };
+    }
+
+    pub(crate) fn paint_curtain(&mut self, painter: &Painter, scale: f32) -> Rect {
         if !self.enabled {
             let damage = self.painted;
             self.painted = Rect::NOTHING;
+            self.focus_painted = Rect::NOTHING;
             return damage;
         }
         let view = curtain::View {
-            content,
+            content: painter.clip_rect(),
             opacity: self.opacity,
             spoken: &self.spoken,
             status: self.status(),
-            focus: self.current().map(|item| item.rect),
             finger: self.finger_at,
         };
-        let painted = curtain::paint(painter, scale, &view);
+        let painted = curtain::paint(painter, scale, &view).union(self.focus_painted);
         let damage = painted.union(self.painted);
         self.painted = painted;
         damage

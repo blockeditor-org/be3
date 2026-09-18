@@ -1,11 +1,16 @@
 use super::*;
 
+mod a_blurred_region_spreads_light_past_the_shape_that_made_it;
 mod a_clip_rectangle_hides_what_falls_outside_it;
+mod a_colour_vision_filter_recolours_the_region_it_covers;
 mod a_fill_with_fractional_bounds_lands_on_whole_pixels;
 mod a_filled_rectangle_covers_its_bounds;
+mod a_filter_leaves_the_painting_outside_its_region_alone;
 mod a_frame_paints_its_outline_over_its_fill;
+mod a_layer_painted_above_a_filter_keeps_its_own_colours;
 mod a_punch_clears_what_it_covers;
 mod an_icon_glyph_paints_over_the_background;
+mod reducing_contrast_pulls_the_filtered_region_toward_grey;
 mod repainting_a_damaged_region_keeps_the_rest_of_the_retained_frame;
 mod repainting_covers_every_region_gathered_since_the_last_draw;
 mod text_at_a_fractional_origin_lands_on_whole_pixels;
@@ -13,6 +18,7 @@ mod text_paints_glyphs_over_the_background;
 
 use crate::context::Context;
 use crate::document::Document;
+use crate::filter::{ColorVision, Filter};
 use crate::font::FontId;
 use crate::geometry::{Pos2, Rect, pos2, vec2};
 use crate::input::RawInput;
@@ -42,6 +48,10 @@ impl Capture {
         }
         brightest
     }
+}
+
+pub(crate) fn everything() -> Rect {
+    Rect::from_min_max(Pos2::ZERO, pos2(SIZE as f32, SIZE as f32))
 }
 
 pub(crate) fn capture(background: Color32, paint: impl FnOnce(&Painter)) -> Capture {
@@ -129,25 +139,14 @@ impl Target {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("beui test encoder"),
             });
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("beui test pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            self.renderer.paint(&mut pass);
-        }
+        self.renderer.render(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &self.view,
+            (SIZE, SIZE),
+            load,
+        );
         self.queue.submit(Some(encoder.finish()));
     }
 

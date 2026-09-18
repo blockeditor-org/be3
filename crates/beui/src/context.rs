@@ -7,6 +7,7 @@ use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
 use crate::damage;
+use crate::filter::Filter;
 use crate::font::{FontId, FontSources, Fonts, Galley};
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, InputState, RawInput};
@@ -25,6 +26,7 @@ struct Inner {
     input: RefCell<InputState>,
     shapes: RefCell<Vec<Shape>>,
     top_shapes: RefCell<Vec<Shape>>,
+    filter: Cell<Option<(Filter, usize)>>,
     capture_base: Cell<usize>,
     paint_stack: RefCell<Vec<PaintFrame>>,
     deadlines: RefCell<Vec<NodeId>>,
@@ -40,13 +42,14 @@ struct Inner {
     simulated_pixels_per_point: Cell<Option<f32>>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
-    previous: RefCell<Option<(Vec<Shape>, f32)>>,
+    previous: RefCell<Option<Previous>>,
     accessibility: RefCell<Vec<Fragment>>,
     accessibility_actions: RefCell<Vec<ActionRequest>>,
 }
 
 pub struct FrameOutput {
     pub(crate) shapes: Vec<Shape>,
+    pub(crate) filter: Option<(Filter, usize)>,
     test_ids: HashMap<String, Rect>,
     pub cursor_icon: CursorIcon,
     pub copied_text: Option<String>,
@@ -62,6 +65,14 @@ pub struct FrameOutput {
 impl FrameOutput {
     pub fn shapes(&self) -> &[Shape] {
         &self.shapes
+    }
+
+    pub fn filter(&self) -> Option<Filter> {
+        self.filter.map(|(filter, _)| filter)
+    }
+
+    pub fn filtered_shapes(&self) -> Option<usize> {
+        self.filter.map(|(_, boundary)| boundary)
     }
 
     pub fn pixels_per_point(&self) -> f32 {
@@ -98,6 +109,7 @@ impl Context {
                 input: RefCell::new(InputState::default()),
                 shapes: RefCell::new(Vec::new()),
                 top_shapes: RefCell::new(Vec::new()),
+                filter: Cell::new(None),
                 capture_base: Cell::new(0),
                 paint_stack: RefCell::new(Vec::new()),
                 deadlines: RefCell::new(Vec::new()),
@@ -131,6 +143,7 @@ impl Context {
         self.inner.input.borrow_mut().begin_frame(raw);
         self.inner.shapes.borrow_mut().clear();
         self.inner.top_shapes.borrow_mut().clear();
+        self.inner.filter.set(None);
         self.inner.paint_stack.borrow_mut().clear();
         self.inner.deadlines.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
@@ -144,18 +157,24 @@ impl Context {
     pub fn end_frame(&self) -> FrameOutput {
         let shapes = std::mem::take(&mut *self.inner.shapes.borrow_mut());
         let scale = self.pixels_per_point();
+        let filter = self.inner.filter.take();
         let mut previous = self.inner.previous.borrow_mut();
-        let changed = previous
-            .as_ref()
-            .is_none_or(|(old, old_scale)| *old_scale != scale || *old != shapes);
+        let changed = previous.as_ref().is_none_or(|old| {
+            old.pixels_per_point != scale || old.filter != filter || old.shapes != shapes
+        });
         if changed {
-            *previous = Some((shapes.clone(), scale));
+            *previous = Some(Previous {
+                shapes: shapes.clone(),
+                pixels_per_point: scale,
+                filter,
+            });
         }
         let damage = std::mem::take(&mut *self.inner.damage.borrow_mut())
             .into_iter()
             .fold(Rect::NOTHING, |region, rect| region.union(rect));
         FrameOutput {
             shapes,
+            filter,
             damage,
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
             copied_text: self.inner.copied_text.borrow_mut().take(),
@@ -494,10 +513,24 @@ impl Context {
         }
     }
 
+    pub(crate) fn apply_filter(&self, filter: Filter) {
+        if filter.changes_nothing() || !filter.region.is_positive() {
+            return;
+        }
+        let boundary = self.inner.shapes.borrow().len();
+        self.inner.filter.set(Some((filter, boundary)));
+    }
+
     pub(crate) fn flush_top(&self) {
         let top = std::mem::take(&mut *self.inner.top_shapes.borrow_mut());
         self.inner.shapes.borrow_mut().extend(top);
     }
+}
+
+struct Previous {
+    shapes: Vec<Shape>,
+    pixels_per_point: f32,
+    filter: Option<(Filter, usize)>,
 }
 
 struct PaintFrame {

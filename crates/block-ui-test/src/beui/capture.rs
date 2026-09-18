@@ -15,7 +15,7 @@ pub(crate) fn capture(
     let points = |values: [f32; 4]| values.map(|value| value / pixels_per_point);
     let mut textures = BTreeMap::new();
     let mut primitives = Vec::new();
-    for quad in beui::quads(output, pixels_per_point) {
+    for quad in beui::quads(output, pixels_per_point).list {
         let (clip, content) = match quad {
             Quad::Rect {
                 rect,

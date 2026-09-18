@@ -8,6 +8,7 @@ use crate::color::Color32;
 
 use crate::base::{ScrollPosition, TextAlign};
 use crate::document::Document;
+use crate::filter::{ColorVision, MAX_BLUR};
 use crate::icons::ICON_CLOSE;
 use crate::node::NodeId;
 use crate::reactive::{
@@ -362,6 +363,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
     let (touch_state, mouse_state, ratio_state, theme_state) =
         (state.clone(), state.clone(), state.clone(), state.clone());
     let reader_state = state.clone();
+    let filter_state = state.clone();
     view! {
         <List direction=Direction::Horizontal spacing=BODY_SPACING>
             <Scroll
@@ -410,6 +412,8 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         />
                     </List>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <FilterSection state={filter_state} />
+                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                     <ScreenReaderSection state={reader_state} />
                 </List>
             </Scroll>
@@ -419,8 +423,71 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
 }
 
 #[component]
+fn FilterSection(state: Rc<State>) -> NodeId {
+    let (blur_state, contrast_state, vision_state) = (state.clone(), state.clone(), state.clone());
+    let (blur_text, set_blur_text) = create_signal(blur_label(state.blur.get()));
+    let (contrast_text, set_contrast_text) =
+        create_signal(contrast_label(state.contrast_reduction.get()));
+    let vision = state.color_vision.get();
+    let selected_vision = ColorVision::ALL
+        .iter()
+        .position(|(_, candidate)| *candidate == vision)
+        .unwrap_or(0);
+    let vision_labels = ColorVision::ALL
+        .iter()
+        .map(|(label, _)| (*label).to_owned())
+        .collect::<Vec<_>>();
+    view! {
+        <List spacing=TIMING_SPACING>
+            <Heading content="Filters" />
+            <Caption content={blur_text} />
+            <Slider
+                @test_id={"inspector.simulation.blur"}
+                label="Blur"
+                value={state.blur.get()}
+                min=0.0
+                max=MAX_BLUR
+                on_change={move |value| {
+                    blur_state.set_blur(value);
+                    set_blur_text.set(blur_label(value));
+                }}
+            />
+            <Caption content={contrast_text} />
+            <Slider
+                @test_id={"inspector.simulation.contrast"}
+                label="Reduce contrast"
+                value={state.contrast_reduction.get()}
+                on_change={move |value| {
+                    contrast_state.set_contrast_reduction(value);
+                    set_contrast_text.set(contrast_label(value));
+                }}
+            />
+            <Caption content="Colour vision" />
+            <RadioGroup
+                @test_id={"inspector.simulation.color_vision"}
+                labels={vision_labels}
+                selected={Some(selected_vision)}
+                on_change={move |index: Option<usize>| {
+                    if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
+                        vision_state.choose_color_vision(*vision);
+                    }
+                }}
+            />
+        </List>
+    }
+}
+
+fn blur_label(radius: f32) -> String {
+    format!("Blur: {} px", radius.round())
+}
+
+fn contrast_label(amount: f32) -> String {
+    format!("Reduce contrast: {}%", (amount * 100.0).round())
+}
+
+#[component]
 fn ScreenReaderSection(state: Rc<State>) -> NodeId {
-    let (enable_state, opacity_state, hide_state) = (state.clone(), state.clone(), state.clone());
+    let (enable_state, opacity_state) = (state.clone(), state.clone());
     let (first_state, second_state, third_state) = (state.clone(), state.clone(), state.clone());
     let (fourth_state, fifth_state) = (state.clone(), state.clone());
     view! {
@@ -438,12 +505,6 @@ fn ScreenReaderSection(state: Rc<State>) -> NodeId {
                 label="Curtain opacity"
                 value={state.curtain_opacity.get()}
                 on_change={move |value| opacity_state.set_curtain_opacity(value)}
-            />
-            <Checkbox
-                @test_id={"inspector.screen_reader.hide_text"}
-                label="Hide the text behind it"
-                checked={state.hide_text.get()}
-                on_change={move |hidden| hide_state.hide_text(hidden)}
             />
             <CommandRow row=0 state />
             <CommandRow row=1 state={first_state} />
