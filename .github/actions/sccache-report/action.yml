@@ -1,0 +1,28 @@
+name: Report on sccache
+description: >-
+  Prints what the shared store answered for this job, and whatever the sccache
+  server had to say for itself while answering, which is the only account of a
+  cache that went wrong that outlives the runner.
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        # The numbers come from the server the build was talking to, so this is
+        # the only way to see from a run whether the cache is being hit and
+        # filled. A job that failed before it compiled anything never started
+        # one, and sccache reports zeroes rather than starting one to ask.
+        status=0
+        sccache --show-stats || status=$?
+
+        # scripts/internal/common.sh points the server's stderr here, which is
+        # the only place a word from it survives: it is a daemon with no
+        # terminal, so without this a cache that quietly stopped answering
+        # looks exactly like a build that had nothing cached.
+        log='target/sccache.log'
+        if [ -s "$log" ]; then
+          echo '--- sccache server log ---'
+          cat "$log"
+        fi
+        exit "$status"

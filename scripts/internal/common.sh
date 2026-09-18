@@ -500,6 +500,55 @@ configure_sccache() {
         # Left out, sccache would upload every miss and take a 403 for it.
         export SCCACHE_S3_RW_MODE='READ_ONLY'
     fi
+
+    # Before the server will answer its first client it proves the store
+    # reachable, by reading and writing a probe object, and the client that
+    # spawned it waits ten seconds for that and no longer. So a slow answer from
+    # Bunny does not cost a cache hit, it fails the compile that was waiting on
+    # the server and the build with it, which is how a CI job came to die on
+    # `sccache rustc -vV` with nothing built. The probe reports only the access
+    # SCCACHE_S3_RW_MODE above has already settled, so skipping it gives up
+    # nothing, takes the network off the startup path entirely, and leaves a
+    # store that cannot be reached costing what it ought to: a miss.
+    export SCCACHE_SKIP_CACHE_CHECK='1'
+
+    mkdir -p "$repository/target"
+
+    # With the probe gone, starting a server is spawning a process and binding a
+    # socket, but ten seconds is still a tight cap on a loaded machine for
+    # something that fails the whole build rather than one compilation. Only a
+    # config file can raise it, so write one; nothing else belongs in it, and a
+    # machine already pointing SCCACHE_CONF at a config of its own is left alone.
+    if [[ -z "${SCCACHE_CONF:-}" ]]; then
+        local configuration="$repository/target/sccache-config.toml"
+        local startup='server_startup_timeout_ms = 60000'
+        if [[ "$(cat "$configuration" 2> /dev/null)" != "$startup" ]]; then
+            echo "$startup" > "$configuration"
+        fi
+        SCCACHE_CONF="$(native_path "$configuration")"
+        export SCCACHE_CONF
+    fi
+
+    # The server is started by whichever compilation first wanted it and holds
+    # no terminal of its own, so with nowhere to write, everything it has to say
+    # about a refused key or a store that stopped answering is lost and the
+    # build only quietly reports misses. Point its stderr at a file instead.
+    #
+    # The filter is env_logger's, and it is a filter rather than a level because
+    # the store is reached through opendal, which reports a miss as a failed
+    # read at warning level: left in, a cold build writes one of those for every
+    # crate it compiles and buries the four lines actually worth reading. What
+    # opendal calls a failure rather than an error, which is the 403 of a key
+    # that stopped being accepted, is logged above that and survives the filter.
+    # `SCCACHE_LOG=debug` in the environment overrides all of this and asks the
+    # same file for every request the server served.
+    #
+    # The file has to be openable before the server daemonises, and one that
+    # cannot open it exits without ever reporting itself, which the client can
+    # only read as the timeout above.
+    SCCACHE_ERROR_LOG="$(native_path "$repository/target/sccache.log")"
+    export SCCACHE_ERROR_LOG
+    export SCCACHE_LOG="${SCCACHE_LOG:-sccache=info,opendal=error}"
 }
 
 configure_sccache
