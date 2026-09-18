@@ -20,9 +20,15 @@ done
 
 assert_command adb 'Install the Android SDK platform tools and put them on PATH.'
 
+time_script 'Everything'
+
 "$internal/build-android.sh" "${build_arguments[@]}"
 
 apk="$repository/target/debug/apk/block-app.apk"
-echo "Installing $apk..."
+step "Installing $apk"
 adb install -r "$apk"
+end_step
+
+step 'Launching the app'
 adb shell am start -n "$application_id/com.be3.block.MainActivity"
+end_step

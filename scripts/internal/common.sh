@@ -1,6 +1,111 @@
 repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 internal="$repository/scripts/internal"
 
+# How long everything took.
+#
+# A build is a dozen steps of wildly different cost, and nothing in the output
+# says which one a slow build was spent in. So each step announces itself
+# through step, what it cost is reported when the next step begins or when the
+# script ends, and every build and run script reports its own total.
+#
+# Bash 5 keeps a sub-second clock in EPOCHREALTIME and GNU date has %N, but
+# macOS ships neither with the bash it has, so a machine with only whole
+# seconds is measured in whole seconds rather than shown the literal N its date
+# would have printed.
+clock='seconds'
+if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    clock='bash'
+elif [[ "$(date +%N 2> /dev/null)" =~ ^[0-9]+$ ]]; then
+    clock='date'
+fi
+
+now_ms() {
+    local now
+    case "$clock" in
+        bash)
+            # A locale that writes the fraction after a comma still has to
+            # arrive at the arithmetic below as a number bash will divide.
+            now="${EPOCHREALTIME/,/.}"
+            echo "$(( ${now%.*} * 1000 + 10#${now#*.} / 1000 ))"
+            ;;
+        date)
+            echo "$(( $(date +%s%N) / 1000000 ))"
+            ;;
+        *)
+            echo "$(( $(date +%s) * 1000 ))"
+            ;;
+    esac
+}
+
+format_duration() {
+    local total="$1"
+    if [[ "$total" -ge 60000 ]]; then
+        printf '%dm %02ds' "$((total / 60000))" "$(((total % 60000) / 1000))"
+    else
+        printf '%d.%01ds' "$((total / 1000))" "$(((total % 1000) / 100))"
+    fi
+}
+
+step_name=''
+step_started=0
+
+# Announces a step and starts its clock. The step before it ends here, so a
+# script reads as the list of steps it already announced rather than as pairs
+# of calls, and a step a shared function starts closes the caller's.
+step() {
+    end_step
+    step_name="$1"
+    step_started="$(now_ms)"
+    echo "$step_name..."
+}
+
+end_step() {
+    [[ -n "$step_name" ]] || return 0
+    local name="$step_name"
+    step_name=''
+    echo "  $name took $(format_duration "$(($(now_ms) - step_started))")"
+}
+
+# A step no clock of the script's can hold, because it runs in the background
+# beside another one. It reports itself when it finishes rather than when the
+# next step starts, and it reports even when the command failed, which is the
+# run worth knowing the cost of.
+run_step() {
+    local name="$1" started status
+    shift
+    started="$(now_ms)"
+    echo "$name..."
+    if "$@"; then
+        status=0
+    else
+        status=$?
+    fi
+    echo "  $name took $(format_duration "$(($(now_ms) - started))")"
+    return "$status"
+}
+
+script_started=''
+script_name=''
+
+# The total every build and run script ends with. It is an exit trap rather
+# than a last line so that a script killed by a failing step still says how
+# long it spent getting there, and so the step that failed is closed rather
+# than left hanging. The name is what one script runs another for: a run
+# reports its own total after the build it delegated reported that one, and
+# only the name says which is which.
+time_script() {
+    script_name="$1"
+    script_started="$(now_ms)"
+    trap report_total EXIT
+}
+
+report_total() {
+    end_step
+    [[ -n "$script_started" ]] || return 0
+    echo "$script_name took $(format_duration "$(($(now_ms) - script_started))")"
+    script_started=''
+}
+
 assert_command() {
     if ! command -v "$1" > /dev/null; then
         echo "$1 was not found on PATH. $2" >&2
@@ -79,7 +184,9 @@ ensure_ghostty_vt() {
     if ! full_build; then
         return 0
     fi
+    step "Building libghostty-vt for $1"
     "$internal/build-ghostty-vt.sh" --triple "$1" > /dev/null
+    end_step
 }
 
 load_plugins() {
@@ -190,12 +297,13 @@ build_games() {
     for game in "${games[@]}"; do
         arguments+=(-p "$game")
     done
-    echo "Building ${#games[@]} games..."
+    step "Building ${#games[@]} games"
     (
         cd "$repository"
         unwrap_rustc_for_wasm
         cargo build "${arguments[@]}"
     )
+    end_step
 
     games_directory="$repository/target/wasm32-unknown-unknown/$profile"
     for game in "${games[@]}"; do
@@ -273,13 +381,14 @@ export_wasi_toolchain() {
             local archive="$tools/wasi-sysroot.tar.gz"
             local extracted="$tools/wasi-sysroot-$wasi_sdk_version.0+m"
             local url="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$wasi_sdk_version/wasi-sysroot-$wasi_sdk_version.0+m.tar.gz"
-            echo "Downloading the WASI sysroot from $url..."
+            step "Downloading the WASI sysroot from $url"
             mkdir -p "$tools"
             rm -rf "$wasi_sysroot" "$extracted"
             curl --fail --location --output "$archive" "$url"
             tar -xzf "$archive" -C "$tools"
             mv "$extracted" "$wasi_sysroot"
             rm "$archive"
+            end_step
         fi
     fi
     if ! wasi_sysroot_is_complete "$wasi_sysroot"; then
@@ -338,7 +447,7 @@ build_plugin_wasm() {
     for plugin in "${plugins[@]}"; do
         selection+=(-p "$plugin")
     done
-    echo "Building ${#plugins[@]} plugins for $wasm_rust_target..."
+    step "Building ${#plugins[@]} plugins for $wasm_rust_target"
     (
         export_wasi_toolchain "${wasi_sysroot:-}"
         cargo build "${arguments[@]}" "${selection[@]}"
@@ -353,6 +462,7 @@ build_plugin_wasm() {
         fi
         cp -p "$module" "$destination/$plugin.wasm"
     done
+    end_step
 }
 
 # Cranelift compiles a plugin the first time the app opens it, which is seconds
@@ -387,9 +497,10 @@ build_precompiler() {
     if [[ -n "$precompiler" ]]; then
         return
     fi
-    echo 'Building the plugin compiler...'
+    step 'Building the plugin compiler'
     (cd "$repository" && cargo build --release -p block-wasm-host --features all-arch --bin precompile)
     use_precompiler "$repository/target/release"
+    end_step
 }
 
 precompile_plugin_wasm() {
@@ -408,8 +519,9 @@ precompile_plugin_wasm() {
         echo "Every plugin is already compiled for $triple"
         return
     fi
-    echo "Compiling ${#stale[@]} plugins for $triple..."
+    step "Compiling ${#stale[@]} plugins for $triple"
     "$precompiler" --target "$triple" "${stale[@]}"
+    end_step
 }
 
 # sccache stands between cargo and rustc and answers a compilation from a shared

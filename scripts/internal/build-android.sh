@@ -85,6 +85,7 @@ export CXX_aarch64_linux_android="$toolchain/aarch64-linux-android26-clang++"
 export AR_aarch64_linux_android="$toolchain/llvm-ar"
 
 cd "$repository"
+time_script 'The Android build'
 
 # A plugin is a wasm asset the app runs in wasmtime, so the only native library
 # an APK carries is the app itself.
@@ -97,8 +98,9 @@ app_features=()
 if full_build; then
     app_features=(--features block-app/full)
 fi
-echo 'Building the app for aarch64-linux-android...'
+step 'Building the app for aarch64-linux-android'
 cargo build --lib --target aarch64-linux-android -p block-app "${app_features[@]}"
+end_step
 
 # An APK holds what the app reads, so this is a staging step whatever the
 # layout: assets are flattened the way a native build lays them out beside the
@@ -112,21 +114,27 @@ write_plugin_index "$assets"
 
 build_games debug
 
+step 'Staging the native libraries'
 rm -rf "$native_libraries"
 mkdir -p "$native_libraries" "$(dirname "$apk")"
 for library in "${android_libraries[@]}"; do
     cp "$repository/target/aarch64-linux-android/debug/$library" "$native_libraries/"
 done
 cp "$cpp_runtime" "$native_libraries/"
+end_step
 
+step 'Assembling the APK with gradle'
 (
     cd "$repository/android"
     gradle --no-daemon :app:assembleDebug \
         -Pbe3ApplicationId="$application_id" \
         -Pbe3Label="$application_label"
 )
+end_step
 
+step 'Aligning and signing the APK'
 "$zipalign" -P 16 -f 4 "$gradle_apk" "$aligned_apk"
 "$apksigner" sign --ks "$keystore" --ks-pass pass:android "$aligned_apk"
 mv -f "$aligned_apk" "$apk"
+end_step
 echo "Built 16 KB-compatible APK: $apk"

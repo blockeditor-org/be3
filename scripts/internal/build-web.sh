@@ -27,6 +27,7 @@ assert_command cargo 'Install Rust from https://rustup.rs.'
 assert_command clang 'Install LLVM and put its bin directory on PATH.'
 assert_command llvm-ar 'Install LLVM and put its bin directory on PATH.'
 cd "$repository"
+time_script 'The web build'
 
 output_directory="$repository/target/web"
 # Threads, so that the app and its plugins can move work off the thread that
@@ -39,8 +40,9 @@ cargo_home="${CARGO_HOME:-$HOME/.cargo}"
 wasm_bindgen="$cargo_home/bin/wasm-bindgen"
 
 if [[ ! -x "$wasm_bindgen" ]]; then
-    echo "Installing wasm-bindgen-cli $wasm_bindgen_version..."
+    step "Installing wasm-bindgen-cli $wasm_bindgen_version"
     cargo install wasm-bindgen-cli --version "$wasm_bindgen_version"
+    end_step
 fi
 if [[ ! -x "$wasm_bindgen" ]]; then
     echo "wasm-bindgen was not installed at $wasm_bindgen" >&2
@@ -79,12 +81,13 @@ app_features=()
 if full_build; then
     app_features=(--features block-app/full)
 fi
-echo "Building the app for $rust_target..."
+step "Building the app for $rust_target"
 cargo build --lib --target "$rust_target" "${cargo_arguments[@]}" -p block-app "${app_features[@]}"
+end_step
 
 # The shim is the only other module the browser needs bindings for. It holds a
 # real wgpu device on the plugin's canvas and answers the gpu abi from it.
-echo 'Building the gpu shim for wasm32-unknown-unknown...'
+step 'Building the gpu shim for wasm32-unknown-unknown'
 if ! rustup target list --installed | grep -qx 'wasm32-unknown-unknown'; then
     echo 'Installing the wasm32-unknown-unknown Rust target...'
     rustup target add wasm32-unknown-unknown
@@ -93,6 +96,7 @@ fi
     unset RUSTFLAGS
     cargo build --lib --target wasm32-unknown-unknown "${cargo_arguments[@]}" -p block-gpu-shim
 )
+end_step
 
 modules_directory="$repository/target/$rust_target/$profile"
 
@@ -136,21 +140,24 @@ generate_from() {
     bindgen_modules+=("$module")
 }
 
-echo 'Generating JavaScript bindings...'
+step 'Generating JavaScript bindings'
 generate block_app_lib
 generate_from "$repository/target/wasm32-unknown-unknown/$profile" block_gpu_shim
 await_bindings
+end_step
 
 build_plugin_wasm "$profile" "$output_directory"
 stage_plugin_manifests "$output_directory"
 write_plugin_index "$output_directory"
 
+step 'Assembling the bundle'
 cp "$internal/web/index.html" "$output_directory"
 cp "$internal/web/plugin.js" "$output_directory"
 cp "$internal/web/wasi.js" "$output_directory"
 cp "$internal/web/env.js" "$output_directory"
 cp "$internal/web/threads.js" "$output_directory"
 cp "$internal/web/thread.js" "$output_directory"
+end_step
 
 size="$(du -h "$output_directory/block_app_lib_bg.wasm" | cut -f1)"
 printf '\nWrote %s (%s of WebAssembly).\n' "$output_directory" "$size"
