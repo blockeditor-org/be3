@@ -260,14 +260,6 @@ impl Document {
         }
     }
 
-    pub(crate) fn is_hidden_frame(&self, id: NodeId) -> bool {
-        self.arena
-            .get(id)
-            .as_any()
-            .downcast_ref::<FrameNode>()
-            .is_some_and(|frame| !frame.visible)
-    }
-
     pub fn is_visible(&self, frame: NodeId) -> bool {
         self.arena.get_as::<FrameNode>(frame).visible
     }

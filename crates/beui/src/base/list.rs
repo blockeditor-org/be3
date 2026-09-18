@@ -82,14 +82,8 @@ impl ListNode {
         self.direction.main_and_cross(size)
     }
 
-    fn item_sizes(&self, doc: &Document) -> Vec<ItemSize> {
-        self.items
-            .iter()
-            .map(|item| match doc.is_hidden_frame(item.child) {
-                true => ItemSize::Fixed(0.0),
-                false => item.size,
-            })
-            .collect()
+    fn item_sizes(&self) -> Vec<ItemSize> {
+        self.items.iter().map(|item| item.size).collect()
     }
 
     fn intrinsic_lengths(
@@ -123,7 +117,7 @@ impl Element for ListNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (available_main, available_cross) = self.main_and_cross(available);
 
-        let sizes = self.item_sizes(doc);
+        let sizes = self.item_sizes();
         let intrinsic_lengths =
             self.intrinsic_lengths(doc, painter, available_main, available_cross);
         let main_lengths =
@@ -153,7 +147,7 @@ impl Element for ListNode {
     ) {
         let (available_main, available_cross) = self.main_and_cross(rect.size());
 
-        let sizes = self.item_sizes(doc);
+        let sizes = self.item_sizes();
         let intrinsic_lengths =
             self.intrinsic_lengths(doc, painter, available_main, available_cross);
         let main_lengths =

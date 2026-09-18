@@ -12,9 +12,11 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
         move || {
             let condition = create_memo(move || tab.get() == 0);
             [view! {
-                <Show condition>
-                    <Switch @node_ref=&switch_ref on=false />
-                </Show>
+                <Column spacing=0.0>
+                    <Show condition>
+                        <Switch @node_ref=&switch_ref on=false />
+                    </Show>
+                </Column>
             }]
         }
     });

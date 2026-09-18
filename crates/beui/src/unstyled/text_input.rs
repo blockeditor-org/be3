@@ -294,24 +294,31 @@ fn TouchMenu(
     let open = create_memo(clone!(at -> move || at.get().is_some()));
     let anchor = create_memo(move || OverlayAnchor::Point(at.get().unwrap_or(Pos2::ZERO)));
     view! {
-        <Show condition={open.clone()}>
-            {move || {
-                let dismiss = editor.borrow().set_menu.clone();
-                view! {
-                    <Overlay anchor open traps_focus=false on_dismiss={move || dismiss.set(None)}>
-                        {panel.call(view! {
-                            <Column spacing=0.0>
-                                <Dynamic value={actions}>
-                                    {move |actions: Vec<MenuAction>| {
-                                        menu_rows(&editor, &row, actions)
-                                    }}
-                                </Dynamic>
-                            </Column>
-                        })}
-                    </Overlay>
-                }
-            }}
-        </Show>
+        <Column spacing=0.0>
+            <Show condition={open.clone()}>
+                {move || {
+                    let dismiss = editor.borrow().set_menu.clone();
+                    intrinsic(view! {
+                        <Overlay
+                            anchor
+                            open
+                            traps_focus=false
+                            on_dismiss={move || dismiss.set(None)}
+                        >
+                            {panel.call(view! {
+                                <Column spacing=0.0>
+                                    <Dynamic value={actions}>
+                                        {move |actions: Vec<MenuAction>| {
+                                            menu_rows(&editor, &row, actions)
+                                        }}
+                                    </Dynamic>
+                                </Column>
+                            })}
+                        </Overlay>
+                    })
+                }}
+            </Show>
+        </Column>
     }
 }
 

@@ -21,14 +21,14 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {
-                <Column spacing=0.0>
+                <Column @node_ref=&panel spacing=0.0>
                     <Button
                         @node_ref=&toggle
                         on_click={move || set_visible.update(|visible| *visible = !*visible)}
                     >
                         <Text string="toggle" />
                     </Button>
-                    <Show @node_ref=&panel condition=visible>
+                    <Show condition=visible>
                         <CountedPanel builds />
                     </Show>
                 </Column>
@@ -36,30 +36,29 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
         }
     });
 
-    let (toggle, panel) = (toggle.get(), panel.get());
+    let (toggle, column) = (toggle.get(), panel.get());
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let visibility = panel;
 
     assert_eq!(
         builds.get(),
         0,
         "a children block filling a render prop must stay unbuilt while it is hidden"
     );
-    assert!(!harness.document().is_visible(visibility));
+    assert_eq!(harness.document().children(column).len(), 1);
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     assert_eq!(builds.get(), 1, "showing it must build the children block");
-    assert!(harness.document().is_visible(visibility));
-    let child = harness.document().children(visibility)[0];
-    assert_eq!(text_of(harness.document(), child), "panel");
+    let shown = harness.document().children(column);
+    assert_eq!(shown.len(), 2);
+    assert_eq!(text_of(harness.document(), shown[1]), "panel");
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
-    assert!(harness.document().is_visible(visibility));
+    assert_eq!(harness.document().children(column), shown);
     assert_eq!(
         builds.get(),
         1,

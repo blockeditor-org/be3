@@ -1,7 +1,7 @@
 use block_editor_plugin::Editor;
 use block_editor_plugin::beui::icons::ICON_LEFT_PANEL_OPEN;
 use block_editor_plugin::beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, Column, Frame, ItemSize, NodeRef, Prop, ReadSignal, Row,
+    Canvas, CanvasItem, ClickCatcher, Column, Frame, ItemSize, NodeRef, ReadSignal, Row, Show,
     Text, WriteSignal, clone, component, create_memo, create_signal, intrinsic, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
@@ -100,18 +100,28 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let panel_shown = create_memo(clone!(chrome open -> move || chrome.get() && open.get()));
     let rail_shown = create_memo(clone!(chrome open -> move || chrome.get() && !open.get()));
+    let panel = (
+        editor.clone(),
+        selected.clone(),
+        set_selected.clone(),
+        set_open.clone(),
+    );
+    let rail_open = set_open.clone();
 
     view! {
         <Row spacing=0.0>
-            <Sidebar
-                @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
-                editor={editor.clone()}
-                shown={panel_shown}
-                selected={selected.clone()}
-                set_selected={set_selected.clone()}
-                set_open={set_open.clone()}
-            />
-            <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) shown={rail_shown} set_open={set_open} />
+            <Show condition={panel_shown}>
+                <Sidebar
+                    @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
+                    editor={panel.0}
+                    selected={panel.1}
+                    set_selected={panel.2}
+                    set_open={panel.3}
+                />
+            </Show>
+            <Show condition={rail_shown}>
+                <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) set_open={rail_open} />
+            </Show>
             <Stage
                 @sizing=ItemSize::Percent(100.0)
                 @node_ref={&stage}
@@ -126,7 +136,6 @@ pub fn PanZoom(editor: Editor) -> NodeId {
 #[component]
 fn Sidebar(
     editor: Editor,
-    shown: Prop<bool>,
     selected: ReadSignal<Option<usize>>,
     set_selected: WriteSignal<Option<usize>>,
     set_open: WriteSignal<bool>,
@@ -156,7 +165,6 @@ fn Sidebar(
 
     view! {
         <Frame
-            visible={shown}
             color={theme.surface.clone()}
             padding_horizontal=PANEL_PADDING
             padding_vertical=PANEL_PADDING
@@ -232,16 +240,11 @@ fn FocusRow(editor: Editor, index: usize, set_selected: WriteSignal<Option<usize
 }
 
 #[component]
-fn Rail(shown: Prop<bool>, set_open: WriteSignal<bool>) -> NodeId {
+fn Rail(set_open: WriteSignal<bool>) -> NodeId {
     let theme = use_theme();
     let show = clone!(set_open -> move || set_open.set(true));
     view! {
-        <Frame
-            visible={shown}
-            color={theme.surface.clone()}
-            padding_horizontal=6.0
-            padding_vertical=PANEL_PADDING
-        >
+        <Frame color={theme.surface.clone()} padding_horizontal=6.0 padding_vertical=PANEL_PADDING>
             <Column spacing=0.0>
                 <unstyled::Button on_click={show} @test_id={"pan_zoom.show_sidebar"}>
                     <Frame

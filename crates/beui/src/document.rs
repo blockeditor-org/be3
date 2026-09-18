@@ -324,6 +324,9 @@ impl Document {
     }
 
     fn detach_subtree(&mut self, id: NodeId, scopes: &mut Vec<::reactive::Scope>) {
+        if !self.arena.contains(id) {
+            return;
+        }
         let children = self.arena.get(id).children();
         for child in children {
             self.detach_subtree(child, scopes);

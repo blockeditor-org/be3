@@ -43,11 +43,16 @@ fn render_kind(ty: &Type) -> Option<Render> {
     };
     let name = if once { "Render" } else { "RenderFn" };
     let args = generic_args(ty, name).unwrap_or_default();
+    let handle = args.first().cloned().filter(|handle| !is_unit_type(handle));
     Some(Render {
         once,
-        handle: args.first().cloned(),
+        handle,
         child: args.get(1).cloned(),
     })
+}
+
+fn is_unit_type(ty: &Type) -> bool {
+    matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty())
 }
 
 fn render_child(render: &Render) -> proc_macro2::TokenStream {

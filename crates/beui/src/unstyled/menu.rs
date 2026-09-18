@@ -243,7 +243,7 @@ fn MenuRow(
                     submenu.set_open.set(false);
                     leave_state.set_focus.set(Focus::Row(index));
                 })));
-                view! {
+                intrinsic(view! {
                     <Overlay
                         anchor=&button
                         placement=Placement::RightStart
@@ -266,7 +266,7 @@ fn MenuRow(
                             />
                         })}
                     </Overlay>
-                }
+                })
                 }}
             </Show>
         </Column>
