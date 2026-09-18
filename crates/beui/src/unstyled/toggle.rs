@@ -6,8 +6,9 @@ use crate::input::CursorIcon;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, ClickCatcher, Focusable, Prop, ReadSignal, Render, clone, component_accessibility,
-    create_effect, create_memo, create_signal, set_component_state, untrack,
+    Callback, ClickCatcher, Focusable, IntoProp, Memo, Prop, ReadSignal, Render, clone,
+    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
+    untrack,
 };
 
 pub struct ToggleHandle {
@@ -15,11 +16,13 @@ pub struct ToggleHandle {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
+    pub disabled: Memo<bool>,
 }
 
 #[component]
 pub fn Toggle(
     checked: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<ToggleHandle>>,
     on_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
@@ -30,11 +33,17 @@ pub fn Toggle(
     let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
     let (key_active, set_key_active) = create_signal(false);
+    let disabled = create_memo(move || disabled.get());
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::CheckBox)));
-    component_accessibility(create_memo(clone!(checked_read -> move || {
+    component_accessibility(create_memo(clone!(checked_read disabled -> move || {
         let mut node = accessibility.get();
         node.set_toggled(Toggled::from(checked_read.get()));
+        if disabled.get() {
+            node.set_disabled();
+        } else {
+            node.clear_disabled();
+        }
         node
     })));
 
@@ -44,29 +53,40 @@ pub fn Toggle(
             hovered: hovered.clone(),
             active: active.clone(),
             focused: focused.clone(),
+            disabled: disabled.clone(),
         })
     });
 
     let toggle_checked = {
         let checked = checked_read.clone();
+        let disabled = disabled.clone();
         move || {
+            if untrack(|| disabled.get()) {
+                return;
+            }
             let next = !untrack(|| checked.get());
             set_checked.set(next);
             on_change.call(next);
         }
     };
     let key_toggle = toggle_checked.clone();
+    let tab_stop = disabled.clone().into_prop().map(|disabled: bool| !disabled);
+    let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
+        true => CursorIcon::Default,
+        false => CursorIcon::PointingHand,
+    }));
 
     set_component_state(checked_read.clone());
 
     view! {
         <Focusable
+            tab_stop
             on_focus_change={move |focused: bool| set_focused.set(focused)}
             on_activate_change={move |pressed: bool| set_key_active.set(pressed)}
             on_activate={key_toggle}
         >
             <ClickCatcher
-                cursor=CursorIcon::PointingHand
+                cursor
                 key_active
                 on_click={toggle_checked}
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}

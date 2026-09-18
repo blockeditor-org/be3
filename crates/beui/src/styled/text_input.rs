@@ -21,6 +21,7 @@ pub fn TextInput(
     value: Prop<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<String>,
     on_submit: Callback<String>,
 ) -> NodeId {
@@ -36,6 +37,7 @@ pub fn TextInput(
         <unstyled::TextInput
             value
             placeholder
+            disabled
             accessibility
             font_size=FONT_BODY
             color={theme.text.clone()}
@@ -60,11 +62,16 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
         field,
         hovered,
         focused,
+        disabled,
     } = handle;
     let theme = use_theme();
-    let border = create_memo(
-        clone!(focused theme -> move || border_color(&theme, focused.get(), hovered.get())),
-    );
+    let border = create_memo(clone!(focused theme disabled -> move || {
+        border_color(&theme, disabled.get(), focused.get(), hovered.get())
+    }));
+    let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        true => theme.surface.get(),
+        false => theme.surface_raised.get(),
+    }));
     view! {
         <Frame
             outline={theme.accent.clone()}
@@ -75,7 +82,7 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
         >
             <Frame
                 height=HEIGHT
-                color={theme.surface_raised.clone()}
+                color={fill}
                 outline={border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
@@ -91,7 +98,10 @@ pub fn text_input_value(document: &Document, input: NodeId) -> String {
     unstyled::text_input_value(document, input)
 }
 
-fn border_color(theme: &ThemeStore, focused: bool, hovered: bool) -> Color32 {
+fn border_color(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
+    if disabled {
+        return theme.border.get();
+    }
     match (focused, hovered) {
         (true, _) => theme.accent.get(),
         (false, true) => theme.text_muted.get(),

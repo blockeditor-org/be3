@@ -9,8 +9,5 @@
   "regions": [
     "Frame"
   ],
-  "chrome": [
-    "RightSidebar"
-  ],
   "entry_point": "database.wasm"
 }

@@ -4,7 +4,7 @@ use super::*;
 fn adding_a_field_appends_a_string_field() {
     let (mut editor, block) = editor();
 
-    editor.find("database-schema.add-field").click();
+    editor.click("database-schema.add-field");
     editor.run();
 
     let schema = block.read().unwrap();

@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use crate::node::NodeId;
 use crate::reactive::{Child, Frame};
-use crate::styled::theme::{BORDER_WIDTH, use_theme};
+use crate::styled::theme::{BORDER_WIDTH, SEPARATOR_HEIGHT, use_theme};
 
 #[component]
 pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
@@ -24,6 +24,6 @@ pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
 pub fn Separator() -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame color={theme.border.clone()} radius=0></Frame>
+        <Frame color={theme.border.clone()} height=SEPARATOR_HEIGHT radius=0></Frame>
     }
 }

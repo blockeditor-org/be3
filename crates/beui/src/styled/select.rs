@@ -25,6 +25,7 @@ pub fn Select(
     options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
@@ -41,6 +42,7 @@ pub fn Select(
         <unstyled::Select
             options
             selected
+            disabled
             accessibility
             on_change={move |selected| on_change.call(selected)}
             search_placeholder="Search"
@@ -74,13 +76,22 @@ fn SelectTrigger(options: Run<ChoiceOption>, handle: SelectTriggerHandle) -> Nod
         selected,
         hovered,
         focused,
+        disabled,
         ..
     } = handle;
     let theme = use_theme();
     let label_text = create_memo(move || trigger_label(&options, selected.get()));
-    let border = create_memo(
-        clone!(focused theme -> move || border_color(&theme, focused.get(), hovered.get())),
-    );
+    let border = create_memo(clone!(focused theme disabled -> move || {
+        border_color(&theme, disabled.get(), focused.get(), hovered.get())
+    }));
+    let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        true => theme.surface.get(),
+        false => theme.surface_raised.get(),
+    }));
+    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        true => theme.text_muted.get(),
+        false => theme.text.get(),
+    }));
     view! {
         <Frame
             max_width=TRIGGER_MAX_WIDTH
@@ -92,7 +103,7 @@ fn SelectTrigger(options: Run<ChoiceOption>, handle: SelectTriggerHandle) -> Nod
         >
             <Frame
                 height=HEIGHT
-                color={theme.surface_raised.clone()}
+                color={fill}
                 outline={border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
@@ -102,7 +113,7 @@ fn SelectTrigger(options: Run<ChoiceOption>, handle: SelectTriggerHandle) -> Nod
                 <Text
                     string={label_text}
                     font_size=FONT_BODY
-                    color={theme.text.clone()}
+                    color={text_color}
                     align=TextAlign::Start
                     clip=true
                 />
@@ -117,10 +128,12 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         field,
         hovered,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
-    let border =
-        create_memo(clone!(theme -> move || border_color(&theme, focused.get(), hovered.get())));
+    let border = create_memo(clone!(theme -> move || {
+        border_color(&theme, false, focused.get(), hovered.get())
+    }));
     view! {
         <Frame
             height=HEIGHT
@@ -210,7 +223,10 @@ fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Co
     }
 }
 
-fn border_color(theme: &ThemeStore, focused: bool, hovered: bool) -> Color32 {
+fn border_color(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
+    if disabled {
+        return theme.border.get();
+    }
     match (focused, hovered) {
         (true, _) => theme.accent.get(),
         (false, true) => theme.text_muted.get(),

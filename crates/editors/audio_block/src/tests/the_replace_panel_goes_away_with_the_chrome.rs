@@ -1,0 +1,16 @@
+use super::*;
+
+#[test]
+fn the_replace_panel_goes_away_with_the_chrome() {
+    let (mut test, editor, _block) = editor();
+
+    assert!(test.shown("audio.replace"));
+    let with_panel = editor.content_rect();
+
+    editor.host().set_chrome_shown(false);
+    test.run();
+
+    let without_panel = editor.content_rect();
+    assert!(with_panel.right() < without_panel.right());
+    assert_eq!(without_panel, test.rect());
+}

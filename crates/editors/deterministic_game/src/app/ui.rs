@@ -189,7 +189,7 @@ pub(crate) fn GameCreation(
     let status_color = create_memo(clone!(theme snapshot -> move || {
         let theme = theme.get();
         if snapshot.get().error.is_some() {
-            theme.accent_hover
+            theme.danger
         } else {
             theme.text_muted
         }

@@ -242,8 +242,14 @@ under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
 `Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, and `Stack`. The styled
 module supplies themed buttons, icon buttons, links, text styles, cards,
-checkboxes, switches, choices, inputs, menus, tabs, trees, progress,
-scrollbars, and responsive layout. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
+checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
+progress, scrollbars, and responsive layout. A control that can be turned off -
+`Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
+`NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
+keyboard, leaves the tab order, publishes itself as disabled to a screen
+reader, and paints in muted colours, which is what a read-only editor binds
+`editor.read_only()` to rather than leaving a live control that quietly throws
+edits away. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 lists.
 
 ### Pan and zoom

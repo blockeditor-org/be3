@@ -20,7 +20,19 @@ pub enum ButtonVariant {
 }
 
 impl ButtonVariant {
-    pub(crate) fn fill(self, theme: &ThemeStore, hovered: bool, active: bool) -> Color32 {
+    pub(crate) fn fill(
+        self,
+        theme: &ThemeStore,
+        disabled: bool,
+        hovered: bool,
+        active: bool,
+    ) -> Color32 {
+        if disabled {
+            return match self {
+                ButtonVariant::Primary => theme.accent_soft.get(),
+                ButtonVariant::Secondary => theme.surface.get(),
+            };
+        }
         match (self, hovered, active) {
             (ButtonVariant::Primary, _, true) => theme.accent_active.get(),
             (ButtonVariant::Primary, true, false) => theme.accent_hover.get(),
@@ -31,7 +43,10 @@ impl ButtonVariant {
         }
     }
 
-    pub(crate) fn label(self, theme: &ThemeStore) -> Color32 {
+    pub(crate) fn label(self, theme: &ThemeStore, disabled: bool) -> Color32 {
+        if disabled {
+            return theme.text_muted.get();
+        }
         match self {
             ButtonVariant::Primary => theme.on_accent.get(),
             ButtonVariant::Secondary => theme.text.get(),
@@ -46,12 +61,14 @@ pub fn Button(
     #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
 ) -> NodeId {
+    let disabled = create_memo(move || disabled.get());
+    let face = disabled.clone();
     view! {
         <unstyled::Button
             disabled
             on_click={move || on_click.call()}
             content={move |handle| view! {
-                <ButtonFace handle variant label />
+                <ButtonFace handle variant label disabled={face.clone()} />
             }}
         />
     }
@@ -62,6 +79,7 @@ fn ButtonFace(
     handle: unstyled::ButtonHandle,
     variant: ButtonVariant,
     label: Prop<String>,
+    disabled: Prop<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
@@ -69,8 +87,11 @@ fn ButtonFace(
         focused,
     } = handle;
     let theme = use_theme();
-    let fill_color =
-        create_memo(clone!(theme -> move || variant.fill(&theme, hovered.get(), active.get())));
+    let off = create_memo(move || disabled.get());
+    let fill_color = create_memo(clone!(theme off -> move || {
+        variant.fill(&theme, off.get(), hovered.get(), active.get())
+    }));
+    let label_color = create_memo(clone!(theme off -> move || variant.label(&theme, off.get())));
     view! {
         <Frame
             outline={theme.accent.clone()}
@@ -91,7 +112,7 @@ fn ButtonFace(
                 <Text
                     string={label}
                     font_size=FONT_BODY
-                    color={create_memo(clone!(theme -> move || variant.label(&theme)))}
+                    color={label_color}
                     align=TextAlign::Center
                 />
             </Frame>
