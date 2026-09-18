@@ -2,12 +2,9 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::font::{FontId, Galley};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::node::NodeId;
-use crate::painter::Painter;
+use crate::painter::{Painter, Shape};
 use crate::styled::Theme;
 use crate::styled::theme::CARD_RADIUS;
-
-use super::Mode;
 
 const MARGIN: f32 = 24.0;
 const CARD_WIDTH: f32 = 520.0;
@@ -18,20 +15,31 @@ const STATUS_SIZE: f32 = 12.0;
 const GUIDE_SIZE: f32 = 12.0;
 const LINE_SPACING: f32 = 5.0;
 const BLOCK_SPACING: f32 = 14.0;
-const FROST_ALPHA: u8 = 216;
-const FROST_BLEED: f32 = 3.0;
-const FROST_RADIUS: f32 = 4.0;
+const FROST_BLEED: f32 = 2.0;
+const FROST_RADIUS: f32 = 3.0;
 const FOCUS_WIDTH: f32 = 2.0;
 const FINGER_RADIUS: f32 = 18.0;
 const FINGER_WIDTH: f32 = 2.0;
 const CARD_FILL: Color32 = Color32::from_rgba_unmultiplied(20, 24, 32, 236);
-const FOCUS_FILL: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 48);
+const FOCUS_FILL: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 72);
+const KEYBOARD_GUIDE: [&str; 4] = [
+    "Arrows: previous or next item   Tab: previous or next control",
+    "Enter or Space: activate        R: repeat",
+    "Home or End: first or last      Minus or Plus: adjust",
+    "Page Up or Page Down: scroll",
+];
+const TOUCH_GUIDE: [&str; 5] = [
+    "Drag a finger: read what is under it",
+    "Flick sideways: previous or next item",
+    "Flick up or down: adjust the value",
+    "Double tap: activate            Two finger tap: repeat",
+    "Drag two fingers: scroll",
+];
 
 pub(super) struct View<'a> {
     pub(super) content: Rect,
     pub(super) opacity: f32,
     pub(super) frost: bool,
-    pub(super) mode: Mode,
     pub(super) spoken: &'a [String],
     pub(super) status: String,
     pub(super) focus: Option<Rect>,
@@ -52,14 +60,14 @@ pub(super) fn paint(painter: &Painter, target: &Document, scale: f32, view: &Vie
     if view.frost {
         frost(painter, target, scale, content);
     }
-    painter.rect_filled(content, 0.0, curtain_color(view.opacity));
-    let mut painted = content;
     if let Some(rect) = view.focus.map(|rect| rect.scaled(scale).intersect(content))
         && rect.is_positive()
     {
         painter.rect_filled(rect, 0.0, FOCUS_FILL);
         painter.rect_stroke(rect, 0.0, FOCUS_WIDTH, Theme::DARK.accent);
     }
+    painter.rect_filled(content, 0.0, curtain_color(view.opacity));
+    let mut painted = content;
     if let Some(at) = view.finger.map(|at| pos2(at.x * scale, at.y * scale)) {
         let ring = Rect::from_min_size(
             at - vec2(FINGER_RADIUS, FINGER_RADIUS),
@@ -102,16 +110,18 @@ fn speech(painter: &Painter, view: &View<'_>, content: Rect) -> Rect {
         color: Theme::DARK.accent,
         space: BLOCK_SPACING,
     });
-    for (index, guide) in guide(view.mode).iter().enumerate() {
-        lines.push(Line {
-            galley: painter.layout((*guide).to_owned(), FontId::monospace(GUIDE_SIZE), width),
-            color: Theme::DARK.text_muted,
-            space: if index == 0 {
-                BLOCK_SPACING
-            } else {
-                LINE_SPACING
-            },
-        });
+    for group in [KEYBOARD_GUIDE.as_slice(), TOUCH_GUIDE.as_slice()] {
+        for (index, guide) in group.iter().enumerate() {
+            lines.push(Line {
+                galley: painter.layout((*guide).to_owned(), FontId::monospace(GUIDE_SIZE), width),
+                color: Theme::DARK.text_muted,
+                space: if index == 0 {
+                    BLOCK_SPACING
+                } else {
+                    LINE_SPACING
+                },
+            });
+        }
     }
     let height: f32 = lines
         .iter()
@@ -137,54 +147,29 @@ fn speech(painter: &Painter, view: &View<'_>, content: Rect) -> Rect {
     panel
 }
 
-fn guide(mode: Mode) -> &'static [&'static str] {
-    match mode {
-        Mode::Keyboard => &[
-            "Left or Up: previous item     Right or Down: next item",
-            "Shift+Tab or Tab: previous or next control",
-            "Enter or Space: activate      R: repeat",
-            "Home or End: first or last    Minus or Plus: adjust",
-            "Page Up or Page Down: scroll",
-        ],
-        Mode::Touch => &[
-            "Drag one finger: read what is under it",
-            "Flick left or right: previous or next item",
-            "Flick up or down: adjust the value",
-            "Double tap: activate          Two finger tap: repeat",
-            "Drag two fingers: scroll",
-        ],
-    }
-}
-
 fn frost(painter: &Painter, target: &Document, scale: f32, content: Rect) {
-    let Some(root) = target.root() else {
-        return;
-    };
-    let color = Color32::from_rgba_unmultiplied(0, 0, 0, FROST_ALPHA);
-    smear(painter, target, root, scale, content, color);
+    let color = opaque(target.theme().text_muted);
+    for shape in target.shapes() {
+        let Shape::Text {
+            origin,
+            galley,
+            clip,
+            ..
+        } = shape
+        else {
+            continue;
+        };
+        let words = Rect::from_min_size(*origin, galley.size()).intersect(*clip);
+        let block = words.scaled(scale).expand(FROST_BLEED).intersect(content);
+        if block.is_positive() {
+            painter.rect_filled(block, FROST_RADIUS, color);
+        }
+    }
 }
 
-fn smear(
-    painter: &Painter,
-    target: &Document,
-    id: NodeId,
-    scale: f32,
-    content: Rect,
-    color: Color32,
-) {
-    let children = target.children(id);
-    if children.is_empty() {
-        if let Some(rect) = target.node_rect(id) {
-            let rect = rect.scaled(scale).expand(FROST_BLEED).intersect(content);
-            if rect.is_positive() {
-                painter.rect_filled(rect, FROST_RADIUS, color);
-            }
-        }
-        return;
-    }
-    for child in children {
-        smear(painter, target, child, scale, content, color);
-    }
+fn opaque(color: Color32) -> Color32 {
+    let [red, green, blue, _] = color.to_array();
+    Color32::from_rgb(red, green, blue)
 }
 
 fn curtain_color(opacity: f32) -> Color32 {

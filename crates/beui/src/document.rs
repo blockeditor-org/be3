@@ -283,6 +283,10 @@ impl Document {
         self.paint_base.set(base);
     }
 
+    pub(crate) fn shapes(&self) -> &[Shape] {
+        &self.shapes
+    }
+
     pub(crate) fn painted_shapes(&self, base: usize, len: usize) -> Option<&[Shape]> {
         self.shapes.get(base..base + len)
     }

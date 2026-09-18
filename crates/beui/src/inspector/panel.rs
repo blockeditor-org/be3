@@ -11,7 +11,7 @@ use crate::reactive::{
     CenteredRow, Column, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
     WriteSignal, clone, component, create_memo, create_signal, view,
 };
-use crate::screen_reader::{Command, Mode};
+use crate::screen_reader::Command;
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use crate::styled::{
     Button, ButtonVariant, Caption, Checkbox, Code, Heading, RadioGroup, Scrollbar, Separator,
@@ -43,7 +43,6 @@ const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("3x", Some(3.0)),
 ];
 const THEMES: [(&str, Theme); 2] = [("Dark", Theme::DARK), ("E-ink", Theme::EINK)];
-const READER_MODES: [&str; 2] = ["Keyboard", "Touch"];
 const COMMANDS: [(&str, &str, Command); 12] = [
     ("First", "first", Command::First),
     ("Last", "last", Command::Last),
@@ -406,9 +405,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
 
 #[component]
 fn ScreenReaderSection(state: Rc<State>) -> NodeId {
-    let mode = state.screen_reader_mode.get().index();
-    let (enable_state, mode_state, opacity_state, frost_state) =
-        (state.clone(), state.clone(), state.clone(), state.clone());
+    let (enable_state, opacity_state, frost_state) = (state.clone(), state.clone(), state.clone());
     let (first_state, second_state, third_state) = (state.clone(), state.clone(), state.clone());
     let (fourth_state, fifth_state) = (state.clone(), state.clone());
     view! {
@@ -419,14 +416,6 @@ fn ScreenReaderSection(state: Rc<State>) -> NodeId {
                 label="Simulate a screen reader"
                 checked={state.screen_reader.get()}
                 on_change={move |enabled| enable_state.enable_screen_reader(enabled)}
-            />
-            <RadioGroup
-                @test_id={"inspector.screen_reader.mode"}
-                labels={READER_MODES.iter().map(|label| (*label).to_owned()).collect::<Vec<_>>()}
-                selected={Some(mode)}
-                on_change={move |index: Option<usize>| {
-                    mode_state.choose_screen_reader_mode(Mode::from_index(index.unwrap_or(0)));
-                }}
             />
             <Caption content="Curtain opacity" />
             <Slider

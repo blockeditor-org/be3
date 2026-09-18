@@ -22,36 +22,6 @@ const DOUBLE_TAP_TIME: Duration = Duration::from_millis(400);
 const SCROLL_STEP: f32 = 48.0;
 pub(crate) const DEFAULT_OPACITY: f32 = 0.94;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) enum Mode {
-    #[default]
-    Keyboard,
-    Touch,
-}
-
-impl Mode {
-    pub(crate) fn from_index(index: usize) -> Self {
-        match index {
-            1 => Self::Touch,
-            _ => Self::Keyboard,
-        }
-    }
-
-    pub(crate) fn index(self) -> usize {
-        match self {
-            Self::Keyboard => 0,
-            Self::Touch => 1,
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            Self::Keyboard => "keyboard",
-            Self::Touch => "touch",
-        }
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Command {
     First,
@@ -88,7 +58,6 @@ struct Finger {
 pub(crate) struct ScreenReader {
     enabled: bool,
     active: bool,
-    mode: Mode,
     opacity: f32,
     frost: bool,
     items: Vec<Item>,
@@ -111,7 +80,6 @@ impl Default for ScreenReader {
         Self {
             enabled: false,
             active: false,
-            mode: Mode::default(),
             opacity: DEFAULT_OPACITY,
             frost: true,
             items: Vec::new(),
@@ -132,9 +100,8 @@ impl Default for ScreenReader {
 }
 
 impl ScreenReader {
-    pub(crate) fn configure(&mut self, enabled: bool, mode: Mode, opacity: f32, frost: bool) {
+    pub(crate) fn configure(&mut self, enabled: bool, opacity: f32, frost: bool) {
         self.enabled = enabled;
-        self.mode = mode;
         self.opacity = opacity;
         self.frost = frost;
     }
@@ -170,11 +137,7 @@ impl ScreenReader {
         if keyboard {
             commands.extend(keyboard_commands(ctx));
         }
-        if self.mode == Mode::Touch {
-            self.touch(ctx, content, &mut commands);
-        } else {
-            self.release();
-        }
+        self.touch(ctx, content, &mut commands);
         for command in commands {
             self.run(ctx, command);
         }
@@ -491,7 +454,6 @@ impl ScreenReader {
             content,
             opacity: self.opacity,
             frost: self.frost,
-            mode: self.mode,
             spoken: &self.spoken,
             status: self.status(),
             focus: self.current().map(|item| item.rect),
@@ -529,13 +491,8 @@ impl ScreenReader {
     fn status(&self) -> String {
         let total = self.items.len();
         match self.index() {
-            Some(index) => format!(
-                "item {} of {}  |  {} mode",
-                index + 1,
-                total,
-                self.mode.label()
-            ),
-            None => format!("nothing to read  |  {} mode", self.mode.label()),
+            Some(index) => format!("item {} of {}", index + 1, total),
+            None => "nothing to read".to_owned(),
         }
     }
 }
