@@ -3,7 +3,7 @@ use beui::reactive::{
     Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
     create_selector, create_signal, view,
 };
-use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
+use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
     Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
@@ -225,7 +225,7 @@ fn DemoShell(count: ReadSignal<i64>, set_count: WriteSignal<i64>) -> NodeId {
     view! {
         <Column spacing=0.0>
             <DemoHeader @sizing={header_height} set_count />
-            <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+            <Separator />
             <DemoBody @sizing=ItemSize::Percent(100.0) count />
         </Column>
     }
@@ -317,7 +317,7 @@ fn Sidebar() -> NodeId {
                          components compose them, and the styled components paint them."
                     />
                 </Accordion>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <Accordion title="Keyboard" open={keyboard_open}>
                     <Column spacing=12.0>
                         <Shortcut keys="Tab" description="move focus to the next control" />
@@ -386,7 +386,7 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
                             align=TextAlign::End
                         />
                     </CenteredRow>
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Separator />
                     <Row @sizing=ItemSize::Percent(100.0) spacing=10.0>
                         <VirtualList
                             @sizing=ItemSize::Percent(100.0)
@@ -448,7 +448,7 @@ fn CanvasCard() -> NodeId {
                         on_click={move || set_stage_view.set(STAGE_VIEW)}
                     />
                 </CenteredRow>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <CanvasStage
                     @sizing=ItemSize::Percent(100.0)
                     view={stage_view}
