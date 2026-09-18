@@ -275,6 +275,43 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    pub async fn try_fetch(&self, hash: Hash) -> Result<bool, ClientError> {
+        if self.commits.vault().store().has(hash)? {
+            return Ok(true);
+        }
+        let response = self
+            .connection
+            .request(|request| ClientMessage::GetObject { request, hash })
+            .await?;
+        let ServerMessage::Object { bytes, .. } = response else {
+            return Err(ClientError::Unexpected);
+        };
+        let Some(bytes) = bytes else {
+            return Ok(false);
+        };
+        if self.commits.vault().store().put(&bytes)? != hash {
+            return Err(ClientError::Tampered(hash));
+        }
+        Ok(true)
+    }
+
+    pub async fn fetch_history(&self, head: CommitId) -> Result<(), ClientError> {
+        let mut frontier = vec![head];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(id) = frontier.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            if !self.try_fetch(id.hash()).await? {
+                continue;
+            }
+            if let Some(commit) = self.commits.try_get(id)? {
+                frontier.extend(commit.parents);
+            }
+        }
+        Ok(())
+    }
+
     pub async fn load_commit(&self, commit: CommitId) -> Result<Commit, ClientError> {
         self.fetch(&[commit.hash()]).await?;
         Ok(self.commits.get(commit)?)

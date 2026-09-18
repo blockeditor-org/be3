@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use be_block::{BlockContent, ContentError, ImageContent, ImageHeader};
 use be_commit::{RetentionPolicy, retention::MINUTE};
@@ -9,11 +9,15 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_follower_takes_over_and_keeps_editing_without_a_merge;
 mod a_large_image_streams_without_downloading_all_of_it;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod an_image_round_trips_without_being_re_encoded;
+mod an_offline_edit_elsewhere_merges_cleanly;
+mod an_offline_rewrite_conflicts_instead_of_interleaving;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
 mod references_declared_by_content_reach_the_graph;
+mod two_peers_converge_through_the_session_owner;
 
 struct Harness {
     url: String,
@@ -38,6 +42,10 @@ impl Harness {
             shutdown: Some(shutdown),
             handle: Some(handle),
         }
+    }
+
+    async fn shared(&self, owner: &Peer<MemoryStore>) -> Arc<Peer<MemoryStore>> {
+        Arc::new(self.second(owner).await)
     }
 
     async fn owner(&self, email: &str) -> Peer<MemoryStore> {
@@ -139,5 +147,26 @@ impl BlockContent for Link {
 
     fn references(&self) -> Vec<Uuid> {
         self.targets.clone()
+    }
+}
+
+async fn settle<C: be_block::LiveEdit + Clone + Default>(
+    sessions: &mut [&mut Live<MemoryStore, C>],
+) {
+    for _ in 0..12 {
+        let mut handled = 0;
+        for session in sessions.iter_mut() {
+            handled += session.poll().await.unwrap();
+        }
+        if handled == 0 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            let mut again = 0;
+            for session in sessions.iter_mut() {
+                again += session.poll().await.unwrap();
+            }
+            if again == 0 {
+                return;
+            }
+        }
     }
 }

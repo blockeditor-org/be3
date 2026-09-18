@@ -5,9 +5,11 @@ use be_protocol::ErrorCode;
 use be_store::{Hash, StoreError};
 
 pub mod connection;
+pub mod live;
 pub mod peer;
 
 pub use connection::Connection;
+pub use live::Live;
 pub use peer::{Credentials, Peer, PeerConfig, Saved};
 
 #[derive(Debug)]
