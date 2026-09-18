@@ -6,7 +6,9 @@ fn a_follower_resubmits_only_what_the_owner_never_accepted() {
     let mut owner = Sequencer::new(Some(head));
     let mut follower = Follower::new(7);
 
-    let SessionMessage::Submit { id: first, payload } = follower.submit(b"insert one".to_vec())
+    let SessionMessage::Submit {
+        id: first, payload, ..
+    } = follower.submit(b"insert one".to_vec())
     else {
         panic!("a submission is a submit message");
     };
@@ -30,7 +32,7 @@ fn a_follower_resubmits_only_what_the_owner_never_accepted() {
 
     let resubmitted = follower.resynchronize(owner.sequence());
     assert_eq!(resubmitted.len(), 1);
-    let SessionMessage::Submit { id, payload } = resubmitted.into_iter().next().unwrap() else {
+    let SessionMessage::Submit { id, payload, .. } = resubmitted.into_iter().next().unwrap() else {
         panic!("a resubmission is a submit message");
     };
     assert_eq!(id, second);

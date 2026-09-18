@@ -21,6 +21,7 @@ pub struct SessionOp {
 pub enum SessionMessage {
     Submit {
         id: OpId,
+        base: u64,
         payload: Vec<u8>,
     },
     Accepted {
@@ -128,6 +129,10 @@ impl Follower {
         self.applied
     }
 
+    pub fn set_applied(&mut self, sequence: u64) {
+        self.applied = sequence;
+    }
+
     pub fn pending(&self) -> usize {
         self.pending.len()
     }
@@ -139,7 +144,36 @@ impl Follower {
             counter: self.counter,
         };
         self.pending.push_back((id, payload.clone()));
-        SessionMessage::Submit { id, payload }
+        SessionMessage::Submit {
+            id,
+            base: self.applied,
+            payload,
+        }
+    }
+
+    pub fn is_mine(&self, id: OpId) -> bool {
+        id.client == self.client
+    }
+
+    pub fn front(&self) -> Option<OpId> {
+        self.pending.front().map(|(id, _)| *id)
+    }
+
+    pub fn rewrite_pending(&mut self, rewrite: impl Fn(&[u8]) -> Option<Vec<u8>>) {
+        let mut kept = VecDeque::new();
+        while let Some((id, payload)) = self.pending.pop_front() {
+            if let Some(payload) = rewrite(&payload) {
+                kept.push_back((id, payload));
+            }
+        }
+        self.pending = kept;
+    }
+
+    pub fn payloads(&self) -> Vec<Vec<u8>> {
+        self.pending
+            .iter()
+            .map(|(_, payload)| payload.clone())
+            .collect()
     }
 
     pub fn accepted(&mut self, op: &SessionOp) -> bool {
@@ -155,6 +189,7 @@ impl Follower {
             .iter()
             .map(|(id, payload)| SessionMessage::Submit {
                 id: *id,
+                base: sequence,
                 payload: payload.clone(),
             })
             .collect()

@@ -6,11 +6,13 @@ use uuid::Uuid;
 
 pub mod image;
 pub mod streamed;
+pub mod text;
 
 pub use image::{ImageContent, ImageHeader};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
+pub use text::{TextContent, TextHeader, TextLanguage, TextOp};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {
