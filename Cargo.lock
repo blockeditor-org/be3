@@ -639,6 +639,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-graph"
+version = "0.1.0"
+dependencies = [
+ "be-commit",
+ "be-store",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-protocol"
+version = "0.1.0"
+dependencies = [
+ "be-commit",
+ "be-graph",
+ "be-store",
+ "postcard",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-server"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "be-commit",
+ "be-graph",
+ "be-protocol",
+ "be-store",
+ "futures-util",
+ "rand 0.8.6",
+ "rusqlite",
+ "serde",
+ "sha2",
+ "tokio",
+ "tokio-tungstenite",
+ "uuid",
+]
+
+[[package]]
 name = "be-store"
 version = "0.1.0"
 dependencies = [

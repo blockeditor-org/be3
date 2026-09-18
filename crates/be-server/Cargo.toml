@@ -1,0 +1,28 @@
+[package]
+name = "be-server"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+argon2 = "0.5"
+be-commit = { path = "../be-commit" }
+be-graph = { path = "../be-graph" }
+be-protocol = { path = "../be-protocol" }
+be-store = { path = "../be-store" }
+futures-util = "0.3"
+rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = "0.23"
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+futures-util = "0.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tokio-tungstenite = "0.23"
