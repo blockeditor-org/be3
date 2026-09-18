@@ -90,11 +90,8 @@ jobs:
 
       - run: ./scripts/verify --check
 
-      # What the shared cache answered for this job, which is the only way to
-      # see from a run whether it is being hit and filled.
-      - name: sccache statistics
+      - uses: ./.github/actions/sccache-report
         if: always()
-        run: sccache --show-stats
 
   web:
     name: web bundle
@@ -142,9 +139,8 @@ jobs:
 
       - run: ./scripts/build --target web --release
 
-      - name: sccache statistics
+      - uses: ./.github/actions/sccache-report
         if: always()
-        run: sccache --show-stats
 
       - uses: actions/upload-artifact@v7
         with:
@@ -187,9 +183,8 @@ jobs:
 
       - run: ./scripts/build --target plugins --release --output dist
 
-      - name: sccache statistics
+      - uses: ./.github/actions/sccache-report
         if: always()
-        run: sccache --show-stats
 
       # Every platform loads these same bytes, so they are uploaded once rather
       # than repeated inside each platform's archive. A manifest resolves its
@@ -295,9 +290,8 @@ jobs:
           --application-id com.be3.block.ci
           --label "Block (CI)"
 
-      - name: sccache statistics
+      - uses: ./.github/actions/sccache-report
         if: always()
-        run: sccache --show-stats
 
       - uses: actions/upload-artifact@v7
         with:
@@ -402,9 +396,8 @@ jobs:
           ${{ matrix.client && ' ' || '--no-client' }}
           ${{ runner.os == 'macOS' && '--sign-identity -' || ' ' }}
 
-      - name: sccache statistics
+      - uses: ./.github/actions/sccache-report
         if: always()
-        run: sccache --show-stats
 
       - uses: actions/upload-artifact@v7
         with:
