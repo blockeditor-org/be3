@@ -4,6 +4,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use crate::runtime::batch;
+use crate::scope::Scope;
 use crate::signal::{ReadSignal, WriteSignal, create_signal};
 
 struct Entry<V> {
@@ -144,5 +145,44 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
             .retain(|key, _| retained.contains(key));
         drop(retained);
         self.inner.write_keys.set_unconditionally(keys);
+    }
+}
+
+pub struct KeyedItems<K, V> {
+    build: Box<dyn Fn(K) -> V>,
+    entries: RefCell<HashMap<K, (V, Scope)>>,
+}
+
+impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
+    pub fn new(build: impl Fn(K) -> V + 'static) -> Self {
+        Self {
+            build: Box::new(build),
+            entries: RefCell::new(HashMap::new()),
+        }
+    }
+
+    pub fn map(&self, keys: Vec<K>) -> Vec<V> {
+        let mut entries = self.entries.borrow_mut();
+        let mut next = HashMap::with_capacity(keys.len());
+        let mut mapped = Vec::with_capacity(keys.len());
+        for key in keys {
+            let entry = match entries.remove(&key) {
+                Some(entry) => entry,
+                None => {
+                    let scope = Scope::detached();
+                    let built = scope.context().run(|| (self.build)(key.clone()));
+                    (built, scope)
+                }
+            };
+            mapped.push(entry.0.clone());
+            assert!(
+                next.insert(key, entry).is_none(),
+                "a keyed list was given the same key twice"
+            );
+        }
+        let gone = std::mem::replace(&mut *entries, next);
+        drop(entries);
+        drop(gone);
+        mapped
     }
 }

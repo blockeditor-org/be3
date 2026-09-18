@@ -60,6 +60,16 @@ pub struct Scope {
 
 impl Scope {
     pub fn new() -> Self {
+        let scope = Self::detached();
+        let parent = RUNTIME.with(|runtime| runtime.owner.borrow().upgrade());
+        if let Some(parent) = parent {
+            let child = scope.owner.clone();
+            parent.add(move || child.dispose());
+        }
+        scope
+    }
+
+    pub fn detached() -> Self {
         let parent = RUNTIME.with(|runtime| runtime.owner.borrow().upgrade());
         let owner = Rc::new(Owner {
             computation: parent
@@ -69,10 +79,6 @@ impl Scope {
             parent: parent.as_ref().map(Rc::downgrade).unwrap_or_default(),
             ..Owner::default()
         });
-        if let Some(parent) = parent {
-            let child = owner.clone();
-            parent.add(move || child.dispose());
-        }
         Self { owner }
     }
 

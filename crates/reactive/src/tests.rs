@@ -3,11 +3,13 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::{
-    KeyedStore, Scope, Store, batch, create_effect, create_memo, create_selector, create_signal,
-    on_cleanup, owner_scope, untrack,
+    KeyedItems, KeyedStore, Scope, Store, batch, create_effect, create_memo, create_selector,
+    create_signal, on_cleanup, owner_scope, untrack,
 };
 
 mod a_context_reaches_the_effects_a_nested_scope_creates;
+mod a_detached_scope_reads_context_without_its_parent_disposing_it;
+mod a_keyed_mapping_builds_reuses_and_disposes_its_items;
 mod a_keyed_store_forgets_items_whose_keys_are_gone;
 mod a_keyed_store_only_wakes_the_item_that_changed;
 mod a_panicking_effect_can_run_again;
