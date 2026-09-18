@@ -968,17 +968,16 @@ fn MenuControls() -> NodeId {
     let (fruit_status_text, set_fruit_status_text) = create_signal("Apple selected".to_string());
     let (menu_status_text, set_menu_status_text) = create_signal("Nothing chosen yet".to_string());
 
-    let items = vec![
-        unstyled::MenuItem::new("Copy"),
-        unstyled::MenuItem::new("Paste"),
-        unstyled::MenuItem::with_children(
-            "Share",
-            vec![
-                unstyled::MenuItem::new("Email"),
-                unstyled::MenuItem::new("Link"),
-            ],
-        ),
-    ];
+    let (copied, set_copied) = create_signal(false);
+    let nothing_copied = create_memo(move || !copied.get());
+    let items = view! {
+        <unstyled::MenuItem label="Copy" />
+        <unstyled::MenuItem label="Paste" disabled={nothing_copied} />
+        <unstyled::MenuItem label="Share">
+            <unstyled::MenuItem label="Email" />
+            <unstyled::MenuItem label="Link" />
+        </unstyled::MenuItem>
+    };
 
     view! {
         <Stack spacing=20.0 breakpoint=CARD_NARROW_WIDTH>
@@ -1004,7 +1003,10 @@ fn MenuControls() -> NodeId {
                     items
                     on_select={move |path: Vec<usize>| {
                         let label = match path.as_slice() {
-                            [0] => "Copy".to_owned(),
+                            [0] => {
+                                set_copied.set(true);
+                                "Copy".to_owned()
+                            }
                             [1] => "Paste".to_owned(),
                             [2, 0] => "Share > Email".to_owned(),
                             [2, 1] => "Share > Link".to_owned(),
@@ -1017,7 +1019,7 @@ fn MenuControls() -> NodeId {
                         <List spacing=4.0>
                             <Caption content="Right-click the card below" />
                             <Paragraph
-                                content="The Share item opens a submenu on hover or Right Arrow; Left Arrow closes it."
+                                content="Paste stays disabled until Copy is chosen; Share opens a submenu on hover or Right Arrow, and Left Arrow closes it."
                             />
                         </List>
                     </Card>

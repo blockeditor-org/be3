@@ -6,13 +6,15 @@ use crate::styled::ContextMenu;
 #[test]
 fn a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not() {
     let region = NodeRef::new();
-    let items = vec![
-        unstyled::MenuItem::new("Copy"),
-        unstyled::MenuItem::with_children("Share", vec![unstyled::MenuItem::new("Email")]),
-    ];
     let (document, [menu]) = toolbar_of({
         let region = region.clone();
         move || {
+            let items = view! {
+                <unstyled::MenuItem label="Copy" />
+                <unstyled::MenuItem label="Share">
+                    <unstyled::MenuItem label="Email" />
+                </unstyled::MenuItem>
+            };
             [view! {
                 <ContextMenu items>
                     <MenuRegion @node_ref=&region />

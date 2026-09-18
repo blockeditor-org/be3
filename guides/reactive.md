@@ -410,7 +410,9 @@ into a single-child slot declares that arity itself.
 A `view!` with more than one root is a `Children` rather than a `NodeId`, so a
 fixed set of siblings can be written in one place and handed to a `Children`
 prop somewhere else. The number of roots decides, and nothing else: one root is
-the `NodeId` it has always been.
+the `NodeId` it has always been. A `Children` slot takes that lone child as a
+run of one, so a set written in one place reads the same whether it has one
+member or several.
 
 ```rust
 let toolbar = view! {
@@ -517,11 +519,11 @@ that gained it.
 When the shape of a subtree depends on a value rather than a flag, `dynamic`
 rebuilds it: it holds one child, and every time its `value` changes it builds a
 replacement from `view` and removes the old one. Use it where a `show` would
-need the value itself rather than a boolean, like a menu whose items can be
-swapped out.
+need the value itself rather than a boolean, like a panel whose fields come from
+the kind of thing it is inspecting.
 
 ```rust
-<Dynamic value={items}>{move |items: Vec<MenuItem>| view! { <MenuList items /> }}</Dynamic>
+<Dynamic value={shape}>{move |shape: Shape| view! { <ShapeFields shape /> }}</Dynamic>
 ```
 
 `dynamic` rebuilds on every change of its value, which is right when the value

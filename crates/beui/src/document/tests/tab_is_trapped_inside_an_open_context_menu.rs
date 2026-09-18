@@ -5,13 +5,13 @@ use crate::styled::ContextMenu;
 #[test]
 fn tab_is_trapped_inside_an_open_context_menu() {
     let region = NodeRef::new();
-    let items = vec![
-        unstyled::MenuItem::new("Copy"),
-        unstyled::MenuItem::new("Paste"),
-    ];
     let (document, [before, menu, after]) = toolbar_of({
         let region = region.clone();
         move || {
+            let items = view! {
+                <unstyled::MenuItem label="Copy" />
+                <unstyled::MenuItem label="Paste" />
+            };
             [
                 view! {
                     <LabelledButton label="Before" />

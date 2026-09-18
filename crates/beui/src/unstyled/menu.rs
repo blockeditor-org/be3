@@ -5,42 +5,53 @@ use crate::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::reactive::{
-    Callback, Child, Focusable, List, NodeRef, Prop, ReadSignal, RenderFn, Selector, Show,
-    WriteSignal, clone, create_effect, create_memo, create_selector, create_signal, intrinsic,
-    set_component_state,
+    Callback, Child, ChildScope, ChildValue, Children, Focusable, IntoProp, List, Memo, NodeRef,
+    Prop, ReadSignal, RenderFn, Scope, Selector, Show, WriteSignal, clone, create_effect,
+    create_memo, create_selector, create_signal, intrinsic, set_component_state,
 };
 use crate::unstyled;
 use crate::unstyled::button::ButtonHandle;
 use std::rc::Rc;
 
 pub struct MenuRowHandle {
-    pub item: MenuItem,
+    pub label: Prop<String>,
+    pub disabled: Prop<bool>,
+    pub has_submenu: Prop<bool>,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
 }
 
 #[derive(Clone)]
 pub struct MenuItem {
-    pub label: String,
-    pub disabled: bool,
-    pub children: Vec<MenuItem>,
+    label: Memo<String>,
+    disabled: Memo<bool>,
+    children: Vec<MenuItem>,
+    scope: ChildScope,
 }
 
-impl MenuItem {
-    pub fn new(label: impl Into<String>) -> Self {
-        Self {
-            label: label.into(),
-            disabled: false,
-            children: Vec::new(),
-        }
+impl ChildValue for MenuItem {
+    fn anchor(&self) -> Option<NodeId> {
+        None
     }
 
-    pub fn with_children(label: impl Into<String>, children: Vec<MenuItem>) -> Self {
-        Self {
-            label: label.into(),
-            disabled: false,
-            children,
-        }
+    fn adopt_scope(&mut self, scope: Scope) {
+        self.scope.adopt(scope);
+    }
+}
+
+crate::child_type!(MenuItem);
+
+#[component]
+pub fn MenuItem(
+    label: Prop<String>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    children: Children<MenuItem>,
+) -> MenuItem {
+    MenuItem {
+        label: create_memo(move || label.get()),
+        disabled: create_memo(move || disabled.get()),
+        children: children.into_items(),
+        scope: ChildScope::default(),
     }
 }
 
@@ -74,7 +85,7 @@ struct Submenu {
 
 struct Row {
     button: NodeRef,
-    disabled: bool,
+    item: MenuItem,
     submenu: Option<Submenu>,
 }
 
@@ -90,7 +101,7 @@ type Handle = Rc<State>;
 
 #[component]
 pub(crate) fn MenuList(
-    items: Vec<MenuItem>,
+    items: Children<MenuItem>,
     row: Option<RenderFn<MenuRowHandle>>,
     panel: Option<RenderFn<Child>>,
     #[prop(default = MenuParent::default())] parent: MenuParent,
@@ -100,6 +111,7 @@ pub(crate) fn MenuList(
 ) -> NodeId {
     let row = row.expect("menu_list requires a `row` builder");
     let panel = panel.expect("menu_list requires a `panel` builder");
+    let items = items.into_items();
     let entry = if focus_first && !items.is_empty() {
         Focus::Row(0)
     } else {
@@ -113,10 +125,9 @@ pub(crate) fn MenuList(
 
     let state: Handle = Rc::new(State {
         rows: items
-            .iter()
+            .into_iter()
             .map(|item| Row {
                 button: NodeRef::new(),
-                disabled: item.disabled,
                 submenu: (!item.children.is_empty()).then(|| {
                     let (open, set_open) = create_signal(false);
                     Submenu {
@@ -125,6 +136,7 @@ pub(crate) fn MenuList(
                         content: NodeRef::new(),
                     }
                 }),
+                item,
             })
             .collect(),
         root: NodeRef::new(),
@@ -134,15 +146,12 @@ pub(crate) fn MenuList(
     });
     set_component_state(state.clone());
 
-    let lines: Vec<_> = items
-        .iter()
-        .enumerate()
-        .map(|(index, item)| {
+    let lines: Vec<_> = (0..state.rows.len())
+        .map(|index| {
             intrinsic(view! {
                 <MenuRow
                     state={state.clone()}
                     index
-                    item={item.clone()}
                     focused={focused.clone()}
                     row={row.clone()}
                     panel={panel.clone()}
@@ -175,13 +184,13 @@ pub(crate) fn MenuList(
 fn MenuRow(
     state: Handle,
     index: usize,
-    item: MenuItem,
     focused: Selector<Focus>,
     row: RenderFn<MenuRowHandle>,
     panel: RenderFn<Child>,
     #[prop(default = MenuParent::default())] parent: MenuParent,
 ) -> NodeId {
-    let disabled = item.disabled;
+    let item = state.rows[index].item.clone();
+    let disabled = item.disabled.clone();
     let children = item.children.clone();
     let has_children = !children.is_empty();
     let button = state.rows[index].button.clone();
@@ -195,7 +204,9 @@ fn MenuRow(
                 }
             });
             row.call(MenuRowHandle {
-                item,
+                label: item.label.into_prop(),
+                disabled: item.disabled.into_prop(),
+                has_submenu: has_children.into_prop(),
                 hovered: handle.hovered,
                 focused: handle.focused,
             })
@@ -217,7 +228,7 @@ fn MenuRow(
                 }}
                 content
                 on_click={move || {
-                    if disabled {
+                    if disabled.get_untracked() {
                         return;
                     }
                     if !open_submenu(&click_state, index) {
@@ -307,7 +318,7 @@ fn open_submenu(state: &State, index: usize) -> bool {
     let Some(submenu) = &row.submenu else {
         return false;
     };
-    if !row.disabled {
+    if !row.item.disabled.get_untracked() {
         submenu.set_open.set(true);
     }
     true

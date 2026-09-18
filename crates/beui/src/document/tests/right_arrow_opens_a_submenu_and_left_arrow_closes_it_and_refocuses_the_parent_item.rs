@@ -5,16 +5,15 @@ use crate::styled::ContextMenu;
 #[test]
 fn right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item() {
     let region = NodeRef::new();
-    let items = vec![unstyled::MenuItem::with_children(
-        "Share",
-        vec![
-            unstyled::MenuItem::new("Email"),
-            unstyled::MenuItem::new("Link"),
-        ],
-    )];
     let (document, [menu]) = toolbar_of({
         let region = region.clone();
         move || {
+            let items = view! {
+                <unstyled::MenuItem label="Share">
+                    <unstyled::MenuItem label="Email" />
+                    <unstyled::MenuItem label="Link" />
+                </unstyled::MenuItem>
+            };
             [view! {
                 <ContextMenu items>
                     <MenuRegion @node_ref=&region />

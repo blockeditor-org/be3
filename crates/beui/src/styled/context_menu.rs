@@ -5,7 +5,7 @@ use crate::color::Color32;
 use crate::icons::ICON_CHEVRON_RIGHT;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Callback, Child, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo,
+    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Text, clone, create_memo,
 };
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
@@ -22,7 +22,7 @@ const SUBMENU_ICON_SIZE: f32 = 16.0;
 #[component]
 pub fn ContextMenu(
     children: Child,
-    items: Prop<Vec<MenuItem>>,
+    items: Children<MenuItem>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     view! {
@@ -59,15 +59,15 @@ pub(crate) fn text_input_menu() -> TextInputMenu {
 #[component]
 fn MenuRow(handle: MenuRowHandle) -> NodeId {
     let MenuRowHandle {
-        item,
+        label,
+        disabled,
+        has_submenu,
         hovered,
         focused,
     } = handle;
     let theme = use_theme();
-    let disabled = item.disabled;
-    let submenu = !item.children.is_empty();
     let color = create_memo(clone!(theme -> move || {
-        if disabled {
+        if disabled.get() {
             theme.text_muted.get()
         } else {
             theme.text.get()
@@ -86,12 +86,12 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
-                    string={item.label}
+                    string={label}
                     font_size=FONT_BODY
                     color
                     align=TextAlign::Start
                 />
-                <Frame visible={submenu}>
+                <Frame visible={has_submenu}>
                     <IconSized
                         glyph=ICON_CHEVRON_RIGHT
                         font_size=SUBMENU_ICON_SIZE

@@ -21,7 +21,7 @@ use crate::base::text::TextHandle;
 use crate::base::text_index_at;
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::unstyled::{MenuItem, MenuRowHandle};
+use crate::unstyled::MenuRowHandle;
 use beui_macros::{component, view};
 
 use crate::reactive::{
@@ -355,7 +355,13 @@ fn TouchMenuRow(
             on_click={move || menu_action(&editor, action)}
             on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
         >
-            {row.call(MenuRowHandle { item: MenuItem::new(action.label()), hovered, focused })}
+            {row.call(MenuRowHandle {
+                label: Prop::Static(action.label().to_owned()),
+                disabled: Prop::Static(false),
+                has_submenu: Prop::Static(false),
+                hovered,
+                focused,
+            })}
         </ClickCatcher>
     }
 }

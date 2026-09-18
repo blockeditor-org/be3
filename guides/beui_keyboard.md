@@ -51,10 +51,12 @@ resolved.
 
 `<Select>` takes `options` and `selected` and opens a popup with a search box
 over the option list. `<ContextMenu>` wraps a `region` so a secondary click
-opens a menu built from the `items` prop, a `Vec<unstyled::MenuItem>`
-(`MenuItem::new` for a leaf, `MenuItem::with_children` for a submenu); its
+opens a menu built from the `items` prop, a `Children<unstyled::MenuItem>`
+written as `<MenuItem>` tags with a submenu's items between its own tags; its
 `on_select` callback receives the selected item's index path through any
-submenus. Changing `items` rebuilds the menu. Both controls sit on the `base`
+submenus. Each item's `label` and `disabled` are ordinary props, so a row
+follows the signals it was given without the menu being rebuilt. Both controls
+sit on the `base`
 overlay element: an anchored, viewport-relative popup painted above the rest of
 the tree that traps Tab while open. The demo's Menus tab shows both.
 

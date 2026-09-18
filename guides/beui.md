@@ -48,7 +48,9 @@ scope, context, memos and cleanups, and still be written as a tag. Such a
 component has nothing for `component_state`, `component_accessibility`,
 `component_size` or `component_rect` to watch, and `@test_id` and `@node_ref`
 name a node it does not have, so all six panic rather than going quietly
-nowhere.
+nowhere. `unstyled::MenuItem` is one: a menu item is a label, a disabled flag
+and its own submenu items, so a menu is written as tags and each row follows
+the signals its tag was given.
 
 Functions that build no part of a view are ordinary functions. Deriving a
 colour from theme tokens and interaction state, mapping a value to a label,
