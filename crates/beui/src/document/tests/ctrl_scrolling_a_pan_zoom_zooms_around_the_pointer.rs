@@ -25,5 +25,6 @@ fn ctrl_scrolling_a_pan_zoom_zooms_around_the_pointer() {
         "the corner under the pointer moved to {:?}",
         item.max
     );
-    assert!((item.width() - 100.0 * view.scale).abs() < 0.01);
+    assert_eq!(item.width(), item.width().round());
+    assert!((item.width() - 100.0 * view.scale).abs() <= 1.0);
 }

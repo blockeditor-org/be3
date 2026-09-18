@@ -8,6 +8,7 @@ use crate::color::Color32;
 use crate::font::{FontId, Galley};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
+use crate::pixel_grid::PixelGrid;
 
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
@@ -105,7 +106,7 @@ impl TextNode {
         )
     }
 
-    fn origin(&self, size: Vec2, rect: Rect) -> Pos2 {
+    fn origin(&self, grid: PixelGrid, size: Vec2, rect: Rect) -> Pos2 {
         let x = match self.horizontal {
             TextAlign::Start => rect.left(),
             TextAlign::Center => rect.center().x - size.x / 2.0,
@@ -116,7 +117,7 @@ impl TextNode {
             TextAlign::Center => rect.center().y - size.y / 2.0,
             TextAlign::End => rect.bottom() - size.y,
         };
-        pos2(x - self.offset.get(), y)
+        grid.snap_pos(pos2(x - self.offset.get(), y))
     }
 
     fn scrolled(&self, galley: &Galley, rect: Rect) -> f32 {
@@ -151,7 +152,7 @@ impl TextNode {
     fn place(&self, painter: &Painter, rect: Rect) -> Placed {
         let galley = self.galley(painter, &self.content, rect.width());
         self.offset.set(self.scrolled(&galley, rect));
-        let origin = self.origin(galley.size(), rect);
+        let origin = self.origin(painter.pixel_grid(), galley.size(), rect);
         let placed = Placed {
             rect,
             galley,

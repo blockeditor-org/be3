@@ -353,9 +353,10 @@ impl Element for ScrollNode {
             viewport: main,
         };
         self.offset = position.offset;
-        let offset = position.offset + self.overscroll;
+        let grid = doc.pixel_grid();
+        let offset = grid.snap(position.offset + self.overscroll);
         let start = self.direction.main(rect.min.to_vec2());
-        let mut cursor = start + self.leading(offset);
+        let mut cursor = start + grid.snap(self.leading(offset));
         let clipped = painter.with_clip_rect(rect);
         for (&item, length) in self.items.iter().zip(&lengths) {
             if cursor >= start + main {

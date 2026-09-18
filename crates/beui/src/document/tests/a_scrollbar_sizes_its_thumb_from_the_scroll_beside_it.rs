@@ -50,8 +50,9 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
         painted < track / 2.0,
         "the thumb filled the track: {painted} of {track}"
     );
+    assert_eq!(painted, painted.round(), "the thumb missed the pixel grid");
     assert!(
-        (painted - wanted).abs() < 0.01,
+        (painted - wanted).abs() <= 1.0,
         "thumb {painted} wanted {wanted}"
     );
 }

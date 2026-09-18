@@ -6,7 +6,7 @@ use std::rc::Rc;
 use beui_macros::component;
 
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, pos2, vec2};
+use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, InteractInput, NodeId};
 use crate::painter::Painter;
 use crate::reactive::{Child, Prop, create_effect, with_document};
@@ -40,20 +40,6 @@ impl EmbedSlot {
     }
 }
 
-fn snapped(rect: Rect, scale: f32) -> Rect {
-    if scale <= 0.0 {
-        return rect;
-    }
-    let snap = |value: f32| match value.is_finite() {
-        true => (value * scale).round() / scale,
-        false => value,
-    };
-    Rect::from_min_max(
-        pos2(snap(rect.min.x), snap(rect.min.y)),
-        pos2(snap(rect.max.x), snap(rect.max.y)),
-    )
-}
-
 pub(crate) struct EmbedNode {
     child: Option<NodeId>,
     width: Option<f32>,
@@ -81,11 +67,11 @@ impl Element for EmbedNode {
         rect: Rect,
         out: &mut HashMap<NodeId, Rect>,
     ) {
-        let scale = doc.pixels_per_point();
-        let placed = snapped(rect, scale);
+        let grid = doc.pixel_grid();
+        let placed = grid.snap_rect(rect);
         self.state.placement.set(Some(EmbedPlacement {
             rect: placed,
-            clip: snapped(painter.clip_rect(), scale).intersect(placed),
+            clip: grid.snap_rect(painter.clip_rect()).intersect(placed),
         }));
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
