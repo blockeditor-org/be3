@@ -27,7 +27,7 @@ fn vault(seed: u8) -> Vault<MemoryStore> {
 }
 
 fn pseudorandom(length: usize, seed: u64) -> Vec<u8> {
-    let mut state = seed | 1;
+    let mut state = seed.wrapping_add(0x9e37_79b9_7f4a_7c15);
     (0..length)
         .map(|_| {
             state = state

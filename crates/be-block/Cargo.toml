@@ -1,0 +1,14 @@
+[package]
+name = "be-block"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-commit = { path = "../be-commit" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[lints]
+workspace = true

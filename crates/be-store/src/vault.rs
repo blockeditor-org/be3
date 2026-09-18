@@ -180,6 +180,20 @@ impl<S: ObjectStore> Vault<S> {
         Ok(data)
     }
 
+    pub fn chunks_in_range(&self, manifest: &Manifest, offset: u64, length: u64) -> Vec<ChunkRef> {
+        let end = offset.saturating_add(length).min(manifest.length);
+        let mut position = 0u64;
+        let mut overlapping = Vec::new();
+        for chunk in &manifest.chunks {
+            let chunk_end = position + u64::from(chunk.length);
+            if chunk_end > offset && position < end {
+                overlapping.push(*chunk);
+            }
+            position = chunk_end;
+        }
+        overlapping
+    }
+
     pub fn missing_chunks(&self, manifest: &Manifest) -> Result<Vec<Hash>, StoreError> {
         let mut missing = Vec::new();
         for chunk in &manifest.chunks {

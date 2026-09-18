@@ -629,6 +629,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "be-block"
+version = "0.1.0"
+dependencies = [
+ "be-commit",
+ "postcard",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-client"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-graph",
+ "be-protocol",
+ "be-server",
+ "be-session",
+ "be-store",
+ "futures-util",
+ "serde",
+ "tokio",
+ "tokio-tungstenite",
+ "uuid",
+]
+
+[[package]]
 name = "be-commit"
 version = "0.1.0"
 dependencies = [

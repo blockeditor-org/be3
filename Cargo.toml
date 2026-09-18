@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/be-block",
+    "crates/be-client",
     "crates/be-commit",
     "crates/be-graph",
     "crates/be-protocol",
