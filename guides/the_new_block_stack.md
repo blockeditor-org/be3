@@ -1,0 +1,250 @@
+# The new block stack
+
+The `be-*` crates are a replacement for `block`, `block-server` and
+`block-client`. They live beside the old stack rather than inside it: nothing in
+`block-app` uses them yet, and the old stack still runs the application. Work on
+them by migrating one thing at a time, not by rewriting the app around them.
+
+If you are changing an existing editor or block type today, you want
+`guides/adding_a_block.md` and the `block` crate. This guide is for work on the
+replacement.
+
+## Why there is a replacement
+
+The old `Block` trait fuses five separable things into one type: the durable
+representation, the live-edit operation, undo history, the reference graph, and
+child manipulation. `const CRDT: bool` then makes a single choice that governs
+live merge, offline merge and the wire protocol together. Most of the problems
+below follow from that coupling.
+
+- **The operation log never compacts.** `snapshot_seq` is written as `0` when a
+  block is created and nothing ever advances it, so reading a block replays
+  every operation it has ever received. It cannot be fixed in place either:
+  operations are ciphertext to the server, and compaction needs understanding.
+  An append-only operation log and end-to-end encryption are incompatible.
+- **References cost a workspace per keystroke.** The client replays pending
+  operations to diff the full reference set, and the server deletes and rewrites
+  every `block_references` and `block_properties` row in the workspace on every
+  update. Under a CRDT the delta is also wrong, because it is computed against
+  an optimistic local state rather than the converged one.
+- **There is no local persistence.** The old client keeps unsent work in memory.
+  Closing the process loses it, so there is no offline story to preserve.
+- **Bulk data is in band.** The old image block holds a `Vec<u8>` that is
+  base64'd into JSON, wrapped in a snapshot, and shipped whole on every replace.
+- **The layering is inverted.** `version_control_object` and
+  `version_control_data` already implement a content-addressed blob store with
+  commits and branches, as block types on top of the block system. The thing
+  that should be the substrate is a guest.
+
+## Goals
+
+1. Durable state is bytes. A block's persistent form is a byte string, stored as
+   an ordered list of chunks. Backups are a commit chain over those bytes.
+2. Live editing converges through a session owner, not through a CRDT. A block
+   type may still be a CRDT where that is genuinely better, but nothing depends
+   on it.
+3. Offline divergence resolves by three-way merge over the persistent bytes, so
+   a wholesale rewrite conflicts visibly instead of interleaving.
+4. Partial reads. A ten gigabyte video streams; it is not loaded to be shown.
+5. The server never sees content. It holds objects, refs, a graph and accounts,
+   and understands only the last three.
+6. Reclamation is reference counting, not tracing.
+
+## The layers
+
+```
+be-store     objects, chunking, encryption        client + server
+be-commit    commit DAG, retention, merge         client + server
+be-session   ownership lease, sequencer, resume   client + server
+be-graph     parents, edges, access, refcounts    server
+be-protocol  the wire format                      client + server
+be-block     content traits and content types     client
+be-client    a peer: local store, blocks, Live    client
+be-server    the always-online peer               server
+```
+
+The server is one more peer that never decrypts. That is why most crates are
+shared: a client is a peer with a local store and a UI, a server is a peer with
+a big store, no UI, and the session registry.
+
+### be-store
+
+Content-addressed, encrypted object storage.
+
+- `Hash` is the SHA-256 of the **ciphertext**, so a server can verify what it
+  holds without being able to read it.
+- `chunker::split` is a gear-hash content-defined chunker. An edit in the middle
+  of a large file re-uploads one chunk, and the chunks either side resynchronise.
+- `Vault::seal` derives its nonce from the key and the plaintext. That is
+  deliberate: it makes identical content deduplicate under one key, and share
+  nothing across keys. Do not replace it with a random nonce without replacing
+  the deduplication story too.
+- `Manifest` is `{content_type, length, chunks}`. `Vault::read_range` and
+  `chunks_in_range` are the streaming primitives.
+- `ObjectStore` is `MemoryStore` or `FileStore`. It is synchronous on purpose;
+  network fetching is explicit (see `Peer::fetch`), so nothing blocks inside it.
+
+### be-commit
+
+- `Commit` is `{parents, manifest, author, time, kind, references}`, stored as an
+  encrypted object whose hash is its `CommitId`. Several parents means a merge.
+- `references` is the edge set derived from the **sealed** state, recorded once
+  per commit. This is what makes the reference graph correct: it always describes
+  content that was actually stored.
+- `CommitStore` walks the DAG and tolerates pruned history: a missing commit
+  truncates a chain instead of breaking it, so `first_parent_chain`, `ancestry`
+  and `common_ancestor` all keep working after retention runs.
+- `retention::plan` thins history. It pins bookmarks, keeps everything inside
+  `keep_all_within`, and then thins by widening age buckets, preferring within
+  each bucket the commit with the longest **quiet interval** after it. A state
+  someone left alone for an hour outranks the keystroke bursts around it.
+- `merge` is diff3. `merge_slices` walks the base indices that both sides left
+  equal; the regions between those anchors take whichever side changed, or
+  conflict when both did. `merge_lines`, `merge_map` and `render_conflicts` are
+  built on it.
+
+### be-session
+
+- `Lease` is ownership. The first participant owns the session; a claim succeeds
+  only against the generation the claimant last saw, and only when the lease has
+  expired or the owner is gone. Generation numbers stop a stale claim from
+  stomping a newer owner.
+- `clean_at` is the commit the owner last reported its state durable at. It
+  outlives the session going empty (see `sessions::forgettable`), so a peer
+  taking over an abandoned session can tell whether anything was unpublished.
+- `resume` decides whether a returning peer merges, and the answer comes from
+  history, not from having been away: an ancestor head fast-forwards, a
+  descendant head publishes, and only genuine divergence merges.
+- `Sequencer` and `Follower` are the two ends of the ordering. Operations carry
+  an `OpId`, so work a peer submitted before losing its connection is
+  deduplicated on the way back in rather than applied twice.
+
+### be-graph
+
+Liveness is hierarchical. A block is live when its parent chain reaches
+`BlockParent::Root`; a block with no parent is pending deletion **together with
+its subtree, even when something else still references it**. References are for
+navigation and access, never for liveness.
+
+That is what makes reclamation reference counting rather than tracing: a block
+holds its commits, a commit holds its chunk hashes, and `ObjectRefs` deletes an
+object when the last holder releases it. There is no cycle to trace and no mark
+and sweep. Do not reintroduce one.
+
+### be-server
+
+SQLite for metadata, a `FileStore` for objects, and a websocket carrying
+postcard frames.
+
+- A publish is a compare-and-swap on the head. A publish against a stale head
+  comes back `Rejected` with the head to merge against, rather than being
+  silently ordered after it.
+- A publish writes one head update, the handful of edge rows the commit
+  declares, and refcounts for chunks it actually introduced. It does not rewrite
+  the workspace.
+- Workspace membership is the trust boundary: every member has `Edit` on every
+  block in the workspace. Per-block grants are recorded and reported but do not
+  restrict members yet; they are the hook for sharing with non-members.
+- The graph is cached per workspace in memory and dropped on any error so it
+  reloads from the database rather than drifting.
+
+### be-block
+
+The old `Block` trait split into parts a type opts into.
+
+```rust
+trait BlockContent {                    // durable form and the edges it declares
+    const CONTENT_TYPE: Uuid;
+    fn encode(&self) -> Vec<u8>;
+    fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
+    fn references(&self) -> Vec<Uuid> { Vec::new() }
+    fn name(&self) -> Option<String> { None }
+}
+trait LiveEdit: BlockContent {          // optional: what a session carries
+    type Op;
+    fn apply(&mut self, operation: &Self::Op);
+    fn rebase(operation: Self::Op, onto: &[Self::Op]) -> Option<Self::Op>;
+}
+trait Merge: BlockContent {             // required for offline editing
+    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self>;
+}
+trait Streamed: BlockContent {          // optional: header plus payload
+    type Header;
+    fn header(&self) -> Self::Header;
+    fn payload(&self) -> &[u8];
+    fn from_parts(header: Self::Header, payload: Vec<u8>) -> Self;
+}
+```
+
+History and child manipulation are gone from the trait. Undo is client-local and
+against a sequencer it emits an inverse operation rather than rewinding state;
+children are graph operations.
+
+`Streamed` types encode as `[u32 header length][header][payload]`, which is what
+lets a reader take the header and then a byte range. `ImageContent` and
+`TextContent` are the two ported types.
+
+### be-client
+
+`Peer` is a local object store plus a connection.
+
+- `open` reads the head commit, fetches its chunks and decodes.
+- `save` chunks the content, uploads only what `MissingObjects` says the server
+  lacks, and publishes against the head it read.
+- `fetch` verifies that bytes the server returns hash to the hash that was asked
+  for. The server is not trusted with content, so do not drop this check.
+- `fetch_history` walks a commit's parents into the local store. Anything that
+  asks history a question (`resume`, `common_ancestor`) needs this first, or an
+  unfetched ancestor looks like a divergence.
+- `stream_header` and `stream_range` read a `Streamed` type without the payload.
+
+`Live<S, C>` is a block being edited in a session. The owner sequences and
+broadcasts; a follower applies its own edit immediately, rebases it against
+operations that arrive in between, and reconciles against the owner's echo. It
+keeps `confirmed` (server-ordered) and `visible` (`confirmed` plus pending),
+which is the same shape the old client used. `seal` writes a commit and
+heartbeats `clean_at`. `reconcile` runs the resume decision and merges when it
+has to.
+
+## Adding a content type
+
+1. Implement `BlockContent` in `crates/be-block/src/`. Derive the edges from the
+   converged state in `references`; they are recorded per commit.
+2. Implement `Merge`. A keyed structure can usually use `be_commit::merge_map`;
+   text-shaped content can use `merge_lines`. The default for anything opaque is
+   a conflict, never a silent pick.
+3. Implement `LiveEdit` only if the type is edited live. `rebase` transforms an
+   operation against operations the sequencer already accepted; returning `None`
+   means the operation no longer means anything and is dropped.
+4. Implement `Streamed` if the payload is large or the header is useful alone.
+5. Test the transform and the merge in `crates/be-block/src/tests/`, and the
+   round trip through a real server in `crates/be-client/src/tests/`.
+
+## Running it
+
+```
+cargo run -p be-server -- --add-account you@example.com "You" hunter2hunter2 Workspace
+cargo run -p be-server -- --address 127.0.0.1:8787 --data-dir be-server-data
+```
+
+Tests start their own server on an ephemeral port; see `Harness` in
+`crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`.
+
+## What is not built yet
+
+- Nothing in `block-app` uses any of this. Wiring an editor to `be-client` is the
+  next migration step, and it should be done one editor at a time.
+- Keys are passed in whole (`ContentKey`). There is no per-recipient key
+  wrapping, so sharing a block across accounts does not yet share its key, and
+  `crypto::STATIC_KEY` in the old client has no counterpart here on purpose.
+- Sessions relay through the server. Direct peer connections are a latency
+  optimisation on the same protocol and can come later.
+- Server-side search is impossible under end-to-end encryption. It has to become
+  client-side over the local cache, or a client-built encrypted index.
+- The server learns the shape of the graph, object sizes and timings. It never
+  learns content. If graph privacy matters later, block ids can be blinded per
+  workspace, but the server still needs some graph to do access inheritance.
+- Retention is driven by the client calling `Peer::prune`. Nothing schedules it.
+- An empty session is remembered while it carries a `clean_at`, which is bounded
+  by the number of blocks that have been edited live. If that grows, evict by
+  age rather than dropping the marker.
