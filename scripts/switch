@@ -1,5 +1,23 @@
 #!/bin/sh
 
+usage() {
+  echo "Usage: $0 <branch>"
+  echo
+  echo "Fetches from origin and checks out origin/<branch> in detached HEAD state."
+}
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  "")
+    usage >&2
+    exit 1
+    ;;
+esac
+
 BRANCHNAME="$1"
 
-git fetch && git -c advice.detachedHead=false checkout "origin/$BRANCHNAME"
+git fetch &&
+  git -c advice.detachedHead=false checkout "origin/$BRANCHNAME"
