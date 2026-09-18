@@ -9,7 +9,7 @@ mod selector;
 mod signal;
 
 pub use computation::{Effect, create_effect};
-pub use keyed::{KeyedItems, KeyedStore};
+pub use keyed::{KeyedItems, KeyedStore, Mapping};
 pub use memo::{Memo, create_memo};
 pub use reactive_macros::Store;
 pub use runtime::{batch, settle, untrack};

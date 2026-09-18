@@ -24,14 +24,16 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
                     >
                         <Text string="edit" />
                     </Button>
-                    <ForEach @node_ref=&list spacing=0.0 keys={store.keys()}>
-                        {move |index: u32| {
-                            let item = rows.get(&index);
-                            view! {
-                                <Text string={item} />
-                            }
-                        }}
-                    </ForEach>
+                    <Column @node_ref=&list spacing=0.0>
+                        <ForEach keys={store.keys()}>
+                            {move |index: u32| {
+                                let item = rows.get(&index);
+                                view! {
+                                    <Text string={item} />
+                                }
+                            }}
+                        </ForEach>
+                    </Column>
                 </Column>
             }
         }

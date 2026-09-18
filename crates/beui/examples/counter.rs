@@ -91,14 +91,16 @@ fn App() -> NodeId {
                     </Button>
                 </Show>
             </Row>
-            <ForEach spacing=4.0 keys={history.keys()}>
-                {move |id: u64| {
-                    let value = history.get(&id);
-                    view! {
-                        <HistoryEntry value />
-                    }
-                }}
-            </ForEach>
+            <Column spacing=4.0>
+                <ForEach keys={history.keys()}>
+                    {move |id: u64| {
+                        let value = history.get(&id);
+                        view! {
+                            <HistoryEntry value />
+                        }
+                    }}
+                </ForEach>
+            </Column>
         </Column>
     }
 }

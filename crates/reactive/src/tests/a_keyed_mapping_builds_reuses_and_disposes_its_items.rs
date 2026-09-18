@@ -17,19 +17,19 @@ fn a_keyed_mapping_builds_reuses_and_disposes_its_items() {
         }
     });
 
-    assert_eq!(items.map(vec![1, 2]), vec![10, 20]);
+    assert_eq!(items.map(vec![1, 2]).items(), [10, 20]);
     assert_eq!(builds.get(), 2);
     assert_eq!(disposals.get(), 0);
 
     assert_eq!(
-        items.map(vec![2, 1]),
-        vec![20, 10],
+        items.map(vec![2, 1]).items(),
+        [20, 10],
         "a key that stayed must keep the item that was built for it"
     );
     assert_eq!(builds.get(), 2);
     assert_eq!(disposals.get(), 0);
 
-    assert_eq!(items.map(vec![2, 3]), vec![20, 30]);
+    assert_eq!(items.map(vec![2, 3]).items(), [20, 30]);
     assert_eq!(builds.get(), 3);
     assert_eq!(
         disposals.get(),

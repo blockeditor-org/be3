@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
-use crate::base::child_list::{ChildItem, ChildList};
+use crate::base::child_list::{ChildItem, ChildList, SlotId};
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
 
@@ -50,6 +50,7 @@ pub enum ItemSize {
     Percent(f32),
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct ListItem {
     pub(crate) child: NodeId,
     pub(crate) size: ItemSize,
@@ -356,13 +357,15 @@ impl Document {
             .set_all(items);
     }
 
-    pub(crate) fn child_sizes(&self, parent: NodeId) -> HashMap<NodeId, ItemSize> {
+    pub(crate) fn open_list_slot(&mut self, parent: NodeId) -> SlotId {
+        self.arena.get_mut_as::<ListNode>(parent).items.open()
+    }
+
+    pub(crate) fn fill_list_slot(&mut self, parent: NodeId, slot: SlotId, items: Vec<ListItem>) {
         self.arena
-            .get_as::<ListNode>(parent)
+            .get_mut_as::<ListNode>(parent)
             .items
-            .iter()
-            .map(|item| (item.child, item.size))
-            .collect()
+            .fill(slot, items);
     }
 
     pub(crate) fn set_child_size(&mut self, parent: NodeId, child: NodeId, size: ItemSize) {

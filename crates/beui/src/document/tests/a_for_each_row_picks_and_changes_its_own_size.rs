@@ -27,7 +27,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
                     >
                         <Text string="toggle" />
                     </Button>
-                    <ForEach @sizing=ItemSize::Percent(100.0) spacing=0.0 keys={vec![0, 1]}>
+                    <ForEach keys={vec![0, 1]}>
                         {move |index: usize| {
                             let (header, body) = (header.clone(), body.clone());
                             match index {
