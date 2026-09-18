@@ -9,6 +9,7 @@ argon2 = "0.5"
 be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
 be-protocol = { path = "../be-protocol" }
+be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
 futures-util = "0.3"
 rand = "0.8"

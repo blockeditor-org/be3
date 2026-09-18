@@ -4,6 +4,7 @@ members = [
     "crates/be-graph",
     "crates/be-protocol",
     "crates/be-server",
+    "crates/be-session",
     "crates/be-store",
     "crates/beui",
     "crates/beui_macros",
