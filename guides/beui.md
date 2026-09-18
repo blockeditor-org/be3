@@ -379,6 +379,45 @@ keyboard toggle opens an on-screen keyboard that sends `Event::Key` and
 `Event::Text`; its Shift, Ctrl, and Alt keys latch until the next key, and they
 also apply to clicks, so Ctrl+Shift+I on it reopens the inspector.
 
+### The screen reader simulation
+
+"Simulate a screen reader" at the bottom of the Sim tab drops a curtain over the
+document and leaves only what a screen reader would say. The curtain covers the
+shown rectangle and not the inspector, so the panel stays usable while the
+document is hidden: the opacity slider decides how much of the layout shows
+through, and "Frost what is behind it" smears every leaf of the document into a
+block so shapes remain but nothing can be read.
+
+Nothing about the simulation reads the beui tree. It walks the AccessKit tree
+the document publishes every frame, in reading order, and it changes the
+document only by sending `ActionRequest`s back through
+`Context::accessibility_action` - the same path a platform screen reader uses.
+An item is anything with a name of its own, anything that answers Click, Focus,
+Increment or `SetValue`, and any scroll area; a control's own text is folded
+into its name instead of being read separately, the way a platform computes one.
+What gets spoken is the name, the role, the value when it differs from the name,
+and then the state - checked, expanded, selected, a slider's percentage,
+"dimmed" for a disabled control. A control with nothing to name it is announced
+as its bare role, which is the point: "button" on its own is the bug.
+
+While the curtain is up the document answers no pointer or keyboard input
+directly, so a click lands nowhere and the only way through the UI is the
+simulation. Keyboard mode walks with the left and right (or up and down) arrows,
+moves between controls with Tab and Shift+Tab, jumps with Home and End,
+activates with Enter or Space, adjusts with Minus and Plus, scrolls with Page Up
+and Page Down, and repeats the current item with R. Touch mode explores by
+touch: dragging a finger reads whatever is under it, flicking left or right
+moves an item at a time, flicking up or down adjusts a value, a double tap
+activates, two fingers tapping repeats, and dragging two fingers scrolls.
+Turning "Emulate touch with mouse" on as well is what makes touch mode drivable
+from a mouse. The same commands sit in the panel as buttons, so the whole
+simulation can be driven without either device, and the curtain lists the
+gestures for the mode it is in beside the last few things it said.
+
+Ctrl+Shift+F still parks keyboard focus in the panel, and Escape returns it; the
+panel does not otherwise hold focus while the curtain is up, so clicking one of
+the command buttons leaves the keyboard commands working.
+
 ## Write views
 
 Import `view!`, `#[component]`, signals, and base components from

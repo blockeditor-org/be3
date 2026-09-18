@@ -26,6 +26,7 @@ mod pixel_grid;
 pub mod reactive;
 #[cfg(feature = "render")]
 mod renderer;
+mod screen_reader;
 pub mod styled;
 pub mod unstyled;
 

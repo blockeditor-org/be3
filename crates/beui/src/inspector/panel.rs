@@ -11,10 +11,11 @@ use crate::reactive::{
     CenteredRow, Column, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
     WriteSignal, clone, component, create_memo, create_signal, view,
 };
+use crate::screen_reader::{Command, Mode};
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use crate::styled::{
     Button, ButtonVariant, Caption, Checkbox, Code, Heading, RadioGroup, Scrollbar, Separator,
-    Tabs, Theme, Tree,
+    Slider, Tabs, Theme, Tree,
 };
 use crate::unstyled;
 use crate::unstyled::TreeItem;
@@ -42,6 +43,21 @@ const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("3x", Some(3.0)),
 ];
 const THEMES: [(&str, Theme); 2] = [("Dark", Theme::DARK), ("E-ink", Theme::EINK)];
+const READER_MODES: [&str; 2] = ["Keyboard", "Touch"];
+const COMMANDS: [(&str, &str, Command); 12] = [
+    ("First", "first", Command::First),
+    ("Last", "last", Command::Last),
+    ("Previous", "previous", Command::Previous),
+    ("Next", "next", Command::Next),
+    ("Prev control", "previous_control", Command::PreviousControl),
+    ("Next control", "next_control", Command::NextControl),
+    ("Activate", "activate", Command::Activate),
+    ("Repeat", "repeat", Command::Repeat),
+    ("Value down", "decrement", Command::Decrement),
+    ("Value up", "increment", Command::Increment),
+    ("Scroll up", "scroll_up", Command::ScrollUp),
+    ("Scroll down", "scroll_down", Command::ScrollDown),
+];
 const THEME: Theme = Theme::DARK;
 
 #[derive(Clone, Default, PartialEq)]
@@ -331,6 +347,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
         .collect::<Vec<_>>();
     let (touch_state, mouse_state, ratio_state, theme_state) =
         (state.clone(), state.clone(), state.clone(), state.clone());
+    let reader_state = state.clone();
     view! {
         <Row spacing=BODY_SPACING>
             <Scroll
@@ -378,9 +395,83 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                             }}
                         />
                     </Column>
+                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <ScreenReaderSection state={reader_state} />
                 </Column>
             </Scroll>
             <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
+        </Row>
+    }
+}
+
+#[component]
+fn ScreenReaderSection(state: Rc<State>) -> NodeId {
+    let mode = state.screen_reader_mode.get().index();
+    let (enable_state, mode_state, opacity_state, frost_state) =
+        (state.clone(), state.clone(), state.clone(), state.clone());
+    let (first_state, second_state, third_state) = (state.clone(), state.clone(), state.clone());
+    let (fourth_state, fifth_state) = (state.clone(), state.clone());
+    view! {
+        <Column spacing=TIMING_SPACING>
+            <Heading content="Screen reader" />
+            <Checkbox
+                @test_id={"inspector.screen_reader.enabled"}
+                label="Simulate a screen reader"
+                checked={state.screen_reader.get()}
+                on_change={move |enabled| enable_state.enable_screen_reader(enabled)}
+            />
+            <RadioGroup
+                @test_id={"inspector.screen_reader.mode"}
+                labels={READER_MODES.iter().map(|label| (*label).to_owned()).collect::<Vec<_>>()}
+                selected={Some(mode)}
+                on_change={move |index: Option<usize>| {
+                    mode_state.choose_screen_reader_mode(Mode::from_index(index.unwrap_or(0)));
+                }}
+            />
+            <Caption content="Curtain opacity" />
+            <Slider
+                @test_id={"inspector.screen_reader.opacity"}
+                label="Curtain opacity"
+                value={state.curtain_opacity.get()}
+                on_change={move |value| opacity_state.set_curtain_opacity(value)}
+            />
+            <Checkbox
+                @test_id={"inspector.screen_reader.frost"}
+                label="Frost what is behind it"
+                checked={state.curtain_frost.get()}
+                on_change={move |frost| frost_state.frost_curtain(frost)}
+            />
+            <CommandRow row=0 state />
+            <CommandRow row=1 state={first_state} />
+            <CommandRow row=2 state={second_state} />
+            <CommandRow row=3 state={third_state} />
+            <CommandRow row=4 state={fourth_state} />
+            <CommandRow row=5 state={fifth_state} />
+        </Column>
+    }
+}
+
+#[component]
+fn CommandRow(row: usize, state: Rc<State>) -> NodeId {
+    let (left_label, left_id, left) = COMMANDS[row * 2];
+    let (right_label, right_id, right) = COMMANDS[row * 2 + 1];
+    let right_state = state.clone();
+    view! {
+        <Row spacing=TIMING_SPACING>
+            <Button
+                @sizing=ItemSize::Percent(100.0)
+                @test_id={format!("inspector.screen_reader.{left_id}")}
+                label={left_label.to_owned()}
+                variant=ButtonVariant::Secondary
+                on_click={move || state.command(left)}
+            />
+            <Button
+                @sizing=ItemSize::Percent(100.0)
+                @test_id={format!("inspector.screen_reader.{right_id}")}
+                label={right_label.to_owned()}
+                variant=ButtonVariant::Secondary
+                on_click={move || right_state.command(right)}
+            />
         </Row>
     }
 }
