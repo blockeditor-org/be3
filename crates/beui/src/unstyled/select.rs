@@ -25,6 +25,7 @@ pub struct SelectTriggerHandle {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
+    pub disabled: Memo<bool>,
 }
 
 pub struct SelectOptionHandle {
@@ -72,6 +73,7 @@ type Handle = Rc<State>;
 pub fn Select(
     options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
+    #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<Option<usize>>,
     search_placeholder: Prop<String>,
     search_font_size: Prop<f32>,
@@ -108,6 +110,7 @@ pub fn Select(
     let (focus, set_focus) = create_signal(Focus::Away);
     let focused = create_selector(clone!(focus -> move || focus.get()));
     let (search_text, set_search_text) = create_signal(String::new());
+    let disabled = create_memo(move || disabled.get());
 
     let state: Handle = Rc::new(State {
         trigger: NodeRef::new(),
@@ -147,12 +150,14 @@ pub fn Select(
         node.set_expanded(state.open.get());
         node
     }));
+    let trigger_disabled = disabled.clone();
     let trigger_content = move |handle: ButtonHandle| {
         trigger_view.call(SelectTriggerHandle {
             selected,
             hovered: handle.hovered,
             active: handle.active,
             focused: handle.focused,
+            disabled: trigger_disabled.clone(),
         })
     };
 
@@ -207,6 +212,7 @@ pub fn Select(
             <unstyled::Button
                 @node_ref={&state.trigger}
                 accessibility={trigger_accessibility}
+                disabled={disabled}
                 focused={focused.memo(Focus::Trigger)}
                 on_focus_change={move |has_focus: bool| blur(&trigger_blur, has_focus, Focus::Trigger)}
                 content={trigger_content}

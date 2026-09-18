@@ -115,10 +115,11 @@ pub fn Caption(
 #[component]
 pub fn Paragraph(
     content: Prop<String>,
+    #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = muted_color())] color: Prop<Color32>,
 ) -> NodeId {
     let text = create_memo(move || content.get());
     view! {
-        <Text string={text} font_size=FONT_BODY color wrap=true />
+        <Text string={text} font_size=FONT_BODY color align wrap=true />
     }
 }

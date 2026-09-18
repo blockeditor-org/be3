@@ -2,15 +2,16 @@ use super::*;
 
 #[test]
 fn a_playing_track_shows_its_position() {
-    let (mut editor, host, _block) = editor();
+    let (mut test, editor, _block) = editor();
 
-    host.set_audio(AudioStatus {
+    editor.host().set_audio(AudioStatus {
         playing: true,
         position_micros: 65_000_000,
         duration_micros: Some(200_000_000),
         error: None,
     });
-    editor.step();
+    test.run();
 
-    editor.snapshot("a_playing_track_shows_its_position");
+    assert_eq!(test.label("audio.position"), "1:05 / 3:20");
+    test.snapshot("a_playing_track_shows_its_position");
 }

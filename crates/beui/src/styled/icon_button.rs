@@ -14,7 +14,7 @@ const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
 pub fn IconButton(
-    glyph: String,
+    glyph: Prop<String>,
     label: Prop<String>,
     #[prop(default = ButtonVariant::Secondary)] variant: ButtonVariant,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -25,29 +25,39 @@ pub fn IconButton(
         node.set_label(label.get());
         node
     });
+    let disabled = create_memo(move || disabled.get());
+    let face = disabled.clone();
+    let glyph = create_memo(move || glyph.get());
     view! {
         <unstyled::Button
             disabled
             accessibility
             on_click={move || on_click.call()}
             content={move |handle| view! {
-                <IconButtonFace handle variant glyph={glyph.clone()} />
+                <IconButtonFace handle variant glyph={glyph.clone()} disabled={face.clone()} />
             }}
         />
     }
 }
 
 #[component]
-fn IconButtonFace(handle: unstyled::ButtonHandle, variant: ButtonVariant, glyph: String) -> NodeId {
+fn IconButtonFace(
+    handle: unstyled::ButtonHandle,
+    variant: ButtonVariant,
+    glyph: Prop<String>,
+    disabled: Prop<bool>,
+) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
         active,
         focused,
     } = handle;
     let theme = use_theme();
-    let fill_color =
-        create_memo(clone!(theme -> move || variant.fill(&theme, hovered.get(), active.get())));
-    let icon_color = create_memo(clone!(theme -> move || variant.label(&theme)));
+    let off = create_memo(move || disabled.get());
+    let fill_color = create_memo(clone!(theme off -> move || {
+        variant.fill(&theme, off.get(), hovered.get(), active.get())
+    }));
+    let icon_color = create_memo(clone!(theme off -> move || variant.label(&theme, off.get())));
     view! {
         <Frame
             outline={theme.accent.clone()}

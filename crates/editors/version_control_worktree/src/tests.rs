@@ -6,17 +6,19 @@ use block_client::blocks::version_control_data::{MAIN_BRANCH, VersionControlData
 use block_client::blocks::version_control_worktree::{
     VersionControlWorktree, VersionControlWorktreeOperation,
 };
-use block_editor_plugin::{App as _, EditorHost};
-use block_ui_test::EditorTest;
+use block_editor_plugin::{Editor, EditorHost};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::VersionControlWorktreeApp;
 
 mod every_member_of_the_worktree_gets_a_row;
 mod the_checked_out_branch_is_marked_in_the_sidebar;
+mod the_sidebar_goes_away_when_the_host_takes_the_chrome;
 
 struct Fixture {
-    editor: EditorTest<'static, VersionControlWorktreeApp>,
+    test: BeuiTest<VersionControlWorktreeApp>,
+    editor: Editor,
     members: Vec<Uuid>,
 }
 
@@ -44,9 +46,12 @@ fn editor(members: usize) -> Fixture {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(ACCOUNT);
-    let mut app = VersionControlWorktreeApp::default();
-    app.connect(host, client, worktree.id());
-    let mut editor = EditorTest::new(app);
-    editor.run();
-    Fixture { editor, members }
+    let editor = Editor::new(host, client, worktree.id());
+    let mut test = BeuiTest::new(editor.clone());
+    test.run();
+    Fixture {
+        test,
+        editor,
+        members,
+    }
 }

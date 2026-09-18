@@ -604,6 +604,7 @@ dependencies = [
 name = "audio_block"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block-client",
  "block-editor-plugin",
  "block-ui-test",
@@ -2024,6 +2025,7 @@ checksum = "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8"
 name = "database"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
@@ -2035,6 +2037,7 @@ dependencies = [
 name = "database_schema"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block-client",
  "block-editor-plugin",
  "block-ui-test",
@@ -2932,6 +2935,7 @@ dependencies = [
 name = "game_module"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block-client",
  "block-editor-plugin",
  "block-ui-test",
@@ -7480,6 +7484,7 @@ dependencies = [
 name = "version_control_worktree"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",

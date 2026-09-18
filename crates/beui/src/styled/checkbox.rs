@@ -20,9 +20,14 @@ const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
-pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
+pub fn Checkbox(
+    label: Prop<String>,
+    checked: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    on_change: Callback<bool>,
+) -> NodeId {
     view! {
-        <Toggle checked on_change={move |checked| on_change.call(checked)}>
+        <Toggle checked disabled on_change={move |checked| on_change.call(checked)}>
             {move |handle: ToggleHandle| {
                 view! {
                     <CheckboxFace handle label />
@@ -38,16 +43,20 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
         checked,
         hovered,
         focused,
+        disabled,
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(
-        clone!(checked theme -> move || box_fill(&theme, checked.get(), hovered.get())),
-    );
+    let fill_color = create_memo(clone!(checked theme disabled -> move || {
+        box_fill(&theme, disabled.get(), checked.get(), hovered.get())
+    }));
     let border_visible = create_memo(clone!(checked -> move || !checked.get()));
     let box_border = theme.border.clone();
     let mark_color = theme.on_accent.clone();
-    let label_color = theme.text.clone();
+    let label_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        true => theme.text_muted.get(),
+        false => theme.text.get(),
+    }));
 
     view! {
         <Frame
@@ -95,7 +104,13 @@ pub fn checkbox_checked(document: &Document, checkbox: NodeId) -> bool {
     unstyled::toggle_checked(document, checkbox).get()
 }
 
-fn box_fill(theme: &ThemeStore, checked: bool, hovered: bool) -> Color32 {
+fn box_fill(theme: &ThemeStore, disabled: bool, checked: bool, hovered: bool) -> Color32 {
+    if disabled {
+        return match checked {
+            true => theme.accent_soft.get(),
+            false => theme.surface.get(),
+        };
+    }
     match (checked, hovered) {
         (true, false) => theme.accent.get(),
         (true, true) => theme.accent_hover.get(),

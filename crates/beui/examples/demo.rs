@@ -7,8 +7,8 @@ use beui::reactive::{
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
-    Link, Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
-    Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, use_theme,
+    Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select,
+    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, TreeItem,
@@ -805,6 +805,9 @@ fn LinkControls() -> NodeId {
 #[component]
 fn NameControls() -> NodeId {
     let (greeting_text, set_greeting_text) = create_signal(greeting_label(""));
+    let (seats, set_seats) = create_signal(4.0f64);
+    let seats_text = create_memo(clone!(seats -> move || format!("{} seats", seats.get())));
+    let (locked, set_locked) = create_signal(true);
 
     view! {
         <List spacing=12.0>
@@ -824,6 +827,36 @@ fn NameControls() -> NodeId {
                 }}
             />
             <Paragraph content="Click to place the caret, drag to select, and Ctrl+Z to undo." />
+            <Separator />
+            <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+                <Caption content="Seats" />
+                <Caption
+                    @sizing=ItemSize::Percent(100.0)
+                    content={seats_text}
+                    align=TextAlign::End
+                />
+            </List>
+            <NumberInput
+                value={seats}
+                min=1.0
+                max=12.0
+                label="Seats"
+                on_change={move |value| set_seats.set(value)}
+            />
+            <Separator />
+            <Switch label="Locked" on={locked.clone()} on_change={move |on| set_locked.set(on)} />
+            <TextInput value="Read only while locked" disabled={locked.clone()} />
+            <Select
+                options={view! {
+                    <ChoiceOption label="String" />
+                    <ChoiceOption label="Number" />
+                }}
+                selected=Some(0)
+                label="Field type"
+                disabled={locked.clone()}
+            />
+            <Checkbox label="Minimum" checked=false disabled={locked.clone()} />
+            <Button label="Save" variant=ButtonVariant::Primary disabled={locked} />
         </List>
     }
 }

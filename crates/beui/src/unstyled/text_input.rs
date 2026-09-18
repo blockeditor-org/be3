@@ -25,7 +25,7 @@ use crate::unstyled::MenuRowHandle;
 use beui_macros::{component, view};
 
 use crate::reactive::{
-    Callback, Child, ClickCatcher, Dynamic, Focusable, Frame, List, Memo, NodeRef, Prop,
+    Callback, Child, ClickCatcher, Dynamic, Focusable, Frame, IntoProp, List, Memo, NodeRef, Prop,
     ReadSignal, Render, RenderFn, Show, Text, WriteSignal, clone, component_accessibility,
     copy_text, create_effect, create_memo, create_signal, intrinsic, percent, set_component_state,
     with_document,
@@ -43,6 +43,7 @@ pub struct TextInputHandle {
     pub field: Child,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
+    pub disabled: Memo<bool>,
 }
 
 #[derive(Clone, Default)]
@@ -110,6 +111,7 @@ type Handle = Rc<RefCell<Editor>>;
 pub fn TextInput(
     value: Prop<String>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
     #[prop(default = FONT_SIZE)] font_size: Prop<f32>,
@@ -142,13 +144,21 @@ pub fn TextInput(
     let placeholder = create_memo(move || placeholder.get());
     let string = shown_string(&text_value, placeholder.clone());
     let color = shown_color(&text_value, color, placeholder_color);
+    let disabled = create_memo(move || disabled.get());
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::TextInput)));
-    component_accessibility(create_memo(clone!(text_value placeholder -> move || {
-        let mut node = accessibility.get();
-        node.set_value(text_value.get());
-        node.set_placeholder(placeholder.get());
-        node
-    })));
+    component_accessibility(create_memo(
+        clone!(text_value placeholder disabled -> move || {
+            let mut node = accessibility.get();
+            node.set_value(text_value.get());
+            node.set_placeholder(placeholder.get());
+            if disabled.get() {
+                node.set_disabled();
+            } else {
+                node.clear_disabled();
+            }
+            node
+        }),
+    ));
 
     let editor: Handle = Rc::new(RefCell::new(Editor {
         core: core(&initial),
@@ -179,25 +189,49 @@ pub fn TextInput(
         }
     }));
 
+    let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
+        true => CursorIcon::Default,
+        false => CursorIcon::Text,
+    }));
+    let tab_stop = disabled.clone().into_prop().map(|disabled: bool| !disabled);
+    let (capture_off, press_off, tap_off, drag_off, field_off) = (
+        disabled.clone(),
+        disabled.clone(),
+        disabled.clone(),
+        disabled.clone(),
+        disabled.clone(),
+    );
     let catcher = view! {
         <ClickCatcher
-            cursor=CursorIcon::Text
+            cursor
             repeat_drag={autoscroll}
             capture_at={{
                 let editor = editor.clone();
-                move |pos: Pos2| handle_at(&editor, pos).is_some()
+                move |pos: Pos2| !capture_off.get_untracked() && handle_at(&editor, pos).is_some()
             }}
             on_press={{
                 let editor = editor.clone();
-                move |press: PointerPress| point(&editor, press)
+                move |press: PointerPress| {
+                    if !press_off.get_untracked() {
+                        point(&editor, press);
+                    }
+                }
             }}
             on_click_at={{
                 let editor = editor.clone();
-                move |press: PointerPress| tap(&editor, press)
+                move |press: PointerPress| {
+                    if !tap_off.get_untracked() {
+                        tap(&editor, press);
+                    }
+                }
             }}
             on_drag={{
                 let editor = editor.clone();
-                move |press: PointerPress| extend(&editor, press)
+                move |press: PointerPress| {
+                    if !drag_off.get_untracked() {
+                        extend(&editor, press);
+                    }
+                }
             }}
             on_active_change={move |active: bool| {
                 if !active {
@@ -231,7 +265,12 @@ pub fn TextInput(
                     </Frame>
                 };
                 match content {
-                    Some(build) => build.call(TextInputHandle { field, hovered, focused }),
+                    Some(build) => build.call(TextInputHandle {
+                        field,
+                        hovered,
+                        focused,
+                        disabled: field_off.clone(),
+                    }),
                     None => field,
                 }
             }}
@@ -247,6 +286,7 @@ pub fn TextInput(
     view! {
         <Focusable
             focused={focus_request}
+            tab_stop
             on_focus_change={{
                 let editor = editor.clone();
                 move |is_focused: bool| {
@@ -269,12 +309,18 @@ pub fn TextInput(
             }}
             on_text={{
                 let editor = editor.clone();
-                move |typed: String| insert(&editor, &typed)
+                let disabled = disabled.clone();
+                move |typed: String| {
+                    if !disabled.get_untracked() {
+                        insert(&editor, &typed);
+                    }
+                }
             }}
             on_key={{
                 let editor = editor.clone();
+                let disabled = disabled.clone();
                 move |press: KeyPress| {
-                    on_key_override.call(press) || key(&editor, press)
+                    !disabled.get_untracked() && (on_key_override.call(press) || key(&editor, press))
                 }
             }}
         >
