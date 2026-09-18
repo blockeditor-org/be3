@@ -100,13 +100,6 @@ impl<T> ChildList<T> {
         };
         found.items = SlotItems::Many(items);
     }
-
-    pub(crate) fn set_all(&mut self, items: Vec<T>) {
-        self.slots.clear();
-        for item in items {
-            self.push(item);
-        }
-    }
 }
 
 impl<T: ChildItem> ChildList<T> {
@@ -114,16 +107,12 @@ impl<T: ChildItem> ChildList<T> {
         self.iter().map(ChildItem::node).collect()
     }
 
-    pub(crate) fn contains(&self, child: NodeId) -> bool {
-        self.iter().any(|item| item.node() == child)
-    }
-
     pub(crate) fn find(&self, child: NodeId) -> Option<&T> {
         self.iter().find(|item| item.node() == child)
     }
 
-    pub(crate) fn find_mut(&mut self, child: NodeId) -> Option<&mut T> {
-        self.iter_mut().find(|item| item.node() == child)
+    pub(crate) fn contains(&self, child: NodeId) -> bool {
+        self.iter().any(|item| item.node() == child)
     }
 
     pub(crate) fn remove(&mut self, child: NodeId) {
@@ -136,5 +125,9 @@ impl<T: ChildItem> ChildList<T> {
             SlotItems::One(item) => item.node() != child,
             SlotItems::Many(_) => true,
         });
+    }
+
+    pub(crate) fn find_mut(&mut self, child: NodeId) -> Option<&mut T> {
+        self.iter_mut().find(|item| item.node() == child)
     }
 }

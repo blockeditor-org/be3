@@ -630,11 +630,25 @@ impl ListChild {
     }
 }
 
-fn build_row(parent: NodeId, build: impl FnOnce() -> ListChild) -> (NodeId, ItemSize) {
-    let scope = with_document(|document| node_scope(document, None));
+fn build_in_slot(
+    parent: NodeId,
+    slot: SlotId,
+    build: impl FnOnce() -> ListChild,
+) -> (NodeId, Scope) {
+    let scope = Scope::detached();
     let (node, size) = scope.context().run(|| build().watch(parent));
-    with_document(|document| document.register_node_scope(node, scope));
-    (node, size)
+    with_document(|document| {
+        document.fill_list_slot(parent, slot, vec![ListItem { child: node, size }]);
+    });
+    (node, scope)
+}
+
+fn discard_previous(previous: Option<(NodeId, Scope)>) {
+    let Some((node, scope)) = previous else {
+        return;
+    };
+    with_document(|document| document.remove_node(node));
+    drop(scope);
 }
 
 #[diagnostic::on_unimplemented(
@@ -987,27 +1001,24 @@ pub fn Show(condition: Prop<bool>, #[prop(children)] then: Render) -> NodeId {
 }
 
 #[component]
-pub fn Dynamic<T>(value: Prop<T>, #[prop(children)] view: RenderFn<T, ListChild>) -> NodeId
+pub fn Dynamic<T>(
+    value: Prop<T>,
+    #[prop(children)] view: RenderFn<T, ListChild>,
+) -> DynamicSegment<ListChild>
 where
     T: Clone + 'static,
 {
-    let parent = view! {
-        <Column spacing=0.0 />
-    };
-    let built: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
-    create_effect(move || {
-        let value = value.get();
-        let (child, size) = build_row(parent, || view.call(value));
-        let previous = built.replace(Some(child));
-        with_document(|document| {
-            if let Some(previous) = previous {
-                document.remove_child(parent, previous);
-                document.remove_node(previous);
-            }
-            document.append_child(parent, child, size);
+    DynamicSegment::new(move |parent, slot| {
+        let held: Rc<RefCell<Option<(NodeId, Scope)>>> = Rc::new(RefCell::new(None));
+        let owned = held.clone();
+        on_cleanup(move || drop(owned));
+        create_effect(move || {
+            let value = value.get();
+            let mut held = held.borrow_mut();
+            let built = build_in_slot(parent, slot, || view.call(value));
+            discard_previous(held.replace(built));
         });
-    });
-    parent
+    })
 }
 
 #[component]
@@ -1045,36 +1056,33 @@ pub fn Keyed<T, K>(
     value: Prop<T>,
     key: Func<T, K>,
     #[prop(children)] view: RenderFn<ReadSignal<T>, ListChild>,
-) -> NodeId
+) -> DynamicSegment<ListChild>
 where
     T: Clone + PartialEq + 'static,
     K: PartialEq + 'static,
 {
-    let parent = view! {
-        <Column spacing=0.0 />
-    };
-    let (current, set_current) = create_signal(value.peek());
-    let built: Rc<RefCell<Option<(K, NodeId)>>> = Rc::new(RefCell::new(None));
-    create_effect(move || {
-        let value = value.get();
-        let next = key.call(value.clone());
-        set_current.set(value);
-        let mut built = built.borrow_mut();
-        if built.as_ref().is_some_and(|(key, _)| *key == next) {
-            return;
-        }
-        let current = current.clone();
-        let view = view.clone();
-        let (child, size) = build_row(parent, move || view.call(current));
-        let previous = built.replace((next, child));
-        with_document(|document| {
-            document.set_children(parent, &[(child, size)]);
-            if let Some((_, previous)) = previous {
-                document.remove_node(previous);
+    DynamicSegment::new(move |parent, slot| {
+        let (current, set_current) = create_signal(value.peek());
+        let held: Rc<RefCell<Option<(K, NodeId, Scope)>>> = Rc::new(RefCell::new(None));
+        let owned = held.clone();
+        on_cleanup(move || drop(owned));
+        create_effect(move || {
+            let value = value.get();
+            let next = key.call(value.clone());
+            set_current.set(value);
+            let mut held = held.borrow_mut();
+            if held.as_ref().is_some_and(|(key, _, _)| *key == next) {
+                return;
             }
+            let current = current.clone();
+            let view = view.clone();
+            let (node, scope) = build_in_slot(parent, slot, move || view.call(current));
+            let previous = held
+                .replace((next, node, scope))
+                .map(|(_, node, scope)| (node, scope));
+            discard_previous(previous);
         });
-    });
-    parent
+    })
 }
 
 #[component]

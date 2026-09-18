@@ -300,9 +300,13 @@ fn TouchMenu(
                 view! {
                     <Overlay anchor open traps_focus=false on_dismiss={move || dismiss.set(None)}>
                         {panel.call(view! {
-                            <Dynamic value={actions}>
-                                {move |actions: Vec<MenuAction>| menu_rows(&editor, &row, actions)}
-                            </Dynamic>
+                            <Column spacing=0.0>
+                                <Dynamic value={actions}>
+                                    {move |actions: Vec<MenuAction>| {
+                                        menu_rows(&editor, &row, actions)
+                                    }}
+                                </Dynamic>
+                            </Column>
                         })}
                     </Overlay>
                 }

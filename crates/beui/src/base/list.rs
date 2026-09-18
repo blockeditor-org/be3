@@ -324,7 +324,7 @@ impl Document {
             .push(ListItem { child, size });
     }
 
-    pub(crate) fn remove_child(&mut self, parent: NodeId, child: NodeId) {
+    pub fn remove_child(&mut self, parent: NodeId, child: NodeId) {
         if !self.arena.get_as::<ListNode>(parent).items.contains(child) {
             return;
         }
@@ -332,29 +332,6 @@ impl Document {
             .get_mut_as::<ListNode>(parent)
             .items
             .remove(child);
-    }
-
-    pub(crate) fn set_children(&mut self, parent: NodeId, children: &[(NodeId, ItemSize)]) {
-        let items = &self.arena.get_as::<ListNode>(parent).items;
-        let unchanged = items.len() == children.len()
-            && items
-                .iter()
-                .zip(children)
-                .all(|(item, (child, size))| item.child == *child && item.size == *size);
-        if unchanged {
-            return;
-        }
-        let items = children
-            .iter()
-            .map(|(child, size)| ListItem {
-                child: *child,
-                size: *size,
-            })
-            .collect();
-        self.arena
-            .get_mut_as::<ListNode>(parent)
-            .items
-            .set_all(items);
     }
 
     pub(crate) fn open_list_slot(&mut self, parent: NodeId) -> SlotId {

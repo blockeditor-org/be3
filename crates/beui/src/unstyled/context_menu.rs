@@ -60,26 +60,28 @@ pub fn ContextMenu(
                     open
                     on_dismiss={move || dismiss.set(false)}
                 >
-                    <Dynamic value={items}>
-                        {move |items: Vec<MenuItem>| {
-                            let (row, panel, close) = (row.clone(), panel.clone(), close.clone());
-                            let content = content.clone();
-                            let on_select = on_select.clone();
-                            panel.call(view! {
-                                <MenuList
-                                    @node_ref=&content
-                                    items
-                                    row
-                                    panel={panel.clone()}
-                                    active={active.clone()}
-                                    on_select={move |path: Vec<usize>| {
-                                        on_select.call(path);
-                                        close.set(false);
-                                    }}
-                                />
-                            })
-                        }}
-                    </Dynamic>
+                    <Column spacing=0.0>
+                        <Dynamic value={items}>
+                            {move |items: Vec<MenuItem>| {
+                                let (row, panel, close) = (row.clone(), panel.clone(), close.clone());
+                                let content = content.clone();
+                                let on_select = on_select.clone();
+                                panel.call(view! {
+                                    <MenuList
+                                        @node_ref=&content
+                                        items
+                                        row
+                                        panel={panel.clone()}
+                                        active={active.clone()}
+                                        on_select={move |path: Vec<usize>| {
+                                            on_select.call(path);
+                                            close.set(false);
+                                        }}
+                                    />
+                                })
+                            }}
+                        </Dynamic>
+                    </Column>
                 </Overlay>
             </Column>
         </ClickCatcher>
