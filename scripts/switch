@@ -1,0 +1,5 @@
+#!/bin/sh
+
+BRANCHNAME="$1"
+
+git fetch && git -c advice.detachedHead=false checkout "origin/$BRANCHNAME"
