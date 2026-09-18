@@ -187,6 +187,16 @@ impl<A: BeuiApp> BeuiTest<A> {
             .is_some()
     }
 
+    pub fn label(&self, test_id: &str) -> String {
+        let node = self
+            .document()
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        let mut collected = Vec::new();
+        collect_text(self.document(), node, &mut collected);
+        collected.join(" ")
+    }
+
     pub fn rect_of(&self, test_id: &str) -> Rect {
         self.output
             .as_ref()
@@ -297,5 +307,18 @@ impl<A: BeuiApp> BeuiTest<A> {
         let painting = capture::capture(output, self.size, self.pixels_per_point, Color32::BLACK)
             .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
+    }
+}
+
+fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<String>) {
+    if document.node_kind(node) == "text" {
+        let detail = document.node_detail(node).unwrap_or_default();
+        let text = detail.trim_matches('"');
+        if !text.is_empty() {
+            collected.push(text.to_owned());
+        }
+    }
+    for child in document.children(node) {
+        collect_text(document, child, collected);
     }
 }

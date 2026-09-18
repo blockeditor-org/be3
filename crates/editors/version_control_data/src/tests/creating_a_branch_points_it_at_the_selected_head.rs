@@ -4,10 +4,11 @@ use super::*;
 fn creating_a_branch_points_it_at_the_selected_head() {
     let (mut editor, block) = editor();
 
-    editor.find("repository.new-branch-name").focus();
-    editor.find("repository.new-branch-name").type_text("topic");
+    editor.click("repository.new-branch-name");
     editor.run();
-    editor.find("repository.create-branch").click();
+    editor.text("topic");
+    editor.run();
+    editor.click("repository.create-branch");
     editor.run();
 
     let data = block.read().unwrap();

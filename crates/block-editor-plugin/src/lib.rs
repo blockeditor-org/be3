@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod beui_frame;
+mod block_link;
 mod child;
 mod editor;
 #[cfg(target_arch = "wasm32")]
@@ -25,6 +26,7 @@ pub mod session;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
+pub use block_link::BlockLink;
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockFilter, BlockPick, ChildId, ChildLayer,
     ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorBand, EditorCapabilities,

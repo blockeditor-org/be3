@@ -1415,6 +1415,7 @@ dependencies = [
 name = "compiled_logic"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
@@ -3403,9 +3404,11 @@ dependencies = [
 name = "hotbar"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
+ "block-ui-test",
  "uuid",
 ]
 
@@ -6120,6 +6123,7 @@ dependencies = [
 name = "settings"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
@@ -7135,6 +7139,7 @@ dependencies = [
 name = "ui_settings"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block-client",
  "block-editor-plugin",
  "block-ui-test",
@@ -7318,6 +7323,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "version_control_data"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",

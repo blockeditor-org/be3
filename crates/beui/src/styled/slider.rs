@@ -23,6 +23,8 @@ const FOCUS_RING_OFFSET: f32 = 3.0;
 #[component]
 pub fn Slider(
     value: Prop<f32>,
+    #[prop(default = 0.0)] min: f32,
+    #[prop(default = 1.0)] max: f32,
     #[prop(default = String::new())] label: Prop<String>,
     on_change: Callback<f32>,
 ) -> NodeId {
@@ -34,7 +36,13 @@ pub fn Slider(
         node
     });
     view! {
-        <unstyled::Slider value accessibility on_change={move |value| on_change.call(value)}>
+        <unstyled::Slider
+            value
+            min
+            max
+            accessibility
+            on_change={move |value| on_change.call(value)}
+        >
             {move |handle: SliderHandle| {
                 view! {
                     <SliderTrack handle />
@@ -47,13 +55,14 @@ pub fn Slider(
 #[component]
 fn SliderTrack(handle: SliderHandle) -> NodeId {
     let SliderHandle {
-        value,
+        fraction,
         dragging,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
-    let filled_percent = create_memo(clone!(value -> move || filled_size(value.get())));
-    let rest_percent = create_memo(move || rest_size(value.get()));
+    let filled_percent = create_memo(clone!(fraction -> move || filled_size(fraction.get())));
+    let rest_percent = create_memo(move || rest_size(fraction.get()));
     let knob_color = create_memo(clone!(theme -> move || knob_fill_color(&theme, dragging.get())));
 
     view! {

@@ -4,11 +4,11 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 
 | Control | Keyboard behavior |
 | --- | --- |
-| Buttons, toggle buttons, checkboxes, switches, list rows, disclosure and accordion headers | Space or Enter activates on release. Escape or focus loss cancels a held activation. Repeated key-down events do not activate repeatedly. |
+| Buttons, links, toggle buttons, checkboxes, switches, list rows, disclosure and accordion headers | Space or Enter activates on release. Escape or focus loss cancels a held activation. Repeated key-down events do not activate repeatedly. |
 | Tabs | One Tab stop, at the selected tab. Left/Right wrap and select immediately. Home/End select the first/last tab. Up/Down leave the horizontal tab selection alone. |
 | Radio groups | One Tab stop, at the selected option or the first option when unselected. Arrows wrap and select; Space selects without clearing an existing selection. Home/End select the first/last option. |
 | Single-select listboxes | One Tab stop. Up/Down select the previous/next option and stop at the ends. Home/End select the first/last option. Typing searches case-insensitive prefixes; repeated letters cycle matches. The search resets after one second or when focus leaves. |
-| Sliders | Right/Up increase and Left/Down decrease by 5%. Home/End select minimum/maximum. Page Up/Down adjust by 20%. Values remain within the range. |
+| Sliders | Right/Up increase and Left/Down decrease by 5% of the range. Home/End select minimum/maximum. Page Up/Down adjust by 20% of the range. Values remain within the range, which is `min` to `max` and defaults to 0 to 1. |
 | Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Space inserts text. Paste replaces the selection. The desktop runner maps Command to Ctrl on macOS. |
 | Scroll areas | Tab focuses the area. Up/Down scroll by a line; Page Up/Down and Space/Shift+Space scroll by a page; Home/End reach the endpoints. Tabbing to a child or navigating a choice scrolls it into view. Unused Up/Down, Home/End, and Page keys on child controls scroll the nearest containing area. Virtual lists can be paged before tabbing into their realized controls. |
 | Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options by case-insensitive substring. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
@@ -39,6 +39,15 @@ key to scroll into view. It reports `on_select`, `on_expand` and
 the roving Tab stop, the marker, the indent and the keyboard model; the caller
 owns the rows themselves, so a tree of anything keyed by anything hashable
 works. The demo's Tree tab and the beui inspector both use it.
+
+`<Link>` takes a `label`, an optional `glyph` for an icon beside it, and
+`on_click`. It reads as a link rather than a button, underlines itself while
+hovered or focused, and goes muted and unclickable while `disabled`. It is the
+control for "take me to that thing", which is why
+`block_editor_plugin::BlockLink` is one: given the `Editor` and an
+`Option<ChildTarget>`, it follows the block's name and icon and opens it in the
+host when it is clicked, showing its `fallback` while the reference has not
+resolved.
 
 `<Select>` takes `options` and `selected` and opens a popup with a search box
 over the option list. `<ContextMenu>` wraps a `region` so a secondary click
