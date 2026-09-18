@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
-pub use crate::base::ItemSize;
+pub use crate::base::{Direction, ItemSize};
 
-use crate::base::{Align, Direction};
+use crate::base::Align;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{ClickHandler, Handler, NodeId};

@@ -11,7 +11,7 @@ use crate::reactive::{
     CenteredRow, Column, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
     WriteSignal, clone, component, create_memo, create_signal, view,
 };
-use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
+use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH};
 use crate::styled::{
     Button, ButtonVariant, Caption, Checkbox, Code, Heading, RadioGroup, Scrollbar, Separator,
     Tabs, Theme, Tree,
@@ -180,7 +180,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         let footer_simulation_visible = simulation_visible;
         view! {
             <Row spacing=0.0>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <Frame @sizing=ItemSize::Percent(100.0) color={THEME.surface} radius=0>
                     <Column spacing=0.0>
                         <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
@@ -207,7 +207,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 />
                             </Column>
                         </Frame>
-                        <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                        <Separator />
                         <Frame
                             @sizing=ItemSize::Percent(100.0)
                             padding_horizontal=BODY_PADDING
@@ -270,7 +270,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 </Show>
                             </Column>
                         </Frame>
-                        <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                        <Separator />
                         <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
                             <Column spacing=0.0>
                                 <Show condition={footer_tree_visible}>
@@ -356,7 +356,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         checked={state.mouse_simulation.get()}
                         on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
                     />
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Separator />
                     <Column spacing=TIMING_SPACING>
                         <Heading content="Device pixel ratio" />
                         <RadioGroup
@@ -369,7 +369,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                             }}
                         />
                     </Column>
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Separator />
                     <Column spacing=TIMING_SPACING>
                         <Heading content="Theme" />
                         <RadioGroup
@@ -423,7 +423,7 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
                         <Code content={scene} color={THEME.text_muted} />
                         <Code content={cache} color={THEME.text_muted} />
                     </Column>
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Separator />
                     <Column spacing=TIMING_SPACING>
                         <CenteredRow spacing=TIMING_SPACING>
                             <Heading @sizing=ItemSize::Percent(100.0) content="CPU time" />
@@ -437,7 +437,7 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
                         <TimingRow label="Accessibility" values={accessibility} />
                         <TimingRow label="Other" values={other} />
                     </Column>
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Separator />
                     <Column spacing=TIMING_SPACING>
                         <Heading content="Visualize" />
                         <Checkbox

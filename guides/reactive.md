@@ -555,7 +555,7 @@ that reads `narrower_than` and returns `ItemSize::Fixed` in a column where it
 returned `ItemSize::Percent` in a row, for instance.
 
 ```rust
-<Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+<Scrollbar @sizing=ItemSize::Fixed(BAR_HEIGHT) position />
 <Caption @sizing=ItemSize::Percent(100.0) content=count_text align=TextAlign::End />
 <Card @sizing={rows_size}>
 ```
