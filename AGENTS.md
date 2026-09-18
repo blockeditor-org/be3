@@ -11,6 +11,7 @@ Guides:
 - guides/pan_and_zoom.md
 - guides/reactive.md
 - guides/testing_a_gui.md
+- guides/the_new_block_stack.md
 
 Do not:
 - When making changes to serialization formats or network requests, do not consider backwards compatibility with existing clients or data. The project is still early, and it is fine to ask the user to delete all their data. The crash handler in block-app will offer this automatically.
