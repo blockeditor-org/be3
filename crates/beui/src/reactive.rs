@@ -873,6 +873,12 @@ macro_rules! child_type {
                 $crate::reactive::ChildSegment::One(self)
             }
         }
+
+        impl ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
+            fn from(child: $ty) -> Self {
+                Self::from($crate::reactive::ChildSegment::One(child))
+            }
+        }
     };
 }
 
@@ -887,6 +893,36 @@ impl<T> Default for Children<T> {
 impl<T, const N: usize> From<[ChildSegment<T>; N]> for Children<T> {
     fn from(segments: [ChildSegment<T>; N]) -> Self {
         Self(Vec::from(segments))
+    }
+}
+
+impl<T> From<ChildSegment<T>> for Children<T> {
+    fn from(segment: ChildSegment<T>) -> Self {
+        Self(vec![segment])
+    }
+}
+
+impl From<NodeId> for Children<NodeId> {
+    fn from(node: NodeId) -> Self {
+        Self::from(node.into_segment())
+    }
+}
+
+impl From<NodeId> for Children<ListChild> {
+    fn from(node: NodeId) -> Self {
+        Self::from(IntoSegment::<ListChild>::into_segment(node))
+    }
+}
+
+impl<T: AcceptsSizing> From<ListChild> for Children<T> {
+    fn from(child: ListChild) -> Self {
+        Self::from(child.into_segment())
+    }
+}
+
+impl<T> From<DynamicSegment<T>> for Children<T> {
+    fn from(segment: DynamicSegment<T>) -> Self {
+        Self::from(segment.into_segment())
     }
 }
 

@@ -6,8 +6,8 @@ use crate::geometry::Pos2;
 use crate::input::{CursorIcon, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Child, ClickCatcher, Dynamic, List, NodeRef, Prop, RenderFn, create_memo,
-    create_signal, set_component_state,
+    Callback, Child, Children, ClickCatcher, List, NodeRef, RenderFn, create_memo, create_signal,
+    set_component_state,
 };
 use crate::unstyled::menu::{MenuItem, MenuList, MenuRowHandle};
 
@@ -19,7 +19,7 @@ struct State {
 #[component]
 pub fn ContextMenu(
     children: Child,
-    items: Prop<Vec<MenuItem>>,
+    items: Children<MenuItem>,
     row: Option<RenderFn<MenuRowHandle>>,
     panel: Option<RenderFn<Child>>,
     on_select: Callback<Vec<usize>>,
@@ -42,7 +42,20 @@ pub fn ContextMenu(
     });
 
     let dismiss = set_open.clone();
-    let (active, close) = (open.clone(), set_open.clone());
+    let close = set_open.clone();
+    let menu = panel.call(view! {
+        <MenuList
+            @node_ref=&content
+            items
+            row
+            panel={panel.clone()}
+            active={open.clone()}
+            on_select={move |path: Vec<usize>| {
+                on_select.call(path);
+                close.set(false);
+            }}
+        />
+    });
     view! {
         <ClickCatcher
             cursor=CursorIcon::Default
@@ -60,28 +73,7 @@ pub fn ContextMenu(
                     open
                     on_dismiss={move || dismiss.set(false)}
                 >
-                    <List spacing=0.0>
-                        <Dynamic value={items}>
-                            {move |items: Vec<MenuItem>| {
-                                let (row, panel, close) = (row.clone(), panel.clone(), close.clone());
-                                let content = content.clone();
-                                let on_select = on_select.clone();
-                                panel.call(view! {
-                                    <MenuList
-                                        @node_ref=&content
-                                        items
-                                        row
-                                        panel={panel.clone()}
-                                        active={active.clone()}
-                                        on_select={move |path: Vec<usize>| {
-                                            on_select.call(path);
-                                            close.set(false);
-                                        }}
-                                    />
-                                })
-                            }}
-                        </Dynamic>
-                    </List>
+                    {menu}
                 </Overlay>
             </List>
         </ClickCatcher>

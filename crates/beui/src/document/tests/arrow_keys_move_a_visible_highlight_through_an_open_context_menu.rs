@@ -5,13 +5,13 @@ use crate::styled::ContextMenu;
 #[test]
 fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
     let region = NodeRef::new();
-    let items = vec![
-        unstyled::MenuItem::new("Copy"),
-        unstyled::MenuItem::new("Paste"),
-    ];
     let (document, [_menu]) = toolbar_of({
         let region = region.clone();
         move || {
+            let items = view! {
+                <unstyled::MenuItem label="Copy" />
+                <unstyled::MenuItem label="Paste" />
+            };
             [view! {
                 <ContextMenu items>
                     <MenuRegion @node_ref=&region />

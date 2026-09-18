@@ -5,13 +5,13 @@ use crate::styled::ContextMenu;
 #[test]
 fn opening_a_menu_damages_only_where_it_appears() {
     let region = NodeRef::new();
-    let items = vec![
-        unstyled::MenuItem::new("Copy"),
-        unstyled::MenuItem::new("Paste"),
-    ];
     let (document, [_menu]) = toolbar_of({
         let region = region.clone();
         move || {
+            let items = view! {
+                <unstyled::MenuItem label="Copy" />
+                <unstyled::MenuItem label="Paste" />
+            };
             [view! {
                 <ContextMenu items>
                     <MenuRegion @node_ref=&region />

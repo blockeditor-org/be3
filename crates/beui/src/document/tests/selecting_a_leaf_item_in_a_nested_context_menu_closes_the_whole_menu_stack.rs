@@ -5,18 +5,17 @@ use crate::styled::ContextMenu;
 #[test]
 fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() {
     let region = NodeRef::new();
-    let items = vec![unstyled::MenuItem::with_children(
-        "Share",
-        vec![
-            unstyled::MenuItem::new("Email"),
-            unstyled::MenuItem::new("Link"),
-        ],
-    )];
     let selected = Rc::new(RefCell::new(Vec::new()));
     let sink = selected.clone();
     let (document, [menu]) = toolbar_of({
         let region = region.clone();
         move || {
+            let items = view! {
+                <unstyled::MenuItem label="Share">
+                    <unstyled::MenuItem label="Email" />
+                    <unstyled::MenuItem label="Link" />
+                </unstyled::MenuItem>
+            };
             [view! {
                 <ContextMenu
                     items

@@ -5,14 +5,14 @@ use crate::styled::ContextMenu;
 #[test]
 fn hovering_a_context_menu_item_moves_keyboard_focus_to_it() {
     let region = NodeRef::new();
-    let items = vec![
-        unstyled::MenuItem::new("Copy"),
-        unstyled::MenuItem::new("Paste"),
-        unstyled::MenuItem::new("Delete"),
-    ];
     let (document, [menu]) = toolbar_of({
         let region = region.clone();
         move || {
+            let items = view! {
+                <unstyled::MenuItem label="Copy" />
+                <unstyled::MenuItem label="Paste" />
+                <unstyled::MenuItem label="Delete" />
+            };
             [view! {
                 <ContextMenu items>
                     <MenuRegion @node_ref=&region />
