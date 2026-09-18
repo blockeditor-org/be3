@@ -41,6 +41,7 @@ done
 
 assert_command cargo 'Install Rust from https://rustup.rs.'
 cd "$repository"
+time_script 'The plugin build'
 
 load_plugins
 directory="$repository/target/plugins/$profile"
@@ -55,13 +56,14 @@ build_games "$profile"
 # directory the manifest was found in, so the two travel together or neither
 # does.
 if [[ -n "$output" ]]; then
+    step "Packaging ${#plugins[@]} plugins in $output"
     mkdir -p "$output"
     rm -f "$output"/*.wasm "$output"/*.plugin.json
     cp "$directory"/*.wasm "$output/"
     for manifest in "${plugin_manifests[@]}"; do
         cp "$directory/$manifest" "$output/$manifest"
     done
-    echo "Packaged ${#plugins[@]} plugins in $output"
+    end_step
 fi
 
 echo "Built ${#plugins[@]} plugins in $directory"

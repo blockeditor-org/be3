@@ -14,6 +14,7 @@ echo "BE3_DOMAIN_NAME=$BE3_DOMAIN_NAME"
 echo "BE3_BACKEND_URL=$BE3_BACKEND_URL"
 
 cd "$repository"
+time_script 'Everything'
 
 cleanup() {
     kill 0
@@ -21,12 +22,15 @@ cleanup() {
 }
 trap cleanup INT
 
-echo 'Building the website and the server...'
+step 'Building the website and the server'
 "$internal/build-web.sh" "${build_arguments[@]}" &
-cargo build -p block-server &
+# The two builds run at once, so the server's cost cannot be read off the step
+# around both and is reported by the job itself.
+run_step 'The server build' cargo build -p block-server &
 wait
+end_step
 
-echo 'Running the servers...'
+step 'Running the servers'
 cargo run -p block-server -- --disable-registration &
 sudo BE3_DOMAIN_NAME="$BE3_DOMAIN_NAME" BE3_BACKEND_URL="$BE3_BACKEND_URL" \
     caddy run --config "$internal/web/Caddyfile" &

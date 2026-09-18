@@ -54,6 +54,7 @@ done
 
 assert_command cargo 'Install Rust from https://rustup.rs.'
 cd "$repository"
+time_script 'The native build'
 
 host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
 target_triple="${triple:-$host_triple}"
@@ -143,11 +144,12 @@ if $client; then
     ensure_ghostty_vt "$target_triple"
 fi
 
-echo "Building $description..."
+step "Building $description"
 cargo build "${cargo_arguments[@]}" "${selection[@]}"
 if $compiler; then
     use_precompiler "$artifact_directory"
 fi
+end_step
 
 executables=()
 if $server; then
@@ -174,12 +176,15 @@ fi
 # PDFium is a native library the PDF plugin loads at runtime, so it belongs to
 # the machine this is built for however the modules are built.
 if $client; then
+    step "Fetching PDFium for $target_triple"
     "$internal/fetch-pdfium.sh" --triple "$target_triple" --output "$artifact_directory"
+    end_step
 fi
 
 # Packaging is the one place files are copied: what a directory to hand over
 # holds cannot be spread across the target directory the way a local build is.
 if [[ -n "$output" ]]; then
+    step "Packaging $target_triple in $output"
     mkdir -p "$output"
     for executable in "${executables[@]}"; do
         cp "$artifact_directory/$executable" "$output/$executable"
@@ -197,7 +202,7 @@ if [[ -n "$output" ]]; then
             done
         fi
     fi
-    echo "Packaged $target_triple in $output"
+    end_step
 fi
 
 echo "Built $target_triple in $artifact_directory"
