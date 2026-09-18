@@ -3,8 +3,10 @@ use std::{path::PathBuf, time::Duration};
 use be_commit::{Commit, CommitId, CommitStore};
 use be_graph::BlockParent;
 use be_protocol::{
-    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, ServerMessage, encode as encode_message,
+    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, ServerMessage, SessionState,
+    encode as encode_message,
 };
+use be_session::{Resume, resume, takeover_needs_merge};
 use be_store::{ChunkerConfig, ContentKey, Hash, MemoryStore, ObjectStore, Vault};
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
@@ -16,10 +18,12 @@ use uuid::Uuid;
 use super::*;
 
 mod a_detached_subtree_is_collected_and_its_objects_freed;
+mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod blocks_publish_and_read_back_through_the_server;
+mod relayed_session_traffic_passes_through_the_server_sealed;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
@@ -224,6 +228,41 @@ impl TestClient {
             panic!("read failed: {response:?}");
         };
         block
+    }
+
+    async fn publish(
+        &mut self,
+        author: &Author,
+        block: Uuid,
+        commit: CommitId,
+        chunks: Vec<Hash>,
+        expected: Option<CommitId>,
+        time: i64,
+    ) -> ServerMessage {
+        self.upload(&author.store, &author.objects_of(commit, &chunks))
+            .await;
+        self.send(|request| ClientMessage::Publish {
+            request,
+            block,
+            commit,
+            expected,
+            chunks,
+            time,
+            pinned: false,
+            references_added: Vec::new(),
+            references_removed: Vec::new(),
+        })
+        .await
+    }
+
+    async fn join_session(&mut self, block: Uuid) -> (be_protocol::ClientId, SessionState) {
+        let response = self
+            .send(|request| ClientMessage::JoinSession { request, block })
+            .await;
+        let ServerMessage::Session { client, state, .. } = response else {
+            panic!("joining failed: {response:?}");
+        };
+        (client, state)
     }
 
     async fn history(&mut self, block: Uuid) -> Vec<HistoryEntry> {

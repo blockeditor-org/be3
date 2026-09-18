@@ -3,6 +3,7 @@ use std::{error::Error, fmt, io, path::PathBuf, sync::Arc};
 use be_protocol::{
     ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, WorkspaceRole, decode, encode,
 };
+use be_session::Claim;
 use futures_util::{SinkExt, StreamExt};
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -16,10 +17,12 @@ use uuid::Uuid;
 
 pub mod blocks;
 pub mod schema;
+pub mod sessions;
 pub mod store;
 pub mod watch;
 
 pub use blocks::PublishOutcome;
+pub use sessions::SessionRegistry;
 pub use store::{Identity, ServerStore};
 pub use watch::WatchHub;
 
@@ -94,6 +97,7 @@ pub async fn serve_until_shutdown(
 ) -> Result<(), ServerError> {
     let store = Arc::new(ServerStore::open(data_dir.into())?);
     let hub = Arc::new(WatchHub::new());
+    let registry = Arc::new(SessionRegistry::new());
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
@@ -102,8 +106,9 @@ pub async fn serve_until_shutdown(
                 let (stream, _) = accepted?;
                 let store = Arc::clone(&store);
                 let hub = Arc::clone(&hub);
+                let registry = Arc::clone(&registry);
                 tokio::spawn(async move {
-                    let _ = handle_connection(stream, store, hub).await;
+                    let _ = handle_connection(stream, store, hub, registry).await;
                 });
             }
         }
@@ -113,6 +118,7 @@ pub async fn serve_until_shutdown(
 struct Connection {
     store: Arc<ServerStore>,
     hub: Arc<WatchHub>,
+    registry: Arc<SessionRegistry>,
     client: u64,
     account: Option<Uuid>,
     identity: Option<Identity>,
@@ -122,6 +128,7 @@ async fn handle_connection(
     stream: TcpStream,
     store: Arc<ServerStore>,
     hub: Arc<WatchHub>,
+    registry: Arc<SessionRegistry>,
 ) -> Result<(), ServerError> {
     let socket = accept_async_with_config(
         stream,
@@ -138,49 +145,70 @@ async fn handle_connection(
     let mut connection = Connection {
         store,
         hub: Arc::clone(&hub),
+        registry: Arc::clone(&registry),
         client,
         account: None,
         identity: None,
     };
 
-    loop {
-        tokio::select! {
-            Some(notification) = outbound.recv() => {
-                sink.send(Message::Binary(encode(&notification).map_err(|_| ServerError::Corrupt)?)).await?;
-            }
-            Some(message) = source.next() => {
-                match message? {
-                    Message::Binary(bytes) => {
-                        let Ok(request) = decode::<ClientMessage>(&bytes) else {
-                            sink.send(Message::Binary(encode(&ServerMessage::Failed {
-                                request: 0,
-                                code: ErrorCode::InvalidRequest,
-                                message: "the frame is not a valid protocol message".into(),
-                            }).map_err(|_| ServerError::Corrupt)?)).await?;
-                            continue;
-                        };
-                        let id = request.request();
-                        let response = match connection.dispatch(request).await {
-                            Ok(response) => response,
-                            Err(error) => ServerMessage::Failed {
-                                request: id,
-                                code: error.code(),
-                                message: error.to_string(),
-                            },
-                        };
-                        sink.send(Message::Binary(encode(&response).map_err(|_| ServerError::Corrupt)?)).await?;
-                    }
-                    Message::Close(_) => break,
-                    Message::Ping(payload) => sink.send(Message::Pong(payload)).await?,
-                    Message::Text(_) | Message::Pong(_) | Message::Frame(_) => {}
+    let outcome = async {
+        loop {
+            let frame = tokio::select! {
+                notification = outbound.recv() => {
+                    let Some(notification) = notification else { return Ok(()) };
+                    sink.send(Message::Binary(
+                        encode(&notification).map_err(|_| ServerError::Corrupt)?,
+                    ))
+                    .await?;
+                    continue;
                 }
+                message = source.next() => message,
+            };
+            let Some(frame) = frame else { return Ok(()) };
+            match frame? {
+                Message::Binary(bytes) => {
+                    let response = match decode::<ClientMessage>(&bytes) {
+                        Err(_) => ServerMessage::Failed {
+                            request: 0,
+                            code: ErrorCode::InvalidRequest,
+                            message: "the frame is not a valid protocol message".into(),
+                        },
+                        Ok(request) => {
+                            let id = request.request();
+                            match connection.dispatch(request).await {
+                                Ok(response) => response,
+                                Err(error) => ServerMessage::Failed {
+                                    request: id,
+                                    code: error.code(),
+                                    message: error.to_string(),
+                                },
+                            }
+                        }
+                    };
+                    sink.send(Message::Binary(
+                        encode(&response).map_err(|_| ServerError::Corrupt)?,
+                    ))
+                    .await?;
+                }
+                Message::Close(_) => return Ok(()),
+                Message::Ping(payload) => sink.send(Message::Pong(payload)).await?,
+                Message::Text(_) | Message::Pong(_) | Message::Frame(_) => {}
             }
-            else => break,
         }
     }
+    .await;
 
+    for (block, state) in registry.leave_all(client).await {
+        let participants = registry.participants(block).await;
+        hub.send_all(
+            &participants,
+            client,
+            &ServerMessage::SessionChanged { block, state },
+        )
+        .await;
+    }
     hub.remove(client).await;
-    Ok(())
+    outcome
 }
 
 impl Connection {
@@ -443,7 +471,114 @@ impl Connection {
                 self.hub.unwatch(block, self.client).await;
                 Ok(ServerMessage::Ok { request })
             }
+
+            ClientMessage::JoinSession { request, block } => {
+                let identity = self.identity()?;
+                self.store.read_block(identity, block).await?;
+                let state = self.registry.join(block, self.client).await;
+                self.announce(block, &state).await;
+                Ok(ServerMessage::Session {
+                    request,
+                    block,
+                    client: self.client,
+                    state,
+                })
+            }
+            ClientMessage::LeaveSession { request, block } => {
+                self.identity()?;
+                if let Some(state) = self.registry.leave(block, self.client).await {
+                    self.announce(block, &state).await;
+                }
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ClaimOwnership {
+                request,
+                block,
+                generation,
+            } => {
+                self.identity()?;
+                let (claim, state) = self.registry.claim(block, self.client, generation).await;
+                if matches!(claim, Claim::Granted { .. }) {
+                    self.announce(block, &state).await;
+                }
+                Ok(ServerMessage::Session {
+                    request,
+                    block,
+                    client: self.client,
+                    state,
+                })
+            }
+            ClientMessage::Heartbeat {
+                request,
+                block,
+                generation,
+                clean_at,
+            } => {
+                self.identity()?;
+                match self
+                    .registry
+                    .heartbeat(block, self.client, generation, clean_at)
+                    .await
+                {
+                    Some(state) => Ok(ServerMessage::Session {
+                        request,
+                        block,
+                        client: self.client,
+                        state,
+                    }),
+                    None => Ok(ServerMessage::Session {
+                        request,
+                        block,
+                        client: self.client,
+                        state: self.registry.state(block).await,
+                    }),
+                }
+            }
+            ClientMessage::Relay {
+                request,
+                block,
+                to,
+                payload,
+            } => {
+                self.identity()?;
+                let participants = self.registry.participants(block).await;
+                let message = ServerMessage::Relayed {
+                    block,
+                    from: self.client,
+                    payload,
+                };
+                match to {
+                    Some(target) if participants.contains(&target) => {
+                        self.hub.send_to(target, message).await;
+                    }
+                    Some(_) => {
+                        return Err(ServerError::Refused(
+                            ErrorCode::InvalidRequest,
+                            "that client is not in this session".into(),
+                        ));
+                    }
+                    None => {
+                        self.hub
+                            .send_all(&participants, self.client, &message)
+                            .await;
+                    }
+                }
+                Ok(ServerMessage::Ok { request })
+            }
         }
+    }
+
+    async fn announce(&self, block: Uuid, state: &be_protocol::SessionState) {
+        self.hub
+            .send_all(
+                &state.participants,
+                self.client,
+                &ServerMessage::SessionChanged {
+                    block,
+                    state: state.clone(),
+                },
+            )
+            .await;
     }
 }
 

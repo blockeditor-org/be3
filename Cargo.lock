@@ -668,6 +668,7 @@ dependencies = [
  "be-commit",
  "be-graph",
  "be-protocol",
+ "be-session",
  "be-store",
  "futures-util",
  "rand 0.8.6",
@@ -676,6 +677,17 @@ dependencies = [
  "sha2",
  "tokio",
  "tokio-tungstenite",
+ "uuid",
+]
+
+[[package]]
+name = "be-session"
+version = "0.1.0"
+dependencies = [
+ "be-commit",
+ "be-protocol",
+ "be-store",
+ "serde",
  "uuid",
 ]
 

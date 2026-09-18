@@ -53,6 +53,24 @@ impl WatchHub {
         });
     }
 
+    pub async fn send_to(&self, client: u64, message: ServerMessage) {
+        if let Some(sender) = self.clients.lock().await.get(&client) {
+            let _ = sender.send(message);
+        }
+    }
+
+    pub async fn send_all(&self, clients: &[u64], from: u64, message: &ServerMessage) {
+        let senders = self.clients.lock().await;
+        for client in clients {
+            if *client == from {
+                continue;
+            }
+            if let Some(sender) = senders.get(client) {
+                let _ = sender.send(message.clone());
+            }
+        }
+    }
+
     pub async fn broadcast(&self, block: Uuid, from: u64, message: ServerMessage) {
         let targets: Vec<_> = {
             let watchers = self.watchers.lock().await;

@@ -33,6 +33,22 @@ pub struct BlockSummary {
     pub access: Access,
 }
 
+pub type ClientId = u64;
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SessionState {
+    pub generation: u64,
+    pub owner: Option<ClientId>,
+    pub participants: Vec<ClientId>,
+    pub clean_at: Option<CommitId>,
+}
+
+impl SessionState {
+    pub fn is_owner(&self, client: ClientId) -> bool {
+        self.owner == Some(client)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AccessEntry {
     pub account: Uuid,
@@ -180,6 +196,32 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
     },
+
+    JoinSession {
+        request: u64,
+        block: Uuid,
+    },
+    LeaveSession {
+        request: u64,
+        block: Uuid,
+    },
+    ClaimOwnership {
+        request: u64,
+        block: Uuid,
+        generation: u64,
+    },
+    Heartbeat {
+        request: u64,
+        block: Uuid,
+        generation: u64,
+        clean_at: Option<CommitId>,
+    },
+    Relay {
+        request: u64,
+        block: Uuid,
+        to: Option<ClientId>,
+        payload: Vec<u8>,
+    },
 }
 
 impl ClientMessage {
@@ -208,7 +250,12 @@ impl ClientMessage {
             | Self::SetAccess { request, .. }
             | Self::ListAccess { request, .. }
             | Self::Watch { request, .. }
-            | Self::Unwatch { request, .. } => *request,
+            | Self::Unwatch { request, .. }
+            | Self::JoinSession { request, .. }
+            | Self::LeaveSession { request, .. }
+            | Self::ClaimOwnership { request, .. }
+            | Self::Heartbeat { request, .. }
+            | Self::Relay { request, .. } => *request,
         }
     }
 }
@@ -286,6 +333,12 @@ pub enum ServerMessage {
         request: u64,
         entries: Vec<AccessEntry>,
     },
+    Session {
+        request: u64,
+        block: Uuid,
+        client: ClientId,
+        state: SessionState,
+    },
     HeadChanged {
         block: Uuid,
         head: CommitId,
@@ -293,6 +346,15 @@ pub enum ServerMessage {
     },
     BlockDeleted {
         block: Uuid,
+    },
+    SessionChanged {
+        block: Uuid,
+        state: SessionState,
+    },
+    Relayed {
+        block: Uuid,
+        from: ClientId,
+        payload: Vec<u8>,
     },
 }
 
@@ -313,8 +375,12 @@ impl ServerMessage {
             | Self::Rejected { request, .. }
             | Self::History { request, .. }
             | Self::Collected { request, .. }
-            | Self::AccessList { request, .. } => Some(*request),
-            Self::HeadChanged { .. } | Self::BlockDeleted { .. } => None,
+            | Self::AccessList { request, .. }
+            | Self::Session { request, .. } => Some(*request),
+            Self::HeadChanged { .. }
+            | Self::BlockDeleted { .. }
+            | Self::SessionChanged { .. }
+            | Self::Relayed { .. } => None,
         }
     }
 }
