@@ -1,4 +1,5 @@
 pub(crate) mod canvas;
+pub(crate) mod child_list;
 pub(crate) mod click_catcher;
 pub(crate) mod embed;
 pub(crate) mod focusable;

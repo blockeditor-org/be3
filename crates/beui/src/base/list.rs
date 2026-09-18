@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
+use crate::base::child_list::{ChildItem, ChildList};
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
 
@@ -54,11 +55,17 @@ pub(crate) struct ListItem {
     pub(crate) size: ItemSize,
 }
 
+impl ChildItem for ListItem {
+    fn node(&self) -> NodeId {
+        self.child
+    }
+}
+
 pub(crate) struct ListNode {
     pub(crate) direction: Direction,
     pub(crate) spacing: f32,
     pub(crate) align: Align,
-    pub(crate) items: Vec<ListItem>,
+    pub(crate) items: ChildList<ListItem>,
 }
 
 impl ListNode {
@@ -92,7 +99,7 @@ impl ListNode {
         cross: f32,
     ) -> Vec<f32> {
         let mut lengths = Vec::with_capacity(self.items.len());
-        for item in &self.items {
+        for item in self.items.iter() {
             let intrinsic = match item.size {
                 ItemSize::Intrinsic => true,
                 ItemSize::Percent(_) => !main.is_finite(),
@@ -184,7 +191,7 @@ impl Element for ListNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, _rect: Rect) {
-        for item in &self.items {
+        for item in self.items.iter() {
             crate::paint::paint(doc, painter, rects, item.child);
         }
     }
@@ -198,11 +205,11 @@ impl Element for ListNode {
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
     ) -> Vec<NodeId> {
-        self.items.iter().map(|item| item.child).collect()
+        self.items.nodes()
     }
 
     fn children(&self) -> Vec<NodeId> {
-        self.items.iter().map(|item| item.child).collect()
+        self.items.nodes()
     }
 
     fn kind(&self) -> &'static str {
@@ -287,7 +294,7 @@ impl Document {
             direction,
             spacing,
             align: Align::Stretch,
-            items: Vec::new(),
+            items: ChildList::default(),
         })
     }
 
@@ -317,19 +324,13 @@ impl Document {
     }
 
     pub(crate) fn remove_child(&mut self, parent: NodeId, child: NodeId) {
-        if !self
-            .arena
-            .get_as::<ListNode>(parent)
-            .items
-            .iter()
-            .any(|item| item.child == child)
-        {
+        if !self.arena.get_as::<ListNode>(parent).items.contains(child) {
             return;
         }
         self.arena
             .get_mut_as::<ListNode>(parent)
             .items
-            .retain(|item| item.child != child);
+            .remove(child);
     }
 
     pub(crate) fn set_children(&mut self, parent: NodeId, children: &[(NodeId, ItemSize)]) {
@@ -342,13 +343,17 @@ impl Document {
         if unchanged {
             return;
         }
-        self.arena.get_mut_as::<ListNode>(parent).items = children
+        let items = children
             .iter()
             .map(|(child, size)| ListItem {
                 child: *child,
                 size: *size,
             })
             .collect();
+        self.arena
+            .get_mut_as::<ListNode>(parent)
+            .items
+            .set_all(items);
     }
 
     pub(crate) fn child_sizes(&self, parent: NodeId) -> HashMap<NodeId, ItemSize> {
@@ -361,21 +366,20 @@ impl Document {
     }
 
     pub(crate) fn set_child_size(&mut self, parent: NodeId, child: NodeId, size: ItemSize) {
-        if self
+        let current = self
             .arena
             .get_as::<ListNode>(parent)
             .items
-            .iter()
-            .any(|item| item.child == child && item.size == size)
-        {
+            .find(child)
+            .map(|item| item.size);
+        if current == Some(size) {
             return;
         }
         let Some(item) = self
             .arena
             .get_mut_as::<ListNode>(parent)
             .items
-            .iter_mut()
-            .find(|item| item.child == child)
+            .find_mut(child)
         else {
             return;
         };
