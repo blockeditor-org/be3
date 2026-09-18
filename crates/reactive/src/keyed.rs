@@ -161,7 +161,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         }
     }
 
-    pub fn map(&self, keys: Vec<K>) -> Vec<V> {
+    pub fn map(&self, keys: Vec<K>) -> Mapping<K, V> {
         let mut entries = self.entries.borrow_mut();
         let mut next = HashMap::with_capacity(keys.len());
         let mut mapped = Vec::with_capacity(keys.len());
@@ -181,8 +181,27 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
             );
         }
         let gone = std::mem::replace(&mut *entries, next);
-        drop(entries);
+        Mapping {
+            items: mapped,
+            gone,
+        }
+    }
+}
+
+pub struct Mapping<K, V> {
+    items: Vec<V>,
+    gone: HashMap<K, (V, Scope)>,
+}
+
+impl<K, V: Clone> Mapping<K, V> {
+    pub fn items(&self) -> &[V] {
+        &self.items
+    }
+
+    pub fn commit(self, write: impl FnOnce(Vec<V>, Vec<V>)) {
+        let Mapping { items, gone } = self;
+        let removed = gone.values().map(|(item, _)| item.clone()).collect();
+        write(items, removed);
         drop(gone);
-        mapped
     }
 }

@@ -10,8 +10,8 @@ use crate::document::Document;
 use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, ForEach, Func, Memo, Prop, ReadSignal, RenderFn, Selector, WriteSignal, clone,
-    component_accessibility, create_effect, create_memo, create_selector, create_signal,
+    Callback, Column, ForEach, Func, Memo, Prop, ReadSignal, RenderFn, Selector, WriteSignal,
+    clone, component_accessibility, create_effect, create_memo, create_selector, create_signal,
     on_cleanup, set_component_state, untrack, with_document,
 };
 use crate::unstyled;
@@ -110,26 +110,28 @@ where
     }));
 
     view! {
-        <ForEach spacing keys>
-            {move |key: K| {
-                let item = create_memo(clone!(item key -> move || item.call(key.clone())));
-                let selected = selection.memo(Some(key.clone()));
-                let hover = on_hover_change.clone();
-                view! {
-                    <TreeRow
-                        row_key={key}
-                        item
-                        selected
-                        tab_stop={tab_stops.clone()}
-                        focused={focused.clone()}
-                        state={state.clone()}
-                        nodes={nodes.clone()}
-                        row={row.clone()}
-                        on_hover_change={move |change| hover.call(change)}
-                    />
-                }
-            }}
-        </ForEach>
+        <Column spacing>
+            <ForEach keys>
+                {move |key: K| {
+                    let item = create_memo(clone!(item key -> move || item.call(key.clone())));
+                    let selected = selection.memo(Some(key.clone()));
+                    let hover = on_hover_change.clone();
+                    view! {
+                        <TreeRow
+                            row_key={key}
+                            item
+                            selected
+                            tab_stop={tab_stops.clone()}
+                            focused={focused.clone()}
+                            state={state.clone()}
+                            nodes={nodes.clone()}
+                            row={row.clone()}
+                            on_hover_change={move |change| hover.call(change)}
+                        />
+                    }
+                }}
+            </ForEach>
+        </Column>
     }
 }
 

@@ -171,7 +171,9 @@ pub fn Checklist(editor: Editor) -> NodeId {
                             <Body content="No tasks match this view." align=TextAlign::Center />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                            <ForEach spacing=8.0 keys={visible} view={rows} />
+                            <Column spacing=8.0>
+                                <ForEach keys={visible} view={rows} />
+                            </Column>
                         </Scroll>
                     </Column>
                 </Card>

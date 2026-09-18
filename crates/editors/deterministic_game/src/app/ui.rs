@@ -131,24 +131,26 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> Nod
                 <Column spacing=16.0>
                     <Heading content={description} />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <ForEach spacing=10.0 keys={actions}>
-                            {move |action: Action| {
-                                let effect = action.effect;
-                                let game = game.clone();
-                                let disabled = create_memo(
-                                    clone!(editable -> move || !editable.get()),
-                                );
-                                view! {
-                                    <Button
-                                        label={action.label}
-                                        variant=ButtonVariant::Primary
-                                        disabled={disabled}
-                                        @test_id={format!("game.action.{}", action.index)}
-                                        on_click={move || game.choose(effect.clone())}
-                                    />
-                                }
-                            }}
-                        </ForEach>
+                        <Column spacing=10.0>
+                            <ForEach keys={actions}>
+                                {move |action: Action| {
+                                    let effect = action.effect;
+                                    let game = game.clone();
+                                    let disabled = create_memo(
+                                        clone!(editable -> move || !editable.get()),
+                                    );
+                                    view! {
+                                        <Button
+                                            label={action.label}
+                                            variant=ButtonVariant::Primary
+                                            disabled={disabled}
+                                            @test_id={format!("game.action.{}", action.index)}
+                                            on_click={move || game.choose(effect.clone())}
+                                        />
+                                    }
+                                }}
+                            </ForEach>
+                        </Column>
                     </Scroll>
                 </Column>
             }

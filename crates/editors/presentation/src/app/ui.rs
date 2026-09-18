@@ -363,7 +363,9 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
                     @test_id={"presentation.filmstrip"}
                     focus_color={theme.accent.clone()}
                 >
-                    <ForEach spacing=0.0 keys={keys} view={tiles} />
+                    <Column spacing=0.0>
+                        <ForEach keys={keys} view={tiles} />
+                    </Column>
                 </Scroll>
             </Column>
         </Frame>

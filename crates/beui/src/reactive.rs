@@ -1,11 +1,13 @@
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 pub use crate::base::ItemSize;
 
+use crate::base::child_list::SlotId;
+use crate::base::list::ListItem;
 use crate::base::{Align, Direction};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
@@ -14,9 +16,9 @@ use crate::unstyled;
 
 pub use beui_macros::{component, view};
 pub use reactive::{
-    Effect, KeyedStore, Memo, ReadSignal, Scope, ScopeContext, Selector, Store, WriteSignal, batch,
-    clone, create_effect, create_memo, create_selector, create_signal, on_cleanup, owner_scope,
-    provide_context, settle, untrack, use_context,
+    Effect, KeyedItems, KeyedStore, Memo, ReadSignal, Scope, ScopeContext, Selector, Store,
+    WriteSignal, batch, clone, create_effect, create_memo, create_selector, create_signal,
+    on_cleanup, owner_scope, provide_context, settle, untrack, use_context,
 };
 
 thread_local! {
@@ -684,6 +686,7 @@ impl<T: AcceptsSizing> IntoChild<T> for ListChild {
 pub enum ChildSegment<T> {
     One(T),
     Many(Vec<T>),
+    Dynamic(DynamicSegment<T>),
 }
 
 impl<T> ChildSegment<T> {
@@ -691,7 +694,54 @@ impl<T> ChildSegment<T> {
         match self {
             ChildSegment::One(item) => vec![item],
             ChildSegment::Many(items) => items,
+            ChildSegment::Dynamic(_) => panic!(
+                "a keyed list builds its children as its parent lays them out, so it cannot be \
+                 read as a fixed run of children"
+            ),
         }
+    }
+}
+
+pub struct DynamicSegment<T> {
+    scope: Option<Scope>,
+    install: Box<dyn FnOnce(NodeId, SlotId)>,
+    child: PhantomData<T>,
+}
+
+impl<T> DynamicSegment<T> {
+    pub(crate) fn new(install: impl FnOnce(NodeId, SlotId) + 'static) -> Self {
+        Self {
+            scope: None,
+            install: Box::new(install),
+            child: PhantomData,
+        }
+    }
+
+    fn mount(self, parent: NodeId, slot: SlotId) {
+        let DynamicSegment { scope, install, .. } = self;
+        match scope {
+            Some(scope) => {
+                scope.context().run(|| install(parent, slot));
+                with_document(|document| document.register_node_scope(parent, scope));
+            }
+            None => install(parent, slot),
+        }
+    }
+}
+
+impl<T> ChildValue for DynamicSegment<T> {
+    fn anchor(&self) -> Option<NodeId> {
+        None
+    }
+
+    fn adopt_scope(&mut self, scope: Scope) {
+        self.scope = Some(scope);
+    }
+}
+
+impl<T> IntoSegment<T> for DynamicSegment<T> {
+    fn into_segment(self) -> ChildSegment<T> {
+        ChildSegment::Dynamic(self)
     }
 }
 
@@ -785,9 +835,19 @@ impl<T> Children<T> {
 
 impl Children<ListChild> {
     fn mount(self, parent: NodeId) {
-        for child in self.into_items() {
-            let (node, size) = child.watch(parent);
-            with_document(|document| document.append_child(parent, node, size));
+        for segment in self.0 {
+            match segment {
+                ChildSegment::Dynamic(segment) => {
+                    let slot = with_document(|document| document.open_list_slot(parent));
+                    segment.mount(parent, slot);
+                }
+                segment => {
+                    for child in segment.items() {
+                        let (node, size) = child.watch(parent);
+                        with_document(|document| document.append_child(parent, node, size));
+                    }
+                }
+            }
         }
     }
 }
@@ -952,47 +1012,32 @@ where
 
 #[component]
 pub fn ForEach<K>(
-    spacing: f32,
     keys: Prop<Vec<K>>,
     #[prop(children)] view: RenderFn<K, ListChild>,
-) -> NodeId
+) -> DynamicSegment<ListChild>
 where
     K: Clone + Hash + Eq + 'static,
 {
-    let parent = view! {
-        <Column spacing />
-    };
-    let existing: Rc<RefCell<HashMap<K, NodeId>>> = Rc::new(RefCell::new(HashMap::new()));
-    create_effect(move || {
-        let keys = keys.get();
-        let mut existing = existing.borrow_mut();
-        let mut next = HashMap::with_capacity(keys.len());
-        let mut children = Vec::with_capacity(keys.len());
-        let sizes = with_document(|document| document.child_sizes(parent));
-        for key in keys {
-            let (node, size) = match existing.remove(&key) {
-                Some(node) => (node, sizes.get(&node).copied().unwrap_or_default()),
-                None => {
-                    let build = key.clone();
-                    let view = view.clone();
-                    build_row(parent, move || view.call(build))
-                }
-            };
-            children.push((node, size));
-            assert!(
-                next.insert(key, node).is_none(),
-                "for_each was given the same key twice"
-            );
-        }
-        with_document(|document| {
-            document.set_children(parent, &children);
-            for removed in existing.values() {
-                document.remove_node(*removed);
-            }
+    DynamicSegment::new(move |parent, slot| {
+        let rows = Rc::new(KeyedItems::new(move |key: K| {
+            let child = view.call(key);
+            let (node, size) = child.watch(parent);
+            ListItem { child: node, size }
+        }));
+        let owned = rows.clone();
+        on_cleanup(move || drop(owned));
+        create_effect(move || {
+            let keys = keys.get();
+            rows.map(keys).commit(|items, removed| {
+                with_document(|document| {
+                    document.fill_list_slot(parent, slot, items);
+                    for row in removed {
+                        document.remove_node(row.child);
+                    }
+                });
+            });
         });
-        *existing = next;
-    });
-    parent
+    })
 }
 
 #[component]
