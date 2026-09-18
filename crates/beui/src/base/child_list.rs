@@ -77,12 +77,34 @@ impl<T> ChildList<T> {
             .flat_map(|slot| slot.items.as_mut_slice())
     }
 
+    pub(crate) fn get(&self, index: usize) -> Option<&T> {
+        self.iter().nth(index)
+    }
+
     pub(crate) fn push(&mut self, item: T) {
         let id = self.take_id();
         self.slots.push(Slot {
             id,
             items: SlotItems::One(item),
         });
+    }
+
+    pub(crate) fn set_all(&mut self, items: Vec<T>) {
+        self.slots.clear();
+        for item in items {
+            self.push(item);
+        }
+    }
+
+    pub(crate) fn take_all(&mut self) -> Vec<T> {
+        let slots = std::mem::take(&mut self.slots);
+        slots
+            .into_iter()
+            .flat_map(|slot| match slot.items {
+                SlotItems::One(item) => vec![item],
+                SlotItems::Many(items) => items,
+            })
+            .collect()
     }
 
     pub(crate) fn open(&mut self) -> SlotId {

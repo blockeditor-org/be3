@@ -51,9 +51,9 @@ pub enum ItemSize {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct ListItem {
-    pub(crate) child: NodeId,
-    pub(crate) size: ItemSize,
+pub struct ListItem {
+    pub child: NodeId,
+    pub size: ItemSize,
 }
 
 impl ChildItem for ListItem {

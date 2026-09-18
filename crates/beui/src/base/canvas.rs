@@ -3,11 +3,14 @@ use std::collections::HashMap;
 
 use beui_macros::component;
 
+use crate::base::child_list::{ChildList, SlotId};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::node::{Element, InteractInput, NodeId};
 use crate::painter::Painter;
-use crate::reactive::{Child, ChildValue, Children, Prop, Scope, create_effect, with_document};
+use crate::reactive::{
+    Child, ChildValue, Children, Prop, Scope, SlotChild, create_effect, with_document,
+};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct CanvasView {
@@ -45,7 +48,7 @@ impl CanvasView {
 
 pub(crate) struct CanvasNode {
     view: Option<CanvasView>,
-    items: Vec<NodeId>,
+    items: ChildList<NodeId>,
 }
 
 impl CanvasNode {
@@ -71,7 +74,7 @@ impl Element for CanvasNode {
     ) {
         let view = self.placement(rect);
         let clipped = painter.with_clip_rect(rect);
-        for item in &self.items {
+        for item in self.items.iter() {
             let placed = view.rect_to_screen(doc.canvas_item_rect(*item));
             if placed.intersects(rect) {
                 crate::layout::layout(doc, &clipped, *item, placed, out);
@@ -81,7 +84,7 @@ impl Element for CanvasNode {
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect) {
         let clipped = painter.with_clip_rect(rect);
-        for item in &self.items {
+        for item in self.items.iter() {
             if rects.contains_key(item) {
                 crate::paint::paint(doc, &clipped, rects, *item);
             }
@@ -97,11 +100,11 @@ impl Element for CanvasNode {
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
     ) -> Vec<NodeId> {
-        self.items.clone()
+        self.items.nodes()
     }
 
     fn children(&self) -> Vec<NodeId> {
-        self.items.clone()
+        self.items.nodes()
     }
 
     fn kind(&self) -> &'static str {
@@ -196,7 +199,7 @@ impl Document {
     pub(crate) fn create_canvas(&mut self) -> NodeId {
         self.arena.insert(CanvasNode {
             view: None,
-            items: Vec::new(),
+            items: ChildList::default(),
         })
     }
 
@@ -208,6 +211,17 @@ impl Document {
 
     pub(crate) fn append_canvas_item(&mut self, canvas: NodeId, item: NodeId) {
         self.arena.get_mut_as::<CanvasNode>(canvas).items.push(item);
+    }
+
+    pub(crate) fn open_canvas_slot(&mut self, canvas: NodeId) -> SlotId {
+        self.arena.get_mut_as::<CanvasNode>(canvas).items.open()
+    }
+
+    pub(crate) fn fill_canvas_slot(&mut self, canvas: NodeId, slot: SlotId, items: Vec<NodeId>) {
+        self.arena
+            .get_mut_as::<CanvasNode>(canvas)
+            .items
+            .fill(slot, items);
     }
 
     pub(crate) fn create_canvas_item(&mut self) -> NodeId {
@@ -250,17 +264,37 @@ impl ChildValue for CanvasItem {
 
 crate::child_type!(CanvasItem);
 
+impl SlotChild for CanvasItem {
+    type Stored = NodeId;
+
+    fn store(self, _parent: NodeId) -> NodeId {
+        self.node
+    }
+
+    fn stored_node(stored: &NodeId) -> NodeId {
+        *stored
+    }
+
+    fn open_slot(parent: NodeId) -> SlotId {
+        with_document(|document| document.open_canvas_slot(parent))
+    }
+
+    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<NodeId>) {
+        with_document(|document| document.fill_canvas_slot(parent, slot, items));
+    }
+
+    fn append(parent: NodeId, stored: NodeId) {
+        with_document(|document| document.append_canvas_item(parent, stored));
+    }
+}
+
 #[component]
 pub fn Canvas(
     #[prop(default = None)] view: Prop<Option<CanvasView>>,
     children: Children<CanvasItem>,
 ) -> NodeId {
     let canvas = with_document(Document::create_canvas);
-    with_document(|document| {
-        for item in children.into_items() {
-            document.append_canvas_item(canvas, item.node);
-        }
-    });
+    children.mount(canvas);
     create_effect(move || with_document(|document| document.set_canvas_view(canvas, view.get())));
     canvas
 }
