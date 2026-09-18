@@ -1,0 +1,143 @@
+use std::path::PathBuf;
+
+use be_block::{BlockContent, ContentError, ImageContent, ImageHeader};
+use be_commit::{RetentionPolicy, retention::MINUTE};
+use be_graph::BlockParent;
+use be_store::{ChunkerConfig, ContentKey, MemoryStore};
+use tokio::{net::TcpListener, sync::oneshot};
+use uuid::Uuid;
+
+use super::*;
+
+mod a_large_image_streams_without_downloading_all_of_it;
+mod a_stale_save_is_rejected_with_the_head_to_merge_against;
+mod an_image_round_trips_without_being_re_encoded;
+mod history_is_thinned_but_the_head_and_bookmarks_survive;
+mod references_declared_by_content_reach_the_graph;
+
+struct Harness {
+    url: String,
+    directory: PathBuf,
+    shutdown: Option<oneshot::Sender<()>>,
+    handle: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl Harness {
+    async fn start() -> Self {
+        let directory = std::env::temp_dir().join(format!("be-client-test-{}", Uuid::new_v4()));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (shutdown, receiver) = oneshot::channel();
+        let data_dir = directory.clone();
+        let handle = tokio::spawn(async move {
+            let _ = be_server::serve_until_shutdown(listener, data_dir, receiver).await;
+        });
+        Self {
+            url: format!("ws://{address}"),
+            directory,
+            shutdown: Some(shutdown),
+            handle: Some(handle),
+        }
+    }
+
+    async fn owner(&self, email: &str) -> Peer<MemoryStore> {
+        Peer::connect(
+            PeerConfig::new(
+                &self.url,
+                ContentKey::from_bytes([11; 32]),
+                Credentials::Register {
+                    email: email.into(),
+                    display_name: email.into(),
+                    password: "correct horse battery".into(),
+                },
+            )
+            .chunker(ChunkerConfig::SMALL),
+            MemoryStore::new(),
+        )
+        .await
+        .unwrap()
+    }
+
+    async fn second(&self, owner: &Peer<MemoryStore>) -> Peer<MemoryStore> {
+        Peer::connect(
+            PeerConfig::new(
+                &self.url,
+                ContentKey::from_bytes([11; 32]),
+                Credentials::Token(owner.token().to_owned()),
+            )
+            .workspace(Some(owner.workspace()))
+            .chunker(ChunkerConfig::SMALL),
+            MemoryStore::new(),
+        )
+        .await
+        .unwrap()
+    }
+
+    async fn stop(mut self) {
+        if let Some(shutdown) = self.shutdown.take() {
+            let _ = shutdown.send(());
+        }
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+            let _ = handle.await;
+        }
+        let _ = std::fs::remove_dir_all(&self.directory);
+    }
+}
+
+fn image(name: &str, bytes: usize, seed: u64) -> ImageContent {
+    ImageContent::new(
+        ImageHeader {
+            source_name: name.into(),
+            media_type: "image/png".into(),
+            width: 1920,
+            height: 1080,
+        },
+        pseudorandom(bytes, seed),
+    )
+}
+
+fn pseudorandom(length: usize, seed: u64) -> Vec<u8> {
+    let mut state = seed.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    (0..length)
+        .map(|_| {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            u8::try_from((state >> 33) & 0xff).unwrap()
+        })
+        .collect()
+}
+
+struct Link {
+    targets: Vec<Uuid>,
+}
+
+impl BlockContent for Link {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x11_11);
+
+    fn encode(&self) -> Vec<u8> {
+        self.targets
+            .iter()
+            .flat_map(|target| target.into_bytes())
+            .collect()
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
+        if !bytes.len().is_multiple_of(16) {
+            return Err(ContentError::Malformed("link list"));
+        }
+        Ok(Self {
+            targets: bytes
+                .as_chunks::<16>()
+                .0
+                .iter()
+                .map(|chunk| Uuid::from_slice(chunk).expect("sixteen bytes"))
+                .collect(),
+        })
+    }
+
+    fn references(&self) -> Vec<Uuid> {
+        self.targets.clone()
+    }
+}

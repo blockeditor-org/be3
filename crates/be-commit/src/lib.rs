@@ -9,7 +9,7 @@ pub use merge::{
     Conflict, MapMerge, Merge, MergeOutcome, MergeResult, merge_lines, merge_map, merge_slices,
     render_conflicts,
 };
-pub use retention::{CommitSummary, RetentionPlan, RetentionPolicy};
+pub use retention::{CommitSummary, RetentionPlan, RetentionPolicy, plan as plan_retention};
 
 pub fn now_milliseconds() -> i64 {
     SystemTime::now()
