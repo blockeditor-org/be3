@@ -1,0 +1,14 @@
+[package]
+name = "be-commit"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-store = { path = "../be-store" }
+serde = { version = "1", features = ["derive"] }
+similar = "3.1"
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[lints]
+workspace = true
