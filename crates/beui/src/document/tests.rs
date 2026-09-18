@@ -50,6 +50,7 @@ mod arrow_keys_move_a_visible_highlight_through_an_open_context_menu;
 mod arrow_keys_pan_a_focused_pan_zoom;
 mod arrow_keys_step_the_focused_slider;
 mod arrow_keys_walk_the_rows_of_the_inspector_tree;
+mod arrow_keys_walk_the_simulated_screen_reader_through_the_document;
 mod backspace_deletes_the_character_before_the_caret;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
 mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
@@ -70,6 +71,7 @@ mod ctrl_shift_f_moves_focus_between_the_inspector_and_the_document;
 mod ctrl_shift_i_opens_and_closes_the_inspector;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod double_clicking_a_word_selects_it_so_typing_replaces_it;
+mod double_tapping_the_screen_reader_curtain_activates_what_it_is_reading;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_slider_moves_its_value;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
@@ -85,6 +87,7 @@ mod evicting_a_virtual_scroll_row_disposes_its_effects;
 mod finding_a_node_by_its_test_id;
 mod flashing_changed_elements_outlines_the_node_that_changed;
 mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
+mod flicking_across_the_screen_reader_curtain_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
@@ -152,6 +155,8 @@ mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
+mod the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach;
+mod the_screen_reader_curtain_keeps_clicks_away_from_the_document;
 mod the_scroll_position_is_reported_to_its_listener;
 mod the_simulated_keyboard_types_into_the_focused_input;
 mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
@@ -159,6 +164,7 @@ mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
+mod turning_on_the_screen_reader_covers_the_document_and_reads_what_it_is_on;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
 mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
 mod typing_into_a_focused_text_input_inserts_the_text;
@@ -190,6 +196,7 @@ use beui_macros::{component, view};
 
 const VIEWPORT: Vec2 = Vec2::new(400.0, 300.0);
 const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);
+const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
 
@@ -458,6 +465,44 @@ impl Harness {
         self.finger(1, TouchPhase::Start, at);
         self.finger(1, TouchPhase::End, at);
         self.frame(Vec::new());
+    }
+
+    pub(crate) fn enable_screen_reader(&mut self) {
+        self.toggle_inspector();
+        let tab = self.simulation_tab_center();
+        self.click(tab);
+        self.frame(Vec::new());
+        let toggle = self.inspector_center("inspector.screen_reader.enabled");
+        self.click(toggle);
+        self.key(Key::Escape, Modifiers::NONE);
+        self.frame(Vec::new());
+    }
+
+    pub(crate) fn screen_reader_button_center(&self, command: &str) -> Pos2 {
+        self.inspector_center(&format!("inspector.screen_reader.{command}"))
+    }
+
+    pub(crate) fn screen_reader_mode_center(&self, index: usize) -> Pos2 {
+        let option = self
+            .inspector()
+            .option_node("inspector.screen_reader.mode", index);
+        self.node_center(option)
+    }
+
+    pub(crate) fn transcript(&self) -> Vec<String> {
+        self.inspector().reader().transcript()
+    }
+
+    pub(crate) fn reading(&self) -> Option<String> {
+        self.inspector().reader().reading()
+    }
+
+    pub(crate) fn reader_item_center(&self, index: usize) -> Pos2 {
+        self.inspector().reader().item_center(index)
+    }
+
+    pub(crate) fn reader_items(&self) -> Vec<String> {
+        self.inspector().reader().items()
     }
 
     pub(crate) fn change_flash_toggle_center(&self) -> Pos2 {

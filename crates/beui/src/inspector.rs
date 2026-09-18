@@ -16,6 +16,7 @@ use crate::painter::Painter;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{NodeRef, WriteSignal, with_document, with_reactive_scope};
+use crate::screen_reader::{Command, DEFAULT_OPACITY, Mode, ScreenReader};
 use crate::styled::Theme;
 
 use panel::Summary;
@@ -57,6 +58,11 @@ pub(crate) struct State {
     pub(crate) flash_changes: Cell<bool>,
     pub(crate) flash_damage: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
+    pub(crate) screen_reader: Cell<bool>,
+    pub(crate) screen_reader_mode: Cell<Mode>,
+    pub(crate) curtain_opacity: Cell<f32>,
+    pub(crate) curtain_frost: Cell<bool>,
+    commands: RefCell<Vec<Command>>,
     pub(crate) theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
     reveal: Cell<Option<NodeId>>,
@@ -77,6 +83,11 @@ impl State {
             flash_changes: Cell::new(false),
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
+            screen_reader: Cell::new(false),
+            screen_reader_mode: Cell::new(Mode::default()),
+            curtain_opacity: Cell::new(DEFAULT_OPACITY),
+            curtain_frost: Cell::new(true),
+            commands: RefCell::new(Vec::new()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
             reveal: Cell::new(None),
@@ -113,6 +124,35 @@ impl State {
         self.touch();
     }
 
+    fn enable_screen_reader(&self, enabled: bool) {
+        self.screen_reader.set(enabled);
+        self.touch();
+    }
+
+    fn choose_screen_reader_mode(&self, mode: Mode) {
+        self.screen_reader_mode.set(mode);
+        self.touch();
+    }
+
+    fn set_curtain_opacity(&self, opacity: f32) {
+        self.curtain_opacity.set(opacity);
+        self.touch();
+    }
+
+    fn frost_curtain(&self, frost: bool) {
+        self.curtain_frost.set(frost);
+        self.touch();
+    }
+
+    fn command(&self, command: Command) {
+        self.commands.borrow_mut().push(command);
+        self.touch();
+    }
+
+    fn take_commands(&self) -> Vec<Command> {
+        std::mem::take(&mut self.commands.borrow_mut())
+    }
+
     fn choose_theme(&self, theme: Theme) {
         self.theme.set(theme);
         self.requested_theme.set(Some(theme));
@@ -147,6 +187,7 @@ pub(crate) struct Inspector {
     pub(crate) document: Document,
     pub(crate) entries: Vec<Entry>,
     pub(crate) state: Rc<State>,
+    reader: ScreenReader,
     set_keys: WriteSignal<Vec<Key>>,
     set_entries: WriteSignal<HashMap<Key, Entry>>,
     set_summary: WriteSignal<Summary>,
@@ -157,6 +198,7 @@ pub(crate) struct Inspector {
     pub(crate) width: f32,
     grabbed: Option<f32>,
     grip: bool,
+    parked: bool,
     seen: u64,
     overlay_bounds: Cell<Rect>,
 }
@@ -170,6 +212,7 @@ impl Inspector {
             entries: Vec::new(),
             tree: panel.tree,
             state,
+            reader: ScreenReader::default(),
             set_keys: panel.set_keys,
             set_entries: panel.set_entries,
             set_summary: panel.set_summary,
@@ -179,6 +222,7 @@ impl Inspector {
             width: DEFAULT_WIDTH,
             grabbed: None,
             grip: false,
+            parked: false,
             seen: 0,
             overlay_bounds: Cell::new(Rect::NOTHING),
         }
@@ -202,6 +246,11 @@ impl Inspector {
     }
 
     #[cfg(test)]
+    pub(crate) fn reader(&self) -> &ScreenReader {
+        &self.reader
+    }
+
+    #[cfg(test)]
     pub(crate) fn focused_row(&self) -> Option<Key> {
         crate::unstyled::tree_focused::<Key>(&self.document, self.tree.get())
     }
@@ -211,7 +260,7 @@ impl Inspector {
     }
 
     pub(crate) fn intercepts(&self) -> bool {
-        self.state.picking.get() || self.grabbed.is_some()
+        self.state.picking.get() || self.grabbed.is_some() || self.state.screen_reader.get()
     }
 
     pub(crate) fn toggle_picking(&self) {
@@ -274,7 +323,11 @@ impl Inspector {
         self.pick(target, ctx, content);
         self.release_focus(ctx);
         self.reveal();
+        self.read(target, ctx, content, keyboard_interactive);
         self.paint(target, ctx, content, panel);
+        if self.reader.painting() {
+            self.cover(target, ctx, content);
+        }
         if target.flashing() {
             ctx.request_repaint();
         }
@@ -282,6 +335,33 @@ impl Inspector {
             self.seen = self.state.revision.get();
             ctx.request_repaint();
         }
+    }
+
+    fn read(&mut self, target: &Document, ctx: &Context, content: Rect, panel_has_focus: bool) {
+        self.reader.configure(
+            self.state.screen_reader.get(),
+            self.state.screen_reader_mode.get(),
+            self.state.curtain_opacity.get(),
+            self.state.curtain_frost.get(),
+        );
+        let commands = self.state.take_commands();
+        self.reader
+            .show(target, ctx, content, commands, !panel_has_focus);
+        if self.state.screen_reader.get() && !self.parked && self.document.focused_node().is_some()
+        {
+            self.blur();
+        }
+    }
+
+    fn cover(&mut self, target: &Document, ctx: &Context, content: Rect) {
+        let scale = scale(ctx);
+        let local = scale.recip();
+        let Self { reader, .. } = self;
+        ctx.scaled(scale, || {
+            let painter = ctx.painter().with_clip_rect(content.scaled(local));
+            let damage = reader.paint(&painter, target, local);
+            ctx.report_damage(damage);
+        });
     }
 
     fn forget_removed(&mut self, target: &Document) {
@@ -357,6 +437,7 @@ impl Inspector {
         let Some(target) = self.focus_entry() else {
             return;
         };
+        self.parked = true;
         let Self { document, .. } = self;
         with_reactive_scope(document, || {
             with_document(|document| document.focus_focusable(target))
@@ -364,6 +445,7 @@ impl Inspector {
     }
 
     fn blur(&mut self) {
+        self.parked = false;
         let Self { document, .. } = self;
         with_reactive_scope(document, || {
             with_document(|document| document.update_focus(None))
