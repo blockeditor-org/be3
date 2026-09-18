@@ -2,20 +2,23 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
+use accesskit::{Node, Role};
+
 use crate::color::Color32;
 
 use crate::base::{ScrollPosition, TextAlign};
 use crate::document::Document;
+use crate::icons::ICON_CLOSE;
 use crate::node::NodeId;
 use crate::reactive::{
-    CenteredRow, Column, Frame, ItemSize, Memo, NodeRef, ReadSignal, Row, Scroll, Show, Spacer,
-    WriteSignal, clone, component, create_memo, create_signal, view,
+    CenteredRow, Column, Frame, ItemSize, Memo, NodeRef, Prop, ReadSignal, Row, Scroll, Show,
+    Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use crate::screen_reader::Command;
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use crate::styled::{
-    Button, ButtonVariant, Caption, Checkbox, Code, Heading, RadioGroup, Scrollbar, Separator,
-    Slider, Tabs, Theme, Tree,
+    Button, ButtonVariant, Caption, Checkbox, Code, Heading, IconSized, RadioGroup, Scrollbar,
+    Separator, Slider, Tabs, Theme, Tree,
 };
 use crate::unstyled;
 use crate::unstyled::TreeItem;
@@ -33,6 +36,8 @@ const FOOTER_SPACING: f32 = 3.0;
 const ROW_SPACING: f32 = 6.0;
 const TOGGLE_PADDING_HORIZONTAL: f32 = 8.0;
 const TOGGLE_PADDING_VERTICAL: f32 = 3.0;
+const CLOSE_PADDING: f32 = 3.0;
+const CLOSE_ICON_SIZE: f32 = 16.0;
 const PERFORMANCE_SPACING: f32 = 10.0;
 const TIMING_SPACING: f32 = 4.0;
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
@@ -147,6 +152,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let performance_state = state.clone();
     let tab_state = state.clone();
     let reset_state = state.clone();
+    let close_state = state.clone();
 
     let mut document = crate::reactive::build(|| {
         let count_text = create_memo({
@@ -210,6 +216,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     <Show condition={header_tree_visible}>
                                         <PickToggle state={pick_state} picking />
                                     </Show>
+                                    <CloseButton @test_id={"inspector.close"} state={close_state} />
                                 </CenteredRow>
                                 <Tabs
                                     @test_id={"inspector.tabs"}
@@ -624,6 +631,49 @@ fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
             </Frame>
         </unstyled::Pressable>
     }
+}
+
+#[component]
+fn CloseButton(state: Rc<State>) -> NodeId {
+    let (hovered, set_hovered) = create_signal(false);
+    let (focused, set_focused) = create_signal(false);
+    let fill_color = create_memo(move || close_fill(hovered.get()));
+    let outline_color = create_memo(move || close_outline(focused.get()));
+    let closer = state;
+    let mut accessibility = Node::new(Role::Button);
+    accessibility.set_label("Close inspector");
+    view! {
+        <unstyled::Pressable
+            accessibility={Prop::Static(accessibility)}
+            on_click={move || closer.close()}
+            on_hover_change={move |hovered| set_hovered.set(hovered)}
+            on_focus_change={move |focused| set_focused.set(focused)}
+        >
+            <Frame
+                color={fill_color}
+                outline={outline_color}
+                outline_width=BORDER_WIDTH
+                radius=CHIP_RADIUS
+                outline_visible=true
+                padding_horizontal=CLOSE_PADDING
+                padding_vertical=CLOSE_PADDING
+            >
+                <IconSized glyph=ICON_CLOSE font_size=CLOSE_ICON_SIZE color={THEME.text_muted} />
+            </Frame>
+        </unstyled::Pressable>
+    }
+}
+
+fn close_fill(hovered: bool) -> Color32 {
+    if hovered {
+        THEME.pressed
+    } else {
+        Color32::TRANSPARENT
+    }
+}
+
+fn close_outline(focused: bool) -> Color32 {
+    if focused { THEME.accent } else { THEME.border }
 }
 
 fn entry_field<T: Clone + Default + PartialEq + 'static>(

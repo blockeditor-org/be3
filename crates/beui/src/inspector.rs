@@ -67,6 +67,7 @@ pub(crate) struct State {
     reveal: Cell<Option<NodeId>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
+    closed: Cell<bool>,
 }
 
 impl State {
@@ -91,6 +92,7 @@ impl State {
             reveal: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
+            closed: Cell::new(false),
         }
     }
 
@@ -114,6 +116,11 @@ impl State {
 
     fn reset_performance(&self) {
         self.reset_performance.set(true);
+        self.touch();
+    }
+
+    fn close(&self) {
+        self.closed.set(true);
         self.touch();
     }
 
@@ -250,6 +257,10 @@ impl Inspector {
 
     pub(crate) fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
         (self.width * scale(ctx)).min(rect.width() / 2.0).max(0.0)
+    }
+
+    pub(crate) fn closed(&self) -> bool {
+        self.state.closed.get()
     }
 
     pub(crate) fn intercepts(&self) -> bool {

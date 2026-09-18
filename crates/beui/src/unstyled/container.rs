@@ -29,3 +29,13 @@ pub fn narrower_than(width: f32) -> Memo<bool> {
         })
     })
 }
+
+pub fn shorter_than(height: f32) -> Memo<bool> {
+    let size = container_size();
+    create_memo(move || {
+        size.as_ref().is_some_and(|size| {
+            let measured = size.get().y;
+            measured > 0.0 && measured < height
+        })
+    })
+}

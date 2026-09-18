@@ -16,7 +16,7 @@ use crate::reactive::{NodeRef, Prop, create_effect, with_document};
 
 use beui_macros::component;
 
-const CARET_WIDTH: f32 = 1.0;
+const CARET_WIDTH: f32 = 2.0;
 const BLINK_INTERVAL: Duration = Duration::from_millis(530);
 const DEFAULT_FONT_SIZE: f32 = 14.0;
 const DEFAULT_SELECTION_COLOR: Color32 = Color32::from_gray(80);

@@ -82,6 +82,7 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
     );
     view! {
         <Frame
+            width=TRIGGER_WIDTH
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS

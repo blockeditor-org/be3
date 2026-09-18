@@ -77,11 +77,12 @@ fn ChoiceLabel(kind: Kind, label: String, color: Prop<Color32>, checked: Memo<bo
 #[component]
 fn RadioMark(checked: Memo<bool>) -> NodeId {
     let theme = use_theme();
+    let ring_color = create_memo(clone!(checked theme -> move || ring(&theme, checked.get())));
     view! {
         <Frame
             width=MARK_BOX
             height=MARK_BOX
-            outline={theme.border.clone()}
+            outline={ring_color}
             outline_width=2.0
             radius=MARK_RADIUS
             outline_visible=true
@@ -103,6 +104,14 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
 
 pub(super) fn selected_index(document: &Document, choice: NodeId) -> Option<usize> {
     unstyled::choice_selected(document, choice)
+}
+
+fn ring(theme: &ThemeStore, checked: bool) -> Color32 {
+    if checked {
+        theme.accent.get()
+    } else {
+        theme.border.get()
+    }
 }
 
 fn background(theme: &ThemeStore, active: bool, hovered: bool) -> Color32 {

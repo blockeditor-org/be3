@@ -48,10 +48,11 @@ fn Line(
     font_size: Prop<f32>,
     color: Prop<Color32>,
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
+    #[prop(default = false)] wrap: Prop<bool>,
 ) -> NodeId {
     let text = create_memo(move || content.get());
     view! {
-        <Text string={text} font_size color align />
+        <Text string={text} font_size color align wrap />
     }
 }
 
@@ -104,9 +105,10 @@ pub fn Caption(
     content: Prop<String>,
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = muted_color())] color: Prop<Color32>,
+    #[prop(default = false)] wrap: Prop<bool>,
 ) -> NodeId {
     view! {
-        <Line content font_size=FONT_SMALL color align />
+        <Line content font_size=FONT_SMALL color align wrap />
     }
 }
 

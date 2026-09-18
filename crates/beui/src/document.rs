@@ -416,7 +416,9 @@ impl Document {
 
         if let Some(mut inspector) = self.inspector.take() {
             inspector.show(self, ctx, content, panel, inspector_has_focus);
-            self.inspector = Some(inspector);
+            if !inspector.closed() {
+                self.inspector = Some(inspector);
+            }
         }
         ctx.show_mouse_simulation(rect);
     }
