@@ -215,6 +215,7 @@ impl Runner {
         let clear_color = self.app.clear_color();
         let stale = surface.prepared_size != Some(size)
             || surface.clear_color != Some(clear_color)
+            || output.filter().is_some()
             || !surface.retains();
         let repaint = match output.damage() {
             Some(region) if !stale => Repaint::Region {
@@ -274,7 +275,15 @@ impl Runner {
         let clear = clear_color(self.app.clear_color());
         surface.retain();
         let pending = surface.pending.take();
-        let retained = surface.retained.as_ref();
+        let size = (surface.config.width, surface.config.height);
+        let Surface {
+            device,
+            queue,
+            renderer,
+            retained,
+            ..
+        } = &mut *surface;
+        let retained = retained.as_ref();
         let (target, load) = match retained {
             Some(retained) => (
                 &retained.view,
@@ -286,23 +295,7 @@ impl Runner {
             None => (&view, wgpu::LoadOp::Clear(clear)),
         };
         if pending.is_some() || retained.is_none() {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("beui pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            surface.renderer.paint(&mut pass);
+            renderer.render(device, queue, &mut encoder, target, size, load);
         }
         if let Some(retained) = retained {
             encoder.copy_texture_to_texture(
@@ -325,7 +318,7 @@ impl Runner {
                 },
             );
         }
-        surface.queue.submit(Some(encoder.finish()));
+        queue.submit(Some(encoder.finish()));
         frame.present();
     }
 }

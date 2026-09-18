@@ -387,16 +387,51 @@ keyboard toggle opens an on-screen keyboard that sends `Event::Key` and
 `Event::Text`; its Shift, Ctrl, and Alt keys latch until the next key, and they
 also apply to clicks, so Ctrl+Shift+I on it reopens the inspector.
 
+### Filters
+
+The Sim tab's Filters section puts a blur, a contrast reduction, and the
+colour vision simulations over the shown rectangle. They are independent of the
+screen reader simulation and of each other, and they need no cooperation from
+the document: they are a post-processing pass in `Renderer`, so whatever a
+document paints - a plugin's beui pane included - is filtered the same way.
+
+`Context::apply_filter` is what turns them on. It records a `Filter` (the region
+in points, a blur radius, a contrast multiplier, and a `ColorVision`) and the
+number of shapes painted so far, which splits the frame in two: everything
+painted before the call goes through the filter, everything painted after it
+lands on top of the result untouched. The inspector calls it once a frame,
+after the document, the panel, the overlays and the screen reader's focus
+outline, and before the curtain - so the reader's outline blurs with the page it
+marks while the curtain and the words on it stay readable. The region is the
+shown rectangle rather than the whole window, so the panel holding the sliders
+is never filtered.
+
+The blur is a dual Kawase chain: the frame is halved down a level at a time,
+then tented back up, with the number of levels taken from the radius. A radius
+of 120 points costs no more than a radius of 8, so the slider can go as wide as
+it likes without the frame rate following it. The radius reads like CSS
+`blur()`: the light from an edge reaches about three times it. Sampling is
+clamped to the filter's region at every level, so nothing outside it bleeds in.
+
+Contrast and the colour vision matrices run in the same pass that composites the
+blur. The matrices are the Viénot, Brettel and Mollon linear-RGB
+approximations, applied in linear light; the contrast reduction pulls toward mid
+grey in gamma space, the way CSS `contrast()` does.
+
+A frame carrying a filter always repaints in full: a blur spreads light out of
+the region that changed, so the damage rectangle the rest of the frame is drawn
+from no longer describes what has to be redrawn.
+
 ### The screen reader simulation
 
 "Simulate a screen reader" at the bottom of the Sim tab drops a curtain over the
 document and leaves only what a screen reader would say. The curtain covers the
 shown rectangle and not the inspector, so the panel stays usable while the
-document is hidden: the opacity slider decides how much of the layout shows
-through, and "Hide the text behind it" stops the document painting text at all -
-the one place the simulation reaches into the painting routines - so turning the
-opacity down leaves the shape of the page with nothing on it to read. The highlight marking where the reader is sits under the
-curtain with everything else, so a curtain at full opacity gives nothing away.
+document is hidden, and the opacity slider decides how much of the layout shows
+through. The highlight marking where the reader is sits under the curtain with
+everything else, so a curtain at full opacity gives nothing away. Turning the
+opacity down and the blur up is what leaves the shape of the page with nothing
+on it to read.
 
 Nothing about the simulation reads the beui tree. It walks the AccessKit tree
 the document publishes every frame, in reading order, and it changes the

@@ -5,8 +5,11 @@ use bytemuck::{Pod, Zeroable};
 use crate::color::Color32;
 use crate::context::FrameOutput;
 use crate::draw::{Quad, quads};
+use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
 use crate::geometry::{Rect, Vec2};
+
+mod filter;
 
 const ATLAS_SIZE: u32 = 2048;
 const GLYPH_PADDING: u32 = 1;
@@ -174,6 +177,7 @@ impl Repaint {
 
 pub struct Renderer {
     srgb: bool,
+    format: wgpu::TextureFormat,
     pipeline: wgpu::RenderPipeline,
     punch_pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
@@ -181,8 +185,11 @@ pub struct Renderer {
     instance_buffer: wgpu::Buffer,
     instance_capacity: usize,
     runs: Vec<Run>,
+    overlay: Vec<Run>,
     scissor: Option<[u32; 4]>,
     atlas: Atlas,
+    filter: Option<filter::Prepared>,
+    effects: Option<filter::Effects>,
 }
 
 struct Run {
@@ -298,6 +305,7 @@ impl Renderer {
 
         Self {
             srgb: format.is_srgb(),
+            format,
             pipeline,
             punch_pipeline,
             bind_group,
@@ -305,8 +313,11 @@ impl Renderer {
             instance_buffer,
             instance_capacity,
             runs: Vec::new(),
+            overlay: Vec::new(),
             scissor: None,
             atlas,
+            filter: None,
+            effects: None,
         }
     }
 
@@ -331,8 +342,16 @@ impl Renderer {
             }),
         );
 
+        let prepared = output
+            .filter()
+            .map(|filter: Filter| filter::Prepared::new(&filter, pixels_per_point));
+        let repaint = match prepared {
+            Some(_) => Repaint::Everything,
+            None => repaint,
+        };
         let mut instances = Vec::new();
         let mut runs = Vec::new();
+        let mut overlay = Vec::new();
         let damaged = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, background } => {
@@ -348,7 +367,16 @@ impl Renderer {
                 Some(region)
             }
         };
-        for quad in quads(output, pixels_per_point) {
+        let drawn = quads(output, pixels_per_point);
+        let split = match prepared {
+            Some(_) => drawn.filtered,
+            None => drawn.list.len(),
+        };
+        for (index, quad) in drawn.list.into_iter().enumerate() {
+            let layer = match index < split {
+                true => &mut runs,
+                false => &mut overlay,
+            };
             match quad {
                 Quad::Rect {
                     rect,
@@ -360,7 +388,7 @@ impl Renderer {
                     if skipped(damaged, expand(rect, stroke_width), clip) {
                         continue;
                     }
-                    Run::push(&mut runs, false, instances.len() as u32);
+                    Run::push(layer, false, instances.len() as u32);
                     instances.push(Instance {
                         rect,
                         clip,
@@ -381,7 +409,7 @@ impl Renderer {
                     let Some(uv) = self.atlas.insert(queue, glyph.id, &glyph.image) else {
                         continue;
                     };
-                    Run::push(&mut runs, false, instances.len() as u32);
+                    Run::push(layer, false, instances.len() as u32);
                     instances.push(Instance {
                         rect,
                         clip,
@@ -398,7 +426,7 @@ impl Renderer {
                     if skipped(damaged, rect, clip) {
                         continue;
                     }
-                    Run::push(&mut runs, true, instances.len() as u32);
+                    Run::push(layer, true, instances.len() as u32);
                     instances.push(Instance {
                         rect,
                         clip,
@@ -412,6 +440,8 @@ impl Renderer {
 
         self.scissor = damaged.map(scissor);
         self.runs = runs;
+        self.overlay = overlay;
+        self.filter = prepared;
         if instances.is_empty() {
             return;
         }
@@ -435,18 +465,85 @@ impl Renderer {
     }
 
     pub fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
-        if self.runs.is_empty() {
-            return;
-        }
         if let Some([left, top, width, height]) = self.scissor {
             if width == 0 || height == 0 {
                 return;
             }
             pass.set_scissor_rect(left, top, width, height);
         }
+        self.draw(pass, &self.runs);
+        self.draw(pass, &self.overlay);
+    }
+
+    pub fn render(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        size: (u32, u32),
+        load: wgpu::LoadOp<wgpu::Color>,
+    ) {
+        let Some(prepared) = self.filter else {
+            if let Some(effects) = self.effects.as_mut() {
+                effects.release();
+            }
+            let mut pass = self.begin(encoder, target, load);
+            self.paint(&mut pass);
+            return;
+        };
+        let (format, srgb) = (self.format, self.srgb);
+        self.effects
+            .get_or_insert_with(|| filter::Effects::new(device, format))
+            .ensure(device, size);
+        {
+            let Some(scene) = self.effects.as_ref().and_then(filter::Effects::scene) else {
+                return;
+            };
+            let mut pass = self.begin(encoder, scene, load);
+            self.draw(&mut pass, &self.runs);
+        }
+        if let Some(effects) = self.effects.as_mut() {
+            effects.record(device, queue, encoder, &prepared, srgb);
+        }
+        let mut pass = self.begin(encoder, target, load);
+        if let Some(effects) = self.effects.as_ref() {
+            effects.compose(&mut pass);
+        }
+        self.draw(&mut pass, &self.overlay);
+    }
+
+    fn begin<'pass>(
+        &self,
+        encoder: &'pass mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        load: wgpu::LoadOp<wgpu::Color>,
+    ) -> wgpu::RenderPass<'pass> {
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("beui pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        })
+    }
+
+    fn draw(&self, pass: &mut wgpu::RenderPass<'_>, runs: &[Run]) {
+        if runs.is_empty() {
+            return;
+        }
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        for run in &self.runs {
+        for run in runs {
             pass.set_pipeline(match run.punch {
                 true => &self.punch_pipeline,
                 false => &self.pipeline,

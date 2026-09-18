@@ -38,7 +38,6 @@ pub(super) struct View<'a> {
     pub(super) opacity: f32,
     pub(super) spoken: &'a [String],
     pub(super) status: String,
-    pub(super) focus: Option<Rect>,
     pub(super) finger: Option<Pos2>,
 }
 
@@ -48,16 +47,21 @@ struct Line {
     space: f32,
 }
 
+pub(super) fn paint_focus(painter: &Painter, scale: f32, focus: Rect) -> Rect {
+    let content = painter.clip_rect();
+    let rect = focus.scaled(scale).intersect(content);
+    if !content.is_positive() || !rect.is_positive() {
+        return Rect::NOTHING;
+    }
+    painter.rect_filled(rect, 0.0, FOCUS_FILL);
+    painter.rect_stroke(rect, 0.0, FOCUS_WIDTH, Theme::DARK.accent);
+    rect.expand(FOCUS_WIDTH)
+}
+
 pub(super) fn paint(painter: &Painter, scale: f32, view: &View<'_>) -> Rect {
     let content = view.content;
     if !content.is_positive() {
         return Rect::NOTHING;
-    }
-    if let Some(rect) = view.focus.map(|rect| rect.scaled(scale).intersect(content))
-        && rect.is_positive()
-    {
-        painter.rect_filled(rect, 0.0, FOCUS_FILL);
-        painter.rect_stroke(rect, 0.0, FOCUS_WIDTH, Theme::DARK.accent);
     }
     painter.rect_filled(content, 0.0, curtain_color(view.opacity));
     let mut painted = content;

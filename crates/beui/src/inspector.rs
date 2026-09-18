@@ -8,6 +8,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::context::Context;
+use crate::filter::{ColorVision, Filter};
 use crate::flash;
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, Event, Key as InputKey};
@@ -60,7 +61,9 @@ pub(crate) struct State {
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
     pub(crate) screen_reader: Cell<bool>,
     pub(crate) curtain_opacity: Cell<f32>,
-    pub(crate) hide_text: Cell<bool>,
+    pub(crate) blur: Cell<f32>,
+    pub(crate) contrast_reduction: Cell<f32>,
+    pub(crate) color_vision: Cell<ColorVision>,
     commands: RefCell<Vec<Command>>,
     pub(crate) theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
@@ -85,7 +88,9 @@ impl State {
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
             screen_reader: Cell::new(false),
             curtain_opacity: Cell::new(DEFAULT_OPACITY),
-            hide_text: Cell::new(true),
+            blur: Cell::new(0.0),
+            contrast_reduction: Cell::new(0.0),
+            color_vision: Cell::new(ColorVision::Typical),
             commands: RefCell::new(Vec::new()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
@@ -139,9 +144,28 @@ impl State {
         self.touch();
     }
 
-    fn hide_text(&self, hidden: bool) {
-        self.hide_text.set(hidden);
+    fn set_blur(&self, radius: f32) {
+        self.blur.set(radius);
         self.touch();
+    }
+
+    fn set_contrast_reduction(&self, amount: f32) {
+        self.contrast_reduction.set(amount);
+        self.touch();
+    }
+
+    fn choose_color_vision(&self, vision: ColorVision) {
+        self.color_vision.set(vision);
+        self.touch();
+    }
+
+    fn filter(&self, region: Rect) -> Filter {
+        Filter {
+            region,
+            blur: self.blur.get().max(0.0),
+            contrast: 1.0 - self.contrast_reduction.get().clamp(0.0, 1.0),
+            vision: self.color_vision.get(),
+        }
     }
 
     fn command(&self, command: Command) {
@@ -181,6 +205,12 @@ impl State {
     fn touch(&self) {
         self.revision.set(self.revision.get() + 1);
     }
+}
+
+#[derive(Clone, Copy)]
+enum Layer {
+    Below,
+    Above,
 }
 
 pub(crate) struct Inspector {
@@ -320,7 +350,6 @@ impl Inspector {
         target.track_changes(self.state.flash_changes.get());
         target.track_damage(self.state.flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
-        target.hide_text(self.state.screen_reader.get() && self.state.hide_text.get());
         if let Some(theme) = self.state.requested_theme.take() {
             target.set_theme(theme);
             ctx.request_repaint();
@@ -330,8 +359,13 @@ impl Inspector {
         self.reveal();
         self.read(target, ctx, content, keyboard_interactive);
         self.paint(target, ctx, content, panel);
-        if self.reader.painting() {
-            self.cover(ctx, content);
+        let covering = self.reader.painting();
+        if covering {
+            self.cover(ctx, content, Layer::Below);
+        }
+        ctx.apply_filter(self.state.filter(content));
+        if covering {
+            self.cover(ctx, content, Layer::Above);
         }
         if target.flashing() {
             ctx.request_repaint();
@@ -356,14 +390,16 @@ impl Inspector {
         }
     }
 
-    fn cover(&mut self, ctx: &Context, content: Rect) {
+    fn cover(&mut self, ctx: &Context, content: Rect, layer: Layer) {
         let scale = scale(ctx);
         let local = scale.recip();
         let Self { reader, .. } = self;
         ctx.scaled(scale, || {
             let painter = ctx.painter().with_clip_rect(content.scaled(local));
-            let damage = reader.paint(&painter, local);
-            ctx.report_damage(damage);
+            match layer {
+                Layer::Below => reader.paint_focus(&painter, local),
+                Layer::Above => ctx.report_damage(reader.paint_curtain(&painter, local)),
+            }
         });
     }
 

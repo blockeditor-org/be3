@@ -25,9 +25,19 @@ pub enum Quad {
     },
 }
 
-pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Vec<Quad> {
+pub struct Quads {
+    pub list: Vec<Quad>,
+    pub filtered: usize,
+}
+
+pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
+    let boundary = output.filtered_shapes();
+    let mut filtered = 0;
     let mut quads = Vec::new();
-    for shape in &output.shapes {
+    for (index, shape) in output.shapes.iter().enumerate() {
+        if boundary == Some(index) {
+            filtered = quads.len();
+        }
         match shape {
             Shape::Rect {
                 rect,
@@ -92,7 +102,13 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Vec<Quad> {
             }
         }
     }
-    quads
+    if boundary.is_some_and(|boundary| boundary >= output.shapes.len()) {
+        filtered = quads.len();
+    }
+    Quads {
+        list: quads,
+        filtered,
+    }
 }
 
 fn bounds(rect: Rect, pixels_per_point: f32) -> [f32; 4] {

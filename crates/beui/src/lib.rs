@@ -9,6 +9,7 @@ mod context;
 mod damage;
 mod document;
 mod draw;
+mod filter;
 mod flash;
 mod font;
 mod geometry;
@@ -37,7 +38,8 @@ pub use base::{Align, Direction, ItemSize, ScrollPosition, TextAlign, focus_with
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
 pub use document::Document;
-pub use draw::{Quad, quads};
+pub use draw::{Quad, Quads, quads};
+pub use filter::{ColorVision, Filter, MAX_BLUR};
 pub use font::{FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use input::{
