@@ -218,7 +218,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
 #[component]
 fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
     let theme = use_theme();
-    let editable = editor.editable();
+    let read_only = editor.read_only();
     let empty = create_memo(clone!(slides -> move || slides.count() == 0));
     let position = create_memo(clone!(slides -> move || {
         let count = slides.count();
@@ -245,7 +245,7 @@ fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
                     @sizing=ItemSize::Percent(100.0)
                     label="Add slide"
                     variant=ButtonVariant::Primary
-                    disabled={!editable}
+                    disabled={read_only}
                     on_click={add}
                     @test_id={"presentation.add"}
                 />
@@ -380,6 +380,7 @@ fn SlideTile(
 ) -> NodeId {
     let theme = use_theme();
     let editable = editor.editable();
+    let read_only = editor.read_only();
     let (ratio, set_ratio) = create_signal(DEFAULT_RATIO);
     let target = create_memo(clone!(slides -> move || slides.target(Some(id))));
     let name = create_memo(clone!(slides -> move || {
@@ -403,8 +404,8 @@ fn SlideTile(
     }));
 
     let select = clone!(slides -> move || slides.select(Some(id)));
-    let hold = clone!(drag -> move |_| {
-        if editable {
+    let hold = clone!(drag editable -> move |_| {
+        if editable.get_untracked() {
             drag.set_held.set(Some(id));
         }
     });
@@ -477,7 +478,7 @@ fn SlideTile(
                         <IconButton
                             glyph={ICON_DELETE.to_owned()}
                             label="Detach slide"
-                            disabled={!editable}
+                            disabled={read_only}
                             on_click={remove}
                             @test_id={format!("presentation.slide.{id}.remove")}
                         />

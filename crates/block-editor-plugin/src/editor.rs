@@ -3,8 +3,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use beui::reactive::{
-    Callback, CanvasView, EmbedSlot, KeyedStore, NodeRef, Prop, ReadSignal, WriteSignal,
-    create_signal, on_cleanup,
+    Callback, CanvasView, EmbedSlot, KeyedStore, Memo, NodeRef, Prop, ReadSignal, WriteSignal,
+    create_memo, create_signal, on_cleanup,
 };
 use beui::{Document, Rect, Vec2};
 use block::Block;
@@ -78,13 +78,25 @@ struct PendingPick {
     picked: Rc<dyn Fn(Result<PickedBlock, String>)>,
 }
 
-type Work = RefCell<Vec<Rc<dyn Fn()>>>;
+type Work = RefCell<Vec<(u64, Rc<dyn Fn()>)>>;
 
 fn run(work: &Work) {
     let callbacks = work.borrow().clone();
-    for callback in callbacks {
+    for (_, callback) in callbacks {
         callback();
     }
+}
+
+fn register(work: &Rc<Work>, next: &Cell<u64>, callback: impl Fn() + 'static) {
+    let id = next.get();
+    next.set(id + 1);
+    work.borrow_mut().push((id, Rc::new(callback)));
+    let work = Rc::downgrade(work);
+    on_cleanup(move || {
+        if let Some(work) = work.upgrade() {
+            work.borrow_mut().retain(|(existing, _)| *existing != id);
+        }
+    });
 }
 
 #[derive(Clone)]
@@ -97,9 +109,11 @@ struct EditorState {
     canvas: ReadSignal<Option<CanvasView>>,
     scale: ReadSignal<f32>,
     chrome: ReadSignal<bool>,
+    editable: ReadSignal<bool>,
     set_canvas: WriteSignal<Option<CanvasView>>,
     set_scale: WriteSignal<f32>,
     set_chrome: WriteSignal<bool>,
+    set_editable: WriteSignal<bool>,
     presenting: ReadSignal<bool>,
     set_presenting: WriteSignal<bool>,
     content: RefCell<Option<NodeRef>>,
@@ -108,7 +122,8 @@ struct EditorState {
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     pick: RefCell<Option<PendingPick>>,
-    each_frame: Work,
+    each_frame: Rc<Work>,
+    next_work: Cell<u64>,
 }
 
 impl Editor {
@@ -116,6 +131,7 @@ impl Editor {
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
         let (scale, set_scale) = create_signal(1.0_f32);
         let (chrome, set_chrome) = create_signal(true);
+        let (editable, set_editable) = create_signal(host.editable());
         let (presenting, set_presenting) = create_signal(false);
         Self(Rc::new(EditorState {
             host,
@@ -124,9 +140,11 @@ impl Editor {
             canvas,
             scale,
             chrome,
+            editable,
             set_canvas,
             set_scale,
             set_chrome,
+            set_editable,
             presenting,
             set_presenting,
             content: RefCell::new(None),
@@ -135,7 +153,8 @@ impl Editor {
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             pick: RefCell::new(None),
-            each_frame: RefCell::new(Vec::new()),
+            each_frame: Rc::new(RefCell::new(Vec::new())),
+            next_work: Cell::new(0),
         }))
     }
 
@@ -151,8 +170,13 @@ impl Editor {
         self.0.block
     }
 
-    pub fn editable(&self) -> bool {
-        self.0.host.editable()
+    pub fn editable(&self) -> ReadSignal<bool> {
+        self.0.editable.clone()
+    }
+
+    pub fn read_only(&self) -> Memo<bool> {
+        let editable = self.0.editable.clone();
+        create_memo(move || !editable.get())
     }
 
     pub fn block<B: Block>(&self) -> Rc<BlockProjection<B>> {
@@ -167,7 +191,7 @@ impl Editor {
     }
 
     pub fn each_frame(&self, work: impl Fn() + 'static) {
-        self.0.each_frame.borrow_mut().push(Rc::new(work));
+        register(&self.0.each_frame, &self.0.next_work, work);
     }
 
     pub fn canvas(&self) -> ReadSignal<Option<CanvasView>> {
@@ -310,6 +334,7 @@ impl Editor {
         self.0.set_canvas.set(view.canvas());
         self.0.set_scale.set(view.scale());
         self.0.set_chrome.set(self.0.host.chrome_shown());
+        self.0.set_editable.set(self.0.host.editable());
         self.0.set_presenting.set(self.0.host.presenting());
         for record in self.records() {
             let state = ChildState::of(&self.0.host, record.child.get());
@@ -415,7 +440,8 @@ struct CreationState {
     host: EditorHost,
     client: Arc<BlockClient>,
     maker: RefCell<Option<Maker>>,
-    each_frame: Work,
+    each_frame: Rc<Work>,
+    next_work: Cell<u64>,
 }
 
 impl Creation {
@@ -424,7 +450,8 @@ impl Creation {
             host,
             client,
             maker: RefCell::new(None),
-            each_frame: RefCell::new(Vec::new()),
+            each_frame: Rc::new(RefCell::new(Vec::new())),
+            next_work: Cell::new(0),
         }))
     }
 
@@ -445,7 +472,7 @@ impl Creation {
     }
 
     pub fn each_frame(&self, work: impl Fn() + 'static) {
-        self.0.each_frame.borrow_mut().push(Rc::new(work));
+        register(&self.0.each_frame, &self.0.next_work, work);
     }
 
     pub fn create_block(&self) -> Result<Uuid, String> {

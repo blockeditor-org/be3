@@ -29,14 +29,14 @@ pub fn Code(
 }
 
 #[component]
-pub fn Icon(glyph: String, #[prop(default = text_color())] color: Prop<Color32>) -> NodeId {
+pub fn Icon(glyph: Prop<String>, #[prop(default = text_color())] color: Prop<Color32>) -> NodeId {
     view! {
         <IconSized glyph font_size=ICON_SIZE color />
     }
 }
 
 #[component]
-pub fn IconSized(glyph: String, font_size: Prop<f32>, color: Prop<Color32>) -> NodeId {
+pub fn IconSized(glyph: Prop<String>, font_size: Prop<f32>, color: Prop<Color32>) -> NodeId {
     view! {
         <Text string={glyph} font_size color align=TextAlign::Center icon=true />
     }

@@ -1,3 +1,4 @@
+use beui::icons::ICON_GRID_VIEW;
 use beui::reactive::{
     Callback, Canvas, CanvasItem, CanvasView, CenteredRow, Column, Frame, Memo, ReadSignal, Row,
     Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
@@ -6,7 +7,7 @@ use beui::reactive::{
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
-    Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
+    Link, Listbox, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select, Separator,
     Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, use_theme,
 };
 use beui::unstyled::{
@@ -27,6 +28,8 @@ const COMPACT_HEADER_HEIGHT: f32 = 52.0;
 const HEADER_PADDING: f32 = 20.0;
 const BODY_PADDING: f32 = 20.0;
 const COMPACT_PADDING: f32 = 12.0;
+const ZOOM_MIN: f32 = 0.5;
+const ZOOM_MAX: f32 = 3.0;
 const BODY_SPACING: f32 = 20.0;
 const CARD_NARROW_WIDTH: f32 = 460.0;
 const TABS_NARROW_WIDTH: f32 = 380.0;
@@ -557,7 +560,7 @@ fn ControlPanels(rows: Rows) -> NodeId {
     view! {
         <Column spacing=16.0>
             <ResponsiveTabs
-                labels={vec!["List".to_string(), "Strip".to_string(), "Load".to_string(), "Name".to_string(), "Choices".to_string(), "Menus".to_string(), "Tree".to_string()]}
+                labels={vec!["List".to_string(), "Strip".to_string(), "Load".to_string(), "Name".to_string(), "Links".to_string(), "Choices".to_string(), "Menus".to_string(), "Tree".to_string()]}
                 selected=0
                 breakpoint=TABS_NARROW_WIDTH
                 on_change={move |selected| {
@@ -578,12 +581,15 @@ fn ControlPanels(rows: Rows) -> NodeId {
                     <NameControls />
                 </Show>
                 <Show condition={tab.memo(4)}>
-                    <ChoiceControls />
+                    <LinkControls />
                 </Show>
                 <Show condition={tab.memo(5)}>
-                    <MenuControls />
+                    <ChoiceControls />
                 </Show>
                 <Show condition={tab.memo(6)}>
+                    <MenuControls />
+                </Show>
+                <Show condition={tab.memo(7)}>
                     <TreeControls />
                 </Show>
             </Column>
@@ -668,6 +674,8 @@ fn StripCard(index: usize) -> NodeId {
 fn LoadControls() -> NodeId {
     let (progress_value, set_progress_value) = create_signal(0.4f32);
     let readout_value = progress_value.clone();
+    let (zoom, set_zoom) = create_signal(1.0f32);
+    let zoom_readout = zoom.clone();
 
     view! {
         <Column spacing=12.0>
@@ -686,6 +694,50 @@ fn LoadControls() -> NodeId {
                 }}
             />
             <Progress value={progress_value} />
+            <CenteredRow spacing=12.0>
+                <Caption content="Zoom" />
+                <Caption
+                    @sizing=ItemSize::Percent(100.0)
+                    content={create_memo(move || format!("{:.2}x", zoom_readout.get()))}
+                    align=TextAlign::End
+                />
+            </CenteredRow>
+            <Slider
+                value={zoom}
+                min=ZOOM_MIN
+                max=ZOOM_MAX
+                label="Zoom"
+                on_change={move |value| set_zoom.set(value)}
+            />
+        </Column>
+    }
+}
+
+#[component]
+fn LinkControls() -> NodeId {
+    let (followed, set_followed) = create_signal("Nothing followed yet".to_owned());
+    let set_docs = set_followed.clone();
+
+    view! {
+        <Column spacing=12.0>
+            <Paragraph
+                content="A link reads as a link rather than a button, underlines itself while \
+                 hovered or focused, and takes Space or Enter like any other control."
+            />
+            <CenteredRow spacing=16.0>
+                <Link
+                    label="Open the grid"
+                    glyph={ICON_GRID_VIEW.to_owned()}
+                    on_click={move || set_followed.set("Followed: Open the grid".to_owned())}
+                />
+                <Link
+                    label="Read the guide"
+                    on_click={move || set_docs.set("Followed: Read the guide".to_owned())}
+                />
+                <Link label="Unavailable" disabled=true />
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+            </CenteredRow>
+            <Caption content={followed} />
         </Column>
     }
 }

@@ -105,7 +105,7 @@ impl BlockGame {
             Err(error) => return GameSnapshot::Error(error.clone()),
         };
         match game.show(&actions, self.player) {
-            Ok(screen) => GameSnapshot::screen(screen, self.editor.editable()),
+            Ok(screen) => GameSnapshot::screen(screen, self.editor.editable().get_untracked()),
             Err(error) => GameSnapshot::Error(error),
         }
     }

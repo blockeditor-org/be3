@@ -228,9 +228,9 @@ horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
 `Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, and `Stack`. The styled
-module supplies themed buttons, icon buttons, text styles, cards, checkboxes,
-switches, choices, inputs, menus, tabs, trees, progress, scrollbars, and
-responsive layout. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
+module supplies themed buttons, icon buttons, links, text styles, cards,
+checkboxes, switches, choices, inputs, menus, tabs, trees, progress,
+scrollbars, and responsive layout. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 lists.
 
 ### Pan and zoom
