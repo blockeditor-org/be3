@@ -17,12 +17,14 @@ mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
+mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
+mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
 mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
@@ -36,6 +38,7 @@ mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
+mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod accessibility_exposes_and_operates_a_button;
 mod accessibility_reports_and_steps_a_slider;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
@@ -63,6 +66,7 @@ mod clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip;
 mod clicking_a_tab_selects_the_panel_it_names;
 mod clicking_an_accordion_header_hides_its_content;
 mod clicking_outside_an_open_select_popup_closes_it_without_clicking_through;
+mod clicking_the_inspector_close_button_closes_the_panel;
 mod clicking_the_middle_of_a_placeholder_puts_the_caret_at_the_start;
 mod clicking_the_padding_around_a_button_label_activates_it;
 mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
@@ -149,7 +153,10 @@ mod tapping_a_checkbox_with_touch_toggles_it;
 mod tapping_inside_a_selection_in_a_select_search_box_opens_its_menu;
 mod tapping_inside_a_touch_selection_opens_a_menu_that_copies_it;
 mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
+mod the_caret_of_a_text_input_paints_two_points_wide;
+mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
 mod the_demo_catalog_survives_switching_tabs;
+mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
 mod the_inspector_follows_nodes_added_to_the_document;
 mod the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated;
@@ -421,6 +428,10 @@ impl Harness {
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.simulation.mouse_simulation")
+    }
+
+    pub(crate) fn close_button_center(&self) -> Pos2 {
+        self.inspector_center("inspector.close")
     }
 
     pub(crate) fn mouse_simulation(&self) -> bool {

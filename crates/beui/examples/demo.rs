@@ -1,8 +1,8 @@
 use beui::icons::ICON_GRID_VIEW;
 use beui::reactive::{
-    Callback, Canvas, CanvasItem, CanvasView, CenteredRow, Column, Frame, Memo, ReadSignal, Row,
-    Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
-    create_selector, create_signal, view,
+    Callback, Canvas, CanvasItem, CanvasView, CenteredRow, Column, Frame, Keyed, Memo, ReadSignal,
+    Row, Scroll, Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
+    create_selector, create_signal, percent, view,
 };
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
@@ -12,6 +12,7 @@ use beui::styled::{
 };
 use beui::unstyled::{
     Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, TreeItem, narrower_than,
+    shorter_than,
 };
 use beui::{
     Color32, Context, Direction, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign,
@@ -31,11 +32,13 @@ const COMPACT_PADDING: f32 = 12.0;
 const ZOOM_MIN: f32 = 0.5;
 const ZOOM_MAX: f32 = 3.0;
 const BODY_SPACING: f32 = 20.0;
+const SHORT_HEIGHT: f32 = 900.0;
+const PAGE_SCROLLBAR_SPACING: f32 = 10.0;
 const CARD_NARROW_WIDTH: f32 = 460.0;
 const TABS_NARROW_WIDTH: f32 = 380.0;
 const ICON_BUTTON_WIDTH: f32 = 44.0;
 const ROW_COUNT: usize = 10_000;
-const NARROW_ROWS_HEIGHT: f32 = 320.0;
+const CRAMPED_ROWS_HEIGHT: f32 = 320.0;
 const ROW_HEIGHT: f32 = 34.0;
 const COMPACT_ROW_HEIGHT: f32 = 25.0;
 const TREE_NODES: [(&str, usize); 9] = [
@@ -289,20 +292,59 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
 #[component]
 fn DemoBody(count: ReadSignal<i64>) -> NodeId {
     let narrow = narrower_than(NARROW_WIDTH);
-    let padding = create_memo(move || {
+    let short = shorter_than(SHORT_HEIGHT);
+    let padding = create_memo(clone!(narrow -> move || {
         if narrow.get() {
             COMPACT_PADDING
         } else {
             BODY_PADDING
         }
-    });
+    }));
+    let cramped = create_memo(move || narrow.get() || short.get());
     view! {
         <Frame padding_horizontal={padding.clone()} padding_vertical={padding}>
-            <Stack spacing=BODY_SPACING>
-                <Sidebar @sizing=ItemSize::Percent(32.0) />
-                <MainPanel @sizing=ItemSize::Percent(68.0) count />
-            </Stack>
+            <Column spacing=0.0>
+                <Keyed value={cramped} key={|cramped: bool| cramped}>
+                    {move |value: ReadSignal<bool>| {
+                        let (cramped, count) = (value.get_untracked(), count.clone());
+                        percent(view! {
+                            <DemoPanels cramped count />
+                        }, 100.0)
+                    }}
+                </Keyed>
+            </Column>
         </Frame>
+    }
+}
+
+#[component]
+fn DemoPanels(cramped: bool, count: ReadSignal<i64>) -> NodeId {
+    if !cramped {
+        return view! {
+            <DemoPanelStack cramped count />
+        };
+    }
+    let (position, set_position) = create_signal(ScrollPosition::ZERO);
+    view! {
+        <Row spacing=PAGE_SCROLLBAR_SPACING>
+            <Scroll
+                @sizing=ItemSize::Percent(100.0)
+                on_change={move |value| set_position.set(value)}
+            >
+                <DemoPanelStack cramped count />
+            </Scroll>
+            <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
+        </Row>
+    }
+}
+
+#[component]
+fn DemoPanelStack(cramped: bool, count: ReadSignal<i64>) -> NodeId {
+    view! {
+        <Stack spacing=BODY_SPACING>
+            <Sidebar @sizing=ItemSize::Percent(32.0) />
+            <MainPanel @sizing=ItemSize::Percent(68.0) cramped count />
+        </Stack>
     }
 }
 
@@ -342,7 +384,7 @@ fn Sidebar() -> NodeId {
 }
 
 #[component]
-fn MainPanel(count: ReadSignal<i64>) -> NodeId {
+fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
     let (status_text, set_status_text) = create_signal("Nothing selected".to_string());
     let rows = Rows::new(set_status_text);
     let compact = rows.compact.clone();
@@ -355,14 +397,11 @@ fn MainPanel(count: ReadSignal<i64>) -> NodeId {
     });
     let item_rows = rows.clone();
     let (scroll_position, set_scroll_position) = create_signal(ScrollPosition::ZERO);
-    let narrow = narrower_than(NARROW_WIDTH);
-    let rows_size = create_memo(move || {
-        if narrow.get() {
-            ItemSize::Fixed(NARROW_ROWS_HEIGHT)
-        } else {
-            ItemSize::Percent(100.0)
-        }
-    });
+    let rows_size = if cramped {
+        ItemSize::Fixed(CRAMPED_ROWS_HEIGHT)
+    } else {
+        ItemSize::Percent(100.0)
+    };
 
     view! {
         <Column spacing=20.0>
@@ -458,6 +497,7 @@ fn CanvasCard() -> NodeId {
                     on_change={move |view| stage.set(view)}
                 />
                 <Caption
+                    wrap=true
                     content="Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom, \
                      and drag with the middle button. Tab to it for arrows, + and -."
                 />

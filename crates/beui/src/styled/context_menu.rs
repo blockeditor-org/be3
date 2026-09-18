@@ -2,8 +2,12 @@ use beui_macros::{component, view};
 
 use crate::base::TextAlign;
 use crate::color::Color32;
+use crate::icons::ICON_CHEVRON_RIGHT;
 use crate::node::NodeId;
-use crate::reactive::{Callback, Child, Frame, Prop, Text, clone, create_memo};
+use crate::reactive::{
+    Callback, CenteredRow, Child, Frame, ItemSize, Prop, Text, clone, create_memo,
+};
+use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{MenuItem, MenuRowHandle, TextInputMenu};
@@ -12,6 +16,8 @@ const PADDING_HORIZONTAL: f32 = 14.0;
 const PADDING_VERTICAL: f32 = 6.0;
 const MENU_PADDING: f32 = 4.0;
 const MENU_WIDTH: f32 = 200.0;
+const SUBMENU_SPACING: f32 = 8.0;
+const SUBMENU_ICON_SIZE: f32 = 16.0;
 
 #[component]
 pub fn ContextMenu(
@@ -59,6 +65,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let disabled = item.disabled;
+    let submenu = !item.children.is_empty();
     let color = create_memo(clone!(theme -> move || {
         if disabled {
             theme.text_muted.get()
@@ -66,6 +73,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             theme.text.get()
         }
     }));
+    let arrow_color = color.clone();
     let fill_color =
         create_memo(clone!(theme -> move || row_background(&theme, focused.get(), hovered.get())));
     view! {
@@ -75,7 +83,22 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
-            <Text string={item.label} font_size=FONT_BODY color align=TextAlign::Start />
+            <CenteredRow spacing=SUBMENU_SPACING>
+                <Text
+                    @sizing=ItemSize::Percent(100.0)
+                    string={item.label}
+                    font_size=FONT_BODY
+                    color
+                    align=TextAlign::Start
+                />
+                <Frame visible={submenu}>
+                    <IconSized
+                        glyph=ICON_CHEVRON_RIGHT
+                        font_size=SUBMENU_ICON_SIZE
+                        color={arrow_color}
+                    />
+                </Frame>
+            </CenteredRow>
         </Frame>
     }
 }
