@@ -2,12 +2,14 @@ use crate::color::Color32;
 use crate::input::{Key, KeyPress};
 use std::any::Any;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::Instant;
 
 use crate::base::child_list::{ChildList, SlotId};
 use crate::base::list::Direction;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
+use crate::reactive::KeyedItems;
 
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
@@ -50,14 +52,15 @@ impl Default for ScrollPosition {
     }
 }
 
-pub(crate) type ItemBuilder = Box<dyn FnMut(usize) -> NodeId>;
+type VirtualRows = KeyedItems<usize, NodeId>;
 
 pub(crate) struct VirtualItems {
     pub(crate) count: usize,
     pub(crate) estimated: f32,
-    pub(crate) build: ItemBuilder,
     pub(crate) first: usize,
-    pub(crate) owner: Option<ScopeContext>,
+    slot: SlotId,
+    rows: Rc<VirtualRows>,
+    owner: Option<ScopeContext>,
 }
 
 enum ScrollAnchor {
@@ -198,61 +201,49 @@ impl ScrollNode {
         }
     }
 
-    fn realize(&mut self, doc: &mut Document, painter: &Painter, rect: Rect) {
-        let Some(mut items) = self.virtual_items.take() else {
+    fn realize(&mut self, doc: &mut Document, rect: Rect) {
+        let Some(items) = self.virtual_items.take() else {
             return;
         };
-        let mut realized = self.items.take_all();
-        let owner = items.owner.clone();
-        let (main, cross) = self.direction.main_and_cross(rect.size());
-        let first = if items.estimated > 0.0 {
-            ((self.offset / items.estimated) as usize).min(items.count.saturating_sub(1))
+        let VirtualItems {
+            count,
+            estimated,
+            slot,
+            rows,
+            owner,
+            ..
+        } = items;
+        let (main, _) = self.direction.main_and_cross(rect.size());
+        let first = if estimated > 0.0 {
+            ((self.offset / estimated) as usize).min(count.saturating_sub(1))
         } else {
             0
         };
-
-        if first > items.first {
-            let dropped = (first - items.first).min(realized.len());
-            for item in realized.drain(..dropped) {
+        let leading = first as f32 * estimated - self.offset;
+        let fit = match estimated > 0.0 {
+            true => ((main - leading) / estimated).ceil().max(0.0) as usize,
+            false => 0,
+        };
+        let last = first.saturating_add(fit).min(count);
+        let range: Vec<usize> = (first..last).collect();
+        let mapping = match owner.as_ref().filter(|owner| owner.is_alive()) {
+            Some(owner) => settle(|| owner.run(|| rows.map(range))),
+            None => settle(|| rows.map(range)),
+        };
+        mapping.commit(|realized, evicted| {
+            self.items.fill(slot, realized);
+            for item in evicted {
                 doc.remove_node(item);
             }
-        } else if first < items.first {
-            let mut head = Vec::new();
-            let mut end = first as f32 * items.estimated - self.offset;
-            for index in first..items.first {
-                if end >= main {
-                    break;
-                }
-                let item = build_item(doc, owner.clone(), &mut items.build, index);
-                end += length(doc, painter, item, self.direction, cross);
-                head.push(item);
-            }
-            head.append(&mut realized);
-            realized = head;
-        }
-        items.first = first;
-
-        let mut end = first as f32 * items.estimated - self.offset;
-        let mut kept = 0;
-        for &item in &realized {
-            if end >= main {
-                break;
-            }
-            end += length(doc, painter, item, self.direction, cross);
-            kept += 1;
-        }
-        for item in realized.drain(kept..) {
-            doc.remove_node(item);
-        }
-
-        while end < main && first + realized.len() < items.count {
-            let item = build_item(doc, owner.clone(), &mut items.build, first + realized.len());
-            end += length(doc, painter, item, self.direction, cross);
-            realized.push(item);
-        }
-
-        self.items.set_all(realized);
-        self.virtual_items = Some(items);
+        });
+        self.virtual_items = Some(VirtualItems {
+            count,
+            estimated,
+            first,
+            slot,
+            rows,
+            owner,
+        });
     }
 
     fn drag(&mut self, position: &mut ScrollPosition, delta: f32) {
@@ -332,18 +323,6 @@ fn revealed_offset(direction: Direction, viewport: Rect, item: Rect, offset: f32
     Some(revealed.max(0.0))
 }
 
-fn build_item(
-    doc: &mut Document,
-    owner: Option<ScopeContext>,
-    build: &mut ItemBuilder,
-    index: usize,
-) -> NodeId {
-    let scope = crate::reactive::node_scope(doc, owner);
-    let item = settle(|| scope.context().run(|| build(index)));
-    doc.register_node_scope(item, scope);
-    item
-}
-
 impl Element for ScrollNode {
     fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         Vec2::ZERO
@@ -364,7 +343,7 @@ impl Element for ScrollNode {
         };
         self.offset = self.anchored_offset(&lengths).max(0.0);
         if virtualised {
-            self.realize(doc, painter, rect);
+            self.realize(doc, rect);
             lengths = self.lengths(doc, painter, cross);
         }
         let content = self.content(lengths.iter().sum());
@@ -575,7 +554,7 @@ impl Document {
         scroll: NodeId,
         count: usize,
         estimated_height: f32,
-        build: impl FnMut(usize) -> NodeId + 'static,
+        build: impl Fn(usize) -> NodeId + 'static,
     ) {
         let node = self.arena.get_mut_as::<ScrollNode>(scroll);
         if matches!(node.anchor, Some(ScrollAnchor::Node { .. })) {
@@ -586,11 +565,13 @@ impl Document {
             self.remove_node(item);
         }
         let owner = owner_scope();
+        let slot = self.arena.get_mut_as::<ScrollNode>(scroll).items.open();
         self.arena.get_mut_as::<ScrollNode>(scroll).virtual_items = Some(VirtualItems {
             count,
             estimated: estimated_height.max(0.0),
-            build: Box::new(build),
             first: 0,
+            slot,
+            rows: Rc::new(KeyedItems::new(build)),
             owner,
         });
     }

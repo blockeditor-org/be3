@@ -89,13 +89,6 @@ impl<T> ChildList<T> {
         });
     }
 
-    pub(crate) fn set_all(&mut self, items: Vec<T>) {
-        self.slots.clear();
-        for item in items {
-            self.push(item);
-        }
-    }
-
     pub(crate) fn take_all(&mut self) -> Vec<T> {
         let slots = std::mem::take(&mut self.slots);
         slots
