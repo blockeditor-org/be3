@@ -13,14 +13,14 @@ fn the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach() {
     harness.enable_screen_reader();
     harness.frame(Vec::new());
 
-    harness.click(harness.screen_reader_button_center("next_control"));
+    harness.click(harness.screen_reader_control_center("next_control"));
     harness.frame(Vec::new());
     assert_eq!(
         harness.reading().as_deref(),
         Some("Show timings, check box, not checked")
     );
 
-    harness.click(harness.screen_reader_button_center("activate"));
+    harness.click(harness.screen_reader_control_center("activate"));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

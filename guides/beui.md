@@ -385,8 +385,10 @@ also apply to clicks, so Ctrl+Shift+I on it reopens the inspector.
 document and leaves only what a screen reader would say. The curtain covers the
 shown rectangle and not the inspector, so the panel stays usable while the
 document is hidden: the opacity slider decides how much of the layout shows
-through, and "Frost what is behind it" smears every leaf of the document into a
-block so shapes remain but nothing can be read.
+through, and "Frost what is behind it" paints an opaque block over every run of
+text the document painted, clipped the way that text was, so turning the opacity
+down shows the shape of the page without a word of it being readable. The highlight marking where the reader is sits under the
+curtain with everything else, so a curtain at full opacity gives nothing away.
 
 Nothing about the simulation reads the beui tree. It walks the AccessKit tree
 the document publishes every frame, in reading order, and it changes the
@@ -402,17 +404,17 @@ as its bare role, which is the point: "button" on its own is the bug.
 
 While the curtain is up the document answers no pointer or keyboard input
 directly, so a click lands nowhere and the only way through the UI is the
-simulation. Keyboard mode walks with the left and right (or up and down) arrows,
-moves between controls with Tab and Shift+Tab, jumps with Home and End,
-activates with Enter or Space, adjusts with Minus and Plus, scrolls with Page Up
-and Page Down, and repeats the current item with R. Touch mode explores by
-touch: dragging a finger reads whatever is under it, flicking left or right
-moves an item at a time, flicking up or down adjusts a value, a double tap
-activates, two fingers tapping repeats, and dragging two fingers scrolls.
-Turning "Emulate touch with mouse" on as well is what makes touch mode drivable
-from a mouse. The same commands sit in the panel as buttons, so the whole
-simulation can be driven without either device, and the curtain lists the
-gestures for the mode it is in beside the last few things it said.
+simulation. Keyboard and touch drive it at the same time, with no mode to pick
+between them. From the keyboard, the left and right (or up and down) arrows walk
+an item at a time, Tab and Shift+Tab move between controls, Home and End jump to
+the ends, Enter or Space activates, Minus and Plus adjust, Page Up and Page Down
+scroll, and R repeats the current item. By touch, dragging a finger reads
+whatever is under it, flicking left or right moves an item at a time, flicking
+up or down adjusts a value, a double tap activates, two fingers tapping repeats,
+and dragging two fingers scrolls; turning "Emulate touch with mouse" on as well
+is what makes those gestures reachable from a mouse. The same commands sit in
+the panel as buttons, so the whole simulation can be driven without either
+device, and the curtain lists them beside the last few things it said.
 
 Ctrl+Shift+F still parks keyboard focus in the panel, and Escape returns it; the
 panel does not otherwise hold focus while the curtain is up, so clicking one of

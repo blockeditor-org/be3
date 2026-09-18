@@ -16,7 +16,7 @@ use crate::painter::Painter;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{NodeRef, WriteSignal, with_document, with_reactive_scope};
-use crate::screen_reader::{Command, DEFAULT_OPACITY, Mode, ScreenReader};
+use crate::screen_reader::{Command, DEFAULT_OPACITY, ScreenReader};
 use crate::styled::Theme;
 
 use panel::Summary;
@@ -59,7 +59,6 @@ pub(crate) struct State {
     pub(crate) flash_damage: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
     pub(crate) screen_reader: Cell<bool>,
-    pub(crate) screen_reader_mode: Cell<Mode>,
     pub(crate) curtain_opacity: Cell<f32>,
     pub(crate) curtain_frost: Cell<bool>,
     commands: RefCell<Vec<Command>>,
@@ -84,7 +83,6 @@ impl State {
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
             screen_reader: Cell::new(false),
-            screen_reader_mode: Cell::new(Mode::default()),
             curtain_opacity: Cell::new(DEFAULT_OPACITY),
             curtain_frost: Cell::new(true),
             commands: RefCell::new(Vec::new()),
@@ -126,11 +124,6 @@ impl State {
 
     fn enable_screen_reader(&self, enabled: bool) {
         self.screen_reader.set(enabled);
-        self.touch();
-    }
-
-    fn choose_screen_reader_mode(&self, mode: Mode) {
-        self.screen_reader_mode.set(mode);
         self.touch();
     }
 
@@ -340,7 +333,6 @@ impl Inspector {
     fn read(&mut self, target: &Document, ctx: &Context, content: Rect, panel_has_focus: bool) {
         self.reader.configure(
             self.state.screen_reader.get(),
-            self.state.screen_reader_mode.get(),
             self.state.curtain_opacity.get(),
             self.state.curtain_frost.get(),
         );

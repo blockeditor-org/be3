@@ -16,7 +16,6 @@ fn flicking_across_the_screen_reader_curtain_reads_the_next_item() {
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
-    harness.click(harness.screen_reader_mode_center(1));
     harness.frame(Vec::new());
 
     harness.touch(TouchPhase::Start, pos2(100.0, 40.0));

@@ -90,6 +90,7 @@ mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
 mod flicking_across_the_screen_reader_curtain_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
+mod frosting_the_screen_reader_curtain_covers_every_text_node;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
 mod holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor;
 mod hovering_a_context_menu_item_moves_keyboard_focus_to_it;
@@ -157,6 +158,7 @@ mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
 mod the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach;
 mod the_screen_reader_curtain_keeps_clicks_away_from_the_document;
+mod the_screen_reader_highlight_goes_under_the_curtain_that_hides_it;
 mod the_scroll_position_is_reported_to_its_listener;
 mod the_simulated_keyboard_types_into_the_focused_input;
 mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
@@ -478,15 +480,8 @@ impl Harness {
         self.frame(Vec::new());
     }
 
-    pub(crate) fn screen_reader_button_center(&self, command: &str) -> Pos2 {
-        self.inspector_center(&format!("inspector.screen_reader.{command}"))
-    }
-
-    pub(crate) fn screen_reader_mode_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.screen_reader.mode", index);
-        self.node_center(option)
+    pub(crate) fn screen_reader_control_center(&self, control: &str) -> Pos2 {
+        self.inspector_center(&format!("inspector.screen_reader.{control}"))
     }
 
     pub(crate) fn transcript(&self) -> Vec<String> {

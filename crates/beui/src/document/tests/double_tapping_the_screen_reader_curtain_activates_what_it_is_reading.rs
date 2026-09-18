@@ -11,7 +11,6 @@ fn double_tapping_the_screen_reader_curtain_activates_what_it_is_reading() {
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.enable_screen_reader();
-    harness.click(harness.screen_reader_mode_center(1));
     harness.frame(Vec::new());
 
     let at = harness.reader_item_center(0);
