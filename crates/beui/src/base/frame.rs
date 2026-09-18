@@ -8,6 +8,7 @@ use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, InteractInput, NodeId};
 use crate::painter::Painter;
+use crate::pixel_grid::PixelGrid;
 use crate::reactive::{Child, Prop, create_effect, with_document};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -45,29 +46,33 @@ pub(crate) struct FrameNode {
 }
 
 impl FrameNode {
-    fn amount(&self) -> Vec2 {
-        vec2(self.padding_horizontal * 2.0, self.padding_vertical * 2.0)
+    fn padding(&self, grid: PixelGrid) -> Vec2 {
+        grid.snap_vec(vec2(self.padding_horizontal, self.padding_vertical))
+    }
+
+    fn amount(&self, grid: PixelGrid) -> Vec2 {
+        self.padding(grid) * 2.0
     }
 
     fn shown(&self) -> Option<NodeId> {
         self.child.filter(|_| self.visible)
     }
 
-    fn size(&self, available: Vec2) -> Vec2 {
-        let size = vec2(
+    fn size(&self, grid: PixelGrid, available: Vec2) -> Vec2 {
+        let size = grid.snap_vec(vec2(
             self.width.unwrap_or(available.x),
             self.height.unwrap_or(available.y),
-        );
+        ));
         match self.aspect_ratio {
-            Some(ratio) if ratio > 0.0 => contain(size, ratio),
+            Some(ratio) if ratio > 0.0 => grid.snap_vec(contain(size, ratio)),
             _ => size,
         }
     }
 
-    fn box_rect(&self, rect: Rect) -> Rect {
-        let size = self.size(rect.size());
+    fn box_rect(&self, grid: PixelGrid, rect: Rect) -> Rect {
+        let size = self.size(grid, rect.size());
         match self.aspect_ratio {
-            Some(ratio) if ratio > 0.0 => centered(rect, size),
+            Some(ratio) if ratio > 0.0 => centered(grid, rect, size),
             _ => Rect::from_min_size(rect.min, size),
         }
     }
@@ -83,8 +88,8 @@ fn cover(size: Vec2, ratio: f32) -> Vec2 {
     vec2(width, width / ratio)
 }
 
-fn centered(rect: Rect, size: Vec2) -> Rect {
-    let offset = (rect.size() - size) * 0.5;
+fn centered(grid: PixelGrid, rect: Rect, size: Vec2) -> Rect {
+    let offset = grid.snap_vec((rect.size() - size) * 0.5);
     Rect::from_min_size(rect.min + offset, size)
 }
 
@@ -108,24 +113,26 @@ impl Element for FrameNode {
         if !self.visible {
             return Vec2::ZERO;
         }
+        let grid = doc.pixel_grid();
+        let padding = self.amount(grid);
         let constrained = vec2(
             self.width.unwrap_or(available.x),
             self.height.unwrap_or(available.y),
         );
         let inner = match self.child {
             Some(child) => {
-                let available = (constrained - self.amount()).max(Vec2::ZERO);
+                let available = (constrained - padding).max(Vec2::ZERO);
                 crate::layout::measure(doc, painter, child, available)
             }
             None => Vec2::ZERO,
         };
-        let padded = inner + self.amount();
-        let size = vec2(
+        let padded = inner + padding;
+        let size = grid.snap_vec(vec2(
             self.width.unwrap_or(padded.x),
             self.height.unwrap_or(padded.y),
-        );
+        ));
         match self.aspect_ratio {
-            Some(ratio) if ratio > 0.0 => cover(size, ratio),
+            Some(ratio) if ratio > 0.0 => grid.snap_vec(cover(size, ratio)),
             _ => size,
         }
     }
@@ -138,11 +145,10 @@ impl Element for FrameNode {
         out: &mut HashMap<NodeId, Rect>,
     ) {
         if let Some(child) = self.shown() {
-            let outer = self.box_rect(rect);
-            let inner = Rect::from_min_max(
-                outer.min + vec2(self.padding_horizontal, self.padding_vertical),
-                outer.max - vec2(self.padding_horizontal, self.padding_vertical),
-            );
+            let grid = doc.pixel_grid();
+            let padding = self.padding(grid);
+            let outer = self.box_rect(grid, rect);
+            let inner = Rect::from_min_max(outer.min + padding, outer.max - padding);
             crate::layout::layout(doc, painter, child, inner, out);
         }
     }
@@ -151,7 +157,7 @@ impl Element for FrameNode {
         if !self.visible {
             return;
         }
-        let rect = self.box_rect(rect);
+        let rect = self.box_rect(doc.pixel_grid(), rect);
         if self.style.fill.to_array()[3] > 0 {
             painter.rect_filled(rect, f32::from(self.style.radius), self.style.fill);
         }

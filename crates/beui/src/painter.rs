@@ -2,6 +2,7 @@ use crate::color::Color32;
 use crate::context::Context;
 use crate::font::{FontId, Galley};
 use crate::geometry::{Pos2, Rect};
+use crate::pixel_grid::PixelGrid;
 
 #[derive(Clone, PartialEq)]
 pub enum Shape {
@@ -46,6 +47,10 @@ impl Painter {
 
     pub fn clip_rect(&self) -> Rect {
         self.clip
+    }
+
+    pub(crate) fn pixel_grid(&self) -> PixelGrid {
+        PixelGrid::new(self.context.pixels_per_point())
     }
 
     pub fn with_clip_rect(&self, clip: Rect) -> Self {

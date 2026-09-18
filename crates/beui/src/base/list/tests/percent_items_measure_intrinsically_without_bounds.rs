@@ -9,7 +9,13 @@ fn percent_items_measure_intrinsically_without_bounds() {
     ];
     let intrinsic_lengths = [0.0, 20.0, 50.0];
 
-    let lengths = distribute_main_axis(f32::INFINITY, 10.0, &sizes, &intrinsic_lengths);
+    let lengths = distribute_main_axis(
+        PixelGrid::default(),
+        f32::INFINITY,
+        10.0,
+        &sizes,
+        &intrinsic_lengths,
+    );
 
     assert_eq!(lengths, vec![30.0, 20.0, 50.0]);
 }

@@ -22,6 +22,7 @@ mod node;
 mod paint;
 mod painter;
 mod performance;
+mod pixel_grid;
 pub mod reactive;
 #[cfg(feature = "render")]
 mod renderer;

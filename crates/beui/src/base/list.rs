@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
+use crate::pixel_grid::PixelGrid;
 
 use crate::base::child_list::{ChildItem, ChildList, SlotId};
 use crate::document::Document;
@@ -117,17 +118,19 @@ impl Element for ListNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (available_main, available_cross) = self.main_and_cross(available);
 
+        let grid = doc.pixel_grid();
+        let spacing = grid.snap(self.spacing);
         let sizes = self.item_sizes();
         let intrinsic_lengths =
             self.intrinsic_lengths(doc, painter, available_main, available_cross);
         let main_lengths =
-            distribute_main_axis(available_main, self.spacing, &sizes, &intrinsic_lengths);
+            distribute_main_axis(grid, available_main, spacing, &sizes, &intrinsic_lengths);
 
         let mut main = 0.0f32;
         let mut cross = 0.0f32;
         for (index, (item, length)) in self.items.iter().zip(main_lengths.iter()).enumerate() {
             if index > 0 {
-                main += self.spacing;
+                main += spacing;
             }
             let available = self.axes(*length, available_cross);
             let size = crate::layout::measure(doc, painter, item.child, available);
@@ -147,11 +150,13 @@ impl Element for ListNode {
     ) {
         let (available_main, available_cross) = self.main_and_cross(rect.size());
 
+        let grid = doc.pixel_grid();
+        let spacing = grid.snap(self.spacing);
         let sizes = self.item_sizes();
         let intrinsic_lengths =
             self.intrinsic_lengths(doc, painter, available_main, available_cross);
         let main_lengths =
-            distribute_main_axis(available_main, self.spacing, &sizes, &intrinsic_lengths);
+            distribute_main_axis(grid, available_main, spacing, &sizes, &intrinsic_lengths);
 
         let horizontal = self.horizontal();
         let mut cursor = if horizontal { rect.left() } else { rect.top() };
@@ -166,7 +171,7 @@ impl Element for ListNode {
             };
             let cross_start = match self.align {
                 Align::Start | Align::Stretch => 0.0,
-                Align::Center => (available_cross - cross_length) / 2.0,
+                Align::Center => grid.snap((available_cross - cross_length) / 2.0),
                 Align::End => available_cross - cross_length,
             };
             let child_rect = if horizontal {
@@ -181,7 +186,7 @@ impl Element for ListNode {
                 )
             };
             crate::layout::layout(doc, painter, item.child, child_rect, out);
-            cursor += length + self.spacing;
+            cursor += length + spacing;
         }
     }
 
@@ -224,6 +229,7 @@ impl Element for ListNode {
 }
 
 pub(crate) fn distribute_main_axis(
+    grid: PixelGrid,
     available_main: f32,
     spacing: f32,
     sizes: &[ItemSize],
@@ -234,7 +240,7 @@ pub(crate) fn distribute_main_axis(
             .iter()
             .zip(intrinsic_lengths)
             .map(|(size, length)| match size {
-                ItemSize::Fixed(fixed) => fixed.max(0.0),
+                ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
                 ItemSize::Intrinsic | ItemSize::Percent(_) => *length,
             })
             .collect();
@@ -248,7 +254,7 @@ pub(crate) fn distribute_main_axis(
     let fixed_total: f32 = sizes
         .iter()
         .zip(intrinsic_lengths)
-        .map(|(size, length)| fixed_length(size, *length))
+        .map(|(size, length)| fixed_length(grid, size, *length))
         .sum();
     let percent_total: f32 = sizes
         .iter()
@@ -257,28 +263,33 @@ pub(crate) fn distribute_main_axis(
             ItemSize::Intrinsic | ItemSize::Fixed(_) => 0.0,
         })
         .sum();
-    let remaining = (available_main - spacing_total - fixed_total).max(0.0);
+    let remaining = grid.snap((available_main - spacing_total - fixed_total).max(0.0));
 
+    let mut exact = 0.0f32;
+    let mut placed = 0.0f32;
     sizes
         .iter()
         .zip(intrinsic_lengths)
         .map(|(size, length)| match size {
             ItemSize::Percent(percent) => {
-                if percent_total > 0.0 {
-                    remaining * (percent.max(0.0) / percent_total)
-                } else {
-                    0.0
+                if percent_total <= 0.0 {
+                    return 0.0;
                 }
+                exact += remaining * (percent.max(0.0) / percent_total);
+                let edge = grid.snap(exact);
+                let share = edge - placed;
+                placed = edge;
+                share
             }
-            _ => fixed_length(size, *length),
+            _ => fixed_length(grid, size, *length),
         })
         .collect()
 }
 
-fn fixed_length(size: &ItemSize, intrinsic_length: f32) -> f32 {
+fn fixed_length(grid: PixelGrid, size: &ItemSize, intrinsic_length: f32) -> f32 {
     match size {
         ItemSize::Intrinsic => intrinsic_length,
-        ItemSize::Fixed(fixed) => fixed.max(0.0),
+        ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
         ItemSize::Percent(_) => 0.0,
     }
 }

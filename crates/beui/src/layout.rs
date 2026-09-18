@@ -18,8 +18,9 @@ pub(crate) fn measure(doc: &mut Document, painter: &Painter, id: NodeId, availab
         return size;
     }
     let element = doc.arena.take(id);
-    let size = element.measure(doc, painter, available);
+    let measured = element.measure(doc, painter, available);
     doc.arena.put_back(id, element);
+    let size = doc.pixel_grid().snap_size(measured);
     doc.remember_measurement(id, available, size);
     size
 }
@@ -34,6 +35,7 @@ pub(crate) fn layout(
     if !doc.arena.contains(id) {
         return;
     }
+    let rect = doc.pixel_grid().snap_rect(rect);
     out.insert(id, rect);
     let watermark = doc.arena.changed_len();
     doc.deliver_unmeasured_constraint(id, rect.size());

@@ -20,6 +20,7 @@ use crate::node::{Arena, NodeId};
 use crate::paint::{self, PaintCache, Painted};
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, PerformanceSnapshot, PerformanceTracker};
+use crate::pixel_grid::PixelGrid;
 use crate::styled::{Theme, ThemeStore};
 
 pub struct Document {
@@ -730,6 +731,10 @@ impl Document {
 
     pub fn pixels_per_point(&self) -> f32 {
         self.viewport.as_ref().map_or(1.0, |(_, _, scale)| *scale)
+    }
+
+    pub(crate) fn pixel_grid(&self) -> PixelGrid {
+        PixelGrid::new(self.pixels_per_point())
     }
 
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> bool {
