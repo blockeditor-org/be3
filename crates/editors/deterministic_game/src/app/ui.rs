@@ -97,11 +97,13 @@ pub(crate) fn Game(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) 
             padding_horizontal=PAGE_PADDING
             padding_vertical=PAGE_PADDING
         >
-            <Keyed value={snapshot} key={|snapshot: GameSnapshot| snapshot.shape()}>
-                {move |snapshot: ReadSignal<GameSnapshot>| {
-                    percent(game_view(game.clone(), snapshot), 100.0)
-                }}
-            </Keyed>
+            <Column spacing=0.0>
+                <Keyed value={snapshot} key={|snapshot: GameSnapshot| snapshot.shape()}>
+                    {move |snapshot: ReadSignal<GameSnapshot>| {
+                        percent(game_view(game.clone(), snapshot), 100.0)
+                    }}
+                </Keyed>
+            </Column>
         </Frame>
     }
 }

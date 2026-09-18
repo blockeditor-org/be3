@@ -27,14 +27,16 @@ fn a_keyed_view_rebuilds_only_when_its_key_changes() {
                             <Text string="reshape" />
                         </Button>
                     </Row>
-                    <Keyed @node_ref=&holder value={state} key={|(shape, _): (u32, String)| shape}>
-                        {|value: ReadSignal<(u32, String)>| {
-                            let label = create_memo(move || value.get().1);
-                            view! {
-                                <Text string={label} />
-                            }
-                        }}
-                    </Keyed>
+                    <Column @node_ref=&holder spacing=0.0>
+                        <Keyed value={state} key={|(shape, _): (u32, String)| shape}>
+                            {|value: ReadSignal<(u32, String)>| {
+                                let label = create_memo(move || value.get().1);
+                                view! {
+                                    <Text string={label} />
+                                }
+                            }}
+                        </Keyed>
+                    </Column>
                 </Column>
             }
         }
