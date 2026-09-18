@@ -59,7 +59,6 @@ pub(crate) struct ScreenReader {
     enabled: bool,
     active: bool,
     opacity: f32,
-    frost: bool,
     items: Vec<Item>,
     cursor: Option<AccessNodeId>,
     spoken: Vec<String>,
@@ -81,7 +80,6 @@ impl Default for ScreenReader {
             enabled: false,
             active: false,
             opacity: DEFAULT_OPACITY,
-            frost: true,
             items: Vec::new(),
             cursor: None,
             spoken: Vec::new(),
@@ -100,10 +98,9 @@ impl Default for ScreenReader {
 }
 
 impl ScreenReader {
-    pub(crate) fn configure(&mut self, enabled: bool, opacity: f32, frost: bool) {
+    pub(crate) fn configure(&mut self, enabled: bool, opacity: f32) {
         self.enabled = enabled;
         self.opacity = opacity;
-        self.frost = frost;
     }
 
     pub(crate) fn painting(&self) -> bool {
@@ -443,7 +440,7 @@ impl ScreenReader {
         self.go(ctx, index);
     }
 
-    pub(crate) fn paint(&mut self, painter: &Painter, target: &Document, scale: f32) -> Rect {
+    pub(crate) fn paint(&mut self, painter: &Painter, scale: f32) -> Rect {
         let content = painter.clip_rect();
         if !self.enabled {
             let damage = self.painted;
@@ -453,13 +450,12 @@ impl ScreenReader {
         let view = curtain::View {
             content,
             opacity: self.opacity,
-            frost: self.frost,
             spoken: &self.spoken,
             status: self.status(),
             focus: self.current().map(|item| item.rect),
             finger: self.finger_at,
         };
-        let painted = curtain::paint(painter, target, scale, &view);
+        let painted = curtain::paint(painter, scale, &view);
         let damage = painted.union(self.painted);
         self.painted = painted;
         damage

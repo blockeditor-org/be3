@@ -1,8 +1,7 @@
 use crate::color::Color32;
-use crate::document::Document;
 use crate::font::{FontId, Galley};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::painter::{Painter, Shape};
+use crate::painter::Painter;
 use crate::styled::Theme;
 use crate::styled::theme::CARD_RADIUS;
 
@@ -15,8 +14,6 @@ const STATUS_SIZE: f32 = 12.0;
 const GUIDE_SIZE: f32 = 12.0;
 const LINE_SPACING: f32 = 5.0;
 const BLOCK_SPACING: f32 = 14.0;
-const FROST_BLEED: f32 = 2.0;
-const FROST_RADIUS: f32 = 3.0;
 const FOCUS_WIDTH: f32 = 2.0;
 const FINGER_RADIUS: f32 = 18.0;
 const FINGER_WIDTH: f32 = 2.0;
@@ -39,7 +36,6 @@ const TOUCH_GUIDE: [&str; 5] = [
 pub(super) struct View<'a> {
     pub(super) content: Rect,
     pub(super) opacity: f32,
-    pub(super) frost: bool,
     pub(super) spoken: &'a [String],
     pub(super) status: String,
     pub(super) focus: Option<Rect>,
@@ -52,13 +48,10 @@ struct Line {
     space: f32,
 }
 
-pub(super) fn paint(painter: &Painter, target: &Document, scale: f32, view: &View<'_>) -> Rect {
+pub(super) fn paint(painter: &Painter, scale: f32, view: &View<'_>) -> Rect {
     let content = view.content;
     if !content.is_positive() {
         return Rect::NOTHING;
-    }
-    if view.frost {
-        frost(painter, target, scale, content);
     }
     if let Some(rect) = view.focus.map(|rect| rect.scaled(scale).intersect(content))
         && rect.is_positive()
@@ -145,31 +138,6 @@ fn speech(painter: &Painter, view: &View<'_>, content: Rect) -> Rect {
         top += size + line.space;
     }
     panel
-}
-
-fn frost(painter: &Painter, target: &Document, scale: f32, content: Rect) {
-    let color = opaque(target.theme().text_muted);
-    for shape in target.shapes() {
-        let Shape::Text {
-            origin,
-            galley,
-            clip,
-            ..
-        } = shape
-        else {
-            continue;
-        };
-        let words = Rect::from_min_size(*origin, galley.size()).intersect(*clip);
-        let block = words.scaled(scale).expand(FROST_BLEED).intersect(content);
-        if block.is_positive() {
-            painter.rect_filled(block, FROST_RADIUS, color);
-        }
-    }
-}
-
-fn opaque(color: Color32) -> Color32 {
-    let [red, green, blue, _] = color.to_array();
-    Color32::from_rgb(red, green, blue)
 }
 
 fn curtain_color(opacity: f32) -> Color32 {

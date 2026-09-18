@@ -271,13 +271,7 @@ impl Element for TextNode {
         self.place(painter, rect);
     }
 
-    fn paint(
-        &self,
-        _doc: &Document,
-        painter: &Painter,
-        _rects: &HashMap<NodeId, Rect>,
-        rect: Rect,
-    ) {
+    fn paint(&self, doc: &Document, painter: &Painter, _rects: &HashMap<NodeId, Rect>, rect: Rect) {
         let clipped = painter.with_clip_rect(if self.clip { rect } else { Rect::EVERYTHING });
         let placed = self.placed(&clipped, rect);
 
@@ -287,7 +281,9 @@ impl Element for TextNode {
             }
         }
 
-        clipped.galley(placed.origin, placed.galley.clone(), self.color);
+        if !doc.text_hidden {
+            clipped.galley(placed.origin, placed.galley.clone(), self.color);
+        }
 
         if let Some(caret) = self.caret {
             if self.caret_shown() {

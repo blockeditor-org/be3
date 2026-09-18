@@ -385,9 +385,9 @@ also apply to clicks, so Ctrl+Shift+I on it reopens the inspector.
 document and leaves only what a screen reader would say. The curtain covers the
 shown rectangle and not the inspector, so the panel stays usable while the
 document is hidden: the opacity slider decides how much of the layout shows
-through, and "Frost what is behind it" paints an opaque block over every run of
-text the document painted, clipped the way that text was, so turning the opacity
-down shows the shape of the page without a word of it being readable. The highlight marking where the reader is sits under the
+through, and "Hide the text behind it" stops the document painting text at all -
+the one place the simulation reaches into the painting routines - so turning the
+opacity down leaves the shape of the page with nothing on it to read. The highlight marking where the reader is sits under the
 curtain with everything else, so a curtain at full opacity gives nothing away.
 
 Nothing about the simulation reads the beui tree. It walks the AccessKit tree

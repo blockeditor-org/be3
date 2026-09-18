@@ -405,7 +405,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
 
 #[component]
 fn ScreenReaderSection(state: Rc<State>) -> NodeId {
-    let (enable_state, opacity_state, frost_state) = (state.clone(), state.clone(), state.clone());
+    let (enable_state, opacity_state, hide_state) = (state.clone(), state.clone(), state.clone());
     let (first_state, second_state, third_state) = (state.clone(), state.clone(), state.clone());
     let (fourth_state, fifth_state) = (state.clone(), state.clone());
     view! {
@@ -425,10 +425,10 @@ fn ScreenReaderSection(state: Rc<State>) -> NodeId {
                 on_change={move |value| opacity_state.set_curtain_opacity(value)}
             />
             <Checkbox
-                @test_id={"inspector.screen_reader.frost"}
-                label="Frost what is behind it"
-                checked={state.curtain_frost.get()}
-                on_change={move |frost| frost_state.frost_curtain(frost)}
+                @test_id={"inspector.screen_reader.hide_text"}
+                label="Hide the text behind it"
+                checked={state.hide_text.get()}
+                on_change={move |hidden| hide_state.hide_text(hidden)}
             />
             <CommandRow row=0 state />
             <CommandRow row=1 state={first_state} />
