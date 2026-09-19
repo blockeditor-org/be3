@@ -329,7 +329,7 @@ impl Renderer {
         screen: Vec2,
         pixels_per_point: f32,
         repaint: Repaint,
-    ) {
+    ) -> Repaint {
         if self.atlas.full {
             self.atlas.reset();
         }
@@ -344,10 +344,10 @@ impl Renderer {
 
         let prepared = output
             .filter()
-            .map(|filter: Filter| filter::Prepared::new(&filter, pixels_per_point));
-        let repaint = match prepared {
-            Some(_) => Repaint::Everything,
-            None => repaint,
+            .map(|filter: Filter| filter::Prepared::new(&filter, pixels_per_point, screen));
+        let repaint = match prepared == self.filter {
+            true => repaint,
+            false => Repaint::Everything,
         };
         let mut instances = Vec::new();
         let mut runs = Vec::new();
@@ -356,6 +356,10 @@ impl Renderer {
             Repaint::Everything => None,
             Repaint::Region { region, background } => {
                 let region = physical(region, screen, pixels_per_point);
+                let region = match &prepared {
+                    Some(prepared) => prepared.widen(region),
+                    None => region,
+                };
                 Run::push(&mut runs, false, instances.len() as u32);
                 instances.push(Instance {
                     rect: region,
@@ -443,7 +447,7 @@ impl Renderer {
         self.overlay = overlay;
         self.filter = prepared;
         if instances.is_empty() {
-            return;
+            return repaint;
         }
         if instances.len() > self.instance_capacity {
             self.instance_capacity = instances.len().next_power_of_two();
@@ -455,6 +459,7 @@ impl Renderer {
             });
         }
         queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
+        repaint
     }
 
     fn encode(&self, color: Color32) -> [f32; 4] {
@@ -465,11 +470,8 @@ impl Renderer {
     }
 
     pub fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
-        if let Some([left, top, width, height]) = self.scissor {
-            if width == 0 || height == 0 {
-                return;
-            }
-            pass.set_scissor_rect(left, top, width, height);
+        if !self.clip(pass) {
+            return;
         }
         self.draw(pass, &self.runs);
         self.draw(pass, &self.overlay);
@@ -492,7 +494,10 @@ impl Renderer {
             self.paint(&mut pass);
             return;
         };
-        let (format, srgb) = (self.format, self.srgb);
+        if self.empty() {
+            return;
+        }
+        let (format, srgb, scissor) = (self.format, self.srgb, self.scissor);
         self.effects
             .get_or_insert_with(|| filter::Effects::new(device, format))
             .ensure(device, size);
@@ -501,16 +506,34 @@ impl Renderer {
                 return;
             };
             let mut pass = self.begin(encoder, scene, load);
+            self.clip(&mut pass);
             self.draw(&mut pass, &self.runs);
         }
         if let Some(effects) = self.effects.as_mut() {
-            effects.record(device, queue, encoder, &prepared, srgb);
+            effects.record(device, queue, encoder, &prepared, srgb, scissor);
         }
         let mut pass = self.begin(encoder, target, load);
+        self.clip(&mut pass);
         if let Some(effects) = self.effects.as_ref() {
             effects.compose(&mut pass);
         }
         self.draw(&mut pass, &self.overlay);
+    }
+
+    fn empty(&self) -> bool {
+        self.scissor
+            .is_some_and(|[_, _, width, height]| width == 0 || height == 0)
+    }
+
+    fn clip(&self, pass: &mut wgpu::RenderPass<'_>) -> bool {
+        let Some([left, top, width, height]) = self.scissor else {
+            return true;
+        };
+        if width == 0 || height == 0 {
+            return false;
+        }
+        pass.set_scissor_rect(left, top, width, height);
+        true
     }
 
     fn begin<'pass>(

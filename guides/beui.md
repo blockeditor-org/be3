@@ -418,9 +418,18 @@ blur. The matrices are the Viénot, Brettel and Mollon linear-RGB
 approximations, applied in linear light; the contrast reduction pulls toward mid
 grey in gamma space, the way CSS `contrast()` does.
 
-A frame carrying a filter always repaints in full: a blur spreads light out of
-the region that changed, so the damage rectangle the rest of the frame is drawn
-from no longer describes what has to be redrawn.
+A filter keeps the damage rectangle the rest of the frame is drawn from, so a
+filtered frame costs no more to repaint than an unfiltered one. Contrast and
+colour vision are per-pixel, so they need nothing beyond the region that
+changed; a blur spreads light out of it, so `Prepared::widen` grows the damage
+by the chain's reach - the sum of what every pass can move a sample - clipped to
+the filter's own region. The scene texture and the blur chain are retained the
+way the frame is, and every pass is scissored to the widened rectangle: what
+lies outside it was left correct by the frame before, because the reach bounds
+what a change can touch at every level. `Renderer::prepare` returns the repaint
+it settled on, and it upgrades a partial one to the whole frame when the filter
+itself changed - a new radius or a filter switched off restyles everything the
+region covers, damage or no damage.
 
 ### The screen reader simulation
 

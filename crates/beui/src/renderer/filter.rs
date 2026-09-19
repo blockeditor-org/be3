@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 
 use crate::filter::Filter;
+use crate::geometry::Vec2;
 
 const MAX_LEVELS: usize = 6;
 const MAX_PASSES: u64 = (MAX_LEVELS * 2) as u64;
@@ -21,29 +22,70 @@ struct CombineUniforms {
     params: [f32; 4],
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub(super) struct Prepared {
     region: [f32; 4],
-    radius: f32,
+    levels: usize,
+    offset: f32,
+    reach: f32,
     contrast: f32,
     matrix: [[f32; 3]; 3],
 }
 
 impl Prepared {
-    pub(super) fn new(filter: &Filter, pixels_per_point: f32) -> Self {
+    pub(super) fn new(filter: &Filter, pixels_per_point: f32, screen: Vec2) -> Self {
         let region = filter.region;
+        let (levels, offset) = steps(filter.blur * pixels_per_point, screen);
         Self {
             region: [
-                region.left() * pixels_per_point,
-                region.top() * pixels_per_point,
-                region.right() * pixels_per_point,
-                region.bottom() * pixels_per_point,
+                (region.left() * pixels_per_point).max(0.0),
+                (region.top() * pixels_per_point).max(0.0),
+                (region.right() * pixels_per_point).min(screen.x),
+                (region.bottom() * pixels_per_point).min(screen.y),
             ],
-            radius: filter.blur * pixels_per_point,
+            levels,
+            offset,
+            reach: reach(levels, offset),
             contrast: filter.contrast.clamp(0.0, 1.0),
             matrix: filter.vision.matrix(),
         }
     }
+
+    pub(super) fn widen(&self, damage: [f32; 4]) -> [f32; 4] {
+        let touched = overlap(damage, self.region);
+        if self.reach <= 0.0 || !covers(touched) {
+            return damage;
+        }
+        let spread = overlap(grown(touched, self.reach), self.region);
+        [
+            damage[0].min(spread[0]),
+            damage[1].min(spread[1]),
+            damage[2].max(spread[2]),
+            damage[3].max(spread[3]),
+        ]
+    }
+}
+
+fn overlap(one: [f32; 4], other: [f32; 4]) -> [f32; 4] {
+    [
+        one[0].max(other[0]),
+        one[1].max(other[1]),
+        one[2].min(other[2]),
+        one[3].min(other[3]),
+    ]
+}
+
+fn grown(rect: [f32; 4], amount: f32) -> [f32; 4] {
+    [
+        rect[0] - amount,
+        rect[1] - amount,
+        rect[2] + amount,
+        rect[3] + amount,
+    ]
+}
+
+fn covers(rect: [f32; 4]) -> bool {
+    rect[0] < rect[2] && rect[1] < rect[3]
 }
 
 struct Layer {
@@ -199,6 +241,7 @@ impl Effects {
         encoder: &mut wgpu::CommandEncoder,
         prepared: &Prepared,
         stored_linear: bool,
+        scissor: Option<[u32; 4]>,
     ) {
         let (width, height) = self.size;
         if width == 0 || height == 0 || self.scene.is_none() {
@@ -211,7 +254,7 @@ impl Effects {
             prepared.region[2] / width as f32,
             prepared.region[3] / height as f32,
         ];
-        let (levels, offset) = steps(prepared.radius, self.size);
+        let (levels, offset) = (prepared.levels, prepared.offset);
         if levels > 0 {
             self.grow(device, levels);
         }
@@ -230,6 +273,10 @@ impl Effects {
                 bytemuck::bytes_of(&BlurUniforms { texel, bounds }),
             );
             let down = target > source;
+            let clip = scissor.map(|scissor| narrowed(scissor, target, self.chain[target].size));
+            if clip.is_some_and(|[_, _, width, height]| width == 0 || height == 0) {
+                continue;
+            }
             let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("beui blur pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -237,7 +284,10 @@ impl Effects {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        load: match clip {
+                            Some(_) => wgpu::LoadOp::Load,
+                            None => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        },
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -246,6 +296,9 @@ impl Effects {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            if let Some([left, top, width, height]) = clip {
+                render.set_scissor_rect(left, top, width, height);
+            }
             render.set_pipeline(match down {
                 true => &self.downsample,
                 false => &self.upsample,
@@ -400,20 +453,45 @@ impl Effects {
     }
 }
 
+fn narrowed(scissor: [u32; 4], level: usize, size: (u32, u32)) -> [u32; 4] {
+    let [left, top, width, height] = scissor;
+    let shift = u32::try_from(level).unwrap_or(u32::MAX).min(u32::BITS - 1);
+    let start = ((left >> shift).min(size.0), (top >> shift).min(size.1));
+    let end = (
+        (((left + width) >> shift) + 1).min(size.0),
+        (((top + height) >> shift) + 1).min(size.1),
+    );
+    [
+        start.0,
+        start.1,
+        end.0.saturating_sub(start.0),
+        end.1.saturating_sub(start.1),
+    ]
+}
+
 fn rows(matrix: [[f32; 3]; 3]) -> [[f32; 4]; 3] {
     matrix.map(|row| [row[0], row[1], row[2], 0.0])
 }
 
-fn steps(radius: f32, size: (u32, u32)) -> (usize, f32) {
+fn steps(radius: f32, screen: Vec2) -> (usize, f32) {
     if radius <= 0.0 {
         return (0, 0.0);
     }
-    let smallest = size.0.min(size.1).max(1);
-    let affordable = (smallest.ilog2() as usize).clamp(1, MAX_LEVELS);
+    let affordable = (screen.x.min(screen.y).max(1.0).log2() as usize).clamp(1, MAX_LEVELS);
     let wanted = ((radius / 2.0).max(1.0).log2().ceil() as usize).clamp(1, MAX_LEVELS);
     let levels = wanted.min(affordable);
     let offset = (radius / (1u32 << levels) as f32).clamp(0.5, 4.0);
     (levels, offset)
+}
+
+fn reach(levels: usize, offset: f32) -> f32 {
+    if levels == 0 {
+        return 0.0;
+    }
+    let span = (1u32 << levels) as f32;
+    let down = (offset * 0.5 + 0.5) * (span - 1.0);
+    let up = (offset + 0.5) * (span * 2.0 - 2.0);
+    down + up + 1.0
 }
 
 fn texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {

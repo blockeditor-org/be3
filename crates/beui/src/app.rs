@@ -215,7 +215,6 @@ impl Runner {
         let clear_color = self.app.clear_color();
         let stale = surface.prepared_size != Some(size)
             || surface.clear_color != Some(clear_color)
-            || output.filter().is_some()
             || !surface.retains();
         let repaint = match output.damage() {
             Some(region) if !stale => Repaint::Region {
@@ -229,7 +228,7 @@ impl Runner {
                 Some(pending) => pending.union(repaint),
                 None => repaint,
             };
-            surface.renderer.prepare(
+            let effective = surface.renderer.prepare(
                 &surface.device,
                 &surface.queue,
                 &output,
@@ -238,7 +237,7 @@ impl Runner {
                 repaint,
             );
             surface.prepared_size = Some(size);
-            surface.pending = Some(repaint);
+            surface.pending = Some(effective);
         }
         surface.clear_color = Some(clear_color);
         self.next_update = Instant::now().checked_add(output.repaint_after);
