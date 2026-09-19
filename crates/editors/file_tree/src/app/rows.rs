@@ -96,7 +96,6 @@ impl Tree {
         let building = Arc::clone(&client);
         let open = expanded.clone();
         let orphans = orphans_open.clone();
-        let waiting = editor.clone();
         editor.each_frame(move || {
             let mut watched = build.borrow_mut();
             let open = open.get_untracked();
@@ -112,16 +111,6 @@ impl Tree {
             }
             if !showing {
                 watched.orphans = None;
-            }
-
-            if !roots.is_loaded()
-                || watched.expanded.values().any(|list| !list.is_loaded())
-                || watched
-                    .orphans
-                    .as_ref()
-                    .is_some_and(|list| !list.is_loaded())
-            {
-                waiting.request_repaint();
             }
 
             let types = host.block_types();
