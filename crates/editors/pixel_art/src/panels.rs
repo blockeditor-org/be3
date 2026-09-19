@@ -210,12 +210,14 @@ pub(crate) fn ToolsPanel(tools: Rc<Tools>) -> NodeId {
                 <ToggleButton
                     glyph={ICON_SQUARE.to_owned()}
                     label="Square brush"
+                    icon_only=true
                     pressed={square}
                     on_change={move |_| square_shape.set(BrushShape::Square)}
                 />
                 <ToggleButton
                     glyph={ICON_CIRCLE.to_owned()}
                     label="Circle brush"
+                    icon_only=true
                     pressed={circle}
                     on_change={move |_| set_shape.set(BrushShape::Circle)}
                 />
@@ -253,6 +255,7 @@ fn ToolButton(tools: Rc<Tools>, entry: (PixelTool, &'static str, &'static str)) 
         <ToggleButton
             glyph={glyph.to_owned()}
             label={format!("{} ({shortcut})", tool.label())}
+            icon_only=true
             pressed={pressed}
             @test_id={format!("pixel-art.tool.{}", tool.label())}
             on_change={select}
@@ -554,6 +557,7 @@ fn AnchorRow(tools: Rc<Tools>, row: usize) -> NodeId {
                         <ToggleButton
                             glyph={glyph.to_owned()}
                             label={label}
+                            icon_only=true
                             pressed={pressed}
                             on_change={move |_| set.set(anchor)}
                         />

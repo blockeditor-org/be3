@@ -6,7 +6,8 @@ use beui::reactive::{
     clone, component, create_memo, view,
 };
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, IconButton, NumberInput, Select,
+    Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, IconButton, NumberDrag,
+    NumberInput, Select,
     TextInput,
 };
 use beui::unstyled::ChoiceOption;
@@ -290,6 +291,7 @@ fn NumberValue(
             value={number}
             min={bounds.minimum.unwrap_or(f64::NEG_INFINITY)}
             max={bounds.maximum.unwrap_or(f64::INFINITY)}
+            drag={number_drag(bounds)}
             disabled={disabled}
             @test_id={id}
             on_change={edited}
@@ -535,6 +537,17 @@ pub fn current_utc_minute() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_secs() as i64);
     seconds - seconds.rem_euclid(60)
+}
+
+fn number_drag(options: DatabaseNumberOptions) -> NumberDrag {
+    match options.scale {
+        DatabaseNumberScale::Linear => NumberDrag::Linear {
+            speed: options.effective_step(),
+        },
+        DatabaseNumberScale::Logarithmic => NumberDrag::Logarithmic {
+            factor: options.effective_step(),
+        },
+    }
 }
 
 fn initial_number(options: DatabaseNumberOptions) -> f64 {

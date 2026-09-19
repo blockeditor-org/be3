@@ -26,6 +26,10 @@ impl Vec2 {
         Self::new(self.x.min(other.x), self.y.min(other.y))
     }
 
+    pub fn length(self) -> f32 {
+        self.x.hypot(self.y)
+    }
+
     pub fn longest_side(self) -> f32 {
         self.x.max(self.y)
     }
