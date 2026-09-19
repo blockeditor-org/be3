@@ -256,7 +256,8 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Tooltip`, and `Stack`.
+`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Tooltip`, `Floating`,
+and `Stack`.
 The styled
 module supplies themed buttons, icon buttons, links, text styles, cards,
 checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
@@ -310,13 +311,54 @@ reader is the text the bubble shows. Wrap anything else whose meaning is not
 on screen - a bare glyph in a row, a truncated cell - in a `Tooltip` of its
 own.
 
-The bubble lives in a non-modal `Overlay`. It paints above everything, and
+The bubble lives in a passive `Overlay`. It paints above everything, and
 unlike a menu or a dialog it takes no input at all: it is not in the overlay
 stack, so the document under it keeps answering the pointer, Escape still
 reaches whatever it was going to reach, and clicking the control the tooltip
 describes clicks the control. The dwell is measured with `each_frame`, which
 runs a callback inside the document's reactive scope once per frame and is
 disposed with the scope that registered it.
+
+### Overlays, and things that float
+
+An overlay is laid out and painted above the rest of the document rather than
+among it, and it comes in three modes.
+
+A **modal** one - a menu, a select popup, a dialog - takes the document over
+while it is open: it goes on the overlay stack, so input reaches it and
+nothing else, it can trap focus, Escape closes the topmost one, and a press
+outside it dismisses it.
+
+A **passive** one takes no input at all. It is painted above everything and is
+not on the stack, so the document underneath goes on answering the pointer and
+the keyboard as if it were not there. A tooltip is passive: hovering the thing
+it describes must not become hovering the tooltip.
+
+A **floating** one is painted above everything and answers the pointer where it
+actually is. Only the part of the document it covers is shut out, so a press
+that lands on it does not also land on what is underneath, and everything
+around it stays live. `unstyled::Floating` is the one to reach for: it pins its
+child to the top or the bottom edge of a node named by `NodeRef`, taking no
+space in the layout around it.
+
+```rust
+let scroll = NodeRef::new();
+view! {
+    <List spacing=0.0>
+        <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
+            <Rows />
+        </Scroll>
+        <Floating anchor={scroll.clone()} edge=Edge::Bottom open={astray}>
+            <Button label="Jump to the open block" on_click={reveal} />
+        </Floating>
+    </List>
+}
+```
+
+A control that has to win a press from a surface around it - an add button in a
+row that is itself a button, a close cross on a tab - asks `unstyled::Button`
+for `capture_presses` instead. The captured press reaches that button and
+nothing else, so the row it sits in does not open as well.
 
 ### Pan and zoom
 

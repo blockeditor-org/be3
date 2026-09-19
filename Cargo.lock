@@ -2659,6 +2659,7 @@ dependencies = [
  "block",
  "block-client",
  "block-editor-plugin",
+ "block-ui-test",
  "uuid",
 ]
 
