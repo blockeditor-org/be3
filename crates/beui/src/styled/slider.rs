@@ -12,7 +12,7 @@ use crate::styled::theme::{
     BORDER_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible, use_theme,
 };
 use crate::unstyled;
-use crate::unstyled::SliderHandle;
+use crate::unstyled::{SliderHandle, SliderScale};
 
 const HEIGHT: f32 = 20.0;
 const TRACK_HEIGHT: f32 = 6.0;
@@ -27,6 +27,7 @@ pub fn Slider(
     value: Prop<f32>,
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
+    #[prop(default = SliderScale::Linear)] scale: SliderScale,
     #[prop(default = String::new())] label: Prop<String>,
     on_change: Callback<f32>,
 ) -> NodeId {
@@ -42,6 +43,7 @@ pub fn Slider(
             value
             min
             max
+            scale
             accessibility
             on_change={move |value| on_change.call(value)}
         >

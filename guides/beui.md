@@ -252,6 +252,25 @@ reader, and paints in muted colours, which is what a read-only editor binds
 edits away. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 lists.
 
+### Slider scales
+
+A slider spreads its range evenly along its track unless it is given a
+`scale`. `SliderScale::Midpoint(value)` curves it so that the centre of the
+track reads that value, which is how a control whose interesting values are
+bunched at one end gets most of the track for them: the inspector's blur
+slider runs to 120 px with a midpoint of 12, so the first half of the track
+covers a tenth of the range and single pixels of blur are reachable. The
+midpoint may sit above the centre of the range as well, which gives the top
+end the fine part of the track instead. A midpoint outside the range, or one
+that lands where the centre already is, leaves the slider linear.
+
+The curve applies everywhere the value and the track meet. Dragging maps the
+position under the pointer through it, the knob sits where the value falls on
+it, and keyboard steps move by a share of the track rather than a share of the
+range, so an arrow key near the fine end moves a little and the same key near
+the coarse end moves a lot. What a screen reader is told the step is follows
+the value the next step would actually reach.
+
 ### Pan and zoom
 
 `unstyled::PanZoom` turns wheel, trackpad and middle-button gestures over a

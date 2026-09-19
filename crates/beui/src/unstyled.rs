@@ -29,7 +29,7 @@ pub use select::{
     Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,
     select_option_button, select_search, select_selected, select_trigger,
 };
-pub use slider::{Slider, SliderHandle, slider_value};
+pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
 pub use stack::Stack;
 #[cfg(test)]
 pub(crate) use text_input::text_input_handles;
