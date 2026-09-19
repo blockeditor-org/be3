@@ -9,6 +9,7 @@ use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_plugin::database::DatabaseValueEditor;
 use block_editor_plugin::{Editor, Sidebar, Toolbar};
+use uuid::Uuid;
 
 use crate::app::data::{Data, ViewData};
 use crate::app::kanban::Kanban;
@@ -18,6 +19,7 @@ use crate::app::spreadsheet::Spreadsheet;
 use crate::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
 
 const CELL_LABEL_WIDTH: f32 = 56.0;
+const CELL_EDITOR_HEIGHT: f32 = 40.0;
 
 #[component]
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
@@ -135,27 +137,31 @@ fn CellEditor(data: Data) -> NodeId {
             data.pick_value(selection.row, request);
         }
     });
+    let submitted = clone!(data -> move |_: Uuid| data.step_selection(1));
     let labels = data.labels.clone();
     let read_only = data.read_only.clone();
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-            <Frame @sizing=ItemSize::Fixed(CELL_LABEL_WIDTH)>
-                <Body content={label} />
-            </Frame>
-            <Show condition={chosen}>
-                <DatabaseValueEditor
-                    @sizing=ItemSize::Percent(100.0)
-                    fields={fields}
-                    values={values}
-                    labels={labels}
-                    disabled={read_only}
-                    prefix="database-view.cell-editor"
-                    headings=false
-                    on_change={changed}
-                    on_pick={picked}
-                />
-            </Show>
-        </List>
+        <Frame height=CELL_EDITOR_HEIGHT>
+            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                <Frame @sizing=ItemSize::Fixed(CELL_LABEL_WIDTH)>
+                    <Body @test_id={"database-view.cell-editor.cell"} content={label} />
+                </Frame>
+                <Show condition={chosen}>
+                    <DatabaseValueEditor
+                        @sizing=ItemSize::Percent(100.0)
+                        fields={fields}
+                        values={values}
+                        labels={labels}
+                        disabled={read_only}
+                        prefix="database-view.cell-editor"
+                        headings=false
+                        on_change={changed}
+                        on_pick={picked}
+                        on_submit={submitted}
+                    />
+                </Show>
+            </List>
+        </Frame>
     }
 }
 

@@ -11,6 +11,7 @@ use block_editor_plugin::{
     BeuiApp, Creation, Editor, EditorHost,
     block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
 };
+use block_editor_plugin::beui::Key;
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -18,6 +19,7 @@ use crate::app::{DatabaseViewApp, value_block_filter};
 use crate::sort::compare_database_values;
 
 mod a_new_view_starts_as_a_spreadsheet;
+mod arrow_keys_walk_the_spreadsheet_and_enter_steps_down;
 mod block_values_sort_by_resolved_label_then_reference;
 mod cards_sit_in_the_kanban_column_their_status_names;
 mod new_type_cells_render_and_a_boolean_cell_toggles;
