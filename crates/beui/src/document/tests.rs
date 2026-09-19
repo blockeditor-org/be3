@@ -181,6 +181,7 @@ mod the_screen_reader_keeps_clicks_away_from_the_document;
 mod the_screen_reader_readout_sits_at_the_bottom_above_the_filters;
 mod the_scroll_position_is_reported_to_its_listener;
 mod the_simulate_tab_filters_the_document_without_the_screen_reader;
+mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_keyboard_types_into_the_focused_input;
 mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
@@ -511,6 +512,18 @@ impl Harness {
 
     pub(crate) fn spoken(&self) -> Option<String> {
         self.inspector().reader().spoken()
+    }
+
+    pub(crate) fn readout(&self) -> Rect {
+        self.inspector().reader().bar()
+    }
+
+    pub(crate) fn document_bottom(&self) -> f32 {
+        self.document
+            .root()
+            .and_then(|root| self.document.node_rect(root))
+            .expect("the document laid out no root")
+            .bottom()
     }
 
     pub(crate) fn reading(&self) -> Option<String> {

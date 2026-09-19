@@ -70,6 +70,7 @@ pub(crate) struct ScreenReader {
     last_tap: Option<Instant>,
     focus_painted: Rect,
     painted: Rect,
+    bar: Rect,
 }
 
 impl Default for ScreenReader {
@@ -91,6 +92,7 @@ impl Default for ScreenReader {
             last_tap: None,
             focus_painted: Rect::NOTHING,
             painted: Rect::NOTHING,
+            bar: Rect::NOTHING,
         }
     }
 }
@@ -98,6 +100,10 @@ impl Default for ScreenReader {
 impl ScreenReader {
     pub(crate) fn configure(&mut self, enabled: bool) {
         self.enabled = enabled;
+    }
+
+    pub(crate) fn height() -> f32 {
+        readout::HEIGHT
     }
 
     pub(crate) fn painting(&self) -> bool {
@@ -238,9 +244,16 @@ impl ScreenReader {
             .find(|index| !controls || self.items[*index].control)
         {
             Some(index) => self.go(ctx, index),
-            None if forward => self.say("End of the document".to_owned()),
-            None => self.say("Start of the document".to_owned()),
+            None if forward => self.edge("End of the document"),
+            None => self.edge("Start of the document"),
         }
+    }
+
+    fn edge(&mut self, message: &str) {
+        self.say(match self.current() {
+            Some(item) => format!("{message}. {}", item.phrase),
+            None => message.to_owned(),
+        });
     }
 
     fn go(&mut self, ctx: &Context, index: usize) {
@@ -440,16 +453,17 @@ impl ScreenReader {
         };
     }
 
-    pub(crate) fn paint_readout(&mut self, painter: &Painter, scale: f32, reserved: f32) -> Rect {
+    pub(crate) fn paint_readout(&mut self, painter: &Painter, scale: f32, bar: Rect) -> Rect {
+        self.bar = bar;
         if !self.enabled {
             let damage = self.painted;
             self.painted = Rect::NOTHING;
             self.focus_painted = Rect::NOTHING;
+            self.bar = Rect::NOTHING;
             return damage;
         }
         let view = readout::View {
-            content: painter.clip_rect(),
-            reserved,
+            bar,
             spoken: self.spoken.as_deref(),
             status: self.status(),
             finger: self.finger_at,
@@ -458,6 +472,11 @@ impl ScreenReader {
         let damage = painted.union(self.painted);
         self.painted = painted;
         damage
+    }
+
+    #[cfg(test)]
+    pub(crate) fn bar(&self) -> Rect {
+        self.bar
     }
 
     #[cfg(test)]

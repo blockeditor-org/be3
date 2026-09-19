@@ -29,7 +29,10 @@ fn arrow_keys_walk_the_simulated_screen_reader_through_the_document() {
 
     harness.key(Key::ArrowRight, Modifiers::NONE);
     assert_eq!(harness.reading().as_deref(), Some("Pick a theme, text"));
-    assert_eq!(harness.spoken().as_deref(), Some("End of the document"));
+    assert_eq!(
+        harness.spoken().as_deref(),
+        Some("End of the document. Pick a theme, text")
+    );
 
     harness.key(Key::ArrowLeft, Modifiers::NONE);
     assert_eq!(harness.reading().as_deref(), Some("Settings, text"));
