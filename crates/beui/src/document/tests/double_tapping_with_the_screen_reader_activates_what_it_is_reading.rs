@@ -3,7 +3,7 @@ use crate::reactive::view;
 use crate::styled::Checkbox;
 
 #[test]
-fn double_tapping_the_screen_reader_curtain_activates_what_it_is_reading() {
+fn double_tapping_with_the_screen_reader_activates_what_it_is_reading() {
     let (document, [checkbox]) = toolbar_of(|| {
         [view! {
             <Checkbox label="Show timings" checked=false />
@@ -29,7 +29,7 @@ fn double_tapping_the_screen_reader_curtain_activates_what_it_is_reading() {
 
     assert!(styled::checkbox_checked(harness.document(), checkbox));
     assert_eq!(
-        harness.transcript().last().map(String::as_str),
+        harness.spoken().as_deref(),
         Some("Show timings, check box, checked")
     );
 }

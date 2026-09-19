@@ -412,8 +412,8 @@ number of shapes painted so far, which splits the frame in two: everything
 painted before the call goes through the filter, everything painted after it
 lands on top of the result untouched. The inspector calls it once a frame,
 after the document, the panel, the overlays and the screen reader's focus
-outline, and before the curtain - so the reader's outline blurs with the page it
-marks while the curtain and the words on it stay readable. The region is the
+outline, and before the reader's readout - so the reader's outline blurs with
+the page it marks while the words it is saying stay readable. The region is the
 shown rectangle rather than the whole window, so the panel holding the sliders
 is never filtered.
 
@@ -444,14 +444,14 @@ region covers, damage or no damage.
 
 ### The screen reader simulation
 
-"Simulate a screen reader" at the bottom of the Sim tab drops a curtain over the
-document and leaves only what a screen reader would say. The curtain covers the
-shown rectangle and not the inspector, so the panel stays usable while the
-document is hidden, and the opacity slider decides how much of the layout shows
-through. The highlight marking where the reader is sits under the curtain with
-everything else, so a curtain at full opacity gives nothing away. Turning the
-opacity down and the blur up is what leaves the shape of the page with nothing
-on it to read.
+"Simulate a screen reader" at the bottom of the Sim tab hands the document over
+to what a screen reader would say. A readout sits along the bottom of the shown
+rectangle - the same place the mouse simulation puts its bar, and above it when
+both are on - holding the last thing the reader said and how far through the
+document it is. The highlight marking where the reader is paints over the
+document under the filters, so turning the blur or the contrast reduction up is
+what leaves the shape of the page with nothing on it to read; the readout itself
+is painted after the filters and stays legible however far they go.
 
 Nothing about the simulation reads the beui tree. It walks the AccessKit tree
 the document publishes every frame, in reading order, and it changes the
@@ -465,7 +465,7 @@ and then the state - checked, expanded, selected, a slider's percentage,
 "dimmed" for a disabled control. A control with nothing to name it is announced
 as its bare role, which is the point: "button" on its own is the bug.
 
-While the curtain is up the document answers no pointer or keyboard input
+While the simulation is on the document answers no pointer or keyboard input
 directly, so a click lands nowhere and the only way through the UI is the
 simulation. Keyboard and touch drive it at the same time, with no mode to pick
 between them. From the keyboard, the left and right (or up and down) arrows walk
@@ -477,11 +477,11 @@ up or down adjusts a value, a double tap activates, two fingers tapping repeats,
 and dragging two fingers scrolls; turning "Emulate touch with mouse" on as well
 is what makes those gestures reachable from a mouse. The same commands sit in
 the panel as buttons, so the whole simulation can be driven without either
-device, and the curtain lists them beside the last few things it said.
+device, and the Sim tab lists them under those buttons.
 
 Ctrl+Shift+F still parks keyboard focus in the panel, and Escape returns it; the
-panel does not otherwise hold focus while the curtain is up, so clicking one of
-the command buttons leaves the keyboard commands working.
+panel does not otherwise hold focus while the simulation is on, so clicking one
+of the command buttons leaves the keyboard commands working.
 
 ## Write views
 

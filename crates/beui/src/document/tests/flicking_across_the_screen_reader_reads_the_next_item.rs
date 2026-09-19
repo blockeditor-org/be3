@@ -3,7 +3,7 @@ use crate::reactive::view;
 use crate::styled::{Body, Heading};
 
 #[test]
-fn flicking_across_the_screen_reader_curtain_reads_the_next_item() {
+fn flicking_across_the_screen_reader_reads_the_next_item() {
     let (document, [_heading, _body]) = toolbar_of(|| {
         [
             view! {
