@@ -494,9 +494,11 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 usize::from(self.update_layout(ctx, rect))
             });
-        for (test_id, id) in &self.test_ids {
-            if let Some(node_rect) = self.rects.get(id) {
-                ctx.publish_test_id(test_id, *node_rect);
+        if ctx.test_ids_published() {
+            for (test_id, id) in &self.test_ids {
+                if let Some(node_rect) = self.rects.get(id) {
+                    ctx.publish_test_id(test_id, *node_rect);
+                }
             }
         }
         let now = Instant::now();
@@ -561,6 +563,9 @@ impl Document {
         }
         ctx.extend(&self.shapes);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
+            if !ctx.accessibility_active() {
+                return;
+            }
             if let Some(fragment) = self.accessibility_fragment() {
                 ctx.publish_accessibility(fragment);
             }

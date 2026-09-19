@@ -54,6 +54,7 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
         next_update: None,
         clipboard: Clipboard::new(),
         event_loop_proxy: event_loop.create_proxy(),
+        accessibility_active: false,
     };
     event_loop.run_app(&mut runner)?;
     match runner.error {
@@ -141,6 +142,7 @@ struct Runner {
     next_update: Option<Instant>,
     clipboard: Clipboard,
     event_loop_proxy: EventLoopProxy<AccessKitEvent>,
+    accessibility_active: bool,
 }
 
 impl Runner {
@@ -177,6 +179,9 @@ impl Runner {
 
         self.context
             .set_pixels_per_point(surface.window.scale_factor() as f32);
+        self.context
+            .set_accessibility_active(self.accessibility_active);
+        self.context.set_test_ids_published(false);
         let scale = self.context.pixels_per_point();
         let physical = vec2(surface.config.width as f32, surface.config.height as f32);
         let screen = vec2(physical.x / scale, physical.y / scale);
@@ -188,8 +193,11 @@ impl Runner {
         let output = self.context.run(raw, |context| {
             app.update(context, Rect::from_min_size(Pos2::ZERO, screen));
         });
-        let accessibility = output.accessibility_tree(&self.title, screen);
-        surface.accessibility.update_if_active(|| accessibility);
+        if self.accessibility_active {
+            surface
+                .accessibility
+                .update_if_active(|| output.accessibility_tree(&self.title, screen));
+        }
 
         if let Some(text) = &output.copied_text {
             self.clipboard.set(text.clone());
@@ -537,6 +545,7 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
         }
         match event.window_event {
             accesskit_winit::WindowEvent::InitialTreeRequested => {
+                self.accessibility_active = true;
                 self.update();
                 if let Some(surface) = &self.surface {
                     surface.window.request_redraw();
@@ -546,7 +555,9 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
                 self.context.accessibility_action(request);
                 surface.window.request_redraw();
             }
-            accesskit_winit::WindowEvent::AccessibilityDeactivated => {}
+            accesskit_winit::WindowEvent::AccessibilityDeactivated => {
+                self.accessibility_active = false;
+            }
         }
     }
 }
