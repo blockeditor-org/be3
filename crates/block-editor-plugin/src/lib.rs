@@ -41,7 +41,9 @@ pub use block_ui;
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
 pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
 pub use datetime::DateTimeRow;
-pub use editor::{Artifacts, BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor};
+pub use editor::{
+    Artifacts, BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor, fit_content,
+};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
     ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster,

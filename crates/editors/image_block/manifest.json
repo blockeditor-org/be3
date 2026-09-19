@@ -10,7 +10,7 @@
   "capabilities": {
     "rotation": false,
     "preserve_aspect_ratio": true,
-    "pan_and_zoom": false
+    "pan_and_zoom": true
   },
   "resize": "None",
   "regions": [
