@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::time::Instant;
 
 use accesskit::Node;
@@ -34,6 +34,8 @@ pub struct Document {
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
     pub(crate) overlay_stack: Vec<NodeId>,
+    pub(crate) passive_overlays: Vec<NodeId>,
+    frame_hooks: RefCell<Vec<Weak<dyn Fn()>>>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
     pub(crate) touch_scroll_horizontal: Option<NodeId>,
     pub(crate) pointer_capture: Option<NodeId>,
@@ -122,6 +124,8 @@ impl Document {
             inspector: None,
             inspectable: true,
             overlay_stack: Vec::new(),
+            passive_overlays: Vec::new(),
+            frame_hooks: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
             touch_scroll_horizontal: None,
             pointer_capture: None,
@@ -184,6 +188,26 @@ impl Document {
 
     pub(crate) fn theme_store(&self) -> ThemeStore {
         self.theme.clone()
+    }
+
+    pub fn request_repaint_after(&self, delay: std::time::Duration) {
+        if let Some((ctx, _, _)) = &self.viewport {
+            ctx.request_repaint_after(delay);
+        }
+    }
+
+    pub(crate) fn register_frame_hook(&self, work: Weak<dyn Fn()>) {
+        self.frame_hooks.borrow_mut().push(work);
+    }
+
+    fn run_frame_hooks(&self) {
+        let mut hooks = self.frame_hooks.borrow_mut();
+        hooks.retain(|hook| hook.strong_count() > 0);
+        let live: Vec<Rc<dyn Fn()>> = hooks.iter().filter_map(Weak::upgrade).collect();
+        drop(hooks);
+        for hook in live {
+            hook();
+        }
     }
 
     pub(crate) fn register_node_scope(&mut self, node: NodeId, scope: ::reactive::Scope) {
@@ -475,6 +499,12 @@ impl Document {
             }
         });
 
+        {
+            let context = self.reactive_scope().context();
+            let _guard = crate::reactive::install(self);
+            context.run(|| crate::reactive::with_document(|document| document.run_frame_hooks()));
+        }
+
         if interactive {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
                 if let Some(root) = self.root {
@@ -545,7 +575,13 @@ impl Document {
                         paint::paint(self, &ctx.painter(), &self.rects, root);
                     }
                     ctx.flush_top();
-                    for overlay in self.overlay_stack.clone() {
+                    let overlays: Vec<NodeId> = self
+                        .overlay_stack
+                        .iter()
+                        .chain(self.passive_overlays.iter())
+                        .copied()
+                        .collect();
+                    for overlay in overlays {
                         if let Some(content) = self.overlay_content(overlay)
                             && self.rects.contains_key(&content)
                         {

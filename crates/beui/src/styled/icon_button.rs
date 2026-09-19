@@ -3,6 +3,7 @@ use beui_macros::{component, view};
 
 use crate::node::NodeId;
 use crate::reactive::{ClickCallback, Frame, Prop, clone, create_memo};
+use crate::styled::tooltip::Tooltip;
 use crate::styled::button::ButtonVariant;
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, ICON_SIZE, RADIUS, use_theme};
@@ -20,23 +21,25 @@ pub fn IconButton(
     #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
 ) -> NodeId {
-    let accessibility = create_memo(move || {
+    let accessibility = create_memo(clone!(label -> move || {
         let mut node = Node::new(Role::Button);
         node.set_label(label.get());
         node
-    });
+    }));
     let disabled = create_memo(move || disabled.get());
     let face = disabled.clone();
     let glyph = create_memo(move || glyph.get());
     view! {
-        <unstyled::Button
-            disabled
-            accessibility
-            on_click={move || on_click.call()}
-            content={move |handle| view! {
-                <IconButtonFace handle variant glyph={glyph.clone()} disabled={face.clone()} />
-            }}
-        />
+        <Tooltip label={label}>
+            <unstyled::Button
+                disabled
+                accessibility
+                on_click={move || on_click.call()}
+                content={move |handle| view! {
+                    <IconButtonFace handle variant glyph={glyph.clone()} disabled={face.clone()} />
+                }}
+            />
+        </Tooltip>
     }
 }
 

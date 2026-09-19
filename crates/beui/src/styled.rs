@@ -23,6 +23,7 @@ mod tabs;
 mod text;
 mod text_input;
 pub mod theme;
+mod tooltip;
 mod tree;
 
 pub use accordion::{Accordion, accordion_open};
@@ -50,6 +51,7 @@ pub use tabs::{Tabs, tabs_selected};
 pub use text::{Body, Caption, Code, Display, Heading, Icon, IconSized, Paragraph, Title};
 pub use text_input::{TextInput, text_input_value};
 pub use theme::{Theme, ThemeProvider, ThemeStore, use_theme};
+pub use tooltip::Tooltip;
 pub use tree::Tree;
 
 mod choice;

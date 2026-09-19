@@ -137,6 +137,12 @@ pub(crate) fn node_scope(document: &Document, owner: Option<ScopeContext>) -> Sc
         .unwrap_or_else(|| document.reactive_scope().context().run(Scope::new))
 }
 
+pub fn each_frame(work: impl Fn() + 'static) {
+    let work: Rc<dyn Fn()> = Rc::new(work);
+    with_document(|document| document.register_frame_hook(Rc::downgrade(&work)));
+    on_cleanup(move || drop(work));
+}
+
 pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     let reading = match test_id {
         Prop::Static(value) => {
