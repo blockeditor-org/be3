@@ -135,6 +135,22 @@ rebuild a subtree to show a new value. A `Prop<T>` takes a plain `T`, a
 `ReadSignal<T>`, or a `Memo<T>`, and the reactive forms install an effect that
 writes just that one property when the value changes.
 
+A `Prop<T>` is a handle rather than a value, so it clones for the price of an
+`Rc` and a component that needs one in more than one place clones it with
+`clone!` the way it would a signal:
+
+```rust
+let color = create_memo(clone!(value -> move || paint(value.get())));
+view! {
+    <Frame color>
+        <Text string={value} />
+    </Frame>
+}
+```
+
+Do not wrap a prop in a `create_memo` just to read it twice. A memo adds a
+node to the graph, and a `T` that is not `PartialEq` cannot go in one at all.
+
 The common mistake is a list. Removing every row and building replacements on
 each change throws away the nodes, their scopes, their measured text, and
 whatever focus or caret lived in them, and costs time proportional to the whole

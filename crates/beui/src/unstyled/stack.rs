@@ -18,7 +18,7 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChil
 
     let children = children.map(move |child| {
         let ListChild { node, size } = child;
-        let size = Prop::Dynamic(Box::new(clone!(stacked -> move || {
+        let size = Prop::Dynamic(std::rc::Rc::new(clone!(stacked -> move || {
             if stacked.get() {
                 ItemSize::Intrinsic
             } else {

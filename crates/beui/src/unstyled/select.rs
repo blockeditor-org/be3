@@ -311,7 +311,7 @@ fn SelectRow(
 
 fn reveal_reader(state: &Handle) -> Prop<Option<usize>> {
     let state = state.clone();
-    Prop::Dynamic(Box::new(move || {
+    Prop::Dynamic(std::rc::Rc::new(move || {
         let visible: Vec<_> = state
             .rows
             .borrow()
