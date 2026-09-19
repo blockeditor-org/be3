@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 
 use crate::color::Color32;
 use crate::context::FrameOutput;
-use crate::draw::{Quad, quads};
+use crate::draw::{Quad, quads_within};
 use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
 use crate::geometry::{Rect, Vec2};
@@ -371,7 +371,7 @@ impl Renderer {
                 Some(region)
             }
         };
-        let drawn = quads(output, pixels_per_point);
+        let drawn = quads_within(output, pixels_per_point, damaged);
         let split = match prepared {
             Some(_) => drawn.filtered,
             None => drawn.list.len(),
@@ -389,9 +389,6 @@ impl Renderer {
                     corner_radius,
                     stroke_width,
                 } => {
-                    if skipped(damaged, expand(rect, stroke_width), clip) {
-                        continue;
-                    }
                     Run::push(layer, false, instances.len() as u32);
                     instances.push(Instance {
                         rect,
@@ -407,9 +404,6 @@ impl Renderer {
                     color,
                     glyph,
                 } => {
-                    if skipped(damaged, rect, clip) {
-                        continue;
-                    }
                     let Some(uv) = self.atlas.insert(queue, glyph.id, &glyph.image) else {
                         continue;
                     };
@@ -427,9 +421,6 @@ impl Renderer {
                     clip,
                     corner_radius,
                 } => {
-                    if skipped(damaged, rect, clip) {
-                        continue;
-                    }
                     Run::push(layer, true, instances.len() as u32);
                     instances.push(Instance {
                         rect,
@@ -591,26 +582,6 @@ fn physical(region: Rect, screen: Vec2, pixels_per_point: f32) -> [f32; 4] {
             .ceil()
             .clamp(0.0, screen.y),
     ]
-}
-
-fn expand(rect: [f32; 4], amount: f32) -> [f32; 4] {
-    [
-        rect[0] - amount,
-        rect[1] - amount,
-        rect[2] + amount,
-        rect[3] + amount,
-    ]
-}
-
-fn skipped(damaged: Option<[f32; 4]>, rect: [f32; 4], clip: [f32; 4]) -> bool {
-    let Some(damaged) = damaged else {
-        return false;
-    };
-    let left = rect[0].max(clip[0]).max(damaged[0]);
-    let top = rect[1].max(clip[1]).max(damaged[1]);
-    let right = rect[2].min(clip[2]).min(damaged[2]);
-    let bottom = rect[3].min(clip[3]).min(damaged[3]);
-    left >= right || top >= bottom
 }
 
 fn scissor(damaged: [f32; 4]) -> [u32; 4] {
