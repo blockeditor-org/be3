@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_blur_repaints_the_light_it_spreads_outside_the_damaged_region;
 mod a_blurred_region_spreads_light_past_the_shape_that_made_it;
 mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
@@ -13,8 +14,10 @@ mod an_icon_glyph_paints_over_the_background;
 mod reducing_contrast_pulls_the_filtered_region_toward_grey;
 mod repainting_a_damaged_region_keeps_the_rest_of_the_retained_frame;
 mod repainting_covers_every_region_gathered_since_the_last_draw;
+mod repeated_partial_repaints_under_a_blur_match_a_full_one;
 mod text_at_a_fractional_origin_lands_on_whole_pixels;
 mod text_paints_glyphs_over_the_background;
+mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
 
 use crate::context::Context;
 use crate::document::Document;
@@ -121,7 +124,7 @@ impl Target {
     ) {
         let context = Context::new();
         let output = context.run(RawInput::default(), |context| paint(&context.painter()));
-        self.renderer.prepare(
+        let effective = self.renderer.prepare(
             &self.device,
             &self.queue,
             &output,
@@ -129,7 +132,7 @@ impl Target {
             1.0,
             repaint,
         );
-        let load = match (self.cleared, repaint) {
+        let load = match (self.cleared, effective) {
             (true, Repaint::Region { .. }) => wgpu::LoadOp::Load,
             _ => wgpu::LoadOp::Clear(clear_color(background)),
         };

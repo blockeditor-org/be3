@@ -356,7 +356,7 @@ fn paint_beui(
         };
         drawn.repaint = drawn.repaint.min(output.repaint_after);
         let scale = output.pixels_per_point();
-        renderer.prepare(
+        let _ = renderer.prepare(
             target.device,
             target.queue,
             output,
