@@ -842,7 +842,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         #(#attrs)*
         #vis struct #builder_ident #decl_generics #where_clause {
             #(#fields,)*
-            with_test_id: Option<String>,
+            with_test_id: Option<::beui::reactive::Prop<String>>,
             with_node_ref: Option<::beui::reactive::NodeRef>,
             #phantom_field
         }
@@ -860,8 +860,11 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         impl #all_generics #builder_all #where_clause {
             #(#optional_methods)*
 
-            pub fn with_test_id(mut self, value: impl Into<String>) -> Self {
-                self.with_test_id = Some(value.into());
+            pub fn with_test_id(
+                mut self,
+                value: impl ::beui::reactive::IntoProp<String>,
+            ) -> Self {
+                self.with_test_id = Some(::beui::reactive::IntoProp::into_prop(value));
                 self
             }
 
@@ -886,10 +889,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                     )
                 };
                 if let Some(test_id) = test_id {
-                    let anchor = anchor();
-                    ::beui::reactive::with_document(|document| {
-                        document.set_test_id(anchor, test_id)
-                    });
+                    ::beui::reactive::bind_test_id(anchor(), test_id);
                 }
                 if let Some(node_ref) = node_ref {
                     node_ref.fill(anchor());

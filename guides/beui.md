@@ -541,7 +541,10 @@ ones from `beui::unstyled`.
 `view!` supports three framework attributes on every tag, in their own `@`
 namespace so a component can name its props whatever it likes:
 
-- `@test_id` gives a node a stable name for headless interaction tests.
+- `@test_id` gives a node a name for headless interaction tests. It takes a
+  `Prop<String>`, so a row whose identity is itself reactive can carry one:
+  bind a memo and the name follows it, and the name it left behind stops
+  resolving.
 - `@node_ref` fills a `NodeRef` when enclosing code genuinely needs the
   resulting `NodeId`.
 - `@sizing` selects the child's `ItemSize` among its siblings in a list, and

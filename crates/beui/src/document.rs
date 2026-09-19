@@ -238,6 +238,13 @@ impl Document {
         }
     }
 
+    pub fn clear_test_id(&mut self, id: NodeId, test_id: &str) {
+        self.forget_test_id(id, test_id);
+        if self.test_ids.get(test_id) == Some(&id) {
+            self.test_ids.remove(test_id);
+        }
+    }
+
     fn forget_test_id(&mut self, id: NodeId, test_id: &str) {
         if let Some(owned) = self.node_test_ids.get_mut(&id) {
             owned.retain(|existing| existing != test_id);

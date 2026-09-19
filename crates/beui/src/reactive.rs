@@ -137,6 +137,33 @@ pub(crate) fn node_scope(document: &Document, owner: Option<ScopeContext>) -> Sc
         .unwrap_or_else(|| document.reactive_scope().context().run(Scope::new))
 }
 
+pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
+    let reading = match test_id {
+        Prop::Static(value) => {
+            with_document(|document| document.set_test_id(node, value));
+            return;
+        }
+        Prop::Dynamic(reading) => reading,
+    };
+    let scope = with_document(|document| node_scope(document, None));
+    scope.context().run(|| {
+        let published: Cell<Option<String>> = Cell::new(None);
+        create_effect(move || {
+            let next = reading();
+            let previous = published.replace(Some(next.clone()));
+            with_document(|document| {
+                if let Some(previous) = previous
+                    && previous != next
+                {
+                    document.clear_test_id(node, &previous);
+                }
+                document.set_test_id(node, next);
+            });
+        });
+    });
+    with_document(|document| document.register_node_scope(node, scope));
+}
+
 pub fn in_new_scope(f: impl FnOnce() -> NodeId) -> NodeId {
     let scope = with_document(|document| node_scope(document, None));
     let node = scope.context().run(f);
