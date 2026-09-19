@@ -286,6 +286,13 @@ impl Inspector {
         self.state.closed.get()
     }
 
+    pub(crate) fn readout_height(&self, ctx: &Context) -> f32 {
+        match self.state.screen_reader.get() {
+            true => ScreenReader::height() * scale(ctx),
+            false => 0.0,
+        }
+    }
+
     pub(crate) fn intercepts(&self) -> bool {
         self.state.picking.get() || self.grabbed.is_some() || self.state.screen_reader.get()
     }
@@ -324,6 +331,7 @@ impl Inspector {
         target: &mut Document,
         ctx: &Context,
         content: Rect,
+        readout: Rect,
         panel: Rect,
         keyboard_interactive: bool,
     ) {
@@ -354,11 +362,11 @@ impl Inspector {
         self.paint(target, ctx, content, panel);
         let covering = self.reader.painting();
         if covering {
-            self.cover(ctx, content, Layer::Below);
+            self.cover(ctx, content, readout, Layer::Below);
         }
         ctx.apply_filter(self.state.filter(content));
         if covering {
-            self.cover(ctx, content, Layer::Above);
+            self.cover(ctx, content, readout, Layer::Above);
         }
         if target.flashing() {
             ctx.request_repaint();
@@ -380,18 +388,21 @@ impl Inspector {
         }
     }
 
-    fn cover(&mut self, ctx: &Context, content: Rect, layer: Layer) {
+    fn cover(&mut self, ctx: &Context, content: Rect, readout: Rect, layer: Layer) {
         let scale = scale(ctx);
         let local = scale.recip();
         let Self { reader, .. } = self;
-        ctx.scaled(scale, || {
-            let painter = ctx.painter().with_clip_rect(content.scaled(local));
-            match layer {
-                Layer::Below => reader.paint_focus(&painter, local),
-                Layer::Above => {
-                    let reserved = ctx.simulated_input_height();
-                    ctx.report_damage(reader.paint_readout(&painter, local, reserved));
-                }
+        ctx.scaled(scale, || match layer {
+            Layer::Below => {
+                let painter = ctx.painter().with_clip_rect(content.scaled(local));
+                reader.paint_focus(&painter, local);
+            }
+            Layer::Above => {
+                let bar = readout.scaled(local);
+                let painter = ctx
+                    .painter()
+                    .with_clip_rect(content.union(readout).scaled(local));
+                ctx.report_damage(reader.paint_readout(&painter, local, bar));
             }
         });
     }

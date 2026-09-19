@@ -286,7 +286,7 @@ impl Keyboard {
     }
 
     pub(crate) fn paint(&self, painter: &Painter, rect: Rect) {
-        painter.rect_filled(rect, 0.0, super::SURFACE);
+        painter.rect_filled(rect, 0.0, Theme::DARK.background);
         for (id, bounds, cap) in cells(rect) {
             let latched = match cap.face {
                 Face::Modifier { modifier, .. } => modifier.read(self.modifiers),

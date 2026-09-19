@@ -26,7 +26,7 @@ const DOUBLE_TAP_TIME: Duration = Duration::from_millis(350);
 const MIDDLE_HOLD: Duration = Duration::from_millis(180);
 pub(crate) const SCROLL_TICK: f32 = 22.0;
 pub(crate) const WHEEL_LINE: f32 = 40.0;
-const SURFACE: Color32 = Color32::from_rgba_unmultiplied(14, 17, 23, 232);
+const BORDER_WIDTH: f32 = 1.0;
 const SHADOW: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 190);
 
 const BUTTONS: [PointerButton; 3] = [
@@ -139,7 +139,8 @@ impl MouseSimulation {
             return 0.0;
         }
         let layout = self.layout();
-        layout.bar.height() + layout.keyboard.map_or(0.0, |rect| rect.height())
+        let height = layout.bar.height() + layout.keyboard.map_or(0.0, |rect| rect.height());
+        height * self.scale
     }
 
     pub(crate) fn measure(&mut self, viewport: Rect, scale: f32) {
@@ -520,7 +521,13 @@ impl MouseSimulation {
             return damage;
         }
         let layout = self.layout();
-        painter.rect_filled(layout.bar, 0.0, SURFACE);
+        let top = layout.keyboard.unwrap_or(layout.bar);
+        painter.rect_filled(layout.bar, 0.0, Theme::DARK.background);
+        painter.rect_filled(
+            Rect::from_min_max(top.min, pos2(top.right(), top.top() + BORDER_WIDTH)),
+            0.0,
+            Theme::DARK.border,
+        );
         for (index, bounds) in layout.buttons.iter().enumerate() {
             let active = match index {
                 3 => self.keyboard_open,

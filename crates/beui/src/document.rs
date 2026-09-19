@@ -401,6 +401,8 @@ impl Document {
             self.track_damage(false);
         }
 
+        let viewport = rect;
+        let rect = trim_bottom(rect, ctx.measure_mouse_simulation(viewport)).0;
         let (content, panel) = match &mut self.inspector {
             Some(inspector) => {
                 inspector.grab(ctx, rect);
@@ -408,6 +410,11 @@ impl Document {
             }
             None => (rect, Rect::NOTHING),
         };
+        let reserved = self
+            .inspector
+            .as_ref()
+            .map_or(0.0, |inspector| inspector.readout_height(ctx));
+        let (content, readout) = trim_bottom(content, reserved);
         let intercepted = self
             .inspector
             .as_ref()
@@ -419,12 +426,12 @@ impl Document {
         self.show_content(ctx, content, !intercepted, !inspector_has_focus);
 
         if let Some(mut inspector) = self.inspector.take() {
-            inspector.show(self, ctx, content, panel, inspector_has_focus);
+            inspector.show(self, ctx, content, readout, panel, inspector_has_focus);
             if !inspector.closed() {
                 self.inspector = Some(inspector);
             }
         }
-        ctx.show_mouse_simulation(rect);
+        ctx.show_mouse_simulation(viewport);
     }
 
     pub(crate) fn show_content(
@@ -800,6 +807,15 @@ impl Document {
         self.layout_revision = self.arena.revision;
         true
     }
+}
+
+fn trim_bottom(rect: Rect, height: f32) -> (Rect, Rect) {
+    let height = height.clamp(0.0, rect.height().max(0.0));
+    let edge = rect.bottom() - height;
+    (
+        Rect::from_min_max(rect.min, pos2(rect.right(), edge)),
+        Rect::from_min_max(pos2(rect.left(), edge), rect.max),
+    )
 }
 
 fn split(rect: Rect, width: f32) -> (Rect, Rect) {

@@ -398,6 +398,12 @@ keyboard toggle opens an on-screen keyboard that sends `Event::Key` and
 `Event::Text`; its Shift, Ctrl, and Alt keys latch until the next key, and they
 also apply to clicks, so Ctrl+Shift+I on it reopens the inspector.
 
+The strip and the keyboard take their room out of the window rather than
+covering it: `Document::show` asks the simulation how tall it is, trims that off
+the bottom, and lays the document and the inspector panel out in what is left,
+the way a phone's keyboard pushes a page up. Nothing is drawn over content that
+is still live, so the bars are opaque.
+
 ### Filters
 
 The Sim tab's Filters section puts a blur, a contrast reduction, and the
@@ -445,13 +451,16 @@ region covers, damage or no damage.
 ### The screen reader simulation
 
 "Simulate a screen reader" at the bottom of the Sim tab hands the document over
-to what a screen reader would say. A readout sits along the bottom of the shown
-rectangle - the same place the mouse simulation puts its bar, and above it when
-both are on - holding the last thing the reader said and how far through the
-document it is. The highlight marking where the reader is paints over the
+to what a screen reader would say. A readout takes a fixed strip off the bottom
+of the shown rectangle, above the mouse simulation's own bar when both are on,
+holding the last thing the reader said and how far through the document it is.
+It is a strip the document does not get rather than a sheet over it, so the
+height stays the same whatever the reader says - a bar that grew with the text
+would relay out the page on every utterance - and a long phrase is clipped
+rather than wrapped. The highlight marking where the reader is paints over the
 document under the filters, so turning the blur or the contrast reduction up is
-what leaves the shape of the page with nothing on it to read; the readout itself
-is painted after the filters and stays legible however far they go.
+what leaves the shape of the page with nothing on it to read; the readout is
+outside the filtered region and stays legible however far they go.
 
 Nothing about the simulation reads the beui tree. It walks the AccessKit tree
 the document publishes every frame, in reading order, and it changes the
@@ -471,7 +480,9 @@ simulation. Keyboard and touch drive it at the same time, with no mode to pick
 between them. From the keyboard, the left and right (or up and down) arrows walk
 an item at a time, Tab and Shift+Tab move between controls, Home and End jump to
 the ends, Enter or Space activates, Minus and Plus adjust, Page Up and Page Down
-scroll, and R repeats the current item. By touch, dragging a finger reads
+scroll, and R repeats the current item. Walking past either end says so and
+reads the item again after it, so the readout never leaves you without the thing
+you are standing on. By touch, dragging a finger reads
 whatever is under it, flicking left or right moves an item at a time, flicking
 up or down adjusts a value, a double tap activates, two fingers tapping repeats,
 and dragging two fingers scrolls; turning "Emulate touch with mouse" on as well

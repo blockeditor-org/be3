@@ -9,25 +9,29 @@ fn the_screen_reader_readout_sits_at_the_bottom_above_the_filters() {
 
     let filter = output.filter().expect("the blur slider set no filter");
     assert!(filter.blur > 0.0, "the blur slider read {}", filter.blur);
+    let readout = harness.readout();
+    assert!(readout.is_positive(), "the reader painted no readout");
+    assert!(
+        filter.region.bottom() <= readout.top(),
+        "the filter reached {} into a readout starting at {}",
+        filter.region.bottom(),
+        readout.top()
+    );
+
     let boundary = output
         .filtered_shapes()
         .expect("the filter covered no shapes");
-
-    let position = |wanted: [u8; 4]| {
-        output.shapes().iter().position(|shape| {
+    let highlight = output
+        .shapes()
+        .iter()
+        .position(|shape| {
             matches!(
                 shape,
                 crate::Shape::Rect { color, stroke_width, .. }
-                    if *stroke_width == 0.0 && color.to_array() == wanted
+                    if *stroke_width == 0.0 && color.to_array() == [82, 137, 255, 72]
             )
         })
-    };
-    let highlight = position([82, 137, 255, 72]).expect("the reader painted no highlight");
-    let readout = position([14, 17, 23, 232]).expect("the reader painted no readout");
+        .expect("the reader painted no highlight");
 
     assert!(highlight < boundary, "the focus outline escaped the filter");
-    assert!(
-        readout >= boundary,
-        "the readout was filtered with the document"
-    );
 }
