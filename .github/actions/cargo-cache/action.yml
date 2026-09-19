@@ -1,0 +1,39 @@
+name: Cache cargo's registry and dependency artifacts
+description: >-
+  Restores the registry and the dependency half of target/ that a previous run
+  on main left behind, so a job answers from the runner's own disk what it would
+  otherwise have to ask the shared object store for.
+
+# This is Swatinem's cache, and it sits beside the sccache store rather than in
+# place of it. sccache answers a compilation, which still costs a rustc process
+# and a round trip to Bunny for every crate in the graph; a restored target/
+# costs neither, and it carries the linked artifacts sccache never sees at all.
+#
+# It only writes from main. An entry written on main is one every run can
+# restore; an entry a pull request writes is one only that same pull request
+# will ever read again, so writing from anywhere else spends the upload to
+# crowd out the entries that are shared. The repository gets ten gigabytes for
+# all of it, evicted least-recently-used, and that budget is also why only the
+# three jobs of the verify run use this at all.
+runs:
+  using: composite
+  steps:
+    # IMPORTANT: every other cache in a job belongs *after* this step.
+    #
+    # Before saving, this action walks target/ and deletes everything it does
+    # not recognise as a dependency artifact, which is what keeps the entry to
+    # a size worth uploading. It does not recognise the WASI sysroot, the
+    # PDFium copy or the libghostty-vt archive, all of which live under target/
+    # and are cached by steps of their own. Post steps run in the reverse of
+    # the order their steps were declared, so declaring this one first is what
+    # makes those entries save before this one empties the directories they
+    # came out of.
+    - uses: Swatinem/rust-cache@v2
+      with:
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+        # The tools the jobs install come from taiki-e/install-action, which
+        # fetches a prebuilt binary in a couple of seconds and checks the
+        # version of whatever it finds already installed. Caching cargo's bin
+        # directory would save none of that and would leave a binary whose
+        # version is pinned somewhere this cache's key does not look.
+        cache-bin: false
