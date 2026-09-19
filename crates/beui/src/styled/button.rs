@@ -21,6 +21,7 @@ const FOCUS_RING_OFFSET: f32 = 6.0;
 pub enum ButtonVariant {
     Primary,
     Secondary,
+    Ghost,
 }
 
 impl ButtonVariant {
@@ -35,6 +36,7 @@ impl ButtonVariant {
             return match self {
                 ButtonVariant::Primary => theme.accent_soft.get(),
                 ButtonVariant::Secondary => theme.surface.get(),
+                ButtonVariant::Ghost => Color32::TRANSPARENT,
             };
         }
         match (self, hovered, active) {
@@ -44,6 +46,9 @@ impl ButtonVariant {
             (ButtonVariant::Secondary, _, true) => theme.pressed.get(),
             (ButtonVariant::Secondary, true, false) => theme.hover.get(),
             (ButtonVariant::Secondary, false, false) => theme.surface.get(),
+            (ButtonVariant::Ghost, _, true) => theme.pressed.get(),
+            (ButtonVariant::Ghost, true, false) => theme.hover.get(),
+            (ButtonVariant::Ghost, false, false) => Color32::TRANSPARENT,
         }
     }
 
@@ -53,7 +58,7 @@ impl ButtonVariant {
         }
         match self {
             ButtonVariant::Primary => theme.on_accent.get(),
-            ButtonVariant::Secondary => theme.text.get(),
+            ButtonVariant::Secondary | ButtonVariant::Ghost => theme.text.get(),
         }
     }
 }
