@@ -757,6 +757,35 @@ pub(crate) struct StackedPanels {
     pub(crate) lower: NodeId,
 }
 
+pub(crate) struct ThreePanels {
+    pub(crate) document: Document,
+    pub(crate) top: NodeId,
+    pub(crate) middle: NodeId,
+    pub(crate) bottom: NodeId,
+}
+
+pub(crate) fn three_panels() -> ThreePanels {
+    let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
+    let document = build({
+        let (top, middle, bottom) = (top.clone(), middle.clone(), bottom.clone());
+        move || {
+            view! {
+                <List spacing=0.0>
+                    <Frame @node_ref=&top height=100.0 color=Color32::WHITE radius=0 />
+                    <Frame @node_ref=&middle height=100.0 color={Color32::from_gray(40)} radius=0 />
+                    <Frame @node_ref=&bottom height=100.0 color={Color32::from_gray(80)} radius=0 />
+                </List>
+            }
+        }
+    });
+    ThreePanels {
+        document,
+        top: top.get(),
+        middle: middle.get(),
+        bottom: bottom.get(),
+    }
+}
+
 pub(crate) fn stacked_panels() -> StackedPanels {
     let (upper, lower) = (NodeRef::new(), NodeRef::new());
     let document = build({
@@ -813,7 +842,7 @@ pub(crate) fn toolbar_of<const N: usize>(
     (document, nodes)
 }
 
-use crate::node::{Element, InteractInput};
+use crate::node::{Element, InteractInput, NodeMap};
 use crate::painter::Painter;
 use std::any::Any;
 use std::time::{Duration, Instant};
@@ -822,10 +851,12 @@ struct Counted {
     inner: Box<dyn Element>,
     layouts: Rc<Cell<usize>>,
     paints: Rc<Cell<usize>>,
+    measures: Rc<Cell<usize>>,
 }
 
 impl Element for Counted {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
+        self.measures.set(self.measures.get() + 1);
         self.inner.measure(doc, painter, available)
     }
 
@@ -834,13 +865,13 @@ impl Element for Counted {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut HashMap<NodeId, Rect>,
+        out: &mut NodeMap<Rect>,
     ) {
         self.layouts.set(self.layouts.get() + 1);
         self.inner.layout(doc, painter, rect, out);
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
         self.paints.set(self.paints.get() + 1);
         self.inner.paint(doc, painter, rects, rect);
     }
@@ -876,22 +907,39 @@ impl Element for Counted {
     }
 }
 
+struct Counts {
+    layouts: Rc<Cell<usize>>,
+    paints: Rc<Cell<usize>>,
+    measures: Rc<Cell<usize>>,
+}
+
 fn counted(document: &mut Document, node: NodeId) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
-    let layouts = Rc::new(Cell::new(0));
-    let paints = Rc::new(Cell::new(0));
+    let counts = counted_with_measures(document, node);
+    (counts.layouts, counts.paints)
+}
+
+fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
+    let counts = Counts {
+        layouts: Rc::new(Cell::new(0)),
+        paints: Rc::new(Cell::new(0)),
+        measures: Rc::new(Cell::new(0)),
+    };
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,
         Box::new(Counted {
             inner,
-            layouts: layouts.clone(),
-            paints: paints.clone(),
+            layouts: counts.layouts.clone(),
+            paints: counts.paints.clone(),
+            measures: counts.measures.clone(),
         }),
     );
-    (layouts, paints)
+    counts
 }
 mod a_blinking_caret_only_damages_the_text_it_belongs_to;
+mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;
+mod a_panel_between_two_damaged_ones_is_left_alone;
 mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
 mod caret_repaints_on_a_deadline_without_repeating_layout;
@@ -908,6 +956,7 @@ mod list_rows_and_pressables_activate_from_the_keyboard;
 mod listbox_navigation_reveals_options_inside_a_tall_scroll_item;
 mod listbox_typeahead_matches_prefixes_and_cycles_repeated_letters;
 mod losing_window_focus_cancels_a_held_activation_key;
+mod performance_measurements_report_what_the_frame_reused;
 mod radio_groups_select_with_space_and_arrows_without_leaving_the_group;
 mod resizing_scaling_and_replacing_the_root_invalidate_the_cache;
 mod slider_home_end_and_page_keys_clamp_at_the_bounds;

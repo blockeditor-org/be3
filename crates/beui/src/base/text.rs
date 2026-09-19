@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
@@ -11,7 +10,7 @@ use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId};
+use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::reactive::{NodeRef, Prop, create_effect, with_document};
 
 use beui_macros::component;
@@ -285,18 +284,12 @@ impl Element for TextNode {
         _doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        _out: &mut HashMap<NodeId, Rect>,
+        _out: &mut NodeMap<Rect>,
     ) {
         self.place(painter, rect);
     }
 
-    fn paint(
-        &self,
-        _doc: &Document,
-        painter: &Painter,
-        _rects: &HashMap<NodeId, Rect>,
-        rect: Rect,
-    ) {
+    fn paint(&self, _doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, rect: Rect) {
         let clipped = painter.with_clip_rect(if self.clip { rect } else { Rect::EVERYTHING });
         let placed = self.placed(&clipped, rect);
 

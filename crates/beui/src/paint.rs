@@ -7,7 +7,7 @@ use crate::geometry::Rect;
 use crate::painter::{Painter, Shape};
 
 use crate::document::Document;
-use crate::node::NodeId;
+use crate::node::{NodeId, NodeMap};
 
 pub(crate) struct Painted {
     pub(crate) parent: Option<NodeId>,
@@ -49,7 +49,7 @@ impl PaintCache {
     }
 }
 
-pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, id: NodeId) {
+pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, id: NodeId) {
     let rect = rects[&id];
     let ctx = painter.ctx();
     let base = doc
@@ -60,6 +60,10 @@ pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &HashMap<NodeId, R
     let parent = ctx.parent_start();
     ctx.enter_paint(id);
     let reused = base.is_some_and(|base| replay(doc, ctx, id, rect, base));
+    doc.note_work(|work| match reused {
+        true => work.replayed_nodes += 1,
+        false => work.painted_nodes += 1,
+    });
     if !reused {
         let outer = doc.enter_paint_base(base);
         doc.arena.get(id).paint(doc, painter, rects, rect);
@@ -83,7 +87,7 @@ fn replay(doc: &Document, ctx: &Context, id: NodeId, rect: Rect, base: usize) ->
     let Some(painted) = cache.get(id) else {
         return false;
     };
-    if painted.bounds.union(rect).intersects(doc.paint_region()) {
+    if doc.paint_region().intersects(painted.bounds.union(rect)) {
         return false;
     }
     let Some(shapes) = doc.painted_shapes(base, painted.main.len()) else {

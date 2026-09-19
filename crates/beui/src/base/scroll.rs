@@ -1,7 +1,6 @@
 use crate::color::Color32;
 use crate::input::{Key, KeyPress};
 use std::any::Any;
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -12,7 +11,7 @@ use crate::painter::Painter;
 use crate::reactive::KeyedItems;
 
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId};
+use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::reactive::{
     Callback, Children, Prop, RenderFn, ScopeContext, create_effect, create_signal, owner_scope,
     settle, with_document,
@@ -194,7 +193,7 @@ impl ScrollNode {
             + self.leading(0.0)
             - self.offset;
         let placed = item_rect(self.direction, rect, start, lengths[index]);
-        let mut rects = HashMap::new();
+        let mut rects = NodeMap::default();
         crate::layout::layout(doc, painter, item, placed, &mut rects);
         let target = rects.get(&focused).copied().unwrap_or(placed);
         revealed_offset(self.direction, rect, target, self.offset)
@@ -345,7 +344,7 @@ impl Element for ScrollNode {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut HashMap<NodeId, Rect>,
+        out: &mut NodeMap<Rect>,
     ) {
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let virtualised = self.virtual_items.is_some();
@@ -396,7 +395,7 @@ impl Element for ScrollNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
         let clipped = painter.with_clip_rect(rect);
         for item in self.items.iter() {
             if rects.contains_key(item) {

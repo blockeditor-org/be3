@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::collections::HashMap;
 
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::Modifiers;
@@ -58,10 +57,10 @@ pub(crate) trait Element: Any {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut HashMap<NodeId, Rect>,
+        out: &mut NodeMap<Rect>,
     );
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect);
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect);
 
     fn paints(&self) -> bool {
         true
@@ -93,9 +92,73 @@ pub(crate) trait Element: Any {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+pub struct NodeMap<T> {
+    entries: Vec<Option<T>>,
+}
+
+impl<T> Default for NodeMap<T> {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+}
+
+impl<T> NodeMap<T> {
+    pub fn get(&self, id: &NodeId) -> Option<&T> {
+        self.entries.get(id.index() as usize)?.as_ref()
+    }
+
+    pub fn contains_key(&self, id: &NodeId) -> bool {
+        self.get(id).is_some()
+    }
+
+    pub fn insert(&mut self, id: NodeId, value: T) -> Option<T> {
+        let index = id.index() as usize;
+        if index >= self.entries.len() {
+            self.entries.resize_with(index + 1, || None);
+        }
+        self.entries[index].replace(value)
+    }
+
+    pub fn remove(&mut self, id: &NodeId) -> Option<T> {
+        self.entries.get_mut(id.index() as usize)?.take()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (NodeId, &T)> {
+        self.entries.iter().enumerate().filter_map(|(index, held)| {
+            held.as_ref()
+                .map(|value| (NodeId::from_index(index as u32), value))
+        })
+    }
+}
+
+impl<T: Default> NodeMap<T> {
+    pub fn get_or_default(&mut self, id: NodeId) -> &mut T {
+        let index = id.index() as usize;
+        if index >= self.entries.len() {
+            self.entries.resize_with(index + 1, || None);
+        }
+        self.entries[index].get_or_insert_with(T::default)
+    }
+}
+
+impl<T> std::ops::Index<&NodeId> for NodeMap<T> {
+    type Output = T;
+
+    fn index(&self, id: &NodeId) -> &T {
+        self.get(id).expect("node was not placed")
+    }
+}
+
+const ANCESTOR_LIMIT: usize = 4096;
+
 #[derive(Default)]
 pub(crate) struct Arena {
     nodes: Vec<Option<Box<dyn Element>>>,
+    parents: Vec<Option<NodeId>>,
+    stale: Vec<bool>,
+    marked: Option<NodeId>,
     live: usize,
     pub(crate) revision: u64,
     changed: Vec<NodeId>,
@@ -110,6 +173,8 @@ impl Arena {
     pub(crate) fn insert<T: Element>(&mut self, element: T) -> NodeId {
         let id = NodeId(self.nodes.len() as u32);
         self.nodes.push(Some(Box::new(element)));
+        self.parents.push(None);
+        self.stale.push(true);
         self.live += 1;
         self.invalidate_node(id);
         id
@@ -159,11 +224,55 @@ impl Arena {
     pub(crate) fn invalidate(&mut self) {
         self.revision = self.revision.wrapping_add(1);
         self.everything = true;
+        self.stale.fill(true);
+        self.marked = None;
     }
 
     pub(crate) fn invalidate_node(&mut self, id: NodeId) {
         self.revision = self.revision.wrapping_add(1);
         self.changed.push(id);
+        self.mark_stale(id);
+    }
+
+    fn mark_stale(&mut self, id: NodeId) {
+        if self.marked == Some(id) {
+            return;
+        }
+        self.marked = Some(id);
+        let mut current = Some(id);
+        for _ in 0..ANCESTOR_LIMIT {
+            let Some(node) = current else {
+                return;
+            };
+            let index = node.index() as usize;
+            let Some(stale) = self.stale.get_mut(index) else {
+                return;
+            };
+            *stale = true;
+            current = self.parents.get(index).copied().flatten();
+        }
+    }
+
+    pub(crate) fn stale(&self, id: NodeId) -> bool {
+        self.stale.get(id.index() as usize).copied().unwrap_or(true)
+    }
+
+    pub(crate) fn clear_stale(&mut self, id: NodeId) {
+        if let Some(stale) = self.stale.get_mut(id.index() as usize) {
+            *stale = false;
+        }
+        self.marked = None;
+    }
+
+    pub(crate) fn set_parent(&mut self, id: NodeId, parent: Option<NodeId>) {
+        let index = id.index() as usize;
+        if self.parents.get(index).copied().flatten() == parent {
+            return;
+        }
+        if let Some(held) = self.parents.get_mut(index) {
+            *held = parent;
+        }
+        self.marked = None;
     }
 
     pub(crate) fn changed_len(&self) -> usize {

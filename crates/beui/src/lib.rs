@@ -38,7 +38,7 @@ pub use base::{Align, Direction, ItemSize, ScrollPosition, TextAlign, focus_with
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
 pub use document::Document;
-pub use draw::{Quad, Quads, quads};
+pub use draw::{Quad, Quads, quads, quads_within};
 pub use filter::{ColorVision, Filter, MAX_BLUR};
 pub use font::{FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};

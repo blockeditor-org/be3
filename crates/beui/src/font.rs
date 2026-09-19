@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::Range;
 use std::ptr;
 use std::rc::Rc;
@@ -77,6 +78,7 @@ struct GalleyData {
     size: Vec2,
     line_height: f32,
     baseline: f32,
+    pixel_bounds: [f32; 4],
     glyphs: Vec<Glyph>,
     lines: Vec<GalleyLine>,
 }
@@ -184,6 +186,10 @@ impl Galley {
         &self.inner.glyphs
     }
 
+    pub fn pixel_bounds(&self) -> [f32; 4] {
+        self.inner.pixel_bounds
+    }
+
     fn line_of(&self, index: usize) -> Option<&GalleyLine> {
         self.inner
             .lines
@@ -201,7 +207,7 @@ impl Galley {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq)]
 struct GalleyKey {
     text: String,
     size: u32,
@@ -210,8 +216,44 @@ struct GalleyKey {
     scale: u32,
 }
 
+impl GalleyKey {
+    fn matches(&self, text: &str, size: u32, family: FontFamily, wrap: u32, scale: u32) -> bool {
+        self.size == size
+            && self.family == family
+            && self.wrap == wrap
+            && self.scale == scale
+            && self.text == text
+    }
+}
+
+fn galley_hash(text: &str, size: u32, family: FontFamily, wrap: u32, scale: u32) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    text.hash(&mut hasher);
+    size.hash(&mut hasher);
+    family.hash(&mut hasher);
+    wrap.hash(&mut hasher);
+    scale.hash(&mut hasher);
+    hasher.finish()
+}
+
 const GALLEY_CACHE_LIMIT: usize = 4096;
 const SUBPIXEL_POSITIONS: u32 = 4;
+
+fn pixel_bounds(glyphs: &[Glyph]) -> [f32; 4] {
+    let mut bounds = [
+        f32::INFINITY,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::NEG_INFINITY,
+    ];
+    for glyph in glyphs {
+        bounds[0] = bounds[0].min(glyph.offset.x);
+        bounds[1] = bounds[1].min(glyph.offset.y);
+        bounds[2] = bounds[2].max(glyph.offset.x + glyph.image.width as f32);
+        bounds[3] = bounds[3].max(glyph.offset.y + glyph.image.height as f32);
+    }
+    bounds
+}
 
 fn split_subpixel(x: f32) -> (f32, u32) {
     let positions = SUBPIXEL_POSITIONS as f32;
@@ -262,7 +304,9 @@ pub(crate) struct Fonts {
     monospace: Vec<usize>,
     icons: Vec<usize>,
     glyphs: HashMap<GlyphId, Rc<GlyphImage>>,
-    galleys: HashMap<GalleyKey, Galley>,
+    galleys: HashMap<u64, Vec<(GalleyKey, Galley)>>,
+    cooling: HashMap<u64, Vec<(GalleyKey, Galley)>>,
+    cached_galleys: usize,
 }
 
 impl Fonts {
@@ -277,6 +321,8 @@ impl Fonts {
             icons: Vec::new(),
             glyphs: HashMap::new(),
             galleys: HashMap::new(),
+            cooling: HashMap::new(),
+            cached_galleys: 0,
         };
         if opened {
             fonts.load_families(sources);
@@ -347,22 +393,56 @@ impl Fonts {
     ) -> Galley {
         let pixel_size = ((font.size * pixels_per_point).round() as u32).max(1);
         let wrap = (wrap_width * pixels_per_point).max(0.0);
+        let bits = wrap.to_bits();
+        let scale = pixels_per_point.to_bits();
+        let hash = galley_hash(text, pixel_size, font.family, bits, scale);
+        if let Some(galley) = self.remembered(hash, text, pixel_size, font.family, bits, scale) {
+            return galley;
+        }
+        let galley = self.build(text, font.family, pixel_size, wrap, pixels_per_point);
+        if self.cached_galleys >= GALLEY_CACHE_LIMIT {
+            self.cooling = std::mem::take(&mut self.galleys);
+            self.cached_galleys = 0;
+        }
         let key = GalleyKey {
             text: text.to_owned(),
             size: pixel_size,
             family: font.family,
-            wrap: wrap.to_bits(),
-            scale: pixels_per_point.to_bits(),
+            wrap: bits,
+            scale,
         };
-        if let Some(galley) = self.galleys.get(&key) {
-            return galley.clone();
-        }
-        let galley = self.build(text, font.family, pixel_size, wrap, pixels_per_point);
-        if self.galleys.len() >= GALLEY_CACHE_LIMIT {
-            self.galleys.clear();
-        }
-        self.galleys.insert(key, galley.clone());
+        self.remember(hash, key, galley.clone());
         galley
+    }
+
+    fn remembered(
+        &mut self,
+        hash: u64,
+        text: &str,
+        size: u32,
+        family: FontFamily,
+        wrap: u32,
+        scale: u32,
+    ) -> Option<Galley> {
+        if let Some(bucket) = self.galleys.get(&hash)
+            && let Some((_, galley)) = bucket
+                .iter()
+                .find(|(key, _)| key.matches(text, size, family, wrap, scale))
+        {
+            return Some(galley.clone());
+        }
+        let bucket = self.cooling.get_mut(&hash)?;
+        let found = bucket
+            .iter()
+            .position(|(key, _)| key.matches(text, size, family, wrap, scale))?;
+        let (key, galley) = bucket.swap_remove(found);
+        self.remember(hash, key, galley.clone());
+        Some(galley)
+    }
+
+    fn remember(&mut self, hash: u64, key: GalleyKey, galley: Galley) {
+        self.galleys.entry(hash).or_default().push((key, galley));
+        self.cached_galleys += 1;
     }
 
     fn build(
@@ -420,6 +500,7 @@ impl Fonts {
                 size: vec2(width.ceil() / scale, cursor.ceil() / scale),
                 line_height: line_height / scale,
                 baseline: ascent / scale,
+                pixel_bounds: pixel_bounds(&glyphs),
                 glyphs,
                 lines,
             }),
