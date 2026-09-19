@@ -63,8 +63,8 @@ impl Element for PictureNode {
         _id: NodeId,
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
-        Vec::new()
+        _children: &mut Vec<NodeId>,
+    ) {
     }
 
     fn children(&self) -> Vec<NodeId> {

@@ -79,7 +79,8 @@ pub(crate) trait Element: Any {
         id: NodeId,
         rect: Rect,
         focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId>;
+        children: &mut Vec<NodeId>,
+    );
 
     fn children(&self) -> Vec<NodeId>;
 

@@ -98,8 +98,9 @@ impl Element for EmbedNode {
         _id: NodeId,
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
-        self.child.into_iter().collect()
+        children: &mut Vec<NodeId>,
+    ) {
+        children.extend(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {

@@ -196,13 +196,13 @@ impl Element for OverlayNode {
         _id: NodeId,
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
+        children: &mut Vec<NodeId>,
+    ) {
         if !self.open || self.mode != OverlayMode::Modal {
-            return Vec::new();
+            return;
         }
-        let mut children = vec![self.scrim];
+        children.push(self.scrim);
         children.extend(self.content);
-        children
     }
 
     fn children(&self) -> Vec<NodeId> {

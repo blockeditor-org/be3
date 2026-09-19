@@ -2,7 +2,7 @@ use std::any::Any;
 
 use beui_macros::component;
 
-use crate::base::child_list::{ChildHost, ChildList};
+use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::node::{Element, InteractInput, NodeId, NodeMap};
@@ -106,8 +106,9 @@ impl Element for CanvasNode {
         _id: NodeId,
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
-        self.items.nodes()
+        children: &mut Vec<NodeId>,
+    ) {
+        children.extend(self.items.iter().map(ChildItem::node));
     }
 
     fn children(&self) -> Vec<NodeId> {
@@ -171,8 +172,9 @@ impl Element for CanvasItemNode {
         _id: NodeId,
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
-        self.child.into_iter().collect()
+        children: &mut Vec<NodeId>,
+    ) {
+        children.extend(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {
