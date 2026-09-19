@@ -33,7 +33,6 @@ const ZOOM_MIN: f32 = 0.5;
 const ZOOM_MAX: f32 = 3.0;
 const BODY_SPACING: f32 = 20.0;
 const SHORT_HEIGHT: f32 = 900.0;
-const PAGE_SCROLLBAR_SPACING: f32 = 10.0;
 const CARD_NARROW_WIDTH: f32 = 460.0;
 const TABS_NARROW_WIDTH: f32 = 380.0;
 const ICON_BUTTON_WIDTH: f32 = 44.0;
@@ -293,27 +292,18 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
 fn DemoBody(count: ReadSignal<i64>) -> NodeId {
     let narrow = narrower_than(NARROW_WIDTH);
     let short = shorter_than(SHORT_HEIGHT);
-    let padding = create_memo(clone!(narrow -> move || {
-        if narrow.get() {
-            COMPACT_PADDING
-        } else {
-            BODY_PADDING
-        }
-    }));
     let cramped = create_memo(move || narrow.get() || short.get());
     view! {
-        <Frame padding_horizontal={padding.clone()} padding_vertical={padding}>
-            <List spacing=0.0>
-                <Keyed value={cramped} key={|cramped: bool| cramped}>
-                    {move |value: ReadSignal<bool>| {
-                        let (cramped, count) = (value.get_untracked(), count.clone());
-                        percent(view! {
-                            <DemoPanels cramped count />
-                        }, 100.0)
-                    }}
-                </Keyed>
-            </List>
-        </Frame>
+        <List spacing=0.0>
+            <Keyed value={cramped} key={|cramped: bool| cramped}>
+                {move |value: ReadSignal<bool>| {
+                    let (cramped, count) = (value.get_untracked(), count.clone());
+                    percent(view! {
+                        <DemoPanels cramped count />
+                    }, 100.0)
+                }}
+            </Keyed>
+        </List>
     }
 }
 
@@ -321,20 +311,37 @@ fn DemoBody(count: ReadSignal<i64>) -> NodeId {
 fn DemoPanels(cramped: bool, count: ReadSignal<i64>) -> NodeId {
     if !cramped {
         return view! {
-            <DemoPanelStack cramped count />
+            <PaddedPanels cramped count />
         };
     }
     let (position, set_position) = create_signal(ScrollPosition::ZERO);
     view! {
-        <List direction=Direction::Horizontal spacing=PAGE_SCROLLBAR_SPACING>
+        <List direction=Direction::Horizontal spacing=0.0>
             <Scroll
                 @sizing=ItemSize::Percent(100.0)
                 on_change={move |value| set_position.set(value)}
             >
-                <DemoPanelStack cramped count />
+                <PaddedPanels cramped count />
             </Scroll>
             <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
         </List>
+    }
+}
+
+#[component]
+fn PaddedPanels(cramped: bool, count: ReadSignal<i64>) -> NodeId {
+    let narrow = narrower_than(NARROW_WIDTH);
+    let padding = create_memo(move || {
+        if narrow.get() {
+            COMPACT_PADDING
+        } else {
+            BODY_PADDING
+        }
+    });
+    view! {
+        <Frame padding_horizontal={padding.clone()} padding_vertical={padding}>
+            <DemoPanelStack cramped count />
+        </Frame>
     }
 }
 
