@@ -4,14 +4,16 @@ use crate::document::Document;
 use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Child, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Render, RenderFn,
-    Scroll, Selector, WriteSignal, clone, create_effect, create_memo, create_selector,
-    create_signal, set_component_state,
+    Callback, Child, Children, Frame, IntoProp, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
+    Render, RenderFn, Run, Scroll, Selector, WriteSignal, clone, create_effect, create_memo,
+    create_selector, create_signal, set_component_state,
 };
 use crate::unstyled;
+use crate::unstyled::ChoiceOption;
 use crate::unstyled::button::ButtonHandle;
 use crate::unstyled::text_input::{TextInputHandle, TextInputMenu};
 use beui_macros::{component, view};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -27,7 +29,7 @@ pub struct SelectTriggerHandle {
 
 pub struct SelectOptionHandle {
     pub index: usize,
-    pub label: String,
+    pub label: Prop<String>,
     pub highlighted: Memo<bool>,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -42,7 +44,7 @@ enum Focus {
 
 struct Row {
     button: NodeRef,
-    label: String,
+    label: Memo<String>,
     visible: ReadSignal<bool>,
     set_visible: WriteSignal<bool>,
 }
@@ -50,7 +52,8 @@ struct Row {
 struct State {
     trigger: NodeRef,
     search: NodeRef,
-    rows: Vec<Row>,
+    options: Run<ChoiceOption>,
+    rows: RefCell<Vec<Row>>,
     open: ReadSignal<bool>,
     set_open: WriteSignal<bool>,
     focus: ReadSignal<Focus>,
@@ -67,7 +70,7 @@ type Handle = Rc<State>;
 
 #[component]
 pub fn Select(
-    options: Vec<String>,
+    options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
     on_change: Callback<Option<usize>>,
     search_placeholder: Prop<String>,
@@ -85,7 +88,10 @@ pub fn Select(
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let selected_prop = selected;
-    let initial = selected_prop.peek().filter(|index| *index < options.len());
+    let options = options.into_run();
+    let initial = selected_prop
+        .peek()
+        .filter(|index| *index < options.peek().len());
     let option = option.unwrap_or_else(|| {
         RenderFn::new(|_| {
             view! {
@@ -106,18 +112,8 @@ pub fn Select(
     let state: Handle = Rc::new(State {
         trigger: NodeRef::new(),
         search: NodeRef::new(),
-        rows: options
-            .iter()
-            .map(|label| {
-                let (visible, set_visible) = create_signal(true);
-                Row {
-                    button: NodeRef::new(),
-                    label: label.clone(),
-                    visible,
-                    set_visible,
-                }
-            })
-            .collect(),
+        options: options.clone(),
+        rows: RefCell::new(Vec::new()),
         open: is_open.clone(),
         set_open: set_open.clone(),
         focus: focus.clone(),
@@ -141,8 +137,12 @@ pub fn Select(
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ComboBox)));
     let trigger_accessibility = create_memo(clone!(state -> move || {
         let mut node = accessibility.get();
-        if let Some(index) = state.selected.get() {
-            node.set_value(state.rows[index].label.clone());
+        if let Some(label) = state
+            .selected
+            .get()
+            .and_then(|index| state.rows.borrow().get(index).map(|row| row.label.clone()))
+        {
+            node.set_value(label.get());
         }
         node.set_expanded(state.open.get());
         node
@@ -156,24 +156,40 @@ pub fn Select(
         })
     };
 
-    let items: Vec<_> = state
-        .rows
-        .iter()
-        .enumerate()
-        .map(|(index, row)| {
-            view! {
-                <SelectRow
-                    state={state.clone()}
-                    index
-                    label={row.label.clone()}
-                    option={option.clone()}
-                    highlight={highlight.clone()}
-                />
-            }
-        })
-        .collect();
+    let rows_state = state.clone();
+    let items = options.build(move |built: Vec<Rc<ChoiceOption>>| {
+        let state = rows_state.clone();
+        *state.rows.borrow_mut() = built
+            .into_iter()
+            .map(|option| {
+                let (visible, set_visible) = create_signal(true);
+                Row {
+                    button: NodeRef::new(),
+                    label: option.label(),
+                    visible,
+                    set_visible,
+                }
+            })
+            .collect();
+        let count = state.rows.borrow().len();
+        (0..count)
+            .map(|index| {
+                view! {
+                    <SelectRow
+                        state={state.clone()}
+                        index
+                        option={option.clone()}
+                        highlight={highlight.clone()}
+                    />
+                }
+            })
+            .collect()
+    });
 
-    create_effect(clone!(state -> move || apply_requested_selection(&state, selected_prop.get())));
+    create_effect(clone!(state -> move || {
+        state.options.len();
+        apply_requested_selection(&state, selected_prop.get());
+    }));
 
     let reveal = reveal_reader(&state);
     let (open_state, key_state, filter_state, submit_state, navigate_state, dismiss_state) = (
@@ -243,24 +259,27 @@ pub fn Select(
 fn SelectRow(
     state: Handle,
     index: usize,
-    label: String,
     option: RenderFn<SelectOptionHandle>,
     highlight: Selector<Option<usize>>,
 ) -> NodeId {
     let (hover_state, click_state) = (state.clone(), state.clone());
-    let visible = state.rows[index].visible.clone();
+    let (visible, button, label) = {
+        let rows = state.rows.borrow();
+        let row = &rows[index];
+        (row.visible.clone(), row.button.clone(), row.label.clone())
+    };
     let accessibility_state = state.clone();
     let accessibility_label = label.clone();
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::ListBoxOption);
-        node.set_label(accessibility_label.clone());
+        node.set_label(accessibility_label.get());
         node.set_selected(accessibility_state.selected.get() == Some(index));
         node
     });
     view! {
         <Frame visible>
             <unstyled::Button
-                @node_ref={&state.rows[index].button}
+                @node_ref={&button}
                 accessibility
                 tab_stop=false
                 content={move |button: ButtonHandle| {
@@ -272,7 +291,7 @@ fn SelectRow(
                     });
                     option.call(SelectOptionHandle {
                         index,
-                        label,
+                        label: label.into_prop(),
                         highlighted: highlight.memo(Some(index)),
                         hovered: button.hovered,
                         focused: button.focused,
@@ -287,8 +306,14 @@ fn SelectRow(
 fn reveal_reader(state: &Handle) -> Prop<Option<usize>> {
     let state = state.clone();
     Prop::Dynamic(Box::new(move || {
-        for row in &state.rows {
-            row.visible.get();
+        let visible: Vec<_> = state
+            .rows
+            .borrow()
+            .iter()
+            .map(|row| row.visible.clone())
+            .collect();
+        for row in visible {
+            row.get();
         }
         state.highlighted.get()
     }))
@@ -317,7 +342,7 @@ pub fn select_search(document: &Document, select: NodeId) -> NodeId {
 }
 
 pub fn select_option_button(document: &Document, select: NodeId, index: usize) -> NodeId {
-    document.component_state::<Handle>(select).rows[index]
+    document.component_state::<Handle>(select).rows.borrow()[index]
         .button
         .get()
 }
@@ -330,7 +355,7 @@ pub fn select_highlighted(document: &Document, select: NodeId) -> Option<usize> 
 }
 
 fn apply_requested_selection(state: &State, selected: Option<usize>) {
-    let selected = selected.filter(|index| *index < state.rows.len());
+    let selected = selected.filter(|index| *index < state.options.peek().len());
     if state.selected.get_untracked() != selected {
         apply_selection(state, selected);
     }
@@ -382,17 +407,26 @@ fn filter(state: &State, text: &str) {
     state.set_search_text.set(text.to_owned());
     let query = text.to_lowercase();
     let mut first_visible = None;
-    for (index, row) in state.rows.iter().enumerate() {
-        let visible = query.is_empty() || row.label.to_lowercase().contains(&query);
-        row.set_visible.set(visible);
+    let rows: Vec<_> = state
+        .rows
+        .borrow()
+        .iter()
+        .map(|row| (row.label.get_untracked(), row.set_visible.clone()))
+        .collect();
+    for (index, (label, set_visible)) in rows.into_iter().enumerate() {
+        let visible = query.is_empty() || label.to_lowercase().contains(&query);
+        set_visible.set(visible);
         if visible && first_visible.is_none() {
             first_visible = Some(index);
         }
     }
-    let still_visible = state
-        .highlighted
-        .get_untracked()
-        .is_some_and(|index| state.rows[index].visible.get_untracked());
+    let still_visible = state.highlighted.get_untracked().is_some_and(|index| {
+        state
+            .rows
+            .borrow()
+            .get(index)
+            .is_some_and(|row| row.visible.get_untracked())
+    });
     if !still_visible {
         state.set_highlighted.set(first_visible);
     }
@@ -404,6 +438,7 @@ fn navigate(state: &State, press: KeyPress) -> bool {
     }
     let visible: Vec<usize> = state
         .rows
+        .borrow()
         .iter()
         .enumerate()
         .filter(|(_, row)| row.visible.get_untracked())

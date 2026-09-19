@@ -5,7 +5,7 @@ use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
-use crate::base::child_list::{ChildItem, ChildList, SlotId};
+use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId};
 
@@ -60,6 +60,14 @@ pub struct ListItem {
 impl ChildItem for ListItem {
     fn node(&self) -> NodeId {
         self.child
+    }
+}
+
+impl ChildHost for ListNode {
+    type Stored = ListItem;
+
+    fn children(&mut self) -> &mut ChildList<ListItem> {
+        &mut self.items
     }
 }
 
@@ -322,7 +330,7 @@ impl Document {
         }
     }
 
-    pub(crate) fn append_child(&mut self, parent: NodeId, child: NodeId, size: ItemSize) {
+    pub fn append_child(&mut self, parent: NodeId, child: NodeId, size: ItemSize) {
         self.arena
             .get_mut_as::<ListNode>(parent)
             .items
@@ -337,17 +345,6 @@ impl Document {
             .get_mut_as::<ListNode>(parent)
             .items
             .remove(child);
-    }
-
-    pub(crate) fn open_list_slot(&mut self, parent: NodeId) -> SlotId {
-        self.arena.get_mut_as::<ListNode>(parent).items.open()
-    }
-
-    pub(crate) fn fill_list_slot(&mut self, parent: NodeId, slot: SlotId, items: Vec<ListItem>) {
-        self.arena
-            .get_mut_as::<ListNode>(parent)
-            .items
-            .fill(slot, items);
     }
 
     pub(crate) fn set_child_size(&mut self, parent: NodeId, child: NodeId, size: ItemSize) {

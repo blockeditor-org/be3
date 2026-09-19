@@ -6,8 +6,9 @@ use std::rc::Rc;
 
 pub use crate::base::{Align, Direction, ItemSize};
 
-use crate::base::child_list::SlotId;
-use crate::base::list::ListItem;
+use crate::base::child_list::{ChildHost, ChildList, SlotId};
+use crate::base::list::{ListItem, ListNode};
+use crate::base::scroll::ScrollNode;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{ClickHandler, Handler, NodeId};
@@ -615,10 +616,10 @@ impl ListChild {
         }
     }
 
-    fn watch(self, parent: NodeId) -> (NodeId, ItemSize) {
+    fn watch(self, parent: Option<NodeId>) -> (NodeId, ItemSize) {
         let initial = self.size.peek();
         let ListChild { node, size } = self;
-        if let Prop::Dynamic(read) = size {
+        if let (Some(parent), Prop::Dynamic(read)) = (parent, size) {
             create_effect(move || {
                 let size = read();
                 with_document(|document| document.set_child_size(parent, node, size));
@@ -629,22 +630,20 @@ impl ListChild {
 }
 
 fn build_in_slot<C: SlotChild>(
-    parent: NodeId,
-    slot: SlotId,
+    slot: &ChildSlot<C>,
     build: impl FnOnce() -> C,
-) -> (NodeId, Scope) {
+) -> (C::Stored, Scope) {
     let scope = Scope::detached();
-    let stored = scope.context().run(|| build().store(parent));
-    let node = C::stored_node(&stored);
-    C::fill_slot(parent, slot, vec![stored]);
-    (node, scope)
+    let stored = scope.context().run(|| slot.store(build()));
+    slot.fill(vec![stored.clone()]);
+    (stored, scope)
 }
 
-fn discard_previous(previous: Option<(NodeId, Scope)>) {
-    let Some((node, scope)) = previous else {
+fn discard_previous<C: SlotChild>(previous: Option<(C::Stored, Scope)>) {
+    let Some((stored, scope)) = previous else {
         return;
     };
-    with_document(|document| document.remove_node(node));
+    ChildSlot::<C>::discard(&stored);
     drop(scope);
 }
 
@@ -694,33 +693,54 @@ impl<T: AcceptsSizing> IntoChild<T> for ListChild {
     }
 }
 
-pub enum ChildSegment<T> {
+pub enum ChildSegment<T: SlotChild> {
     One(T),
     Many(Vec<T>),
+    Nested(Vec<ChildSegment<T>>),
     Dynamic(DynamicSegment<T>),
 }
 
-impl<T> ChildSegment<T> {
+impl<T: SlotChild> ChildSegment<T> {
     fn items(self) -> Vec<T> {
         match self {
             ChildSegment::One(item) => vec![item],
             ChildSegment::Many(items) => items,
+            ChildSegment::Nested(segments) => {
+                segments.into_iter().flat_map(ChildSegment::items).collect()
+            }
             ChildSegment::Dynamic(_) => panic!(
-                "a keyed list builds its children as its parent lays them out, so it cannot be \
-                 read as a fixed run of children"
+                "a show, a dynamic or a keyed run builds however many children its value asks \
+                 for, and this slot takes a fixed child; put it in a `Column` or hand it to a \
+                 slot that takes a run"
             ),
+        }
+    }
+
+    fn map(self, change: &Rc<dyn Fn(T) -> T>) -> Self {
+        match self {
+            ChildSegment::One(item) => ChildSegment::One(change(item)),
+            ChildSegment::Many(items) => {
+                ChildSegment::Many(items.into_iter().map(|item| change(item)).collect())
+            }
+            ChildSegment::Nested(segments) => ChildSegment::Nested(
+                segments
+                    .into_iter()
+                    .map(|segment| segment.map(change))
+                    .collect(),
+            ),
+            ChildSegment::Dynamic(segment) => ChildSegment::Dynamic(segment.map(change.clone())),
         }
     }
 }
 
-pub struct DynamicSegment<T> {
+pub struct DynamicSegment<T: SlotChild> {
     scope: Option<Scope>,
-    install: Box<dyn FnOnce(NodeId, SlotId)>,
+    install: Box<dyn FnOnce(ChildSlot<T>)>,
     child: PhantomData<T>,
 }
 
-impl<T> DynamicSegment<T> {
-    pub(crate) fn new(install: impl FnOnce(NodeId, SlotId) + 'static) -> Self {
+impl<T: SlotChild> DynamicSegment<T> {
+    pub(crate) fn new(install: impl FnOnce(ChildSlot<T>) + 'static) -> Self {
         Self {
             scope: None,
             install: Box::new(install),
@@ -728,19 +748,29 @@ impl<T> DynamicSegment<T> {
         }
     }
 
-    fn mount(self, parent: NodeId, slot: SlotId) {
+    fn map(self, change: Rc<dyn Fn(T) -> T>) -> Self {
+        let DynamicSegment { scope, install, .. } = self;
+        Self {
+            scope,
+            install: Box::new(move |slot: ChildSlot<T>| install(slot.mapping(change))),
+            child: PhantomData,
+        }
+    }
+
+    fn mount(self, slot: ChildSlot<T>) {
         let DynamicSegment { scope, install, .. } = self;
         match scope {
             Some(scope) => {
-                scope.context().run(|| install(parent, slot));
-                with_document(|document| document.register_node_scope(parent, scope));
+                let held = slot.clone();
+                scope.context().run(move || install(slot));
+                held.adopt_scope(scope);
             }
-            None => install(parent, slot),
+            None => install(slot),
         }
     }
 }
 
-impl<T> ChildValue for DynamicSegment<T> {
+impl<T: SlotChild> ChildValue for DynamicSegment<T> {
     fn anchor(&self) -> Option<NodeId> {
         None
     }
@@ -750,7 +780,7 @@ impl<T> ChildValue for DynamicSegment<T> {
     }
 }
 
-impl<T> IntoSegment<T> for DynamicSegment<T> {
+impl<T: SlotChild> IntoSegment<T> for DynamicSegment<T> {
     fn into_segment(self) -> ChildSegment<T> {
         ChildSegment::Dynamic(self)
     }
@@ -758,64 +788,284 @@ impl<T> IntoSegment<T> for DynamicSegment<T> {
 
 #[diagnostic::on_unimplemented(
     message = "a `{Self}` is not something a parent can keep a run of",
-    label = "a keyed or dynamic run builds `ListChild`, `Child` or `CanvasItem` children"
+    label = "say how a run of these is kept with `child_type!` or `value_child_type!`"
 )]
 pub trait SlotChild: Sized + 'static {
     type Stored: Clone + 'static;
 
-    fn store(self, parent: NodeId) -> Self::Stored;
-    fn stored_node(stored: &Self::Stored) -> NodeId;
-    fn open_slot(parent: NodeId) -> SlotId;
-    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<Self::Stored>);
-    fn append(parent: NodeId, stored: Self::Stored);
+    fn store(self, parent: Option<NodeId>) -> Self::Stored;
+    fn stored_node(stored: &Self::Stored) -> Option<NodeId>;
+}
+
+#[diagnostic::on_unimplemented(
+    message = "a run of `{Self}` children is not kept by a node",
+    label = "this parent keeps its children in a node, and `{Self}` is no node"
+)]
+pub(crate) trait NodeSlot: SlotChild {
+    type Host: ChildHost<Stored = Self::Stored>;
+
+    fn open_slot(parent: NodeId) -> SlotId {
+        with_document(|document| document.open_child_slot::<Self::Host>(parent))
+    }
+
+    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<Self::Stored>) {
+        with_document(|document| document.fill_child_slot::<Self::Host>(parent, slot, items));
+    }
+
+    fn append(parent: NodeId, stored: Self::Stored) {
+        with_document(|document| document.append_child_item::<Self::Host>(parent, stored));
+    }
 }
 
 impl SlotChild for ListChild {
     type Stored = ListItem;
 
-    fn store(self, parent: NodeId) -> ListItem {
+    fn store(self, parent: Option<NodeId>) -> ListItem {
         let (child, size) = self.watch(parent);
         ListItem { child, size }
     }
 
-    fn stored_node(stored: &ListItem) -> NodeId {
-        stored.child
+    fn stored_node(stored: &ListItem) -> Option<NodeId> {
+        Some(stored.child)
     }
+}
 
-    fn open_slot(parent: NodeId) -> SlotId {
-        with_document(|document| document.open_list_slot(parent))
-    }
-
-    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<ListItem>) {
-        with_document(|document| document.fill_list_slot(parent, slot, items));
-    }
-
-    fn append(parent: NodeId, stored: ListItem) {
-        with_document(|document| document.append_child(parent, stored.child, stored.size));
-    }
+impl NodeSlot for ListChild {
+    type Host = ListNode;
 }
 
 impl SlotChild for NodeId {
     type Stored = NodeId;
 
-    fn store(self, _parent: NodeId) -> NodeId {
+    fn store(self, _parent: Option<NodeId>) -> NodeId {
         self
     }
 
-    fn stored_node(stored: &NodeId) -> NodeId {
-        *stored
+    fn stored_node(stored: &NodeId) -> Option<NodeId> {
+        Some(*stored)
+    }
+}
+
+impl NodeSlot for NodeId {
+    type Host = ScrollNode;
+}
+
+struct RunState<S> {
+    items: RefCell<ChildList<S>>,
+    held: RefCell<Vec<Scope>>,
+    filled: ReadSignal<u64>,
+    fill: WriteSignal<u64>,
+}
+
+impl<S> RunState<S> {
+    fn new() -> Self {
+        let (filled, fill) = create_signal(0);
+        Self {
+            items: RefCell::new(ChildList::default()),
+            held: RefCell::new(Vec::new()),
+            filled,
+            fill,
+        }
     }
 
-    fn open_slot(parent: NodeId) -> SlotId {
-        with_document(|document| document.open_scroll_slot(parent))
+    fn changed(&self) {
+        self.fill.update(|filled| *filled += 1);
+    }
+}
+
+pub struct Run<C: SlotChild> {
+    state: Rc<RunState<C::Stored>>,
+}
+
+impl<C: SlotChild> Clone for Run<C> {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+        }
+    }
+}
+
+impl<C: SlotChild> Default for Run<C> {
+    fn default() -> Self {
+        Self {
+            state: Rc::new(RunState::new()),
+        }
+    }
+}
+
+impl<C: SlotChild> Run<C> {
+    pub fn items(&self) -> Vec<C::Stored> {
+        self.state.filled.get();
+        self.peek()
     }
 
-    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<NodeId>) {
-        with_document(|document| document.fill_scroll_slot(parent, slot, items));
+    pub fn peek(&self) -> Vec<C::Stored> {
+        self.state.items.borrow().iter().cloned().collect()
     }
 
-    fn append(parent: NodeId, stored: NodeId) {
-        with_document(|document| document.append_scroll_item(parent, stored));
+    pub fn len(&self) -> usize {
+        self.state.filled.get();
+        self.state.items.borrow().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn build<R: SlotChild>(
+        &self,
+        rows: impl Fn(Vec<C::Stored>) -> Vec<R> + 'static,
+    ) -> DynamicSegment<R> {
+        let run = self.clone();
+        DynamicSegment::new(move |slot: ChildSlot<R>| {
+            let held: HeldRows<R> = Rc::new(RefCell::new(None));
+            let owned = held.clone();
+            on_cleanup(move || drop(owned));
+            create_effect(move || {
+                let items = run.items();
+                let scope = Scope::detached();
+                let built: Vec<R::Stored> = scope
+                    .context()
+                    .run(|| rows(items).into_iter().map(|row| slot.store(row)).collect());
+                slot.fill(built.clone());
+                let previous = held.borrow_mut().replace((built, scope));
+                if let Some((stored, scope)) = previous {
+                    for row in &stored {
+                        ChildSlot::<R>::discard(row);
+                    }
+                    drop(scope);
+                }
+            });
+        })
+    }
+}
+
+impl<C: SlotChild> IntoProp<Vec<C::Stored>> for Run<C> {
+    fn into_prop(self) -> Prop<Vec<C::Stored>> {
+        Prop::Dynamic(Box::new(move || self.items()))
+    }
+}
+
+enum Place<S> {
+    Node {
+        parent: NodeId,
+        slot: SlotId,
+        fill: fn(NodeId, SlotId, Vec<S>),
+    },
+    Run {
+        run: Rc<RunState<S>>,
+        slot: SlotId,
+    },
+}
+
+impl<S> Clone for Place<S> {
+    fn clone(&self) -> Self {
+        match self {
+            Place::Node { parent, slot, fill } => Place::Node {
+                parent: *parent,
+                slot: *slot,
+                fill: *fill,
+            },
+            Place::Run { run, slot } => Place::Run {
+                run: run.clone(),
+                slot: *slot,
+            },
+        }
+    }
+}
+
+pub struct ChildSlot<C: SlotChild> {
+    place: Place<C::Stored>,
+    change: Option<Rc<dyn Fn(C) -> C>>,
+}
+
+impl<C: SlotChild> Clone for ChildSlot<C> {
+    fn clone(&self) -> Self {
+        Self {
+            place: self.place.clone(),
+            change: self.change.clone(),
+        }
+    }
+}
+
+impl<C: SlotChild> ChildSlot<C> {
+    fn in_node(parent: NodeId) -> Self
+    where
+        C: NodeSlot,
+    {
+        Self {
+            place: Place::Node {
+                parent,
+                slot: C::open_slot(parent),
+                fill: C::fill_slot,
+            },
+            change: None,
+        }
+    }
+
+    fn in_run(run: &Run<C>) -> Self {
+        let slot = run.state.items.borrow_mut().open();
+        Self {
+            place: Place::Run {
+                run: run.state.clone(),
+                slot,
+            },
+            change: None,
+        }
+    }
+
+    fn mapping(self, change: Rc<dyn Fn(C) -> C>) -> Self {
+        let inner = self.change;
+        let change: Rc<dyn Fn(C) -> C> = match inner {
+            Some(inner) => Rc::new(move |child| change(inner(child))),
+            None => change,
+        };
+        Self {
+            place: self.place,
+            change: Some(change),
+        }
+    }
+
+    pub fn parent(&self) -> Option<NodeId> {
+        match &self.place {
+            Place::Node { parent, .. } => Some(*parent),
+            Place::Run { .. } => None,
+        }
+    }
+
+    pub fn store(&self, child: C) -> C::Stored {
+        let child = match &self.change {
+            Some(change) => change(child),
+            None => child,
+        };
+        child.store(self.parent())
+    }
+
+    pub fn fill(&self, items: Vec<C::Stored>) {
+        match &self.place {
+            Place::Node { parent, slot, fill } => fill(*parent, *slot, items),
+            Place::Run { run, slot } => {
+                run.items.borrow_mut().fill(*slot, items);
+                run.changed();
+            }
+        }
+    }
+
+    pub fn discard(stored: &C::Stored) {
+        let Some(node) = C::stored_node(stored) else {
+            return;
+        };
+        try_with_document(|document| document.remove_node(node));
+    }
+
+    fn adopt_scope(&self, scope: Scope) {
+        match &self.place {
+            Place::Node { parent, .. } => {
+                let parent = *parent;
+                with_document(|document| document.register_node_scope(parent, scope));
+            }
+            Place::Run { run, .. } => run.held.borrow_mut().push(scope),
+        }
     }
 }
 
@@ -823,21 +1073,21 @@ impl SlotChild for NodeId {
     message = "a `{Self}` cannot be written between these tags",
     label = "this component takes `{T}` children"
 )]
-pub trait IntoSegment<T> {
+pub trait IntoSegment<T: SlotChild> {
     fn into_segment(self) -> ChildSegment<T>;
 }
 
-pub fn into_segment<T>(child: impl IntoSegment<T>) -> ChildSegment<T> {
+pub fn into_segment<T: SlotChild>(child: impl IntoSegment<T>) -> ChildSegment<T> {
     child.into_segment()
 }
 
-fn one_segment<T>(child: impl IntoChild<T>) -> ChildSegment<T> {
+fn one_segment<T: SlotChild>(child: impl IntoChild<T>) -> ChildSegment<T> {
     ChildSegment::One(child.into_child())
 }
 
-impl<T> IntoSegment<T> for Children<T> {
+impl<T: SlotChild> IntoSegment<T> for Children<T> {
     fn into_segment(self) -> ChildSegment<T> {
-        ChildSegment::Many(self.into_items())
+        ChildSegment::Nested(self.0)
     }
 }
 
@@ -853,7 +1103,7 @@ impl IntoSegment<ListChild> for NodeId {
     }
 }
 
-impl<T: AcceptsSizing> IntoSegment<T> for ListChild {
+impl<T: AcceptsSizing + SlotChild> IntoSegment<T> for ListChild {
     fn into_segment(self) -> ChildSegment<T> {
         one_segment(self)
     }
@@ -882,21 +1132,40 @@ macro_rules! child_type {
     };
 }
 
-pub struct Children<T>(Vec<ChildSegment<T>>);
+#[macro_export]
+macro_rules! value_child_type {
+    ($ty:ty) => {
+        $crate::child_type!($ty);
 
-impl<T> Default for Children<T> {
+        impl $crate::reactive::SlotChild for $ty {
+            type Stored = ::std::rc::Rc<$ty>;
+
+            fn store(self, _parent: ::core::option::Option<$crate::node::NodeId>) -> Self::Stored {
+                ::std::rc::Rc::new(self)
+            }
+
+            fn stored_node(_stored: &Self::Stored) -> ::core::option::Option<$crate::node::NodeId> {
+                ::core::option::Option::None
+            }
+        }
+    };
+}
+
+pub struct Children<T: SlotChild>(Vec<ChildSegment<T>>);
+
+impl<T: SlotChild> Default for Children<T> {
     fn default() -> Self {
         Self(Vec::new())
     }
 }
 
-impl<T, const N: usize> From<[ChildSegment<T>; N]> for Children<T> {
+impl<T: SlotChild, const N: usize> From<[ChildSegment<T>; N]> for Children<T> {
     fn from(segments: [ChildSegment<T>; N]) -> Self {
         Self(Vec::from(segments))
     }
 }
 
-impl<T> From<ChildSegment<T>> for Children<T> {
+impl<T: SlotChild> From<ChildSegment<T>> for Children<T> {
     fn from(segment: ChildSegment<T>) -> Self {
         Self(vec![segment])
     }
@@ -914,19 +1183,31 @@ impl From<NodeId> for Children<ListChild> {
     }
 }
 
-impl<T: AcceptsSizing> From<ListChild> for Children<T> {
+impl<T: AcceptsSizing + SlotChild> From<ListChild> for Children<T> {
     fn from(child: ListChild) -> Self {
         Self::from(child.into_segment())
     }
 }
 
-impl<T> From<DynamicSegment<T>> for Children<T> {
+impl<T: SlotChild> From<Run<T>> for Children<T> {
+    fn from(run: Run<T>) -> Self {
+        Self::from(ChildSegment::Dynamic(DynamicSegment::new(
+            move |slot: ChildSlot<T>| {
+                let held = slot.clone();
+                held.fill(run.peek());
+                create_effect(move || slot.fill(run.items()));
+            },
+        )))
+    }
+}
+
+impl<T: SlotChild> From<DynamicSegment<T>> for Children<T> {
     fn from(segment: DynamicSegment<T>) -> Self {
         Self::from(segment.into_segment())
     }
 }
 
-impl<T, U: IntoChild<T>> From<Vec<U>> for Children<T> {
+impl<T: SlotChild, U: IntoChild<T>> From<Vec<U>> for Children<T> {
     fn from(children: Vec<U>) -> Self {
         Self(
             children
@@ -937,27 +1218,68 @@ impl<T, U: IntoChild<T>> From<Vec<U>> for Children<T> {
     }
 }
 
-impl<T> Children<T> {
-    pub fn into_items(self) -> Vec<T> {
-        self.0.into_iter().flat_map(ChildSegment::items).collect()
+impl<T: SlotChild> Children<T> {
+    pub fn map(self, change: impl Fn(T) -> T + 'static) -> Self {
+        let change: Rc<dyn Fn(T) -> T> = Rc::new(change);
+        Self(
+            self.0
+                .into_iter()
+                .map(|segment| segment.map(&change))
+                .collect(),
+        )
+    }
+
+    pub fn into_run(self) -> Run<T> {
+        let run = Run::default();
+        for segment in self.0 {
+            fill_run(&run, segment);
+        }
+        run
+    }
+}
+
+fn fill_run<T: SlotChild>(run: &Run<T>, segment: ChildSegment<T>) {
+    match segment {
+        ChildSegment::One(child) => run.state.items.borrow_mut().push(child.store(None)),
+        ChildSegment::Many(children) => {
+            for child in children {
+                run.state.items.borrow_mut().push(child.store(None));
+            }
+        }
+        ChildSegment::Nested(segments) => {
+            for segment in segments {
+                fill_run(run, segment);
+            }
+        }
+        ChildSegment::Dynamic(segment) => segment.mount(ChildSlot::in_run(run)),
     }
 }
 
 impl<T: SlotChild> Children<T> {
-    pub(crate) fn mount(self, parent: NodeId) {
+    pub(crate) fn mount(self, parent: NodeId)
+    where
+        T: NodeSlot,
+    {
         for segment in self.0 {
-            match segment {
-                ChildSegment::Dynamic(segment) => {
-                    let slot = T::open_slot(parent);
-                    segment.mount(parent, slot);
-                }
-                segment => {
-                    for child in segment.items() {
-                        T::append(parent, child.store(parent));
-                    }
-                }
+            mount_segment(parent, segment);
+        }
+    }
+}
+
+fn mount_segment<T: NodeSlot>(parent: NodeId, segment: ChildSegment<T>) {
+    match segment {
+        ChildSegment::One(child) => T::append(parent, child.store(Some(parent))),
+        ChildSegment::Many(children) => {
+            for child in children {
+                T::append(parent, child.store(Some(parent)));
             }
         }
+        ChildSegment::Nested(segments) => {
+            for segment in segments {
+                mount_segment(parent, segment);
+            }
+        }
+        ChildSegment::Dynamic(segment) => segment.mount(ChildSlot::in_node(parent)),
     }
 }
 
@@ -969,7 +1291,7 @@ pub trait OneChild<T> {
     fn one_child(self) -> T;
 }
 
-impl<T> OneChild<T> for [ChildSegment<T>; 1] {
+impl<T: SlotChild> OneChild<T> for [ChildSegment<T>; 1] {
     fn one_child(self) -> T {
         let [child] = self;
         let mut items = child.items();
@@ -991,13 +1313,13 @@ pub trait AtMostOneChild<T> {
     fn at_most_one_child(self) -> Option<T>;
 }
 
-impl<T> AtMostOneChild<T> for [ChildSegment<T>; 0] {
+impl<T: SlotChild> AtMostOneChild<T> for [ChildSegment<T>; 0] {
     fn at_most_one_child(self) -> Option<T> {
         None
     }
 }
 
-impl<T> AtMostOneChild<T> for [ChildSegment<T>; 1] {
+impl<T: SlotChild> AtMostOneChild<T> for [ChildSegment<T>; 1] {
     fn at_most_one_child(self) -> Option<T> {
         let [child] = self;
         let mut items = child.items();
@@ -1048,20 +1370,22 @@ pub fn Spacer() -> NodeId {
     with_document(Document::create_frame)
 }
 
-type ShownChild<C> = Rc<RefCell<Option<(<C as SlotChild>::Stored, Scope)>>>;
+type HeldChild<C> = Rc<RefCell<Option<(<C as SlotChild>::Stored, Scope)>>>;
+type KeyedChild<K, C> = Rc<RefCell<Option<(K, <C as SlotChild>::Stored, Scope)>>>;
+type HeldRows<R> = Rc<RefCell<Option<(Vec<<R as SlotChild>::Stored>, Scope)>>>;
 
 #[component]
 pub fn Show<C>(condition: Prop<bool>, #[prop(children)] then: Render<(), C>) -> DynamicSegment<C>
 where
     C: SlotChild,
 {
-    DynamicSegment::new(move |parent, slot| {
-        let held: ShownChild<C> = Rc::new(RefCell::new(None));
+    DynamicSegment::new(move |slot: ChildSlot<C>| {
+        let held: HeldChild<C> = Rc::new(RefCell::new(None));
         let parked = held.clone();
         on_cleanup(move || {
             let held = parked.borrow_mut().take();
             if let Some((stored, _)) = held {
-                try_with_document(|document| document.remove_node(C::stored_node(&stored)));
+                ChildSlot::<C>::discard(&stored);
             }
         });
         let mut then = Some(then);
@@ -1073,14 +1397,14 @@ where
                 && let Some(build) = then.take()
             {
                 let scope = Scope::detached();
-                let stored = scope.context().run(|| build.call(()).store(parent));
+                let stored = scope.context().run(|| slot.store(build.call(())));
                 *held = Some((stored, scope));
             }
             let items = match (visible, held.as_ref()) {
                 (true, Some((stored, _))) => vec![stored.clone()],
                 _ => Vec::new(),
             };
-            C::fill_slot(parent, slot, items);
+            slot.fill(items);
         });
     })
 }
@@ -1091,15 +1415,15 @@ where
     T: Clone + 'static,
     C: SlotChild,
 {
-    DynamicSegment::new(move |parent, slot| {
-        let held: Rc<RefCell<Option<(NodeId, Scope)>>> = Rc::new(RefCell::new(None));
+    DynamicSegment::new(move |slot: ChildSlot<C>| {
+        let held: HeldChild<C> = Rc::new(RefCell::new(None));
         let owned = held.clone();
         on_cleanup(move || drop(owned));
         create_effect(move || {
             let value = value.get();
             let mut held = held.borrow_mut();
-            let built = build_in_slot(parent, slot, || view.call(value));
-            discard_previous(held.replace(built));
+            let built = build_in_slot(&slot, || view.call(value));
+            discard_previous::<C>(held.replace(built));
         });
     })
 }
@@ -1113,19 +1437,18 @@ where
     K: Clone + Hash + Eq + 'static,
     C: SlotChild,
 {
-    DynamicSegment::new(move |parent, slot| {
-        let rows = Rc::new(KeyedItems::new(move |key: K| view.call(key).store(parent)));
+    DynamicSegment::new(move |slot: ChildSlot<C>| {
+        let built = slot.clone();
+        let rows = Rc::new(KeyedItems::new(move |key: K| built.store(view.call(key))));
         let owned = rows.clone();
         on_cleanup(move || drop(owned));
         create_effect(move || {
             let keys = keys.get();
             rows.map(keys).commit(|items, removed| {
-                C::fill_slot(parent, slot, items);
-                with_document(|document| {
-                    for row in &removed {
-                        document.remove_node(C::stored_node(row));
-                    }
-                });
+                slot.fill(items);
+                for row in &removed {
+                    ChildSlot::<C>::discard(row);
+                }
             });
         });
     })
@@ -1142,9 +1465,9 @@ where
     K: PartialEq + 'static,
     C: SlotChild,
 {
-    DynamicSegment::new(move |parent, slot| {
+    DynamicSegment::new(move |slot: ChildSlot<C>| {
         let (current, set_current) = create_signal(value.peek());
-        let held: Rc<RefCell<Option<(K, NodeId, Scope)>>> = Rc::new(RefCell::new(None));
+        let held: KeyedChild<K, C> = Rc::new(RefCell::new(None));
         let owned = held.clone();
         on_cleanup(move || drop(owned));
         create_effect(move || {
@@ -1157,11 +1480,11 @@ where
             }
             let current = current.clone();
             let view = view.clone();
-            let (node, scope) = build_in_slot(parent, slot, move || view.call(current));
+            let (stored, scope) = build_in_slot(&slot, move || view.call(current));
             let previous = held
-                .replace((next, node, scope))
-                .map(|(_, node, scope)| (node, scope));
-            discard_previous(previous);
+                .replace((next, stored, scope))
+                .map(|(_, stored, scope)| (stored, scope));
+            discard_previous::<C>(previous);
         });
     })
 }

@@ -12,10 +12,15 @@ fn a_selected_radio_option_marks_its_ring_with_the_accent_colour() {
 }
 
 fn accent_rings(selected: Option<usize>) -> usize {
-    let labels = vec!["One".to_owned(), "Two".to_owned()];
-    let (document, [_group]) = toolbar_of(|| {
+    let (document, [_group]) = toolbar_of(move || {
         [view! {
-            <RadioGroup labels selected />
+            <RadioGroup
+                options={view! {
+                    <unstyled::ChoiceOption label="One" />
+                    <unstyled::ChoiceOption label="Two" />
+                }}
+                selected
+            />
         }]
     });
     let mut harness = Harness::new(document);

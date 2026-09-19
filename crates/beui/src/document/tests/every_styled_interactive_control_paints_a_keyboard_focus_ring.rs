@@ -35,17 +35,35 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
         },
         || {
             view! {
-                <Tabs labels={vec!["One".to_string(), "Two".to_string()]} selected=0 />
+                <Tabs
+                    options={view! {
+                        <unstyled::ChoiceOption label="One" />
+                        <unstyled::ChoiceOption label="Two" />
+                    }}
+                    selected=0
+                />
             }
         },
         || {
             view! {
-                <RadioGroup labels={vec!["One".to_string(), "Two".to_string()]} selected=Some(0) />
+                <RadioGroup
+                    options={view! {
+                        <unstyled::ChoiceOption label="One" />
+                        <unstyled::ChoiceOption label="Two" />
+                    }}
+                    selected=Some(0)
+                />
             }
         },
         || {
             view! {
-                <Listbox labels={vec!["One".to_string(), "Two".to_string()]} selected=Some(0) />
+                <Listbox
+                    options={view! {
+                        <unstyled::ChoiceOption label="One" />
+                        <unstyled::ChoiceOption label="Two" />
+                    }}
+                    selected=Some(0)
+                />
             }
         },
         || {

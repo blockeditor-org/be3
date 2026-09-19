@@ -3,13 +3,13 @@ use std::collections::HashMap;
 
 use beui_macros::component;
 
-use crate::base::child_list::{ChildList, SlotId};
+use crate::base::child_list::{ChildHost, ChildList};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::node::{Element, InteractInput, NodeId};
 use crate::painter::Painter;
 use crate::reactive::{
-    Child, ChildValue, Children, Prop, Scope, SlotChild, create_effect, with_document,
+    Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
 };
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -43,6 +43,14 @@ impl CanvasView {
 
     pub fn rect_to_canvas(self, rect: Rect) -> Rect {
         Rect::from_min_max(self.to_canvas(rect.min), self.to_canvas(rect.max))
+    }
+}
+
+impl ChildHost for CanvasNode {
+    type Stored = NodeId;
+
+    fn children(&mut self) -> &mut ChildList<NodeId> {
+        &mut self.items
     }
 }
 
@@ -209,21 +217,6 @@ impl Document {
         }
     }
 
-    pub(crate) fn append_canvas_item(&mut self, canvas: NodeId, item: NodeId) {
-        self.arena.get_mut_as::<CanvasNode>(canvas).items.push(item);
-    }
-
-    pub(crate) fn open_canvas_slot(&mut self, canvas: NodeId) -> SlotId {
-        self.arena.get_mut_as::<CanvasNode>(canvas).items.open()
-    }
-
-    pub(crate) fn fill_canvas_slot(&mut self, canvas: NodeId, slot: SlotId, items: Vec<NodeId>) {
-        self.arena
-            .get_mut_as::<CanvasNode>(canvas)
-            .items
-            .fill(slot, items);
-    }
-
     pub(crate) fn create_canvas_item(&mut self) -> NodeId {
         self.arena.insert(CanvasItemNode {
             child: None,
@@ -267,25 +260,17 @@ crate::child_type!(CanvasItem);
 impl SlotChild for CanvasItem {
     type Stored = NodeId;
 
-    fn store(self, _parent: NodeId) -> NodeId {
+    fn store(self, _parent: Option<NodeId>) -> NodeId {
         self.node
     }
 
-    fn stored_node(stored: &NodeId) -> NodeId {
-        *stored
+    fn stored_node(stored: &NodeId) -> Option<NodeId> {
+        Some(*stored)
     }
+}
 
-    fn open_slot(parent: NodeId) -> SlotId {
-        with_document(|document| document.open_canvas_slot(parent))
-    }
-
-    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<NodeId>) {
-        with_document(|document| document.fill_canvas_slot(parent, slot, items));
-    }
-
-    fn append(parent: NodeId, stored: NodeId) {
-        with_document(|document| document.append_canvas_item(parent, stored));
-    }
+impl NodeSlot for CanvasItem {
+    type Host = CanvasNode;
 }
 
 #[component]

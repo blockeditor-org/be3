@@ -16,21 +16,17 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChil
         }
     }));
 
-    let children: Vec<ListChild> = children
-        .into_items()
-        .into_iter()
-        .map(|child| {
-            let ListChild { node, size } = child;
-            let size = Prop::Dynamic(Box::new(clone!(stacked -> move || {
-                if stacked.get() {
-                    ItemSize::Intrinsic
-                } else {
-                    size.get()
-                }
-            })));
-            ListChild { node, size }
-        })
-        .collect();
+    let children = children.map(move |child| {
+        let ListChild { node, size } = child;
+        let size = Prop::Dynamic(Box::new(clone!(stacked -> move || {
+            if stacked.get() {
+                ItemSize::Intrinsic
+            } else {
+                size.get()
+            }
+        })));
+        ListChild { node, size }
+    });
 
     view! {
         <List direction spacing children />

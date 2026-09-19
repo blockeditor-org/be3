@@ -22,7 +22,7 @@ use crate::styled::{
     Separator, Slider, Tabs, Theme, Tree,
 };
 use crate::unstyled;
-use crate::unstyled::TreeItem;
+use crate::unstyled::{ChoiceOption, TreeItem};
 
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
@@ -225,7 +225,12 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 </List>
                                 <Tabs
                                     @test_id={"inspector.tabs"}
-                                    labels={vec!["Beui".to_owned(), "A11y".to_owned(), "Perf".to_owned(), "Sim".to_owned()]}
+                                    options={view! {
+                                        <ChoiceOption label="Beui" />
+                                        <ChoiceOption label="A11y" />
+                                        <ChoiceOption label="Perf" />
+                                        <ChoiceOption label="Sim" />
+                                    }}
                                     selected=0
                                     on_change={move |index| {
                                         tab_state.set_tab(index);
@@ -347,18 +352,26 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
         .iter()
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
-    let labels = PIXEL_RATIOS
+    let ratio_options = PIXEL_RATIOS
         .iter()
-        .map(|(label, _)| (*label).to_owned())
+        .map(|(label, _)| {
+            view! {
+                <ChoiceOption label={*label} />
+            }
+        })
         .collect::<Vec<_>>();
     let theme = state.theme.get();
     let selected_theme = THEMES
         .iter()
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
-    let theme_labels = THEMES
+    let theme_options = THEMES
         .iter()
-        .map(|(label, _)| (*label).to_owned())
+        .map(|(label, _)| {
+            view! {
+                <ChoiceOption label={*label} />
+            }
+        })
         .collect::<Vec<_>>();
     let (touch_state, mouse_state, ratio_state, theme_state) =
         (state.clone(), state.clone(), state.clone(), state.clone());
@@ -389,7 +402,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         <Heading content="Device pixel ratio" />
                         <RadioGroup
                             @test_id={"inspector.simulation.pixel_ratio"}
-                            labels
+                            options={ratio_options}
                             selected={Some(selected)}
                             on_change={move |index: Option<usize>| {
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
@@ -402,7 +415,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         <Heading content="Theme" />
                         <RadioGroup
                             @test_id={"inspector.simulation.theme"}
-                            labels={theme_labels}
+                            options={theme_options}
                             selected={Some(selected_theme)}
                             on_change={move |index: Option<usize>| {
                                 if let Some((_, theme)) = index.and_then(|index| THEMES.get(index)) {
@@ -433,9 +446,13 @@ fn FilterSection(state: Rc<State>) -> NodeId {
         .iter()
         .position(|(_, candidate)| *candidate == vision)
         .unwrap_or(0);
-    let vision_labels = ColorVision::ALL
+    let vision_options = ColorVision::ALL
         .iter()
-        .map(|(label, _)| (*label).to_owned())
+        .map(|(label, _)| {
+            view! {
+                <ChoiceOption label={*label} />
+            }
+        })
         .collect::<Vec<_>>();
     view! {
         <List spacing=TIMING_SPACING>
@@ -465,7 +482,7 @@ fn FilterSection(state: Rc<State>) -> NodeId {
             <Caption content="Colour vision" />
             <RadioGroup
                 @test_id={"inspector.simulation.color_vision"}
-                labels={vision_labels}
+                options={vision_options}
                 selected={Some(selected_vision)}
                 on_change={move |index: Option<usize>| {
                     if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {

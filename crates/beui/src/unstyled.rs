@@ -15,7 +15,7 @@ mod tree;
 pub(crate) mod typeahead;
 
 pub use button::{Button, ButtonHandle, button_active, button_focused};
-pub use choice::{Choice, ChoiceKind, ChoiceOptionHandle, choice_selected};
+pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
 pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};

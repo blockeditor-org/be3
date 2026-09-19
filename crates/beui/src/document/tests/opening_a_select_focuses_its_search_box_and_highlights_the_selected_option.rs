@@ -4,11 +4,12 @@ use crate::styled::Select;
 
 #[test]
 fn opening_a_select_focuses_its_search_box_and_highlights_the_selected_option() {
-    let options: Vec<String> = ["Apple", "Banana", "Cherry"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption label="Cherry" />
+        };
         [view! {
             <Select options selected=Some(1) />
         }]

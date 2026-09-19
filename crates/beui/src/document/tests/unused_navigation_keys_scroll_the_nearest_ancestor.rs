@@ -12,7 +12,10 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
                 view! {
                     <Tabs
                         @node_ref=&tabs
-                        labels={vec!["One".to_string(), "Two".to_string()]}
+                        options={view! {
+                            <unstyled::ChoiceOption label="One" />
+                            <unstyled::ChoiceOption label="Two" />
+                        }}
                         selected=0
                     />
                 },

@@ -414,6 +414,45 @@ the `NodeId` it has always been. A `Children` slot takes that lone child as a
 run of one, so a set written in one place reads the same whether it has one
 member or several.
 
+A `Children<T>` holds whatever kind of child its slot takes, and that kind need
+not be a node: `unstyled::MenuItem` and `unstyled::ChoiceOption` are components
+that build a value rather than a node, so a menu and a tab bar are written as
+tags and each row follows the signals its tag was given. Declare such a type
+with `value_child_type!`, which says how a run of it is kept, and it can be
+written between tags, collected into a `Vec` of them from runtime data, or
+built by a `show` or a `for_each` like any other child.
+
+```rust
+<ContextMenu items={view! {
+    <MenuItem label="Copy" />
+    <Show condition={pasteable}><MenuItem label="Paste" /></Show>
+}} on_select={choose}>
+    <Card>…</Card>
+</ContextMenu>
+```
+
+A component reads such a slot with `into_run`, which answers with a `Run<T>`:
+the children written into it now, and the ones a `show`, a `dynamic` or a
+`for_each` inside it builds later. `Run::items` reads them and subscribes, so a
+run that changes wakes whoever read it; `peek` reads without subscribing, and
+`build` is the usual consumer, turning the run's items into a run of children
+of its own and keeping the two in step.
+
+```rust
+#[component]
+fn Legend(entries: Children<Note>) -> NodeId {
+    let entries = entries.into_run();
+    let rows = entries.build(|notes: Vec<Rc<Note>>| {
+        notes.iter().map(|note| intrinsic(view! { <Row note /> })).collect()
+    });
+    view! { <Column spacing=0.0 children={rows} /> }
+}
+```
+
+A `Run<T>` is cheap to clone and fills a `Children<T>` slot again, which is how
+one set of options reaches two controls: `styled::ResponsiveTabs` hands the same
+run to its tabs and to the select it collapses into.
+
 ```rust
 let toolbar = view! {
     <Button label="Open" on_click={open} />

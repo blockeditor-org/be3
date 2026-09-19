@@ -4,11 +4,12 @@ use crate::styled::Select;
 
 #[test]
 fn arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing_the_search_text() {
-    let options: Vec<String> = ["Apple", "Banana", "Cherry"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption label="Cherry" />
+        };
         [view! {
             <Select options selected=None />
         }]

@@ -4,11 +4,12 @@ use crate::styled::Select;
 
 #[test]
 fn hovering_a_select_option_moves_the_keyboard_highlight() {
-    let options: Vec<String> = ["Apple", "Banana", "Cherry"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption label="Cherry" />
+        };
         [view! {
             <Select options selected=None />
         }]
