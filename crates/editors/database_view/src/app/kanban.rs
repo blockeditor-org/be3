@@ -1,14 +1,18 @@
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
 use block_client::blocks::database::DatabaseValue;
 use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_plugin::beui::icons::ICON_ADD;
 use block_editor_plugin::beui::reactive::{
-    Direction, ForEach, Frame, ItemSize, List, Memo, Scroll, Show, Spacer, clone, component,
-    create_memo, view,
+    ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Scroll, Show,
+    Spacer, WriteSignal, clone, component, component_rect, create_memo, create_signal, on_cleanup,
+    view,
 };
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, ListRow, Separator, use_theme,
 };
-use block_editor_plugin::beui::{NodeId, TextAlign};
+use block_editor_plugin::beui::{NodeId, PointerPress, Pos2, Rect, TextAlign};
 use block_editor_plugin::block_ui::database::cell_text;
 use uuid::Uuid;
 
@@ -18,9 +22,66 @@ const COLUMN_WIDTH: f32 = 240.0;
 const COLUMN_SPACING: f32 = 10.0;
 const CARD_SPACING: f32 = 6.0;
 const PADDING: f32 = 12.0;
+const DRAG_THRESHOLD: f32 = 6.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ColumnKey(pub Option<Uuid>);
+
+pub struct Board {
+    columns: RefCell<Vec<(ColumnKey, ReadSignal<Rect>)>>,
+    carried: Cell<Option<usize>>,
+    set_target: WriteSignal<Option<ColumnKey>>,
+    target: Memo<Option<ColumnKey>>,
+}
+
+impl Board {
+    fn new() -> Rc<Self> {
+        let (target, set_target) = create_signal(None::<ColumnKey>);
+        Rc::new(Self {
+            columns: RefCell::new(Vec::new()),
+            carried: Cell::new(None),
+            set_target,
+            target: create_memo(move || target.get()),
+        })
+    }
+
+    fn register(&self, column: ColumnKey, rect: ReadSignal<Rect>) {
+        self.columns.borrow_mut().push((column, rect));
+    }
+
+    fn forget(&self, column: ColumnKey) {
+        self.columns.borrow_mut().retain(|(key, _)| *key != column);
+    }
+
+    fn over(&self, pos: Pos2) -> Option<ColumnKey> {
+        self.columns
+            .borrow()
+            .iter()
+            .find(|(_, rect)| rect.get_untracked().contains(pos))
+            .map(|(key, _)| *key)
+    }
+
+    fn carry(&self, row: usize, pos: Pos2) {
+        self.carried.set(Some(row));
+        self.set_target.set(self.over(pos));
+    }
+
+    fn release(&self, data: &Data, field_id: Option<Uuid>) {
+        let (Some(row), Some(field_id)) = (self.carried.take(), field_id) else {
+            self.set_target.set(None);
+            return;
+        };
+        if let Some(ColumnKey(option)) = self.target.get_untracked() {
+            data.set_cell(row, field_id, option.map(DatabaseValue::Enum));
+            data.select(row, None);
+        }
+        self.set_target.set(None);
+    }
+
+    fn carrying(&self) -> bool {
+        self.carried.get().is_some()
+    }
+}
 
 #[component]
 pub fn Kanban(data: Data) -> NodeId {
@@ -41,6 +102,7 @@ pub fn Kanban(data: Data) -> NodeId {
         columns.push(ColumnKey(None));
         columns
     }));
+    let board = Board::new();
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()}>
@@ -62,8 +124,14 @@ pub fn Kanban(data: Data) -> NodeId {
                                     {move |column: ColumnKey| {
                                         let data = data.clone();
                                         let status = status.clone();
+                                        let board = Rc::clone(&board);
                                         view! {
-                                            <Column data={data} status={status} column={column} />
+                                            <Column
+                                                data={data}
+                                                status={status}
+                                                board={board}
+                                                column={column}
+                                            />
                                         }
                                     }}
                                 </ForEach>
@@ -77,8 +145,16 @@ pub fn Kanban(data: Data) -> NodeId {
 }
 
 #[component]
-fn Column(data: Data, status: Memo<Option<DatabaseField>>, column: ColumnKey) -> NodeId {
+fn Column(
+    data: Data,
+    status: Memo<Option<DatabaseField>>,
+    board: Rc<Board>,
+    column: ColumnKey,
+) -> NodeId {
     let option = column.0;
+    board.register(column, component_rect());
+    on_cleanup(clone!(board -> move || board.forget(column)));
+    let welcoming = create_memo(clone!(board -> move || board.target.get() == Some(column)));
     let title = create_memo(clone!(status -> move || {
         let Some(option) = option else {
             return "No status".to_owned();
@@ -120,8 +196,16 @@ fn Column(data: Data, status: Memo<Option<DatabaseField>>, column: ColumnKey) ->
     let read_only = data.read_only.clone();
     let cards = data.clone();
     let key = option.map_or_else(|| "none".to_owned(), |option| option.to_string());
+    let theme = use_theme();
     view! {
-        <Frame width=COLUMN_WIDTH>
+        <Frame
+            width=COLUMN_WIDTH
+            outline={theme.accent.clone()}
+            outline_width=2.0
+            outline_offset=2.0
+            radius=10
+            outline_visible={welcoming}
+        >
             <Card>
                 <List spacing=CARD_SPACING>
                     <Body content={title} />
@@ -130,8 +214,14 @@ fn Column(data: Data, status: Memo<Option<DatabaseField>>, column: ColumnKey) ->
                         {move |row: usize| {
                             let data = cards.clone();
                             let status = field_id.clone();
+                            let board = Rc::clone(&board);
                             view! {
-                                <KanbanCard data={data} status={status} row={row} />
+                                <KanbanCard
+                                    data={data}
+                                    status={status}
+                                    board={board}
+                                    row={row}
+                                />
                             }
                         }}
                     </ForEach>
@@ -153,7 +243,7 @@ fn Column(data: Data, status: Memo<Option<DatabaseField>>, column: ColumnKey) ->
 }
 
 #[component]
-fn KanbanCard(data: Data, status: Memo<Option<Uuid>>, row: usize) -> NodeId {
+fn KanbanCard(data: Data, status: Memo<Option<Uuid>>, board: Rc<Board>, row: usize) -> NodeId {
     let lines = create_memo(clone!(data status -> move || {
         let status = status.get();
         let Some(entry) = data.rows.with(|rows| rows.get(row).cloned()) else {
@@ -180,26 +270,50 @@ fn KanbanCard(data: Data, status: Memo<Option<Uuid>>, row: usize) -> NodeId {
         data.selected.get().is_some_and(|selection| selection.row == row)
     }));
     let pick = clone!(data -> move || data.select(row, None));
+    let grabbed: Rc<Cell<Option<Pos2>>> = Rc::default();
+    let read_only = data.read_only.clone();
+    let pressed = clone!(grabbed -> move |press: PointerPress| grabbed.set(Some(press.pos)));
+    let moved = clone!(board grabbed read_only -> move |at: PointerPress| {
+        let Some(origin) = grabbed.get() else {
+            return;
+        };
+        if read_only.get_untracked() {
+            return;
+        }
+        if !board.carrying() && (at.pos - origin).length() < DRAG_THRESHOLD {
+            return;
+        }
+        board.carry(row, at.pos);
+    });
+    let dropped = clone!(board grabbed data status -> move |active: bool| {
+        if active {
+            return;
+        }
+        grabbed.set(None);
+        board.release(&data, status.get_untracked());
+    });
     view! {
-        <ListRow
-            selected={selected}
-            @test_id={format!("database-view.card.{row}")}
-            on_click={pick.clone()}
-            on_activate={pick}
-        >
-            <List spacing=2.0>
-                <ForEach keys={keys}>
-                    {move |line: usize| {
-                        let text = create_memo(clone!(lines -> move || {
-                            lines.with(|lines| lines.get(line).cloned().unwrap_or_default())
-                        }));
-                        view! {
-                            <Caption content={text} align=TextAlign::Start wrap=true />
-                        }
-                    }}
-                </ForEach>
-            </List>
-        </ListRow>
+        <ClickCatcher on_press={pressed} on_drag={moved} on_active_change={dropped}>
+            <ListRow
+                selected={selected}
+                @test_id={format!("database-view.card.{row}")}
+                on_click={pick.clone()}
+                on_activate={pick}
+            >
+                <List spacing=2.0>
+                    <ForEach keys={keys}>
+                        {move |line: usize| {
+                            let text = create_memo(clone!(lines -> move || {
+                                lines.with(|lines| lines.get(line).cloned().unwrap_or_default())
+                            }));
+                            view! {
+                                <Caption content={text} align=TextAlign::Start wrap=true />
+                            }
+                        }}
+                    </ForEach>
+                </List>
+            </ListRow>
+        </ClickCatcher>
     }
 }
 

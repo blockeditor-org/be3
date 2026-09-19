@@ -363,7 +363,7 @@ pub fn select_highlighted(document: &Document, select: NodeId) -> Option<usize> 
 fn apply_requested_selection(state: &State, selected: Option<usize>) {
     let selected = selected.filter(|index| *index < state.options.peek().len());
     if state.selected.get_untracked() != selected {
-        apply_selection(state, selected);
+        state.set_selected.set(selected);
     }
 }
 
