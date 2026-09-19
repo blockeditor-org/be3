@@ -2,12 +2,12 @@ use std::rc::Rc;
 
 use block_client::blocks::image::{Image as ImageBlock, ImageOperation};
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, NodeRef, Picture, Show, Spacer, clone, component,
-    create_memo, view,
+    Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, Picture, Show,
+    Spacer, clone, component, component_rect, create_effect, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
-use block_editor_plugin::beui::{ImageFit, NodeId};
-use block_editor_plugin::{Creation, Editor, Sidebar};
+use block_editor_plugin::beui::{ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_plugin::{Creation, Editor, Sidebar, fit_content};
 
 use super::chooser::Chooser;
 use super::picture::watch;
@@ -43,43 +43,71 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let opening = editor.host().clone();
     let choose = clone!(chooser -> move || chooser.open(&opening));
 
+    let sized = editor.clone();
+    create_effect(clone!(image -> move || {
+        sized.set_intrinsic_size(image.get().map(|image| image.size()));
+    }));
+
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
     let danger = theme.danger.clone();
     view! {
-        <Frame color={theme.background.clone()}>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <List align=Align::Center spacing=0.0>
-                        <Picture
-                            @sizing=ItemSize::Percent(100.0)
-                            image={image}
-                            fit=ImageFit::Contain
-                            @test_id={"image.picture"}
-                        />
-                        <Show condition={failed}>
-                            <Caption content={reason} color={danger} />
-                        </Show>
-                    </List>
-                </Frame>
-                <Sidebar shown={chrome}>
-                    <Heading content="Image" />
-                    <Button
-                        label="Replace image…"
-                        variant=ButtonVariant::Secondary
-                        disabled={blocked}
-                        @test_id={"image.replace"}
-                        on_click={choose}
-                    />
-                    <Show condition={refused}>
-                        <Caption content={refusal} color={theme.danger.clone()} />
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                <List align=Align::Stretch spacing=0.0>
+                    <Artwork @sizing=ItemSize::Percent(100.0) editor={editor} image={image} />
+                    <Show condition={failed}>
+                        <Caption content={reason} color={danger} />
                     </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </Sidebar>
-            </List>
-        </Frame>
+                </List>
+            </Frame>
+            <Sidebar shown={chrome}>
+                <Heading content="Image" />
+                <Button
+                    label="Replace image…"
+                    variant=ButtonVariant::Secondary
+                    disabled={blocked}
+                    @test_id={"image.replace"}
+                    on_click={choose}
+                />
+                <Show condition={refused}>
+                    <Caption content={refusal} color={theme.danger.clone()} />
+                </Show>
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+            </Sidebar>
+        </List>
+    }
+}
+
+#[component]
+fn Artwork(
+    editor: Editor,
+    image: Memo<Option<block_editor_plugin::beui::Image>>,
+) -> NodeId {
+    let placed = component_rect();
+    let world = editor.world();
+    let shape = create_memo(clone!(image world placed -> move || {
+        let Some(size) = image.get().map(|image| image.size()) else {
+            return Rect::ZERO;
+        };
+        let available = world.get().unwrap_or_else(|| placed.get().size());
+        fit_content(
+            Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
+            size,
+        )
+    }));
+    let x = create_memo(clone!(shape -> move || shape.get().left()));
+    let y = create_memo(clone!(shape -> move || shape.get().top()));
+    let width = create_memo(clone!(shape -> move || shape.get().width()));
+    let height = create_memo(clone!(shape -> move || shape.get().height()));
+    view! {
+        <Canvas view={editor.canvas()}>
+            <CanvasItem x={x} y={y} width={width} height={height} @test_id={"image.picture"}>
+                <Picture image={image} fit=ImageFit::Fill />
+            </CanvasItem>
+        </Canvas>
     }
 }
 

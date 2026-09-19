@@ -5,7 +5,17 @@ fn drawing_on_the_canvas_paints_the_block() {
     let (mut editor, block) = editor();
 
     let canvas = editor.rect_of("pixel-art.canvas");
-    editor.click_at(Pos2::new(canvas.left() + 2.5, canvas.top() + 1.5));
+    let artwork = editor.rect_of("pixel-art.artwork");
+    assert!(
+        artwork.width() > canvas.width() / 2.0 || artwork.height() > canvas.height() / 2.0,
+        "the artwork must fill the space it is given rather than sitting in a corner"
+    );
+
+    let cell = artwork.width() / f32::from(block.read().unwrap().width());
+    editor.click_at(Pos2::new(
+        artwork.left() + cell * 2.5,
+        artwork.top() + cell * 1.5,
+    ));
     editor.run();
     editor.run();
 

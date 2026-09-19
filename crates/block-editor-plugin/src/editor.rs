@@ -174,6 +174,23 @@ fn register(work: &Rc<Work>, next: &Cell<u64>, callback: impl Fn() + 'static) {
     });
 }
 
+pub fn fit_content(available: Rect, content: Vec2) -> Rect {
+    if content.x <= 0.0 || content.y <= 0.0 {
+        return Rect::ZERO;
+    }
+    let scale = (available.width() / content.x)
+        .min(available.height() / content.y)
+        .max(f32::EPSILON);
+    let size = Vec2::new(content.x * scale, content.y * scale);
+    Rect::from_min_size(
+        beui::Pos2::new(
+            available.center().x - size.x / 2.0,
+            available.center().y - size.y / 2.0,
+        ),
+        size,
+    )
+}
+
 #[derive(Clone)]
 pub struct Editor(Rc<EditorState>);
 
@@ -182,10 +199,12 @@ struct EditorState {
     client: Arc<BlockClient>,
     block: Uuid,
     canvas: ReadSignal<Option<CanvasView>>,
+    world: ReadSignal<Option<Vec2>>,
     scale: ReadSignal<f32>,
     chrome: ReadSignal<bool>,
     editable: ReadSignal<bool>,
     set_canvas: WriteSignal<Option<CanvasView>>,
+    set_world: WriteSignal<Option<Vec2>>,
     set_scale: WriteSignal<f32>,
     set_chrome: WriteSignal<bool>,
     set_editable: WriteSignal<bool>,
@@ -211,6 +230,7 @@ struct EditorState {
 impl Editor {
     pub fn new(host: EditorHost, client: Arc<BlockClient>, block: Uuid) -> Self {
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
+        let (world, set_world) = create_signal(None::<Vec2>);
         let (scale, set_scale) = create_signal(1.0_f32);
         let (chrome, set_chrome) = create_signal(true);
         let (editable, set_editable) = create_signal(host.editable());
@@ -223,10 +243,12 @@ impl Editor {
             client,
             block,
             canvas,
+            world,
             scale,
             chrome,
             editable,
             set_canvas,
+            set_world,
             set_scale,
             set_chrome,
             set_editable,
@@ -288,6 +310,10 @@ impl Editor {
 
     pub fn canvas(&self) -> ReadSignal<Option<CanvasView>> {
         self.0.canvas.clone()
+    }
+
+    pub fn world(&self) -> ReadSignal<Option<Vec2>> {
+        self.0.world.clone()
     }
 
     pub fn scale(&self) -> ReadSignal<f32> {
@@ -447,7 +473,11 @@ impl Editor {
 
     pub fn begin_frame(&self) {
         let view = self.0.host.beui_view();
+        let scale = view.scale().max(f32::EPSILON);
         self.0.set_canvas.set(view.canvas());
+        self.0
+            .set_world
+            .set(view.rect().map(|rect| Vec2::new(rect.width() / scale, rect.height() / scale)));
         self.0.set_scale.set(view.scale());
         self.0.set_chrome.set(self.0.host.chrome_shown());
         self.0.set_editable.set(self.0.host.editable());
