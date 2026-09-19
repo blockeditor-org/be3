@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::collections::HashMap;
 
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
@@ -9,7 +8,7 @@ use crate::input::{Key, KeyPress};
 use crate::painter::Painter;
 
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId};
+use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
 
 use beui_macros::component;
@@ -57,14 +56,14 @@ impl Element for FocusableNode {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut HashMap<NodeId, Rect>,
+        out: &mut NodeMap<Rect>,
     ) {
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
