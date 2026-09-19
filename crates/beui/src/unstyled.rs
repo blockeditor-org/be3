@@ -40,4 +40,4 @@ pub use text_input::{
 };
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
-pub use tree::{Tree, TreeItem, TreeRowHandle, tree_focused};
+pub use tree::{Tree, TreeItem, TreeRowHandle, tree_focused, tree_row_node};

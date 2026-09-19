@@ -22,6 +22,7 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
                 depth: usize::from(key > 0),
                 expandable: key == 0,
                 expanded: expanded.get(),
+                marked: false,
             };
             view! {
                 <Tree

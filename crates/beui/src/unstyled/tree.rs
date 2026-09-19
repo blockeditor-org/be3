@@ -24,6 +24,7 @@ pub struct TreeItem {
     pub depth: usize,
     pub expandable: bool,
     pub expanded: bool,
+    pub marked: bool,
 }
 
 pub struct TreeRowHandle<K> {
@@ -37,6 +38,7 @@ pub struct TreeRowHandle<K> {
 }
 
 struct State<K> {
+    nodes: Nodes<K>,
     keys: Memo<Vec<K>>,
     item: Func<K, TreeItem>,
     expand_on_select: Memo<bool>,
@@ -85,7 +87,9 @@ where
     component_accessibility(Node::new(Role::Tree));
 
     let expand_on_select = create_memo(move || expand_on_select.get());
+    let nodes: Nodes<K> = Rc::default();
     let state: Handle<K> = Rc::new(State {
+        nodes: nodes.clone(),
         keys: keys.clone(),
         item: item.clone(),
         expand_on_select,
@@ -103,7 +107,6 @@ where
         }
     }));
 
-    let nodes: Nodes<K> = Rc::default();
     create_effect(clone!(nodes -> move || {
         let Some(key) = reveal.get() else {
             return;
@@ -209,6 +212,18 @@ where
         nodes.borrow_mut().remove(&cleanup_key);
     });
     built
+}
+
+pub fn tree_row_node<K>(document: &Document, tree: NodeId, key: &K) -> Option<NodeId>
+where
+    K: Clone + Eq + Hash + 'static,
+{
+    document
+        .component_state::<Handle<K>>(tree)
+        .nodes
+        .borrow()
+        .get(key)
+        .copied()
 }
 
 pub fn tree_focused<K>(document: &Document, tree: NodeId) -> Option<K>

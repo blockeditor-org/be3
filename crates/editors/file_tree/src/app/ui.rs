@@ -3,17 +3,19 @@ use std::rc::Rc;
 
 use block::BlockParent;
 use block_editor_plugin::beui::{NodeId, PointerPress, Pos2};
-use block_editor_plugin::beui::icons::{ICON_ADD, ICON_AUTO_AWESOME, ICON_MY_LOCATION};
+use block_editor_plugin::beui::icons::{
+    ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_AUTO_AWESOME, ICON_MY_LOCATION,
+};
 use block_editor_plugin::beui::reactive::{
     Align, ClickCatcher, Direction, Frame, ItemSize, List, Memo, NodeRef, Scroll, Show, Spacer,
-    clone, component, component_rect, create_memo, create_signal, view,
+    clone, component, component_rect, create_memo, create_signal, view, with_document,
 };
 use block_editor_plugin::beui::styled::theme::FONT_SMALL;
 use block_editor_plugin::beui::styled::{
-    Body, ButtonVariant, Caption, ContextMenu, IconButton, IconButtonSize, IconSized, Tooltip,
-    Tree, use_theme,
+    Body, Button, ButtonVariant, Caption, ContextMenu, IconButton, IconButtonSize, IconSized,
+    Tooltip, Tree, use_theme,
 };
-use block_editor_plugin::beui::unstyled::{MenuItem, TreeItem};
+use block_editor_plugin::beui::unstyled::{MenuItem, TreeItem, tree_row_node};
 use block_editor_plugin::{BlockFilter, BlockPicker, BlockSource, Editor, Toolbar};
 use uuid::Uuid;
 
@@ -28,23 +30,62 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let tree = FileTree::watch(&editor);
     let picker = picker(&editor, Rc::clone(&tree));
     let held: Held = Rc::new(std::cell::Cell::new(None));
-    let (selected, set_selected) = create_signal(None::<RowKey>);
     let (reveal, set_reveal) = create_signal(None::<RowKey>);
     let keys = tree.keys();
     let rows = tree.rows();
+    let (focused, set_focused) = create_signal(None::<RowKey>);
+    let watching = editor.host().clone();
+    editor.each_frame(move || set_focused.set(focused_key(&watching)));
 
-    let item = clone!(rows -> move |key: RowKey| {
+    let shown = create_memo(clone!(focused keys -> move || {
+        let focused = focused.get()?;
+        keys.with(|keys| deepest_shown(keys, &focused))
+    }));
+    let selected = create_memo(clone!(shown focused -> move || {
+        shown.get().filter(|key| Some(key) == focused.get().as_ref())
+    }));
+    let buried = create_memo(clone!(shown selected -> move || {
+        shown.get().filter(|_| selected.get().is_none())
+    }));
+
+    let (astray, set_astray) = create_signal(None::<Astray>);
+    let tree_ref = NodeRef::new();
+    let scroll_ref = NodeRef::new();
+    let strayed = (shown.clone(), buried.clone(), tree_ref.clone(), scroll_ref.clone());
+    editor.each_frame(move || {
+        set_astray.set(stray(&strayed.0, &strayed.1, &strayed.2, &strayed.3));
+    });
+    let adrift = create_memo(clone!(astray -> move || astray.get().is_some()));
+    let adrift_below = adrift.clone();
+    let above = create_memo(clone!(astray -> move || astray.get() == Some(Astray::Above)));
+    let below = create_memo(clone!(astray -> move || astray.get() != Some(Astray::Above)));
+    let stray_label = create_memo(clone!(focused rows -> move || {
+        let Some(RowKey::Block(path)) = focused.get() else {
+            return "Reveal the block being shown".to_owned();
+        };
+        let Some(id) = path.last().copied() else {
+            return "Reveal the block being shown".to_owned();
+        };
+        rows.with(|rows| {
+            rows.iter()
+                .find(|row| row.id == Some(id))
+                .map_or_else(|| "Reveal the block being shown".to_owned(), |row| row.label.clone())
+        })
+    }));
+    let label_below = stray_label.clone();
+
+    let item = clone!(rows buried -> move |key: RowKey| {
         let row = rows.with(|rows| rows.iter().find(|row| row.key == key).cloned());
         TreeItem {
             label: row.as_ref().map(|row| row.label.clone()).unwrap_or_default(),
             depth: row.as_ref().map_or(0, |row| row.depth),
             expandable: row.as_ref().is_some_and(|row| row.expandable),
             expanded: row.as_ref().is_some_and(|row| row.expanded),
+            marked: buried.get().as_ref() == Some(&key),
         }
     });
 
-    let open = clone!(tree rows editor set_selected -> move |key: RowKey| {
-        set_selected.set(Some(key.clone()));
+    let open = clone!(tree rows editor -> move |key: RowKey| {
         let Some(row) = rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()) else {
             return;
         };
@@ -65,19 +106,21 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.toggle(&key, id, !expanded);
     });
 
-    let find = clone!(tree editor set_reveal set_selected -> move || {
-        let focused = editor.host().focused_block();
-        let Some(id) = focused.block_id else {
+    let find = clone!(tree editor set_reveal -> move || {
+        let host = editor.host();
+        let focused = host.focused_block();
+        if focused.block_id.is_none() {
             return;
-        };
+        }
         tree.show_orphans();
         tree.expand(focused.via.iter().rev().copied());
-        let mut path: Vec<Uuid> = focused.via.iter().rev().copied().collect();
-        path.push(id);
-        let key = RowKey::Block(path);
-        set_selected.set(Some(key.clone()));
+        let Some(key) = focused_key(host) else {
+            return;
+        };
         set_reveal.set(Some(key));
     });
+    let reveal_stray = find.clone();
+    let reveal_below = find.clone();
     let add_root = clone!(picker editor -> move || {
         picker.open(
             &editor,
@@ -121,8 +164,21 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         <Show condition={failed}>
                             <Caption content={reason} color={theme.danger.clone()} />
                         </Show>
-                        <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                        <Show condition={above}>
+                            <StrayButton
+                                shown={adrift}
+                                glyph={ICON_ARROW_UPWARD.to_owned()}
+                                label={stray_label}
+                                on_click={reveal_stray}
+                            />
+                        </Show>
+                        <Scroll
+                            @sizing=ItemSize::Percent(100.0)
+                            @node_ref={&scroll_ref}
+                            focus_color={theme.accent.clone()}
+                        >
                             <Tree
+                                @node_ref={&tree_ref}
                                 keys={keys}
                                 item={item}
                                 selected={selected}
@@ -146,11 +202,90 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 }}
                             </Tree>
                         </Scroll>
+                        <Show condition={below}>
+                            <StrayButton
+                                shown={adrift_below}
+                                glyph={ICON_ARROW_DOWNWARD.to_owned()}
+                                label={label_below}
+                                on_click={reveal_below}
+                            />
+                        </Show>
                     </List>
                 </Frame>
             </List>
         </Frame>
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Astray {
+    Above,
+    Below,
+}
+
+#[component]
+fn StrayButton(
+    shown: Memo<bool>,
+    glyph: String,
+    label: Memo<String>,
+    on_click: block_editor_plugin::beui::reactive::ClickCallback,
+) -> NodeId {
+    view! {
+        <Frame visible={shown}>
+            <Button
+                glyph={glyph}
+                label={label}
+                variant=ButtonVariant::Secondary
+                @test_id={"file-tree.stray"}
+                on_click={move || on_click.call()}
+            />
+        </Frame>
+    }
+}
+
+fn focused_key(host: &block_editor_plugin::EditorHost) -> Option<RowKey> {
+    let focused = host.focused_block();
+    let id = focused.block_id?;
+    let mut path: Vec<Uuid> = focused.via.iter().rev().copied().collect();
+    path.push(id);
+    Some(RowKey::Block(path))
+}
+
+fn deepest_shown(keys: &[RowKey], focused: &RowKey) -> Option<RowKey> {
+    let RowKey::Block(path) = focused else {
+        return keys.iter().find(|key| *key == focused).cloned();
+    };
+    (1..=path.len()).rev().find_map(|length| {
+        let candidate = RowKey::Block(path[..length].to_vec());
+        keys.iter().find(|key| **key == candidate).cloned()
+    })
+}
+
+fn stray(
+    shown: &Memo<Option<RowKey>>,
+    buried: &Memo<Option<RowKey>>,
+    tree: &NodeRef,
+    scroll: &NodeRef,
+) -> Option<Astray> {
+    let key = shown.get_untracked()?;
+    if buried.get_untracked().is_some() {
+        return Some(Astray::Below);
+    }
+    let (Some(tree), Some(scroll)) = (tree.try_get(), scroll.try_get()) else {
+        return None;
+    };
+    with_document(|document| {
+        let node = tree_row_node::<RowKey>(document, tree, &key)?;
+        let row = document.node_rect(node)?;
+        let viewport = document.node_rect(scroll)?;
+        if row.bottom() <= viewport.top() {
+            return Some(Astray::Above);
+        }
+        if row.top() >= viewport.bottom() {
+            return Some(Astray::Below);
+        }
+        None
+    })
 }
 
 #[component]
