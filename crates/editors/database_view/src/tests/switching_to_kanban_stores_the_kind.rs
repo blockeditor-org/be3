@@ -2,11 +2,14 @@ use super::*;
 
 #[test]
 fn switching_to_kanban_stores_the_kind() {
-    let (mut editor, block, _, _) = editor();
+    let mut fixture = text_editor();
 
-    editor.find("database-view.kind.Kanban").click();
-    editor.run();
+    fixture.test.click("database-view.kind.Kanban");
+    fixture.test.run();
 
-    assert_eq!(block.read().unwrap().kind(), DatabaseViewKind::Kanban);
-    editor.snapshot("switching_to_kanban_stores_the_kind");
+    assert_eq!(
+        fixture.view.read().unwrap().kind(),
+        DatabaseViewKind::Kanban
+    );
+    fixture.test.snapshot("switching_to_kanban_stores_the_kind");
 }

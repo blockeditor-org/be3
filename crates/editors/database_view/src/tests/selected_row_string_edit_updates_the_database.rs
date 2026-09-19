@@ -2,23 +2,25 @@ use super::*;
 
 #[test]
 fn selected_row_string_edit_updates_the_database() {
-    let (mut editor, _, database, field_id) = editor();
+    let mut fixture = text_editor();
+    let field_id = fixture.fields[0];
 
-    editor
-        .find(&format!("database-view.cell.0.{field_id}"))
-        .click();
-    editor.run();
-    editor
-        .find(&format!("database-view.selected-item.field.{field_id}"))
-        .click();
-    editor
-        .find(&format!("database-view.selected-item.field.{field_id}"))
-        .type_text("alpha");
-    editor.run();
+    fixture
+        .test
+        .click(&format!("database-view.cell.0.{field_id}"));
+    fixture.test.run();
+    fixture
+        .test
+        .click(&format!("database-view.selected-item.field.{field_id}"));
+    fixture.test.text("alpha");
+    fixture.test.run();
+    fixture.test.run();
 
     assert_eq!(
-        database.read().unwrap().rows()[0].value(field_id),
+        fixture.database.read().unwrap().rows()[0].value(field_id),
         Some(&DatabaseValue::String("alpha".to_owned()))
     );
-    editor.snapshot("selected_row_string_edit_updates_the_database");
+    fixture
+        .test
+        .snapshot("selected_row_string_edit_updates_the_database");
 }
