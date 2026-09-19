@@ -305,6 +305,7 @@ pub(crate) struct Fonts {
     icons: Vec<usize>,
     glyphs: HashMap<GlyphId, Rc<GlyphImage>>,
     galleys: HashMap<u64, Vec<(GalleyKey, Galley)>>,
+    cooling: HashMap<u64, Vec<(GalleyKey, Galley)>>,
     cached_galleys: usize,
 }
 
@@ -320,6 +321,7 @@ impl Fonts {
             icons: Vec::new(),
             glyphs: HashMap::new(),
             galleys: HashMap::new(),
+            cooling: HashMap::new(),
             cached_galleys: 0,
         };
         if opened {
@@ -394,16 +396,12 @@ impl Fonts {
         let bits = wrap.to_bits();
         let scale = pixels_per_point.to_bits();
         let hash = galley_hash(text, pixel_size, font.family, bits, scale);
-        if let Some(bucket) = self.galleys.get(&hash)
-            && let Some((_, galley)) = bucket
-                .iter()
-                .find(|(key, _)| key.matches(text, pixel_size, font.family, bits, scale))
-        {
-            return galley.clone();
+        if let Some(galley) = self.remembered(hash, text, pixel_size, font.family, bits, scale) {
+            return galley;
         }
         let galley = self.build(text, font.family, pixel_size, wrap, pixels_per_point);
         if self.cached_galleys >= GALLEY_CACHE_LIMIT {
-            self.galleys.clear();
+            self.cooling = std::mem::take(&mut self.galleys);
             self.cached_galleys = 0;
         }
         let key = GalleyKey {
@@ -413,12 +411,38 @@ impl Fonts {
             wrap: bits,
             scale,
         };
-        self.galleys
-            .entry(hash)
-            .or_default()
-            .push((key, galley.clone()));
-        self.cached_galleys += 1;
+        self.remember(hash, key, galley.clone());
         galley
+    }
+
+    fn remembered(
+        &mut self,
+        hash: u64,
+        text: &str,
+        size: u32,
+        family: FontFamily,
+        wrap: u32,
+        scale: u32,
+    ) -> Option<Galley> {
+        if let Some(bucket) = self.galleys.get(&hash)
+            && let Some((_, galley)) = bucket
+                .iter()
+                .find(|(key, _)| key.matches(text, size, family, wrap, scale))
+        {
+            return Some(galley.clone());
+        }
+        let bucket = self.cooling.get_mut(&hash)?;
+        let found = bucket
+            .iter()
+            .position(|(key, _)| key.matches(text, size, family, wrap, scale))?;
+        let (key, galley) = bucket.swap_remove(found);
+        self.remember(hash, key, galley.clone());
+        Some(galley)
+    }
+
+    fn remember(&mut self, hash: u64, key: GalleyKey, galley: Galley) {
+        self.galleys.entry(hash).or_default().push((key, galley));
+        self.cached_galleys += 1;
     }
 
     fn build(
