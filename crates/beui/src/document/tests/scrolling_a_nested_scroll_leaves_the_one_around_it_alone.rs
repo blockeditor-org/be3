@@ -1,6 +1,6 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ItemSize, Scroll, view};
+use crate::reactive::{ItemSize, List, Scroll, view};
 
 #[test]
 fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
@@ -12,9 +12,9 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
         }];
         items.extend(rows(20));
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer" children={items} />
-            </Column>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

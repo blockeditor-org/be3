@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, Column, ForEach, NodeRef, Text, build, create_signal, view};
+use crate::reactive::{Button, ForEach, List, NodeRef, Text, build, create_signal, view};
 
 #[test]
 fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {
@@ -9,18 +9,18 @@ fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {
         move || {
             let (items, set_items) = create_signal(vec![1i64, 2, 3]);
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Button @node_ref=&shuffle on_click={move || set_items.set(vec![3, 2, 4])}>
                         <Text string="shuffle" />
                     </Button>
-                    <Column @node_ref=&list spacing=0.0>
+                    <List @node_ref=&list spacing=0.0>
                         <ForEach keys={items}>
                             {|value: i64| view! {
                                 <Text string={value.to_string()} />
                             }}
                         </ForEach>
-                    </Column>
-                </Column>
+                    </List>
+                </List>
             }
         }
     });

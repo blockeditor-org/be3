@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, Row, build, view};
+use crate::reactive::{Direction, Frame, List, build, view};
 
 #[test]
 fn a_fragment_sits_beside_the_children_written_around_it() {
@@ -18,11 +18,11 @@ fn a_fragment_sits_beside_the_children_written_around_it() {
                 <Frame @node_ref=&third width=30.0 />
             };
             view! {
-                <Row spacing=0.0>
+                <List direction=Direction::Horizontal spacing=0.0>
                     <Frame @node_ref=&first width=10.0 />
                     {middle}
                     <Frame @node_ref=&fourth width=40.0 />
-                </Row>
+                </List>
             }
         }
     });

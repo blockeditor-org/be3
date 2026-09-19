@@ -2,7 +2,7 @@ use block_client::blocks::counter::{Counter as CounterBlock, CounterOperation};
 use block_editor_plugin::Editor;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, Frame, ItemSize, clone, component, create_memo, view,
+    Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Display, use_theme};
 
@@ -20,9 +20,9 @@ pub fn Counter(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
-            <Column spacing=16.0>
+            <List spacing=16.0>
                 <Display content={shown} @test_id={"counter.value"} />
-                <CenteredRow spacing=10.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                     <Button
                         @sizing=ItemSize::Fixed(BUTTON_WIDTH)
                         label="-"
@@ -43,8 +43,8 @@ pub fn Counter(editor: Editor) -> NodeId {
                         @test_id={"counter.reset"}
                         on_click={reset}
                     />
-                </CenteredRow>
-            </Column>
+                </List>
+            </List>
         </Frame>
     }
 }

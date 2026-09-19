@@ -4,11 +4,10 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-pub use crate::base::ItemSize;
+pub use crate::base::{Align, Direction, ItemSize};
 
 use crate::base::child_list::SlotId;
 use crate::base::list::ListItem;
-use crate::base::{Align, Direction};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{ClickHandler, Handler, NodeId};
@@ -1006,27 +1005,6 @@ pub fn List(
     create_effect(move || with_document(|document| document.set_list_spacing(list, spacing.get())));
     children.mount(list);
     list
-}
-
-#[component]
-pub fn Row(spacing: Prop<f32>, children: Children<ListChild>) -> NodeId {
-    view! {
-        <List direction=Direction::Horizontal spacing children />
-    }
-}
-
-#[component]
-pub fn Column(spacing: Prop<f32>, children: Children<ListChild>) -> NodeId {
-    view! {
-        <List direction=Direction::Vertical spacing children />
-    }
-}
-
-#[component]
-pub fn CenteredRow(spacing: Prop<f32>, children: Children<ListChild>) -> NodeId {
-    view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing children />
-    }
 }
 
 #[component]

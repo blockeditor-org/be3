@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{Show, WriteSignal, create_memo, create_signal, view, with_reactive_scope};
+use crate::reactive::{
+    List, Show, WriteSignal, create_memo, create_signal, view, with_reactive_scope,
+};
 
 const FIRST: f32 = 60.0;
 const SECOND: f32 = 90.0;
@@ -15,14 +17,14 @@ fn switching_a_show_damages_both_panels() {
         let first = create_memo(move || !showing.get());
         let second = create_memo(move || second.get());
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Show condition={first}>
                     <Frame height={FIRST} color=Color32::WHITE radius=0 />
                 </Show>
                 <Show condition={second}>
                     <Frame height={SECOND} color={Color32::from_gray(40)} radius=0 />
                 </Show>
-            </Column>
+            </List>
         }
     });
     let set_second = taken.take().expect("the view published its signal");

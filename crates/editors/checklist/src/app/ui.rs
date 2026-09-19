@@ -4,7 +4,7 @@ use block_client::blocks::checklist::{
     Checklist as ChecklistBlock, ChecklistItem, ChecklistOperation,
 };
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, ForEach, Frame, ItemSize, KeyedStore, Scroll, Show, WriteSignal, clone,
+    Align, Direction, ForEach, Frame, ItemSize, KeyedStore, List, Scroll, Show, WriteSignal, clone,
     component, create_memo, create_selector, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
@@ -103,15 +103,15 @@ pub fn Checklist(editor: Editor) -> NodeId {
             padding_horizontal=PAGE_PADDING
             padding_vertical=PAGE_PADDING
         >
-            <Column spacing=SECTION_SPACING>
-                <Column spacing=6.0>
+            <List spacing=SECTION_SPACING>
+                <List spacing=6.0>
                     <Heading content="Checklist" />
                     <Caption content={summary} />
                     <Progress value={progress} label="Checklist completion" />
-                </Column>
+                </List>
                 <Card>
-                    <Column spacing=12.0>
-                        <CenteredRow spacing=10.0>
+                    <List spacing=12.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                             <TextInput
                                 @sizing=ItemSize::Percent(100.0)
                                 value={draft}
@@ -131,9 +131,14 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                     add_item(&add_checklist, &add_set_draft, add_draft.get());
                                 }}
                             />
-                        </CenteredRow>
-                        <CenteredRow spacing=10.0>
-                            <CenteredRow @sizing=ItemSize::Percent(100.0) spacing=6.0>
+                        </List>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                            <List
+                                @sizing=ItemSize::Percent(100.0)
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=6.0
+                            >
                                 <ToggleButton
                                     label="All"
                                     pressed={selected_filter.memo(Filter::All)}
@@ -152,7 +157,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                     @test_id={"checklist.filter.done"}
                                     on_change={move |_| set_done_filter.set(Filter::Done)}
                                 />
-                            </CenteredRow>
+                            </List>
                             <Button
                                 label="Clear completed"
                                 variant=ButtonVariant::Secondary
@@ -162,22 +167,22 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                     clear_checklist.operate(ChecklistOperation::ClearDone);
                                 }}
                             />
-                        </CenteredRow>
-                    </Column>
+                        </List>
+                    </List>
                 </Card>
                 <Card @sizing=ItemSize::Percent(100.0)>
-                    <Column spacing=10.0>
+                    <List spacing=10.0>
                         <Show condition={empty}>
                             <Body content="No tasks match this view." align=TextAlign::Center />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                            <Column spacing=8.0>
+                            <List spacing=8.0>
                                 <ForEach keys={visible} view={rows} />
-                            </Column>
+                            </List>
                         </Scroll>
-                    </Column>
+                    </List>
                 </Card>
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -205,7 +210,7 @@ fn ChecklistRow(checklist: List, items: Items, id: Uuid) -> NodeId {
             padding_horizontal=12.0
             padding_vertical=10.0
         >
-            <CenteredRow spacing=10.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)
                     label={label}
@@ -221,7 +226,7 @@ fn ChecklistRow(checklist: List, items: Items, id: Uuid) -> NodeId {
                     @test_id={format!("checklist.item.{id}.remove")}
                     on_click={move || checklist.operate(ChecklistOperation::Remove { id })}
                 />
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }

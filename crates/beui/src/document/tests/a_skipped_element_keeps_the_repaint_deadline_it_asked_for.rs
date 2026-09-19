@@ -10,7 +10,7 @@ fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
         let (panel, text) = (panel.clone(), text.clone());
         move || {
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Frame @node_ref=&panel height={PANEL_HEIGHT} color=Color32::WHITE radius=0 />
                     <Text
                         @node_ref=&text
@@ -19,7 +19,7 @@ fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
                         color=Color32::WHITE
                         caret=Some(0)
                     />
-                </Column>
+                </List>
             }
         }
     });

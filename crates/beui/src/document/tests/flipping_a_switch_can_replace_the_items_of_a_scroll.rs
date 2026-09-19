@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, NodeRef, build, create_memo, create_signal, view};
+use crate::reactive::{ItemSize, List, NodeRef, build, create_memo, create_signal, view};
 use crate::styled::Switch;
 
 #[test]
@@ -25,7 +25,7 @@ fn check_compact_rows(inset: f32) {
             });
             let row_height = item_height.clone();
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Switch
                         @node_ref=&switch
                         on=false
@@ -47,7 +47,7 @@ fn check_compact_rows(inset: f32) {
                             }
                         }}
                     </VirtualList>
-                </Column>
+                </List>
             }
         }
     });

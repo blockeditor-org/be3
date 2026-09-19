@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Column, Dynamic, Frame, NodeRef, Scroll, build, create_signal, view};
+use crate::reactive::{Dynamic, Frame, List, NodeRef, Scroll, build, create_signal, view};
 
 #[test]
 fn a_dynamic_child_can_fill_its_available_height() {
@@ -10,22 +10,22 @@ fn a_dynamic_child_can_fill_its_available_height() {
             let (state, _) = create_signal(false);
             view! {
                 <Frame>
-                    <Column spacing=0.0>
+                    <List spacing=0.0>
                         <Dynamic value={state}>
                             {move |_: bool| {
                                 let scroll = scroll.clone();
                                 view! {
-                                    <Column @sizing=ItemSize::Percent(100.0) spacing=10.0>
+                                    <List @sizing=ItemSize::Percent(100.0) spacing=10.0>
                                         <Frame height=20.0 />
                                         <Scroll
                                             @sizing=ItemSize::Percent(100.0)
                                             @node_ref=&scroll
                                         />
-                                    </Column>
+                                    </List>
                                 }
                             }}
                         </Dynamic>
-                    </Column>
+                    </List>
                 </Frame>
             }
         }

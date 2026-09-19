@@ -2,7 +2,7 @@ use block::Block;
 use block_client::blocks::compiled_logic::CompiledLogic;
 use block_client::blocks::logic_grid::LogicGrid;
 use block_editor_plugin::beui::reactive::{
-    Column, ForEach, Frame, ItemSize, ReadSignal, Scroll, Show, Text, clone, component,
+    ForEach, Frame, ItemSize, List, ReadSignal, Scroll, Show, Text, clone, component,
     create_effect, create_memo, view,
 };
 use block_editor_plugin::beui::styled::theme::FONT_SMALL;
@@ -59,10 +59,10 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                    <Column spacing=SECTION_SPACING>
-                        <Column spacing=6.0>
+                    <List spacing=SECTION_SPACING>
+                        <List spacing=6.0>
                             <Heading content="Compiled from" />
                             <BlockLink
                                 editor={source_editor}
@@ -70,28 +70,28 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
                                 @test_id={"compiled-logic.source"}
                             />
                             <Caption content={summary} />
-                        </Column>
+                        </List>
                         <Separator />
-                        <Column spacing=6.0>
+                        <List spacing=6.0>
                             <Heading content="Ports" />
                             <Lines lines={ports} />
-                        </Column>
+                        </List>
                         <Separator />
-                        <Column spacing=6.0>
+                        <List spacing=6.0>
                             <Heading content="Calls" />
                             <Show condition={no_calls}>
                                 <Caption content="This component calls nothing else." />
                             </Show>
                             <Calls editor={editor} calls={calls} />
-                        </Column>
+                        </List>
                         <Separator />
-                        <Column spacing=6.0>
+                        <List spacing=6.0>
                             <Heading content="Program" />
                             <Lines lines={program} monospace=true />
-                        </Column>
-                    </Column>
+                        </List>
+                    </List>
                 </Scroll>
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -100,7 +100,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
 fn Calls(editor: Editor, calls: ReadSignal<Vec<Uuid>>) -> NodeId {
     let keys = create_memo(clone!(calls -> move || calls.get()));
     view! {
-        <Column spacing=4.0>
+        <List spacing=4.0>
             <ForEach keys={keys}>
                 {move |called: Uuid| {
                     let block = Some(ChildTarget::new(called, CompiledLogic::TYPE_ID));
@@ -113,7 +113,7 @@ fn Calls(editor: Editor, calls: ReadSignal<Vec<Uuid>>) -> NodeId {
                     }
                 }}
             </ForEach>
-        </Column>
+        </List>
     }
 }
 
@@ -123,7 +123,7 @@ fn Lines(lines: ReadSignal<Vec<String>>, #[prop(default = false)] monospace: boo
         create_memo(clone!(lines -> move || (0..lines.with(Vec::len)).collect::<Vec<usize>>()));
     let theme = use_theme();
     view! {
-        <Column spacing=2.0>
+        <List spacing=2.0>
             <ForEach keys={keys}>
                 {move |index: usize| {
                     let line = create_memo(clone!(lines -> move || {
@@ -139,7 +139,7 @@ fn Lines(lines: ReadSignal<Vec<String>>, #[prop(default = false)] monospace: boo
                     }
                 }}
             </ForEach>
-        </Column>
+        </List>
     }
 }
 

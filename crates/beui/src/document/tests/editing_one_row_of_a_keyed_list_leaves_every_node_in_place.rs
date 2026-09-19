@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, Column, ForEach, KeyedStore, NodeRef, Text, build, view};
+use crate::reactive::{Button, ForEach, KeyedStore, List, NodeRef, Text, build, view};
 
 #[test]
 fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
@@ -12,7 +12,7 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
             let clicked = store.clone();
             let rows = store.clone();
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Button
                         @node_ref=&edit
                         on_click={move || {
@@ -24,7 +24,7 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
                     >
                         <Text string="edit" />
                     </Button>
-                    <Column @node_ref=&list spacing=0.0>
+                    <List @node_ref=&list spacing=0.0>
                         <ForEach keys={store.keys()}>
                             {move |index: u32| {
                                 let item = rows.get(&index);
@@ -33,8 +33,8 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
                                 }
                             }}
                         </ForEach>
-                    </Column>
-                </Column>
+                    </List>
+                </List>
             }
         }
     });

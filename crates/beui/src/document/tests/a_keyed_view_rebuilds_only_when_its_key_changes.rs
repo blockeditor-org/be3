@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::{
-    Button, Column, Keyed, NodeRef, ReadSignal, Row, Text, build, create_memo, create_signal, view,
+    Button, Direction, Keyed, List, NodeRef, ReadSignal, Text, build, create_memo, create_signal,
+    view,
 };
 
 #[test]
@@ -12,8 +13,8 @@ fn a_keyed_view_rebuilds_only_when_its_key_changes() {
             let (state, set_state) = create_signal((0u32, "first".to_owned()));
             let edit = set_state.clone();
             view! {
-                <Column spacing=0.0>
-                    <Row spacing=0.0>
+                <List spacing=0.0>
+                    <List direction=Direction::Horizontal spacing=0.0>
                         <Button
                             @node_ref=&retitle
                             on_click={move || edit.set((0, "second".to_owned()))}
@@ -26,8 +27,8 @@ fn a_keyed_view_rebuilds_only_when_its_key_changes() {
                         >
                             <Text string="reshape" />
                         </Button>
-                    </Row>
-                    <Column @node_ref=&holder spacing=0.0>
+                    </List>
+                    <List @node_ref=&holder spacing=0.0>
                         <Keyed value={state} key={|(shape, _): (u32, String)| shape}>
                             {|value: ReadSignal<(u32, String)>| {
                                 let label = create_memo(move || value.get().1);
@@ -36,8 +37,8 @@ fn a_keyed_view_rebuilds_only_when_its_key_changes() {
                                 }
                             }}
                         </Keyed>
-                    </Column>
-                </Column>
+                    </List>
+                </List>
             }
         }
     });

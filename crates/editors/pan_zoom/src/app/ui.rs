@@ -1,7 +1,7 @@
 use block_editor_plugin::Editor;
 use block_editor_plugin::beui::icons::ICON_LEFT_PANEL_OPEN;
 use block_editor_plugin::beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, Column, Frame, ItemSize, NodeRef, ReadSignal, Row, Show,
+    Canvas, CanvasItem, ClickCatcher, Direction, Frame, ItemSize, List, NodeRef, ReadSignal, Show,
     Text, WriteSignal, clone, component, create_memo, create_signal, intrinsic, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
@@ -109,7 +109,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let rail_open = set_open.clone();
 
     view! {
-        <Row spacing=0.0>
+        <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={panel_shown}>
                 <Sidebar
                     @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
@@ -129,7 +129,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                 selected={selected}
                 set_selected={set_selected}
             />
-        </Row>
+        </List>
     }
 }
 
@@ -169,7 +169,7 @@ fn Sidebar(
             padding_horizontal=PANEL_PADDING
             padding_vertical=PANEL_PADDING
         >
-            <Column spacing=PANEL_SPACING>
+            <List spacing=PANEL_SPACING>
                 <Text
                     string="Pan and Zoom"
                     font_size=HEADING_SIZE
@@ -182,7 +182,7 @@ fn Sidebar(
                     color={theme.text_muted.clone()}
                     @test_id={"pan_zoom.zoom"}
                 />
-                <Row spacing=6.0>
+                <List direction=Direction::Horizontal spacing=6.0>
                     <Button
                         label="-"
                         variant=ButtonVariant::Secondary
@@ -201,7 +201,7 @@ fn Sidebar(
                         on_click={fit}
                         @test_id={"pan_zoom.fit"}
                     />
-                </Row>
+                </List>
                 <Separator />
                 <Text
                     string={chosen}
@@ -209,7 +209,7 @@ fn Sidebar(
                     color={theme.text_muted.clone()}
                     @test_id={"pan_zoom.selected"}
                 />
-                <Column spacing=4.0 children={rows} />
+                <List spacing=4.0 children={rows} />
                 <Separator />
                 <Button
                     label="Hide sidebar"
@@ -217,7 +217,7 @@ fn Sidebar(
                     on_click={hide}
                     @test_id={"pan_zoom.hide_sidebar"}
                 />
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -245,7 +245,7 @@ fn Rail(set_open: WriteSignal<bool>) -> NodeId {
     let show = clone!(set_open -> move || set_open.set(true));
     view! {
         <Frame color={theme.surface.clone()} padding_horizontal=6.0 padding_vertical=PANEL_PADDING>
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <unstyled::Button on_click={show} @test_id={"pan_zoom.show_sidebar"}>
                     <Frame
                         color={theme.surface_raised.clone()}
@@ -256,7 +256,7 @@ fn Rail(set_open: WriteSignal<bool>) -> NodeId {
                         <Icon glyph={ICON_LEFT_PANEL_OPEN.to_owned()} color={theme.text.clone()} />
                     </Frame>
                 </unstyled::Button>
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -329,7 +329,7 @@ fn CardView(
                     padding_horizontal={padding.clone()}
                     padding_vertical={padding}
                 >
-                    <Column spacing={spacing}>
+                    <List spacing={spacing}>
                         <Text
                             string={card.name}
                             font_size={title_size}
@@ -340,7 +340,7 @@ fn CardView(
                             font_size={label_size}
                             color={theme.text_muted.clone()}
                         />
-                    </Column>
+                    </List>
                 </Frame>
             </ClickCatcher>
         </CanvasItem>

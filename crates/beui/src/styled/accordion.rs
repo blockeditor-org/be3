@@ -6,7 +6,7 @@ use crate::base::TextAlign;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, CenteredRow, Child, Frame, ItemSize, Memo, Prop, Text, clone, create_memo,
+    Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone, create_memo,
 };
 use crate::styled::theme::{FONT_HEADING, FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
@@ -63,7 +63,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
-            <CenteredRow spacing=SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame width=MARKER_WIDTH>
                     <Text
                         string={marker_glyph}
@@ -80,7 +80,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
                     color={title_color}
                     align=TextAlign::Start
                 />
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }

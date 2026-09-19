@@ -7,7 +7,7 @@ use block_client::blocks::settings::{ActivationCondition, Settings, SettingsOper
 use block_client::blocks::ui_settings::UiSettings;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, Frame, clone, component, create_memo, view,
+    Align, Direction, Frame, List, clone, component, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_plugin::{BlockProjection, Editor};
@@ -41,10 +41,10 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
-            <Column spacing=10.0>
+            <List spacing=10.0>
                 <Heading content="Settings" />
                 <Caption content="Settings this workspace resolves for every editor." />
-                <CenteredRow spacing=10.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                     <Button
                         label="UI settings"
                         variant=ButtonVariant::Primary
@@ -52,8 +52,8 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                         @test_id={"settings.ui-settings"}
                         on_click={open}
                     />
-                </CenteredRow>
-            </Column>
+                </List>
+            </List>
         </Frame>
     }
 }

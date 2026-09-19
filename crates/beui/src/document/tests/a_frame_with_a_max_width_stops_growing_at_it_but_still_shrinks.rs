@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, ItemSize, view};
+use crate::reactive::{Frame, ItemSize, List, view};
 
 const MAX_WIDTH: f32 = 220.0;
 const HEIGHT: f32 = 34.0;
@@ -14,13 +14,13 @@ fn a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks() {
 fn painted_width(container: f32) -> f32 {
     let document = build(move || {
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) width={container}>
-                    <Column spacing=0.0>
+                    <List spacing=0.0>
                         <Frame max_width=MAX_WIDTH height=HEIGHT color=FILL />
-                    </Column>
+                    </List>
                 </Frame>
-            </Column>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(700.0, 300.0));

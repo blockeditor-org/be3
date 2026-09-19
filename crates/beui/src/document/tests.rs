@@ -202,7 +202,7 @@ use crate::input::{TouchId, TouchPhase};
 use crate::base::list::{Direction, ItemSize};
 use crate::inspector::Inspector;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, Column, Frame, NodeRef, Spacer, Text, VirtualList, build,
+    Canvas, CanvasItem, ClickCallback, Frame, List, NodeRef, Spacer, Text, VirtualList, build,
     intrinsic, with_document,
 };
 use crate::styled;
@@ -652,7 +652,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId
         let scroll = scroll.clone();
         move || {
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <VirtualList
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
@@ -671,7 +671,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId
                             }
                         }}
                     </VirtualList>
-                </Column>
+                </List>
             }
         }
     });
@@ -690,11 +690,11 @@ pub(crate) fn hello_column() -> HelloColumn {
         let (padding, text) = (padding.clone(), text.clone());
         move || {
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Frame @node_ref=&padding padding_horizontal=4.0 padding_vertical=4.0>
                         <Text @node_ref=&text string="Hello" font_size=14.0 color=Color32::WHITE />
                     </Frame>
-                </Column>
+                </List>
             }
         }
     });
@@ -717,10 +717,10 @@ pub(crate) fn stacked_panels() -> StackedPanels {
         let (upper, lower) = (upper.clone(), lower.clone());
         move || {
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Frame @node_ref=&upper height=100.0 color=Color32::WHITE radius=0 />
                     <Frame @node_ref=&lower height=100.0 color={Color32::from_gray(40)} radius=0 />
-                </Column>
+                </List>
             }
         }
     });
@@ -760,7 +760,7 @@ pub(crate) fn toolbar_of<const N: usize>(
         let nodes = controls();
         sink.set(Some(nodes));
         view! {
-            <Column spacing=8.0 children={nodes.to_vec()} />
+            <List spacing=8.0 children={nodes.to_vec()} />
         }
     });
     let nodes = built.get().expect("the toolbar was built");

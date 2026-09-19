@@ -4,7 +4,9 @@ use beui_macros::{component, view};
 use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::node::NodeId;
-use crate::reactive::{CenteredRow, ClickCallback, Frame, Prop, Show, Text, clone, create_memo};
+use crate::reactive::{
+    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+};
 use crate::styled::text::IconSized;
 use crate::styled::theme::{FONT_BODY, ICON_SIZE, ThemeStore, use_theme};
 use crate::unstyled;
@@ -73,7 +75,7 @@ fn LinkFace(
             outline_offset=FOCUS_RING_OFFSET
             outline_visible={focused}
         >
-            <CenteredRow spacing=ICON_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                 <Show condition={has_glyph}>
                     <IconSized glyph={glyph_text} font_size={icon_size} color={icon_color} />
                 </Show>
@@ -84,7 +86,7 @@ fn LinkFace(
                     align=TextAlign::Start
                     underline={underlined}
                 />
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }

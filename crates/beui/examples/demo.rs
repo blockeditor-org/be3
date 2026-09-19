@@ -1,7 +1,7 @@
 use beui::icons::ICON_GRID_VIEW;
 use beui::reactive::{
-    Callback, Canvas, CanvasItem, CanvasView, CenteredRow, Column, Frame, Keyed, Memo, ReadSignal,
-    Row, Scroll, Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
+    Align, Callback, Canvas, CanvasItem, CanvasView, Frame, Keyed, List, Memo, ReadSignal, Scroll,
+    Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
     create_selector, create_signal, percent, view,
 };
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
@@ -204,7 +204,7 @@ fn ScrollRowFace(
             padding_horizontal=ROW_PADDING_HORIZONTAL
             padding_vertical={vertical}
         >
-            <CenteredRow spacing=12.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                 <Body @sizing=ItemSize::Percent(100.0) content={format!("Row {index}")} />
                 <Frame visible={timings}>
                     <Caption
@@ -213,7 +213,7 @@ fn ScrollRowFace(
                         color={value_color}
                     />
                 </Frame>
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }
@@ -229,11 +229,11 @@ fn DemoShell(count: ReadSignal<i64>, set_count: WriteSignal<i64>) -> NodeId {
         }
     });
     view! {
-        <Column spacing=0.0>
+        <List spacing=0.0>
             <DemoHeader @sizing={header_height} set_count />
             <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
             <DemoBody @sizing=ItemSize::Percent(100.0) count />
-        </Column>
+        </List>
     }
 }
 
@@ -253,13 +253,13 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.surface.clone()} padding_horizontal={horizontal}>
-            <CenteredRow spacing=10.0>
-                <CenteredRow spacing=10.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                     <Title content="beui" />
                     <Frame visible={wide}>
                         <Caption content="retained mode ui" />
                     </Frame>
-                </CenteredRow>
+                </List>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
                     label="Reset"
@@ -284,7 +284,7 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
                         set_count.update(|value| *value = value.saturating_add(1));
                     }}
                 />
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }
@@ -303,7 +303,7 @@ fn DemoBody(count: ReadSignal<i64>) -> NodeId {
     let cramped = create_memo(move || narrow.get() || short.get());
     view! {
         <Frame padding_horizontal={padding.clone()} padding_vertical={padding}>
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Keyed value={cramped} key={|cramped: bool| cramped}>
                     {move |value: ReadSignal<bool>| {
                         let (cramped, count) = (value.get_untracked(), count.clone());
@@ -312,7 +312,7 @@ fn DemoBody(count: ReadSignal<i64>) -> NodeId {
                         }, 100.0)
                     }}
                 </Keyed>
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -326,7 +326,7 @@ fn DemoPanels(cramped: bool, count: ReadSignal<i64>) -> NodeId {
     }
     let (position, set_position) = create_signal(ScrollPosition::ZERO);
     view! {
-        <Row spacing=PAGE_SCROLLBAR_SPACING>
+        <List direction=Direction::Horizontal spacing=PAGE_SCROLLBAR_SPACING>
             <Scroll
                 @sizing=ItemSize::Percent(100.0)
                 on_change={move |value| set_position.set(value)}
@@ -334,7 +334,7 @@ fn DemoPanels(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                 <DemoPanelStack cramped count />
             </Scroll>
             <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
-        </Row>
+        </List>
     }
 }
 
@@ -355,7 +355,7 @@ fn Sidebar() -> NodeId {
     let keyboard_open = open.clone();
     view! {
         <Card>
-            <Column spacing=12.0>
+            <List spacing=12.0>
                 <Accordion title="About" open>
                     <Paragraph
                         content="beui keeps a retained tree of nodes. Base nodes carry behaviour only, unstyled \
@@ -364,7 +364,7 @@ fn Sidebar() -> NodeId {
                 </Accordion>
                 <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                 <Accordion title="Keyboard" open={keyboard_open}>
-                    <Column spacing=12.0>
+                    <List spacing=12.0>
                         <Shortcut keys="Tab" description="move focus to the next control" />
                         <Shortcut keys="Shift+Tab" description="move focus back" />
                         <Shortcut keys="Enter" description="activate the focused control" />
@@ -376,9 +376,9 @@ fn Sidebar() -> NodeId {
                         <Shortcut keys="Ctrl+Z" description="undo an edit in a text field" />
                         <Shortcut keys="Ctrl+Shift+I" description="open the inspector" />
                         <Shortcut keys="Ctrl+Shift+C" description="pick a node to inspect" />
-                    </Column>
+                    </List>
                 </Accordion>
-            </Column>
+            </List>
         </Card>
     }
 }
@@ -404,9 +404,9 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
     };
 
     view! {
-        <Column spacing=20.0>
+        <List spacing=20.0>
             <Card>
-                <Column spacing=4.0>
+                <List spacing=4.0>
                     <Caption content="Counter" />
                     <Display
                         content={create_memo(clone!(count -> move || count.get().to_string()))}
@@ -414,22 +414,26 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                     <Paragraph
                         content="Click the header buttons, or focus one with Tab and press Enter."
                     />
-                </Column>
+                </List>
             </Card>
             <Controls rows={rows.clone()} />
             <CanvasCard @sizing=ItemSize::Fixed(STAGE_HEIGHT) />
             <Card @sizing={rows_size}>
-                <Column spacing=12.0>
-                    <CenteredRow spacing=12.0>
+                <List spacing=12.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                         <Heading content={format!("Rows ({ROW_COUNT})")} />
                         <Caption
                             @sizing=ItemSize::Percent(100.0)
                             content={status_text}
                             align=TextAlign::End
                         />
-                    </CenteredRow>
+                    </List>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Row @sizing=ItemSize::Percent(100.0) spacing=10.0>
+                    <List
+                        @sizing=ItemSize::Percent(100.0)
+                        direction=Direction::Horizontal
+                        spacing=10.0
+                    >
                         <VirtualList
                             @sizing=ItemSize::Percent(100.0)
                             count=ROW_COUNT
@@ -449,10 +453,10 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                             @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
                             position={scroll_position}
                         />
-                    </Row>
-                </Column>
+                    </List>
+                </List>
             </Card>
-        </Column>
+        </List>
     }
 }
 
@@ -468,8 +472,8 @@ fn CanvasCard() -> NodeId {
 
     view! {
         <Card>
-            <Column spacing=12.0>
-                <CenteredRow spacing=12.0>
+            <List spacing=12.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                     <Heading @sizing=ItemSize::Percent(100.0) content="Canvas" />
                     <Caption content={zoom_label} />
                     <Button
@@ -489,7 +493,7 @@ fn CanvasCard() -> NodeId {
                         variant=ButtonVariant::Secondary
                         on_click={move || set_stage_view.set(STAGE_VIEW)}
                     />
-                </CenteredRow>
+                </List>
                 <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                 <CanvasStage
                     @sizing=ItemSize::Percent(100.0)
@@ -501,7 +505,7 @@ fn CanvasCard() -> NodeId {
                     content="Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom, \
                      and drag with the middle button. Tab to it for arrows, + and -."
                 />
-            </Column>
+            </List>
         </Card>
     }
 }
@@ -598,7 +602,7 @@ fn ControlPanels(rows: Rows) -> NodeId {
     let list_rows = rows.clone();
 
     view! {
-        <Column spacing=16.0>
+        <List spacing=16.0>
             <ResponsiveTabs
                 labels={vec!["List".to_string(), "Strip".to_string(), "Load".to_string(), "Name".to_string(), "Links".to_string(), "Choices".to_string(), "Menus".to_string(), "Tree".to_string()]}
                 selected=0
@@ -607,7 +611,7 @@ fn ControlPanels(rows: Rows) -> NodeId {
                     set_selected_tab.set(selected);
                 }}
             />
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Show condition={tab.memo(0)}>
                     <ListControls rows=list_rows />
                 </Show>
@@ -632,8 +636,8 @@ fn ControlPanels(rows: Rows) -> NodeId {
                 <Show condition={tab.memo(7)}>
                     <TreeControls />
                 </Show>
-            </Column>
-        </Column>
+            </List>
+        </List>
     }
 }
 
@@ -642,7 +646,7 @@ fn ListControls(rows: Rows) -> NodeId {
     let timing_rows = rows.clone();
     let compact_rows = rows.clone();
     view! {
-        <Column spacing=12.0>
+        <List spacing=12.0>
             <Checkbox
                 label="Show timings"
                 checked=true
@@ -650,11 +654,11 @@ fn ListControls(rows: Rows) -> NodeId {
                     timing_rows.show_timings(checked);
                 }}
             />
-            <CenteredRow spacing=12.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                 <Switch on=false on_change={move |on| compact_rows.set_compact(on)} />
                 <Body @sizing=ItemSize::Percent(100.0) content="Compact rows" />
-            </CenteredRow>
-        </Column>
+            </List>
+        </List>
     }
 }
 
@@ -664,7 +668,7 @@ fn StripControls() -> NodeId {
     let theme = use_theme();
 
     view! {
-        <Column spacing=12.0>
+        <List spacing=12.0>
             <Paragraph
                 content="A horizontal list scrolls with Shift+scroll, a sideways trackpad swipe, \
                  a touch drag, or the arrow keys once something in it has focus."
@@ -686,7 +690,7 @@ fn StripControls() -> NodeId {
                 direction=Direction::Horizontal
                 position={position}
             />
-        </Column>
+        </List>
     }
 }
 
@@ -718,15 +722,15 @@ fn LoadControls() -> NodeId {
     let zoom_readout = zoom.clone();
 
     view! {
-        <Column spacing=12.0>
-            <CenteredRow spacing=12.0>
+        <List spacing=12.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                 <Caption content="Simulated load" />
                 <Caption
                     @sizing=ItemSize::Percent(100.0)
                     content={create_memo(move || percent_label(readout_value.get()))}
                     align=TextAlign::End
                 />
-            </CenteredRow>
+            </List>
             <Slider
                 value=0.4
                 on_change={move |value| {
@@ -734,14 +738,14 @@ fn LoadControls() -> NodeId {
                 }}
             />
             <Progress value={progress_value} />
-            <CenteredRow spacing=12.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                 <Caption content="Zoom" />
                 <Caption
                     @sizing=ItemSize::Percent(100.0)
                     content={create_memo(move || format!("{:.2}x", zoom_readout.get()))}
                     align=TextAlign::End
                 />
-            </CenteredRow>
+            </List>
             <Slider
                 value={zoom}
                 min=ZOOM_MIN
@@ -749,7 +753,7 @@ fn LoadControls() -> NodeId {
                 label="Zoom"
                 on_change={move |value| set_zoom.set(value)}
             />
-        </Column>
+        </List>
     }
 }
 
@@ -759,12 +763,12 @@ fn LinkControls() -> NodeId {
     let set_docs = set_followed.clone();
 
     view! {
-        <Column spacing=12.0>
+        <List spacing=12.0>
             <Paragraph
                 content="A link reads as a link rather than a button, underlines itself while \
                  hovered or focused, and takes Space or Enter like any other control."
             />
-            <CenteredRow spacing=16.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
                 <Link
                     label="Open the grid"
                     glyph={ICON_GRID_VIEW.to_owned()}
@@ -776,9 +780,9 @@ fn LinkControls() -> NodeId {
                 />
                 <Link label="Unavailable" disabled=true />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-            </CenteredRow>
+            </List>
             <Caption content={followed} />
-        </Column>
+        </List>
     }
 }
 
@@ -787,15 +791,15 @@ fn NameControls() -> NodeId {
     let (greeting_text, set_greeting_text) = create_signal(greeting_label(""));
 
     view! {
-        <Column spacing=12.0>
-            <CenteredRow spacing=12.0>
+        <List spacing=12.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                 <Caption content="Display name" />
                 <Caption
                     @sizing=ItemSize::Percent(100.0)
                     content={greeting_text}
                     align=TextAlign::End
                 />
-            </CenteredRow>
+            </List>
             <TextInput
                 value=String::new()
                 placeholder="Type a name"
@@ -804,7 +808,7 @@ fn NameControls() -> NodeId {
                 }}
             />
             <Paragraph content="Click to place the caret, drag to select, and Ctrl+Z to undo." />
-        </Column>
+        </List>
     }
 }
 
@@ -830,7 +834,7 @@ fn ChoiceControls() -> NodeId {
 
     view! {
         <Stack spacing=20.0 breakpoint=CARD_NARROW_WIDTH>
-            <Column @sizing=ItemSize::Percent(50.0) spacing=8.0>
+            <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <Caption content="Update mode" />
                 <RadioGroup
                     labels={vec!["Automatic".to_string(), "Manual".to_string(), "Scheduled".to_string()]}
@@ -857,8 +861,8 @@ fn ChoiceControls() -> NodeId {
                     }}
                 />
                 <Caption content={pin_status_text} />
-            </Column>
-            <Column @sizing=ItemSize::Percent(50.0) spacing=8.0>
+            </List>
+            <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <Caption content="Highlight color (type to search)" />
                 <Listbox
                     labels={vec!["Amber".to_string(), "Blue".to_string(), "Green".to_string(), "Purple".to_string()]}
@@ -871,7 +875,7 @@ fn ChoiceControls() -> NodeId {
                     }}
                 />
                 <Caption content={color_status_text} />
-            </Column>
+            </List>
         </Stack>
     }
 }
@@ -888,7 +892,7 @@ fn TreeControls() -> NodeId {
     let expansion = collapsed.clone();
 
     view! {
-        <Column spacing=8.0>
+        <List spacing=8.0>
             <Caption
                 content="Arrow keys walk the tree; Enter or a click opens and closes a folder"
             />
@@ -911,7 +915,7 @@ fn TreeControls() -> NodeId {
                 }}
             </Tree>
             <Caption content={status_text} />
-        </Column>
+        </List>
     }
 }
 
@@ -971,7 +975,7 @@ fn MenuControls() -> NodeId {
 
     view! {
         <Stack spacing=20.0 breakpoint=CARD_NARROW_WIDTH>
-            <Column @sizing=ItemSize::Percent(50.0) spacing=8.0>
+            <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <Caption content="Favorite fruit (type to search)" />
                 <Select
                     options={fruits}
@@ -987,8 +991,8 @@ fn MenuControls() -> NodeId {
                     }}
                 />
                 <Caption content={fruit_status_text} />
-            </Column>
-            <Column @sizing=ItemSize::Percent(50.0) spacing=8.0>
+            </List>
+            <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <ContextMenu
                     items
                     on_select={move |path: Vec<usize>| {
@@ -1003,16 +1007,16 @@ fn MenuControls() -> NodeId {
                     }}
                 >
                     <Card>
-                        <Column spacing=4.0>
+                        <List spacing=4.0>
                             <Caption content="Right-click the card below" />
                             <Paragraph
                                 content="The Share item opens a submenu on hover or Right Arrow; Left Arrow closes it."
                             />
-                        </Column>
+                        </List>
                     </Card>
                 </ContextMenu>
                 <Caption content={menu_status_text} />
-            </Column>
+            </List>
         </Stack>
     }
 }

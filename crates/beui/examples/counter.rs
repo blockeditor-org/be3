@@ -1,5 +1,5 @@
 use beui::reactive::{
-    Button, Column, ForEach, KeyedStore, ReadSignal, Row, Show, Text, build, clone, component,
+    Button, Direction, ForEach, KeyedStore, List, ReadSignal, Show, Text, build, clone, component,
     create_memo, create_signal, view,
 };
 use beui::{App, Color32, Context, Document, NodeId, Rect};
@@ -76,8 +76,8 @@ fn App() -> NodeId {
     let count_text = create_memo(move || count.get().to_string());
 
     view! {
-        <Column spacing=8.0>
-            <Row spacing=8.0>
+        <List spacing=8.0>
+            <List direction=Direction::Horizontal spacing=8.0>
                 <Button disabled={is_zero} on_click={decrement_click}>
                     <Text string="-" />
                 </Button>
@@ -90,8 +90,8 @@ fn App() -> NodeId {
                         <Text string="reset" />
                     </Button>
                 </Show>
-            </Row>
-            <Column spacing=4.0>
+            </List>
+            <List spacing=4.0>
                 <ForEach keys={history.keys()}>
                     {move |id: u64| {
                         let value = history.get(&id);
@@ -100,8 +100,8 @@ fn App() -> NodeId {
                         }
                     }}
                 </ForEach>
-            </Column>
-        </Column>
+            </List>
+        </List>
     }
 }
 

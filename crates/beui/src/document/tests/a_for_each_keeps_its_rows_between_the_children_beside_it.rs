@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, ForEach, Frame, Row, Text, build, create_signal, view};
+use crate::reactive::{Button, Direction, ForEach, Frame, List, Text, build, create_signal, view};
 
 #[test]
 fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
@@ -9,7 +9,7 @@ fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
         move || {
             let (items, set_items) = create_signal(vec![1u32, 2]);
             view! {
-                <Row spacing=0.0>
+                <List direction=Direction::Horizontal spacing=0.0>
                     <Frame @node_ref=&lead width=10.0 />
                     <ForEach keys={items}>
                         {|value: u32| view! {
@@ -20,7 +20,7 @@ fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
                     <Button @node_ref=&add on_click={move || set_items.set(vec![1, 2, 3])}>
                         <Text string="add" />
                     </Button>
-                </Row>
+                </List>
             }
         }
     });

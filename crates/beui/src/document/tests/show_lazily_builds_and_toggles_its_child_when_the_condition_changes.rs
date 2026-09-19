@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, Column, NodeRef, Show, Text, build, create_signal, intrinsic, view};
+use crate::reactive::{Button, List, NodeRef, Show, Text, build, create_signal, intrinsic, view};
 
 #[test]
 fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
@@ -11,7 +11,7 @@ fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {
-                <Column @node_ref=&column spacing=0.0>
+                <List @node_ref=&column spacing=0.0>
                     <Button
                         @node_ref=&toggle
                         on_click={move || set_visible.update(|visible| *visible = !*visible)}
@@ -27,7 +27,7 @@ fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
                             })
                         }}
                     />
-                </Column>
+                </List>
             }
         }
     });

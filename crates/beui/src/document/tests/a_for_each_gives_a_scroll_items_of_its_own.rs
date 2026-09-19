@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    Button, Column, ForEach, Frame, ItemSize, Scroll, Text, build, create_signal, view,
+    Button, ForEach, Frame, ItemSize, List, Scroll, Text, build, create_signal, view,
 };
 
 const ROW_HEIGHT: f32 = 40.0;
@@ -13,7 +13,7 @@ fn a_for_each_gives_a_scroll_items_of_its_own() {
         move || {
             let (items, set_items) = create_signal(vec![1u32, 2]);
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Button @node_ref=&add on_click={move || set_items.set(vec![1, 2, 3])}>
                         <Text string="add" />
                     </Button>
@@ -24,7 +24,7 @@ fn a_for_each_gives_a_scroll_items_of_its_own() {
                             }}
                         </ForEach>
                     </Scroll>
-                </Column>
+                </List>
             }
         }
     });

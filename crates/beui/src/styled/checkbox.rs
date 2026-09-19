@@ -6,7 +6,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, CenteredRow, Frame, ItemSize, Prop, Spacer, Text, clone, create_memo,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Spacer, Text, clone, create_memo,
 };
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
@@ -57,7 +57,7 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
             outline_offset=FOCUS_RING_OFFSET
             outline_visible={focused}
         >
-            <CenteredRow spacing=SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
@@ -67,7 +67,7 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                     radius=CHIP_RADIUS
                     outline_visible={border_visible}
                 >
-                    <CenteredRow spacing=0.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Frame
                             visible={checked}
@@ -77,7 +77,7 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                             radius=MARK_RADIUS
                         />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </CenteredRow>
+                    </List>
                 </Frame>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
@@ -86,7 +86,7 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                     color={label_color}
                     align=TextAlign::Start
                 />
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }

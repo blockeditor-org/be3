@@ -1,10 +1,10 @@
 use super::*;
-use crate::reactive::{Column, Row, build, component, view};
+use crate::reactive::{Direction, List, build, component, view};
 
 #[component]
 fn Widget() -> NodeId {
     view! {
-        <Row spacing=0.0></Row>
+        <List direction=Direction::Horizontal spacing=0.0></List>
     }
 }
 
@@ -12,9 +12,9 @@ fn Widget() -> NodeId {
 fn a_component_function_returns_its_base_node() {
     let document = build(|| {
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Widget />
-            </Column>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

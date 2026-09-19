@@ -1,7 +1,6 @@
 use super::*;
 use crate::reactive::{
-    Button, Column, ForEach, Frame, ItemSize, NodeRef, Text, build, create_memo, create_signal,
-    view,
+    Button, ForEach, Frame, ItemSize, List, NodeRef, Text, build, create_memo, create_signal, view,
 };
 
 const SHORT_HEIGHT: f32 = 30.0;
@@ -20,7 +19,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
                 false => ItemSize::Fixed(SHORT_HEIGHT),
             });
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Button
                         @node_ref=&toggle
                         on_click={move || set_tall.update(|tall| *tall = !*tall)}
@@ -42,7 +41,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
                             }
                         }}
                     </ForEach>
-                </Column>
+                </List>
             }
         }
     });

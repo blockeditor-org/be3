@@ -5,7 +5,9 @@ use crate::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::reactive::Memo;
-use crate::reactive::{CenteredRow, Frame, ItemSize, Prop, Spacer, Text, clone, create_memo};
+use crate::reactive::{
+    Align, Direction, Frame, ItemSize, List, Prop, Spacer, Text, clone, create_memo,
+};
 use crate::styled::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::ChoiceOptionHandle;
@@ -67,10 +69,10 @@ fn ChoiceLabel(kind: Kind, label: String, color: Prop<Color32>, checked: Memo<bo
         };
     }
     view! {
-        <CenteredRow spacing=MARK_SPACING>
+        <List direction=Direction::Horizontal align=Align::Center spacing=MARK_SPACING>
             <RadioMark checked />
             <Text @sizing=ItemSize::Percent(100.0) string={label} font_size=FONT_BODY color align />
-        </CenteredRow>
+        </List>
     }
 }
 
@@ -87,7 +89,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
             radius=MARK_RADIUS
             outline_visible=true
         >
-            <CenteredRow spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Frame
                     visible={checked}
@@ -97,7 +99,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
                     radius=MARK_RADIUS
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }

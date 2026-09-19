@@ -65,10 +65,10 @@ returns:
 fn LabeledValue(label: Prop<String>, value: Prop<String>) -> NodeId {
     let text = create_memo(move || value.get());
     view! {
-        <Column spacing=4.0>
+        <List spacing=4.0>
             <Text string={label} />
             <Text string={text} />
-        </Column>
+        </List>
     }
 }
 ```
@@ -95,7 +95,7 @@ has no spacing of its own, why `@sizing` belongs on the rows rather than on the
 `ForEach`, and why `@test_id` and `@node_ref` on one of them panics: there is
 no node to name. Each needs a parent that keeps its children in slots - a
 list, a `Scroll` or a `Canvas` - so a single-child slot like `Frame`'s takes a
-`Column` around one.
+`List` around one.
 
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with
@@ -138,14 +138,14 @@ rows that stayed keep their nodes untouched, and only the bindings reading what
 actually changed run.
 
 ```rust
-<Column spacing=8.0>
+<List spacing=8.0>
     <ForEach keys={items.keys()}>
         {move |id: Uuid| {
             let item = items.get(&id);
-            view! { <Row item /> }
+            view! { <ItemRow item /> }
         }}
     </ForEach>
-</Column>
+</List>
 ```
 
 The kind of child a run builds is the kind its parent takes, and the parent is
@@ -211,14 +211,21 @@ sits on the same interaction behavior.
 Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
 
-The main base building blocks are `Row`, `Column`, `List`, `Frame`, `Text`,
-`Scroll`, and `VirtualList`; `Frame` combines optional sizing, an aspect ratio
-it centres its box within, padding, fill, outline, and visibility on one
-retained node. `Text` carries its own decoration too: `underline` is painted
-from the galley's baseline, so switching it on never moves anything. `Embed` reserves a rectangle for something outside the document —
-an editor the host composites behind the surface — publishing the rectangle and
-the clip it was laid out in through the `EmbedSlot` it was given and cutting
-that rectangle out of the surface so what is behind shows through. `punch=false`
+The main base building blocks are `List`, `Frame`, `Text`, `Scroll`, and
+`VirtualList`. `List` is the only box that arranges siblings: it takes a
+`direction`, which is vertical unless the tag says otherwise, an `align` for
+the cross axis, and `spacing`. Nothing wraps it, so a row is written
+`<List direction=Direction::Horizontal spacing=8.0>` and a row that centres its
+children adds `align=Align::Center`; a one-line alias per combination is what
+`Row`, `Column` and `CenteredRow` were, and reading the props beats remembering
+which names exist. `Frame` combines optional sizing, an aspect ratio it centres
+its box within, padding, fill, outline, and visibility on one retained node.
+`Text` carries its own decoration too: `underline` is painted from the galley's
+baseline, so switching it on never moves anything. `Embed` reserves a rectangle
+for something outside the document — an editor the host composites behind the
+surface — publishing the rectangle and the clip it was laid out in through the
+`EmbedSlot` it was given and cutting that rectangle out of the surface so what
+is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
 `Scroll` and `VirtualList` take a `direction`, so the same node is a column of
 rows or a strip of cards; a horizontal one answers Shift+wheel, a sideways
@@ -279,7 +286,7 @@ wgpu renderer. A standalone app builds its document once and implements
 
 ```rust
 use beui::reactive::{
-    Column, Frame, build, component, create_memo, create_signal, view,
+    Frame, List, build, component, create_memo, create_signal, view,
 };
 use beui::styled::{Button, ButtonVariant, Display, use_theme};
 use beui::{App, Color32, Context, Document, NodeId, Rect};
@@ -297,7 +304,7 @@ fn Counter() -> NodeId {
 
     view! {
         <Frame color={theme.background.clone()}>
-            <Column spacing=8.0>
+            <List spacing=8.0>
                 <Display content={label} />
                 <Button
                     label="Decrease"
@@ -309,7 +316,7 @@ fn Counter() -> NodeId {
                     variant=ButtonVariant::Primary
                     on_click={move || set_count.update(|value| *value += 1)}
                 />
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -442,12 +449,12 @@ namespace so a component can name its props whatever it likes:
 
 A children slot names the type of child it takes, which is what confines
 `@sizing` to a list. `children: Children<ListChild>` takes any number of
-children that each carry an `ItemSize`, and `Row`, `Column`, `CenteredRow`,
-`List` and `Stack` are written that way; `children: Children<NodeId>` takes any
+children that each carry an `ItemSize`, and `List` and `Stack` are written that
+way; `children: Children<NodeId>` takes any
 number of plain nodes, as `Scroll` does; `children: Children<CanvasItem>` takes
 only the items a `Canvas` can place; `children: Child` and
 `children: Option<Child>` take one node. A plain node converts into whatever a
-slot asks for that takes one, so `<Row><Text content="hi" /></Row>` needs no
+slot asks for that takes one, so `<List><Text content="hi" /></List>` needs no
 ceremony and a `Vec<NodeId>` handed to `children=` gets intrinsic sizing per
 item. Writing
 `@sizing` on the child of a slot that does not size its children is a compile
@@ -457,14 +464,13 @@ a hand-built `Vec<ListChild>` from `intrinsic`, `fixed`, `percent` or `size`.
 A slot holds its children in runs rather than one flat list, so a child can
 stand for none, one or many of them and change how many as it goes: that is how
 a fragment written among siblings takes the places between them, and how
-`Show`, `Dynamic`, `Keyed` and `ForEach` fill a parent they do not own. `Row`,
-`Column`, `List`, `Stack`, `Scroll` and `Canvas` all keep their children that
-way.
+`Show`, `Dynamic`, `Keyed` and `ForEach` fill a parent they do not own. `List`,
+`Stack`, `Scroll` and `Canvas` all keep their children that way.
 
 Use `Frame`'s `width` and `height` props to constrain a component's own size,
 `max_width` for a box that fills the room it is given but stops at a limit, and
-`@sizing` to describe how it participates among siblings in a `Row`, `Column`,
-or `List`. Say a width once: a `Frame` nested inside one that carries the width
+`@sizing` to describe how it participates among siblings in a `List`. Say a
+width once: a `Frame` nested inside one that carries the width
 is laid out within it, so the outer box is the only place the number belongs.
 `Container`, `narrower_than` and `shorter_than` provide container-responsive
 state; `unstyled::Stack` and `styled::Stack` switch between a row and a column

@@ -8,7 +8,7 @@ fn format_views_keeps_the_macro_body_on_its_own_lines() {
 
 fn nested() -> NodeId {
     view! {
-        <Tree row={|handle| view! { <Row handle /> }} />
+        <Tree row={|handle| view! { <TreeRow handle /> }} />
     }
 }
 "#;
@@ -25,7 +25,7 @@ fn nested() -> NodeId {
     view! {
         <Tree
             row={|handle| view! {
-                <Row handle />
+                <TreeRow handle />
             }}
         />
     }

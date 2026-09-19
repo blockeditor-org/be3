@@ -5,7 +5,7 @@ use crate::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::reactive::{
-    Callback, Child, Column, Focusable, NodeRef, Prop, ReadSignal, RenderFn, Selector, Show,
+    Callback, Child, Focusable, List, NodeRef, Prop, ReadSignal, RenderFn, Selector, Show,
     WriteSignal, clone, create_effect, create_memo, create_selector, create_signal, intrinsic,
     set_component_state,
 };
@@ -154,7 +154,7 @@ pub(crate) fn MenuList(
 
     let (key_state, blur_focus) = (state.clone(), focus);
     view! {
-        <Column spacing=0.0>
+        <List spacing=0.0>
             <Focusable
                 @node_ref={&state.root}
                 tab_stop={root_tab_stop}
@@ -166,8 +166,8 @@ pub(crate) fn MenuList(
                 }}
                 on_key={move |press: KeyPress| root_key(&key_state, press)}
             />
-            <Column spacing=2.0 children={lines} />
-        </Column>
+            <List spacing=2.0 children={lines} />
+        </List>
     }
 }
 
@@ -205,7 +205,7 @@ fn MenuRow(
         (state.clone(), state.clone(), state.clone(), state);
 
     view! {
-        <Column spacing=0.0>
+        <List spacing=0.0>
             <unstyled::Button
                 @node_ref=&button
                 tab_stop={focused.memo(Focus::Row(index))}
@@ -269,7 +269,7 @@ fn MenuRow(
                 })
                 }}
             </Show>
-        </Column>
+        </List>
     }
 }
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, NodeRef, Scroll, build, view};
+use crate::reactive::{ItemSize, List, NodeRef, Scroll, build, view};
 
 #[test]
 fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
@@ -14,9 +14,9 @@ fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
             })
             .collect::<Vec<_>>();
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
-            </Column>
+            </List>
         }
     });
     let scroll = scroll.get();

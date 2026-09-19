@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 
 use crate::node::NodeId;
 use crate::reactive::{
-    Frame, ItemSize, Prop, Row, Spacer, clone, component_accessibility, create_memo,
+    Direction, Frame, ItemSize, List, Prop, Spacer, clone, component_accessibility, create_memo,
 };
 use crate::styled::theme::use_theme;
 
@@ -33,10 +33,10 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
 
     view! {
         <Frame height=HEIGHT color={theme.track.clone()} radius=RADIUS>
-            <Row spacing=0.0>
+            <List direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing={filled} color={theme.accent.clone()} radius=RADIUS />
                 <Spacer @sizing={rest} />
-            </Row>
+            </List>
         </Frame>
     }
 }

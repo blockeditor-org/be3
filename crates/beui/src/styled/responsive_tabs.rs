@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Column, Prop, ReadSignal, Show, clone, create_effect, create_memo, create_signal,
+    Callback, List, Prop, ReadSignal, Show, clone, create_effect, create_memo, create_signal,
     intrinsic, set_component_state,
 };
 use crate::styled::theme::NARROW_WIDTH;
@@ -31,7 +31,7 @@ pub fn ResponsiveTabs(
     let tab_set = set_selected.clone();
 
     view! {
-        <Column spacing=0.0>
+        <List spacing=0.0>
             <Show
                 condition={wide}
                 then={move || intrinsic(view! {
@@ -60,7 +60,7 @@ pub fn ResponsiveTabs(
                     />
                 })}
             />
-        </Column>
+        </List>
     }
 }
 

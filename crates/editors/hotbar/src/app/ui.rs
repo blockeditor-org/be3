@@ -10,7 +10,7 @@ use block_client::references::ReferenceResolutionCache;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::{ICON_DELETE, ICON_FOLDER};
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, ForEach, Frame, ItemSize, Memo, Scroll, Show, Spacer, clone, component,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Scroll, Show, Spacer, clone, component,
     create_memo, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Body, Caption, Icon, IconButton, use_theme};
@@ -77,14 +77,14 @@ pub fn HotbarView(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
-            <Column spacing=ROW_SPACING>
+            <List spacing=ROW_SPACING>
                 <Show condition={empty}>
                     <Caption
                         content="Nothing is pinned yet. Compiling a grid pins the component it builds."
                     />
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                    <Column spacing=ROW_SPACING>
+                    <List spacing=ROW_SPACING>
                         <ForEach keys={keys}>
                             {move |index: usize| {
                                 let row = create_memo(clone!(rows -> move || {
@@ -102,9 +102,9 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                                 }
                             }}
                         </ForEach>
-                    </Column>
+                    </List>
                 </Scroll>
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -153,7 +153,7 @@ fn SlotRow(
     });
     let theme = use_theme();
     view! {
-        <CenteredRow spacing=8.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Spacer @sizing={indent} />
             <Show condition={is_folder.clone()}>
                 <Icon glyph={ICON_FOLDER.to_owned()} color={theme.text_muted.clone()} />
@@ -180,7 +180,7 @@ fn SlotRow(
                     on_click={unpin}
                 />
             </Show>
-        </CenteredRow>
+        </List>
     }
 }
 

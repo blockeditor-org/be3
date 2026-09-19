@@ -6,8 +6,8 @@ use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, CenteredRow, Frame, Func, ItemSize, Prop, RenderFn, Spacer, Text, clone, create_memo,
-    intrinsic, percent, size,
+    Align, Callback, Direction, Frame, Func, ItemSize, List, Prop, RenderFn, Spacer, Text, clone,
+    create_memo, intrinsic, percent, size,
 };
 use crate::styled::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
@@ -108,7 +108,12 @@ where
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
-            <CenteredRow spacing=SPACING children={cells} />
+            <List
+                direction=Direction::Horizontal
+                align=Align::Center
+                spacing=SPACING
+                children={cells}
+            />
         </Frame>
     }
 }

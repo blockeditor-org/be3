@@ -10,8 +10,8 @@ use crate::document::Document;
 use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Column, ForEach, Func, Memo, Prop, ReadSignal, RenderFn, Selector, WriteSignal,
-    clone, component_accessibility, create_effect, create_memo, create_selector, create_signal,
+    Callback, ForEach, Func, List, Memo, Prop, ReadSignal, RenderFn, Selector, WriteSignal, clone,
+    component_accessibility, create_effect, create_memo, create_selector, create_signal,
     on_cleanup, set_component_state, untrack, with_document,
 };
 use crate::unstyled;
@@ -110,7 +110,7 @@ where
     }));
 
     view! {
-        <Column spacing>
+        <List spacing>
             <ForEach keys>
                 {move |key: K| {
                     let item = create_memo(clone!(item key -> move || item.call(key.clone())));
@@ -131,7 +131,7 @@ where
                     }
                 }}
             </ForEach>
-        </Column>
+        </List>
     }
 }
 

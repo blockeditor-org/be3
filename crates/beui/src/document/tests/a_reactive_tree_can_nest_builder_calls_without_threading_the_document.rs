@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, Column, Row, Text, build, create_memo, create_signal, view};
+use crate::reactive::{Button, Direction, List, Text, build, create_memo, create_signal, view};
 
 #[test]
 fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
@@ -25,9 +25,12 @@ fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
         sink_value.set(Some(value_node));
         sink_increment.set(Some(increment_node));
         view! {
-            <Column spacing=8.0>
-                <Row spacing=8.0>{increment_node}{value_node}</Row>
-            </Column>
+            <List spacing=8.0>
+                <List direction=Direction::Horizontal spacing=8.0>
+                    {increment_node}
+                    {value_node}
+                </List>
+            </List>
         }
     });
 

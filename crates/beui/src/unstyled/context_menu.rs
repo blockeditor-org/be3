@@ -6,7 +6,7 @@ use crate::geometry::Pos2;
 use crate::input::{CursorIcon, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Child, ClickCatcher, Column, Dynamic, NodeRef, Prop, RenderFn, create_memo,
+    Callback, Child, ClickCatcher, Dynamic, List, NodeRef, Prop, RenderFn, create_memo,
     create_signal, set_component_state,
 };
 use crate::unstyled::menu::{MenuItem, MenuList, MenuRowHandle};
@@ -27,7 +27,7 @@ pub fn ContextMenu(
     let row = row.unwrap_or_else(|| {
         RenderFn::new(|_| {
             view! {
-                <Column spacing=0.0 />
+                <List spacing=0.0 />
             }
         })
     });
@@ -51,7 +51,7 @@ pub fn ContextMenu(
                 set_open.set(true);
             }}
         >
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 {children}
                 <Overlay
                     @node_ref=&overlay
@@ -60,7 +60,7 @@ pub fn ContextMenu(
                     open
                     on_dismiss={move || dismiss.set(false)}
                 >
-                    <Column spacing=0.0>
+                    <List spacing=0.0>
                         <Dynamic value={items}>
                             {move |items: Vec<MenuItem>| {
                                 let (row, panel, close) = (row.clone(), panel.clone(), close.clone());
@@ -81,9 +81,9 @@ pub fn ContextMenu(
                                 })
                             }}
                         </Dynamic>
-                    </Column>
+                    </List>
                 </Overlay>
-            </Column>
+            </List>
         </ClickCatcher>
     }
 }

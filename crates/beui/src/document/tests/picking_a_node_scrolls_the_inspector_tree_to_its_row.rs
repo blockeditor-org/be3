@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, build, view};
+use crate::reactive::{Frame, List, NodeRef, build, view};
 
 const ROWS: usize = 40;
 const PICKED: usize = 28;
@@ -19,7 +19,7 @@ fn picking_a_node_scrolls_the_inspector_tree_to_its_row() {
                 })
                 .collect();
             view! {
-                <Column spacing=0.0 children={children} />
+                <List spacing=0.0 children={children} />
             }
         }
     });

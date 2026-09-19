@@ -5,7 +5,9 @@ use crate::color::Color32;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{Callback, CenteredRow, Frame, ItemSize, Prop, clone, create_memo};
+use crate::reactive::{
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, clone, create_memo,
+};
 use crate::styled::theme::{
     BORDER_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible, use_theme,
 };
@@ -74,7 +76,7 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
             outline_offset=FOCUS_RING_OFFSET
             outline_visible={focused}
         >
-            <CenteredRow spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <Frame
                     @sizing={filled_percent}
                     height=TRACK_HEIGHT
@@ -96,7 +98,7 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
                     color={theme.track.clone()}
                     radius=TRACK_RADIUS
                 />
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }

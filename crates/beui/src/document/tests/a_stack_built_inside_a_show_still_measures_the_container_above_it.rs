@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, ItemSize, Show, build, create_signal, view};
+use crate::reactive::{Button, ItemSize, List, Show, build, create_signal, view};
 use crate::styled::Stack;
 use crate::unstyled::Container;
 
@@ -16,7 +16,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
             view! {
                 <Container>
                     {move |_| view! {
-                        <Column spacing=0.0>
+                        <List spacing=0.0>
                             <Button @node_ref=&toggle on_click={move || set_visible.set(true)}>
                                 <Text string="toggle" />
                             </Button>
@@ -38,7 +38,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                                     </Frame>
                                 </Stack>
                             </Show>
-                        </Column>
+                        </List>
                     }}
                 </Container>
             }

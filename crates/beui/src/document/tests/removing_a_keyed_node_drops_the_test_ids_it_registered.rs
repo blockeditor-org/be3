@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, Column, ForEach, NodeRef, Text, build, create_signal, view};
+use crate::reactive::{Button, ForEach, List, NodeRef, Text, build, create_signal, view};
 
 #[test]
 fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
@@ -9,7 +9,7 @@ fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
         move || {
             let (items, set_items) = create_signal(vec![1i64, 2]);
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Button @node_ref=&drop_two on_click={move || set_items.set(vec![1])}>
                         <Text string="drop" />
                     </Button>
@@ -18,7 +18,7 @@ fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
                             <Text @test_id={format!("item.{value}")} string={value.to_string()} />
                         }}
                     </ForEach>
-                </Column>
+                </List>
             }
         }
     });

@@ -2,7 +2,7 @@ use block_client::blocks::ui_settings::{UiSettings, UiSettingsOperation};
 use block_editor_plugin::Editor;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, Frame, ItemSize, clone, component, create_memo, view,
+    Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Body, Caption, Slider, use_theme};
 
@@ -19,9 +19,9 @@ pub fn UiSettingsView(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
-            <Column spacing=8.0>
+            <List spacing=8.0>
                 <Caption content="Zoom" />
-                <CenteredRow spacing=12.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                     <Slider
                         @sizing=ItemSize::Percent(100.0)
                         value={zoom}
@@ -32,8 +32,8 @@ pub fn UiSettingsView(editor: Editor) -> NodeId {
                         on_change={move |zoom| settings.operate(UiSettingsOperation::SetZoom { zoom })}
                     />
                     <Body @sizing=ItemSize::Fixed(VALUE_WIDTH) content={shown} />
-                </CenteredRow>
-            </Column>
+                </List>
+            </List>
         </Frame>
     }
 }

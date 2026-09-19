@@ -1,19 +1,19 @@
 use super::*;
 use crate::draw::quads;
-use crate::reactive::{Column, Frame, ItemSize, Row, build, view};
+use crate::reactive::{Direction, Frame, ItemSize, List, build, view};
 
 #[test]
 fn painting_never_has_to_move_a_rect_onto_the_pixel_grid() {
     let document = build(move || {
         view! {
-            <Row spacing=3.0>
+            <List direction=Direction::Horizontal spacing=3.0>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     color=Color32::WHITE
                     padding_horizontal=5.0
                     padding_vertical=5.0
                 >
-                    <Column spacing=0.0></Column>
+                    <List spacing=0.0></List>
                 </Frame>
                 <Frame
                     @sizing=ItemSize::Percent(200.0)
@@ -21,9 +21,9 @@ fn painting_never_has_to_move_a_rect_onto_the_pixel_grid() {
                     padding_horizontal=5.0
                     padding_vertical=5.0
                 >
-                    <Column spacing=0.0></Column>
+                    <List spacing=0.0></List>
                 </Frame>
-            </Row>
+            </List>
         }
     });
 

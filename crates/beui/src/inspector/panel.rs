@@ -11,8 +11,8 @@ use crate::document::Document;
 use crate::icons::ICON_CLOSE;
 use crate::node::NodeId;
 use crate::reactive::{
-    CenteredRow, Column, Frame, ItemSize, Memo, NodeRef, Prop, ReadSignal, Row, Scroll, Show,
-    Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
+    Align, Direction, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Scroll, Show, Spacer,
+    WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use crate::screen_reader::Command;
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
@@ -200,13 +200,17 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         let body_simulation_visible = simulation_visible.clone();
         let footer_simulation_visible = simulation_visible;
         view! {
-            <Row spacing=0.0>
+            <List direction=Direction::Horizontal spacing=0.0>
                 <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                 <Frame @sizing=ItemSize::Percent(100.0) color={THEME.surface} radius=0>
-                    <Column spacing=0.0>
+                    <List spacing=0.0>
                         <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
-                            <Column spacing=HEADER_SPACING>
-                                <CenteredRow spacing=HEADER_SPACING>
+                            <List spacing=HEADER_SPACING>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=HEADER_SPACING
+                                >
                                     <Heading content="Inspector" />
                                     <Caption
                                         @sizing=ItemSize::Percent(100.0)
@@ -217,7 +221,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                         <PickToggle state={pick_state} picking />
                                     </Show>
                                     <CloseButton @test_id={"inspector.close"} state={close_state} />
-                                </CenteredRow>
+                                </List>
                                 <Tabs
                                     @test_id={"inspector.tabs"}
                                     labels={vec!["Beui".to_owned(), "A11y".to_owned(), "Perf".to_owned(), "Sim".to_owned()]}
@@ -227,7 +231,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                         set_tab.set(InspectorTab::from_index(index));
                                     }}
                                 />
-                            </Column>
+                            </List>
                         </Frame>
                         <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                         <Frame
@@ -235,9 +239,13 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                             padding_horizontal=BODY_PADDING
                             padding_vertical=BODY_PADDING
                         >
-                            <Column spacing=0.0>
+                            <List spacing=0.0>
                                 <Show condition={body_tree_visible}>
-                                    <Row @sizing=ItemSize::Percent(100.0) spacing=BODY_SPACING>
+                                    <List
+                                        @sizing=ItemSize::Percent(100.0)
+                                        direction=Direction::Horizontal
+                                        spacing=BODY_SPACING
+                                    >
                                         <Scroll
                                             @sizing=ItemSize::Percent(100.0)
                                             focus_color={THEME.accent}
@@ -269,7 +277,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                             @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
                                             position
                                         />
-                                    </Row>
+                                    </List>
                                 </Show>
                                 <Show condition={body_performance_visible}>
                                     <PerformancePanel
@@ -285,16 +293,16 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                         state={simulation_state.clone()}
                                     />
                                 </Show>
-                            </Column>
+                            </List>
                         </Frame>
                         <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                         <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
-                            <Column spacing=0.0>
+                            <List spacing=0.0>
                                 <Show condition={footer_tree_visible}>
-                                    <Column spacing=FOOTER_SPACING>
+                                    <List spacing=FOOTER_SPACING>
                                         <Code content={selection_text} />
                                         <Code content={bounds_text} color={THEME.text_muted} />
-                                    </Column>
+                                    </List>
                                 </Show>
                                 <Show condition={footer_performance_visible}>
                                     <Button
@@ -309,11 +317,11 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                         color={THEME.text_muted}
                                     />
                                 </Show>
-                            </Column>
+                            </List>
                         </Frame>
-                    </Column>
+                    </List>
                 </Frame>
-            </Row>
+            </List>
         }
     });
     document.inspectable = false;
@@ -355,13 +363,13 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
         (state.clone(), state.clone(), state.clone(), state.clone());
     let reader_state = state.clone();
     view! {
-        <Row spacing=BODY_SPACING>
+        <List direction=Direction::Horizontal spacing=BODY_SPACING>
             <Scroll
                 @sizing=ItemSize::Percent(100.0)
                 focus_color={THEME.accent}
                 on_change={move |value| set_position.set(value)}
             >
-                <Column spacing=PERFORMANCE_SPACING>
+                <List spacing=PERFORMANCE_SPACING>
                     <Checkbox
                         @test_id={"inspector.simulation.touch_emulation"}
                         label="Emulate touch with mouse"
@@ -375,7 +383,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
                     />
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Column spacing=TIMING_SPACING>
+                    <List spacing=TIMING_SPACING>
                         <Heading content="Device pixel ratio" />
                         <RadioGroup
                             @test_id={"inspector.simulation.pixel_ratio"}
@@ -386,9 +394,9 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                                 ratio_state.simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
                             }}
                         />
-                    </Column>
+                    </List>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Column spacing=TIMING_SPACING>
+                    <List spacing=TIMING_SPACING>
                         <Heading content="Theme" />
                         <RadioGroup
                             @test_id={"inspector.simulation.theme"}
@@ -400,13 +408,13 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                                 }
                             }}
                         />
-                    </Column>
+                    </List>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                     <ScreenReaderSection state={reader_state} />
-                </Column>
+                </List>
             </Scroll>
             <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
-        </Row>
+        </List>
     }
 }
 
@@ -416,7 +424,7 @@ fn ScreenReaderSection(state: Rc<State>) -> NodeId {
     let (first_state, second_state, third_state) = (state.clone(), state.clone(), state.clone());
     let (fourth_state, fifth_state) = (state.clone(), state.clone());
     view! {
-        <Column spacing=TIMING_SPACING>
+        <List spacing=TIMING_SPACING>
             <Heading content="Screen reader" />
             <Checkbox
                 @test_id={"inspector.screen_reader.enabled"}
@@ -443,7 +451,7 @@ fn ScreenReaderSection(state: Rc<State>) -> NodeId {
             <CommandRow row=3 state={third_state} />
             <CommandRow row=4 state={fourth_state} />
             <CommandRow row=5 state={fifth_state} />
-        </Column>
+        </List>
     }
 }
 
@@ -453,7 +461,7 @@ fn CommandRow(row: usize, state: Rc<State>) -> NodeId {
     let (right_label, right_id, right) = COMMANDS[row * 2 + 1];
     let right_state = state.clone();
     view! {
-        <Row spacing=TIMING_SPACING>
+        <List direction=Direction::Horizontal spacing=TIMING_SPACING>
             <Button
                 @sizing=ItemSize::Percent(100.0)
                 @test_id={format!("inspector.screen_reader.{left_id}")}
@@ -468,7 +476,7 @@ fn CommandRow(row: usize, state: Rc<State>) -> NodeId {
                 variant=ButtonVariant::Secondary
                 on_click={move || right_state.command(right)}
             />
-        </Row>
+        </List>
     }
 }
 
@@ -493,24 +501,28 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
     let accessibility = timing_values(&performance, |timings| timings.accessibility);
     let other = timing_values(&performance, |timings| timings.other);
     view! {
-        <Row spacing=BODY_SPACING>
+        <List direction=Direction::Horizontal spacing=BODY_SPACING>
             <Scroll
                 @sizing=ItemSize::Percent(100.0)
                 focus_color={THEME.accent}
                 on_change={move |value| set_position.set(value)}
             >
-                <Column spacing=PERFORMANCE_SPACING>
-                    <Column spacing=FOOTER_SPACING>
+                <List spacing=PERFORMANCE_SPACING>
+                    <List spacing=FOOTER_SPACING>
                         <Code content={latest_work} />
                         <Code content={scene} color={THEME.text_muted} />
                         <Code content={cache} color={THEME.text_muted} />
-                    </Column>
+                    </List>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Column spacing=TIMING_SPACING>
-                        <CenteredRow spacing=TIMING_SPACING>
+                    <List spacing=TIMING_SPACING>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=TIMING_SPACING
+                        >
                             <Heading @sizing=ItemSize::Percent(100.0) content="CPU time" />
                             <Caption content="milliseconds" />
-                        </CenteredRow>
+                        </List>
                         <TimingHeader />
                         <TimingRow label="Document" values={total} />
                         <TimingRow label="Layout" values={layout} />
@@ -518,9 +530,9 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
                         <TimingRow label="Paint" values={paint} />
                         <TimingRow label="Accessibility" values={accessibility} />
                         <TimingRow label="Other" values={other} />
-                    </Column>
+                    </List>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <Column spacing=TIMING_SPACING>
+                    <List spacing=TIMING_SPACING>
                         <Heading content="Visualize" />
                         <Checkbox
                             @test_id={"inspector.performance.flash_changes"}
@@ -534,23 +546,23 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
                             checked={state.flash_damage.get()}
                             on_change={move |enabled| damage_state.flash_damage.set(enabled)}
                         />
-                    </Column>
-                </Column>
+                    </List>
+                </List>
             </Scroll>
             <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
-        </Row>
+        </List>
     }
 }
 
 #[component]
 fn TimingHeader() -> NodeId {
     view! {
-        <Row spacing=TIMING_SPACING>
+        <List direction=Direction::Horizontal spacing=TIMING_SPACING>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Caption @sizing=ItemSize::Fixed(54.0) content="Current" align=TextAlign::End />
             <Caption @sizing=ItemSize::Fixed(54.0) content="Average" align=TextAlign::End />
             <Caption @sizing=ItemSize::Fixed(54.0) content="Peak" align=TextAlign::End />
-        </Row>
+        </List>
     }
 }
 
@@ -558,12 +570,12 @@ fn TimingHeader() -> NodeId {
 fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
-        <Row spacing=TIMING_SPACING>
+        <List direction=Direction::Horizontal spacing=TIMING_SPACING>
             <Caption @sizing=ItemSize::Percent(100.0) content={label} />
             <Code @sizing=ItemSize::Fixed(54.0) content={current} align=TextAlign::End />
             <Code @sizing=ItemSize::Fixed(54.0) content={average} align=TextAlign::End />
             <Code @sizing=ItemSize::Fixed(54.0) content={peak} align=TextAlign::End />
-        </Row>
+        </List>
     }
 }
 
@@ -693,11 +705,16 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
     let size = entry_field(&entries, key, |entry| entry.size.clone());
 
     view! {
-        <CenteredRow @test_id={key.test_id()} spacing=ROW_SPACING>
+        <List
+            @test_id={key.test_id()}
+            direction=Direction::Horizontal
+            align=Align::Center
+            spacing=ROW_SPACING
+        >
             <Code content={kind} />
             <Code @sizing=ItemSize::Percent(100.0) content={detail} color={THEME.text_muted} />
             <Code content={size} color={THEME.text_muted} align=TextAlign::End />
-        </CenteredRow>
+        </List>
     }
 }
 

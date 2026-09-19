@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    Button, Canvas, CanvasItem, Column, ForEach, ItemSize, Text, build, create_signal, view,
+    Button, Canvas, CanvasItem, ForEach, ItemSize, List, Text, build, create_signal, view,
 };
 
 #[test]
@@ -11,7 +11,7 @@ fn a_for_each_places_the_items_of_a_canvas() {
         move || {
             let (keys, set_keys) = create_signal(vec![0u32, 1]);
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Button @node_ref=&add on_click={move || set_keys.set(vec![0, 1, 2])}>
                         <Text string="add" />
                     </Button>
@@ -22,7 +22,7 @@ fn a_for_each_places_the_items_of_a_canvas() {
                             }}
                         </ForEach>
                     </Canvas>
-                </Column>
+                </List>
             }
         }
     });

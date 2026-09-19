@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Embed, EmbedSlot, ItemSize, build, view};
+use crate::reactive::{Embed, EmbedSlot, ItemSize, List, build, view};
 
 #[test]
 fn an_embed_reports_a_rect_on_the_pixel_grid() {
@@ -7,11 +7,11 @@ fn an_embed_reports_a_rect_on_the_pixel_grid() {
     let embedded = slot.clone();
     let document = build(move || {
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) aspect_ratio=1.0>
                     <Embed slot={embedded} />
                 </Frame>
-            </Column>
+            </List>
         }
     });
 

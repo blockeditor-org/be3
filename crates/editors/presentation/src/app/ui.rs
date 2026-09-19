@@ -4,9 +4,9 @@ use block_editor_plugin::beui::icons::{
     ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_CLOSE, ICON_DELETE, ICON_FULLSCREEN,
 };
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, ClickCatcher, Column, Focusable, ForEach, Frame, ItemSize, NodeRef, Prop,
-    ReadSignal, Row, Scroll, Show, Text, WriteSignal, clone, component, create_memo,
-    create_selector, create_signal, view,
+    Align, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize, List, NodeRef, Prop,
+    ReadSignal, Scroll, Show, Text, WriteSignal, clone, component, create_memo, create_selector,
+    create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, theme, use_theme,
@@ -73,7 +73,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
     view! {
         <Focusable focused={presenting.clone()} on_key={keys}>
             <Frame color={background}>
-                <Row spacing=0.0>
+                <List direction=Direction::Horizontal spacing=0.0>
                     <Filmstrip
                         @sizing=ItemSize::Fixed(FILMSTRIP_WIDTH)
                         editor={editor.clone()}
@@ -85,7 +85,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                         width=theme::BORDER_WIDTH
                         color={theme.border.clone()}
                     />
-                    <Column @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <Toolbar
                             editor={editor.clone()}
                             slides={Rc::clone(&slides)}
@@ -108,8 +108,8 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                             report_size=true
                         />
                         <Playback editor={editor} slides={slides} shown={presenting} />
-                    </Column>
-                </Row>
+                    </List>
+                </List>
             </Frame>
         </Focusable>
     }
@@ -239,7 +239,7 @@ fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
             padding_horizontal=PANEL_PADDING
             padding_vertical=PANEL_PADDING
         >
-            <CenteredRow spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Caption content={position} @test_id={"presentation.position"} />
                 <Button
                     @sizing=ItemSize::Percent(100.0)
@@ -256,7 +256,7 @@ fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
                     on_click={present}
                     @test_id={"presentation.present"}
                 />
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }
@@ -295,7 +295,7 @@ fn Playback(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
                     color=Color32::from_rgba_unmultiplied(0, 0, 0, 180)
                     padding_horizontal=12.0
                 >
-                    <CenteredRow spacing=10.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                         <IconButton
                             glyph={ICON_ARROW_BACK.to_owned()}
                             label="Previous slide"
@@ -321,7 +321,7 @@ fn Playback(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
                             on_click={stop}
                             @test_id={"presentation.stop"}
                         />
-                    </CenteredRow>
+                    </List>
                 </Frame>
             </ClickCatcher>
         </Frame>
@@ -354,7 +354,7 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
             padding_horizontal=FILMSTRIP_PADDING
             padding_vertical=FILMSTRIP_PADDING
         >
-            <Column spacing=TILE_SPACING>
+            <List spacing=TILE_SPACING>
                 <Show condition={empty}>
                     <Caption content="Add a slide to start this deck." />
                 </Show>
@@ -365,7 +365,7 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
                 >
                     <ForEach keys={keys} view={tiles} />
                 </Scroll>
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -447,7 +447,7 @@ fn SlideTile(
                 padding_horizontal=6.0
                 padding_vertical=6.0
             >
-                <Column spacing=6.0>
+                <List spacing=6.0>
                     <ClickCatcher
                         cursor=CursorIcon::PointingHand
                         on_click={select}
@@ -472,7 +472,7 @@ fn SlideTile(
                             </ChildBlock>
                         </Frame>
                     </ClickCatcher>
-                    <CenteredRow spacing=6.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                         <Caption content={number} />
                         <Caption @sizing=ItemSize::Percent(100.0) content={name} />
                         <IconButton
@@ -482,8 +482,8 @@ fn SlideTile(
                             on_click={remove}
                             @test_id={format!("presentation.slide.{id}.remove")}
                         />
-                    </CenteredRow>
-                </Column>
+                    </List>
+                </List>
             </Frame>
         </Frame>
     }

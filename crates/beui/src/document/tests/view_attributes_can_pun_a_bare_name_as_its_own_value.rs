@@ -18,7 +18,7 @@ fn view_attributes_can_pun_a_bare_name_as_its_own_value() {
                 <Text @node_ref=&label string font_size />
             }];
             view! {
-                <Column @node_ref=&column spacing children />
+                <List @node_ref=&column spacing children />
             }
         }
     });
