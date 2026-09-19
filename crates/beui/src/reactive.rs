@@ -1352,6 +1352,7 @@ pub use crate::base::text::Text;
 pub fn List(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = Align::Stretch)] align: Prop<Align>,
+    #[prop(default = false)] wrap: Prop<bool>,
     spacing: Prop<f32>,
     children: Children<ListChild>,
 ) -> NodeId {
@@ -1360,6 +1361,7 @@ pub fn List(
         with_document(|document| document.set_list_direction(list, direction.get()))
     });
     create_effect(move || with_document(|document| document.set_list_align(list, align.get())));
+    create_effect(move || with_document(|document| document.set_list_wrap(list, wrap.get())));
     create_effect(move || with_document(|document| document.set_list_spacing(list, spacing.get())));
     children.mount(list);
     list

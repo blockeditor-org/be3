@@ -1127,6 +1127,7 @@ dependencies = [
 name = "browser_tab"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block-client",
  "block-editor-plugin",
  "block-ui-test",
@@ -4206,6 +4207,7 @@ checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
 name = "logic_game"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
@@ -9245,9 +9247,11 @@ dependencies = [
 name = "workspace_index"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
+ "block-ui-test",
  "uuid",
 ]
 

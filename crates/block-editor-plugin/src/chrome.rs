@@ -1,15 +1,18 @@
 use beui::NodeId;
 use beui::reactive::{
-    Children, Direction, Frame, ItemSize, List, ListChild, Prop, Scroll, clone, component,
+    Align, Children, Direction, Frame, ItemSize, List, ListChild, Prop, Scroll, clone, component,
     create_memo, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
-use beui::styled::use_theme;
+use beui::styled::{Separator, use_theme};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
 
 const PADDING: f32 = 14.0;
 const SPACING: f32 = 10.0;
+const BAND_PADDING_HORIZONTAL: f32 = 12.0;
+const BAND_PADDING_VERTICAL: f32 = 8.0;
+const BAND_SPACING: f32 = 8.0;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Side {
@@ -43,5 +46,33 @@ pub fn Sidebar(
             </Frame>
             <Frame visible={trailing} width=BORDER_WIDTH color={theme.border.clone()} />
         </List>
+    }
+}
+
+#[component]
+pub fn Toolbar(
+    #[prop(default = true)] shown: Prop<bool>,
+    #[prop(default = BAND_SPACING)] spacing: Prop<f32>,
+    #[prop(children)] children: Children<ListChild>,
+) -> NodeId {
+    let shown = create_memo(move || shown.get());
+    let theme = use_theme();
+    view! {
+        <Frame visible={shown} color={theme.surface.clone()}>
+            <List spacing=0.0>
+                <Frame
+                    padding_horizontal=BAND_PADDING_HORIZONTAL
+                    padding_vertical=BAND_PADDING_VERTICAL
+                >
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing={spacing}
+                        children={children}
+                    />
+                </Frame>
+                <Separator />
+            </List>
+        </Frame>
     }
 }

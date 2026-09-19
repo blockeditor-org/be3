@@ -75,7 +75,14 @@ pub(crate) struct ListNode {
     pub(crate) direction: Direction,
     pub(crate) spacing: f32,
     pub(crate) align: Align,
+    pub(crate) wrap: bool,
     pub(crate) items: ChildList<ListItem>,
+}
+
+struct Line {
+    items: Vec<(NodeId, f32, f32)>,
+    main: f32,
+    cross: f32,
 }
 
 impl ListNode {
@@ -89,6 +96,54 @@ impl ListNode {
 
     fn main_and_cross(&self, size: Vec2) -> (f32, f32) {
         self.direction.main_and_cross(size)
+    }
+
+    fn lines(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        available_main: f32,
+        spacing: f32,
+        grid: PixelGrid,
+    ) -> Vec<Line> {
+        let mut lines: Vec<Line> = Vec::new();
+        let mut line = Line {
+            items: Vec::new(),
+            main: 0.0,
+            cross: 0.0,
+        };
+        for item in self.items.iter() {
+            let available = self.axes(f32::INFINITY, f32::INFINITY);
+            let size = crate::layout::measure(doc, painter, item.child, available);
+            let (measured, cross) = self.main_and_cross(size);
+            let main = match item.size {
+                ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
+                ItemSize::Intrinsic | ItemSize::Percent(_) => measured,
+            };
+            let taken = match line.items.is_empty() {
+                true => main,
+                false => line.main + spacing + main,
+            };
+            if !line.items.is_empty() && taken > available_main {
+                lines.push(std::mem::replace(
+                    &mut line,
+                    Line {
+                        items: Vec::new(),
+                        main: 0.0,
+                        cross: 0.0,
+                    },
+                ));
+                line.main = main;
+            } else {
+                line.main = taken;
+            }
+            line.cross = line.cross.max(cross);
+            line.items.push((item.child, main, cross));
+        }
+        if !line.items.is_empty() {
+            lines.push(line);
+        }
+        lines
     }
 
     fn item_sizes(&self) -> Vec<ItemSize> {
@@ -128,6 +183,13 @@ impl Element for ListNode {
 
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
+        if self.wrap {
+            let lines = self.lines(doc, painter, available_main, spacing, grid);
+            let main = lines.iter().fold(0.0f32, |main, line| main.max(line.main));
+            let cross: f32 = lines.iter().map(|line| line.cross).sum();
+            let gaps = spacing * lines.len().saturating_sub(1) as f32;
+            return self.axes(main.min(available_main), cross + gaps);
+        }
         let sizes = self.item_sizes();
         let intrinsic_lengths =
             self.intrinsic_lengths(doc, painter, available_main, available_cross);
@@ -160,13 +222,40 @@ impl Element for ListNode {
 
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
+        let horizontal = self.horizontal();
+        if self.wrap {
+            let lines = self.lines(doc, painter, available_main, spacing, grid);
+            let mut line_start = 0.0f32;
+            for line in lines {
+                let mut cursor = 0.0f32;
+                for (child, main, cross) in line.items {
+                    let cross_length = match self.align {
+                        Align::Stretch => line.cross,
+                        _ => cross.min(line.cross),
+                    };
+                    let cross_offset = match self.align {
+                        Align::Start | Align::Stretch => 0.0,
+                        Align::Center => grid.snap((line.cross - cross_length) / 2.0),
+                        Align::End => line.cross - cross_length,
+                    };
+                    let offset = self.axes(cursor, line_start + cross_offset);
+                    let child_rect = Rect::from_min_size(
+                        pos2(rect.left() + offset.x, rect.top() + offset.y),
+                        self.axes(main, cross_length),
+                    );
+                    crate::layout::layout(doc, painter, child, child_rect, out);
+                    cursor += main + spacing;
+                }
+                line_start += line.cross + spacing;
+            }
+            return;
+        }
         let sizes = self.item_sizes();
         let intrinsic_lengths =
             self.intrinsic_lengths(doc, painter, available_main, available_cross);
         let main_lengths =
             distribute_main_axis(grid, available_main, spacing, &sizes, &intrinsic_lengths);
 
-        let horizontal = self.horizontal();
         let mut cursor = if horizontal { rect.left() } else { rect.top() };
         for (item, length) in self.items.iter().zip(main_lengths.iter()) {
             let cross_length = match self.align {
@@ -308,6 +397,7 @@ impl Document {
             direction,
             spacing,
             align: Align::Stretch,
+            wrap: false,
             items: ChildList::default(),
         })
     }
@@ -327,6 +417,12 @@ impl Document {
     pub(crate) fn set_list_align(&mut self, list: NodeId, align: Align) {
         if self.arena.get_as::<ListNode>(list).align != align {
             self.arena.get_mut_as::<ListNode>(list).align = align;
+        }
+    }
+
+    pub(crate) fn set_list_wrap(&mut self, list: NodeId, wrap: bool) {
+        if self.arena.get_as::<ListNode>(list).wrap != wrap {
+            self.arena.get_mut_as::<ListNode>(list).wrap = wrap;
         }
     }
 

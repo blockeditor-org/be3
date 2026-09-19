@@ -4,10 +4,14 @@ use crate::color::Color32;
 
 use crate::base::TextAlign;
 use crate::node::NodeId;
-use crate::reactive::{ClickCallback, Frame, Prop, Text, clone, create_memo};
-use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::reactive::{
+    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+};
+use crate::styled::text::IconSized;
+use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 
+const GLYPH_SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 16.0;
 const PADDING_VERTICAL: f32 = 9.0;
 const FOCUS_RING_WIDTH: f32 = 2.0;
@@ -58,6 +62,7 @@ impl ButtonVariant {
 pub fn Button(
     label: Prop<String>,
     variant: ButtonVariant,
+    #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
 ) -> NodeId {
@@ -68,7 +73,7 @@ pub fn Button(
             disabled
             on_click={move || on_click.call()}
             content={move |handle| view! {
-                <ButtonFace handle variant label disabled={face.clone()} />
+                <ButtonFace handle variant label glyph disabled={face.clone()} />
             }}
         />
     }
@@ -79,6 +84,7 @@ fn ButtonFace(
     handle: unstyled::ButtonHandle,
     variant: ButtonVariant,
     label: Prop<String>,
+    glyph: Prop<String>,
     disabled: Prop<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
@@ -92,6 +98,9 @@ fn ButtonFace(
         variant.fill(&theme, off.get(), hovered.get(), active.get())
     }));
     let label_color = create_memo(clone!(theme off -> move || variant.label(&theme, off.get())));
+    let icon_color = label_color.clone();
+    let glyph_text = create_memo(move || glyph.get());
+    let has_glyph = create_memo(clone!(glyph_text -> move || !glyph_text.get().is_empty()));
     view! {
         <Frame
             outline={theme.accent.clone()}
@@ -109,12 +118,17 @@ fn ButtonFace(
                 padding_horizontal=PADDING_HORIZONTAL
                 padding_vertical=PADDING_VERTICAL
             >
-                <Text
-                    string={label}
-                    font_size=FONT_BODY
-                    color={label_color}
-                    align=TextAlign::Center
-                />
+                <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
+                    <Show condition={has_glyph}>
+                        <IconSized glyph={glyph_text} font_size=ICON_SIZE color={icon_color} />
+                    </Show>
+                    <Text
+                        string={label}
+                        font_size=FONT_BODY
+                        color={label_color}
+                        align=TextAlign::Center
+                    />
+                </List>
             </Frame>
         </Frame>
     }

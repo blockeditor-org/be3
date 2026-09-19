@@ -17,8 +17,5 @@
   "regions": [
     "Frame"
   ],
-  "chrome": [
-    "Toolbar"
-  ],
   "entry_point": "workspace_index.wasm"
 }

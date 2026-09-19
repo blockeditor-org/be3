@@ -3,6 +3,7 @@ use beui_macros::{component, view};
 
 use crate::color::Color32;
 
+use crate::input::{Key, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{Child, ClickCallback, Frame, Prop, clone, create_memo};
 use crate::styled::theme::{RADIUS, ThemeStore, use_theme};
@@ -16,7 +17,9 @@ pub fn ListRow(
     children: Child,
     #[prop(default = false)] selected: Prop<bool>,
     on_click: ClickCallback,
+    on_activate: ClickCallback,
 ) -> NodeId {
+    let double_click = on_activate.clone();
     let selected = create_memo(move || selected.get());
     let accessibility = create_memo(clone!(selected -> move || {
         let mut node = Node::new(Role::Button);
@@ -27,6 +30,20 @@ pub fn ListRow(
         <Button
             accessibility
             on_click={move || on_click.call()}
+            on_click_at={move |press: PointerPress| {
+                if press.clicks >= 2 {
+                    double_click.call();
+                }
+            }}
+            on_key={move |press: KeyPress| {
+                if on_activate.is_empty() || press.key != Key::Enter {
+                    return false;
+                }
+                if press.pressed {
+                    on_activate.call();
+                }
+                true
+            }}
             content={move |handle| view! {
                 <ListRowFace handle selected>{children}</ListRowFace>
             }}

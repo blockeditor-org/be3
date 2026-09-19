@@ -1,7 +1,7 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::input::{CursorIcon, KeyPress};
+use crate::input::{CursorIcon, KeyPress, PointerPress};
 
 use crate::document::Document;
 use crate::node::NodeId;
@@ -29,6 +29,7 @@ pub fn Button(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     on_click: ClickCallback,
+    on_click_at: Callback<PointerPress>,
     on_key: Callback<KeyPress, bool>,
     on_text: Callback<String>,
     on_focus_change: Callback<bool>,
@@ -70,6 +71,15 @@ pub fn Button(
         }
     };
     let key_click = click.clone();
+    let click_at = {
+        let disabled = disabled.clone();
+        move |press: PointerPress| {
+            if untrack(|| disabled.get()) {
+                return;
+            }
+            on_click_at.call(press);
+        }
+    };
     let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !disabled.get());
 
     set_component_state(State {
@@ -94,6 +104,7 @@ pub fn Button(
                 cursor=CursorIcon::PointingHand
                 key_active
                 on_click={click}
+                on_click_at={click_at}
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
                 on_active_change={move |active: bool| set_active.set(active)}
                 children={content_node}

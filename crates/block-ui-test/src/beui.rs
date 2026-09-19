@@ -213,6 +213,15 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.click_at(self.rect_of(test_id).center());
     }
 
+    pub fn double_click(&mut self, test_id: &str) {
+        self.double_click_at(self.rect_of(test_id).center());
+    }
+
+    pub fn double_click_at(&mut self, pos: Pos2) {
+        self.click_at(pos);
+        self.click_at(pos);
+    }
+
     pub fn click_at(&mut self, pos: Pos2) {
         self.hover_at(pos);
         self.events.push(Event::PointerButton {
