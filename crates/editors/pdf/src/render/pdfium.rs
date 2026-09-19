@@ -6,7 +6,7 @@ use std::{
 
 use block_editor_plugin::{
     PerformanceReporter, Waker,
-    egui::{self, Pos2, Rect},
+    beui::{Image, Pos2, Rect, vec2},
 };
 use pdfium_render::prelude::{PdfBitmap, PdfBitmapFormat, PdfRenderConfig, Pdfium};
 
@@ -79,7 +79,7 @@ fn render_tile(
     }
     let index = page.min(page_count - 1);
     let pdf_page = pages.get(index as i32).map_err(|error| error.to_string())?;
-    let page_size_pts = egui::vec2(pdf_page.width().value, pdf_page.height().value);
+    let page_size_pts = vec2(pdf_page.width().value, pdf_page.height().value);
     performance.record_duration("Page setup", phase.elapsed());
     let phase = Instant::now();
 
@@ -104,11 +104,11 @@ fn render_tile(
             Rect::from_min_size(origin_pts, size_pts).intersect(bounds),
         ),
     };
-    let scale = requested_scale.clamp(MIN_SCALE, MAX_PAGE_DIM / page_size_pts.max_elem());
+    let scale = requested_scale.clamp(MIN_SCALE, MAX_PAGE_DIM / page_size_pts.longest_side());
 
     let page_width = ((page_size_pts.x * scale).round() as i32).max(1);
     let page_height = ((page_size_pts.y * scale).round() as i32).max(1);
-    let origin_px = egui::vec2(
+    let origin_px = vec2(
         (region.min.x * scale).round(),
         (region.min.y * scale).round(),
     );
@@ -135,7 +135,7 @@ fn render_tile(
     let rgba = bitmap.as_rgba_bytes();
     performance.record_duration("RGBA copy", phase.elapsed());
     let phase = Instant::now();
-    let image = egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &rgba);
+    let image = Image::from_rgba(width as u32, height as u32, rgba);
     performance.record_duration("Color image", phase.elapsed());
     performance.record_count("Pixels", width as u64 * height as u64);
     Ok(RenderedTile {
@@ -144,7 +144,7 @@ fn render_tile(
         page_size_pts,
         scale,
         origin_pts: Pos2::new(origin_px.x / scale, origin_px.y / scale),
-        size_pts: egui::vec2(width as f32 / scale, height as f32 / scale),
+        size_pts: block_editor_plugin::beui::vec2(width as f32 / scale, height as f32 / scale),
         image,
     })
 }

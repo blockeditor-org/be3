@@ -2,7 +2,7 @@ use std::{sync::mpsc::TryRecvError, time::Instant};
 
 use block_editor_plugin::{
     PerformanceReporter, Waker,
-    egui::{self, Color32, Pos2, Rect, Vec2},
+    beui::{Image, Pos2, Rect, Vec2},
 };
 
 use crate::render::{
@@ -19,17 +19,18 @@ pub(crate) struct PageFacts {
     pub(crate) page_size_pts: Vec2,
 }
 
-struct Tile {
+#[derive(Clone)]
+pub(crate) struct Tile {
     revision: u64,
     page: usize,
     scale: f32,
     origin_pts: Pos2,
     size_pts: Vec2,
-    texture: egui::TextureHandle,
+    image: Image,
 }
 
 impl Tile {
-    fn rect(&self) -> Rect {
+    pub(crate) fn rect(&self) -> Rect {
         Rect::from_min_size(self.origin_pts, self.size_pts)
     }
 
@@ -48,11 +49,7 @@ pub(crate) struct Pane {
 }
 
 impl Pane {
-    pub(crate) fn poll(
-        &mut self,
-        context: &egui::Context,
-        performance: Option<&PerformanceReporter>,
-    ) -> Option<PageFacts> {
+    pub(crate) fn poll(&mut self, performance: Option<&PerformanceReporter>) -> Option<PageFacts> {
         let (request, job) = self.job.as_ref()?;
         let request = *request;
         let receive_started = Instant::now();
@@ -75,7 +72,7 @@ impl Pane {
                             page_index: rendered.page_index,
                             page_size_pts: rendered.page_size_pts,
                         };
-                        self.store(context, request, rendered, performance);
+                        self.store(request, rendered, performance);
                         Some(facts)
                     }
                     Err(error) => {
@@ -96,39 +93,25 @@ impl Pane {
 
     fn store(
         &mut self,
-        context: &egui::Context,
         request: RenderRequest,
         rendered: RenderedTile,
         performance: Option<&PerformanceReporter>,
     ) {
-        let (slot, name) = match request.target {
-            RenderTarget::FullPage { .. } => (&mut self.base, "pdf-page"),
-            RenderTarget::Region { .. } => (&mut self.detail, "pdf-detail"),
+        let slot = match request.target {
+            RenderTarget::FullPage { .. } => &mut self.base,
+            RenderTarget::Region { .. } => &mut self.detail,
         };
-        let image = rendered.image;
-        let texture_started = Instant::now();
-        match slot {
-            Some(tile) => {
-                tile.texture.set(image, egui::TextureOptions::LINEAR);
-                tile.revision = request.revision;
-                tile.page = rendered.page_index;
-                tile.scale = rendered.scale;
-                tile.origin_pts = rendered.origin_pts;
-                tile.size_pts = rendered.size_pts;
-            }
-            None => {
-                *slot = Some(Tile {
-                    revision: request.revision,
-                    page: rendered.page_index,
-                    scale: rendered.scale,
-                    origin_pts: rendered.origin_pts,
-                    size_pts: rendered.size_pts,
-                    texture: context.load_texture(name, image, egui::TextureOptions::LINEAR),
-                });
-            }
-        }
+        let stored = Instant::now();
+        *slot = Some(Tile {
+            revision: request.revision,
+            page: rendered.page_index,
+            scale: rendered.scale,
+            origin_pts: rendered.origin_pts,
+            size_pts: rendered.size_pts,
+            image: rendered.image,
+        });
         if let Some(performance) = performance {
-            performance.record_duration("Texture upload", texture_started.elapsed());
+            performance.record_duration("Tile store", stored.elapsed());
         }
     }
 
@@ -243,28 +226,12 @@ impl Pane {
         })
     }
 
-    pub(crate) fn paint(&self, painter: &egui::Painter, page_rect: Rect, page_size: Vec2) {
-        let points_per_pdf_point = page_rect.width() / page_size.x.max(f32::EPSILON);
-        painter.rect_filled(page_rect, 0.0, Color32::WHITE);
-        for tile in [self.base.as_ref(), self.detail.as_ref()]
+    pub(crate) fn tiles(&self) -> Vec<(Rect, Image)> {
+        [self.base.as_ref(), self.detail.as_ref()]
             .into_iter()
             .flatten()
-        {
-            let tile_rect = Rect::from_min_size(
-                page_rect.min + tile.origin_pts.to_vec2() * points_per_pdf_point,
-                tile.size_pts * points_per_pdf_point,
-            );
-            painter.image(
-                tile.texture.id(),
-                tile_rect,
-                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                Color32::WHITE,
-            );
-        }
-    }
-
-    pub(crate) fn has_page(&self) -> bool {
-        self.base.is_some() || self.detail.is_some()
+            .map(|tile| (tile.rect(), tile.image.clone()))
+            .collect()
     }
 
     pub(crate) fn error(&self) -> Option<&str> {

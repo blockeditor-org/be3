@@ -1189,15 +1189,16 @@ impl EditorSession {
             .and_then(|state| state.frame.clone())
             .unwrap_or_default();
         let creating = self.creating;
-        let ratio = {
+        let (ratio, pixels_per_point) = {
             let beui = self.beui.as_mut()?;
             let state = beui.entry(region).or_insert_with(BeuiRegion::new);
             state.context.set_pixels_per_point(scale_factor);
-            scale_factor / state.context.pixels_per_point()
+            let pixels_per_point = state.context.pixels_per_point();
+            (scale_factor / pixels_per_point, pixels_per_point)
         };
         self.host.begin_region(region, host.min.to_vec2());
         self.host
-            .begin_beui_frame(ratio, spec.chrome == FrameChrome::Drawn);
+            .begin_beui_frame(ratio, pixels_per_point, spec.chrome == FrameChrome::Drawn);
         let app = &mut self.app;
         let beui = self.beui.as_mut()?;
         let state = beui.entry(region).or_insert_with(BeuiRegion::new);
