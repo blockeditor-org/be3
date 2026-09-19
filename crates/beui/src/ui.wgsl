@@ -39,8 +39,8 @@ fn rounded_distance(point: vec2<f32>, extent: vec2<f32>, radius: f32) -> f32 {
 
 @vertex
 fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
-    let is_glyph = instance.params.z > 0.5;
-    let bleed = select(1.0, 0.0, is_glyph);
+    let samples = instance.params.z > 0.5;
+    let bleed = select(1.0, 0.0, samples);
     let low = instance.rect.xy - vec2<f32>(bleed);
     let high = instance.rect.zw + vec2<f32>(bleed);
     let weight = corner(index);
@@ -71,6 +71,14 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
     }
 
     var coverage = 1.0;
+    if input.params.z > 1.5 {
+        let texel = textureSample(atlas, atlas_sampler, input.uv);
+        let center = (input.rect.xy + input.rect.zw) * 0.5;
+        let extent = (input.rect.zw - input.rect.xy) * 0.5;
+        let distance = rounded_distance(input.point - center, extent, input.params.x);
+        let edge = clamp(0.5 - distance, 0.0, 1.0);
+        return vec4<f32>(texel.rgb * input.color.rgb, texel.a * input.color.a * edge);
+    }
     if input.params.z > 0.5 {
         coverage = textureSample(atlas, atlas_sampler, input.uv).r;
     } else {

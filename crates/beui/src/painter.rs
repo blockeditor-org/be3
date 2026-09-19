@@ -2,6 +2,7 @@ use crate::color::Color32;
 use crate::context::Context;
 use crate::font::{FontId, Galley};
 use crate::geometry::{Pos2, Rect};
+use crate::image::Image;
 use crate::pixel_grid::PixelGrid;
 
 #[derive(Clone, PartialEq)]
@@ -17,6 +18,14 @@ pub enum Shape {
         origin: Pos2,
         galley: Galley,
         color: Color32,
+        clip: Rect,
+    },
+    Image {
+        rect: Rect,
+        image: Image,
+        tint: Color32,
+        corner_radius: f32,
+        smooth: bool,
         clip: Rect,
     },
     Punch {
@@ -103,6 +112,27 @@ impl Painter {
             corner_radius,
             stroke_width: width,
             color,
+            clip: self.clip,
+        });
+    }
+
+    pub fn image(
+        &self,
+        rect: Rect,
+        image: &Image,
+        tint: Color32,
+        corner_radius: f32,
+        smooth: bool,
+    ) {
+        if tint.alpha() == 0 || !rect.is_positive() || image.width() == 0 || image.height() == 0 {
+            return;
+        }
+        self.push(Shape::Image {
+            rect,
+            image: image.clone(),
+            tint,
+            corner_radius,
+            smooth,
             clip: self.clip,
         });
     }

@@ -50,7 +50,7 @@ pub(crate) fn bounds(shape: &Shape) -> Rect {
             clip,
             ..
         } => Rect::from_min_size(*origin, galley.size()).intersect(*clip),
-        Shape::Punch { rect, clip, .. } => rect.intersect(*clip),
+        Shape::Image { rect, clip, .. } | Shape::Punch { rect, clip, .. } => rect.intersect(*clip),
     }
 }
 

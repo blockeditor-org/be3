@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
-use beui::{Color32, FrameOutput, GlyphImage, Quad, Vec2};
+use beui::{Color32, FrameOutput, GlyphImage, Image, Quad, Vec2};
 use paint_snapshot::{
-    Content, Frame, Glyph, Primitive, RoundedRect, Snapshot, Texture, TextureKey,
+    Content, Frame, Glyph, Primitive, RoundedRect, Snapshot, Texture, TextureKey, Triangle, Vertex,
 };
 
 pub(crate) fn capture(
@@ -45,6 +45,20 @@ pub(crate) fn capture(
                     color: color.to_array(),
                 }),
             ),
+            Quad::Image {
+                rect,
+                clip,
+                image,
+                tint,
+                ..
+            } => (
+                clip,
+                Content::Mesh(mesh(
+                    points(rect),
+                    picture(&mut textures, &image)?,
+                    tint.to_array(),
+                )),
+            ),
             Quad::Punch { rect, clip, .. } => (clip, Content::Callback(points(rect))),
         };
         primitives.push(Primitive {
@@ -64,6 +78,48 @@ pub(crate) fn capture(
         },
         textures,
     ))
+}
+
+fn mesh(rect: [f32; 4], texture: TextureKey, color: [u8; 4]) -> Vec<Triangle> {
+    let corner = |x: f32, y: f32, u: f32, v: f32| Vertex {
+        pos: [x, y],
+        uv: [u, v],
+        color,
+    };
+    let [left, top, right, bottom] = rect;
+    let top_left = corner(left, top, 0.0, 0.0);
+    let top_right = corner(right, top, 1.0, 0.0);
+    let bottom_right = corner(right, bottom, 1.0, 1.0);
+    let bottom_left = corner(left, bottom, 0.0, 1.0);
+    vec![
+        Triangle {
+            texture,
+            corners: [top_left, top_right, bottom_right],
+        },
+        Triangle {
+            texture,
+            corners: [top_left, bottom_right, bottom_left],
+        },
+    ]
+}
+
+fn picture(
+    textures: &mut BTreeMap<TextureKey, Texture>,
+    image: &Image,
+) -> Result<TextureKey, String> {
+    let size = [image.width(), image.height()];
+    let pixels: Vec<[u8; 4]> = image
+        .pixels()
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|pixel| [pixel[0], pixel[1], pixel[2], pixel[3]])
+        .collect();
+    let key = paint_snapshot::fingerprint(size, &pixels);
+    if let Entry::Vacant(entry) = textures.entry(key) {
+        entry.insert(Texture::encode(size, &pixels)?);
+    }
+    Ok(key)
 }
 
 fn texture(

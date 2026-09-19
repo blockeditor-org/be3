@@ -8,6 +8,7 @@ use crate::draw::{Quad, quads};
 use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
 use crate::geometry::{Rect, Vec2};
+use crate::image::{Image, ImageId};
 
 mod filter;
 
@@ -175,11 +176,17 @@ impl Repaint {
     }
 }
 
+struct Picture {
+    bind_groups: [wgpu::BindGroup; 2],
+    used: bool,
+}
+
 pub struct Renderer {
     srgb: bool,
     format: wgpu::TextureFormat,
     pipeline: wgpu::RenderPipeline,
     punch_pipeline: wgpu::RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
@@ -188,22 +195,30 @@ pub struct Renderer {
     overlay: Vec<Run>,
     scissor: Option<[u32; 4]>,
     atlas: Atlas,
+    pictures: HashMap<ImageId, Picture>,
+    samplers: [wgpu::Sampler; 2],
     filter: Option<filter::Prepared>,
     effects: Option<filter::Effects>,
 }
 
 struct Run {
     punch: bool,
+    picture: Option<(ImageId, bool)>,
     start: u32,
     count: u32,
 }
 
 impl Run {
     fn push(runs: &mut Vec<Self>, punch: bool, at: u32) {
+        Self::push_picture(runs, punch, None, at);
+    }
+
+    fn push_picture(runs: &mut Vec<Self>, punch: bool, picture: Option<(ImageId, bool)>, at: u32) {
         match runs.last_mut() {
-            Some(run) if run.punch == punch => run.count += 1,
+            Some(run) if run.punch == punch && run.picture == picture => run.count += 1,
             _ => runs.push(Self {
                 punch,
+                picture,
                 start: at,
                 count: 1,
             }),
@@ -290,16 +305,22 @@ impl Renderer {
         });
         let atlas = Atlas::new(device);
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("beui glyph sampler"),
+            label: Some("beui smooth sampler"),
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        let nearest = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("beui sharp sampler"),
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
         let bind_group = bind_group(
             device,
             &bind_group_layout,
             &uniform_buffer,
-            &atlas,
+            &atlas.view,
             &sampler,
         );
 
@@ -308,6 +329,7 @@ impl Renderer {
             format,
             pipeline,
             punch_pipeline,
+            bind_group_layout,
             bind_group,
             uniform_buffer,
             instance_buffer,
@@ -316,9 +338,76 @@ impl Renderer {
             overlay: Vec::new(),
             scissor: None,
             atlas,
+            pictures: HashMap::new(),
+            samplers: [nearest, sampler],
             filter: None,
             effects: None,
         }
+    }
+
+    fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, image: &Image) {
+        if let Some(picture) = self.pictures.get_mut(&image.id()) {
+            picture.used = true;
+            return;
+        }
+        let format = match self.srgb {
+            true => wgpu::TextureFormat::Rgba8UnormSrgb,
+            false => wgpu::TextureFormat::Rgba8Unorm,
+        };
+        let size = wgpu::Extent3d {
+            width: image.width(),
+            height: image.height(),
+            depth_or_array_layers: 1,
+        };
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("beui image"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            image.pixels(),
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(image.width() * 4),
+                rows_per_image: Some(image.height()),
+            },
+            size,
+        );
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bind_groups = [
+            bind_group(
+                device,
+                &self.bind_group_layout,
+                &self.uniform_buffer,
+                &view,
+                &self.samplers[0],
+            ),
+            bind_group(
+                device,
+                &self.bind_group_layout,
+                &self.uniform_buffer,
+                &view,
+                &self.samplers[1],
+            ),
+        ];
+        self.pictures.insert(
+            image.id(),
+            Picture {
+                bind_groups,
+                used: true,
+            },
+        );
     }
 
     pub fn prepare(
@@ -422,6 +511,32 @@ impl Renderer {
                         params: [0.0, 0.0, 1.0, 0.0],
                     });
                 }
+                Quad::Image {
+                    rect,
+                    clip,
+                    image,
+                    tint,
+                    corner_radius,
+                    smooth,
+                } => {
+                    if skipped(damaged, rect, clip) {
+                        continue;
+                    }
+                    self.upload(device, queue, &image);
+                    Run::push_picture(
+                        layer,
+                        false,
+                        Some((image.id(), smooth)),
+                        instances.len() as u32,
+                    );
+                    instances.push(Instance {
+                        rect,
+                        clip,
+                        uv: [0.0, 0.0, 1.0, 1.0],
+                        color: self.encode(tint),
+                        params: [corner_radius, 0.0, 2.0, 0.0],
+                    });
+                }
                 Quad::Punch {
                     rect,
                     clip,
@@ -442,6 +557,11 @@ impl Renderer {
             }
         }
 
+        self.pictures.retain(|_, picture| {
+            let used = picture.used;
+            picture.used = false;
+            used
+        });
         self.scissor = damaged.map(scissor);
         self.runs = runs;
         self.overlay = overlay;
@@ -564,9 +684,21 @@ impl Renderer {
         if runs.is_empty() {
             return;
         }
-        pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
+        let mut bound = None;
         for run in runs {
+            let group = run.picture.and_then(|(id, smooth)| {
+                self.pictures
+                    .get(&id)
+                    .map(|picture| &picture.bind_groups[usize::from(smooth)])
+            });
+            if run.picture.is_some() && group.is_none() {
+                continue;
+            }
+            if bound != Some(run.picture) {
+                pass.set_bind_group(0, group.unwrap_or(&self.bind_group), &[]);
+                bound = Some(run.picture);
+            }
             pass.set_pipeline(match run.punch {
                 true => &self.punch_pipeline,
                 false => &self.pipeline,
@@ -668,7 +800,7 @@ fn bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     uniforms: &wgpu::Buffer,
-    atlas: &Atlas,
+    view: &wgpu::TextureView,
     sampler: &wgpu::Sampler,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -681,7 +813,7 @@ fn bind_group(
             },
             wgpu::BindGroupEntry {
                 binding: 1,
-                resource: wgpu::BindingResource::TextureView(&atlas.view),
+                resource: wgpu::BindingResource::TextureView(view),
             },
             wgpu::BindGroupEntry {
                 binding: 2,
