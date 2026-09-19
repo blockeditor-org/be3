@@ -360,6 +360,14 @@ row that is itself a button, a close cross on a tab - asks `unstyled::Button`
 for `capture_presses` instead. The captured press reaches that button and
 nothing else, so the row it sits in does not open as well.
 
+`unstyled::Tree` makes the same split the other way round. A row is a tab stop
+with the tree's keyboard and its `TreeItem` accessibility, and nothing more:
+where a pointer has to land to select it is the face's business, because a
+face that draws a chevron of its own outside the name wants pressing the
+chevron, the indent beside it and the name to mean three different things. The
+handle carries `select`, `toggle` and `hover` for the face to call from
+wherever it decides they belong.
+
 ### Pan and zoom
 
 `unstyled::PanZoom` turns wheel, trackpad and middle-button gestures over a

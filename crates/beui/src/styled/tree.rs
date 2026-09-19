@@ -8,7 +8,7 @@ use crate::input::CursorIcon;
 use crate::node::NodeId;
 use crate::reactive::{
     Align, Callback, ClickCatcher, Direction, Frame, Func, ItemSize, List, Prop, RenderFn, Spacer,
-    clone, create_memo, intrinsic, percent, size,
+    clone, create_memo, create_signal, intrinsic, percent, size,
 };
 use crate::styled::text::IconSized;
 use crate::styled::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
@@ -67,11 +67,13 @@ where
         key,
         item,
         selected,
-        hovered,
-        active,
         focused,
+        select,
         toggle,
+        hover,
     } = handle;
+    let (hovered, set_hovered) = create_signal(false);
+    let (active, set_active) = create_signal(false);
     let theme = use_theme();
     let fill = create_memo(clone!(theme selected -> move || {
         background(&theme, selected.get(), hovered.get(), active.get())
@@ -108,22 +110,32 @@ where
         percent(content.call(key), 100.0),
     ];
     view! {
-        <Frame
-            color={fill}
-            outline={theme.accent.clone()}
-            outline_width=OUTLINE_WIDTH
-            radius=RADIUS
-            outline_visible={focused}
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
+        <ClickCatcher
+            cursor=CursorIcon::PointingHand
+            on_click={move || select()}
+            on_hover_change={move |over: bool| {
+                set_hovered.set(over);
+                hover(over);
+            }}
+            on_active_change={move |down: bool| set_active.set(down)}
         >
-            <List
-                direction=Direction::Horizontal
-                align=Align::Center
-                spacing=SPACING
-                children={cells}
-            />
-        </Frame>
+            <Frame
+                color={fill}
+                outline={theme.accent.clone()}
+                outline_width=OUTLINE_WIDTH
+                radius=RADIUS
+                outline_visible={focused}
+                padding_horizontal=PADDING_HORIZONTAL
+                padding_vertical=PADDING_VERTICAL
+            >
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=SPACING
+                    children={cells}
+                />
+            </Frame>
+        </ClickCatcher>
     }
 }
 

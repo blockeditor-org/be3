@@ -18,7 +18,7 @@ use block_editor_plugin::beui::styled::{
 use block_editor_plugin::beui::unstyled::{
     self, ButtonHandle, Edge, Floating, MenuItem, TreeItem, TreeRowHandle, tree_row_node,
 };
-use block_editor_plugin::beui::{Color32, NodeId, PointerPress, Pos2};
+use block_editor_plugin::beui::{Color32, CursorIcon, NodeId, PointerPress, Pos2};
 use block_editor_plugin::{BlockFilter, BlockPicker, BlockSource, Editor, Toolbar};
 use uuid::Uuid;
 
@@ -301,7 +301,9 @@ fn TreeRow(
         item,
         selected,
         focused,
+        select,
         toggle,
+        hover,
         ..
     } = handle;
     let rect = component_rect();
@@ -337,6 +339,11 @@ fn TreeRow(
     let settled = clone!(gesture -> move |active: bool| {
         if !active {
             gesture.set(None);
+        }
+    });
+    let chose_row = clone!(gesture -> move || {
+        if gesture.get().is_none_or(|(_, dragged)| !dragged) {
+            select();
         }
     });
     let (hovered, set_hovered) = create_signal(false);
@@ -450,10 +457,15 @@ fn TreeRow(
                         padding_horizontal=4.0
                     >
                         <ClickCatcher
+                            cursor=CursorIcon::PointingHand
                             on_press={pressed}
                             on_drag={moved}
+                            on_click={chose_row}
                             on_active_change={settled}
-                            on_hover_change={move |over: bool| set_hovered.set(over)}
+                            on_hover_change={move |over: bool| {
+                                set_hovered.set(over);
+                                hover(over);
+                            }}
                         >
                             <List
                                 direction=Direction::Horizontal
@@ -524,7 +536,6 @@ fn Chevron(item: Memo<TreeItem>, toggle: Rc<dyn Fn()>, named: String) -> NodeId 
                     <unstyled::Button
                         @test_id={format!("file-tree.chevron.{named}")}
                         tab_stop=false
-                        capture_presses=true
                         accessibility={chevron_accessibility(item)}
                         on_click={move || toggle()}
                         content={move |button: ButtonHandle| view! {
@@ -586,7 +597,7 @@ fn ChevronFace(
         <Tooltip label={label}>
             <Frame
                 width=CHEVRON_WIDTH
-                height=CHEVRON_WIDTH
+                height=ROW_HEIGHT
                 color={fill}
                 outline={theme.accent.clone()}
                 outline_width=1.0
