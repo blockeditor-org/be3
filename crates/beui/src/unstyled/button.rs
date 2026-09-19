@@ -26,6 +26,7 @@ pub fn Button(
     children: Option<Child>,
     content: Option<Render<ButtonHandle>>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     on_click: ClickCallback,
@@ -102,6 +103,7 @@ pub fn Button(
         >
             <ClickCatcher
                 cursor=CursorIcon::PointingHand
+                capture_presses
                 key_active
                 on_click={click}
                 on_click_at={click_at}
