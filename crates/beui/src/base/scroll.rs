@@ -724,7 +724,7 @@ impl Document {
         false
     }
 
-    pub(crate) fn reveal_node(&mut self, node: NodeId) {
+    pub fn reveal_node(&mut self, node: NodeId) {
         let Some(root) = self.root else {
             return;
         };

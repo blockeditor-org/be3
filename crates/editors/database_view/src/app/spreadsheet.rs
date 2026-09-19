@@ -6,7 +6,8 @@ use block_editor_plugin::beui::icons::{
 };
 use block_editor_plugin::beui::reactive::{
     Align, Callback, ClickCallback, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize,
-    List, Memo, Prop, Scroll, Show, Spacer, clone, component, create_memo, view,
+    List, Memo, NodeRef, Prop, Scroll, Show, Spacer, clone, component, create_effect, create_memo,
+    view, with_document,
 };
 use block_editor_plugin::beui::styled::{Body, Caption, Icon, use_theme};
 use block_editor_plugin::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
@@ -70,12 +71,9 @@ fn Grid(
     let theme = use_theme();
     view! {
         <List spacing=0.0>
-            <Focusable
-                @sizing=ItemSize::Percent(100.0)
-                on_key={move |press: KeyPress| on_key.call(press)}
-            >
-                <Scroll focus_color={theme.accent.clone()}>
-                    <Scroll direction=Direction::Horizontal focus_color={theme.accent.clone()}>
+            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                <Scroll direction=Direction::Horizontal focus_color={theme.accent.clone()}>
+                    <Focusable on_key={move |press: KeyPress| on_key.call(press)}>
                         <List spacing=0.0>
                             <HeaderRow data={header} />
                             <ForEach keys={keys}>
@@ -88,9 +86,9 @@ fn Grid(
                                 }}
                             </ForEach>
                         </List>
-                    </Scroll>
+                    </Focusable>
                 </Scroll>
-            </Focusable>
+            </Scroll>
         </List>
     }
 }
@@ -317,6 +315,14 @@ fn Cell(
             data.set_cell(row, id, Some(DatabaseValue::Boolean(value)));
         }
     });
+    let shown = NodeRef::new();
+    create_effect(clone!(selected shown -> move || {
+        if selected.get()
+            && let Some(node) = shown.try_get()
+        {
+            with_document(|document| document.reveal_node(node));
+        }
+    }));
     let theme = use_theme();
     let glyph_color = theme.text.clone();
     let fill = create_memo(clone!(theme selected -> move || match selected.get() {
@@ -329,6 +335,7 @@ fn Cell(
     }));
     view! {
         <Frame
+            @node_ref=&shown
             width={width}
             height=ROW_HEIGHT
             color={fill}

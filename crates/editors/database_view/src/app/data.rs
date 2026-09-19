@@ -113,6 +113,36 @@ impl ViewData {
         self.set_selected.set(Some(Selection { row, field }));
     }
 
+    pub fn step_selection(&self, rows: isize) {
+        let Some(selection) = self.selected.get_untracked() else {
+            return;
+        };
+        let display = self.rows.with_untracked(|shown| {
+            self.fields.with_untracked(|fields| {
+                self.labels.with_untracked(|labels| {
+                    crate::sort::display_rows(
+                        shown,
+                        Some(selection.row),
+                        self.sort.get_untracked(),
+                        fields,
+                        labels,
+                    )
+                })
+            })
+        });
+        if display.is_empty() {
+            return;
+        }
+        let position = display
+            .iter()
+            .position(|row| row.index == selection.row)
+            .unwrap_or(0);
+        let next = position
+            .saturating_add_signed(rows)
+            .min(display.len() - 1);
+        self.select(display[next].index, selection.field);
+    }
+
     pub fn deselect(&self) {
         self.set_selected.set(None);
     }

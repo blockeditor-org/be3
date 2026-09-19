@@ -42,6 +42,7 @@ pub fn DatabaseValueEditor(
     #[prop(default = true)] headings: Prop<bool>,
     on_change: Callback<DatabaseValueChange>,
     on_pick: Callback<DatabaseBlockPickRequest>,
+    on_submit: Callback<Uuid>,
 ) -> NodeId {
     let headings = create_memo(move || headings.get());
     let fields = create_memo(move || fields.get());
@@ -69,6 +70,7 @@ pub fn DatabaseValueEditor(
                             id={test_id}
                             on_change={forward(on_change.clone())}
                             on_pick={forward(on_pick.clone())}
+                            on_submit={forward(on_submit.clone())}
                         />
                     }
                 }}
@@ -87,6 +89,7 @@ fn DatabaseValueRow(
     id: String,
     on_change: Callback<DatabaseValueChange>,
     on_pick: Callback<DatabaseBlockPickRequest>,
+    on_submit: Callback<Uuid>,
 ) -> NodeId {
     let heading = create_memo(clone!(field -> move || {
         field.with(|field| {
@@ -132,6 +135,7 @@ fn DatabaseValueRow(
                 id={control_id}
                 on_change={forward(on_change)}
                 on_pick={forward(on_pick)}
+                on_submit={forward(on_submit)}
             />
         </List>
     }
@@ -146,6 +150,7 @@ fn DatabaseValueControl(
     id: String,
     on_change: Callback<DatabaseValueChange>,
     on_pick: Callback<DatabaseBlockPickRequest>,
+    on_submit: Callback<Uuid>,
 ) -> NodeId {
     let kind = create_memo(clone!(field -> move || {
         field.with(|field| field.as_ref().map(|field| field.field_type))
@@ -161,6 +166,7 @@ fn DatabaseValueControl(
                     let test_id = id.clone();
                     let on_change = forward(on_change.clone());
                     let on_pick = forward(on_pick.clone());
+                    let on_submit = forward(on_submit.clone());
                     match kind {
                         None => view! {
                             <Spacer />
@@ -172,6 +178,7 @@ fn DatabaseValueControl(
                                 disabled={disabled}
                                 id={test_id}
                                 on_change={on_change}
+                                on_submit={on_submit}
                             />
                         },
                         Some(DatabaseFieldType::Number) => view! {
@@ -243,11 +250,17 @@ fn StringValue(
     disabled: Memo<bool>,
     id: String,
     on_change: Callback<DatabaseValueChange>,
+    on_submit: Callback<Uuid>,
 ) -> NodeId {
     let text = create_memo(clone!(value -> move || match value.get() {
         Some(DatabaseValue::String(text)) => text,
         _ => String::new(),
     }));
+    let submitted = clone!(field -> move |_: String| {
+        if let Some(id) = field.with_untracked(|field| field.as_ref().map(|field| field.id)) {
+            on_submit.call(id);
+        }
+    });
     let edited = changer(field, on_change, true, |typed: String| {
         Some(DatabaseValue::String(typed))
     });
@@ -258,6 +271,7 @@ fn StringValue(
             disabled={disabled}
             @test_id={id}
             on_change={edited}
+            on_submit={submitted}
         />
     }
 }
