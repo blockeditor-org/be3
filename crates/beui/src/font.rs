@@ -77,6 +77,7 @@ struct GalleyData {
     size: Vec2,
     line_height: f32,
     baseline: f32,
+    pixel_bounds: [f32; 4],
     glyphs: Vec<Glyph>,
     lines: Vec<GalleyLine>,
 }
@@ -184,6 +185,10 @@ impl Galley {
         &self.inner.glyphs
     }
 
+    pub fn pixel_bounds(&self) -> [f32; 4] {
+        self.inner.pixel_bounds
+    }
+
     fn line_of(&self, index: usize) -> Option<&GalleyLine> {
         self.inner
             .lines
@@ -212,6 +217,22 @@ struct GalleyKey {
 
 const GALLEY_CACHE_LIMIT: usize = 4096;
 const SUBPIXEL_POSITIONS: u32 = 4;
+
+fn pixel_bounds(glyphs: &[Glyph]) -> [f32; 4] {
+    let mut bounds = [
+        f32::INFINITY,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::NEG_INFINITY,
+    ];
+    for glyph in glyphs {
+        bounds[0] = bounds[0].min(glyph.offset.x);
+        bounds[1] = bounds[1].min(glyph.offset.y);
+        bounds[2] = bounds[2].max(glyph.offset.x + glyph.image.width as f32);
+        bounds[3] = bounds[3].max(glyph.offset.y + glyph.image.height as f32);
+    }
+    bounds
+}
 
 fn split_subpixel(x: f32) -> (f32, u32) {
     let positions = SUBPIXEL_POSITIONS as f32;
@@ -420,6 +441,7 @@ impl Fonts {
                 size: vec2(width.ceil() / scale, cursor.ceil() / scale),
                 line_height: line_height / scale,
                 baseline: ascent / scale,
+                pixel_bounds: pixel_bounds(&glyphs),
                 glyphs,
                 lines,
             }),

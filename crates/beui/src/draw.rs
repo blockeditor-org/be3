@@ -40,6 +40,14 @@ pub struct Quads {
 }
 
 pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
+    quads_within(output, pixels_per_point, None)
+}
+
+pub fn quads_within(
+    output: &FrameOutput,
+    pixels_per_point: f32,
+    damaged: Option<[f32; 4]>,
+) -> Quads {
     let boundary = output.filtered_shapes();
     let mut filtered = 0;
     let mut quads = Vec::new();
@@ -58,12 +66,18 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
                 if !rect.is_positive() {
                     continue;
                 }
+                let rect = snapped(*rect, pixels_per_point);
+                let clip = bounds(*clip, pixels_per_point);
+                let stroke_width = stroke(*stroke_width, pixels_per_point);
+                if skipped(damaged, expand(rect, stroke_width), clip) {
+                    continue;
+                }
                 quads.push(Quad::Rect {
-                    rect: snapped(*rect, pixels_per_point),
-                    clip: bounds(*clip, pixels_per_point),
+                    rect,
+                    clip,
                     color: *color,
                     corner_radius: corner_radius * pixels_per_point,
-                    stroke_width: stroke(*stroke_width, pixels_per_point),
+                    stroke_width,
                 });
             }
             Shape::Text {
@@ -77,18 +91,32 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
                     (origin.x * pixels_per_point).round(),
                     (origin.y * pixels_per_point).round(),
                 );
+                let [left, top, right, bottom] = galley.pixel_bounds();
+                let run = [
+                    origin.x + left,
+                    origin.y + top,
+                    origin.x + right,
+                    origin.y + bottom,
+                ];
+                if skipped(damaged, run, clip) {
+                    continue;
+                }
                 for glyph in galley.glyphs() {
                     if glyph.image.width == 0 || glyph.image.height == 0 {
                         continue;
                     }
                     let min = origin + glyph.offset;
+                    let rect = [
+                        min.x,
+                        min.y,
+                        min.x + glyph.image.width as f32,
+                        min.y + glyph.image.height as f32,
+                    ];
+                    if skipped(damaged, rect, clip) {
+                        continue;
+                    }
                     quads.push(Quad::Glyph {
-                        rect: [
-                            min.x,
-                            min.y,
-                            min.x + glyph.image.width as f32,
-                            min.y + glyph.image.height as f32,
-                        ],
+                        rect,
                         clip,
                         color: *color,
                         glyph: glyph.clone(),
@@ -106,9 +134,14 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
                 if !rect.is_positive() {
                     continue;
                 }
+                let rect = snapped(*rect, pixels_per_point);
+                let clip = bounds(*clip, pixels_per_point);
+                if skipped(damaged, rect, clip) {
+                    continue;
+                }
                 quads.push(Quad::Image {
-                    rect: snapped(*rect, pixels_per_point),
-                    clip: bounds(*clip, pixels_per_point),
+                    rect,
+                    clip,
                     image: image.clone(),
                     tint: *tint,
                     corner_radius: corner_radius * pixels_per_point,
@@ -123,9 +156,14 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
                 if !rect.is_positive() {
                     continue;
                 }
+                let rect = snapped(*rect, pixels_per_point);
+                let clip = bounds(*clip, pixels_per_point);
+                if skipped(damaged, rect, clip) {
+                    continue;
+                }
                 quads.push(Quad::Punch {
-                    rect: snapped(*rect, pixels_per_point),
-                    clip: bounds(*clip, pixels_per_point),
+                    rect,
+                    clip,
                     corner_radius: corner_radius * pixels_per_point,
                 });
             }
@@ -138,6 +176,26 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
         list: quads,
         filtered,
     }
+}
+
+fn expand(rect: [f32; 4], amount: f32) -> [f32; 4] {
+    [
+        rect[0] - amount,
+        rect[1] - amount,
+        rect[2] + amount,
+        rect[3] + amount,
+    ]
+}
+
+fn skipped(damaged: Option<[f32; 4]>, rect: [f32; 4], clip: [f32; 4]) -> bool {
+    let Some(damaged) = damaged else {
+        return false;
+    };
+    let left = rect[0].max(clip[0]).max(damaged[0]);
+    let top = rect[1].max(clip[1]).max(damaged[1]);
+    let right = rect[2].min(clip[2]).min(damaged[2]);
+    let bottom = rect[3].min(clip[3]).min(damaged[3]);
+    left >= right || top >= bottom
 }
 
 fn bounds(rect: Rect, pixels_per_point: f32) -> [f32; 4] {
