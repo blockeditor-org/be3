@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::collections::HashMap;
 
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
@@ -7,7 +6,7 @@ use crate::pixel_grid::PixelGrid;
 
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId};
+use crate::node::{Element, InteractInput, NodeId, NodeMap};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -216,7 +215,7 @@ impl Element for ListNode {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut HashMap<NodeId, Rect>,
+        out: &mut NodeMap<Rect>,
     ) {
         let (available_main, available_cross) = self.main_and_cross(rect.size());
 
@@ -287,7 +286,7 @@ impl Element for ListNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
         for item in self.items.iter() {
             crate::paint::paint(doc, painter, rects, item.child);
         }

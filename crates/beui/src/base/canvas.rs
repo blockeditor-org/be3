@@ -1,12 +1,11 @@
 use std::any::Any;
-use std::collections::HashMap;
 
 use beui_macros::component;
 
 use crate::base::child_list::{ChildHost, ChildList};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::node::{Element, InteractInput, NodeId};
+use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{
     Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
@@ -78,7 +77,7 @@ impl Element for CanvasNode {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut HashMap<NodeId, Rect>,
+        out: &mut NodeMap<Rect>,
     ) {
         let view = self.placement(rect);
         let clipped = painter.with_clip_rect(rect);
@@ -90,7 +89,7 @@ impl Element for CanvasNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
         let clipped = painter.with_clip_rect(rect);
         for item in self.items.iter() {
             if rects.contains_key(item) {
@@ -151,14 +150,14 @@ impl Element for CanvasItemNode {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut HashMap<NodeId, Rect>,
+        out: &mut NodeMap<Rect>,
     ) {
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }

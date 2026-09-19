@@ -7,7 +7,7 @@ use crate::geometry::Rect;
 use crate::painter::{Painter, Shape};
 
 use crate::document::Document;
-use crate::node::NodeId;
+use crate::node::{NodeId, NodeMap};
 
 pub(crate) struct Painted {
     pub(crate) parent: Option<NodeId>,
@@ -49,7 +49,7 @@ impl PaintCache {
     }
 }
 
-pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &HashMap<NodeId, Rect>, id: NodeId) {
+pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, id: NodeId) {
     let rect = rects[&id];
     let ctx = painter.ctx();
     let base = doc

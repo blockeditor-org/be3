@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::collections::HashMap;
 
 use beui_macros::component;
 
@@ -7,7 +6,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::image::{Image, ImageFit};
-use crate::node::{Element, InteractInput, NodeId};
+use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{Prop, create_effect, with_document};
 
@@ -39,17 +38,11 @@ impl Element for PictureNode {
         _doc: &mut Document,
         _painter: &Painter,
         _rect: Rect,
-        _out: &mut HashMap<NodeId, Rect>,
+        _out: &mut NodeMap<Rect>,
     ) {
     }
 
-    fn paint(
-        &self,
-        _doc: &Document,
-        painter: &Painter,
-        _rects: &HashMap<NodeId, Rect>,
-        rect: Rect,
-    ) {
+    fn paint(&self, _doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, rect: Rect) {
         let Some(image) = self.image.as_ref() else {
             return;
         };
