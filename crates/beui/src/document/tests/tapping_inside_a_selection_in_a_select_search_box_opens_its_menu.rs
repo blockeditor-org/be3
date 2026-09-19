@@ -4,11 +4,11 @@ use crate::styled::Select;
 
 #[test]
 fn tapping_inside_a_selection_in_a_select_search_box_opens_its_menu() {
-    let options: Vec<String> = ["Apple", "Banana"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+        };
         [view! {
             <Select options selected=None />
         }]

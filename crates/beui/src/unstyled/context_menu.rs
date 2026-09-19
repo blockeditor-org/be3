@@ -43,10 +43,11 @@ pub fn ContextMenu(
 
     let dismiss = set_open.clone();
     let close = set_open.clone();
+    let items = items.into_run();
     let menu = panel.call(view! {
         <MenuList
             @node_ref=&content
-            items
+            items={items}
             row
             panel={panel.clone()}
             active={open.clone()}

@@ -4,11 +4,12 @@ use crate::styled::Select;
 
 #[test]
 fn typing_in_a_select_search_box_filters_options_case_insensitively() {
-    let options: Vec<String> = ["Apple", "Banana", "Grape"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption label="Grape" />
+        };
         [view! {
             <Select options selected=None />
         }]

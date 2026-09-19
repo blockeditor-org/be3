@@ -4,16 +4,16 @@ use crate::styled::Select;
 
 #[test]
 fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
-    let options: Vec<String> = ["Apple", "Banana"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let other_clicks = Rc::new(Cell::new(0));
     let counter = other_clicks.clone();
     let (select, other) = (NodeRef::new(), NodeRef::new());
     let document = build({
         let (select, other) = (select.clone(), other.clone());
         move || {
+            let options = view! {
+                <unstyled::ChoiceOption label="Apple" />
+                <unstyled::ChoiceOption label="Banana" />
+            };
             view! {
                 <List direction=Direction::Horizontal spacing=20.0>
                     <Select @node_ref=&select options selected=Some(0) />

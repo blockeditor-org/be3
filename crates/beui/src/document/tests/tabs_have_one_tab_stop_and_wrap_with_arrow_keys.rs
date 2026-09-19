@@ -11,7 +11,11 @@ fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
             },
             view! {
                 <Tabs
-                    labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string()]}
+                    options={view! {
+                        <unstyled::ChoiceOption label="One" />
+                        <unstyled::ChoiceOption label="Two" />
+                        <unstyled::ChoiceOption label="Three" />
+                    }}
                     selected=1
                 />
             },

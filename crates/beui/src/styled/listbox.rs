@@ -2,25 +2,25 @@ use beui_macros::{component, view};
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{Callback, Prop};
-use crate::styled::choice::{self, ChoiceOption, Kind};
-use crate::unstyled::Choice;
+use crate::reactive::{Callback, Children, Prop};
+use crate::styled::choice::{self, Kind, OptionFace};
+use crate::unstyled::{Choice, ChoiceOption};
 
 #[component]
 pub fn Listbox(
-    labels: Vec<String>,
+    options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     view! {
         <Choice
-            labels
+            options
             selected
             kind=Kind::Listbox
             on_change={move |selected| on_change.call(selected)}
         >
             {|handle| view! {
-                <ChoiceOption kind=Kind::Listbox handle />
+                <OptionFace kind=Kind::Listbox handle />
             }}
         </Choice>
     }

@@ -50,7 +50,12 @@ host when it is clicked, showing its `fallback` while the reference has not
 resolved.
 
 `<Select>` takes `options` and `selected` and opens a popup with a search box
-over the option list. `<ContextMenu>` wraps a `region` so a secondary click
+over the option list. Its options, and those of `<Tabs>`, `<Listbox>`,
+`<RadioGroup>` and `<ResponsiveTabs>`, are a `Children<unstyled::ChoiceOption>`
+written as `<ChoiceOption>` tags, with each label a prop that follows its
+signal. A list that comes from runtime data builds a `Vec` of those tags rather
+than a `Vec` of labels, so an option is one thing everywhere it is written.
+`<ContextMenu>` wraps a `region` so a secondary click
 opens a menu built from the `items` prop, a `Children<unstyled::MenuItem>`
 written as `<MenuItem>` tags with a submenu's items between its own tags; its
 `on_select` callback receives the selected item's index path through any

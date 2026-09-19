@@ -2,17 +2,22 @@ use beui_macros::{component, view};
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{Callback, Prop};
-use crate::styled::choice::{self, ChoiceOption, Kind};
-use crate::unstyled::Choice;
+use crate::reactive::{Callback, Children, Prop};
+use crate::styled::choice::{self, Kind, OptionFace};
+use crate::unstyled::{Choice, ChoiceOption};
 
 #[component]
-pub fn Tabs(labels: Vec<String>, selected: Prop<usize>, on_change: Callback<usize>) -> NodeId {
-    let option_count = labels.len();
-    let selected = selected.map(move |selected| Some(selected.min(option_count.saturating_sub(1))));
+pub fn Tabs(
+    options: Children<ChoiceOption>,
+    selected: Prop<usize>,
+    on_change: Callback<usize>,
+) -> NodeId {
+    let options = options.into_run();
+    let count = options.clone();
+    let selected = selected.map(move |selected| Some(selected.min(count.len().saturating_sub(1))));
     view! {
         <Choice
-            labels
+            options
             selected
             kind=Kind::Tabs
             on_change={move |selected: Option<usize>| {
@@ -22,7 +27,7 @@ pub fn Tabs(labels: Vec<String>, selected: Prop<usize>, on_change: Callback<usiz
             }}
         >
             {|handle| view! {
-                <ChoiceOption kind=Kind::Tabs handle />
+                <OptionFace kind=Kind::Tabs handle />
             }}
         </Choice>
     }

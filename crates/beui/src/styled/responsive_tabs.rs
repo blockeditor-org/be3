@@ -3,20 +3,21 @@ use beui_macros::{component, view};
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, List, Prop, ReadSignal, Show, clone, create_effect, create_memo, create_signal,
-    intrinsic, set_component_state,
+    Callback, Children, List, Prop, ReadSignal, Show, clone, create_effect, create_memo,
+    create_signal, intrinsic, set_component_state,
 };
 use crate::styled::theme::NARROW_WIDTH;
 use crate::styled::{Select, Tabs};
-use crate::unstyled::narrower_than;
+use crate::unstyled::{ChoiceOption, narrower_than};
 
 #[component]
 pub fn ResponsiveTabs(
-    labels: Vec<String>,
+    options: Children<ChoiceOption>,
     selected: Prop<usize>,
     on_change: Callback<usize>,
     #[prop(default = NARROW_WIDTH)] breakpoint: f32,
 ) -> NodeId {
+    let options = options.into_run();
     let (selected_read, set_selected) = create_signal(selected.peek());
     create_effect(clone!(set_selected -> move || set_selected.set(selected.get())));
     set_component_state(selected_read.clone());
@@ -25,7 +26,7 @@ pub fn ResponsiveTabs(
     let wide = create_memo(clone!(narrow -> move || !narrow.get()));
     let highlighted = create_memo(clone!(selected_read -> move || Some(selected_read.get())));
 
-    let tab_labels = labels.clone();
+    let tab_options = options.clone();
     let tab_selected = selected_read.clone();
     let tab_change = on_change.clone();
     let tab_set = set_selected.clone();
@@ -36,7 +37,7 @@ pub fn ResponsiveTabs(
                 condition={wide}
                 then={move || intrinsic(view! {
                     <Tabs
-                        labels={tab_labels}
+                        options={tab_options}
                         selected={tab_selected}
                         on_change={move |index| {
                             tab_set.set(index);
@@ -49,7 +50,7 @@ pub fn ResponsiveTabs(
                 condition={narrow}
                 then={move || intrinsic(view! {
                     <Select
-                        options={labels}
+                        options
                         selected={highlighted}
                         on_change={move |index: Option<usize>| {
                             if let Some(index) = index {

@@ -6,11 +6,12 @@ const RING_ALLOWANCE: f32 = 10.0;
 
 #[test]
 fn the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it() {
-    let options: Vec<String> = ["Apple", "Banana", "Cherry"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption label="Cherry" />
+        };
         [view! {
             <Select options selected=None />
         }]

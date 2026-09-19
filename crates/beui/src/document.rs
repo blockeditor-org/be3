@@ -7,6 +7,7 @@ use std::time::Instant;
 use accesskit::Node;
 
 use crate::accessibility;
+use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::Context;
 use crate::damage::Damage;
 use crate::flash::FlashLog;
@@ -191,6 +192,25 @@ impl Document {
 
     pub fn children(&self, id: NodeId) -> Vec<NodeId> {
         self.arena.get(id).children()
+    }
+
+    pub(crate) fn open_child_slot<H: ChildHost>(&mut self, node: NodeId) -> SlotId {
+        self.arena.get_mut_as::<H>(node).children().open()
+    }
+
+    pub(crate) fn fill_child_slot<H: ChildHost>(
+        &mut self,
+        node: NodeId,
+        slot: SlotId,
+        items: Vec<H::Stored>,
+    ) {
+        let host = self.arena.get_mut_as::<H>(node);
+        host.children().fill(slot, items);
+        host.children_changed();
+    }
+
+    pub(crate) fn append_child_item<H: ChildHost>(&mut self, node: NodeId, item: H::Stored) {
+        self.arena.get_mut_as::<H>(node).children().push(item);
     }
 
     pub fn node_kind(&self, id: NodeId) -> &'static str {

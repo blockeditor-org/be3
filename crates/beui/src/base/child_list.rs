@@ -13,6 +13,14 @@ impl ChildItem for NodeId {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SlotId(u32);
 
+pub(crate) trait ChildHost: crate::node::Element {
+    type Stored;
+
+    fn children(&mut self) -> &mut ChildList<Self::Stored>;
+
+    fn children_changed(&mut self) {}
+}
+
 enum SlotItems<T> {
     One(T),
     Many(Vec<T>),

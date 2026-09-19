@@ -21,7 +21,7 @@ impl ChildValue for Note {
     }
 }
 
-crate::child_type!(Note);
+crate::value_child_type!(Note);
 
 #[component]
 fn Noted(label: Prop<String>, disposals: Disposals) -> Note {
@@ -35,7 +35,8 @@ fn Noted(label: Prop<String>, disposals: Disposals) -> Note {
 #[component]
 fn Legend(children: Children<Note>) -> NodeId {
     let labels = children
-        .into_items()
+        .into_run()
+        .peek()
         .iter()
         .map(|note| note.label.clone())
         .collect::<Vec<_>>()

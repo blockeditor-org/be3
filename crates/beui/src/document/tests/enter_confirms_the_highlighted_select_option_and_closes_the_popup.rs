@@ -4,13 +4,13 @@ use crate::styled::Select;
 
 #[test]
 fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
-    let options: Vec<String> = ["Apple", "Banana"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let changes = Rc::new(RefCell::new(Vec::new()));
     let sink = changes.clone();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+        };
         [view! {
             <Select
                 options

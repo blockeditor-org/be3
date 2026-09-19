@@ -11,8 +11,8 @@ use beui::styled::{
     Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, use_theme,
 };
 use beui::unstyled::{
-    Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, TreeItem, narrower_than,
-    shorter_than,
+    ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, TreeItem,
+    narrower_than, shorter_than,
 };
 use beui::{
     Color32, Context, Direction, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign,
@@ -611,7 +611,16 @@ fn ControlPanels(rows: Rows) -> NodeId {
     view! {
         <List spacing=16.0>
             <ResponsiveTabs
-                labels={vec!["List".to_string(), "Strip".to_string(), "Load".to_string(), "Name".to_string(), "Links".to_string(), "Choices".to_string(), "Menus".to_string(), "Tree".to_string()]}
+                options={view! {
+                    <ChoiceOption label="List" />
+                    <ChoiceOption label="Strip" />
+                    <ChoiceOption label="Load" />
+                    <ChoiceOption label="Name" />
+                    <ChoiceOption label="Links" />
+                    <ChoiceOption label="Choices" />
+                    <ChoiceOption label="Menus" />
+                    <ChoiceOption label="Tree" />
+                }}
                 selected=0
                 breakpoint=TABS_NARROW_WIDTH
                 on_change={move |selected| {
@@ -844,7 +853,11 @@ fn ChoiceControls() -> NodeId {
             <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <Caption content="Update mode" />
                 <RadioGroup
-                    labels={vec!["Automatic".to_string(), "Manual".to_string(), "Scheduled".to_string()]}
+                    options={view! {
+                        <ChoiceOption label="Automatic" />
+                        <ChoiceOption label="Manual" />
+                        <ChoiceOption label="Scheduled" />
+                    }}
                     selected=Some(0)
                     on_change={move |selected| {
                         if let Some(index) = selected {
@@ -872,7 +885,12 @@ fn ChoiceControls() -> NodeId {
             <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <Caption content="Highlight color (type to search)" />
                 <Listbox
-                    labels={vec!["Amber".to_string(), "Blue".to_string(), "Green".to_string(), "Purple".to_string()]}
+                    options={view! {
+                        <ChoiceOption label="Amber" />
+                        <ChoiceOption label="Blue" />
+                        <ChoiceOption label="Green" />
+                        <ChoiceOption label="Purple" />
+                    }}
                     selected=Some(1)
                     on_change={move |selected| {
                         if let Some(index) = selected {
@@ -958,13 +976,18 @@ fn visible_tree_rows(collapsed: &[usize]) -> Vec<usize> {
     rows
 }
 
+const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"];
+
 #[component]
 fn MenuControls() -> NodeId {
-    let fruits: Vec<String> = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"]
+    let fruits = FRUITS
         .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
-    let fruit_names = fruits.clone();
+        .map(|label| {
+            view! {
+                <ChoiceOption label={*label} />
+            }
+        })
+        .collect::<Vec<_>>();
     let (fruit_status_text, set_fruit_status_text) = create_signal("Apple selected".to_string());
     let (menu_status_text, set_menu_status_text) = create_signal("Nothing chosen yet".to_string());
 
@@ -988,7 +1011,7 @@ fn MenuControls() -> NodeId {
                     selected=Some(0)
                     on_change={move |selected| {
                         let text = selected
-                            .and_then(|index| fruit_names.get(index))
+                            .and_then(|index| FRUITS.get(index))
                             .map_or_else(
                                 || "Nothing selected".to_owned(),
                                 |label| format!("{label} selected"),

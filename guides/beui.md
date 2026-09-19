@@ -50,7 +50,10 @@ component has nothing for `component_state`, `component_accessibility`,
 name a node it does not have, so all six panic rather than going quietly
 nowhere. `unstyled::MenuItem` is one: a menu item is a label, a disabled flag
 and its own submenu items, so a menu is written as tags and each row follows
-the signals its tag was given.
+the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
+options of a tab bar, a listbox, a radio group and a select. Declare the type
+with `value_child_type!` rather than `child_type!`, which additionally says how
+a run of it is kept, so a `show` or a `for_each` can build one.
 
 Functions that build no part of a view are ordinary functions. Deriving a
 colour from theme tokens and interaction state, mapping a value to a label,

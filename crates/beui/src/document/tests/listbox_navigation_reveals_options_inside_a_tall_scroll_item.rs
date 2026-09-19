@@ -12,7 +12,14 @@ fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
                 <Scroll @node_ref=&scroll>
                     <Listbox
                         @node_ref=&listbox
-                        labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string(), "Four".to_string(), "Five".to_string(), "Six".to_string()]}
+                        options={view! {
+                            <unstyled::ChoiceOption label="One" />
+                            <unstyled::ChoiceOption label="Two" />
+                            <unstyled::ChoiceOption label="Three" />
+                            <unstyled::ChoiceOption label="Four" />
+                            <unstyled::ChoiceOption label="Five" />
+                            <unstyled::ChoiceOption label="Six" />
+                        }}
                         selected=Some(0)
                     />
                 </Scroll>

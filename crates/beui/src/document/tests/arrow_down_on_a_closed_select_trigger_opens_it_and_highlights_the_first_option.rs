@@ -4,11 +4,12 @@ use crate::styled::Select;
 
 #[test]
 fn arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_option() {
-    let options: Vec<String> = ["Apple", "Banana", "Cherry"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption label="Cherry" />
+        };
         [view! {
             <Select options selected=None />
         }]

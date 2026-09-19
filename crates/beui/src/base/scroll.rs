@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
-use crate::base::child_list::{ChildList, SlotId};
+use crate::base::child_list::{ChildHost, ChildList, SlotId};
 use crate::base::list::Direction;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
@@ -66,6 +66,18 @@ pub(crate) struct VirtualItems {
 enum ScrollAnchor {
     Node { id: NodeId, start: f32 },
     VirtualItem { index: usize, start: f32 },
+}
+
+impl ChildHost for ScrollNode {
+    type Stored = NodeId;
+
+    fn children(&mut self) -> &mut ChildList<NodeId> {
+        &mut self.items
+    }
+
+    fn children_changed(&mut self) {
+        self.anchor = None;
+    }
 }
 
 pub(crate) struct ScrollNode {
@@ -530,23 +542,6 @@ impl Document {
         }
         let node = self.arena.get_mut_as::<ScrollNode>(scroll);
         node.direction = direction;
-        node.anchor = None;
-    }
-
-    pub(crate) fn append_scroll_item(&mut self, scroll: NodeId, child: NodeId) {
-        self.arena
-            .get_mut_as::<ScrollNode>(scroll)
-            .items
-            .push(child);
-    }
-
-    pub(crate) fn open_scroll_slot(&mut self, scroll: NodeId) -> SlotId {
-        self.arena.get_mut_as::<ScrollNode>(scroll).items.open()
-    }
-
-    pub(crate) fn fill_scroll_slot(&mut self, scroll: NodeId, slot: SlotId, items: Vec<NodeId>) {
-        let node = self.arena.get_mut_as::<ScrollNode>(scroll);
-        node.items.fill(slot, items);
         node.anchor = None;
     }
 

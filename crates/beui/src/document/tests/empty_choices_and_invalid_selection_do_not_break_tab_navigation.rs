@@ -7,10 +7,19 @@ fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {
     let (document, [empty, tabs, after]) = toolbar_of(|| {
         [
             view! {
-                <Listbox labels={Vec::<String>::new()} selected=Some(4) />
+                <Listbox
+                    options={view! {}}
+                    selected=Some(4)
+                />
             },
             view! {
-                <Tabs labels={vec!["One".to_string(), "Two".to_string()]} selected=99 />
+                <Tabs
+                    options={view! {
+                        <unstyled::ChoiceOption label="One" />
+                        <unstyled::ChoiceOption label="Two" />
+                    }}
+                    selected=99
+                />
             },
             view! {
                 <LabelledButton label="After" />

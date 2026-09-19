@@ -5,11 +5,11 @@ use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{Callback, Child, Frame, Prop, Text, clone, create_memo};
+use crate::reactive::{Callback, Child, Children, Frame, Prop, Run, Text, clone, create_memo};
 use crate::styled::context_menu::text_input_menu;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
-use crate::unstyled::{SelectOptionHandle, SelectTriggerHandle, TextInputHandle};
+use crate::unstyled::{ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle};
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
 const POPUP_WIDTH: f32 = 220.0;
@@ -22,11 +22,12 @@ const FOCUS_RING_OFFSET: f32 = 3.0;
 
 #[component]
 pub fn Select(
-    options: Vec<String>,
+    options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
+    let options = options.into_run();
     let trigger_options = options.clone();
     let accessibility = label.map(|label| {
         let mut node = Node::new(Role::ComboBox);
@@ -68,7 +69,7 @@ pub fn Select(
 }
 
 #[component]
-fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
+fn SelectTrigger(options: Run<ChoiceOption>, handle: SelectTriggerHandle) -> NodeId {
     let SelectTriggerHandle {
         selected,
         hovered,
@@ -190,10 +191,14 @@ pub fn select_open(document: &Document, select: NodeId) -> bool {
     unstyled::select_open(document, select)
 }
 
-fn trigger_label(options: &[String], selected: Option<usize>) -> String {
+fn trigger_label(options: &Run<ChoiceOption>, selected: Option<usize>) -> String {
     selected
-        .and_then(|index| options.get(index))
-        .cloned()
+        .and_then(|index| {
+            options
+                .items()
+                .get(index)
+                .map(|option| option.label().get())
+        })
         .unwrap_or_else(|| "Select...".to_owned())
 }
 

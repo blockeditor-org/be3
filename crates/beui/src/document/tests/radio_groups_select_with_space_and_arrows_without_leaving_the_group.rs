@@ -10,7 +10,11 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
         [
             view! {
                 <RadioGroup
-                    labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string()]}
+                    options={view! {
+                        <unstyled::ChoiceOption label="One" />
+                        <unstyled::ChoiceOption label="Two" />
+                        <unstyled::ChoiceOption label="Three" />
+                    }}
                     selected=None
                     on_change={move |value| {
                         sink.borrow_mut().push(value)

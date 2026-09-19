@@ -9,7 +9,10 @@ fn clicking_a_tab_selects_the_panel_it_names() {
     let (document, [tabs]) = toolbar_of(|| {
         [view! {
             <Tabs
-                labels={vec!["List".to_string(), "Load".to_string()]}
+                options={view! {
+                    <unstyled::ChoiceOption label="List" />
+                    <unstyled::ChoiceOption label="Load" />
+                }}
                 selected=0
                 on_change={move |selected| {
                     sink.set(selected);

@@ -16,7 +16,11 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
                     {move |_| view! {
                         <ResponsiveTabs
                             @node_ref=&tabs
-                            labels={vec!["List".to_string(), "Load".to_string(), "Name".to_string()]}
+                            options={view! {
+                                <unstyled::ChoiceOption label="List" />
+                                <unstyled::ChoiceOption label="Load" />
+                                <unstyled::ChoiceOption label="Name" />
+                            }}
                             selected=1
                             breakpoint=BREAKPOINT
                         />

@@ -4,11 +4,11 @@ use crate::styled::Select;
 
 #[test]
 fn escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger() {
-    let options: Vec<String> = ["Apple", "Banana"]
-        .iter()
-        .map(|label| (*label).to_owned())
-        .collect();
     let (document, [select]) = toolbar_of(|| {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+        };
         [view! {
             <Select options selected=Some(0) />
         }]

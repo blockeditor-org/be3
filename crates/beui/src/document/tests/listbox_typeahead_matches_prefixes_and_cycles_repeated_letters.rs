@@ -8,7 +8,12 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
         [
             view! {
                 <Listbox
-                    labels={vec!["Apple".to_string(), "Banana".to_string(), "Blueberry".to_string(), "Cherry".to_string()]}
+                    options={view! {
+                        <unstyled::ChoiceOption label="Apple" />
+                        <unstyled::ChoiceOption label="Banana" />
+                        <unstyled::ChoiceOption label="Blueberry" />
+                        <unstyled::ChoiceOption label="Cherry" />
+                    }}
                     selected=Some(0)
                 />
             },

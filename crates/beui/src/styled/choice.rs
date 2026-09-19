@@ -20,7 +20,7 @@ const MARK_DOT: f32 = 8.0;
 const MARK_RADIUS: u8 = 9;
 
 #[component]
-pub(super) fn ChoiceOption(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
+pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
     let ChoiceOptionHandle {
         label,
         selected,
@@ -57,7 +57,12 @@ pub(super) fn ChoiceOption(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
 }
 
 #[component]
-fn ChoiceLabel(kind: Kind, label: String, color: Prop<Color32>, checked: Memo<bool>) -> NodeId {
+fn ChoiceLabel(
+    kind: Kind,
+    label: Prop<String>,
+    color: Prop<Color32>,
+    checked: Memo<bool>,
+) -> NodeId {
     let align = if kind == Kind::Tabs {
         TextAlign::Center
     } else {

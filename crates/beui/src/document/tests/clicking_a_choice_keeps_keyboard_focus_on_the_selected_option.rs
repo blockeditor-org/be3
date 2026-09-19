@@ -7,7 +7,11 @@ fn clicking_a_choice_keeps_keyboard_focus_on_the_selected_option() {
     let (document, [group]) = toolbar_of(|| {
         [view! {
             <RadioGroup
-                labels={vec!["One".to_string(), "Two".to_string(), "Three".to_string()]}
+                options={view! {
+                    <unstyled::ChoiceOption label="One" />
+                    <unstyled::ChoiceOption label="Two" />
+                    <unstyled::ChoiceOption label="Three" />
+                }}
                 selected=Some(0)
             />
         }]
