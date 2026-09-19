@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
@@ -10,7 +9,7 @@ use crate::painter::Painter;
 use beui_macros::{component, view};
 
 use crate::document::Document;
-use crate::node::{ClickHandler, Element, InteractInput, NodeId};
+use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeMap};
 use crate::reactive::{
     Child, ClickCallback, ClickCatcher, IntoProp, NodeRef, Prop, create_effect, with_document,
     with_reactive_scope,
@@ -105,7 +104,7 @@ impl Element for OverlayNode {
         doc: &mut Document,
         painter: &Painter,
         _rect: Rect,
-        out: &mut HashMap<NodeId, Rect>,
+        out: &mut NodeMap<Rect>,
     ) {
         if !self.open {
             return;
@@ -127,14 +126,7 @@ impl Element for OverlayNode {
         crate::layout::layout(doc, painter, content, rect, out);
     }
 
-    fn paint(
-        &self,
-        _doc: &Document,
-        _painter: &Painter,
-        _rects: &HashMap<NodeId, Rect>,
-        _rect: Rect,
-    ) {
-    }
+    fn paint(&self, _doc: &Document, _painter: &Painter, _rects: &NodeMap<Rect>, _rect: Rect) {}
 
     fn paints(&self) -> bool {
         false

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
@@ -7,13 +5,13 @@ use crate::input::{Event, Key, KeyPress};
 use crate::painter::Painter;
 
 use crate::document::Document;
-use crate::node::{InteractInput, NodeId};
+use crate::node::{InteractInput, NodeId, NodeMap};
 
 pub(crate) fn interact(
     doc: &mut Document,
     ctx: &Context,
     painter: &Painter,
-    rects: &HashMap<NodeId, Rect>,
+    rects: &NodeMap<Rect>,
     root: NodeId,
     keyboard_interactive: bool,
 ) {
@@ -189,12 +187,7 @@ pub(crate) fn interact(
     }
 }
 
-fn captor(
-    doc: &mut Document,
-    rects: &HashMap<NodeId, Rect>,
-    id: NodeId,
-    pos: Pos2,
-) -> Option<NodeId> {
+fn captor(doc: &mut Document, rects: &NodeMap<Rect>, id: NodeId, pos: Pos2) -> Option<NodeId> {
     let rect = *rects.get(&id)?;
     for child in doc.arena.get(id).children().into_iter().rev() {
         if let Some(found) = captor(doc, rects, child, pos) {
@@ -230,7 +223,7 @@ fn wants_gestures(element: &dyn crate::node::Element) -> bool {
 
 fn target(
     doc: &Document,
-    rects: &HashMap<NodeId, Rect>,
+    rects: &NodeMap<Rect>,
     root: NodeId,
     pos: Option<Pos2>,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
@@ -247,7 +240,7 @@ fn target(
 
 fn deepest(
     doc: &Document,
-    rects: &HashMap<NodeId, Rect>,
+    rects: &NodeMap<Rect>,
     id: NodeId,
     pos: Pos2,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
@@ -268,7 +261,7 @@ fn interact_node(
     doc: &mut Document,
     painter: &Painter,
     input: &InteractInput,
-    rects: &HashMap<NodeId, Rect>,
+    rects: &NodeMap<Rect>,
     id: NodeId,
     focus_target: &mut Option<NodeId>,
 ) {

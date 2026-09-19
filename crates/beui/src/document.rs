@@ -17,7 +17,7 @@ use crate::input::{Event, Key};
 use crate::inspector::Inspector;
 use crate::interact;
 use crate::layout;
-use crate::node::{Arena, NodeId};
+use crate::node::{Arena, NodeId, NodeMap};
 use crate::paint::{self, PaintCache, Painted};
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, PerformanceSnapshot, PerformanceTracker};
@@ -30,7 +30,7 @@ pub struct Document {
     pub(crate) focused: Option<NodeId>,
     pub(crate) activated: Option<NodeId>,
     pub(crate) activation_key: Option<Key>,
-    pub(crate) rects: Rc<HashMap<NodeId, Rect>>,
+    pub(crate) rects: Rc<NodeMap<Rect>>,
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
     pub(crate) overlay_stack: Vec<NodeId>,
@@ -44,7 +44,7 @@ pub struct Document {
     paint_revision: u64,
     delivering: bool,
     constrained: HashSet<NodeId>,
-    measurements: HashMap<NodeId, Vec<(Vec2, Vec2)>>,
+    measurements: NodeMap<Vec<(Vec2, Vec2)>>,
     layout_parent: Option<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
@@ -58,11 +58,11 @@ pub struct Document {
     reactive_scope: ::reactive::Scope,
     theme: ThemeStore,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
-    sizes: HashMap<NodeId, Vec<SizeWatcher>>,
-    placements: HashMap<NodeId, Vec<PlacementWatcher>>,
+    sizes: NodeMap<Vec<SizeWatcher>>,
+    placements: NodeMap<Vec<PlacementWatcher>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     pub(crate) accessibility_id: u32,
-    pub(crate) accessibility: HashMap<NodeId, Node>,
+    pub(crate) accessibility: NodeMap<Node>,
     performance: PerformanceTracker,
     changes: FlashLog<NodeId>,
     damage: Damage,
@@ -107,7 +107,7 @@ impl Document {
             focused: None,
             activated: None,
             activation_key: None,
-            rects: Rc::new(HashMap::new()),
+            rects: Rc::new(NodeMap::default()),
             inspector: None,
             inspectable: true,
             overlay_stack: Vec::new(),
@@ -121,7 +121,7 @@ impl Document {
             paint_revision: 0,
             delivering: false,
             constrained: HashSet::new(),
-            measurements: HashMap::new(),
+            measurements: NodeMap::default(),
             layout_parent: None,
             viewport: None,
             shapes: Vec::new(),
@@ -135,11 +135,11 @@ impl Document {
             reactive_scope: ::reactive::Scope::new(),
             theme,
             node_scopes: HashMap::new(),
-            sizes: HashMap::new(),
-            placements: HashMap::new(),
+            sizes: NodeMap::default(),
+            placements: NodeMap::default(),
             component_states: HashMap::new(),
             accessibility_id: accessibility::next_document_id(),
-            accessibility: HashMap::new(),
+            accessibility: NodeMap::default(),
             performance: PerformanceTracker::default(),
             changes: FlashLog::default(),
             damage: Damage::default(),
@@ -570,7 +570,7 @@ impl Document {
         }
         let size = self.rects.get(&id).map_or(Vec2::ZERO, Rect::size);
         let (read, write) = ::reactive::create_signal(size);
-        self.sizes.entry(id).or_default().push(SizeWatcher {
+        self.sizes.get_or_default(id).push(SizeWatcher {
             read: read.clone(),
             write,
         });
@@ -587,13 +587,10 @@ impl Document {
         }
         let rect = self.rects.get(&id).copied().unwrap_or(Rect::ZERO);
         let (read, write) = ::reactive::create_signal(rect);
-        self.placements
-            .entry(id)
-            .or_default()
-            .push(PlacementWatcher {
-                read: read.clone(),
-                write,
-            });
+        self.placements.get_or_default(id).push(PlacementWatcher {
+            read: read.clone(),
+            write,
+        });
         read
     }
 
@@ -604,8 +601,7 @@ impl Document {
         write: ::reactive::WriteSignal<Rect>,
     ) {
         self.placements
-            .entry(id)
-            .or_default()
+            .get_or_default(id)
             .push(PlacementWatcher { read, write });
     }
 
@@ -616,8 +612,7 @@ impl Document {
         write: ::reactive::WriteSignal<Vec2>,
     ) {
         self.sizes
-            .entry(id)
-            .or_default()
+            .get_or_default(id)
             .push(SizeWatcher { read, write });
     }
 
@@ -696,12 +691,7 @@ impl Document {
         }
     }
 
-    pub(crate) fn assert_confined(
-        &self,
-        id: NodeId,
-        watermark: usize,
-        placed: &HashMap<NodeId, Rect>,
-    ) {
+    pub(crate) fn assert_confined(&self, id: NodeId, watermark: usize, placed: &NodeMap<Rect>) {
         if cfg!(debug_assertions) {
             for changed in self.arena.changed_since(watermark) {
                 assert!(
@@ -737,7 +727,7 @@ impl Document {
             return;
         }
         self.arena.clear_stale(id);
-        let held = self.measurements.entry(id).or_default();
+        let held = self.measurements.get_or_default(id);
         held.retain(|(offered, _)| !same_size(*offered, available));
         if held.len() >= REMEMBERED_MEASUREMENTS {
             held.remove(0);
@@ -786,7 +776,7 @@ impl Document {
         if self.layout_revision == self.arena.revision {
             return false;
         }
-        let mut rects = HashMap::new();
+        let mut rects = NodeMap::default();
         if let Some(root) = self.root {
             let painter = ctx.painter();
             let context = self.reactive_scope().context();
@@ -806,19 +796,19 @@ impl Document {
         }
         let previous = std::mem::replace(&mut self.rects, Rc::new(rects));
         for (id, placed) in self.rects.iter() {
-            if previous.get(id) != Some(placed) {
-                if self.paints(*id) {
+            if previous.get(&id) != Some(placed) {
+                if self.paints(id) {
                     self.damage.add(*placed);
                 }
-                self.damage.add(self.paint_cache.borrow().bounds(*id));
+                self.damage.add(self.paint_cache.borrow().bounds(id));
             }
         }
         for (id, placed) in previous.iter() {
-            if !self.rects.contains_key(id) {
-                if self.paints(*id) {
+            if !self.rects.contains_key(&id) {
+                if self.paints(id) {
                     self.damage.add(*placed);
                 }
-                self.damage.add(self.paint_cache.borrow().bounds(*id));
+                self.damage.add(self.paint_cache.borrow().bounds(id));
             }
         }
         self.layout_revision = self.arena.revision;
