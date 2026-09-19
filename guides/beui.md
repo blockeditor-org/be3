@@ -214,7 +214,8 @@ components directly, because they have no interaction behavior to delegate.
 The main base building blocks are `Row`, `Column`, `List`, `Frame`, `Text`,
 `Scroll`, and `VirtualList`; `Frame` combines optional sizing, an aspect ratio
 it centres its box within, padding, fill, outline, and visibility on one
-retained node. `Embed` reserves a rectangle for something outside the document —
+retained node. `Text` carries its own decoration too: `underline` is painted
+from the galley's baseline, so switching it on never moves anything. `Embed` reserves a rectangle for something outside the document —
 an editor the host composites behind the surface — publishing the rectangle and
 the clip it was laid out in through the `EmbedSlot` it was given and cutting
 that rectangle out of the surface so what is behind shows through. `punch=false`
@@ -461,10 +462,13 @@ a fragment written among siblings takes the places between them, and how
 way.
 
 Use `Frame`'s `width` and `height` props to constrain a component's own size,
-and `@sizing` to describe how it participates among siblings in a `Row`,
-`Column`, or `List`. `Container` and `narrower_than` provide
-container-responsive state; `unstyled::Stack` and `styled::Stack` switch between
-a row and a column without rebuilding their children.
+`max_width` for a box that fills the room it is given but stops at a limit, and
+`@sizing` to describe how it participates among siblings in a `Row`, `Column`,
+or `List`. Say a width once: a `Frame` nested inside one that carries the width
+is laid out within it, so the outer box is the only place the number belongs.
+`Container`, `narrower_than` and `shorter_than` provide container-responsive
+state; `unstyled::Stack` and `styled::Stack` switch between a row and a column
+without rebuilding their children.
 
 ### One layout per frame
 

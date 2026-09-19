@@ -76,6 +76,7 @@ pub struct Galley {
 struct GalleyData {
     size: Vec2,
     line_height: f32,
+    baseline: f32,
     glyphs: Vec<Glyph>,
     lines: Vec<GalleyLine>,
 }
@@ -112,6 +113,28 @@ impl Galley {
 
     pub fn line_height(&self) -> f32 {
         self.inner.line_height
+    }
+
+    pub fn baseline(&self) -> f32 {
+        self.inner.baseline
+    }
+
+    pub fn line_rects(&self, origin: Pos2) -> Vec<Rect> {
+        self.inner
+            .lines
+            .iter()
+            .map(|line| {
+                let top = origin.y + line.top;
+                Rect::from_min_max(
+                    pos2(origin.x + line.x(line.range.start), top),
+                    pos2(
+                        origin.x + line.x(line.range.end),
+                        top + self.inner.line_height,
+                    ),
+                )
+            })
+            .filter(|rect| rect.width() > 0.0)
+            .collect()
     }
 
     pub fn cursor_pos(&self, origin: Pos2, index: usize) -> Pos2 {
@@ -396,6 +419,7 @@ impl Fonts {
             inner: Rc::new(GalleyData {
                 size: vec2(width.ceil() / scale, cursor.ceil() / scale),
                 line_height: line_height / scale,
+                baseline: ascent / scale,
                 glyphs,
                 lines,
             }),
