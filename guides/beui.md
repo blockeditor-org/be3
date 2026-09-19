@@ -256,10 +256,11 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, and `Stack`. The styled
+`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Tooltip`, and `Stack`.
+The styled
 module supplies themed buttons, icon buttons, links, text styles, cards,
 checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
-progress, scrollbars, and responsive layout. A control that can be turned off -
+progress, scrollbars, tooltips, and responsive layout. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen
@@ -289,6 +290,33 @@ it, and keyboard steps move by a share of the track rather than a share of the
 range, so an arrow key near the fine end moves a little and the same key near
 the coarse end moves a lot. What a screen reader is told the step is follows
 the value the next step would actually reach.
+
+### Tooltips
+
+`unstyled::Tooltip` shows something after the pointer has rested on its child
+for a moment, and `styled::Tooltip` is the bubble version of it:
+
+```rust
+view! {
+    <Tooltip label="Reveal the block being shown">
+        <IconButton glyph={ICON_MY_LOCATION.to_owned()} label="Reveal" on_click={find} />
+    </Tooltip>
+}
+```
+
+`IconButton` already wraps itself in one, so an icon-only button says what it
+is without the caller doing anything: the `label` it publishes to a screen
+reader is the text the bubble shows. Wrap anything else whose meaning is not
+on screen - a bare glyph in a row, a truncated cell - in a `Tooltip` of its
+own.
+
+The bubble lives in a non-modal `Overlay`. It paints above everything, and
+unlike a menu or a dialog it takes no input at all: it is not in the overlay
+stack, so the document under it keeps answering the pointer, Escape still
+reaches whatever it was going to reach, and clicking the control the tooltip
+describes clicks the control. The dwell is measured with `each_frame`, which
+runs a callback inside the document's reactive scope once per frame and is
+disposed with the scope that registered it.
 
 ### Pan and zoom
 

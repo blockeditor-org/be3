@@ -11,6 +11,7 @@ mod slider;
 mod stack;
 mod text_input;
 mod toggle;
+mod tooltip;
 mod tree;
 pub(crate) mod typeahead;
 
@@ -38,4 +39,5 @@ pub use text_input::{
     text_input_menu_row, text_input_selection, text_input_text, text_input_value,
 };
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
+pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{Tree, TreeItem, TreeRowHandle, tree_focused};

@@ -50,6 +50,7 @@ pub(crate) struct OverlayNode {
     anchor: OverlayAnchor,
     placement: Placement,
     traps_focus: bool,
+    modal: bool,
     on_dismiss: Option<ClickHandler>,
 }
 
@@ -63,6 +64,7 @@ impl OverlayNode {
             anchor,
             placement,
             traps_focus: true,
+            modal: true,
             on_dismiss: None,
         }
     }
@@ -171,7 +173,7 @@ impl Element for OverlayNode {
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
     ) -> Vec<NodeId> {
-        if !self.open {
+        if !self.open || !self.modal {
             return Vec::new();
         }
         let mut children = vec![self.scrim];
@@ -208,6 +210,7 @@ pub(crate) fn Overlay(
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     #[prop(default = true)] traps_focus: Prop<bool>,
+    #[prop(default = true)] modal: Prop<bool>,
     open: Prop<bool>,
     on_dismiss: ClickCallback,
     children: Option<Child>,
@@ -234,6 +237,9 @@ pub(crate) fn Overlay(
     });
     create_effect(move || {
         with_document(|document| document.set_overlay_traps_focus(overlay, traps_focus.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_overlay_modal(overlay, modal.get()))
     });
     create_effect(move || {
         let open = open.get();
@@ -293,6 +299,18 @@ impl Document {
         }
     }
 
+    pub(crate) fn set_overlay_modal(&mut self, overlay: NodeId, modal: bool) {
+        if self.arena.get_as::<OverlayNode>(overlay).modal == modal {
+            return;
+        }
+        self.arena.get_mut_as::<OverlayNode>(overlay).modal = modal;
+        if self.arena.get_as::<OverlayNode>(overlay).open {
+            self.close_overlay(overlay);
+            self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
+            self.open_overlay(overlay);
+        }
+    }
+
     pub(crate) fn overlay_traps_focus(&self, overlay: NodeId) -> bool {
         self.arena.get_as::<OverlayNode>(overlay).traps_focus
     }
@@ -319,13 +337,25 @@ impl Document {
             return;
         }
         self.arena.get_mut_as::<OverlayNode>(overlay).open = true;
-        self.overlay_stack.push(overlay);
+        match self.arena.get_as::<OverlayNode>(overlay).modal {
+            true => self.overlay_stack.push(overlay),
+            false => self.passive_overlays.push(overlay),
+        }
         self.arena.invalidate_node(overlay);
     }
 
     pub(crate) fn close_overlay(&mut self, overlay: NodeId) {
         if let Some(level) = self.overlay_stack.iter().position(|&id| id == overlay) {
             self.close_overlay_at(level);
+            return;
+        }
+        if let Some(index) = self.passive_overlays.iter().position(|&id| id == overlay) {
+            self.passive_overlays.remove(index);
+            if self.contains(overlay) {
+                self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
+                self.arena.invalidate_node(overlay);
+            }
+            self.call_overlay_dismiss(overlay);
         }
     }
 
