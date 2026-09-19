@@ -10,12 +10,10 @@ use crate::document::Document;
 use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, ForEach, Func, List, Memo, Prop, ReadSignal, RenderFn, Selector, WriteSignal, clone,
-    component_accessibility, create_effect, create_memo, create_selector, create_signal,
-    on_cleanup, set_component_state, untrack, with_document,
+    Callback, Focusable, ForEach, Func, List, Memo, Prop, ReadSignal, RenderFn, Selector,
+    WriteSignal, clone, component_accessibility, create_effect, create_memo, create_selector,
+    create_signal, on_cleanup, set_component_state, untrack, with_document,
 };
-use crate::unstyled;
-use crate::unstyled::ButtonHandle;
 use crate::unstyled::typeahead::Typeahead;
 
 #[derive(Clone, Default, PartialEq)]
@@ -31,10 +29,10 @@ pub struct TreeRowHandle<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
     pub selected: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
+    pub select: Rc<dyn Fn()>,
     pub toggle: Rc<dyn Fn()>,
+    pub hover: Rc<dyn Fn(bool)>,
 }
 
 struct State<K> {
@@ -170,42 +168,43 @@ where
         node.set_selected(selected.get());
         node
     }));
-    let (blur, click, press, typed) = (state.clone(), state.clone(), state.clone(), state.clone());
-    let (blur_key, click_key, press_key, typed_key, content_key) = (
-        key.clone(),
-        key.clone(),
-        key.clone(),
-        key.clone(),
-        key.clone(),
-    );
-    let (nodes_key, cleanup_key, toggle_key) = (key.clone(), key.clone(), key.clone());
-    let toggling = state.clone();
+    component_accessibility(accessibility);
+    let (blur, press, typed) = (state.clone(), state.clone(), state.clone());
+    let (blur_key, press_key, typed_key, content_key) =
+        (key.clone(), key.clone(), key.clone(), key.clone());
+    let (nodes_key, cleanup_key) = (key.clone(), key.clone());
+    let (selecting, toggling) = (state.clone(), state.clone());
+    let (select_key, toggle_key) = (key.clone(), key.clone());
+    let chosen: Rc<dyn Fn()> = Rc::new(move || activate(&selecting, &select_key));
     let expand: Rc<dyn Fn()> = Rc::new(move || toggle(&toggling, &toggle_key));
+    let hover_key = key.clone();
+    let hover: Rc<dyn Fn(bool)> = Rc::new(move |over: bool| {
+        on_hover_change.call((hover_key.clone(), over));
+    });
+    let activating = chosen.clone();
+    let (has_focus, set_has_focus) = create_signal(false);
     let built = view! {
-        <unstyled::Button
+        <Focusable
             tab_stop={tab_stop.memo(Some(key.clone()))}
             focused={focused.memo(Some(key))}
-            accessibility
-            on_focus_change={move |has_focus: bool| track_focus(&blur, &blur_key, has_focus)}
-            on_click={move || activate(&click, &click_key)}
+            on_focus_change={move |focused: bool| {
+                set_has_focus.set(focused);
+                track_focus(&blur, &blur_key, focused);
+            }}
+            on_activate={move || activating()}
             on_key={move |event: KeyPress| key_press(&press, &press_key, event)}
             on_text={move |text: String| typeahead(&typed, &typed_key, &text)}
-            content={move |button: ButtonHandle| {
-                let hovered = button.hovered.clone();
-                create_effect(clone!(on_hover_change content_key -> move || {
-                    on_hover_change.call((content_key.clone(), hovered.get()));
-                }));
-                row.call(TreeRowHandle {
-                    key: content_key,
-                    item,
-                    selected,
-                    hovered: button.hovered,
-                    active: button.active,
-                    focused: button.focused,
-                    toggle: expand,
-                })
-            }}
-        />
+        >
+            {row.call(TreeRowHandle {
+                key: content_key,
+                item,
+                selected,
+                focused: has_focus,
+                select: chosen,
+                toggle: expand,
+                hover,
+            })}
+        </Focusable>
     };
     nodes.borrow_mut().insert(nodes_key, built);
     on_cleanup(move || {
