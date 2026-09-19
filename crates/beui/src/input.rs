@@ -17,6 +17,8 @@ pub enum Key {
     ArrowRight,
     ArrowUp,
     Backspace,
+    BracketLeft,
+    BracketRight,
     Delete,
     End,
     Enter,

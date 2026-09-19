@@ -5212,9 +5212,11 @@ checksum = "ad78bf43dcf80e8f950c92b84f938a0fc7590b7f6866fbcbeca781609c115590"
 name = "pixel_art"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
+ "block-ui-test",
  "image",
  "serde",
  "serde_json",

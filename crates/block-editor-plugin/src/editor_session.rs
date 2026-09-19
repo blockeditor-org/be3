@@ -1584,6 +1584,8 @@ fn beui_key(logical: &str) -> Option<beui::Key> {
         "Enter" => beui::Key::Enter,
         "Escape" => beui::Key::Escape,
         "Home" => beui::Key::Home,
+        "[" | "OpenBracket" => beui::Key::BracketLeft,
+        "]" | "CloseBracket" => beui::Key::BracketRight,
         "-" | "Minus" => beui::Key::Minus,
         "PageDown" => beui::Key::PageDown,
         "PageUp" => beui::Key::PageUp,

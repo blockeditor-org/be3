@@ -7,7 +7,7 @@ pub const DEFAULT_PIXEL_ART_SIZE: u16 = 32;
 pub const MAX_PIXEL_ART_SIZE: u16 = 2048;
 pub const MAX_PIXEL_ART_PALETTE_COLORS: usize = 32;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Hash, PartialEq, Eq, Serialize)]
 pub struct PixelColor {
     pub red: u8,
     pub green: u8,

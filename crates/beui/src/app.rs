@@ -737,6 +737,8 @@ fn key(code: KeyCode) -> Option<Key> {
         KeyCode::Enter | KeyCode::NumpadEnter => Key::Enter,
         KeyCode::Escape => Key::Escape,
         KeyCode::Home => Key::Home,
+        KeyCode::BracketLeft => Key::BracketLeft,
+        KeyCode::BracketRight => Key::BracketRight,
         KeyCode::Minus | KeyCode::NumpadSubtract => Key::Minus,
         KeyCode::PageDown => Key::PageDown,
         KeyCode::PageUp => Key::PageUp,

@@ -1,350 +1,186 @@
-use std::sync::Arc;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use block::Block;
-use block_client::{
-    BlockClient, BlockHandle,
-    blocks::{
-        image::Image,
-        pixel_art::{PixelArt, PixelArtAnchor, PixelArtOperation, PixelColor},
-    },
+use block_client::blocks::image::Image;
+use block_client::blocks::pixel_art::{PixelArt, PixelColor};
+use block_editor_plugin::beui::reactive::{
+    Direction, ItemSize, List, Picture, clone, component, create_effect, create_memo,
+    create_signal, view,
 };
-use block_editor_plugin::{Artifact, ArtifactDescription, EditorHost, egui};
-use uuid::Uuid;
+use block_editor_plugin::beui::{ImageFit, NodeId, Vec2};
+use block_editor_plugin::egui;
+use block_editor_plugin::{ArtifactDescription, Artifacts, Creation, Editor, Side, Sidebar};
 
-use crate::{
-    artifact,
-    canvas::Pane,
-    color::format_hex_color,
-    drawing::{ActiveDrawing, Brush, BrushShape, CommittedPreview, PixelTool},
-};
+use crate::artifact;
+use crate::panels::{ColorsPanel, Dialogs, ToolsPanel, TopBar};
 
-const MAX_RECENT_COLORS: usize = 12;
+pub(crate) mod canvas;
+pub(crate) mod pane;
+pub(crate) mod state;
+
+use canvas::{ArtworkCanvas, HoverLabel};
+use pane::Pane;
+use state::Tools;
+
 const EMBEDDED_LONG_SIDE: f32 = 256.0;
 const EMBEDDED_SHORT_SIDE: f32 = 24.0;
+const TOOLS_WIDTH: f32 = 180.0;
 
-pub struct Editing {
-    pub host: EditorHost,
-    pub client: Arc<BlockClient>,
-    pub block: BlockHandle<PixelArt>,
-}
+pub struct PixelArtApp;
 
-struct Exporting {
-    client: Arc<BlockClient>,
-    block_id: Uuid,
-    block_type: Uuid,
-    regeneration: Option<artifact::Regeneration>,
-    failure: Option<String>,
-}
-
-pub struct PixelArtApp {
-    pub(crate) editing: Option<Editing>,
-    creation: Option<Arc<BlockClient>>,
-    exporting: Option<Exporting>,
-    pub(crate) tool: PixelTool,
-    pub(crate) previous_drawing_tool: PixelTool,
-    pub(crate) color: PixelColor,
-    pub(crate) color_hex: String,
-    pub(crate) recent_colors: Vec<PixelColor>,
-    pub(crate) replace_source_hover: Option<PixelColor>,
-    pub(crate) brush_size: u16,
-    pub(crate) brush_shape: BrushShape,
-    pub(crate) shapes_filled: bool,
-    pub(crate) mirror_horizontal: bool,
-    pub(crate) mirror_vertical: bool,
-    pub(crate) show_grid: bool,
-    pub(crate) active_drawing: Option<ActiveDrawing>,
-    pub(crate) committed_preview: Option<CommittedPreview>,
-    pub(crate) zoom: f32,
-    pane: Pane,
-    pub(crate) resize_open: bool,
-    pub(crate) resize_width: u16,
-    pub(crate) resize_height: u16,
-    pub(crate) resize_anchor: PixelArtAnchor,
-    pub(crate) clear_open: bool,
-    pub(crate) export_error: Option<String>,
-}
-
-impl Default for PixelArtApp {
-    fn default() -> Self {
-        Self {
-            editing: None,
-            creation: None,
-            exporting: None,
-            tool: PixelTool::Pencil,
-            previous_drawing_tool: PixelTool::Pencil,
-            color: PixelColor::new(0, 0, 0, 255),
-            color_hex: "#000000FF".into(),
-            recent_colors: vec![PixelColor::new(0, 0, 0, 255)],
-            replace_source_hover: None,
-            brush_size: 1,
-            brush_shape: BrushShape::Square,
-            shapes_filled: false,
-            mirror_horizontal: false,
-            mirror_vertical: false,
-            show_grid: true,
-            active_drawing: None,
-            committed_preview: None,
-            zoom: 1.0,
-            pane: Pane::default(),
-            resize_open: false,
-            resize_width: 32,
-            resize_height: 32,
-            resize_anchor: PixelArtAnchor::Center,
-            clear_open: false,
-            export_error: None,
+impl block_editor_plugin::BeuiApp for PixelArtApp {
+    fn view(editor: Editor) -> NodeId {
+        view! {
+            <PixelArtEditor editor={editor} />
         }
     }
-}
 
-impl block_editor_plugin::App for PixelArtApp {
-    fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid) {
-        let block = client.get_block::<PixelArt>(block_id);
-        self.editing = Some(Editing {
-            host,
-            client,
-            block,
+    fn preview_view(editor: Editor) -> NodeId {
+        view! {
+            <PixelArtPreview editor={editor} />
+        }
+    }
+
+    fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
+        Ok(creation.client().create_block(PixelArt::new()).id())
+    }
+
+    fn connect_artifact(artifacts: &Artifacts) {
+        let regeneration: Rc<RefCell<Option<artifact::Regeneration>>> = Rc::new(RefCell::default());
+        let failure: Rc<RefCell<Option<String>>> = Rc::new(RefCell::default());
+        let client = artifacts.client().clone();
+        let block_id = artifacts.block_id();
+        let block_type = artifacts.block_type();
+        let started = Rc::clone(&regeneration);
+        let reported = Rc::clone(&failure);
+        artifacts.on_regenerate(move |data| {
+            match artifact::Regeneration::start(&client, block_id, block_type, data) {
+                Ok(started_regeneration) => {
+                    *started.borrow_mut() = Some(started_regeneration);
+                    reported.borrow_mut().take();
+                }
+                Err(error) => {
+                    started.borrow_mut().take();
+                    *reported.borrow_mut() = Some(error);
+                }
+            }
+        });
+        artifacts.on_poll(move || {
+            if let Some(error) = failure.borrow_mut().take() {
+                return Some(Err(error));
+            }
+            let result = regeneration.borrow_mut().as_mut()?.poll()?;
+            regeneration.borrow_mut().take();
+            Some(result)
         });
     }
 
-    fn connect_creation(&mut self, _host: EditorHost, client: Arc<BlockClient>) {
-        self.creation = Some(client);
-    }
-
-    fn create_block(&mut self) -> Result<Uuid, String> {
-        let client = self
-            .creation
-            .as_ref()
-            .ok_or("this editor is not filling in a block")?;
-        Ok(client.create_block(PixelArt::new()).id())
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui) {
-        self.canvas_ui(ui);
-        if let Some((width, height)) = self.dimensions() {
-            self.dialogs_ui(ui, width, height);
-        }
-    }
-
-    fn preview_ui(&mut self, ui: &mut egui::Ui) {
-        let rect = ui.available_rect_before_wrap();
-        ui.allocate_rect(rect, egui::Sense::hover());
-        let dark_mode = ui.visuals().dark_mode;
-        if self.refresh_pane(ui.ctx(), dark_mode).is_some() {
-            self.paint_pane(ui.painter(), rect);
-        }
-    }
-
-    fn toolbar_ui(&mut self, ui: &mut egui::Ui) {
-        let Some((width, height)) = self.dimensions() else {
-            ui.horizontal(|ui| {
-                ui.strong("Pixel Art");
-                ui.spinner();
-            });
-            return;
-        };
-        self.top_bar_ui(ui, width, height);
-    }
-
-    fn left_sidebar_ui(&mut self, ui: &mut egui::Ui) {
-        self.tools_ui(ui);
-    }
-
-    fn right_sidebar_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(palette) = self
-            .editing
-            .as_ref()
-            .and_then(|editing| editing.block.read().map(|art| art.palette().to_vec()))
-        else {
-            return;
-        };
-        self.colors_ui(ui, &palette);
-    }
-
-    fn intrinsic_size(&mut self) -> Option<egui::Vec2> {
-        let (width, height) = self.dimensions()?;
-        let width = f32::from(width);
-        let height = f32::from(height);
-        let pixel_size =
-            (EMBEDDED_LONG_SIDE / width.max(height)).max(EMBEDDED_SHORT_SIDE / width.min(height));
-        Some(egui::vec2(width * pixel_size, height * pixel_size))
-    }
-
-    fn aspect_ratio(&mut self) -> Option<f32> {
-        let (width, height) = self.dimensions()?;
-        Some(f32::from(width) / f32::from(height))
-    }
-
-    fn connect_artifact(
-        &mut self,
-        _host: EditorHost,
-        client: Arc<BlockClient>,
-        artifact: Artifact,
-    ) {
-        self.exporting = Some(Exporting {
-            client,
-            block_id: artifact.block_id,
-            block_type: artifact.block_type,
-            regeneration: None,
-            failure: None,
-        });
-    }
-
-    fn describe_artifact(&mut self, data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(data: &[u8]) -> Result<ArtifactDescription, String> {
         artifact::describe(data)
     }
 
-    fn artifact_settings_ui(&mut self, ui: &mut egui::Ui, data: &mut Vec<u8>) {
+    fn artifact_settings_ui(ui: &mut egui::Ui, data: &mut Vec<u8>) {
         artifact::settings_ui(ui, data);
-    }
-
-    fn regenerate_artifact(&mut self, data: &[u8]) {
-        let Some(exporting) = &mut self.exporting else {
-            return;
-        };
-        match artifact::Regeneration::start(
-            &exporting.client,
-            exporting.block_id,
-            exporting.block_type,
-            data,
-        ) {
-            Ok(regeneration) => {
-                exporting.regeneration = Some(regeneration);
-                exporting.failure = None;
-            }
-            Err(error) => {
-                exporting.regeneration = None;
-                exporting.failure = Some(error);
-            }
-        }
-    }
-
-    fn poll_artifact(&mut self) -> Option<Result<(), String>> {
-        let exporting = self.exporting.as_mut()?;
-        if let Some(failure) = exporting.failure.take() {
-            return Some(Err(failure));
-        }
-        let result = exporting.regeneration.as_mut()?.poll()?;
-        exporting.regeneration = None;
-        Some(result)
     }
 }
 
-impl PixelArtApp {
-    pub(crate) fn dimensions(&self) -> Option<(u16, u16)> {
-        let art = self.editing.as_ref()?.block.read()?;
-        Some((art.width(), art.height()))
-    }
+#[component]
+fn PixelArtEditor(editor: Editor) -> NodeId {
+    let block = editor.block::<PixelArt>();
+    let tools = Tools::new(&editor, Rc::clone(&block));
+    let pane = Pane::new();
+    let shown = pane.shown();
+    let size = block.project(|art| (art.width(), art.height()));
+    let size = create_memo(clone!(size -> move || size.get()));
+    let palette = block.project(|art| art.palette().to_vec());
+    let palette = create_memo(clone!(palette -> move || palette.get()));
+    let (hovered, set_hovered) = create_signal(None::<(u16, u16)>);
 
-    pub(crate) fn editable(&self) -> bool {
-        self.editing
-            .as_ref()
-            .is_none_or(|editing| editing.host.editable())
-    }
-
-    pub(crate) fn view(&self, region: egui::Rect) -> egui::Rect {
-        self.editing
-            .as_ref()
-            .and_then(|editing| editing.host.view())
-            .unwrap_or(region)
-    }
-
-    pub(crate) fn change_zoom(&self, factor: f32) {
-        if let Some(editing) = &self.editing {
-            editing.host.zoom_view(factor, None);
-        }
-    }
-
-    pub(crate) fn fit_view(&self) {
-        if let Some(editing) = &self.editing {
-            editing.host.fit_view();
-        }
-    }
-
-    pub(crate) fn refresh_pane(
-        &mut self,
-        context: &egui::Context,
-        dark_mode: bool,
-    ) -> Option<(u16, u16)> {
-        let art = self.editing.as_ref()?.block.read()?;
-        let size = (art.width(), art.height());
-        self.pane.ensure(context, &art, dark_mode);
-        Some(size)
-    }
-
-    pub(crate) fn preview_pixels(&mut self, pixels: &[(u16, u16)], color: PixelColor) {
-        self.pane.set_preview(pixels, color);
-    }
-
-    pub(crate) fn paint_pane(&self, painter: &egui::Painter, rect: egui::Rect) {
-        self.pane.paint(painter, rect);
-    }
-
-    pub(crate) fn brush(&self, constrained: bool) -> Brush {
-        Brush {
-            size: self.brush_size,
-            shape: self.brush_shape,
-            filled: self.shapes_filled,
-            mirror_horizontal: self.mirror_horizontal,
-            mirror_vertical: self.mirror_vertical,
-            constrained,
-        }
-    }
-
-    pub(crate) fn operate(&self, operation: PixelArtOperation) {
-        if let Some(editing) = &self.editing {
-            editing.block.operate(operation);
-        }
-    }
-
-    pub(crate) fn select_tool(&mut self, tool: PixelTool) {
-        self.active_drawing = None;
-        self.committed_preview = None;
-        self.replace_source_hover = None;
-        if self.tool.is_drawing() {
-            self.previous_drawing_tool = self.tool;
-        }
-        if tool.is_drawing() {
-            self.previous_drawing_tool = tool;
-        }
-        self.tool = tool;
-    }
-
-    pub(crate) fn remember_color(&mut self, color: PixelColor) {
-        self.recent_colors.retain(|recent| *recent != color);
-        self.recent_colors.insert(0, color);
-        self.recent_colors.truncate(MAX_RECENT_COLORS);
-    }
-
-    pub(crate) fn set_active_color(&mut self, color: PixelColor, remember: bool) {
-        self.color = color;
-        self.color_hex = format_hex_color(color);
-        if remember {
-            self.remember_color(color);
-        }
-    }
-
-    pub(crate) fn export(&mut self) {
-        let Some(editing) = &self.editing else {
+    let sized = editor.clone();
+    create_effect(clone!(size -> move || {
+        let (width, height) = size.get();
+        if width == 0 || height == 0 {
             return;
-        };
-        let name = editing
-            .block
-            .name()
-            .unwrap_or_else(|| "Pixel Art".to_owned());
-        let Some(art) = editing.block.read() else {
-            return;
-        };
-        let generated = artifact::generate_initial(&art, &name);
-        drop(art);
-        match generated {
-            Ok(image) => {
-                let child = editing
-                    .client
-                    .create_dynamic_artifact(image, artifact::descriptor(editing.block.id()));
-                editing.host.open_block(child.id(), Image::TYPE_ID);
-                self.export_error = None;
-            }
-            Err(error) => self.export_error = Some(error),
         }
+        let width = f32::from(width);
+        let height = f32::from(height);
+        let pixel =
+            (EMBEDDED_LONG_SIDE / width.max(height)).max(EMBEDDED_SHORT_SIDE / width.min(height));
+        sized.set_intrinsic_size(Some(Vec2::new(width * pixel, height * pixel)));
+    }));
+
+    let chrome = editor.chrome_shown();
+    let canvas_size = size.clone();
+    let bar_tools = Rc::clone(&tools);
+    let left_tools = Rc::clone(&tools);
+    let canvas_tools = Rc::clone(&tools);
+    let label_tools = Rc::clone(&tools);
+    let colors_tools = Rc::clone(&tools);
+    let top_chrome = chrome.clone();
+    let left_chrome = chrome.clone();
+    view! {
+        <List spacing=0.0>
+            <TopBar tools={bar_tools} size={size.clone()} shown={top_chrome} />
+            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+                <Sidebar side=Side::Left shown={left_chrome} width=TOOLS_WIDTH>
+                    <ToolsPanel tools={left_tools} />
+                </Sidebar>
+                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                    <ArtworkCanvas
+                        @sizing=ItemSize::Percent(100.0)
+                        tools={canvas_tools}
+                        pane={pane}
+                        shown={shown}
+                        size={canvas_size}
+                        hovered={hovered.clone()}
+                        set_hovered={set_hovered}
+                    />
+                    <HoverLabel tools={label_tools} hovered={hovered} />
+                </List>
+                <Sidebar shown={chrome}>
+                    <ColorsPanel tools={colors_tools} palette={palette} />
+                </Sidebar>
+            </List>
+            <Dialogs tools={tools} size={size} />
+        </List>
+    }
+}
+
+#[component]
+fn PixelArtPreview(editor: Editor) -> NodeId {
+    let block = editor.block::<PixelArt>();
+    let pane = Pane::new();
+    let shown = pane.shown();
+    let refreshed = Rc::clone(&pane);
+    let watched = Rc::clone(&block);
+    let frame = editor.clone();
+    editor.each_frame(move || {
+        refreshed.refresh(&frame, &watched, true, &[], PixelColor::TRANSPARENT);
+    });
+    let image = create_memo(clone!(shown -> move || shown.get().artwork));
+    view! {
+        <Picture image={image} fit=ImageFit::Contain smooth=false />
+    }
+}
+
+pub(crate) fn export(tools: &Rc<Tools>) {
+    let editor = tools.editor();
+    let handle = tools.block().handle();
+    let name = handle.name().unwrap_or_else(|| "Pixel Art".to_owned());
+    let Some(art) = handle.read() else {
+        return;
+    };
+    let generated = artifact::generate_initial(&art, &name);
+    drop(art);
+    match generated {
+        Ok(image) => {
+            let child = editor
+                .client()
+                .create_dynamic_artifact(image, artifact::descriptor(handle.id()));
+            editor.host().open_block(child.id(), Image::TYPE_ID);
+            tools.set_export_error.set(None);
+        }
+        Err(error) => tools.set_export_error.set(Some(error)),
     }
 }
