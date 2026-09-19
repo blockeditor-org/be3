@@ -7,5 +7,5 @@ fn damaging_everything_covers_the_whole_viewport() {
     damage.add(rect(10.0, 10.0, 20.0, 20.0));
     damage.everything();
 
-    assert_eq!(damage.take(viewport), viewport);
+    assert_eq!(damage.take(viewport).rects(), [viewport]);
 }
