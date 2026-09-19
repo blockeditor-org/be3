@@ -774,18 +774,21 @@ pub(crate) struct StackedPanels {
 
 pub(crate) struct ThreePanels {
     pub(crate) document: Document,
+    pub(crate) list: NodeId,
     pub(crate) top: NodeId,
     pub(crate) middle: NodeId,
     pub(crate) bottom: NodeId,
 }
 
 pub(crate) fn three_panels() -> ThreePanels {
+    let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
+        let list = list.clone();
         let (top, middle, bottom) = (top.clone(), middle.clone(), bottom.clone());
         move || {
             view! {
-                <List spacing=0.0>
+                <List @node_ref=&list spacing=0.0>
                     <Frame @node_ref=&top height=100.0 color=Color32::WHITE radius=0 />
                     <Frame @node_ref=&middle height=100.0 color={Color32::from_gray(40)} radius=0 />
                     <Frame @node_ref=&bottom height=100.0 color={Color32::from_gray(80)} radius=0 />
@@ -795,6 +798,7 @@ pub(crate) fn three_panels() -> ThreePanels {
     });
     ThreePanels {
         document,
+        list: list.get(),
         top: top.get(),
         middle: middle.get(),
         bottom: bottom.get(),
@@ -952,9 +956,11 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
     counts
 }
 mod a_blinking_caret_only_damages_the_text_it_belongs_to;
+mod a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes;
 mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;
 mod a_panel_between_two_damaged_ones_is_left_alone;
+mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
 mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
 mod caret_repaints_on_a_deadline_without_repeating_layout;

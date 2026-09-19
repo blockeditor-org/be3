@@ -48,6 +48,10 @@ pub struct Document {
     constrained: HashSet<NodeId>,
     measurements: NodeMap<Vec<(Vec2, Vec2)>>,
     layout_parent: Option<NodeId>,
+    placed_children: NodeMap<Vec<NodeId>>,
+    placing: Vec<NodeId>,
+    placed_pass: NodeMap<u64>,
+    layout_pass: u64,
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
     paint_cache: RefCell<PaintCache>,
@@ -66,7 +70,7 @@ pub struct Document {
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: NodeMap<Node>,
     performance: PerformanceTracker,
-    work: Cell<FrameWork>,
+    work: WorkCounters,
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
@@ -94,6 +98,43 @@ fn constrained(held: Vec2, available: Vec2) -> Vec2 {
             false => held.y,
         },
     )
+}
+
+#[derive(Default)]
+struct WorkCounters {
+    measured: Cell<usize>,
+    reused_measurements: Cell<usize>,
+    placed: Cell<usize>,
+    reused_placements: Cell<usize>,
+    painted_nodes: Cell<usize>,
+    replayed_nodes: Cell<usize>,
+}
+
+impl WorkCounters {
+    fn reset(&self) {
+        self.measured.set(0);
+        self.reused_measurements.set(0);
+        self.placed.set(0);
+        self.reused_placements.set(0);
+        self.painted_nodes.set(0);
+        self.replayed_nodes.set(0);
+    }
+
+    fn gathered(&self) -> FrameWork {
+        FrameWork {
+            measured: self.measured.get(),
+            reused_measurements: self.reused_measurements.get(),
+            placed: self.placed.get(),
+            reused_placements: self.reused_placements.get(),
+            painted_nodes: self.painted_nodes.get(),
+            replayed_nodes: self.replayed_nodes.get(),
+        }
+    }
+}
+
+pub(crate) struct LayoutFrame {
+    parent: Option<NodeId>,
+    base: usize,
 }
 
 struct PlacementWatcher {
@@ -128,6 +169,10 @@ impl Document {
             constrained: HashSet::new(),
             measurements: NodeMap::default(),
             layout_parent: None,
+            placed_children: NodeMap::default(),
+            placing: Vec::new(),
+            placed_pass: NodeMap::default(),
+            layout_pass: 0,
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
@@ -146,7 +191,7 @@ impl Document {
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
             performance: PerformanceTracker::default(),
-            work: Cell::new(FrameWork::default()),
+            work: WorkCounters::default(),
             changes: FlashLog::default(),
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
@@ -155,6 +200,9 @@ impl Document {
 
     pub fn set_root(&mut self, id: NodeId) {
         if self.root != Some(id) {
+            if let Some(previous) = self.root {
+                self.forget_placement(previous);
+            }
             self.arena.invalidate();
             self.root = Some(id);
         }
@@ -361,6 +409,9 @@ impl Document {
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
+        if !self.delivering {
+            self.forget_placement(id);
+        }
         let mut scopes = Vec::new();
         self.detach_subtree(id, &mut scopes);
         drop(scopes);
@@ -382,6 +433,7 @@ impl Document {
         self.placements.remove(&id);
         self.measurements.remove(&id);
         self.component_states.remove(&id);
+        self.placed_children.remove(&id);
         self.accessibility.remove(&id);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             if self.test_ids.get(&test_id) == Some(&id) {
@@ -467,7 +519,7 @@ impl Document {
         keyboard_interactive: bool,
     ) {
         let mut measurement = FrameMeasurement::new();
-        self.work.set(FrameWork::default());
+        self.work.reset();
         let scale = ctx.pixels_per_point();
         if self
             .viewport
@@ -615,7 +667,7 @@ impl Document {
                 ctx.publish_accessibility(fragment);
             }
         });
-        measurement.work = self.work.get();
+        measurement.work = self.work.gathered();
         let frame = measurement.finish(self.arena.len(), self.shapes.len());
         self.performance.record(frame);
     }
@@ -690,10 +742,10 @@ impl Document {
         if !self.delivering {
             return;
         }
-        self.constrained.insert(id);
         let Some(watchers) = self.sizes.get(&id) else {
             return;
         };
+        self.constrained.insert(id);
         let writes: Vec<(::reactive::WriteSignal<Vec2>, Vec2)> = watchers
             .iter()
             .filter_map(|watcher| {
@@ -747,11 +799,11 @@ impl Document {
         }
     }
 
-    pub(crate) fn assert_confined(&self, id: NodeId, watermark: usize, placed: &NodeMap<Rect>) {
+    pub(crate) fn assert_confined(&self, id: NodeId, watermark: usize) {
         if cfg!(debug_assertions) {
             for changed in self.arena.changed_since(watermark) {
                 assert!(
-                    *changed == id || !placed.contains_key(changed),
+                    *changed == id || self.placed_pass.get(changed) != Some(&self.layout_pass),
                     "laying out {id:?} ({}) restructured {changed:?} ({}), which this pass had already placed",
                     self.node_kind(id),
                     self.node_kind(*changed),
@@ -791,10 +843,28 @@ impl Document {
         held.push((available, size));
     }
 
-    pub(crate) fn note_work(&self, note: impl FnOnce(&mut FrameWork)) {
-        let mut work = self.work.get();
-        note(&mut work);
-        self.work.set(work);
+    pub(crate) fn note_measured(&self, reused: bool) {
+        let counter = match reused {
+            true => &self.work.reused_measurements,
+            false => &self.work.measured,
+        };
+        counter.set(counter.get() + 1);
+    }
+
+    pub(crate) fn note_placed_work(&self, reused: bool) {
+        let counter = match reused {
+            true => &self.work.reused_placements,
+            false => &self.work.placed,
+        };
+        counter.set(counter.get() + 1);
+    }
+
+    pub(crate) fn note_painted(&self, reused: bool) {
+        let counter = match reused {
+            true => &self.work.replayed_nodes,
+            false => &self.work.painted_nodes,
+        };
+        counter.set(counter.get() + 1);
     }
 
     pub(crate) fn note_parent(&mut self, id: NodeId) {
@@ -805,12 +875,99 @@ impl Document {
         self.arena.set_parent(id, parent);
     }
 
-    pub(crate) fn enter_layout(&mut self, id: NodeId) -> Option<NodeId> {
+    pub(crate) fn enter_measure(&mut self, id: NodeId) -> Option<NodeId> {
         self.layout_parent.replace(id)
     }
 
-    pub(crate) fn leave_layout(&mut self, parent: Option<NodeId>) {
+    pub(crate) fn leave_measure(&mut self, parent: Option<NodeId>) {
         self.layout_parent = parent;
+    }
+
+    pub(crate) fn enter_layout(&mut self, id: NodeId) -> LayoutFrame {
+        let frame = LayoutFrame {
+            parent: self.layout_parent,
+            base: self.placing.len(),
+        };
+        self.layout_parent = Some(id);
+        frame
+    }
+
+    pub(crate) fn leave_layout(&mut self, id: NodeId, frame: LayoutFrame, out: &mut NodeMap<Rect>) {
+        self.layout_parent = frame.parent;
+        if self.delivering {
+            for child in self.dropped_children(id, frame.base) {
+                self.drop_placement(child, out);
+            }
+        }
+        self.placing.truncate(frame.base);
+    }
+
+    fn dropped_children(&mut self, id: NodeId, base: usize) -> Vec<NodeId> {
+        let placed = &self.placing[base..];
+        let dropped: Vec<NodeId> = match self.placed_children.get(&id) {
+            Some(held) if held.as_slice() == placed => return Vec::new(),
+            Some(held) => {
+                let kept: HashSet<NodeId> = placed.iter().copied().collect();
+                held.iter()
+                    .copied()
+                    .filter(|child| !kept.contains(child))
+                    .collect()
+            }
+            None => Vec::new(),
+        };
+        let replacement = self.placing[base..].to_vec();
+        self.placed_children.insert(id, replacement);
+        dropped
+    }
+
+    fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>) {
+        if let Some(rect) = out.remove(&id) {
+            if self.paints(id) {
+                self.damage.add(rect);
+            }
+            self.damage.add(self.paint_cache.borrow().bounds(id));
+        }
+        for child in self.placed_children.remove(&id).unwrap_or_default() {
+            self.drop_placement(child, out);
+        }
+    }
+
+    fn forget_placement(&mut self, id: NodeId) {
+        let mut rects = std::mem::take(&mut self.rects);
+        self.drop_placement(id, Rc::make_mut(&mut rects));
+        self.rects = rects;
+    }
+
+    pub(crate) fn note_placed(&mut self, id: NodeId) {
+        if self.delivering {
+            self.placing.push(id);
+        }
+    }
+
+    pub(crate) fn reusable_placement(&self, id: NodeId, rect: Rect, out: &NodeMap<Rect>) -> bool {
+        self.delivering
+            && !self.arena.unplaced(id)
+            && out.get(&id) == Some(&rect)
+            && self.placed_children.contains_key(&id)
+    }
+
+    pub(crate) fn record_placement(&mut self, id: NodeId, rect: Rect, out: &mut NodeMap<Rect>) {
+        let previous = out.insert(id, rect);
+        if !self.delivering {
+            return;
+        }
+        self.arena.clear_unplaced(id);
+        self.placed_pass.insert(id, self.layout_pass);
+        if previous == Some(rect) {
+            return;
+        }
+        if self.paints(id) {
+            self.damage.add(rect);
+            if let Some(previous) = previous {
+                self.damage.add(previous);
+            }
+        }
+        self.damage.add(self.paint_cache.borrow().bounds(id));
     }
 
     fn paints(&self, id: NodeId) -> bool {
@@ -838,7 +995,9 @@ impl Document {
         if self.layout_revision == self.arena.revision {
             return false;
         }
-        let mut rects = NodeMap::default();
+        self.layout_pass = self.layout_pass.wrapping_add(1);
+        let mut rects = (*self.rects).clone();
+        self.placing.clear();
         if let Some(root) = self.root {
             let painter = ctx.painter();
             let context = self.reactive_scope().context();
@@ -856,23 +1015,8 @@ impl Document {
             }
             self.delivering = false;
         }
-        let previous = std::mem::replace(&mut self.rects, Rc::new(rects));
-        for (id, placed) in self.rects.iter() {
-            if previous.get(&id) != Some(placed) {
-                if self.paints(id) {
-                    self.damage.add(*placed);
-                }
-                self.damage.add(self.paint_cache.borrow().bounds(id));
-            }
-        }
-        for (id, placed) in previous.iter() {
-            if !self.rects.contains_key(&id) {
-                if self.paints(id) {
-                    self.damage.add(*placed);
-                }
-                self.damage.add(self.paint_cache.borrow().bounds(id));
-            }
-        }
+        self.rects = Rc::new(rects);
+        self.placing.clear();
         self.layout_revision = self.arena.revision;
         true
     }

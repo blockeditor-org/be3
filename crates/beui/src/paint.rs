@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ops::Range;
 use std::time::Instant;
 
@@ -19,7 +18,7 @@ pub(crate) struct Painted {
 
 #[derive(Default)]
 pub(crate) struct PaintCache {
-    entries: HashMap<NodeId, Painted>,
+    entries: NodeMap<Painted>,
 }
 
 impl PaintCache {
@@ -60,10 +59,7 @@ pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, id
     let parent = ctx.parent_start();
     ctx.enter_paint(id);
     let reused = base.is_some_and(|base| replay(doc, ctx, id, rect, base));
-    doc.note_work(|work| match reused {
-        true => work.replayed_nodes += 1,
-        false => work.painted_nodes += 1,
-    });
+    doc.note_painted(reused);
     if !reused {
         let outer = doc.enter_paint_base(base);
         doc.arena.get(id).paint(doc, painter, rects, rect);

@@ -93,6 +93,7 @@ pub(crate) trait Element: Any {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+#[derive(Clone)]
 pub struct NodeMap<T> {
     entries: Vec<Option<T>>,
 }
@@ -125,13 +126,6 @@ impl<T> NodeMap<T> {
     pub fn remove(&mut self, id: &NodeId) -> Option<T> {
         self.entries.get_mut(id.index() as usize)?.take()
     }
-
-    pub fn iter(&self) -> impl Iterator<Item = (NodeId, &T)> {
-        self.entries.iter().enumerate().filter_map(|(index, held)| {
-            held.as_ref()
-                .map(|value| (NodeId::from_index(index as u32), value))
-        })
-    }
 }
 
 impl<T: Default> NodeMap<T> {
@@ -159,6 +153,7 @@ pub(crate) struct Arena {
     nodes: Vec<Option<Box<dyn Element>>>,
     parents: Vec<Option<NodeId>>,
     stale: Vec<bool>,
+    unplaced: Vec<bool>,
     marked: Option<NodeId>,
     live: usize,
     pub(crate) revision: u64,
@@ -176,6 +171,7 @@ impl Arena {
         self.nodes.push(Some(Box::new(element)));
         self.parents.push(None);
         self.stale.push(true);
+        self.unplaced.push(true);
         self.live += 1;
         self.invalidate_node(id);
         id
@@ -226,6 +222,7 @@ impl Arena {
         self.revision = self.revision.wrapping_add(1);
         self.everything = true;
         self.stale.fill(true);
+        self.unplaced.fill(true);
         self.marked = None;
     }
 
@@ -250,6 +247,9 @@ impl Arena {
                 return;
             };
             *stale = true;
+            if let Some(unplaced) = self.unplaced.get_mut(index) {
+                *unplaced = true;
+            }
             current = self.parents.get(index).copied().flatten();
         }
     }
@@ -261,6 +261,20 @@ impl Arena {
     pub(crate) fn clear_stale(&mut self, id: NodeId) {
         if let Some(stale) = self.stale.get_mut(id.index() as usize) {
             *stale = false;
+        }
+        self.marked = None;
+    }
+
+    pub(crate) fn unplaced(&self, id: NodeId) -> bool {
+        self.unplaced
+            .get(id.index() as usize)
+            .copied()
+            .unwrap_or(true)
+    }
+
+    pub(crate) fn clear_unplaced(&mut self, id: NodeId) {
+        if let Some(unplaced) = self.unplaced.get_mut(id.index() as usize) {
+            *unplaced = false;
         }
         self.marked = None;
     }
