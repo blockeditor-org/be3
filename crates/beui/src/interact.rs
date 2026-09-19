@@ -62,11 +62,17 @@ pub(crate) fn interact(
     if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
     {
-        let layers: Vec<NodeId> = if doc.overlay_stack.is_empty() {
+        let under: Vec<NodeId> = if doc.overlay_stack.is_empty() {
             vec![root]
         } else {
             doc.overlay_stack.iter().rev().copied().collect()
         };
+        let layers: Vec<NodeId> = doc
+            .floating_overlays()
+            .into_iter()
+            .rev()
+            .chain(under)
+            .collect();
         if let Some(captor) = layers
             .into_iter()
             .find_map(|layer| captor(doc, rects, layer, pos))
@@ -104,12 +110,20 @@ pub(crate) fn interact(
     };
 
     let mut focus_target = None;
-    if doc.overlay_stack.is_empty() {
-        interact_node(doc, painter, &input, rects, root, &mut focus_target);
-    } else {
-        for overlay in doc.overlay_stack.clone() {
-            interact_node(doc, painter, &input, rects, overlay, &mut focus_target);
+    let covered = input
+        .pointer_pos
+        .is_some_and(|pos| doc.floating_covers(pos));
+    if !covered {
+        if doc.overlay_stack.is_empty() {
+            interact_node(doc, painter, &input, rects, root, &mut focus_target);
+        } else {
+            for overlay in doc.overlay_stack.clone() {
+                interact_node(doc, painter, &input, rects, overlay, &mut focus_target);
+            }
         }
+    }
+    for overlay in doc.floating_overlays() {
+        interact_node(doc, painter, &input, rects, overlay, &mut focus_target);
     }
 
     if doc.pointer_capture.is_none()

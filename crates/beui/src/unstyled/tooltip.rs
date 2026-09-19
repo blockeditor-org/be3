@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use beui_macros::{component, view};
 
-use crate::base::overlay::{Overlay, Placement};
+use crate::base::overlay::{Overlay, OverlayMode, Placement};
 use crate::input::PointerPress;
 use crate::node::NodeId;
 use crate::reactive::{
@@ -66,7 +66,7 @@ pub fn Tooltip(
                 <Overlay
                     anchor=&anchor
                     placement=Placement::BelowStart
-                    modal=false
+                    mode=OverlayMode::Passive
                     traps_focus=false
                     open={open}
                 >
