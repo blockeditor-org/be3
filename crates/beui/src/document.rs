@@ -20,7 +20,7 @@ use crate::layout;
 use crate::node::{Arena, NodeId, NodeMap};
 use crate::paint::{self, PaintCache, Painted};
 use crate::painter::Shape;
-use crate::performance::{FrameMeasurement, PerformanceSnapshot, PerformanceTracker};
+use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::styled::{Theme, ThemeStore};
 
@@ -64,6 +64,7 @@ pub struct Document {
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: NodeMap<Node>,
     performance: PerformanceTracker,
+    work: Cell<FrameWork>,
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
@@ -141,6 +142,7 @@ impl Document {
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
             performance: PerformanceTracker::default(),
+            work: Cell::new(FrameWork::default()),
             changes: FlashLog::default(),
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
@@ -425,6 +427,7 @@ impl Document {
         keyboard_interactive: bool,
     ) {
         let mut measurement = FrameMeasurement::new();
+        self.work.set(FrameWork::default());
         let scale = ctx.pixels_per_point();
         if self
             .viewport
@@ -560,6 +563,7 @@ impl Document {
                 ctx.publish_accessibility(fragment);
             }
         });
+        measurement.work = self.work.get();
         let frame = measurement.finish(self.arena.len(), self.shapes.len());
         self.performance.record(frame);
     }
@@ -733,6 +737,12 @@ impl Document {
             held.remove(0);
         }
         held.push((available, size));
+    }
+
+    pub(crate) fn note_work(&self, note: impl FnOnce(&mut FrameWork)) {
+        let mut work = self.work.get();
+        note(&mut work);
+        self.work.set(work);
     }
 
     pub(crate) fn note_parent(&mut self, id: NodeId) {

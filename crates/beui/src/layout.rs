@@ -14,8 +14,10 @@ pub(crate) fn measure(doc: &mut Document, painter: &Painter, id: NodeId, availab
         return Vec2::ZERO;
     }
     if let Some(size) = doc.measured(id, available) {
+        doc.note_work(|work| work.reused_measurements += 1);
         return size;
     }
+    doc.note_work(|work| work.measured += 1);
     let watermark = doc.arena.revision;
     let element = doc.arena.take(id);
     let outer = doc.enter_layout(id);

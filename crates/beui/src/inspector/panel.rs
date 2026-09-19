@@ -83,6 +83,7 @@ pub(crate) struct PerformanceSummary {
     latest_work: String,
     scene: String,
     cache: String,
+    reuse: String,
 }
 
 impl From<PerformanceSnapshot> for PerformanceSummary {
@@ -92,13 +93,15 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
             count => format!("{count} samples"),
         };
         let latest = snapshot.latest;
-        let (latest_work, scene, cache) = if snapshot.samples == 0 {
+        let (latest_work, scene, cache, reuse) = if snapshot.samples == 0 {
             (
                 "Waiting for a document update".to_owned(),
                 String::new(),
                 "Cache: waiting for measurements".to_owned(),
+                String::new(),
             )
         } else {
+            let work = latest.work;
             (
                 format!(
                     "Latest: {} layout passes | paint {}",
@@ -111,6 +114,13 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
                     percentage(snapshot.layout_cache_hits, snapshot.samples),
                     percentage(snapshot.paint_cache_hits, snapshot.samples)
                 ),
+                format!(
+                    "Reused: {} of {} measured | {} of {} painted",
+                    work.reused_measurements,
+                    work.reused_measurements + work.measured,
+                    work.replayed_nodes,
+                    work.replayed_nodes + work.painted_nodes
+                ),
             )
         };
         Self {
@@ -121,6 +131,7 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
             latest_work,
             scene,
             cache,
+            reuse,
         }
     }
 }
@@ -572,6 +583,7 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
     let latest_work = performance_text(&performance, |summary| &summary.latest_work);
     let scene = performance_text(&performance, |summary| &summary.scene);
     let cache = performance_text(&performance, |summary| &summary.cache);
+    let reuse = performance_text(&performance, |summary| &summary.reuse);
     let total = timing_values(&performance, |timings| timings.total);
     let layout = timing_values(&performance, |timings| timings.layout);
     let interaction = timing_values(&performance, |timings| timings.interaction);
@@ -590,6 +602,7 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
                         <Code content={latest_work} />
                         <Code content={scene} color={THEME.text_muted} />
                         <Code content={cache} color={THEME.text_muted} />
+                        <Code content={reuse} color={THEME.text_muted} />
                     </List>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
                     <List spacing=TIMING_SPACING>
