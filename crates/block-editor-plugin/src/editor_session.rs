@@ -1225,6 +1225,7 @@ impl EditorSession {
         let state = beui.entry(region).or_insert_with(BeuiRegion::new);
         let events = std::mem::take(&mut state.events);
         let context = state.context.clone();
+        self.host.set_beui_context(context.clone());
         let rect = scaled(host, ratio);
 
         let frame = beui::Rect::from_min_max(
