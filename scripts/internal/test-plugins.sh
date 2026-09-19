@@ -28,6 +28,9 @@
 # Usage:
 #   test-plugins.sh [nextest arguments...]            accepts whatever the tests paint
 #   test-plugins.sh --check [nextest arguments...]    reports a changed painting instead
+#   test-plugins.sh --runner-only [arguments...]      builds only the runner, not the
+#                                                     workspace's tests: see the comment on
+#                                                     the runner build below
 #   test-plugins.sh --build-only [-p plugin...]        compiles the tests without running them
 
 set -euo pipefail
@@ -36,16 +39,26 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 check=false
 build_only=false
-case "${1:-}" in
-    --check)
-        check=true
-        shift
-        ;;
-    --build-only)
-        build_only=true
-        shift
-        ;;
-esac
+runner_only=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --check)
+            check=true
+            shift
+            ;;
+        --build-only)
+            build_only=true
+            shift
+            ;;
+        --runner-only)
+            runner_only=true
+            shift
+            ;;
+        # Everything from the first argument this does not know belongs to
+        # nextest, including one that happens to be spelled like these.
+        *) break ;;
+    esac
+done
 
 assert_command cargo 'Install Rust from https://rustup.rs.'
 cd "$repository"
@@ -78,16 +91,33 @@ fi
 # seconds rather than minutes on a module this size, and the workspace profile
 # already builds Cranelift optimised, so the runner needs no profile of its own.
 #
-# What it does need is the selection the native test run uses, plugins excluded
-# and --tests on. Cargo resolves features over the packages a call selects and
-# over the kinds of dependency it is about to build, so asking for this package
-# alone, or for a plain build rather than a test one, unifies them differently
-# and compiles wasmtime, wgpu and everything under them a second time. Asked
-# for the way the native run asks, every artifact it left behind is reused and
-# only the runner itself is linked.
+# What it does need, when the native test run is part of the same verification,
+# is the selection that run uses: plugins excluded and --tests on. Cargo
+# resolves features over the packages a call selects and over the kinds of
+# dependency it is about to build, so asking for this package alone, or for a
+# plain build rather than a test one, unifies them differently and compiles
+# wasmtime, wgpu and everything under them a second time. Asked for the way the
+# native run asks, every artifact it left behind is reused and only the runner
+# itself is linked.
+#
+# --runner-only is for when there is no such run to share with, which is how CI
+# runs this: on a runner of its own, --tests is a second build of every test
+# binary in the workspace for the sake of one bin. Measured cold, it is 571
+# crates and 44 linked binaries against 246 and one, and six and a half minutes
+# against four.
+#
+# What the two resolutions differ by is one feature: a dev-dependency asks wgpu
+# for its noop backend, so the runner built the shared way carries five
+# megabytes of it. It cannot ever reach it. The noop adapter is handed out only
+# when NoopBackendOptions says so, which defaults to off and which nothing here
+# sets, and the runner asks wgpu::Instance::default() for a real adapter.
 native_selection
+runner_targets=(--tests)
+if $runner_only; then
+    runner_targets=()
+fi
 step 'Building the plugin test runner'
-cargo build "${cargo_quiet[@]}" "${selection[@]}" --bin plugin-test-runner --tests
+cargo build "${cargo_quiet[@]}" "${selection[@]}" --bin plugin-test-runner "${runner_targets[@]}"
 end_step
 runner="$repository/target/debug/plugin-test-runner"
 if [[ -f "$runner.exe" ]]; then
@@ -139,9 +169,16 @@ build=(--cargo-profile plugin --target "$wasm_rust_target")
     step "Building the test modules for $plugin_count plugins"
     listing="$(cargo nextest list "${nextest_quiet[@]}" --list-type binaries-only --message-format json "${build[@]}" "${packages[@]}")"
     end_step
+    # An artifact the runner will not map in is one every test process
+    # compiles again for itself, which is minutes rather than the seconds
+    # compiling it once here costs, and nothing says so: the run merely gets
+    # slow. So what counts as stale is what wasmtime would refuse, which is an
+    # artifact older than the module or older than the runner that has to read
+    # it, the same two questions common.sh asks of a plugin's own .cwasm.
     stale=()
     while IFS= read -r module; do
-        if [[ "$module" == *.wasm && ! "${module%.wasm}.cwasm" -nt "$module" ]]; then
+        artifact="${module%.wasm}.cwasm"
+        if [[ "$module" == *.wasm ]] && [[ ! "$artifact" -nt "$module" || ! "$artifact" -nt "$runner" ]]; then
             stale+=("$module")
         fi
     done < <(grep -o '"binary-path":"[^"]*"' <<< "$listing" | sed 's/^"binary-path":"//; s/"$//')

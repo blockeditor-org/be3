@@ -150,10 +150,19 @@ if $tests; then
 fi
 
 if $plugin_tests; then
+    # The plugin run builds its test runner the way the native run builds its
+    # own tests, so that everything that run compiled is reused rather than
+    # resolved again with different features. When the native run is not part
+    # of this one there is nothing to reuse, and asking for it that way is a
+    # second build of every test binary in the workspace for the sake of one.
+    alone=()
+    if ! $tests; then
+        alone=(--runner-only)
+    fi
     if $check; then
-        t 'plugin tests' "$internal/test-plugins.sh" --check --profile ci
+        t 'plugin tests' "$internal/test-plugins.sh" --check "${alone[@]}" --profile ci
     else
-        t 'plugin tests' "$internal/test-plugins.sh" --cargo-quiet --show-progress=none
+        t 'plugin tests' "$internal/test-plugins.sh" "${alone[@]}" --cargo-quiet --show-progress=none
     fi
 fi
 
