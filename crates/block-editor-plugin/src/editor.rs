@@ -17,6 +17,73 @@ use uuid::Uuid;
 
 use crate::{BlockFilter, BlockPicker, EditorHost, PickedBlock};
 
+type Regenerate = Rc<dyn Fn(&[u8])>;
+type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
+
+pub struct Artifacts(Rc<ArtifactState>);
+
+struct ArtifactState {
+    host: EditorHost,
+    client: Arc<BlockClient>,
+    artifact: crate::Artifact,
+    regenerate: RefCell<Option<Regenerate>>,
+    poll: RefCell<Option<PollArtifact>>,
+}
+
+impl Clone for Artifacts {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
+impl Artifacts {
+    pub fn new(host: EditorHost, client: Arc<BlockClient>, artifact: crate::Artifact) -> Self {
+        Self(Rc::new(ArtifactState {
+            host,
+            client,
+            artifact,
+            regenerate: RefCell::new(None),
+            poll: RefCell::new(None),
+        }))
+    }
+
+    pub fn host(&self) -> &EditorHost {
+        &self.0.host
+    }
+
+    pub fn client(&self) -> &Arc<BlockClient> {
+        &self.0.client
+    }
+
+    pub fn block_id(&self) -> Uuid {
+        self.0.artifact.block_id
+    }
+
+    pub fn block_type(&self) -> Uuid {
+        self.0.artifact.block_type
+    }
+
+    pub fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
+        *self.0.regenerate.borrow_mut() = Some(Rc::new(work));
+    }
+
+    pub fn on_poll(&self, work: impl Fn() -> Option<Result<(), String>> + 'static) {
+        *self.0.poll.borrow_mut() = Some(Rc::new(work));
+    }
+
+    pub fn regenerate(&self, data: &[u8]) {
+        let work = self.0.regenerate.borrow().clone();
+        if let Some(work) = work {
+            work(data);
+        }
+    }
+
+    pub fn poll(&self) -> Option<Result<(), String>> {
+        let work = self.0.poll.borrow().clone();
+        work.and_then(|work| work())
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Drag {
     pub position: Pos2,
@@ -128,6 +195,9 @@ struct EditorState {
     set_drag: WriteSignal<Option<Drag>>,
     pixels_per_point: ReadSignal<f32>,
     set_pixels_per_point: WriteSignal<f32>,
+    resized: ReadSignal<Option<Vec2>>,
+    set_resized: WriteSignal<Option<Vec2>>,
+    pending_resize: Cell<Option<Vec2>>,
     content: RefCell<Option<NodeRef>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
@@ -147,6 +217,7 @@ impl Editor {
         let (presenting, set_presenting) = create_signal(false);
         let (drag, set_drag) = create_signal(None::<Drag>);
         let (pixels_per_point, set_pixels_per_point) = create_signal(1.0_f32);
+        let (resized, set_resized) = create_signal(None::<Vec2>);
         Self(Rc::new(EditorState {
             host,
             client,
@@ -165,6 +236,9 @@ impl Editor {
             set_drag,
             pixels_per_point,
             set_pixels_per_point,
+            resized,
+            set_resized,
+            pending_resize: Cell::new(None),
             content: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
@@ -330,6 +404,14 @@ impl Editor {
         self.0.pixels_per_point.clone()
     }
 
+    pub fn resized(&self) -> ReadSignal<Option<Vec2>> {
+        self.0.resized.clone()
+    }
+
+    pub fn report_resize(&self, size: Vec2) {
+        self.0.pending_resize.set(Some(size));
+    }
+
     pub fn drag(&self) -> ReadSignal<Option<Drag>> {
         self.0.drag.clone()
     }
@@ -374,6 +456,7 @@ impl Editor {
         self.0
             .set_pixels_per_point
             .set(self.0.host.beui_pixels_per_point());
+        self.0.set_resized.set(self.0.pending_resize.take());
         for record in self.records() {
             let state = ChildState::of(&self.0.host, record.child.get());
             if record.read.get_untracked() == state {

@@ -58,6 +58,7 @@ pub struct SliderHandle {
     pub fraction: Memo<f32>,
     pub dragging: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
+    pub disabled: Memo<bool>,
 }
 
 #[component]
@@ -66,6 +67,7 @@ pub fn Slider(
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
+    #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<SliderHandle>>,
     on_change: Callback<f32>,
     on_drag_change: Callback<bool>,
@@ -79,15 +81,21 @@ pub fn Slider(
         create_memo(clone!(value_read -> move || scale.fraction_of(value_read.get(), min, max)));
     let (dragging, set_dragging) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
+    let disabled = create_memo(move || disabled.get());
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Slider)));
-    component_accessibility(create_memo(clone!(value_read -> move || {
+    component_accessibility(create_memo(clone!(value_read disabled -> move || {
         let mut node = accessibility.get();
         let value = value_read.get();
         node.set_numeric_value(value.into());
         node.set_min_numeric_value(min.into());
         node.set_max_numeric_value(max.into());
         node.set_numeric_value_step(step_size(scale, value, min, max).into());
+        if disabled.get() {
+            node.set_disabled();
+        } else {
+            node.clear_disabled();
+        }
         node
     })));
 
@@ -97,12 +105,17 @@ pub fn Slider(
             fraction: fraction.clone(),
             dragging: dragging.clone(),
             focused: focused.clone(),
+            disabled: disabled.clone(),
         })
     });
 
     let set_value = {
         let value = value_read.clone();
+        let off = disabled.clone();
         move |next: f32| {
+            if untrack(|| off.get()) {
+                return;
+            }
             let next = next.clamp(min, max);
             if untrack(|| value.get()) == next {
                 return;
@@ -117,8 +130,10 @@ pub fn Slider(
 
     set_component_state(value_read.clone());
 
+    let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
     view! {
         <Focusable
+            tab_stop={tab_stop}
             on_focus_change={move |focused: bool| {
                 set_focused.set(focused);
                 on_focus_change.call(focused);

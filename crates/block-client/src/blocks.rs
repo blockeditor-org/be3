@@ -39,7 +39,6 @@ block_types! {
     deterministic_game::DeterministicGame;
     file_tree::FileTree;
     game_module::GameModule;
-    gui_builder::GuiBuilder;
     hotbar::Hotbar;
     image::Image;
     infinite_canvas::InfiniteCanvas;
