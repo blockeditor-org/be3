@@ -254,6 +254,7 @@ struct BeuiHolder<A: crate::BeuiApp> {
     preview_document: Option<beui::Document>,
     creation: Option<crate::Creation>,
     dialog: Option<beui::Document>,
+    artifacts: Option<crate::Artifacts>,
     app: PhantomData<A>,
 }
 
@@ -265,6 +266,7 @@ impl<A: crate::BeuiApp> BeuiHolder<A> {
             preview_document: None,
             creation: None,
             dialog: None,
+            artifacts: None,
             app: PhantomData,
         }
     }
@@ -343,22 +345,37 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
 
     fn connect_artifact(
         &mut self,
-        _host: EditorHost,
-        _client: Arc<BlockClient>,
-        _artifact: crate::Artifact,
+        host: EditorHost,
+        client: Arc<BlockClient>,
+        artifact: crate::Artifact,
     ) {
+        let artifacts = crate::Artifacts::new(host, client, artifact);
+        A::connect_artifact(&artifacts);
+        self.artifacts = Some(artifacts);
     }
 
-    fn describe_artifact(&mut self, _data: &[u8]) -> ArtifactDescription {
-        ArtifactDescription::Unreadable("this editor does not generate artifacts".to_owned())
+    fn describe_artifact(&mut self, data: &[u8]) -> ArtifactDescription {
+        match A::describe_artifact(data) {
+            Ok(description) => ArtifactDescription::Described {
+                source: description.source.into_bytes(),
+                summary: description.summary,
+            },
+            Err(error) => ArtifactDescription::Unreadable(error),
+        }
     }
 
-    fn artifact_settings_ui(&mut self, _ui: &mut egui::Ui, _data: &mut Vec<u8>) {}
+    fn artifact_settings_ui(&mut self, ui: &mut egui::Ui, data: &mut Vec<u8>) {
+        A::artifact_settings_ui(ui, data);
+    }
 
-    fn regenerate_artifact(&mut self, _data: &[u8]) {}
+    fn regenerate_artifact(&mut self, data: &[u8]) {
+        if let Some(artifacts) = &self.artifacts {
+            artifacts.regenerate(data);
+        }
+    }
 
     fn poll_artifact(&mut self) -> Option<Result<(), String>> {
-        None
+        self.artifacts.as_ref()?.poll()
     }
 
     fn main_ui(&mut self, _ui: &mut egui::Ui) {}
@@ -379,7 +396,11 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
             .map(|size| egui::vec2(size.x, size.y))
     }
 
-    fn set_intrinsic_size(&mut self, _size: egui::Vec2) {}
+    fn set_intrinsic_size(&mut self, size: egui::Vec2) {
+        if let Some(editor) = &self.editor {
+            editor.report_resize(beui::Vec2::new(size.x, size.y));
+        }
+    }
 
     fn aspect_ratio(&mut self) -> Option<f32> {
         A::aspect_ratio()

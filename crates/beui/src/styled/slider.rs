@@ -29,6 +29,7 @@ pub fn Slider(
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<f32>,
 ) -> NodeId {
     let accessibility = label.map(|label| {
@@ -44,6 +45,7 @@ pub fn Slider(
             min
             max
             scale
+            disabled
             accessibility
             on_change={move |value| on_change.call(value)}
         >
@@ -62,12 +64,19 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
         fraction,
         dragging,
         focused,
+        disabled,
         ..
     } = handle;
     let theme = use_theme();
     let filled_percent = create_memo(clone!(fraction -> move || filled_size(fraction.get())));
     let rest_percent = create_memo(move || rest_size(fraction.get()));
-    let knob_color = create_memo(clone!(theme -> move || knob_fill_color(&theme, dragging.get())));
+    let knob_color = create_memo(clone!(theme disabled -> move || {
+        knob_fill_color(&theme, dragging.get(), disabled.get())
+    }));
+    let filled_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        true => theme.track.get(),
+        false => theme.accent.get(),
+    }));
 
     view! {
         <Frame
@@ -82,7 +91,7 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
                 <Frame
                     @sizing={filled_percent}
                     height=TRACK_HEIGHT
-                    color={theme.accent.clone()}
+                    color={filled_color}
                     radius=TRACK_RADIUS
                 />
                 <Frame
@@ -117,10 +126,10 @@ fn rest_size(value: f32) -> ItemSize {
     ItemSize::Percent((1.0 - value) * 100.0)
 }
 
-fn knob_fill_color(theme: &ThemeStore, dragging: bool) -> Color32 {
-    if dragging {
-        theme.accent_hover.get()
-    } else {
-        theme.knob.get()
+fn knob_fill_color(theme: &ThemeStore, dragging: bool, disabled: bool) -> Color32 {
+    match (disabled, dragging) {
+        (true, _) => theme.surface_raised.get(),
+        (false, true) => theme.accent_hover.get(),
+        (false, false) => theme.knob.get(),
     }
 }

@@ -9,7 +9,6 @@ use crate::blocks::compiled_logic::CompiledLogic;
 use crate::blocks::database::Database;
 use crate::blocks::database_schema::DatabaseSchema;
 use crate::blocks::database_view::DatabaseView;
-use crate::blocks::gui_builder::GuiBuilder;
 use crate::blocks::hotbar::Hotbar;
 use crate::blocks::image::Image;
 use crate::blocks::infinite_canvas::InfiniteCanvas;
@@ -189,7 +188,6 @@ macro_rules! for_each_source_block_type {
         $apply!(Database);
         $apply!(DatabaseSchema);
         $apply!(DatabaseView);
-        $apply!(GuiBuilder);
         $apply!(Hotbar);
         $apply!(Image);
         $apply!(InfiniteCanvas);

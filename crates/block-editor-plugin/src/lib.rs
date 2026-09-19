@@ -39,7 +39,7 @@ pub use block_ui;
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
 pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
 pub use datetime::DateTimeRow;
-pub use editor::{BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor};
+pub use editor::{Artifacts, BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
     ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster,
@@ -63,6 +63,11 @@ pub trait BeuiApp: 'static {
     fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
         creation.create_block()
     }
+    fn connect_artifact(_artifacts: &Artifacts) {}
+    fn describe_artifact(_data: &[u8]) -> Result<ArtifactDescription, String> {
+        Err("this editor does not generate artifacts".into())
+    }
+    fn artifact_settings_ui(_ui: &mut egui::Ui, _data: &mut Vec<u8>) {}
     fn intrinsic_size() -> Option<beui::Vec2> {
         None
     }
