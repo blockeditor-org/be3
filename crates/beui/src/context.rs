@@ -45,10 +45,12 @@ struct Inner {
     previous: RefCell<Option<Previous>>,
     accessibility: RefCell<Vec<Fragment>>,
     accessibility_actions: RefCell<Vec<ActionRequest>>,
+    accessibility_active: Cell<bool>,
+    test_ids_published: Cell<bool>,
 }
 
 pub struct FrameOutput {
-    pub(crate) shapes: Vec<Shape>,
+    pub(crate) shapes: Rc<Vec<Shape>>,
     pub(crate) filter: Option<(Filter, usize)>,
     test_ids: HashMap<String, Rect>,
     pub cursor_icon: CursorIcon,
@@ -128,8 +130,26 @@ impl Context {
                 previous: RefCell::new(None),
                 accessibility: RefCell::new(Vec::new()),
                 accessibility_actions: RefCell::new(Vec::new()),
+                accessibility_active: Cell::new(true),
+                test_ids_published: Cell::new(true),
             }),
         }
+    }
+
+    pub fn set_accessibility_active(&self, active: bool) {
+        self.inner.accessibility_active.set(active);
+    }
+
+    pub(crate) fn accessibility_active(&self) -> bool {
+        self.inner.accessibility_active.get()
+    }
+
+    pub fn set_test_ids_published(&self, published: bool) {
+        self.inner.test_ids_published.set(published);
+    }
+
+    pub(crate) fn test_ids_published(&self) -> bool {
+        self.inner.test_ids_published.get()
     }
 
     pub fn begin_frame(&self, raw: RawInput) {
@@ -155,23 +175,35 @@ impl Context {
     }
 
     pub fn end_frame(&self) -> FrameOutput {
-        let shapes = std::mem::take(&mut *self.inner.shapes.borrow_mut());
+        let shapes = Rc::new(std::mem::take(&mut *self.inner.shapes.borrow_mut()));
         let scale = self.pixels_per_point();
         let filter = self.inner.filter.take();
+        let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
+        let damage = reported
+            .iter()
+            .fold(Rect::NOTHING, |region, rect| region.union(*rect));
         let mut previous = self.inner.previous.borrow_mut();
-        let changed = previous.as_ref().is_none_or(|old| {
-            old.pixels_per_point != scale || old.filter != filter || old.shapes != shapes
-        });
+        let changed = match previous.as_ref() {
+            None => true,
+            Some(old) if old.pixels_per_point != scale || old.filter != filter => true,
+            Some(old) => match reported.is_empty() {
+                true => {
+                    debug_assert!(
+                        *old.shapes == *shapes,
+                        "a frame that reported no damage changed the shapes it painted"
+                    );
+                    false
+                }
+                false => *old.shapes != *shapes,
+            },
+        };
         if changed {
             *previous = Some(Previous {
-                shapes: shapes.clone(),
+                shapes: Rc::clone(&shapes),
                 pixels_per_point: scale,
                 filter,
             });
         }
-        let damage = std::mem::take(&mut *self.inner.damage.borrow_mut())
-            .into_iter()
-            .fold(Rect::NOTHING, |region, rect| region.union(rect));
         FrameOutput {
             shapes,
             filter,
@@ -401,6 +433,9 @@ impl Context {
     }
 
     pub(crate) fn publish_test_id(&self, test_id: &str, rect: Rect) {
+        if !self.inner.test_ids_published.get() {
+            return;
+        }
         self.inner
             .test_ids
             .borrow_mut()
@@ -534,7 +569,7 @@ impl Context {
 }
 
 struct Previous {
-    shapes: Vec<Shape>,
+    shapes: Rc<Vec<Shape>>,
     pixels_per_point: f32,
     filter: Option<(Filter, usize)>,
 }
