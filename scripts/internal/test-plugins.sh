@@ -16,7 +16,10 @@
 # process then maps that in rather than compiling the module again.
 #
 # Arguments after --check go to cargo nextest run. A package named with -p
-# narrows the run to it; otherwise every plugin is tested.
+# narrows the run to it; otherwise every plugin is tested. --cargo-quiet goes
+# to nextest and is also taken as a request to quieten the cargo calls this
+# script makes of its own, which is what ./scripts/verify asks for on a
+# person's run and never in CI: see the step comment below.
 #
 # With --build-only everything a test needs is prepared and nothing is run,
 # which is what scripts/internal/warm-cache.sh wants: the sysroot, the runner,
@@ -48,6 +51,27 @@ assert_command cargo 'Install Rust from https://rustup.rs.'
 cd "$repository"
 load_plugins
 
+# What this prints, and why the cargo calls below are loud unless asked not to
+# be. Nearly all of a plugin test run is building: the runner, the test modules
+# and the artifacts Cranelift compiles them to, each of them minutes on a cold
+# machine and none of them saying anything while they work. Quiet, a run that
+# took eleven of them leaves a log with a gap in the middle and no way to tell
+# which of the three it was spent in. So every phase announces itself and
+# reports what it cost, and a person who wants the tests rather than the
+# builds asks for --cargo-quiet.
+quiet=false
+for argument in "$@"; do
+    if [[ "$argument" == '--cargo-quiet' ]]; then
+        quiet=true
+    fi
+done
+cargo_quiet=()
+nextest_quiet=()
+if $quiet; then
+    cargo_quiet=(--quiet)
+    nextest_quiet=(--cargo-quiet)
+fi
+
 # The runner is what nextest starts in place of each test binary: it hands the
 # module to wasmtime with a plugin's imports linked, and opens a graphics
 # device only if a test calls the gpu abi. Cranelift is what makes that take
@@ -62,7 +86,9 @@ load_plugins
 # for the way the native run asks, every artifact it left behind is reused and
 # only the runner itself is linked.
 native_selection
-cargo build --quiet "${selection[@]}" --bin plugin-test-runner --tests
+step 'Building the plugin test runner'
+cargo build "${cargo_quiet[@]}" "${selection[@]}" --bin plugin-test-runner --tests
+end_step
 runner="$repository/target/debug/plugin-test-runner"
 if [[ -f "$runner.exe" ]]; then
     runner+='.exe'
@@ -94,14 +120,25 @@ if [[ ${#packages[@]} -eq 0 ]]; then
     done
     packages=("${selection[@]}")
 fi
+# packages holds a -p and a name for each one, so what the steps below report
+# is how many plugins that is rather than how many arguments it took to say so.
+plugin_count=$((${#packages[@]} / 2))
 
 build=(--cargo-profile plugin --target "$wasm_rust_target")
 
 (
-    export_wasi_toolchain "${wasi_sysroot:-}" > /dev/null
+    if $quiet; then
+        export_wasi_toolchain "${wasi_sysroot:-}" > /dev/null
+    else
+        export_wasi_toolchain "${wasi_sysroot:-}"
+    fi
     export "CARGO_TARGET_$(echo "$wasm_rust_target" | tr 'a-z-' 'A-Z_')_RUNNER=$runner"
 
-    listing="$(cargo nextest list --cargo-quiet --list-type binaries-only --message-format json "${build[@]}" "${packages[@]}")"
+    # Listing the test binaries is what builds them, so this is the compile of
+    # every plugin's tests for wasm and not the bookkeeping its name suggests.
+    step "Building the test modules for $plugin_count plugins"
+    listing="$(cargo nextest list "${nextest_quiet[@]}" --list-type binaries-only --message-format json "${build[@]}" "${packages[@]}")"
+    end_step
     stale=()
     while IFS= read -r module; do
         if [[ "$module" == *.wasm && ! "${module%.wasm}.cwasm" -nt "$module" ]]; then
@@ -109,8 +146,9 @@ build=(--cargo-profile plugin --target "$wasm_rust_target")
         fi
     done < <(grep -o '"binary-path":"[^"]*"' <<< "$listing" | sed 's/^"binary-path":"//; s/"$//')
     if [[ ${#stale[@]} -gt 0 ]]; then
-        echo "Compiling ${#stale[@]} plugin test modules..."
+        step "Compiling ${#stale[@]} plugin test modules"
         "$runner" --precompile "${stale[@]}"
+        end_step
     fi
 
     if $build_only; then
@@ -120,5 +158,7 @@ build=(--cargo-profile plugin --target "$wasm_rust_target")
     if ! $check; then
         export UPDATE_SNAPSHOTS=1
     fi
+    step "Running the tests of $plugin_count plugins"
     cargo nextest run --no-fail-fast "${build[@]}" "${selection[@]}" "$@"
+    end_step
 )

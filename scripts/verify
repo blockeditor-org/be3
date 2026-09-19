@@ -11,6 +11,12 @@
 # what CI wants. Either way the run fails if a Rust source violation or clippy
 # warning survives.
 #
+# A run that writes is a person's, and it is quiet: what they want out of it is
+# the failures, and they can see their own machine working. --check is CI's,
+# and it is loud, because the only thing left of that run is its log and the
+# question asked of it afterwards is where the time went. Every step says what
+# it is doing and what it cost either way.
+#
 # The work splits into three parts that need nothing from one another: the lint
 # pass, the native test run, and the plugin tests that run in wasm. Naming one
 # or more of them runs only those, which is how CI gets them onto three runners
@@ -77,41 +83,35 @@ failed=false
 # terminal window. It is Zig rather than Rust, so nothing cargo does builds it,
 # and clippy and the tests cannot link the app without it. A default build does
 # not compile the terminal at all, so this is a full build's cost alone.
-echo 'libghostty-vt...'
 host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
 if ! ensure_ghostty_vt "$host_triple"; then
     echo 'Verification failed.'
     exit 1
 fi
 
-timed() {
-    if which time >/dev/null 2>&1; then
-        TIME="Took %E" time "$@"
-    else
-        # git bash only has the builtin, no executable
-        time "$@"
-    fi
-}
-
+# Every command announces itself and says what it cost, the way the build
+# scripts do. A person reads a local run for the failures and already knows
+# what their machine is like; a CI run is read weeks later by whoever is asking
+# where the eleven minutes went, and these lines are the only account of that a
+# finished run leaves behind. The run continues after a failure either way, so
+# this reports whatever the command did rather than only what succeeded.
 t() {
-    if ! timed "$@"; then
+    if ! run_step "$@"; then
         failed=true
     fi
 }
 
 if $lint; then
-    echo 'cargo fmt...'
     if $check; then
-        t cargo fmt --all --check
+        t 'cargo fmt' cargo fmt --all --check
     else
-        t cargo fmt --all
+        t 'cargo fmt' cargo fmt --all
     fi
 
-    echo 'crates/fix-rust-source...'
     if $check; then
-        t cargo run -p fix-rust-source -- --check
+        t 'crates/fix-rust-source' cargo run -p fix-rust-source -- --check
     else
-        t cargo run --quiet -p fix-rust-source
+        t 'crates/fix-rust-source' cargo run --quiet -p fix-rust-source
     fi
 
     # Tests and examples are linted too, so a warning cannot hide in them. The
@@ -123,52 +123,47 @@ if $lint; then
     workspace_selection
     clippy_targets=("${selection[@]}" --all-targets)
 
-    echo 'cargo clippy...'
     if $check; then
-        t cargo clippy "${clippy_targets[@]}" -- -D warnings
+        t 'cargo clippy' cargo clippy "${clippy_targets[@]}" -- -D warnings
     else
         # Fix mode forces every target to be checked even when nothing changed,
         # so only pay for it when the cacheable check finds something it can fix.
-        if ! timed cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings; then
-            echo 'Applying clippy fixes...'
+        if ! run_step 'cargo clippy' cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings; then
             # The tree is expected to be mid-change; fixing only a pristine
             # checkout would make the script useless during development.
-            t cargo clippy --quiet --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
+            t 'applying clippy fixes' cargo clippy --quiet --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
             # cargo clippy --fix caps lints while applying suggestions, so run
             # clippy again to make any warnings that remain fail verification.
-            t cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings
+            t 'cargo clippy' cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings
         fi
     fi
 fi
 
 if $tests; then
-    echo 'cargo nextest run...'
     if $check; then
-        t cargo nextest run --profile ci "${native[@]}"
+        t 'cargo nextest run' cargo nextest run --profile ci "${native[@]}"
     else
         # A changed painting is not a failure to fix here: the accepted files
         # are rewritten, and it is the diff a person reviews.
-        t env UPDATE_SNAPSHOTS=1 cargo nextest run --cargo-quiet --show-progress=none "${native[@]}"
+        t 'cargo nextest run' env UPDATE_SNAPSHOTS=1 cargo nextest run --cargo-quiet --show-progress=none "${native[@]}"
     fi
 fi
 
 if $plugin_tests; then
-    echo 'plugin tests...'
     if $check; then
-        t "$internal/test-plugins.sh" --check --profile ci
+        t 'plugin tests' "$internal/test-plugins.sh" --check --profile ci
     else
-        t "$internal/test-plugins.sh" --cargo-quiet --show-progress=none
+        t 'plugin tests' "$internal/test-plugins.sh" --cargo-quiet --show-progress=none
     fi
 fi
 
 # in case one of the previous commands leaves stuff unformatted. It belongs to
 # the lint pass, which is where the commands that rewrite sources are.
 if $lint; then
-    echo 'format one more time...'
     if $check; then
-        t cargo fmt --all --check
+        t 'format one more time' cargo fmt --all --check
     else
-        t cargo fmt --all
+        t 'format one more time' cargo fmt --all
     fi
 fi
 
