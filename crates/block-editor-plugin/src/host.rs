@@ -410,6 +410,7 @@ struct View {
 #[derive(Clone, Copy)]
 struct BeuiFrame {
     ratio: f32,
+    pixels_per_point: f32,
     chrome: bool,
     content: Option<beui::Rect>,
 }
@@ -418,6 +419,7 @@ impl Default for BeuiFrame {
     fn default() -> Self {
         Self {
             ratio: 1.0,
+            pixels_per_point: 1.0,
             chrome: true,
             content: None,
         }
@@ -1188,12 +1190,17 @@ impl EditorHost {
         self.set_view(rect.translate(-origin), scale);
     }
 
-    pub fn begin_beui_frame(&self, ratio: f32, chrome: bool) {
+    pub fn begin_beui_frame(&self, ratio: f32, pixels_per_point: f32, chrome: bool) {
         self.beui.set(BeuiFrame {
             ratio,
+            pixels_per_point,
             chrome,
             content: None,
         });
+    }
+
+    pub fn beui_pixels_per_point(&self) -> f32 {
+        self.beui.get().pixels_per_point
     }
 
     pub fn take_beui_content(&self) -> Option<beui::Rect> {

@@ -126,6 +126,8 @@ struct EditorState {
     set_presenting: WriteSignal<bool>,
     drag: ReadSignal<Option<Drag>>,
     set_drag: WriteSignal<Option<Drag>>,
+    pixels_per_point: ReadSignal<f32>,
+    set_pixels_per_point: WriteSignal<f32>,
     content: RefCell<Option<NodeRef>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
@@ -144,6 +146,7 @@ impl Editor {
         let (editable, set_editable) = create_signal(host.editable());
         let (presenting, set_presenting) = create_signal(false);
         let (drag, set_drag) = create_signal(None::<Drag>);
+        let (pixels_per_point, set_pixels_per_point) = create_signal(1.0_f32);
         Self(Rc::new(EditorState {
             host,
             client,
@@ -160,6 +163,8 @@ impl Editor {
             set_presenting,
             drag,
             set_drag,
+            pixels_per_point,
+            set_pixels_per_point,
             content: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
@@ -321,6 +326,10 @@ impl Editor {
         self.0.content_rect.get()
     }
 
+    pub fn pixels_per_point(&self) -> ReadSignal<f32> {
+        self.0.pixels_per_point.clone()
+    }
+
     pub fn drag(&self) -> ReadSignal<Option<Drag>> {
         self.0.drag.clone()
     }
@@ -362,6 +371,9 @@ impl Editor {
         self.0.set_editable.set(self.0.host.editable());
         self.0.set_presenting.set(self.0.host.presenting());
         self.0.set_drag.set(self.0.host.beui_drag());
+        self.0
+            .set_pixels_per_point
+            .set(self.0.host.beui_pixels_per_point());
         for record in self.records() {
             let state = ChildState::of(&self.0.host, record.child.get());
             if record.read.get_untracked() == state {

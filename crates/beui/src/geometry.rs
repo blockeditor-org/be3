@@ -25,6 +25,14 @@ impl Vec2 {
     pub fn min(self, other: Self) -> Self {
         Self::new(self.x.min(other.x), self.y.min(other.y))
     }
+
+    pub fn longest_side(self) -> f32 {
+        self.x.max(self.y)
+    }
+
+    pub fn shortest_side(self) -> f32 {
+        self.x.min(self.y)
+    }
 }
 
 pub const fn vec2(x: f32, y: f32) -> Vec2 {
@@ -185,6 +193,13 @@ impl Rect {
             && point.x <= self.max.x
             && point.y >= self.min.y
             && point.y <= self.max.y
+    }
+
+    pub fn contains_rect(&self, other: Self) -> bool {
+        self.min.x <= other.min.x
+            && self.min.y <= other.min.y
+            && self.max.x >= other.max.x
+            && self.max.y >= other.max.y
     }
 
     pub fn expand(&self, amount: f32) -> Self {
