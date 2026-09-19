@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Column, NodeRef, build, view};
+use crate::reactive::{List, NodeRef, build, view};
 
 #[test]
 fn an_empty_view_builds_a_children_prop_with_nothing_in_it() {
@@ -8,7 +8,7 @@ fn an_empty_view_builds_a_children_prop_with_nothing_in_it() {
         let column = column.clone();
         move || {
             view! {
-                <Column
+                <List
                     @node_ref=&column
                     spacing=0.0
                     children={view! {}}

@@ -5,7 +5,7 @@ use crate::color::Color32;
 use crate::icons::ICON_CHEVRON_RIGHT;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, CenteredRow, Child, Frame, ItemSize, Prop, Text, clone, create_memo,
+    Align, Callback, Child, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo,
 };
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
@@ -83,7 +83,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
-            <CenteredRow spacing=SUBMENU_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
                     string={item.label}
@@ -98,7 +98,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
                         color={arrow_color}
                     />
                 </Frame>
-            </CenteredRow>
+            </List>
         </Frame>
     }
 }

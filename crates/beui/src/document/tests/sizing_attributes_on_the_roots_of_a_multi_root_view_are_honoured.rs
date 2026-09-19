@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Column, ItemSize, NodeRef, Row, build, view};
+use crate::reactive::{Direction, ItemSize, List, NodeRef, build, view};
 
 #[test]
 fn sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured() {
@@ -8,11 +8,11 @@ fn sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured() {
         let (left, right) = (left.clone(), right.clone());
         move || {
             let panes = view! {
-                <Column @sizing=ItemSize::Fixed(30.0) @node_ref=&left spacing=0.0></Column>
-                <Column @sizing=ItemSize::Percent(100.0) @node_ref=&right spacing=0.0></Column>
+                <List @sizing=ItemSize::Fixed(30.0) @node_ref=&left spacing=0.0></List>
+                <List @sizing=ItemSize::Percent(100.0) @node_ref=&right spacing=0.0></List>
             };
             view! {
-                <Row spacing=0.0 children={panes} />
+                <List direction=Direction::Horizontal spacing=0.0 children={panes} />
             }
         }
     });

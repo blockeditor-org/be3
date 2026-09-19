@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, Column, NodeRef, Show, Text, build, create_signal, view};
+use crate::reactive::{Button, List, NodeRef, Show, Text, build, create_signal, view};
 
 type Builds = Rc<Cell<usize>>;
 
@@ -21,7 +21,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {
-                <Column @node_ref=&panel spacing=0.0>
+                <List @node_ref=&panel spacing=0.0>
                     <Button
                         @node_ref=&toggle
                         on_click={move || set_visible.update(|visible| *visible = !*visible)}
@@ -31,7 +31,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
                     <Show condition=visible>
                         <CountedPanel builds />
                     </Show>
-                </Column>
+                </List>
             }
         }
     });

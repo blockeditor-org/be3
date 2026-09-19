@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Column, Frame, NodeRef, Show, build, view};
+use crate::reactive::{Frame, List, NodeRef, Show, build, view};
 
 #[test]
 fn a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings() {
@@ -8,14 +8,14 @@ fn a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings() {
         let shown = shown.clone();
         move || {
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Show condition=false>
                         <Frame @sizing=ItemSize::Percent(100.0) />
                     </Show>
                     <Show condition=true>
                         <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&shown />
                     </Show>
-                </Column>
+                </List>
             }
         }
     });

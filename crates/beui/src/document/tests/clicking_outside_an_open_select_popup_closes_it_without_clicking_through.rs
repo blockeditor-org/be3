@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, Row, build, view};
+use crate::reactive::{Direction, List, NodeRef, build, view};
 use crate::styled::Select;
 
 #[test]
@@ -15,7 +15,7 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
         let (select, other) = (select.clone(), other.clone());
         move || {
             view! {
-                <Row spacing=20.0>
+                <List direction=Direction::Horizontal spacing=20.0>
                     <Select @node_ref=&select options selected=Some(0) />
                     <unstyled::Button
                         @node_ref=&other
@@ -23,7 +23,7 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
                     >
                         <ButtonFace label="Other" />
                     </unstyled::Button>
-                </Row>
+                </List>
             }
         }
     });

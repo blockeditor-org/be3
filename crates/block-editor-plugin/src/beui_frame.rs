@@ -4,8 +4,8 @@ use std::rc::Rc;
 use beui::NodeId;
 use beui::icons::ICON_CHEVRON_RIGHT;
 use beui::reactive::{
-    CenteredRow, ClickCallback, Column, Dynamic, Frame, ItemSize, Prop, Text, WriteSignal, clone,
-    component, create_memo, create_signal, intrinsic, percent, view,
+    Align, ClickCallback, Direction, Dynamic, Frame, ItemSize, List, Prop, Text, WriteSignal,
+    clone, component, create_memo, create_signal, intrinsic, percent, view,
 };
 use beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
 use beui::{Context, Document, Key};
@@ -38,7 +38,7 @@ impl BeuiFrame {
             };
             let children = vec![intrinsic(top_bar), percent(content, 100.0)];
             view! {
-                <Column spacing=0.0 children={children} />
+                <List spacing=0.0 children={children} />
             }
         });
         Self {
@@ -88,24 +88,29 @@ pub(crate) fn TopBar(
     let visible = create_memo(clone!(trail -> move || shown.get() && !trail.get().is_empty()));
     view! {
         <Frame visible={visible} color={theme.surface.clone()}>
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Frame padding_horizontal=BAND_PADDING_H padding_vertical=BAND_PADDING_V>
-                    <CenteredRow spacing=12.0>
-                        <CenteredRow @sizing=ItemSize::Percent(100.0) spacing=STEP_SPACING>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+                        <List
+                            @sizing=ItemSize::Percent(100.0)
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=STEP_SPACING
+                        >
                             <Dynamic value={trail}>
                                 {move |trail: Vec<String>| breadcrumb(trail)}
                             </Dynamic>
-                        </CenteredRow>
+                        </List>
                         <Button
                             label="Close"
                             variant=ButtonVariant::Secondary
                             on_click={move || on_exit.call()}
                             @test_id={"editor.close"}
                         />
-                    </CenteredRow>
+                    </List>
                 </Frame>
                 <Separator />
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -129,7 +134,12 @@ fn breadcrumb(trail: Vec<String>) -> NodeId {
         }));
     }
     view! {
-        <CenteredRow spacing=STEP_SPACING children={children} />
+        <List
+            direction=Direction::Horizontal
+            align=Align::Center
+            spacing=STEP_SPACING
+            children={children}
+        />
     }
 }
 

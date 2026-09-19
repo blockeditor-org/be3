@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, build, view};
+use crate::reactive::{ItemSize, List, build, view};
 
 #[test]
 fn an_aspect_ratio_frame_centres_the_largest_box_that_fits() {
@@ -9,11 +9,11 @@ fn an_aspect_ratio_frame_centres_the_largest_box_that_fits() {
     let slide_ref = slide.clone();
     let document = build(move || {
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&stage_ref} aspect_ratio=2.0>
                     <Spacer @node_ref={&slide_ref} />
                 </Frame>
-            </Column>
+            </List>
         }
     });
 

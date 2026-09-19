@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, Scroll, build};
+use crate::reactive::{ItemSize, List, Scroll, build};
 
 #[test]
 fn the_scroll_position_is_reported_to_its_listener() {
@@ -16,13 +16,13 @@ fn the_scroll_position_is_reported_to_its_listener() {
             })
             .collect();
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     on_change={move |position| sink.set(Some(position))}
                     children={items}
                 />
-            </Column>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

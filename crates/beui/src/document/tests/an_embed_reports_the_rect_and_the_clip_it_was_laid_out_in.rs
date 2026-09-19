@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Embed, EmbedSlot, ItemSize, Scroll, build, view};
+use crate::reactive::{Embed, EmbedSlot, ItemSize, List, Scroll, build, view};
 
 #[test]
 fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
@@ -21,9 +21,9 @@ fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
             },
         ];
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Fixed(120.0) children={rows} />
-            </Column>
+            </List>
         }
     });
 

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
-    Column, ForEach, Frame, ItemSize, Keyed, ReadSignal, Scroll, clone, component, create_memo,
+    ForEach, Frame, ItemSize, Keyed, List, ReadSignal, Scroll, clone, component, create_memo,
     percent, view,
 };
 use block_editor_plugin::beui::styled::{
@@ -97,13 +97,13 @@ pub(crate) fn Game(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) 
             padding_horizontal=PAGE_PADDING
             padding_vertical=PAGE_PADDING
         >
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Keyed value={snapshot} key={|snapshot: GameSnapshot| snapshot.shape()}>
                     {move |snapshot: ReadSignal<GameSnapshot>| {
                         percent(game_view(game.clone(), snapshot), 100.0)
                     }}
                 </Keyed>
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -117,10 +117,10 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> Nod
             let error = create_memo(move || snapshot.get().as_error());
             view! {
                 <Card>
-                    <Column spacing=8.0>
+                    <List spacing=8.0>
                         <Heading content="Game unavailable" />
                         <Paragraph content={error} @test_id={"game.error"} />
-                    </Column>
+                    </List>
                 </Card>
             }
         }
@@ -130,10 +130,10 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> Nod
             let actions = create_memo(clone!(screen -> move || screen.get().actions));
             let editable = create_memo(clone!(screen -> move || screen.get().editable));
             view! {
-                <Column spacing=16.0>
+                <List spacing=16.0>
                     <Heading content={description} />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <Column spacing=10.0>
+                        <List spacing=10.0>
                             <ForEach keys={actions}>
                                 {move |action: Action| {
                                     let effect = action.effect;
@@ -152,9 +152,9 @@ fn game_view(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> Nod
                                     }
                                 }}
                             </ForEach>
-                        </Column>
+                        </List>
                     </Scroll>
-                </Column>
+                </List>
             }
         }
     }
@@ -196,7 +196,7 @@ pub(crate) fn GameCreation(
     }));
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=12.0 padding_vertical=10.0>
-            <Column spacing=8.0>
+            <List spacing=8.0>
                 <Button
                     label="Choose game module..."
                     variant=ButtonVariant::Secondary
@@ -205,7 +205,7 @@ pub(crate) fn GameCreation(
                     on_click={move || creation.choose_module()}
                 />
                 <Body content={status} color={status_color} @test_id={"game.selection"} />
-            </Column>
+            </List>
         </Frame>
     }
 }

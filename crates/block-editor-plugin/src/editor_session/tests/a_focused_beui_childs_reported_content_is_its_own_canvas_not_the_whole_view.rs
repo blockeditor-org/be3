@@ -1,5 +1,5 @@
 use super::*;
-use beui::reactive::{Frame, ItemSize, NodeRef, Row, percent, size, view};
+use beui::reactive::{Direction, Frame, ItemSize, List, NodeRef, percent, size, view};
 
 struct SidebarApp;
 
@@ -15,7 +15,7 @@ impl crate::BeuiApp for SidebarApp {
         };
         let children = vec![size(sidebar, ItemSize::Fixed(100.0)), percent(stage, 100.0)];
         view! {
-            <Row spacing=0.0 children={children} />
+            <List direction=Direction::Horizontal spacing=0.0 children={children} />
         }
     }
 }

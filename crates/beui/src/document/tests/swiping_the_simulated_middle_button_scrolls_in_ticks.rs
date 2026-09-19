@@ -1,6 +1,6 @@
 use super::*;
 use crate::mouse_simulation::{SCROLL_TICK, WHEEL_LINE};
-use crate::reactive::{ItemSize, NodeRef, Scroll, build, view};
+use crate::reactive::{ItemSize, List, NodeRef, Scroll, build, view};
 
 #[test]
 fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
@@ -15,9 +15,9 @@ fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
             })
             .collect::<Vec<_>>();
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
-            </Column>
+            </List>
         }
     });
     let scroll = scroll.get();

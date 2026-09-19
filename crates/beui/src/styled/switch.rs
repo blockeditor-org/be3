@@ -5,7 +5,9 @@ use crate::color::Color32;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{Callback, CenteredRow, Frame, ItemSize, Prop, Spacer, clone, create_memo};
+use crate::reactive::{
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Spacer, clone, create_memo,
+};
 use crate::styled::theme::{
     BORDER_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible, use_theme,
 };
@@ -78,7 +80,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                 padding_horizontal=PADDING
                 padding_vertical=PADDING
             >
-                <CenteredRow spacing=0.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Spacer @sizing={before_percent} />
                     <Frame
                         width=KNOB_SIZE
@@ -90,7 +92,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                         radius=KNOB_RADIUS
                     />
                     <Spacer @sizing={after_percent} />
-                </CenteredRow>
+                </List>
             </Frame>
         </Frame>
     }

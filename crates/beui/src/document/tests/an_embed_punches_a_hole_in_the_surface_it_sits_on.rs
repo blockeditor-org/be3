@@ -1,6 +1,6 @@
 use super::*;
 use crate::painter::Shape;
-use crate::reactive::{Embed, EmbedSlot, Frame, build, view};
+use crate::reactive::{Embed, EmbedSlot, Frame, List, build, view};
 
 #[test]
 fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
@@ -12,10 +12,10 @@ fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
     let document = build(move || {
         view! {
             <Frame color=Color32::WHITE>
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Embed slot={embed} width=120.0 height=80.0 />
                     <Embed slot={covered} width=120.0 height=80.0 punch=false />
-                </Column>
+                </List>
             </Frame>
         }
     });

@@ -6,7 +6,7 @@ use block_client::blocks::version_control_worktree::VersionControlWorktree;
 use block_editor_plugin::Editor;
 use block_editor_plugin::beui::icons::{ICON_ALT_ROUTE, ICON_COMMIT, ICON_PERSON, ICON_SCHEDULE};
 use block_editor_plugin::beui::reactive::{
-    CenteredRow, Column, ForEach, Frame, ItemSize, Memo, Scroll, Selector, Show, Spacer,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Scroll, Selector, Show, Spacer,
     WriteSignal, clone, component, create_effect, create_memo, create_selector, create_signal,
     view,
 };
@@ -147,13 +147,13 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                    <Column spacing=SECTION_SPACING>
-                        <Column spacing=6.0>
+                    <List spacing=SECTION_SPACING>
+                        <List spacing=6.0>
                             <Heading content="Branches" />
                             <Branches branches={branches} chosen={chosen} select={set_selected} />
-                            <CenteredRow spacing=8.0>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                                 <TextInput
                                     @sizing=ItemSize::Percent(100.0)
                                     value={draft}
@@ -176,19 +176,19 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     @test_id={"repository.new-worktree"}
                                     on_click={new_worktree}
                                 />
-                            </CenteredRow>
-                        </Column>
+                            </List>
+                        </List>
                         <Separator />
-                        <Column spacing=6.0>
+                        <List spacing=6.0>
                             <Heading content={title} @test_id={"repository.history"} />
                             <Show condition={no_history}>
                                 <Caption content="This branch has no commits yet." />
                             </Show>
                             <History history={history} />
-                        </Column>
-                    </Column>
+                        </List>
+                    </List>
                 </Scroll>
-            </Column>
+            </List>
         </Frame>
     }
 }
@@ -203,7 +203,7 @@ fn Branches(
         branches.iter().map(|branch| branch.name.clone()).collect::<Vec<String>>()
     })));
     view! {
-        <Column spacing=2.0>
+        <List spacing=2.0>
             <ForEach keys={keys}>
                 {move |name: String| {
                     let row = create_memo(clone!(branches name -> move || {
@@ -223,7 +223,7 @@ fn Branches(
                     }
                 }}
             </ForEach>
-        </Column>
+        </List>
     }
 }
 
@@ -247,12 +247,12 @@ fn BranchListRow(
             @test_id={format!("repository.branch.{name}")}
             on_click={move || on_click.call()}
         >
-            <CenteredRow spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Icon glyph={ICON_ALT_ROUTE.to_owned()} color={theme.text_muted.clone()} />
                 <Body content={name} />
                 <Code content={head} />
                 <Caption @sizing=ItemSize::Percent(100.0) content={summary} />
-            </CenteredRow>
+            </List>
         </ListRow>
     }
 }
@@ -263,7 +263,7 @@ fn History(history: Memo<Vec<CommitRow>>) -> NodeId {
         (0..history.with(Vec::len)).collect::<Vec<usize>>()
     }));
     view! {
-        <Column spacing=10.0>
+        <List spacing=10.0>
             <ForEach keys={keys}>
                 {move |index: usize| {
                     let row = create_memo(clone!(history -> move || {
@@ -274,7 +274,7 @@ fn History(history: Memo<Vec<CommitRow>>) -> NodeId {
                     }
                 }}
             </ForEach>
-        </Column>
+        </List>
     }
 }
 
@@ -303,21 +303,21 @@ fn CommitEntry(row: Memo<Option<CommitRow>>) -> NodeId {
     let author_icon = theme.text_muted.clone();
     let time_icon = theme.text_muted.clone();
     view! {
-        <Column spacing=4.0>
-            <CenteredRow spacing=8.0>
+        <List spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Icon glyph={ICON_COMMIT.to_owned()} color={muted} />
                 <Body content={message} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-            </CenteredRow>
-            <CenteredRow spacing=10.0>
+            </List>
+            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Code content={id} />
                 <Icon glyph={ICON_PERSON.to_owned()} color={author_icon} />
                 <Caption content={author} />
                 <Icon glyph={ICON_SCHEDULE.to_owned()} color={time_icon} />
                 <Caption content={time} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-            </CenteredRow>
+            </List>
             <Separator />
-        </Column>
+        </List>
     }
 }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::text::TextAlign;
-use crate::reactive::{Row, view};
+use crate::reactive::{Direction, List, view};
 
 const LABEL: &str = "Unbraced";
 const LABEL_SIZE: f32 = 20.0;
@@ -15,8 +15,8 @@ fn view_attributes_can_be_written_without_braces() {
         let label = label.clone();
         move || {
             view! {
-                <Column spacing=0.0>
-                    <Row spacing=0.0>
+                <List spacing=0.0>
+                    <List direction=Direction::Horizontal spacing=0.0>
                         <Frame
                             @node_ref=&box_ref
                             width=BOX_WIDTH
@@ -32,8 +32,8 @@ fn view_attributes_can_be_written_without_braces() {
                                 wrap=false
                             />
                         </Frame>
-                    </Row>
-                </Column>
+                    </List>
+                </List>
             }
         }
     });

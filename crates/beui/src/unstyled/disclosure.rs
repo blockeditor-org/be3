@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Child, Column, Frame, Prop, ReadSignal, Render, clone, create_effect, create_memo,
+    Callback, Child, Frame, List, Prop, ReadSignal, Render, clone, create_effect, create_memo,
     create_signal, set_component_state, untrack,
 };
 use crate::unstyled;
@@ -45,7 +45,7 @@ pub fn Disclosure(
     }));
 
     view! {
-        <Column spacing>
+        <List spacing>
             <unstyled::Button
                 accessibility
                 on_click={move || {
@@ -63,7 +63,7 @@ pub fn Disclosure(
                 }}
             />
             <Frame visible={open_read}>{children}</Frame>
-        </Column>
+        </List>
     }
 }
 

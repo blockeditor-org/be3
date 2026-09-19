@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, Text, build, view};
+use crate::reactive::{Frame, List, NodeRef, Text, build, view};
 
 #[test]
 fn picking_a_node_reveals_it_in_the_tree() {
@@ -8,7 +8,7 @@ fn picking_a_node_reveals_it_in_the_tree() {
         let text = text.clone();
         move || {
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Frame padding_horizontal=4.0 padding_vertical=4.0>
                         <Frame padding_horizontal=4.0 padding_vertical=4.0>
                             <Frame padding_horizontal=4.0 padding_vertical=4.0>
@@ -23,7 +23,7 @@ fn picking_a_node_reveals_it_in_the_tree() {
                             </Frame>
                         </Frame>
                     </Frame>
-                </Column>
+                </List>
             }
         }
     });

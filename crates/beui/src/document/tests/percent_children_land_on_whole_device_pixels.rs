@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Column, ItemSize, Row, build, view, with_document};
+use crate::reactive::{Direction, ItemSize, List, build, view, with_document};
 
 const SCALE: f32 = 1.5;
 
@@ -10,11 +10,11 @@ fn percent_children_land_on_whole_device_pixels() {
 
     let document = build(move || {
         let tree = view! {
-            <Row spacing=1.0>
-                <Column @sizing=ItemSize::Percent(100.0) spacing=0.0></Column>
-                <Column @sizing=ItemSize::Percent(100.0) spacing=0.0></Column>
-                <Column @sizing=ItemSize::Percent(100.0) spacing=0.0></Column>
-            </Row>
+            <List direction=Direction::Horizontal spacing=1.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=0.0></List>
+                <List @sizing=ItemSize::Percent(100.0) spacing=0.0></List>
+                <List @sizing=ItemSize::Percent(100.0) spacing=0.0></List>
+            </List>
         };
         sink.replace(with_document(|document| document.children(tree)));
         tree

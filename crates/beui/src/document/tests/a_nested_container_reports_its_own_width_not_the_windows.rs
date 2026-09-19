@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, Memo, ReadSignal, build, view};
+use crate::reactive::{ItemSize, List, Memo, ReadSignal, build, view};
 use crate::styled::Stack;
 use crate::unstyled::{Container, narrower_than};
 
@@ -24,7 +24,7 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                         sizes.borrow_mut().push(size);
                         collapsed.borrow_mut().push(narrower_than(BREAKPOINT));
                         view! {
-                            <Column spacing=0.0>
+                            <List spacing=0.0>
                                 <Stack spacing=0.0 breakpoint=BREAKPOINT>
                                     <Frame
                                         @sizing=ItemSize::Percent(100.0)
@@ -55,7 +55,7 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                                         }}
                                     </Container>
                                 </Frame>
-                            </Column>
+                            </List>
                         }
                     }}
                 </Container>

@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, Scroll, build, view};
+use crate::reactive::{ItemSize, List, Scroll, build, view};
 
 #[test]
 fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
@@ -21,14 +21,14 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
             })
             .collect::<Vec<_>>();
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     @test_id="strip"
                     direction=Direction::Horizontal
                     children={items}
                 />
-            </Column>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

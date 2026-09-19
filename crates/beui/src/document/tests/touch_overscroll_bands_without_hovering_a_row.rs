@@ -1,7 +1,5 @@
 use super::*;
-use crate::reactive::{
-    ClickCatcher, Column, Frame, ItemSize, NodeRef, Scroll, Spacer, build, view,
-};
+use crate::reactive::{ClickCatcher, Frame, ItemSize, List, NodeRef, Scroll, Spacer, build, view};
 
 #[test]
 fn touch_overscroll_bands_without_hovering_a_row() {
@@ -25,9 +23,9 @@ fn touch_overscroll_bands_without_hovering_a_row() {
             }
         }));
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
-            </Column>
+            </List>
         }
     });
     let scroll = scroll.get();

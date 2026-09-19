@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, Row, build, view};
+use crate::reactive::{Direction, Frame, List, build, view};
 
 #[test]
 fn a_list_sizes_plain_nodes_handed_to_it_intrinsically() {
@@ -16,7 +16,7 @@ fn a_list_sizes_plain_nodes_handed_to_it_intrinsically() {
                 },
             ];
             view! {
-                <Row spacing=0.0 children />
+                <List direction=Direction::Horizontal spacing=0.0 children />
             }
         }
     });

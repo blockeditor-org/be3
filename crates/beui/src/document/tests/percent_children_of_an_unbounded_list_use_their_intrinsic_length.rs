@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, Row};
+use crate::reactive::{Direction, ItemSize, List};
 
 const ITEM_HEIGHT: f32 = 20.0;
 
@@ -10,15 +10,19 @@ fn percent_children_of_an_unbounded_list_use_their_intrinsic_length() {
         let inner = inner.clone();
         move || {
             view! {
-                <Column spacing=0.0>
-                    <Column @node_ref=&inner spacing=0.0>
-                        <Row @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List spacing=0.0>
+                    <List @node_ref=&inner spacing=0.0>
+                        <List
+                            @sizing=ItemSize::Percent(100.0)
+                            direction=Direction::Horizontal
+                            spacing=0.0
+                        >
                             <Frame padding_horizontal=0.0 padding_vertical={ITEM_HEIGHT / 2.0}>
                                 <Spacer />
                             </Frame>
-                        </Row>
-                    </Column>
-                </Column>
+                        </List>
+                    </List>
+                </List>
             }
         }
     });

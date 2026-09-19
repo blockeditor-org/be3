@@ -1,6 +1,6 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ItemSize, Scroll, view};
+use crate::reactive::{ItemSize, List, Scroll, view};
 use crate::unstyled::{PanZoomView, pan_zoom_view};
 
 #[test]
@@ -19,7 +19,7 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
             }
         }));
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     on_change={move |position: crate::base::ScrollPosition| {
@@ -27,7 +27,7 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
                     }}
                     children={items}
                 />
-            </Column>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

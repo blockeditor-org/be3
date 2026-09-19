@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Column, NodeRef, Text, build, view};
+use crate::reactive::{List, NodeRef, Text, build, view};
 
 #[test]
 fn a_multi_root_view_fills_a_children_prop_in_order() {
@@ -17,7 +17,7 @@ fn a_multi_root_view_fills_a_children_prop_in_order() {
                 }}
             };
             view! {
-                <Column @node_ref=&column spacing=0.0 children={toolbar} />
+                <List @node_ref=&column spacing=0.0 children={toolbar} />
             }
         }
     });

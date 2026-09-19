@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, ItemSize, NodeRef, Text, VirtualList, build, create_signal, view};
+use crate::reactive::{
+    Frame, ItemSize, List, NodeRef, Text, VirtualList, build, create_signal, view,
+};
 
 #[test]
 fn evicting_a_virtual_scroll_row_disposes_its_effects() {
@@ -9,7 +11,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
         let scroll = scroll.clone();
         move || {
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <VirtualList
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
@@ -25,7 +27,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
                             }
                         }}
                     </VirtualList>
-                </Column>
+                </List>
             }
         }
     });

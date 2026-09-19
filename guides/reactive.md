@@ -164,14 +164,14 @@ That handle is what a row binds to, which is why `for_each` takes keys rather
 than values:
 
 ```rust
-<Column spacing=8.0>
+<List spacing=8.0>
     <ForEach keys={visible}>
         {move |id: Uuid| {
             let item = items.get(&id);
-            view! { <Row item /> }
+            view! { <ItemRow item /> }
         }}
     </ForEach>
-</Column>
+</List>
 ```
 
 Give the row the key and let it read its own item. A key that contains the row's
@@ -275,7 +275,7 @@ supplies the document ambiently and returns the finished `Document`.
 
 ```rust
 use beui::reactive::{
-    build, component, create_memo, create_signal, view, Button, Column, Row,
+    build, component, create_memo, create_signal, view, Button, Direction, List,
     Text,
 };
 
@@ -285,8 +285,8 @@ fn App() -> beui::NodeId {
     let decrement = set_count.clone();
     let count_text = create_memo(move || count.get().to_string());
     view! {
-        <Column spacing=0.0>
-            <Row spacing=8.0>
+        <List spacing=0.0>
+            <List direction=Direction::Horizontal spacing=8.0>
                 <Button on_click={move || decrement.update(|count| *count -= 1)}>
                     <Text string="-" />
                 </Button>
@@ -294,8 +294,8 @@ fn App() -> beui::NodeId {
                 <Button on_click={move || set_count.update(|count| *count += 1)}>
                     <Text string="+" />
                 </Button>
-            </Row>
-        </Column>
+            </List>
+        </List>
     }
 }
 
@@ -417,7 +417,7 @@ let toolbar = view! {
     <Button label="Open" on_click={open} />
     <Button label="Save" on_click={save} />
 };
-view! { <Row spacing=8.0 children={toolbar} /> }
+view! { <List direction=Direction::Horizontal spacing=8.0 children={toolbar} /> }
 ```
 
 Roots take the same `@` sizing prefixes and `{expr}` form that children between
@@ -551,17 +551,17 @@ is free to differ from the others and to change its mind reactively.
 
 Because they build no node, `@test_id` and `@node_ref` on one of them panic,
 and a slot that takes exactly one node — `frame`'s child, a `render` prop —
-needs a `column` around one. When the closure form of a render prop leaves the
+needs a `List` around one. When the closure form of a render prop leaves the
 kind of child ambiguous, `intrinsic` around what it builds says which.
 
 ```rust
 <ForEach spacing=0.0 keys>
-    {move |key: Uuid| view! { <Row @sizing={row_size(key)} key /> }}
+    {move |key: Uuid| view! { <ItemRow @sizing={row_size(key)} key /> }}
 </ForEach>
 ```
 
 `@sizing` on a child inside `view!`, or on a root of a multi-root one, gives it
-an `ItemSize` in the `row`/`column` that lays it out, and a child without one is
+an `ItemSize` in the `List` that lays it out, and a child without one is
 `ItemSize::Intrinsic`. The value is `impl IntoProp<ItemSize>`, so it takes a
 plain `ItemSize::Fixed(HEIGHT)` or `ItemSize::Percent(100.0)` as well as a
 signal or memo of one, and a child can switch between kinds reactively — a memo

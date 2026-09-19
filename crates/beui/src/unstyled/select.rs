@@ -4,7 +4,7 @@ use crate::document::Document;
 use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Child, Column, Frame, ItemSize, Memo, NodeRef, Prop, ReadSignal, Render, RenderFn,
+    Callback, Child, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Render, RenderFn,
     Scroll, Selector, WriteSignal, clone, create_effect, create_memo, create_selector,
     create_signal, set_component_state,
 };
@@ -89,7 +89,7 @@ pub fn Select(
     let option = option.unwrap_or_else(|| {
         RenderFn::new(|_| {
             view! {
-                <Column spacing=0.0 />
+                <List spacing=0.0 />
             }
         })
     });
@@ -134,7 +134,7 @@ pub fn Select(
     let trigger_view = trigger.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
-                <Column spacing=0.0 />
+                <List spacing=0.0 />
             }
         })
     });
@@ -187,7 +187,7 @@ pub fn Select(
     let (trigger_blur, search_blur) = (state.clone(), state.clone());
 
     view! {
-        <Column spacing=0.0>
+        <List spacing=0.0>
             <unstyled::Button
                 @node_ref={&state.trigger}
                 accessibility={trigger_accessibility}
@@ -204,7 +204,7 @@ pub fn Select(
                 on_dismiss={move || dismiss(&dismiss_state)}
             >
                 {popup.call(view! {
-                    <Column spacing=6.0>
+                    <List spacing=6.0>
                         <unstyled::TextInput
                             @node_ref={&state.search}
                             value={search_text}
@@ -232,10 +232,10 @@ pub fn Select(
                             reveal
                             children={items}
                         />
-                    </Column>
+                    </List>
                 })}
             </Overlay>
-        </Column>
+        </List>
     }
 }
 

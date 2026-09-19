@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, view};
+use crate::reactive::{Frame, List, NodeRef, view};
 use crate::styled::Caption;
 
 const FRAME_WIDTH: f32 = 90.0;
@@ -15,11 +15,11 @@ fn caption_height(wrap: bool) -> f32 {
     let placed = frame.clone();
     let document = build(move || {
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Frame @node_ref=&placed width=FRAME_WIDTH>
                     <Caption content=LONG_CAPTION wrap />
                 </Frame>
-            </Column>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

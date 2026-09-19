@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, NodeRef, Scroll, build, view};
+use crate::reactive::{ItemSize, List, NodeRef, Scroll, build, view};
 
 #[test]
 fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
@@ -22,7 +22,7 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
             }
         }));
         view! {
-            <Column spacing=0.0>
+            <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     @test_id="strip"
@@ -30,7 +30,7 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
                     offset=30.0
                     children={items}
                 />
-            </Column>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

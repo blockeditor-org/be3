@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    Button, Column, ItemSize, NodeRef, Row, Text, build, create_memo, create_signal, view,
+    Button, Direction, ItemSize, List, NodeRef, Text, build, create_memo, create_signal, view,
 };
 
 const FIXED_WIDTH: f32 = 30.0;
@@ -21,22 +21,22 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
                 }
             });
             view! {
-                <Column spacing=0.0>
+                <List spacing=0.0>
                     <Button
                         @node_ref=&toggle
                         on_click={move || set_shared.update(|shared| *shared = !*shared)}
                     >
                         <Text string="toggle" />
                     </Button>
-                    <Row @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                        <Column @sizing={sizing} @node_ref=&left spacing=0.0></Column>
-                        <Column
-                            @sizing=ItemSize::Percent(100.0)
-                            @node_ref=&right
-                            spacing=0.0
-                        ></Column>
-                    </Row>
-                </Column>
+                    <List
+                        @sizing=ItemSize::Percent(100.0)
+                        direction=Direction::Horizontal
+                        spacing=0.0
+                    >
+                        <List @sizing={sizing} @node_ref=&left spacing=0.0></List>
+                        <List @sizing=ItemSize::Percent(100.0) @node_ref=&right spacing=0.0></List>
+                    </List>
+                </List>
             }
         }
     });

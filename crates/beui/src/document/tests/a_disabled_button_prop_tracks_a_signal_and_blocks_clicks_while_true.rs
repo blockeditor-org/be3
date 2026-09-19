@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, Column, Text, build, create_signal, view};
+use crate::reactive::{Button, List, Text, build, create_signal, view};
 
 #[test]
 fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
@@ -32,7 +32,7 @@ fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
         sink_go.set(Some(go));
 
         view! {
-            <Column spacing=0.0>{toggle}{go}</Column>
+            <List spacing=0.0>{toggle}{go}</List>
         }
     });
 

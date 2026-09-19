@@ -25,7 +25,7 @@ use crate::unstyled::{MenuItem, MenuRowHandle};
 use beui_macros::{component, view};
 
 use crate::reactive::{
-    Callback, Child, ClickCatcher, Column, Dynamic, Focusable, Frame, Memo, NodeRef, Prop,
+    Callback, Child, ClickCatcher, Dynamic, Focusable, Frame, List, Memo, NodeRef, Prop,
     ReadSignal, Render, RenderFn, Show, Text, WriteSignal, clone, component_accessibility,
     copy_text, create_effect, create_memo, create_signal, intrinsic, percent, set_component_state,
     with_document,
@@ -278,7 +278,7 @@ pub fn TextInput(
                 }
             }}
         >
-            <Column spacing=0.0 children />
+            <List spacing=0.0 children />
         </Focusable>
     }
 }
@@ -294,7 +294,7 @@ fn TouchMenu(
     let open = create_memo(clone!(at -> move || at.get().is_some()));
     let anchor = create_memo(move || OverlayAnchor::Point(at.get().unwrap_or(Pos2::ZERO)));
     view! {
-        <Column spacing=0.0>
+        <List spacing=0.0>
             <Show condition={open.clone()}>
                 {move || {
                     let dismiss = editor.borrow().set_menu.clone();
@@ -306,19 +306,19 @@ fn TouchMenu(
                             on_dismiss={move || dismiss.set(None)}
                         >
                             {panel.call(view! {
-                                <Column spacing=0.0>
+                                <List spacing=0.0>
                                     <Dynamic value={actions}>
                                         {move |actions: Vec<MenuAction>| {
                                             menu_rows(&editor, &row, actions)
                                         }}
                                     </Dynamic>
-                                </Column>
+                                </List>
                             })}
                         </Overlay>
                     })
                 }}
             </Show>
-        </Column>
+        </List>
     }
 }
 
@@ -335,7 +335,7 @@ fn menu_rows(editor: &Handle, row: &RenderFn<MenuRowHandle>, actions: Vec<MenuAc
         })
         .collect();
     view! {
-        <Column spacing=MENU_SPACING children={rows} />
+        <List spacing=MENU_SPACING children={rows} />
     }
 }
 
