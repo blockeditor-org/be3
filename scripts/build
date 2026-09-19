@@ -14,8 +14,9 @@ to cross-compile the native app and its plugins for.
 Native options:  [--release] [--triple TRIPLE] [--output DIRECTORY]
                  [--no-client] [--no-server] [--no-plugins]
                  [--sign-identity IDENTITY]
-Web options:     [--release] [--wasi-sysroot DIRECTORY]
+Web options:     [--release] [--wasi-sysroot DIRECTORY] [--no-plugins]
 Android options: [--android-sdk DIRECTORY] [--application-id ID] [--label LABEL]
+                 [--no-plugins]
 Plugin options:  [--release] [--output DIRECTORY] [--wasi-sysroot DIRECTORY]
 USAGE
 }

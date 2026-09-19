@@ -7,11 +7,16 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 android_sdk="${ANDROID_HOME:-}"
 application_id='com.be3.block'
 application_label='Block'
+with_plugins=true
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --android-sdk)
             android_sdk="$2"
             shift 2
+            ;;
+        --no-plugins)
+            with_plugins=false
+            shift
             ;;
         --application-id)
             application_id="$2"
@@ -105,14 +110,27 @@ end_step
 # An APK holds what the app reads, so this is a staging step whatever the
 # layout: assets are flattened the way a native build lays them out beside the
 # executable, with the index the asset manager needs in place of a listing.
-load_plugins
+#
+# The modules are the same bytes every platform loads, so --no-plugins leaves
+# them to the one build that produces them for all of them. An APK built that
+# way carries no plugins at all, which is what the wasm toolchain, the plugin
+# compiler and the games are the cost of here.
 rm -rf "$assets"
-stage_plugin_manifests "$assets"
-build_plugin_wasm debug "$assets"
-precompile_plugin_wasm "$assets" aarch64-linux-android
-write_plugin_index "$assets"
+mkdir -p "$assets"
+if $with_plugins; then
+    load_plugins
+    stage_plugin_manifests "$assets"
+    build_plugin_wasm debug "$assets"
+    precompile_plugin_wasm "$assets" aarch64-linux-android
+    write_plugin_index "$assets"
 
-build_games debug
+    build_games debug
+else
+    # An index of nothing rather than no index. Discovery reports an APK whose
+    # plugins.json is not there as an error, and one built without plugins has
+    # none to find rather than something wrong with it.
+    write_index "$assets/plugins.json"
+fi
 
 step 'Staging the native libraries'
 rm -rf "$native_libraries"

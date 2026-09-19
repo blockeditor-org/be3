@@ -251,7 +251,10 @@ jobs:
         with:
           version: 0.16.0
 
-      - run: ./scripts/build --target web --release
+      # The plugin modules are the same bytes on every platform, so the plugin
+      # job builds them once for all of them and this bundle goes without. What
+      # is served is the app; the modules reach it from somewhere else.
+      - run: ./scripts/build --target web --release --no-plugins
 
       - uses: ./.github/actions/sccache-report
         if: always()
@@ -332,28 +335,16 @@ jobs:
             "build-tools;35.0.0" \
             "ndk;29.0.14206865"
 
-      # The APK carries every plugin as a WASI module and every game as a wasm
-      # one, so this job builds for the wasm targets too. The LLVM the plugin
-      # build needs is the web job's, for the same reason: FreeType's
-      # setjmp/longjmp calls only lower to imports that resolve inside the
-      # module from LLVM 19 onwards.
-      - name: Install LLVM
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-20 llvm-20
-          echo /usr/lib/llvm-20/bin >> "$GITHUB_PATH"
-
+      # Nothing here is compiled to wasm any more, so this job wants neither
+      # wasm target, neither the WASI sysroot nor the LLVM that builds against
+      # it, and not the plugin compiler either, which is wasmtime with a
+      # Cranelift backend for every architecture rather than just this one.
+      # That was most of what this job spent its time on.
       - uses: ./.github/actions/rust-toolchain
         with:
-          targets: aarch64-linux-android, wasm32-wasip1-threads, wasm32-unknown-unknown
+          targets: aarch64-linux-android
 
       - uses: ./.github/actions/sccache
-
-      - name: Cache the WASI sysroot
-        uses: actions/cache@v6
-        with:
-          path: target/tools
-          key: wasi-sysroot-33
 
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
@@ -402,11 +393,17 @@ jobs:
       # doesn't, now that the key is pinned in "Restore the debug keystore").
       # Give it its own application ID and label instead, so it installs
       # side by side with a local build rather than colliding with it.
+      #
+      # The plugin modules are the same bytes on every platform, so the plugin
+      # job builds them once for all of them and this APK goes without. Android
+      # will fetch them rather than carry them; until it does, the app there
+      # finds no editors, which is where it already stood.
       - run: >-
           ./scripts/build --target android
           --android-sdk "$ANDROID_SDK_ROOT"
           --application-id com.be3.block.ci
           --label "Block (CI)"
+          --no-plugins
 
       - uses: ./.github/actions/sccache-report
         if: always()
