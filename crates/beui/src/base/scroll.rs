@@ -336,8 +336,22 @@ fn revealed_offset(direction: Direction, viewport: Rect, item: Rect, offset: f32
 }
 
 impl Element for ScrollNode {
-    fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
-        Vec2::ZERO
+    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
+        let (_, cross) = self.direction.main_and_cross(available);
+        let content = self
+            .nodes()
+            .into_iter()
+            .map(|item| {
+                let size = crate::layout::measure(
+                    doc,
+                    painter,
+                    item,
+                    self.direction.axes(f32::INFINITY, cross),
+                );
+                self.direction.main_and_cross(size).1
+            })
+            .fold(0.0_f32, f32::max);
+        self.direction.axes(0.0, content)
     }
 
     fn layout(

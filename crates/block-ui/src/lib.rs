@@ -93,12 +93,24 @@ impl BlockTypes for BlockCatalog {
     }
 }
 #[derive(Clone)]
-
 pub struct BlockLabel {
     pub block_type: Uuid,
     pub icon: Option<MaterialIcon>,
     pub name: String,
     pub automatic: bool,
+}
+
+impl PartialEq for BlockLabel {
+    fn eq(&self, other: &Self) -> bool {
+        self.block_type == other.block_type
+            && self.name == other.name
+            && self.automatic == other.automatic
+            && icon_key(self.icon) == icon_key(other.icon)
+    }
+}
+
+fn icon_key(icon: Option<MaterialIcon>) -> Option<(&'static str, egui_material_icons::IconStyle)> {
+    icon.map(|icon| (icon.codepoint, icon.style))
 }
 
 impl BlockLabel {

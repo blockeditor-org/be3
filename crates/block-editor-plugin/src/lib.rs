@@ -11,6 +11,7 @@ pub mod beui_frame;
 mod block_link;
 mod child;
 mod chrome;
+pub mod database;
 mod datetime;
 mod editor;
 #[cfg(target_arch = "wasm32")]
@@ -20,6 +21,7 @@ mod host;
 mod panes;
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 mod punch;
+mod related;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
 #[cfg(target_arch = "wasm32")]
@@ -46,6 +48,7 @@ pub use host::{
     OpenRequest, PastedImage, PerformanceMeasurementGuard, PerformanceReporter, PickedBlock,
     PickedFile, ShowRequest, Task, Waker,
 };
+pub use related::RelatedBlock;
 
 #[cfg(target_arch = "wasm32")]
 pub fn surface_format() -> egui_wgpu::wgpu::TextureFormat {

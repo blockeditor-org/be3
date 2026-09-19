@@ -1,9 +1,7 @@
 pub mod app;
-mod kanban;
-mod scatter;
-mod spreadsheet;
+pub mod sort;
 
-block_editor_plugin::plugin!(app::DatabaseViewApp, "../manifest.json");
+block_editor_plugin::beui_plugin!(app::DatabaseViewApp, "../manifest.json");
 
 #[cfg(test)]
 mod tests;

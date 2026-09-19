@@ -17,9 +17,5 @@
     "Frame",
     "Preview"
   ],
-  "chrome": [
-    "Toolbar",
-    "RightSidebar"
-  ],
   "entry_point": "database_view.wasm"
 }

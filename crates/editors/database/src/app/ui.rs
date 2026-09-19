@@ -1,14 +1,11 @@
-use std::cell::RefCell;
-
 use block::{Block, BlockReference, BlockReferenceList};
 use block_client::block_ref::BlockRef;
 use block_client::blocks::database::Database;
 use block_client::blocks::database_schema::DatabaseSchema;
 use block_client::blocks::database_view::DatabaseView;
-use block_client::references::ReferenceResolutionCache;
 use block_editor_plugin::beui::reactive::{
-    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Scroll, Show, Spacer,
-    clone, component, create_effect, create_memo, create_signal, view,
+    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Scroll, Show, Spacer, clone,
+    component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_plugin::beui::{NodeId, Vec2};
@@ -28,7 +25,8 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let loaded = views.loaded.clone();
     let rows = views.rows.clone();
     let reference = database.project(|database| Some(database.schema_id()));
-    let schema = resolve_schema(&editor, reference);
+    let own_id = editor.block_id();
+    let schema = editor.resolve(create_memo(move || Some(own_id)), reference);
 
     let sized = editor.clone();
     create_effect(clone!(rows -> move || {
@@ -160,20 +158,4 @@ fn watch_views(editor: &Editor) -> Views {
         rows: create_memo(move || rows.get()),
         loaded: create_memo(move || loaded.get()),
     }
-}
-
-fn resolve_schema(editor: &Editor, reference: ReadSignal<Option<BlockRef>>) -> Memo<Option<Uuid>> {
-    let (schema, set_schema) = create_signal(None::<Uuid>);
-    let cache = RefCell::new(ReferenceResolutionCache::default());
-    let client = editor.client().clone();
-    let referencing = editor.block_id();
-    editor.each_frame(move || {
-        let mut cache = cache.borrow_mut();
-        cache.poll();
-        let resolved = reference
-            .get_untracked()
-            .and_then(|reference| cache.resolve(&client, referencing, reference));
-        set_schema.set(resolved);
-    });
-    create_memo(move || schema.get())
 }
