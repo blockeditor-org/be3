@@ -11,25 +11,56 @@
 # what CI wants. Either way the run fails if a Rust source violation or clippy
 # warning survives.
 #
+# The work splits into three parts that need nothing from one another: the lint
+# pass, the native test run, and the plugin tests that run in wasm. Naming one
+# or more of them runs only those, which is how CI gets them onto three runners
+# at once instead of one runner in sequence. Naming none runs all three, so the
+# command a person types is unchanged.
+#
 # Usage:
 #   ./scripts/verify
 #   ./scripts/verify --check
 #   ./scripts/verify --full
+#   ./scripts/verify --check --lint
+#   ./scripts/verify --check --tests
+#   ./scripts/verify --check --plugin-tests
 
 set -uo pipefail
 
 check=false
+lint=false
+tests=false
+plugin_tests=false
+selected=false
 for argument in "$@"; do
     case "$argument" in
         --check) check=true ;;
         --full) export BE3_FULL=1 ;;
+        --lint)
+            lint=true
+            selected=true
+            ;;
+        --tests)
+            tests=true
+            selected=true
+            ;;
+        --plugin-tests)
+            plugin_tests=true
+            selected=true
+            ;;
         *)
             echo "Unknown argument: $argument" >&2
-            echo 'Usage: ./scripts/verify [--check] [--full]' >&2
+            echo 'Usage: ./scripts/verify [--check] [--full] [--lint] [--tests] [--plugin-tests]' >&2
             exit 1
             ;;
     esac
 done
+
+if ! $selected; then
+    lint=true
+    tests=true
+    plugin_tests=true
+fi
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 cd "$repository"
@@ -68,68 +99,77 @@ t() {
     fi
 }
 
-echo 'cargo fmt...'
-if $check; then
-    t cargo fmt --all --check
-else
-    t cargo fmt --all
-fi
+if $lint; then
+    echo 'cargo fmt...'
+    if $check; then
+        t cargo fmt --all --check
+    else
+        t cargo fmt --all
+    fi
 
-echo 'crates/fix-rust-source...'
-if $check; then
-    t cargo run -p fix-rust-source -- --check
-else
-    t cargo run --quiet -p fix-rust-source
-fi
+    echo 'crates/fix-rust-source...'
+    if $check; then
+        t cargo run -p fix-rust-source -- --check
+    else
+        t cargo run --quiet -p fix-rust-source
+    fi
 
-# Tests and examples are linted too, so a warning cannot hide in them. The
-# plugins are in, because linting them natively is the only lint they get from
-# this run. What is out is --all-features: the one workspace feature it turned
-# on that is not on already is block-wasm-host/all-arch, which builds Cranelift
-# for every architecture instead of this one and has no first-party code behind
-# it to lint.
-workspace_selection
-clippy_targets=("${selection[@]}" --all-targets)
+    # Tests and examples are linted too, so a warning cannot hide in them. The
+    # plugins are in, because linting them natively is the only lint they get
+    # from this run. What is out is --all-features: the one workspace feature it
+    # turned on that is not on already is block-wasm-host/all-arch, which builds
+    # Cranelift for every architecture instead of this one and has no
+    # first-party code behind it to lint.
+    workspace_selection
+    clippy_targets=("${selection[@]}" --all-targets)
 
-echo 'cargo clippy...'
-if $check; then
-    t cargo clippy "${clippy_targets[@]}" -- -D warnings
-else
-    # Fix mode forces every target to be checked even when nothing changed, so
-    # only pay for it when the cacheable check finds something it can fix.
-    if ! timed cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings; then
-        echo 'Applying clippy fixes...'
-        # The tree is expected to be mid-change; fixing only a pristine checkout
-        # would make the script useless during development.
-        t cargo clippy --quiet --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
-        # cargo clippy --fix caps lints while applying suggestions, so run clippy
-        # again to make any warnings that remain fail verification.
-        t cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings
+    echo 'cargo clippy...'
+    if $check; then
+        t cargo clippy "${clippy_targets[@]}" -- -D warnings
+    else
+        # Fix mode forces every target to be checked even when nothing changed,
+        # so only pay for it when the cacheable check finds something it can fix.
+        if ! timed cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings; then
+            echo 'Applying clippy fixes...'
+            # The tree is expected to be mid-change; fixing only a pristine
+            # checkout would make the script useless during development.
+            t cargo clippy --quiet --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
+            # cargo clippy --fix caps lints while applying suggestions, so run
+            # clippy again to make any warnings that remain fail verification.
+            t cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings
+        fi
     fi
 fi
 
-echo 'cargo nextest run...'
-if $check; then
-    t cargo nextest run --profile ci "${native[@]}"
-else
-    # A changed painting is not a failure to fix here: the accepted files are
-    # rewritten, and it is the diff a person reviews.
-    t env UPDATE_SNAPSHOTS=1 cargo nextest run --cargo-quiet --show-progress=none "${native[@]}"
+if $tests; then
+    echo 'cargo nextest run...'
+    if $check; then
+        t cargo nextest run --profile ci "${native[@]}"
+    else
+        # A changed painting is not a failure to fix here: the accepted files
+        # are rewritten, and it is the diff a person reviews.
+        t env UPDATE_SNAPSHOTS=1 cargo nextest run --cargo-quiet --show-progress=none "${native[@]}"
+    fi
 fi
 
-echo 'plugin tests...'
-if $check; then
-    t "$internal/test-plugins.sh" --check --profile ci
-else
-    t "$internal/test-plugins.sh" --cargo-quiet --show-progress=none
+if $plugin_tests; then
+    echo 'plugin tests...'
+    if $check; then
+        t "$internal/test-plugins.sh" --check --profile ci
+    else
+        t "$internal/test-plugins.sh" --cargo-quiet --show-progress=none
+    fi
 fi
 
-# in case one of the previous commands leaves stuff unformatted
-echo 'format one more time...'
-if $check; then
-    t cargo fmt --all --check
-else
-    t cargo fmt --all
+# in case one of the previous commands leaves stuff unformatted. It belongs to
+# the lint pass, which is where the commands that rewrite sources are.
+if $lint; then
+    echo 'format one more time...'
+    if $check; then
+        t cargo fmt --all --check
+    else
+        t cargo fmt --all
+    fi
 fi
 
 echo ''

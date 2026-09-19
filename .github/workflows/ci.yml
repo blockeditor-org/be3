@@ -1,13 +1,23 @@
 name: CI
 
 on:
+  # Running on main is what gives every other run a cache to restore from. A
+  # GitHub Actions cache written on a branch can only be read back from that
+  # branch and from the runs of pull requests based on it, so until something
+  # ran here, every entry these jobs wrote was one only the branch that wrote
+  # it could ever use.
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
   merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded pull request run is work on a commit nobody is waiting for any
+  # more. A run on main is not: it is the one that fills the caches, and a merge
+  # queue run is what a merge is waiting on, so neither is cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -28,24 +38,118 @@ env:
   # that has the secret fills the cache for the ones that don't: a pull request
   # from a fork sees an empty value and reads the same cache read-only.
   #
-  # That store is the only compilation cache these jobs have, and Swatinem's
-  # target/ cache was dropped for it rather than kept beside it: this workflow
-  # never runs on main, and a GitHub Actions cache written on a pull request's
-  # branch can only be read back from that same branch, so nothing here ever
-  # wrote a key another run could restore.
+  # That store answers a compilation wherever it runs, which is what a fork's
+  # first run and every cold runner live on. The Actions caches beside it are
+  # the cheaper half of the same idea: see .github/actions/cargo-cache.
   BUNNY_SCCACHE_PASSWORD: ${{ secrets.BUNNY_SCCACHE_PASSWORD }}
 
+# ./scripts/verify is one command locally and three jobs here. Its three parts
+# need nothing from one another, and run together they were the longest thing in
+# this workflow by a wide margin, so everything else finished and waited. Split,
+# the wall clock is the longest part rather than the sum of all of them.
 jobs:
-  check:
-    name: clippy, fmt and tests
+  lint:
+    name: clippy and fmt
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
       # block-app links GTK and WebKitGTK for the file picker and the embedded
       # browser, and ALSA for audio playback, so the workspace does not
-      # compile without their headers. A plugin's tests paint through a real
-      # adapter, which on a runner with no GPU is lavapipe out of mesa.
+      # compile without their headers. Clippy links nothing, but the build
+      # scripts that ask pkg-config for those libraries still run.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+
+      # Each game's build script builds the same crate again as a wasm module
+      # the host loads, so even a native check of one needs the wasm target.
+      - uses: ./.github/actions/rust-toolchain
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      # Declared before every other cache in the job; the action says why.
+      - uses: ./.github/actions/cargo-cache
+
+      - uses: ./.github/actions/sccache
+
+      # The app links libghostty-vt, the terminal emulator behind the debug
+      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
+      # source with Zig.
+      - uses: ./.github/actions/ghostty-vt
+        with:
+          triple: x86_64-unknown-linux-gnu
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - run: ./scripts/verify --check --lint
+
+      - uses: ./.github/actions/sccache-report
+        if: always()
+
+  test:
+    name: tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      # block-app links GTK and WebKitGTK for the file picker and the embedded
+      # browser, and ALSA for audio playback, so the workspace does not
+      # compile without their headers. A test that paints needs a real adapter,
+      # which on a runner with no GPU is lavapipe out of mesa.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
+            libvulkan1 mesa-vulkan-drivers
+
+      # Each game's build script builds the same crate again as a wasm module
+      # the host loads, so the test build needs the wasm target too.
+      - uses: ./.github/actions/rust-toolchain
+        with:
+          targets: wasm32-unknown-unknown
+
+      # Declared before every other cache in the job; the action says why.
+      - uses: ./.github/actions/cargo-cache
+
+      - uses: ./.github/actions/sccache
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      # The app links libghostty-vt, the terminal emulator behind the debug
+      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
+      # source with Zig.
+      - uses: ./.github/actions/ghostty-vt
+        with:
+          triple: x86_64-unknown-linux-gnu
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - run: ./scripts/verify --check --tests
+
+      - uses: ./.github/actions/sccache-report
+        if: always()
+
+  plugin-tests:
+    name: plugin tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      # The test runner is a native binary built out of the workspace, so this
+      # job needs the same headers a native build does, and a plugin's tests
+      # paint through a real adapter, which on a runner with no GPU is lavapipe
+      # out of mesa.
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -61,13 +165,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y clang-20 llvm-20
 
-      # Each game's build script builds the same crate again as a wasm module
-      # the host loads, and the plugin tests are wasm as well, so the test
-      # build needs both wasm targets.
+      # The plugin tests are wasm, and the runner that hosts them is built with
+      # the rest of the workspace, whose games compile themselves to wasm from
+      # their build scripts, so this needs both wasm targets.
       - uses: ./.github/actions/rust-toolchain
         with:
-          components: rustfmt, clippy
           targets: wasm32-unknown-unknown, wasm32-wasip1-threads
+
+      # Declared before every other cache in the job; the action says why.
+      - uses: ./.github/actions/cargo-cache
 
       - uses: ./.github/actions/sccache
 
@@ -84,11 +190,15 @@ jobs:
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
       # source with Zig.
+      - uses: ./.github/actions/ghostty-vt
+        with:
+          triple: x86_64-unknown-linux-gnu
+
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
 
-      - run: ./scripts/verify --check
+      - run: ./scripts/verify --check --plugin-tests
 
       - uses: ./.github/actions/sccache-report
         if: always()
@@ -133,6 +243,10 @@ jobs:
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
       # source with Zig.
+      - uses: ./.github/actions/ghostty-vt
+        with:
+          triple: wasm32-wasip1-threads
+
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
@@ -244,6 +358,10 @@ jobs:
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
       # source with Zig.
+      - uses: ./.github/actions/ghostty-vt
+        with:
+          triple: aarch64-linux-android
+
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
@@ -368,6 +486,11 @@ jobs:
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
       # source with Zig.
+      - uses: ./.github/actions/ghostty-vt
+        if: matrix.client
+        with:
+          triple: ${{ matrix.target }}
+
       - name: Install Zig
         if: matrix.client
         uses: mlugg/setup-zig@v2
@@ -417,7 +540,7 @@ jobs:
   ci-ok-queue:
     name: ${{ github.event_name != 'pull_request' && 'CI OK' || 'CI gate (merge queue only)' }}
     if: always() && github.event_name != 'pull_request'
-    needs: [check, web, plugins, android, native]
+    needs: [lint, test, plugin-tests, web, plugins, android, native]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to have passed
