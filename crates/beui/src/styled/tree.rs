@@ -83,7 +83,10 @@ where
         let item = item.get();
         marker(item.expandable, item.expanded).to_owned()
     }));
-    let marker_color = theme.text_muted.clone();
+    let marker_color = create_memo(clone!(theme item -> move || match item.get().marked {
+        true => theme.accent.get(),
+        false => theme.text_muted.get(),
+    }));
     let expandable = create_memo(clone!(item -> move || item.get().expandable));
     let spacer = view! {
         <Spacer />

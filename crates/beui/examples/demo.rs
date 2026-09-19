@@ -986,6 +986,7 @@ fn tree_item(row: usize, collapsed: &[usize]) -> TreeItem {
         depth,
         expandable: has_children(row),
         expanded: !collapsed.contains(&row),
+        marked: false,
     }
 }
 

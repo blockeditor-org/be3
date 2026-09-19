@@ -841,6 +841,7 @@ fn item(entries: &Entries, key: Key) -> TreeItem {
                 depth: entry.depth,
                 expandable: entry.expandable,
                 expanded: entry.expanded,
+                marked: false,
             })
             .unwrap_or_default()
     })
