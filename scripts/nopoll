@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+sleep 118
+echo "2m passed. If the task isn't done yet, run nopoll again in the foreground."
