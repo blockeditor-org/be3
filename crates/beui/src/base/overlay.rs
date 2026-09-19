@@ -40,6 +40,22 @@ pub(crate) enum Placement {
     BelowStart,
     RightStart,
     Center,
+    InsideTop,
+    InsideBottom,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum OverlayMode {
+    #[default]
+    Modal,
+    Floating,
+    Passive,
+}
+
+impl OverlayMode {
+    fn stacked(self) -> bool {
+        self == OverlayMode::Modal
+    }
 }
 
 pub(crate) struct OverlayNode {
@@ -50,7 +66,7 @@ pub(crate) struct OverlayNode {
     anchor: OverlayAnchor,
     placement: Placement,
     traps_focus: bool,
-    modal: bool,
+    mode: OverlayMode,
     on_dismiss: Option<ClickHandler>,
 }
 
@@ -64,7 +80,7 @@ impl OverlayNode {
             anchor,
             placement,
             traps_focus: true,
-            modal: true,
+            mode: OverlayMode::Modal,
             on_dismiss: None,
         }
     }
@@ -90,25 +106,40 @@ fn resolve_rect(
             content_size,
         );
     }
+    if let Placement::InsideTop | Placement::InsideBottom = placement {
+        let y = match placement {
+            Placement::InsideTop => anchor_rect.top(),
+            _ => anchor_rect.bottom() - content_size.y,
+        };
+        let origin = pos2(
+            anchor_rect.center().x - content_size.x / 2.0,
+            y.clamp(
+                anchor_rect.top(),
+                (anchor_rect.bottom() - content_size.y).max(anchor_rect.top()),
+            ),
+        );
+        return Rect::from_min_size(
+            pos2(origin.x.max(viewport.left()), origin.y.max(viewport.top())),
+            content_size,
+        );
+    }
     let mut origin = match placement {
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
-        Placement::Center => unreachable!("a centred overlay is placed above"),
+        Placement::Center | Placement::InsideTop | Placement::InsideBottom => {
+            unreachable!("a centred or pinned overlay is placed above")
+        }
     };
     if origin.x + content_size.x > viewport.right() {
         origin.x = match placement {
             Placement::RightStart => anchor_rect.left() - content_size.x,
-            Placement::BelowStart | Placement::Center => {
-                (viewport.right() - content_size.x).max(viewport.left())
-            }
+            _ => (viewport.right() - content_size.x).max(viewport.left()),
         };
     }
     if origin.y + content_size.y > viewport.bottom() {
         origin.y = match placement {
             Placement::BelowStart => anchor_rect.top() - content_size.y,
-            Placement::RightStart | Placement::Center => {
-                (viewport.bottom() - content_size.y).max(viewport.top())
-            }
+            _ => (viewport.bottom() - content_size.y).max(viewport.top()),
         };
     }
     origin.x = origin.x.max(viewport.left());
@@ -173,7 +204,13 @@ impl Element for OverlayNode {
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
     ) -> Vec<NodeId> {
-        if !self.open || !self.modal {
+        if !self.open {
+            return Vec::new();
+        }
+        if self.mode == OverlayMode::Floating {
+            return self.content.into_iter().collect();
+        }
+        if self.mode == OverlayMode::Passive {
             return Vec::new();
         }
         let mut children = vec![self.scrim];
@@ -210,7 +247,7 @@ pub(crate) fn Overlay(
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     #[prop(default = true)] traps_focus: Prop<bool>,
-    #[prop(default = true)] modal: Prop<bool>,
+    #[prop(default = OverlayMode::Modal)] mode: Prop<OverlayMode>,
     open: Prop<bool>,
     on_dismiss: ClickCallback,
     children: Option<Child>,
@@ -238,9 +275,7 @@ pub(crate) fn Overlay(
     create_effect(move || {
         with_document(|document| document.set_overlay_traps_focus(overlay, traps_focus.get()))
     });
-    create_effect(move || {
-        with_document(|document| document.set_overlay_modal(overlay, modal.get()))
-    });
+    create_effect(move || with_document(|document| document.set_overlay_mode(overlay, mode.get())));
     create_effect(move || {
         let open = open.get();
         with_document(|document| match open {
@@ -299,16 +334,38 @@ impl Document {
         }
     }
 
-    pub(crate) fn set_overlay_modal(&mut self, overlay: NodeId, modal: bool) {
-        if self.arena.get_as::<OverlayNode>(overlay).modal == modal {
+    pub(crate) fn set_overlay_mode(&mut self, overlay: NodeId, mode: OverlayMode) {
+        if self.arena.get_as::<OverlayNode>(overlay).mode == mode {
             return;
         }
-        self.arena.get_mut_as::<OverlayNode>(overlay).modal = modal;
+        self.arena.get_mut_as::<OverlayNode>(overlay).mode = mode;
         if self.arena.get_as::<OverlayNode>(overlay).open {
             self.close_overlay(overlay);
             self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
             self.open_overlay(overlay);
         }
+    }
+
+    pub(crate) fn overlay_is_floating(&self, overlay: NodeId) -> bool {
+        self.contains(overlay)
+            && self.arena.get_as::<OverlayNode>(overlay).mode == OverlayMode::Floating
+            && self.arena.get_as::<OverlayNode>(overlay).open
+    }
+
+    pub(crate) fn floating_overlays(&self) -> Vec<NodeId> {
+        self.passive_overlays
+            .iter()
+            .copied()
+            .filter(|overlay| self.overlay_is_floating(*overlay))
+            .collect()
+    }
+
+    pub(crate) fn floating_covers(&self, pos: Pos2) -> bool {
+        self.floating_overlays().into_iter().any(|overlay| {
+            self.overlay_content(overlay)
+                .and_then(|content| self.node_rect(content))
+                .is_some_and(|rect| rect.contains(pos))
+        })
     }
 
     pub(crate) fn overlay_traps_focus(&self, overlay: NodeId) -> bool {
@@ -337,7 +394,7 @@ impl Document {
             return;
         }
         self.arena.get_mut_as::<OverlayNode>(overlay).open = true;
-        match self.arena.get_as::<OverlayNode>(overlay).modal {
+        match self.arena.get_as::<OverlayNode>(overlay).mode.stacked() {
             true => self.overlay_stack.push(overlay),
             false => self.passive_overlays.push(overlay),
         }

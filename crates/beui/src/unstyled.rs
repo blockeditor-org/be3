@@ -3,6 +3,7 @@ mod choice;
 mod container;
 mod context_menu;
 mod disclosure;
+mod floating;
 mod menu;
 mod pan_zoom;
 mod pressable;
@@ -20,6 +21,7 @@ pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_se
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
 pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
+pub use floating::{Edge, Floating};
 pub use menu::{
     MenuItem, MenuRowHandle, menu_list_len, menu_list_root_focusable, menu_list_row_button,
     menu_list_row_submenu_content,
