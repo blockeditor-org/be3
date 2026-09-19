@@ -2,11 +2,11 @@ use beui_macros::{component, view};
 
 use crate::node::NodeId;
 use crate::reactive::{Child, Frame, Prop};
-use std::time::Duration;
 use crate::styled::text::Caption;
 use crate::styled::theme::{BORDER_WIDTH, RADIUS, use_theme};
 use crate::unstyled;
 use crate::unstyled::{TOOLTIP_DELAY, TooltipHandle};
+use std::time::Duration;
 
 const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 4.0;
@@ -25,7 +25,9 @@ pub fn Tooltip(
             label
             disabled
             delay
-            content={move |handle: TooltipHandle| view! { <TooltipBubble handle /> }}
+            content={move |handle: TooltipHandle| view! {
+                <TooltipBubble handle />
+            }}
         >
             {children}
         </unstyled::Tooltip>

@@ -82,10 +82,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Artwork(
-    editor: Editor,
-    image: Memo<Option<block_editor_plugin::beui::Image>>,
-) -> NodeId {
+fn Artwork(editor: Editor, image: Memo<Option<block_editor_plugin::beui::Image>>) -> NodeId {
     let placed = component_rect();
     let world = editor.world();
     let shape = create_memo(clone!(image world placed -> move || {

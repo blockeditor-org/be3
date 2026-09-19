@@ -7,11 +7,11 @@ use block_client::blocks::database_schema::{
 };
 use block_client::blocks::database_view::{DatabaseView, DatabaseViewKind, DatabaseViewOperation};
 use block_client::{BlockClient, BlockHandle};
+use block_editor_plugin::beui::Key;
 use block_editor_plugin::{
     BeuiApp, Creation, Editor, EditorHost,
     block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
 };
-use block_editor_plugin::beui::Key;
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

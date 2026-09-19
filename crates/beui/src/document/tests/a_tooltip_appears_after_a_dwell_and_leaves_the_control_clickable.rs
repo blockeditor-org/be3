@@ -25,10 +25,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
                             }
                         }}
                     >
-                        <Button
-                            @node_ref=&button
-                            on_click={move || clicked.set(clicked.get() + 1)}
-                        >
+                        <Button @node_ref=&button on_click={move || clicked.set(clicked.get() + 1)}>
                             <Text string="add" />
                         </Button>
                     </Tooltip>

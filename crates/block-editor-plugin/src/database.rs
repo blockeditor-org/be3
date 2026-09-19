@@ -7,8 +7,7 @@ use beui::reactive::{
 };
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, IconButton, NumberDrag,
-    NumberInput, Select,
-    TextInput,
+    NumberInput, Select, TextInput,
 };
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
