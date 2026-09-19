@@ -9,7 +9,7 @@ use accesskit::Node;
 use crate::accessibility;
 use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::Context;
-use crate::damage::Damage;
+use crate::damage::{Damage, Region};
 use crate::flash::FlashLog;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::input::{Event, Key};
@@ -49,7 +49,7 @@ pub struct Document {
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
     paint_cache: RefCell<PaintCache>,
-    paint_region: Cell<Rect>,
+    paint_region: Cell<Region>,
     paint_base: Cell<Option<usize>>,
     grown: Cell<Rect>,
     deadlines: Vec<NodeId>,
@@ -126,7 +126,7 @@ impl Document {
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
-            paint_region: Cell::new(Rect::NOTHING),
+            paint_region: Cell::new(Region::NOTHING),
             paint_base: Cell::new(None),
             grown: Cell::new(Rect::NOTHING),
             deadlines: Vec::new(),
@@ -276,7 +276,7 @@ impl Document {
         self.paint_cache.borrow_mut().store(id, painted);
     }
 
-    pub(crate) fn paint_region(&self) -> Rect {
+    pub(crate) fn paint_region(&self) -> Region {
         self.paint_region.get()
     }
 
@@ -536,14 +536,14 @@ impl Document {
             });
             self.shapes = shapes;
             self.deadlines = ctx.take_deadlines();
-            let region = self
-                .paint_region
-                .get()
-                .union(self.grown.get())
-                .intersect(rect);
-            if region.is_positive() {
-                self.damage_flashes.record(region, now);
-                ctx.report_damage(region);
+            let mut region = self.paint_region.get();
+            region.add(self.grown.get());
+            for damaged in region.rects() {
+                let damaged = damaged.intersect(rect);
+                if damaged.is_positive() {
+                    self.damage_flashes.record(damaged, now);
+                    ctx.report_damage(damaged);
+                }
             }
             self.next_paint = Instant::now().checked_add(delay);
             self.paint_revision = self.arena.revision;
