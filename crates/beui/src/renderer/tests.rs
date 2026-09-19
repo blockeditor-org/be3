@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_blur_repaints_the_light_it_spreads_outside_the_damaged_region;
+mod a_blur_thinner_than_a_pixel_spreads_less_light_than_a_whole_one;
 mod a_blurred_region_spreads_light_past_the_shape_that_made_it;
 mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_vision_filter_recolours_the_region_it_covers;

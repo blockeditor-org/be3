@@ -257,12 +257,15 @@ lists.
 A slider spreads its range evenly along its track unless it is given a
 `scale`. `SliderScale::Midpoint(value)` curves it so that the centre of the
 track reads that value, which is how a control whose interesting values are
-bunched at one end gets most of the track for them: the inspector's blur
-slider runs to 120 px with a midpoint of 12, so the first half of the track
-covers a tenth of the range and single pixels of blur are reachable. The
-midpoint may sit above the centre of the range as well, which gives the top
-end the fine part of the track instead. A midpoint outside the range, or one
-that lands where the centre already is, leaves the slider linear.
+bunched at one end gets most of the track for them. The curve is exponential
+rather than a power of the position, which is what keeps the fine end useful
+without giving the whole of it away: the inspector's blur slider runs to
+120 px with a midpoint of 12 and reads 3 px, 12 px and 39 px at the quarters
+of its track, spending a tenth of the track below one pixel where a power
+curve through the same midpoint spends a quarter of it there. The midpoint may sit
+above the centre of the range as well, which gives the top end the fine part
+of the track instead. A midpoint outside the range, or one that lands where
+the centre already is, leaves the slider linear.
 
 The curve applies everywhere the value and the track meet. Dragging maps the
 position under the pointer through it, the knob sits where the value falls on

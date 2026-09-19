@@ -4,6 +4,8 @@ use crate::filter::Filter;
 use crate::geometry::Vec2;
 
 const MAX_LEVELS: usize = 6;
+const MIN_OFFSET: f32 = 0.5;
+const MAX_OFFSET: f32 = 4.0;
 const MAX_PASSES: u64 = (MAX_LEVELS * 2) as u64;
 const UNIFORM_STRIDE: u64 = 256;
 
@@ -27,6 +29,7 @@ pub(super) struct Prepared {
     region: [f32; 4],
     levels: usize,
     offset: f32,
+    strength: f32,
     reach: f32,
     contrast: f32,
     matrix: [[f32; 3]; 3],
@@ -35,7 +38,7 @@ pub(super) struct Prepared {
 impl Prepared {
     pub(super) fn new(filter: &Filter, pixels_per_point: f32, screen: Vec2) -> Self {
         let region = filter.region;
-        let (levels, offset) = steps(filter.blur * pixels_per_point, screen);
+        let (levels, offset, strength) = steps(filter.blur * pixels_per_point, screen);
         Self {
             region: [
                 (region.left() * pixels_per_point).max(0.0),
@@ -45,6 +48,7 @@ impl Prepared {
             ],
             levels,
             offset,
+            strength,
             reach: reach(levels, offset),
             contrast: filter.contrast.clamp(0.0, 1.0),
             matrix: filter.vision.matrix(),
@@ -319,7 +323,7 @@ impl Effects {
                 params: [
                     prepared.contrast,
                     if stored_linear { 1.0 } else { 0.0 },
-                    0.0,
+                    prepared.strength,
                     0.0,
                 ],
             }),
@@ -473,15 +477,16 @@ fn rows(matrix: [[f32; 3]; 3]) -> [[f32; 4]; 3] {
     matrix.map(|row| [row[0], row[1], row[2], 0.0])
 }
 
-fn steps(radius: f32, screen: Vec2) -> (usize, f32) {
+fn steps(radius: f32, screen: Vec2) -> (usize, f32, f32) {
     if radius <= 0.0 {
-        return (0, 0.0);
+        return (0, 0.0, 0.0);
     }
     let affordable = (screen.x.min(screen.y).max(1.0).log2() as usize).clamp(1, MAX_LEVELS);
     let wanted = ((radius / 2.0).max(1.0).log2().ceil() as usize).clamp(1, MAX_LEVELS);
     let levels = wanted.min(affordable);
-    let offset = (radius / (1u32 << levels) as f32).clamp(0.5, 4.0);
-    (levels, offset)
+    let asked = radius / (1u32 << levels) as f32;
+    let offset = asked.clamp(MIN_OFFSET, MAX_OFFSET);
+    (levels, offset, (asked / offset).min(1.0))
 }
 
 fn reach(levels: usize, offset: f32) -> f32 {
