@@ -384,6 +384,8 @@ impl Document {
             self.detach_subtree(child, scopes);
         }
         self.arena.remove(id);
+        self.overlay_stack.retain(|overlay| *overlay != id);
+        self.passive_overlays.retain(|overlay| *overlay != id);
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
         self.placements.remove(&id);
