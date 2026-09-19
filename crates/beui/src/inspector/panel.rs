@@ -12,8 +12,8 @@ use crate::filter::{ColorVision, MAX_BLUR};
 use crate::icons::ICON_CLOSE;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Direction, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Scroll, Show, Spacer,
-    WriteSignal, clone, component, create_memo, create_signal, view,
+    Align, Children, Direction, Frame, ItemSize, List, ListChild, Memo, NodeRef, Prop, ReadSignal,
+    Scroll, Show, Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use crate::screen_reader::Command;
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
@@ -62,6 +62,22 @@ const COMMANDS: [(&str, &str, Command); 12] = [
     ("Value up", "increment", Command::Increment),
     ("Scroll up", "scroll_up", Command::ScrollUp),
     ("Scroll down", "scroll_down", Command::ScrollDown),
+];
+const KEYBOARD_GUIDE: [&str; 7] = [
+    "Arrows - previous or next item",
+    "Tab and Shift+Tab - previous or next control",
+    "Enter or Space - activate",
+    "Home and End - first or last item",
+    "Minus and Plus - adjust the value",
+    "Page Up and Page Down - scroll",
+    "R - repeat",
+];
+const TOUCH_GUIDE: [&str; 5] = [
+    "Drag a finger - read what is under it",
+    "Flick sideways - previous or next item",
+    "Flick up or down - adjust the value",
+    "Double tap - activate",
+    "Two finger tap - repeat, drag two fingers - scroll",
 ];
 const THEME: Theme = Theme::DARK;
 
@@ -504,7 +520,7 @@ fn contrast_label(amount: f32) -> String {
 
 #[component]
 fn ScreenReaderSection(state: Rc<State>) -> NodeId {
-    let (enable_state, opacity_state) = (state.clone(), state.clone());
+    let enable_state = state.clone();
     let (first_state, second_state, third_state) = (state.clone(), state.clone(), state.clone());
     let (fourth_state, fifth_state) = (state.clone(), state.clone());
     view! {
@@ -516,19 +532,33 @@ fn ScreenReaderSection(state: Rc<State>) -> NodeId {
                 checked={state.screen_reader.get()}
                 on_change={move |enabled| enable_state.enable_screen_reader(enabled)}
             />
-            <Caption content="Curtain opacity" />
-            <Slider
-                @test_id={"inspector.screen_reader.opacity"}
-                label="Curtain opacity"
-                value={state.curtain_opacity.get()}
-                on_change={move |value| opacity_state.set_curtain_opacity(value)}
-            />
             <CommandRow row=0 state />
             <CommandRow row=1 state={first_state} />
             <CommandRow row=2 state={second_state} />
             <CommandRow row=3 state={third_state} />
             <CommandRow row=4 state={fourth_state} />
             <CommandRow row=5 state={fifth_state} />
+            <GuideSection title="Keyboard" lines={KEYBOARD_GUIDE.as_slice()} />
+            <GuideSection title="Touch" lines={TOUCH_GUIDE.as_slice()} />
+        </List>
+    }
+}
+
+#[component]
+fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
+    let guides: Children<ListChild> = lines
+        .iter()
+        .map(|line| {
+            view! {
+                <Caption content={(*line).to_owned()} wrap=true />
+            }
+        })
+        .collect::<Vec<_>>()
+        .into();
+    view! {
+        <List spacing=FOOTER_SPACING>
+            <Caption content={title.to_owned()} color={THEME.text} />
+            {guides}
         </List>
     }
 }

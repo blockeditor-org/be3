@@ -233,6 +233,10 @@ impl Context {
             .set_enabled(enabled);
     }
 
+    pub(crate) fn simulated_input_height(&self) -> f32 {
+        self.inner.mouse_simulation.borrow().reserved()
+    }
+
     pub(crate) fn show_mouse_simulation(&self, viewport: Rect) {
         let scale = self.native_pixels_per_point() / self.pixels_per_point();
         let simulation = &self.inner.mouse_simulation;

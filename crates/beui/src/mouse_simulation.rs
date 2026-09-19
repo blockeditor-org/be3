@@ -134,6 +134,14 @@ impl MouseSimulation {
         self.enabled || self.painted.is_positive()
     }
 
+    pub(crate) fn reserved(&self) -> f32 {
+        if !self.enabled {
+            return 0.0;
+        }
+        let layout = self.layout();
+        layout.bar.height() + layout.keyboard.map_or(0.0, |rect| rect.height())
+    }
+
     pub(crate) fn measure(&mut self, viewport: Rect, scale: f32) {
         self.viewport = viewport;
         self.scale = if scale.is_finite() && scale > 0.0 {

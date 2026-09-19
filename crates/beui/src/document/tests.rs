@@ -86,7 +86,7 @@ mod ctrl_shift_f_moves_focus_between_the_inspector_and_the_document;
 mod ctrl_shift_i_opens_and_closes_the_inspector;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod double_clicking_a_word_selects_it_so_typing_replaces_it;
-mod double_tapping_the_screen_reader_curtain_activates_what_it_is_reading;
+mod double_tapping_with_the_screen_reader_activates_what_it_is_reading;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_slider_moves_its_value;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
@@ -102,7 +102,7 @@ mod evicting_a_virtual_scroll_row_disposes_its_effects;
 mod finding_a_node_by_its_test_id;
 mod flashing_changed_elements_outlines_the_node_that_changed;
 mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
-mod flicking_across_the_screen_reader_curtain_reads_the_next_item;
+mod flicking_across_the_screen_reader_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
@@ -177,9 +177,8 @@ mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
 mod the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach;
-mod the_screen_reader_curtain_keeps_clicks_away_from_the_document;
-mod the_screen_reader_curtain_paints_above_the_filters_that_blur_the_document;
-mod the_screen_reader_highlight_goes_under_the_curtain_that_hides_it;
+mod the_screen_reader_keeps_clicks_away_from_the_document;
+mod the_screen_reader_readout_sits_at_the_bottom_above_the_filters;
 mod the_scroll_position_is_reported_to_its_listener;
 mod the_simulate_tab_filters_the_document_without_the_screen_reader;
 mod the_simulated_keyboard_types_into_the_focused_input;
@@ -188,7 +187,7 @@ mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
-mod turning_on_the_screen_reader_covers_the_document_and_reads_what_it_is_on;
+mod turning_on_the_screen_reader_reads_what_it_is_on;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
 mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
 mod typing_into_a_focused_text_input_inserts_the_text;
@@ -510,8 +509,8 @@ impl Harness {
         self.inspector_center(&format!("inspector.screen_reader.{control}"))
     }
 
-    pub(crate) fn transcript(&self) -> Vec<String> {
-        self.inspector().reader().transcript()
+    pub(crate) fn spoken(&self) -> Option<String> {
+        self.inspector().reader().spoken()
     }
 
     pub(crate) fn reading(&self) -> Option<String> {

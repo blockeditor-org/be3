@@ -1,4 +1,4 @@
-mod curtain;
+mod readout;
 mod speech;
 
 use std::time::{Duration, Instant};
@@ -13,14 +13,12 @@ use crate::painter::Painter;
 
 use speech::Nodes;
 
-const TRANSCRIPT: usize = 5;
 const LIVE_INTERVAL: Duration = Duration::from_millis(400);
 const SWIPE_TIME: Duration = Duration::from_millis(400);
 const SWIPE_DISTANCE: f32 = 28.0;
 const TAP_DISTANCE: f32 = 10.0;
 const DOUBLE_TAP_TIME: Duration = Duration::from_millis(400);
 const SCROLL_STEP: f32 = 48.0;
-pub(crate) const DEFAULT_OPACITY: f32 = 0.94;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Command {
@@ -58,10 +56,9 @@ struct Finger {
 pub(crate) struct ScreenReader {
     enabled: bool,
     active: bool,
-    opacity: f32,
     items: Vec<Item>,
     cursor: Option<AccessNodeId>,
-    spoken: Vec<String>,
+    spoken: Option<String>,
     reported: Option<(AccessNodeId, String)>,
     live: bool,
     last_spoke: Option<Instant>,
@@ -80,10 +77,9 @@ impl Default for ScreenReader {
         Self {
             enabled: false,
             active: false,
-            opacity: DEFAULT_OPACITY,
             items: Vec::new(),
             cursor: None,
-            spoken: Vec::new(),
+            spoken: None,
             reported: None,
             live: false,
             last_spoke: None,
@@ -100,9 +96,8 @@ impl Default for ScreenReader {
 }
 
 impl ScreenReader {
-    pub(crate) fn configure(&mut self, enabled: bool, opacity: f32) {
+    pub(crate) fn configure(&mut self, enabled: bool) {
         self.enabled = enabled;
-        self.opacity = opacity;
     }
 
     pub(crate) fn painting(&self) -> bool {
@@ -126,8 +121,7 @@ impl ScreenReader {
             self.active = true;
             self.cursor = None;
             self.reported = None;
-            self.spoken.clear();
-            self.say("Screen reader simulation. The curtain hides the document.".to_owned());
+            self.spoken = None;
         }
         if self.index().is_none() {
             self.cursor = self.items.first().map(|item| item.access);
@@ -148,7 +142,7 @@ impl ScreenReader {
         self.items.clear();
         self.cursor = None;
         self.reported = None;
-        self.spoken.clear();
+        self.spoken = None;
         self.release();
     }
 
@@ -175,13 +169,7 @@ impl ScreenReader {
             return;
         }
         self.last_spoke = Some(Instant::now());
-        if self.spoken.last() == Some(&text) {
-            return;
-        }
-        self.spoken.push(text);
-        if self.spoken.len() > TRANSCRIPT {
-            self.spoken.remove(0);
-        }
+        self.spoken = Some(text);
     }
 
     fn report(&mut self) {
@@ -227,7 +215,6 @@ impl ScreenReader {
             Command::ScrollDown => self.scroll(ctx, Action::ScrollDown),
             Command::Repeat => {
                 if let Some(phrase) = self.current().map(|item| item.phrase.clone()) {
-                    self.spoken.pop_if(|last| *last == phrase);
                     self.say(phrase);
                 }
             }
@@ -448,33 +435,33 @@ impl ScreenReader {
             false => None,
         };
         self.focus_painted = match focus {
-            Some(rect) => curtain::paint_focus(painter, scale, rect),
+            Some(rect) => readout::paint_focus(painter, scale, rect),
             None => Rect::NOTHING,
         };
     }
 
-    pub(crate) fn paint_curtain(&mut self, painter: &Painter, scale: f32) -> Rect {
+    pub(crate) fn paint_readout(&mut self, painter: &Painter, scale: f32, reserved: f32) -> Rect {
         if !self.enabled {
             let damage = self.painted;
             self.painted = Rect::NOTHING;
             self.focus_painted = Rect::NOTHING;
             return damage;
         }
-        let view = curtain::View {
+        let view = readout::View {
             content: painter.clip_rect(),
-            opacity: self.opacity,
-            spoken: &self.spoken,
+            reserved,
+            spoken: self.spoken.as_deref(),
             status: self.status(),
             finger: self.finger_at,
         };
-        let painted = curtain::paint(painter, scale, &view).union(self.focus_painted);
+        let painted = readout::paint(painter, scale, &view).union(self.focus_painted);
         let damage = painted.union(self.painted);
         self.painted = painted;
         damage
     }
 
     #[cfg(test)]
-    pub(crate) fn transcript(&self) -> Vec<String> {
+    pub(crate) fn spoken(&self) -> Option<String> {
         self.spoken.clone()
     }
 

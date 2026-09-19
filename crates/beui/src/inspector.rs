@@ -17,7 +17,7 @@ use crate::painter::Painter;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{NodeRef, WriteSignal, with_document, with_reactive_scope};
-use crate::screen_reader::{Command, DEFAULT_OPACITY, ScreenReader};
+use crate::screen_reader::{Command, ScreenReader};
 use crate::styled::Theme;
 
 use panel::Summary;
@@ -60,7 +60,6 @@ pub(crate) struct State {
     pub(crate) flash_damage: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
     pub(crate) screen_reader: Cell<bool>,
-    pub(crate) curtain_opacity: Cell<f32>,
     pub(crate) blur: Cell<f32>,
     pub(crate) contrast_reduction: Cell<f32>,
     pub(crate) color_vision: Cell<ColorVision>,
@@ -87,7 +86,6 @@ impl State {
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
             screen_reader: Cell::new(false),
-            curtain_opacity: Cell::new(DEFAULT_OPACITY),
             blur: Cell::new(0.0),
             contrast_reduction: Cell::new(0.0),
             color_vision: Cell::new(ColorVision::Typical),
@@ -136,11 +134,6 @@ impl State {
 
     fn enable_screen_reader(&self, enabled: bool) {
         self.screen_reader.set(enabled);
-        self.touch();
-    }
-
-    fn set_curtain_opacity(&self, opacity: f32) {
-        self.curtain_opacity.set(opacity);
         self.touch();
     }
 
@@ -377,10 +370,7 @@ impl Inspector {
     }
 
     fn read(&mut self, target: &Document, ctx: &Context, content: Rect, panel_has_focus: bool) {
-        self.reader.configure(
-            self.state.screen_reader.get(),
-            self.state.curtain_opacity.get(),
-        );
+        self.reader.configure(self.state.screen_reader.get());
         let commands = self.state.take_commands();
         self.reader
             .show(target, ctx, content, commands, !panel_has_focus);
@@ -398,7 +388,10 @@ impl Inspector {
             let painter = ctx.painter().with_clip_rect(content.scaled(local));
             match layer {
                 Layer::Below => reader.paint_focus(&painter, local),
-                Layer::Above => ctx.report_damage(reader.paint_curtain(&painter, local)),
+                Layer::Above => {
+                    let reserved = ctx.simulated_input_height();
+                    ctx.report_damage(reader.paint_readout(&painter, local, reserved));
+                }
             }
         });
     }

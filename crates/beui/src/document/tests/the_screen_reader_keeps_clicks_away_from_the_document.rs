@@ -3,7 +3,7 @@ use crate::reactive::view;
 use crate::styled::Checkbox;
 
 #[test]
-fn the_screen_reader_curtain_keeps_clicks_away_from_the_document() {
+fn the_screen_reader_keeps_clicks_away_from_the_document() {
     let (document, [checkbox]) = toolbar_of(|| {
         [view! {
             <Checkbox label="Show timings" checked=false />
