@@ -113,17 +113,29 @@ pub(crate) fn interact(
     let covered = input
         .pointer_pos
         .is_some_and(|pos| doc.floating_covers(pos));
-    if !covered {
-        if doc.overlay_stack.is_empty() {
-            interact_node(doc, painter, &input, rects, root, &mut focus_target);
-        } else {
-            for overlay in doc.overlay_stack.clone() {
-                interact_node(doc, painter, &input, rects, overlay, &mut focus_target);
-            }
+    let under = match covered {
+        false => input,
+        true => InteractInput {
+            pointer_pos: None,
+            zoom_pos: None,
+            wheel_target: None,
+            zoom_target: None,
+            touch_scroll_target: None,
+            ..input
+        },
+    };
+    if doc.overlay_stack.is_empty() {
+        interact_node(doc, painter, &under, rects, root, &mut focus_target);
+    } else {
+        for overlay in doc.overlay_stack.clone() {
+            interact_node(doc, painter, &under, rects, overlay, &mut focus_target);
         }
     }
     for overlay in doc.floating_overlays() {
-        interact_node(doc, painter, &input, rects, overlay, &mut focus_target);
+        let Some(content) = doc.overlay_content(overlay) else {
+            continue;
+        };
+        interact_node(doc, painter, &input, rects, content, &mut focus_target);
     }
 
     if doc.pointer_capture.is_none()

@@ -233,9 +233,6 @@ impl Document {
         if let Some(start) = start {
             self.collect_focusables(start, &mut out);
         }
-        for overlay in self.floating_overlays() {
-            self.collect_focusables(overlay, &mut out);
-        }
         out
     }
 
