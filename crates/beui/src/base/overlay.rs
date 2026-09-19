@@ -3,6 +3,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::color::Color32;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{CursorIcon, PointerPress};
 use crate::painter::Painter;
@@ -38,11 +39,13 @@ impl IntoProp<OverlayAnchor> for &NodeRef {
 pub(crate) enum Placement {
     BelowStart,
     RightStart,
+    Center,
 }
 
 pub(crate) struct OverlayNode {
     content: Option<NodeId>,
     scrim: NodeId,
+    dim: Color32,
     open: bool,
     anchor: OverlayAnchor,
     placement: Placement,
@@ -55,6 +58,7 @@ impl OverlayNode {
         Self {
             content: None,
             scrim,
+            dim: Color32::TRANSPARENT,
             open: false,
             anchor,
             placement,
@@ -74,20 +78,35 @@ fn resolve_rect(
     placement: Placement,
     content_size: Vec2,
 ) -> Rect {
+    if placement == Placement::Center {
+        let origin = pos2(
+            viewport.left() + (viewport.width() - content_size.x) / 2.0,
+            viewport.top() + (viewport.height() - content_size.y) / 2.0,
+        );
+        return Rect::from_min_size(
+            pos2(origin.x.max(viewport.left()), origin.y.max(viewport.top())),
+            content_size,
+        );
+    }
     let mut origin = match placement {
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
+        Placement::Center => unreachable!("a centred overlay is placed above"),
     };
     if origin.x + content_size.x > viewport.right() {
         origin.x = match placement {
             Placement::RightStart => anchor_rect.left() - content_size.x,
-            Placement::BelowStart => (viewport.right() - content_size.x).max(viewport.left()),
+            Placement::BelowStart | Placement::Center => {
+                (viewport.right() - content_size.x).max(viewport.left())
+            }
         };
     }
     if origin.y + content_size.y > viewport.bottom() {
         origin.y = match placement {
             Placement::BelowStart => anchor_rect.top() - content_size.y,
-            Placement::RightStart => (viewport.bottom() - content_size.y).max(viewport.top()),
+            Placement::RightStart | Placement::Center => {
+                (viewport.bottom() - content_size.y).max(viewport.top())
+            }
         };
     }
     origin.x = origin.x.max(viewport.left());
@@ -129,15 +148,18 @@ impl Element for OverlayNode {
 
     fn paint(
         &self,
-        _doc: &Document,
-        _painter: &Painter,
+        doc: &Document,
+        painter: &Painter,
         _rects: &HashMap<NodeId, Rect>,
         _rect: Rect,
     ) {
+        if self.paints() {
+            painter.rect_filled(doc.viewport_rect(), 0.0, self.dim);
+        }
     }
 
     fn paints(&self) -> bool {
-        false
+        self.open && self.dim.alpha() > 0
     }
 
     fn interact(
@@ -184,6 +206,7 @@ impl Element for OverlayNode {
 pub(crate) fn Overlay(
     anchor: Prop<OverlayAnchor>,
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     #[prop(default = true)] traps_focus: Prop<bool>,
     open: Prop<bool>,
     on_dismiss: ClickCallback,
@@ -205,6 +228,9 @@ pub(crate) fn Overlay(
     });
     create_effect(move || {
         with_document(|document| document.set_overlay_placement(overlay, placement.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_overlay_scrim(overlay, scrim.get()))
     });
     create_effect(move || {
         with_document(|document| document.set_overlay_traps_focus(overlay, traps_focus.get()))
@@ -247,6 +273,12 @@ impl Document {
 
     pub(crate) fn set_overlay_anchor(&mut self, overlay: NodeId, anchor: OverlayAnchor) {
         self.arena.get_mut_as::<OverlayNode>(overlay).anchor = anchor;
+    }
+
+    pub(crate) fn set_overlay_scrim(&mut self, overlay: NodeId, color: Color32) {
+        if self.arena.get_as::<OverlayNode>(overlay).dim != color {
+            self.arena.get_mut_as::<OverlayNode>(overlay).dim = color;
+        }
     }
 
     pub(crate) fn set_overlay_placement(&mut self, overlay: NodeId, placement: Placement) {

@@ -1,10 +1,11 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use block_editor_plugin::block_ui::{BlockTypeEntry, ChildEdits};
+use block_editor_plugin::block_ui::{BlockCatalog, BlockTypeEntry, ChildEdits};
 
 use super::*;
 
-mod access_mode_icon_marks_limited_access;
+mod access_marker_marks_limited_access;
 mod deleting_needs_a_container_that_can_delete_children;
 mod unlinking_needs_a_container_that_can_replace_a_child;
 
@@ -22,10 +23,8 @@ fn catalog(edits: ChildEdits) -> BlockCatalog {
     )])
 }
 
-fn app() -> FileTreeApp {
-    let mut app = FileTreeApp::default();
-    app.block_types.insert(CONTAINER, LISTED);
-    app
+fn block_types() -> HashMap<Uuid, Uuid> {
+    [(CONTAINER, LISTED)].into_iter().collect()
 }
 
 fn client() -> Arc<BlockClient> {
