@@ -19,6 +19,7 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) repeat_drag: bool,
     pub(crate) key_active: bool,
     pub(crate) hovered: bool,
+    pub(crate) hover_pos: Option<Pos2>,
     pub(crate) active: bool,
     pub(crate) dragged: Option<Pos2>,
     pub(crate) pan_active: bool,
@@ -26,6 +27,7 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) on_click: ClickCallback,
     pub(crate) on_click_at: Callback<PointerPress>,
     pub(crate) on_hover_change: Callback<bool>,
+    pub(crate) on_hover_move: Callback<PointerPress>,
     pub(crate) on_active_change: Callback<bool>,
     pub(crate) on_press: Callback<PointerPress>,
     pub(crate) on_secondary_press: Callback<PointerPress>,
@@ -47,6 +49,7 @@ impl ClickCatcherNode {
             repeat_drag: false,
             key_active: false,
             hovered: false,
+            hover_pos: None,
             active: false,
             dragged: None,
             pan_active: false,
@@ -54,6 +57,7 @@ impl ClickCatcherNode {
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
+            on_hover_move: Callback::empty(),
             on_active_change: Callback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
@@ -224,6 +228,14 @@ impl Element for ClickCatcherNode {
             self.hovered = hovered;
             self.on_hover_change.call(hovered);
         }
+        let at = hovered.then_some(input.pointer_pos).flatten();
+        if at != self.hover_pos {
+            self.hover_pos = at;
+            if let Some(pos) = at {
+                let press = self.press(input, rect, pos);
+                self.on_hover_move.call(press);
+            }
+        }
         let active = self.is_active();
         if active != self.active {
             self.active = active;
@@ -348,6 +360,7 @@ pub fn ClickCatcher(
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
+    on_hover_move: Callback<PointerPress>,
     on_active_change: Callback<bool>,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
@@ -365,6 +378,7 @@ pub fn ClickCatcher(
         node.on_click = on_click;
         node.on_click_at = on_click_at;
         node.on_hover_change = on_hover_change;
+        node.on_hover_move = on_hover_move;
         node.on_active_change = on_active_change;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;

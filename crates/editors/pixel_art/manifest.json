@@ -18,10 +18,5 @@
     "Preview",
     "ArtifactSettings"
   ],
-  "chrome": [
-    "Toolbar",
-    "LeftSidebar",
-    "RightSidebar"
-  ],
   "entry_point": "pixel_art.wasm"
 }

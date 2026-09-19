@@ -4,13 +4,22 @@ use beui_macros::{component, view};
 use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{Callback, Frame, Prop, Text, clone, create_memo};
-use crate::styled::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::reactive::{
+    Align, Callback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+};
+use crate::styled::text::IconSized;
+use crate::styled::theme::{FONT_BODY, ICON_SIZE, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
 
 #[component]
-pub fn ToggleButton(label: Prop<String>, pressed: Prop<bool>, on_change: Callback<bool>) -> NodeId {
+pub fn ToggleButton(
+    label: Prop<String>,
+    pressed: Prop<bool>,
+    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    on_change: Callback<bool>,
+) -> NodeId {
     let label_text = create_memo(move || label.get());
     let accessibility = create_memo({
         let label_text = label_text.clone();
@@ -23,23 +32,38 @@ pub fn ToggleButton(label: Prop<String>, pressed: Prop<bool>, on_change: Callbac
     });
 
     view! {
-        <Toggle checked={pressed} accessibility on_change={move |pressed| on_change.call(pressed)}>
+        <Toggle
+            checked={pressed}
+            disabled={disabled}
+            accessibility
+            on_change={move |pressed| on_change.call(pressed)}
+        >
             {move |handle| view! {
-                <ToggleButtonFace handle label={label_text} />
+                <ToggleButtonFace handle label={label_text} glyph={glyph} />
             }}
         </Toggle>
     }
 }
 
 #[component]
-fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
+fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>, glyph: Prop<String>) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
         focused,
+        disabled,
         ..
     } = handle;
     let theme = use_theme();
+    let glyph_text = create_memo(move || glyph.get());
+    let has_glyph = create_memo(clone!(glyph_text -> move || !glyph_text.get().is_empty()));
+    let label_text = create_memo(move || label.get());
+    let named = create_memo(clone!(has_glyph -> move || !has_glyph.get()));
+    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        true => theme.text_muted.get(),
+        false => theme.text.get(),
+    }));
+    let icon_color = text_color.clone();
     let fill_color = create_memo(
         clone!(checked theme -> move || fill_for(&theme, checked.get(), hovered.get())),
     );
@@ -69,7 +93,14 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                 padding_horizontal=14.0
                 padding_vertical=8.0
             >
-                <Text string={label} font_size=FONT_BODY color={theme.text.clone()} />
+                <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                    <Show condition={has_glyph}>
+                        <IconSized glyph={glyph_text} font_size=ICON_SIZE color={icon_color} />
+                    </Show>
+                    <Show condition={named}>
+                        <Text string={label_text} font_size=FONT_BODY color={text_color} />
+                    </Show>
+                </List>
             </Frame>
         </Frame>
     }
