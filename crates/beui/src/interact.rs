@@ -122,19 +122,45 @@ pub(crate) fn interact(
             ..input
         },
     };
+    let mut pool = doc.take_interact_pool();
     if doc.overlay_stack.is_empty() {
-        interact_node(doc, painter, &under, rects, root, &mut focus_target);
+        interact_node(
+            doc,
+            painter,
+            &under,
+            rects,
+            root,
+            &mut focus_target,
+            &mut pool,
+        );
     } else {
         for overlay in doc.overlay_stack.clone() {
-            interact_node(doc, painter, &under, rects, overlay, &mut focus_target);
+            interact_node(
+                doc,
+                painter,
+                &under,
+                rects,
+                overlay,
+                &mut focus_target,
+                &mut pool,
+            );
         }
     }
     for overlay in doc.floating_overlays() {
         let Some(content) = doc.overlay_content(overlay) else {
             continue;
         };
-        interact_node(doc, painter, &input, rects, content, &mut focus_target);
+        interact_node(
+            doc,
+            painter,
+            &input,
+            rects,
+            content,
+            &mut focus_target,
+            &mut pool,
+        );
     }
+    doc.put_back_interact_pool(pool);
 
     if doc.pointer_capture.is_none()
         && ((input.pressed_this_frame && !input.touch_started)
@@ -290,17 +316,21 @@ fn interact_node(
     rects: &NodeMap<Rect>,
     id: NodeId,
     focus_target: &mut Option<NodeId>,
+    pool: &mut Vec<Vec<NodeId>>,
 ) {
     let Some(&rect) = rects.get(&id) else {
         return;
     };
+    let mut children = pool.pop().unwrap_or_default();
     let mut element = doc.arena.take(id);
-    let children = element.interact(doc, painter, input, id, rect, focus_target);
+    element.interact(doc, painter, input, id, rect, focus_target, &mut children);
     doc.arena.put_back(id, element);
 
-    for child in children {
+    for &child in &children {
         if rects.contains_key(&child) {
-            interact_node(doc, painter, input, rects, child, focus_target);
+            interact_node(doc, painter, input, rects, child, focus_target, pool);
         }
     }
+    children.clear();
+    pool.push(children);
 }

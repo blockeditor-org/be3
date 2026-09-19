@@ -50,6 +50,7 @@ pub struct Document {
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
+    interact_pool: Vec<Vec<NodeId>>,
     placed_pass: NodeMap<u64>,
     layout_pass: u64,
     viewport: Option<(Context, Rect, f32)>,
@@ -171,6 +172,7 @@ impl Document {
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
+            interact_pool: Vec::new(),
             placed_pass: NodeMap::default(),
             layout_pass: 0,
             viewport: None,
@@ -936,6 +938,14 @@ impl Document {
         let mut rects = std::mem::take(&mut self.rects);
         self.drop_placement(id, Rc::make_mut(&mut rects));
         self.rects = rects;
+    }
+
+    pub(crate) fn take_interact_pool(&mut self) -> Vec<Vec<NodeId>> {
+        std::mem::take(&mut self.interact_pool)
+    }
+
+    pub(crate) fn put_back_interact_pool(&mut self, pool: Vec<Vec<NodeId>>) {
+        self.interact_pool = pool;
     }
 
     pub(crate) fn note_placed(&mut self, id: NodeId) {

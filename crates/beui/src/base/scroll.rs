@@ -1,6 +1,7 @@
 use crate::color::Color32;
 use crate::input::{Key, KeyPress};
 use std::any::Any;
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -76,12 +77,20 @@ impl ChildHost for ScrollNode {
 
     fn children_changed(&mut self) {
         self.anchor = None;
+        self.lengths.get_mut().take();
     }
+}
+
+struct CachedLengths {
+    cross: u32,
+    items: usize,
+    values: Vec<f32>,
 }
 
 pub(crate) struct ScrollNode {
     pub(crate) direction: Direction,
     pub(crate) items: ChildList<NodeId>,
+    lengths: RefCell<Option<CachedLengths>>,
     pub(crate) virtual_items: Option<VirtualItems>,
     pub(crate) offset: f32,
     overscroll: f32,
@@ -101,6 +110,7 @@ impl ScrollNode {
         Self {
             direction: Direction::Vertical,
             items: ChildList::default(),
+            lengths: RefCell::new(None),
             virtual_items: None,
             offset: 0.0,
             overscroll: 0.0,
@@ -117,10 +127,25 @@ impl ScrollNode {
     }
 
     fn lengths(&self, doc: &mut Document, painter: &Painter, cross: f32) -> Vec<f32> {
-        self.items
-            .iter()
-            .map(|&item| length(doc, painter, item, self.direction, cross))
-            .collect()
+        let (cross_bits, items) = (cross.to_bits(), self.items.len());
+        let mut held = self.lengths.borrow_mut();
+        let reusable = held
+            .as_ref()
+            .is_some_and(|held| held.cross == cross_bits && held.items == items);
+        if !reusable {
+            *held = Some(CachedLengths {
+                cross: cross_bits,
+                items,
+                values: vec![f32::NAN; items],
+            });
+        }
+        let cached = held.as_mut().expect("the cache was just filled");
+        for (index, &item) in self.items.iter().enumerate() {
+            if cached.values[index].is_nan() || doc.arena.stale(item) {
+                cached.values[index] = length(doc, painter, item, self.direction, cross);
+            }
+        }
+        cached.values.clone()
     }
 
     fn nodes(&self) -> Vec<NodeId> {
@@ -429,7 +454,8 @@ impl Element for ScrollNode {
         id: NodeId,
         rect: Rect,
         focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
+        children: &mut Vec<NodeId>,
+    ) {
         let accepts_focus = (input.pressed_this_frame && !input.touch_started)
             || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled);
         if accepts_focus && input.pointer_pos.is_some_and(|pos| rect.contains(pos)) {
@@ -480,7 +506,7 @@ impl Element for ScrollNode {
             painter.ctx().request_repaint();
         }
 
-        self.nodes()
+        children.extend(self.items.iter().copied());
     }
 
     fn children(&self) -> Vec<NodeId> {

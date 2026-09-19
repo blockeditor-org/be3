@@ -192,8 +192,9 @@ impl Element for FrameNode {
         _id: NodeId,
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
-        self.shown().into_iter().collect()
+        children: &mut Vec<NodeId>,
+    ) {
+        children.extend(self.shown());
     }
 
     fn children(&self) -> Vec<NodeId> {

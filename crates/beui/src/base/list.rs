@@ -300,8 +300,9 @@ impl Element for ListNode {
         _id: NodeId,
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
-        self.items.nodes()
+        children: &mut Vec<NodeId>,
+    ) {
+        children.extend(self.items.iter().map(ChildItem::node));
     }
 
     fn children(&self) -> Vec<NodeId> {

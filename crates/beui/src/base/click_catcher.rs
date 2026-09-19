@@ -172,7 +172,8 @@ impl Element for ClickCatcherNode {
         id: NodeId,
         rect: Rect,
         _focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
+        children: &mut Vec<NodeId>,
+    ) {
         if !input.pointer_down && !input.released_this_frame {
             self.armed = false;
             self.dragged = None;
@@ -274,7 +275,7 @@ impl Element for ClickCatcherNode {
             });
         }
 
-        self.child.into_iter().collect()
+        children.extend(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {

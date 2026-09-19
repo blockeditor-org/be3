@@ -907,9 +907,10 @@ impl Element for Counted {
         id: NodeId,
         rect: Rect,
         focus_target: &mut Option<NodeId>,
-    ) -> Vec<NodeId> {
+        children: &mut Vec<NodeId>,
+    ) {
         self.inner
-            .interact(doc, painter, input, id, rect, focus_target)
+            .interact(doc, painter, input, id, rect, focus_target, children)
     }
 
     fn children(&self) -> Vec<NodeId> {
@@ -961,6 +962,7 @@ mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;
 mod a_panel_between_two_damaged_ones_is_left_alone;
 mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
+mod a_scroll_only_re_measures_the_row_that_changed;
 mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
 mod caret_repaints_on_a_deadline_without_repeating_layout;
