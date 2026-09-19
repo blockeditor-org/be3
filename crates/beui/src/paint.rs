@@ -83,7 +83,7 @@ fn replay(doc: &Document, ctx: &Context, id: NodeId, rect: Rect, base: usize) ->
     let Some(painted) = cache.get(id) else {
         return false;
     };
-    if painted.bounds.union(rect).intersects(doc.paint_region()) {
+    if doc.paint_region().intersects(painted.bounds.union(rect)) {
         return false;
     }
     let Some(shapes) = doc.painted_shapes(base, painted.main.len()) else {

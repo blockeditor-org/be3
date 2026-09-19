@@ -1,7 +1,9 @@
 use super::*;
 
-mod damage_is_the_union_of_the_rectangles_it_was_given;
+mod damage_far_apart_stays_in_separate_regions;
+mod damage_that_overlaps_what_is_held_merges_into_it;
 mod damaging_everything_covers_the_whole_viewport;
+mod more_damage_than_there_are_regions_merges_the_cheapest_pair;
 mod taking_the_damage_clips_it_and_starts_again;
 mod the_bounds_of_a_shape_stop_at_its_clip_rectangle;
 
