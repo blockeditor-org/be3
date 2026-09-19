@@ -17,6 +17,7 @@ use crate::node::NodeId;
 
 pub(crate) const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
 const DOCUMENT_SHIFT: u32 = 32;
+const FALLBACK_NUMERIC_STEP: f64 = 0.05;
 static NEXT_DOCUMENT_ID: AtomicU32 = AtomicU32::new(1);
 
 #[derive(Clone)]
@@ -252,12 +253,13 @@ impl Document {
                     self.text_focused(&value);
                 }
                 (Some(focusable), Some(ActionData::NumericValue(value))) => {
-                    let current = self
-                        .accessibility
-                        .get(&target)
-                        .and_then(Node::numeric_value)
-                        .unwrap_or(value);
-                    self.step_focusable(focusable, ((value - current) / 0.05) as f32);
+                    let node = self.accessibility.get(&target);
+                    let current = node.and_then(Node::numeric_value).unwrap_or(value);
+                    let step = node
+                        .and_then(Node::numeric_value_step)
+                        .filter(|step| step.is_finite() && *step > 0.0)
+                        .unwrap_or(FALLBACK_NUMERIC_STEP);
+                    self.step_focusable(focusable, ((value - current) / step) as f32);
                 }
                 _ => {}
             },

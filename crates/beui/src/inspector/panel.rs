@@ -22,7 +22,7 @@ use crate::styled::{
     Separator, Slider, Tabs, Theme, Tree,
 };
 use crate::unstyled;
-use crate::unstyled::{ChoiceOption, TreeItem};
+use crate::unstyled::{ChoiceOption, SliderScale, TreeItem};
 
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
@@ -41,6 +41,7 @@ const CLOSE_PADDING: f32 = 3.0;
 const CLOSE_ICON_SIZE: f32 = 16.0;
 const PERFORMANCE_SPACING: f32 = 10.0;
 const TIMING_SPACING: f32 = 4.0;
+const BLUR_MIDPOINT: f32 = 12.0;
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("Native", None),
     ("1x", Some(1.0)),
@@ -480,6 +481,7 @@ fn FilterSection(state: Rc<State>) -> NodeId {
                 value={state.blur.get()}
                 min=0.0
                 max=MAX_BLUR
+                scale={SliderScale::Midpoint(BLUR_MIDPOINT)}
                 on_change={move |value| {
                     blur_state.set_blur(value);
                     set_blur_text.set(blur_label(value));
@@ -511,7 +513,11 @@ fn FilterSection(state: Rc<State>) -> NodeId {
 }
 
 fn blur_label(radius: f32) -> String {
-    format!("Blur: {} px", radius.round())
+    if radius < BLUR_MIDPOINT {
+        format!("Blur: {radius:.1} px")
+    } else {
+        format!("Blur: {} px", radius.round())
+    }
 }
 
 fn contrast_label(amount: f32) -> String {

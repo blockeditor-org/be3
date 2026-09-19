@@ -11,8 +11,8 @@ use beui::styled::{
     Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, use_theme,
 };
 use beui::unstyled::{
-    ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, TreeItem,
-    narrower_than, shorter_than,
+    ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
+    SliderScale, TreeItem, narrower_than, shorter_than,
 };
 use beui::{
     Color32, Context, Direction, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign,
@@ -31,6 +31,7 @@ const BODY_PADDING: f32 = 20.0;
 const COMPACT_PADDING: f32 = 12.0;
 const ZOOM_MIN: f32 = 0.5;
 const ZOOM_MAX: f32 = 3.0;
+const ZOOM_MIDPOINT: f32 = 1.0;
 const BODY_SPACING: f32 = 20.0;
 const SHORT_HEIGHT: f32 = 900.0;
 const CARD_NARROW_WIDTH: f32 = 460.0;
@@ -766,6 +767,7 @@ fn LoadControls() -> NodeId {
                 value={zoom}
                 min=ZOOM_MIN
                 max=ZOOM_MAX
+                scale={SliderScale::Midpoint(ZOOM_MIDPOINT)}
                 label="Zoom"
                 on_change={move |value| set_zoom.set(value)}
             />
