@@ -61,13 +61,14 @@ pub fn IconButton(
     let disabled = create_memo(move || disabled.get());
     let face = disabled.clone();
     let glyph = create_memo(move || glyph.get());
+    let label = create_memo(clone!(label -> move || label.get()));
     view! {
-        <Tooltip label={label}>
-            <unstyled::Button
-                disabled
-                accessibility
-                on_click={move || on_click.call()}
-                content={move |handle| view! {
+        <unstyled::Button
+            disabled
+            accessibility
+            on_click={move || on_click.call()}
+            content={move |handle| view! {
+                <Tooltip label={label.clone()}>
                     <IconButtonFace
                         handle
                         variant
@@ -75,9 +76,9 @@ pub fn IconButton(
                         glyph={glyph.clone()}
                         disabled={face.clone()}
                     />
-                }}
-            />
-        </Tooltip>
+                </Tooltip>
+            }}
+        />
     }
 }
 

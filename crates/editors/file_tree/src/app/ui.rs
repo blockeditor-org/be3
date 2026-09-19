@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use block::BlockParent;
-use block_editor_plugin::beui::NodeId;
+use block_editor_plugin::beui::{NodeId, PointerPress, Pos2};
 use block_editor_plugin::beui::icons::{ICON_ADD, ICON_AUTO_AWESOME, ICON_MY_LOCATION};
 use block_editor_plugin::beui::reactive::{
     Align, ClickCatcher, Direction, Frame, ItemSize, List, Memo, NodeRef, Scroll, Show, Spacer,
@@ -21,6 +21,7 @@ use super::rows::{Row, RowKey, Tree as FileTree, access_hint, access_marker};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 6.0;
+const DRAG_THRESHOLD: f32 = 6.0;
 
 #[component]
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
@@ -176,6 +177,25 @@ fn TreeRow(
         }));
         editor.host().drag_block(id, shown.block_type);
     });
+    let gesture: Rc<std::cell::Cell<Option<(Pos2, bool)>>> = Rc::default();
+    let pressed = clone!(gesture -> move |press: PointerPress| {
+        gesture.set(Some((press.pos, false)));
+    });
+    let moved = clone!(gesture -> move |at: PointerPress| {
+        let Some((origin, started)) = gesture.get() else {
+            return;
+        };
+        if started || (at.pos - origin).length() < DRAG_THRESHOLD {
+            return;
+        }
+        gesture.set(Some((origin, true)));
+        start();
+    });
+    let settled = clone!(gesture -> move |active: bool| {
+        if !active {
+            gesture.set(None);
+        }
+    });
     let arriving = arrival(&editor, rect.clone(), held, row.clone());
     let welcome = create_memo(clone!(arriving -> move || arriving.get() == Some(true)));
     let refused = create_memo(clone!(arriving -> move || arriving.get() == Some(false)));
@@ -258,7 +278,11 @@ fn TreeRow(
     view! {
         <ContextMenu items={items} on_select={chose}>
             <Frame outline={outline} outline_width=1.0 outline_visible={hovered} radius=3>
-                <ClickCatcher on_drag={move |_| start()}>
+                <ClickCatcher
+                    on_press={pressed}
+                    on_drag={moved}
+                    on_active_change={settled}
+                >
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                         <Show condition={has_glyph}>
                             <IconSized

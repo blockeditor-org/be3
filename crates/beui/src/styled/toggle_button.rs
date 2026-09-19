@@ -9,6 +9,7 @@ use crate::reactive::{
 };
 use crate::styled::text::IconSized;
 use crate::styled::theme::{FONT_BODY, ICON_SIZE, RADIUS, ThemeStore, use_theme};
+use crate::styled::tooltip::Tooltip;
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
 
@@ -17,10 +18,13 @@ pub fn ToggleButton(
     label: Prop<String>,
     pressed: Prop<bool>,
     #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<bool>,
 ) -> NodeId {
-    let label_text = create_memo(move || label.get());
+    let label_text = create_memo(clone!(label -> move || label.get()));
+    let icon_only = create_memo(move || icon_only.get());
+    let named = create_memo(clone!(icon_only -> move || !icon_only.get()));
     let accessibility = create_memo({
         let label_text = label_text.clone();
         move || {
@@ -39,14 +43,26 @@ pub fn ToggleButton(
             on_change={move |pressed| on_change.call(pressed)}
         >
             {move |handle| view! {
-                <ToggleButtonFace handle label={label_text} glyph={glyph} />
+                <Tooltip label={label} disabled={named}>
+                    <ToggleButtonFace
+                        handle
+                        label={label_text}
+                        glyph={glyph}
+                        icon_only={icon_only}
+                    />
+                </Tooltip>
             }}
         </Toggle>
     }
 }
 
 #[component]
-fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>, glyph: Prop<String>) -> NodeId {
+fn ToggleButtonFace(
+    handle: ToggleHandle,
+    label: Prop<String>,
+    glyph: Prop<String>,
+    icon_only: Prop<bool>,
+) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
@@ -58,7 +74,7 @@ fn ToggleButtonFace(handle: ToggleHandle, label: Prop<String>, glyph: Prop<Strin
     let glyph_text = create_memo(move || glyph.get());
     let has_glyph = create_memo(clone!(glyph_text -> move || !glyph_text.get().is_empty()));
     let label_text = create_memo(move || label.get());
-    let named = create_memo(clone!(has_glyph -> move || !has_glyph.get()));
+    let named = create_memo(move || !icon_only.get());
     let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
