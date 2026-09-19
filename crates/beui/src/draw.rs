@@ -2,6 +2,7 @@ use crate::color::Color32;
 use crate::context::FrameOutput;
 use crate::font::Glyph;
 use crate::geometry::{Rect, vec2};
+use crate::image::Image;
 use crate::painter::Shape;
 
 pub enum Quad {
@@ -17,6 +18,14 @@ pub enum Quad {
         clip: [f32; 4],
         color: Color32,
         glyph: Glyph,
+    },
+    Image {
+        rect: [f32; 4],
+        clip: [f32; 4],
+        image: Image,
+        tint: Color32,
+        corner_radius: f32,
+        smooth: bool,
     },
     Punch {
         rect: [f32; 4],
@@ -85,6 +94,26 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
                         glyph: glyph.clone(),
                     });
                 }
+            }
+            Shape::Image {
+                rect,
+                image,
+                tint,
+                corner_radius,
+                smooth,
+                clip,
+            } => {
+                if !rect.is_positive() {
+                    continue;
+                }
+                quads.push(Quad::Image {
+                    rect: snapped(*rect, pixels_per_point),
+                    clip: bounds(*clip, pixels_per_point),
+                    image: image.clone(),
+                    tint: *tint,
+                    corner_radius: corner_radius * pixels_per_point,
+                    smooth: *smooth,
+                });
             }
             Shape::Punch {
                 rect,

@@ -3759,8 +3759,10 @@ dependencies = [
 name = "image_block"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block-client",
  "block-editor-plugin",
+ "block-ui-test",
  "image",
  "uuid",
 ]

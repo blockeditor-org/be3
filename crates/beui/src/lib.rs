@@ -14,6 +14,7 @@ mod flash;
 mod font;
 mod geometry;
 pub mod icons;
+mod image;
 mod input;
 mod inspector;
 mod interact;
@@ -42,6 +43,7 @@ pub use draw::{Quad, Quads, quads};
 pub use filter::{ColorVision, Filter, MAX_BLUR};
 pub use font::{FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
+pub use image::{Image, ImageFit, ImageId};
 pub use input::{
     CursorIcon, Event, InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,
     TouchId, TouchPhase, TouchPoint, TouchState,

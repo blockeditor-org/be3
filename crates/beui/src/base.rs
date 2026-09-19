@@ -6,6 +6,7 @@ pub(crate) mod focusable;
 pub(crate) mod frame;
 pub(crate) mod list;
 pub(crate) mod overlay;
+pub(crate) mod picture;
 pub(crate) mod scroll;
 pub(crate) mod text;
 

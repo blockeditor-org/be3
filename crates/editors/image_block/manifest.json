@@ -17,8 +17,5 @@
     "Frame",
     "Preview"
   ],
-  "chrome": [
-    "RightSidebar"
-  ],
   "entry_point": "image_block.wasm"
 }
