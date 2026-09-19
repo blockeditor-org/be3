@@ -4,7 +4,7 @@ use crate::base::{Align, Direction};
 use crate::color::Color32;
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Frame, ItemSize, List, Prop, clone, create_effect, create_memo, create_signal,
+    Callback, Frame, ItemSize, List, Prop, clone, create_effect, create_signal,
 };
 use crate::styled::text_input::TextInput;
 use crate::styled::theme::{RADIUS, use_theme};
@@ -21,11 +21,8 @@ pub fn ColorInput(
     on_change: Callback<Color32>,
 ) -> NodeId {
     let (text, set_text) = create_signal(format_color(value.peek()));
-    let shown = create_memo(clone!(text -> move || text.get()));
-    let swatch = create_memo(move || value.get());
-    let current = swatch.clone();
-    create_effect(clone!(text set_text -> move || {
-        let next = current.get();
+    create_effect(clone!(value text set_text -> move || {
+        let next = value.get();
         let held = text.get_untracked();
         if parse_color(&held) != Some(next) {
             set_text.set(format_color(next));
@@ -43,7 +40,7 @@ pub fn ColorInput(
             <Frame
                 @sizing=ItemSize::Fixed(SWATCH_WIDTH)
                 height=SWATCH_HEIGHT
-                color={swatch}
+                color={value}
                 outline={theme.border.clone()}
                 outline_width=1.0
                 outline_visible=true
@@ -51,7 +48,7 @@ pub fn ColorInput(
             />
             <TextInput
                 @sizing=ItemSize::Percent(100.0)
-                value={shown}
+                value={text}
                 label={label}
                 placeholder="#RRGGBBAA"
                 disabled={disabled}

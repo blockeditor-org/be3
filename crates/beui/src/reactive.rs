@@ -473,7 +473,16 @@ impl<H, C> IntoRenderFn<H, C> for RenderFn<H, C> {
 
 pub enum Prop<T> {
     Static(T),
-    Dynamic(Box<dyn Fn() -> T>),
+    Dynamic(Rc<dyn Fn() -> T>),
+}
+
+impl<T: Clone> Clone for Prop<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Prop::Static(value) => Prop::Static(value.clone()),
+            Prop::Dynamic(read) => Prop::Dynamic(Rc::clone(read)),
+        }
+    }
 }
 
 impl<T: 'static> Prop<T> {
@@ -497,7 +506,7 @@ impl<T: 'static> Prop<T> {
     pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Prop<U> {
         match self {
             Prop::Static(value) => Prop::Static(f(value)),
-            Prop::Dynamic(read) => Prop::Dynamic(Box::new(move || f(read()))),
+            Prop::Dynamic(read) => Prop::Dynamic(Rc::new(move || f(read()))),
         }
     }
 }
@@ -526,13 +535,13 @@ impl<T: 'static> IntoProp<T> for Prop<T> {
 
 impl<T: Clone + 'static> IntoProp<T> for ReadSignal<T> {
     fn into_prop(self) -> Prop<T> {
-        Prop::Dynamic(Box::new(move || self.get()))
+        Prop::Dynamic(Rc::new(move || self.get()))
     }
 }
 
 impl<T: Clone + PartialEq + 'static> IntoProp<T> for Memo<T> {
     fn into_prop(self) -> Prop<T> {
-        Prop::Dynamic(Box::new(move || self.get()))
+        Prop::Dynamic(Rc::new(move || self.get()))
     }
 }
 
@@ -942,7 +951,7 @@ impl<C: SlotChild> Run<C> {
 
 impl<C: SlotChild> IntoProp<Vec<C::Stored>> for Run<C> {
     fn into_prop(self) -> Prop<Vec<C::Stored>> {
-        Prop::Dynamic(Box::new(move || self.items()))
+        Prop::Dynamic(Rc::new(move || self.items()))
     }
 }
 
