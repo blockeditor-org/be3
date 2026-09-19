@@ -6,6 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 wasi_sysroot=''
 profile='debug'
+with_plugins=true
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --wasi-sysroot)
@@ -14,6 +15,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --release)
             profile='release'
+            shift
+            ;;
+        --no-plugins)
+            with_plugins=false
             shift
             ;;
         *)
@@ -60,18 +65,19 @@ rm -rf "$output_directory"
 mkdir -p "$output_directory"
 
 # The games are compiled for a target of their own, before the WASI toolchain
-# below is exported over the environment the rest of the build runs in.
-build_games "$profile"
+# below is exported over the environment the rest of the build runs in. Nothing
+# in the bundle is a game, so this only says they still compile, which is what
+# --no-plugins leaves to the build that produces the modules.
+if $with_plugins; then
+    build_games "$profile"
+fi
 
-# The plugins built below export the same toolchain for a cargo call of their
-# own, so where the sysroot comes from and what it is linked with lives in one
-# place rather than being spelled out again here.
+# The app is a WASI module too, so it is built against the same sysroot a
+# plugin is. The plugins below export this again for a cargo call of their own,
+# so where the sysroot comes from and what it is linked with lives in one place
+# rather than being spelled out again there.
 export_wasi_toolchain "$wasi_sysroot"
 
-# The app links wgpu's real backends and a plugin links only the custom one, so
-# they are separate cargo calls; a single call would unify the two and leave the
-# guest carrying a backend it cannot use.
-load_plugins
 # The terminal emulator the debug terminal window is built on, as a freestanding
 # WebAssembly archive the app's own module links in. Only a full build has a
 # terminal, so only a full build needs Zig to cross-compile one.
@@ -146,9 +152,24 @@ generate_from "$repository/target/wasm32-unknown-unknown/$profile" block_gpu_shi
 await_bindings
 end_step
 
-build_plugin_wasm "$profile" "$output_directory"
-stage_plugin_manifests "$output_directory"
-write_plugin_index "$output_directory"
+# The app links wgpu's real backends and a plugin links only the custom one, so
+# they are separate cargo calls; a single call would unify the two and leave the
+# guest carrying a backend it cannot use.
+#
+# The modules are the same bytes every platform loads, so --no-plugins leaves
+# them to the one build that produces them for all of them rather than
+# compiling them again here.
+if $with_plugins; then
+    load_plugins
+    build_plugin_wasm "$profile" "$output_directory"
+    stage_plugin_manifests "$output_directory"
+    write_plugin_index "$output_directory"
+else
+    # An index of nothing rather than no index. Discovery reports a bundle
+    # whose plugins.json it cannot fetch as an error, and a bundle built
+    # without plugins has none to find rather than something wrong with it.
+    write_index "$output_directory/plugins.json"
+fi
 
 step 'Assembling the bundle'
 cp "$internal/web/index.html" "$output_directory"
