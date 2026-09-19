@@ -442,6 +442,10 @@ impl Editor {
         self.0.drag.clone()
     }
 
+    pub fn request_repaint(&self) {
+        self.0.host.request_repaint();
+    }
+
     pub fn accept_drag(&self, accepted: bool) {
         self.0.host.accept_drag(accepted);
     }
