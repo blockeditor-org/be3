@@ -33,11 +33,13 @@ pub struct TreeRowHandle<K> {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
+    pub toggle: Rc<dyn Fn()>,
 }
 
 struct State<K> {
     keys: Memo<Vec<K>>,
     item: Func<K, TreeItem>,
+    expand_on_select: Memo<bool>,
     focus: ReadSignal<Option<K>>,
     set_focus: WriteSignal<Option<K>>,
     on_select: Callback<K>,
@@ -56,6 +58,7 @@ pub fn Tree<K>(
     selected: Prop<Option<K>>,
     #[prop(default = None)] reveal: Prop<Option<K>>,
     #[prop(default = 0.0)] spacing: f32,
+    #[prop(default = true)] expand_on_select: Prop<bool>,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_hover_change: Callback<(K, bool)>,
@@ -81,9 +84,11 @@ where
 
     component_accessibility(Node::new(Role::Tree));
 
+    let expand_on_select = create_memo(move || expand_on_select.get());
     let state: Handle<K> = Rc::new(State {
         keys: keys.clone(),
         item: item.clone(),
+        expand_on_select,
         focus: focus.clone(),
         set_focus,
         on_select,
@@ -170,7 +175,9 @@ where
         key.clone(),
         key.clone(),
     );
-    let (nodes_key, cleanup_key) = (key.clone(), key.clone());
+    let (nodes_key, cleanup_key, toggle_key) = (key.clone(), key.clone(), key.clone());
+    let toggling = state.clone();
+    let expand: Rc<dyn Fn()> = Rc::new(move || toggle(&toggling, &toggle_key));
     let built = view! {
         <unstyled::Button
             tab_stop={tab_stop.memo(Some(key.clone()))}
@@ -192,6 +199,7 @@ where
                     hovered: button.hovered,
                     active: button.active,
                     focused: button.focused,
+                    toggle: expand,
                 })
             }}
         />
@@ -227,6 +235,15 @@ where
 {
     state.set_focus.set(Some(key.clone()));
     state.on_select.call(key.clone());
+    if untrack(|| state.expand_on_select.get()) {
+        toggle(state, key);
+    }
+}
+
+fn toggle<K>(state: &State<K>, key: &K)
+where
+    K: Clone + Eq + Hash + 'static,
+{
     let item = untrack(|| state.item.call(key.clone()));
     if item.expandable {
         state.on_expand.call((key.clone(), !item.expanded));

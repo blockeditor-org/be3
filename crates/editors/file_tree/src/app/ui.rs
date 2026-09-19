@@ -3,18 +3,21 @@ use std::rc::Rc;
 
 use block::BlockParent;
 use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::TextAlign;
 use block_editor_plugin::beui::icons::{ICON_ADD, ICON_AUTO_AWESOME, ICON_MY_LOCATION};
 use block_editor_plugin::beui::reactive::{
     Align, ClickCatcher, Direction, Frame, ItemSize, List, Memo, NodeRef, Scroll, Show, Spacer,
     clone, component, component_rect, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, ContextMenu, IconButton, Tree, use_theme};
+use block_editor_plugin::beui::styled::theme::FONT_SMALL;
+use block_editor_plugin::beui::styled::{
+    Body, ButtonVariant, Caption, ContextMenu, IconButton, IconButtonSize, IconSized, Tooltip,
+    Tree, use_theme,
+};
 use block_editor_plugin::beui::unstyled::{MenuItem, TreeItem};
 use block_editor_plugin::{BlockFilter, BlockPicker, BlockSource, Editor, Toolbar};
 use uuid::Uuid;
 
-use super::rows::{Row, RowKey, Tree as FileTree, access_marker};
+use super::rows::{Row, RowKey, Tree as FileTree, access_hint, access_marker};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 6.0;
@@ -124,6 +127,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 selected={selected}
                                 reveal={reveal}
                                 spacing=2.0
+                                expand_on_select=false
                                 on_select={open}
                                 on_expand={expand}
                             >
@@ -183,18 +187,19 @@ fn TreeRow(
         row.get().map(|row| row.glyph).unwrap_or_default()
     }));
     let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
-    let markers = create_memo(clone!(row -> move || {
-        let Some(row) = row.get() else {
-            return String::new();
-        };
-        let mut markers = Vec::new();
-        if row.dynamic_artifact {
-            markers.push(ICON_AUTO_AWESOME);
-        }
-        markers.extend(access_marker(row.access));
-        markers.join(" ")
+    let generated = create_memo(clone!(row -> move || {
+        row.get().is_some_and(|row| row.dynamic_artifact)
     }));
-    let has_markers = create_memo(clone!(markers -> move || !markers.get().is_empty()));
+    let access = create_memo(clone!(row -> move || {
+        row.get()
+            .and_then(|row| access_marker(row.access))
+            .unwrap_or_default()
+            .to_owned()
+    }));
+    let access_label = create_memo(clone!(row -> move || {
+        row.get().map(|row| access_hint(row.access)).unwrap_or_default().to_owned()
+    }));
+    let restricted = create_memo(clone!(access -> move || !access.get().is_empty()));
     let can_add = create_memo(clone!(row -> move || row.get().is_some_and(|row| row.can_add)));
     let muted = create_memo(clone!(row -> move || {
         row.get().is_none_or(|row| row.automatic || row.id.is_none())
@@ -238,6 +243,9 @@ fn TreeRow(
         <MenuItem label={delete_label} disabled={deletable} />
     };
     let theme = use_theme();
+    let muted_color = theme.text_muted.clone();
+    let generated_color = theme.text_muted.clone();
+    let access_color = theme.text_muted.clone();
     let color = create_memo(clone!(theme muted -> move || match muted.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
@@ -253,16 +261,37 @@ fn TreeRow(
                 <ClickCatcher on_drag={move |_| start()}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                         <Show condition={has_glyph}>
-                            <Body content={glyph} color={theme.text_muted.clone()} />
+                            <IconSized
+                                glyph={glyph}
+                                font_size=FONT_SMALL
+                                color={muted_color}
+                            />
                         </Show>
                         <Body @sizing=ItemSize::Percent(100.0) content={label} color={color} />
-                        <Show condition={has_markers}>
-                            <Caption content={markers} align=TextAlign::End />
+                        <Show condition={generated}>
+                            <Tooltip label="Generated from another block">
+                                <IconSized
+                                    glyph={ICON_AUTO_AWESOME.to_owned()}
+                                    font_size=FONT_SMALL
+                                    color={generated_color}
+                                />
+                            </Tooltip>
+                        </Show>
+                        <Show condition={restricted}>
+                            <Tooltip label={access_label}>
+                                <IconSized
+                                    glyph={access}
+                                    font_size=FONT_SMALL
+                                    color={access_color}
+                                />
+                            </Tooltip>
                         </Show>
                         <Show condition={can_add}>
                             <IconButton
                                 glyph={ICON_ADD.to_owned()}
                                 label="Add a child"
+                                variant=ButtonVariant::Ghost
+                                size=IconButtonSize::Compact
                                 on_click={add_child}
                             />
                         </Show>

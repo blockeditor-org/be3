@@ -4,10 +4,11 @@ use beui_macros::{component, view};
 
 use crate::color::Color32;
 use crate::icons::{ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
+use crate::input::CursorIcon;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Callback, Direction, Frame, Func, ItemSize, List, Prop, RenderFn, Spacer, clone,
-    create_memo, intrinsic, percent, size,
+    Align, Callback, ClickCatcher, Direction, Frame, Func, ItemSize, List, Prop, RenderFn, Spacer,
+    clone, create_memo, intrinsic, percent, size,
 };
 use crate::styled::text::IconSized;
 use crate::styled::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
@@ -28,6 +29,7 @@ pub fn Tree<K>(
     selected: Prop<Option<K>>,
     #[prop(default = None)] reveal: Prop<Option<K>>,
     #[prop(default = 0.0)] spacing: f32,
+    #[prop(default = true)] expand_on_select: Prop<bool>,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_hover_change: Callback<(K, bool)>,
@@ -44,6 +46,7 @@ where
             selected
             reveal
             spacing
+            expand_on_select
             on_select={move |key| on_select.call(key)}
             on_expand={move |expansion| on_expand.call(expansion)}
             on_hover_change={move |hover| on_hover_change.call(hover)}
@@ -67,6 +70,7 @@ where
         hovered,
         active,
         focused,
+        toggle,
     } = handle;
     let theme = use_theme();
     let fill = create_memo(clone!(theme selected -> move || {
@@ -80,13 +84,20 @@ where
         marker(item.expandable, item.expanded).to_owned()
     }));
     let marker_color = theme.text_muted.clone();
+    let expandable = create_memo(clone!(item -> move || item.get().expandable));
     let spacer = view! {
         <Spacer />
     };
     let marker = view! {
-        <Frame width=MARKER_WIDTH>
-            <IconSized glyph={glyph} font_size=FONT_SMALL color={marker_color} />
-        </Frame>
+        <ClickCatcher
+            cursor=CursorIcon::PointingHand
+            capture_presses={expandable}
+            on_click={move || toggle()}
+        >
+            <Frame width=MARKER_WIDTH>
+                <IconSized glyph={glyph} font_size=FONT_SMALL color={marker_color} />
+            </Frame>
+        </ClickCatcher>
     };
     let cells = vec![
         size(spacer, indent),

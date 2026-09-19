@@ -364,6 +364,16 @@ pub(crate) fn unlink_permission(
     }
 }
 
+pub(crate) fn access_hint(access: BlockAccess) -> &'static str {
+    match access {
+        BlockAccess::Edit => "",
+        BlockAccess::View => "You can view this block, but not change it.",
+        BlockAccess::KnowExists | BlockAccess::None => {
+            "You can see that this block exists, but not open it."
+        }
+    }
+}
+
 pub(crate) fn access_marker(access: BlockAccess) -> Option<&'static str> {
     match access {
         BlockAccess::Edit => None,

@@ -35,7 +35,7 @@ pub use chip::Chip;
 pub use color_input::{ColorInput, format_color, parse_color};
 pub use context_menu::ContextMenu;
 pub use dialog::Dialog;
-pub use icon_button::IconButton;
+pub use icon_button::{IconButton, IconButtonSize};
 pub use link::Link;
 pub use list_row::ListRow;
 pub use number_input::NumberInput;
