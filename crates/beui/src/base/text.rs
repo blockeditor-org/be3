@@ -17,6 +17,9 @@ use crate::reactive::{NodeRef, Prop, create_effect, with_document};
 use beui_macros::component;
 
 const CARET_WIDTH: f32 = 2.0;
+const UNDERLINE_OFFSET: f32 = 0.1;
+const UNDERLINE_THICKNESS: f32 = 0.07;
+const UNDERLINE_MINIMUM_THICKNESS: f32 = 1.0;
 const BLINK_INTERVAL: Duration = Duration::from_millis(530);
 const DEFAULT_FONT_SIZE: f32 = 14.0;
 const DEFAULT_SELECTION_COLOR: Color32 = Color32::from_gray(80);
@@ -66,6 +69,7 @@ pub(crate) struct TextNode {
     monospace: bool,
     icon: bool,
     clip: bool,
+    underline: bool,
     caret: Option<usize>,
     selection: Vec<Range<usize>>,
     handles: bool,
@@ -160,6 +164,21 @@ impl TextNode {
         };
         *self.placed.borrow_mut() = Some(placed.clone());
         placed
+    }
+
+    fn underline_rects(&self, galley: &Galley, origin: Pos2) -> Vec<Rect> {
+        let thickness = (self.font_size * UNDERLINE_THICKNESS).max(UNDERLINE_MINIMUM_THICKNESS);
+        let top = galley.baseline() + self.font_size * UNDERLINE_OFFSET;
+        galley
+            .line_rects(origin)
+            .into_iter()
+            .map(|line| {
+                Rect::from_min_max(
+                    pos2(line.left(), line.top() + top),
+                    pos2(line.right(), line.top() + top + thickness),
+                )
+            })
+            .collect()
     }
 
     fn caret_shown(&self) -> bool {
@@ -283,6 +302,11 @@ impl Element for TextNode {
 
         if !doc.text_hidden {
             clipped.galley(placed.origin, placed.galley.clone(), self.color);
+            if self.underline {
+                for line in self.underline_rects(&placed.galley, placed.origin) {
+                    clipped.rect_filled(line, 0.0, self.color);
+                }
+            }
         }
 
         if let Some(caret) = self.caret {
@@ -356,6 +380,7 @@ impl Document {
             monospace: false,
             icon: false,
             clip: false,
+            underline: false,
             caret: None,
             selection: Vec::new(),
             handles: false,
@@ -437,6 +462,12 @@ impl Document {
         }
     }
 
+    pub(crate) fn set_text_underline(&mut self, text: NodeId, underline: bool) {
+        if self.arena.get_as::<TextNode>(text).underline != underline {
+            self.arena.get_mut_as::<TextNode>(text).underline = underline;
+        }
+    }
+
     pub(crate) fn set_text_caret(&mut self, text: NodeId, caret: Option<usize>) {
         if caret.is_none() && self.arena.get_as::<TextNode>(text).caret.is_none() {
             return;
@@ -502,6 +533,7 @@ pub fn Text(
     #[prop(default = false)] monospace: Prop<bool>,
     #[prop(default = false)] icon: Prop<bool>,
     #[prop(default = false)] clip: Prop<bool>,
+    #[prop(default = false)] underline: Prop<bool>,
 ) -> NodeId {
     let vertical_default = match align {
         Some(_) => TextAlign::Center,
@@ -524,6 +556,9 @@ pub fn Text(
     });
     create_effect(move || with_document(|document| document.set_text_icon(node, icon.get())));
     create_effect(move || with_document(|document| document.set_text_clip(node, clip.get())));
+    create_effect(move || {
+        with_document(|document| document.set_text_underline(node, underline.get()))
+    });
     create_effect(move || with_document(|document| document.set_text(node, string.get())));
     create_effect(move || {
         with_document(|document| document.set_text_font_size(node, font_size.get()))

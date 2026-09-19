@@ -4,16 +4,12 @@ use beui_macros::{component, view};
 use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::node::NodeId;
-use crate::reactive::{
-    CenteredRow, ClickCallback, Column, Frame, Prop, Show, Text, clone, create_memo,
-};
+use crate::reactive::{CenteredRow, ClickCallback, Frame, Prop, Show, Text, clone, create_memo};
 use crate::styled::text::IconSized;
 use crate::styled::theme::{FONT_BODY, ICON_SIZE, ThemeStore, use_theme};
 use crate::unstyled;
 
 const ICON_SPACING: f32 = 6.0;
-const UNDERLINE_SPACING: f32 = 1.0;
-const UNDERLINE_HEIGHT: f32 = 1.0;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const FOCUS_RING_RADIUS: u8 = 4;
@@ -66,7 +62,7 @@ fn LinkFace(
     let glyph_text = create_memo(move || glyph.get());
     let has_glyph = create_memo(clone!(glyph_text -> move || !glyph_text.get().is_empty()));
     let icon_color = color.clone();
-    let label_color = color.clone();
+    let label_color = color;
     let size = create_memo(move || font_size.get());
     let icon_size = create_memo(clone!(size -> move || size.get() * ICON_SIZE / FONT_BODY));
     view! {
@@ -77,20 +73,18 @@ fn LinkFace(
             outline_offset=FOCUS_RING_OFFSET
             outline_visible={focused}
         >
-            <Column spacing=UNDERLINE_SPACING>
-                <CenteredRow spacing=ICON_SPACING>
-                    <Show condition={has_glyph}>
-                        <IconSized glyph={glyph_text} font_size={icon_size} color={icon_color} />
-                    </Show>
-                    <Text
-                        string={label}
-                        font_size={size}
-                        color={label_color}
-                        align=TextAlign::Start
-                    />
-                </CenteredRow>
-                <Frame height=UNDERLINE_HEIGHT color={color} visible={underlined} />
-            </Column>
+            <CenteredRow spacing=ICON_SPACING>
+                <Show condition={has_glyph}>
+                    <IconSized glyph={glyph_text} font_size={icon_size} color={icon_color} />
+                </Show>
+                <Text
+                    string={label}
+                    font_size={size}
+                    color={label_color}
+                    align=TextAlign::Start
+                    underline={underlined}
+                />
+            </CenteredRow>
         </Frame>
     }
 }

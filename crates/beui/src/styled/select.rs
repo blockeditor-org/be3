@@ -11,7 +11,7 @@ use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_them
 use crate::unstyled;
 use crate::unstyled::{SelectOptionHandle, SelectTriggerHandle, TextInputHandle};
 
-const TRIGGER_WIDTH: f32 = 220.0;
+const TRIGGER_MAX_WIDTH: f32 = 220.0;
 const POPUP_WIDTH: f32 = 220.0;
 const POPUP_PADDING: f32 = 6.0;
 const HEIGHT: f32 = 34.0;
@@ -82,7 +82,7 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
     );
     view! {
         <Frame
-            width=TRIGGER_WIDTH
+            max_width=TRIGGER_MAX_WIDTH
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
@@ -90,7 +90,6 @@ fn SelectTrigger(options: Vec<String>, handle: SelectTriggerHandle) -> NodeId {
             outline_visible={focused}
         >
             <Frame
-                width=TRIGGER_WIDTH
                 height=HEIGHT
                 color={theme.surface_raised.clone()}
                 outline={border}

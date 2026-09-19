@@ -37,6 +37,7 @@ impl Default for FrameStyle {
 pub(crate) struct FrameNode {
     pub(crate) child: Option<NodeId>,
     pub(crate) width: Option<f32>,
+    pub(crate) max_width: Option<f32>,
     pub(crate) height: Option<f32>,
     pub(crate) aspect_ratio: Option<f32>,
     pub(crate) padding_horizontal: f32,
@@ -46,6 +47,15 @@ pub(crate) struct FrameNode {
 }
 
 impl FrameNode {
+    fn width_within(&self, available: f32, intrinsic: f32) -> f32 {
+        let width = match (self.width, self.max_width) {
+            (Some(width), _) => width,
+            (None, Some(_)) => available,
+            (None, None) => intrinsic,
+        };
+        self.max_width.map_or(width, |max| width.min(max))
+    }
+
     fn padding(&self, grid: PixelGrid) -> Vec2 {
         grid.snap_vec(vec2(self.padding_horizontal, self.padding_vertical))
     }
@@ -60,7 +70,7 @@ impl FrameNode {
 
     fn size(&self, grid: PixelGrid, available: Vec2) -> Vec2 {
         let size = grid.snap_vec(vec2(
-            self.width.unwrap_or(available.x),
+            self.width_within(available.x, available.x),
             self.height.unwrap_or(available.y),
         ));
         match self.aspect_ratio {
@@ -98,6 +108,7 @@ impl Default for FrameNode {
         Self {
             child: None,
             width: None,
+            max_width: None,
             height: None,
             aspect_ratio: None,
             padding_horizontal: 0.0,
@@ -116,7 +127,7 @@ impl Element for FrameNode {
         let grid = doc.pixel_grid();
         let padding = self.amount(grid);
         let constrained = vec2(
-            self.width.unwrap_or(available.x),
+            self.width_within(available.x, available.x),
             self.height.unwrap_or(available.y),
         );
         let inner = match self.child {
@@ -128,7 +139,7 @@ impl Element for FrameNode {
         };
         let padded = inner + padding;
         let size = grid.snap_vec(vec2(
-            self.width.unwrap_or(padded.x),
+            self.width_within(available.x, padded.x),
             self.height.unwrap_or(padded.y),
         ));
         match self.aspect_ratio {
@@ -231,6 +242,12 @@ impl Document {
         }
     }
 
+    pub(crate) fn set_frame_max_width(&mut self, frame: NodeId, max_width: Option<f32>) {
+        if self.arena.get_as::<FrameNode>(frame).max_width != max_width {
+            self.arena.get_mut_as::<FrameNode>(frame).max_width = max_width;
+        }
+    }
+
     pub(crate) fn set_frame_height(&mut self, frame: NodeId, height: Option<f32>) {
         if self.arena.get_as::<FrameNode>(frame).height != height {
             self.arena.get_mut_as::<FrameNode>(frame).height = height;
@@ -280,6 +297,7 @@ impl Document {
 #[component]
 pub fn Frame(
     width: Option<Prop<f32>>,
+    max_width: Option<Prop<f32>>,
     height: Option<Prop<f32>>,
     aspect_ratio: Option<Prop<f32>>,
     #[prop(default = 0.0)] padding_horizontal: Prop<f32>,
@@ -303,6 +321,11 @@ pub fn Frame(
     if let Some(width) = width {
         create_effect(move || {
             with_document(|document| document.set_frame_width(frame, Some(width.get())))
+        });
+    }
+    if let Some(max_width) = max_width {
+        create_effect(move || {
+            with_document(|document| document.set_frame_max_width(frame, Some(max_width.get())))
         });
     }
     if let Some(height) = height {
