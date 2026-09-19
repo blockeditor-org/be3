@@ -6,7 +6,7 @@ use beui::reactive::{
     Callback, CanvasView, EmbedSlot, KeyedStore, Memo, NodeRef, Prop, ReadSignal, WriteSignal,
     create_memo, create_signal, on_cleanup,
 };
-use beui::{Document, Rect, Vec2};
+use beui::{Document, Pos2, Rect, Vec2};
 use block::Block;
 use block_client::{BlockClient, BlockHandle};
 use block_plugin_api::{ChildId, ChildLayer, ChildMode};
@@ -16,6 +16,14 @@ use std::hash::Hash;
 use uuid::Uuid;
 
 use crate::{BlockFilter, BlockPicker, EditorHost, PickedBlock};
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Drag {
+    pub position: Pos2,
+    pub block_id: Uuid,
+    pub block_type: Uuid,
+    pub dropped: bool,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChildTarget {
@@ -116,6 +124,8 @@ struct EditorState {
     set_editable: WriteSignal<bool>,
     presenting: ReadSignal<bool>,
     set_presenting: WriteSignal<bool>,
+    drag: ReadSignal<Option<Drag>>,
+    set_drag: WriteSignal<Option<Drag>>,
     content: RefCell<Option<NodeRef>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
@@ -133,6 +143,7 @@ impl Editor {
         let (chrome, set_chrome) = create_signal(true);
         let (editable, set_editable) = create_signal(host.editable());
         let (presenting, set_presenting) = create_signal(false);
+        let (drag, set_drag) = create_signal(None::<Drag>);
         Self(Rc::new(EditorState {
             host,
             client,
@@ -147,6 +158,8 @@ impl Editor {
             set_editable,
             presenting,
             set_presenting,
+            drag,
+            set_drag,
             content: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
@@ -308,6 +321,18 @@ impl Editor {
         self.0.content_rect.get()
     }
 
+    pub fn drag(&self) -> ReadSignal<Option<Drag>> {
+        self.0.drag.clone()
+    }
+
+    pub fn accept_drag(&self, accepted: bool) {
+        self.0.host.accept_drag(accepted);
+    }
+
+    pub fn place_web_view(&self, rect: Option<Rect>) {
+        self.0.host.place_beui_web_view(rect);
+    }
+
     pub fn pan(&self, delta: Vec2) {
         self.0.host.beui_view().pan(delta);
     }
@@ -336,6 +361,7 @@ impl Editor {
         self.0.set_chrome.set(self.0.host.chrome_shown());
         self.0.set_editable.set(self.0.host.editable());
         self.0.set_presenting.set(self.0.host.presenting());
+        self.0.set_drag.set(self.0.host.beui_drag());
         for record in self.records() {
             let state = ChildState::of(&self.0.host, record.child.get());
             if record.read.get_untracked() == state {

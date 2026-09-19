@@ -5,16 +5,9 @@ fn expanding_a_level_shows_its_goal() {
     let (mut editor, block) = editor();
 
     let first = block.read().unwrap().levels()[0].challenge;
-    editor
-        .find(&format!("logic-game.level.{}", first as usize))
-        .click();
+    editor.click(&format!("logic-game.level.{}", first as usize));
     editor.run();
 
-    assert!(
-        editor
-            .find(&format!("logic-game.new-attempt.{}", first as usize))
-            .rect()
-            .is_positive()
-    );
+    assert!(editor.shown(&format!("logic-game.new-attempt.{}", first as usize)));
     editor.snapshot("expanding_a_level_shows_its_goal");
 }

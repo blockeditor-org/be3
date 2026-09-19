@@ -37,7 +37,7 @@ pub struct FileDrop {
     pub dropped: bool,
 }
 
-type OpenRequest = (Uuid, Uuid, Option<Uuid>);
+pub type OpenRequest = (Uuid, Uuid, Option<Uuid>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShowRequest {
@@ -817,6 +817,16 @@ impl EditorHost {
         *self.files.borrow_mut() = drop;
     }
 
+    pub fn beui_drag(&self) -> Option<crate::editor::Drag> {
+        let ratio = self.beui.get().ratio;
+        self.drag().map(|drag| crate::editor::Drag {
+            position: beui::pos2(drag.position.x * ratio, drag.position.y * ratio),
+            block_id: drag.block_id,
+            block_type: drag.block_type,
+            dropped: drag.dropped,
+        })
+    }
+
     pub fn accept_drag(&self, accepted: bool) {
         self.drag_accepted.set(Some(accepted));
     }
@@ -912,6 +922,11 @@ impl EditorHost {
         let region = state.region.unwrap_or(EditorRegion::Frame);
         let rect = rect.map(|rect| child_rect(rect.translate(-state.origin)));
         self.web_view_placements.borrow_mut().push((region, rect));
+    }
+
+    pub fn place_beui_web_view(&self, rect: Option<beui::Rect>) {
+        let ratio = self.beui.get().ratio;
+        self.place_web_view(rect.map(|rect| host_rect(rect, ratio)));
     }
 
     pub fn open_web_view(&self, url: impl Into<String>) {
@@ -1142,8 +1157,7 @@ impl EditorHost {
         self.creation_changed.set(true);
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_opens(&self) -> Vec<OpenRequest> {
+    pub fn take_opens(&self) -> Vec<OpenRequest> {
         std::mem::take(&mut self.opens.borrow_mut())
     }
 
@@ -1193,13 +1207,11 @@ impl EditorHost {
         std::mem::take(&mut self.view_changes.borrow_mut())
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn set_drag(&self, drag: Option<BlockDrag>) {
+    pub fn set_drag(&self, drag: Option<BlockDrag>) {
         self.drag.set(drag);
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_drag_accepted(&self) -> Option<bool> {
+    pub fn take_drag_accepted(&self) -> Option<bool> {
         self.drag_accepted.take()
     }
 

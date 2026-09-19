@@ -1,10 +1,7 @@
 use block_client::BlockHandle;
 use block_client::blocks::logic_game::{LogicGame, LogicGameOperation, QuizRow};
-use block_editor_plugin::block_ui::test_id::TestId;
-use block_editor_plugin::egui;
 
-const CELL_WIDTH: f32 = 24.0;
-const CELL_HEIGHT: f32 = 24.0;
+pub(crate) mod ui;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BinaryAdditionProblem {
@@ -54,6 +51,18 @@ impl BinaryAdditionProblem {
         }
     }
 
+    pub(crate) fn operands(&self) -> &[String] {
+        &self.operands
+    }
+
+    pub(crate) fn carry_bits(&self) -> &[bool] {
+        &self.carry_bits
+    }
+
+    pub(crate) fn sum_bits(&self) -> &[bool] {
+        &self.sum_bits
+    }
+
     fn width(&self) -> usize {
         self.sum_bits.len()
     }
@@ -61,8 +70,6 @@ impl BinaryAdditionProblem {
 
 pub(crate) struct BinaryAdditionQuiz {
     problems: Vec<BinaryAdditionProblem>,
-    current_problem: usize,
-    checked: bool,
 }
 
 impl Default for BinaryAdditionQuiz {
@@ -73,103 +80,38 @@ impl Default for BinaryAdditionQuiz {
                 BinaryAdditionProblem::new(&[0b11010101, 0b00111110]),
                 BinaryAdditionProblem::new(&[0b101101011011, 0b011011010101]),
             ],
-            current_problem: 0,
-            checked: false,
         }
     }
 }
 
 impl BinaryAdditionQuiz {
-    pub(crate) fn height(&self) -> f32 {
-        let rows = self.problems[self.current_problem].operands.len() + 5;
-        CELL_HEIGHT * rows as f32 + 120.0
+    pub(crate) fn problems(&self) -> &[BinaryAdditionProblem] {
+        &self.problems
     }
 
-    pub(crate) fn ui(&mut self, ui: &mut egui::Ui, block: &BlockHandle<LogicGame>, editable: bool) {
-        let problem = self.current_problem;
-        let (mut carries, mut sums) = self.answers(block, problem);
-
-        ui.label(format!(
-            "Problem {} of {}",
-            problem + 1,
-            self.problems.len()
-        ));
-        ui.add_space(8.0);
-        self.problem_ui(ui, problem, &mut carries, &mut sums, block, editable);
-        ui.add_space(12.0);
-
-        ui.horizontal(|ui| {
-            if ui.button("Check").test_id("quiz.check").clicked() {
-                self.checked = true;
-            }
-            if ui.button("Reset page").clicked() {
-                self.write_row(block, problem, QuizRow::Carries, Vec::new());
-                self.write_row(block, problem, QuizRow::Sums, Vec::new());
-                self.checked = false;
-            }
-            if self.checked {
-                if self.is_correct(&carries, &sums, problem) {
-                    ui.colored_label(
-                        egui::Color32::from_rgb(115, 209, 133),
-                        "This page is correct.",
-                    );
-                } else {
-                    ui.colored_label(ui.visuals().error_fg_color, "Some blanks still need work.");
-                }
-            }
-        });
-
-        ui.horizontal(|ui| {
-            if ui
-                .add_enabled(problem > 0, egui::Button::new("Previous"))
-                .clicked()
-            {
-                self.current_problem -= 1;
-                self.checked = false;
-            }
-            let correct = self.is_correct(&carries, &sums, problem);
-            if problem + 1 < self.problems.len() {
-                if ui.add_enabled(correct, egui::Button::new("Next")).clicked() {
-                    self.current_problem += 1;
-                    self.checked = false;
-                }
-            } else if correct && self.all_correct(block) {
-                ui.colored_label(
-                    egui::Color32::from_rgb(115, 209, 133),
-                    "Every problem is correct.",
-                );
-            }
-        });
-    }
-
-    fn answers(
+    pub(crate) fn fit(
         &self,
-        block: &BlockHandle<LogicGame>,
         problem: usize,
+        carries: Vec<Option<bool>>,
+        sums: Vec<Option<bool>>,
     ) -> (Vec<Option<bool>>, Vec<Option<bool>>) {
-        let stored = block.read().and_then(|game| game.quiz(problem).cloned());
-        let (carries, sums) = stored
-            .map(|answers| (answers.carries, answers.sums))
-            .unwrap_or_default();
         (
             fitted(carries, self.problems[problem].carry_bits.len()),
             fitted(sums, self.problems[problem].width()),
         )
     }
 
-    fn is_correct(&self, carries: &[Option<bool>], sums: &[Option<bool>], problem: usize) -> bool {
+    pub(crate) fn is_correct(
+        &self,
+        carries: &[Option<bool>],
+        sums: &[Option<bool>],
+        problem: usize,
+    ) -> bool {
         let problem = &self.problems[problem];
         matches(carries, &problem.carry_bits) && matches(sums, &problem.sum_bits)
     }
 
-    fn all_correct(&self, block: &BlockHandle<LogicGame>) -> bool {
-        (0..self.problems.len()).all(|problem| {
-            let (carries, sums) = self.answers(block, problem);
-            self.is_correct(&carries, &sums, problem)
-        })
-    }
-
-    fn write_row(
+    pub(crate) fn write_row(
         &self,
         block: &BlockHandle<LogicGame>,
         problem: usize,
@@ -182,94 +124,9 @@ impl BinaryAdditionQuiz {
             values,
         });
     }
-
-    fn problem_ui(
-        &self,
-        ui: &mut egui::Ui,
-        problem_index: usize,
-        carries: &mut [Option<bool>],
-        sums: &mut [Option<bool>],
-        block: &BlockHandle<LogicGame>,
-        editable: bool,
-    ) {
-        let problem = &self.problems[problem_index];
-        ui.group(|ui| {
-            ui.add_space(4.0);
-            egui::Grid::new(("binary-addition", problem_index))
-                .spacing([4.0, 6.0])
-                .show(ui, |ui| {
-                    ui.label("carry");
-                    if bit_buttons(ui, carries, &problem.carry_bits, self.checked, editable) {
-                        self.write_row(block, problem_index, QuizRow::Carries, carries.to_vec());
-                    }
-                    ui.add_sized([CELL_WIDTH, CELL_HEIGHT], egui::Label::new(""));
-                    ui.end_row();
-
-                    for (index, operand) in problem.operands.iter().enumerate() {
-                        ui.label(if index + 1 == problem.operands.len() {
-                            "+"
-                        } else {
-                            ""
-                        });
-                        for bit in operand.chars() {
-                            ui.monospace(bit.to_string());
-                        }
-                        ui.end_row();
-                    }
-
-                    ui.label("");
-                    for _ in 0..problem.width() {
-                        ui.separator();
-                    }
-                    ui.end_row();
-
-                    ui.label("sum");
-                    if bit_buttons(ui, sums, &problem.sum_bits, self.checked, editable) {
-                        self.write_row(block, problem_index, QuizRow::Sums, sums.to_vec());
-                    }
-                    ui.end_row();
-                });
-            ui.add_space(4.0);
-        });
-    }
 }
 
-fn bit_buttons(
-    ui: &mut egui::Ui,
-    answers: &mut [Option<bool>],
-    expected: &[bool],
-    checked: bool,
-    editable: bool,
-) -> bool {
-    let mut changed = false;
-    for (answer, expected) in answers.iter_mut().zip(expected) {
-        let correct = *answer == Some(*expected);
-        let label = answer.map_or_else(|| " ".to_owned(), |bit| u8::from(bit).to_string());
-        let response = ui
-            .add_enabled_ui(editable, |ui| {
-                ui.add_sized(
-                    [CELL_WIDTH, CELL_HEIGHT],
-                    egui::Button::new(egui::RichText::new(label).monospace()),
-                )
-            })
-            .inner;
-        if response.clicked() {
-            *answer = next_answer(*answer);
-            changed = true;
-        }
-        if checked && !correct {
-            ui.painter().rect_stroke(
-                response.rect.expand(1.0),
-                2.0,
-                egui::Stroke::new(1.0_f32, ui.visuals().error_fg_color),
-                egui::StrokeKind::Outside,
-            );
-        }
-    }
-    changed
-}
-
-fn next_answer(answer: Option<bool>) -> Option<bool> {
+pub(crate) fn next_answer(answer: Option<bool>) -> Option<bool> {
     match answer {
         None => Some(false),
         Some(false) => Some(true),

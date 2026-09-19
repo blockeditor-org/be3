@@ -27,7 +27,7 @@ pub mod session;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
-pub use block_link::BlockLink;
+pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockFilter, BlockPick, ChildId, ChildLayer,
     ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorBand, EditorCapabilities,
@@ -36,13 +36,13 @@ pub use block_plugin_api::{
 };
 pub use block_ui;
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
-pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar};
-pub use editor::{BlockProjection, ChildState, ChildTarget, Creation, Editor};
+pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
+pub use editor::{BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
     ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster,
-    PastedImage, PerformanceMeasurementGuard, PerformanceReporter, PickedBlock, PickedFile,
-    ShowRequest, Task, Waker,
+    OpenRequest, PastedImage, PerformanceMeasurementGuard, PerformanceReporter, PickedBlock,
+    PickedFile, ShowRequest, Task, Waker,
 };
 
 #[cfg(target_arch = "wasm32")]

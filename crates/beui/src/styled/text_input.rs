@@ -24,6 +24,7 @@ pub fn TextInput(
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<String>,
     on_submit: Callback<String>,
+    on_focus_change: Callback<bool>,
 ) -> NodeId {
     let accessibility = label.map(|label| {
         let mut node = Node::new(Role::TextInput);
@@ -48,6 +49,7 @@ pub fn TextInput(
             menu={text_input_menu()}
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
+            on_focus_change={move |focused| on_focus_change.call(focused)}
         >
             {move |handle| view! {
                 <TextInputFrame handle />

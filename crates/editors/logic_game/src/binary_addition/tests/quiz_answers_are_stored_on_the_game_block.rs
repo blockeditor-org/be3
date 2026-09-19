@@ -9,7 +9,7 @@ fn quiz_answers_are_stored_on_the_game_block() {
     let block = client.create_block(LogicGame::new());
     let quiz = BinaryAdditionQuiz::default();
 
-    let (carries, sums) = quiz.answers(&block, 0);
+    let (carries, sums) = stored(&quiz, &block, 0);
     assert_eq!(carries, vec![None; 5]);
     assert_eq!(sums, vec![None; 6]);
     assert!(!quiz.is_correct(&carries, &sums, 0));
@@ -18,8 +18,8 @@ fn quiz_answers_are_stored_on_the_game_block() {
         &block,
         0,
         QuizRow::Carries,
-        quiz.problems[0]
-            .carry_bits
+        quiz.problems()[0]
+            .carry_bits()
             .iter()
             .copied()
             .map(Some)
@@ -29,16 +29,29 @@ fn quiz_answers_are_stored_on_the_game_block() {
         &block,
         0,
         QuizRow::Sums,
-        quiz.problems[0]
-            .sum_bits
+        quiz.problems()[0]
+            .sum_bits()
             .iter()
             .copied()
             .map(Some)
             .collect(),
     );
 
-    let (carries, sums) = quiz.answers(&block, 0);
+    let (carries, sums) = stored(&quiz, &block, 0);
     assert!(quiz.is_correct(&carries, &sums, 0));
 
-    assert!(!quiz.all_correct(&block));
+    let (carries, sums) = stored(&quiz, &block, 1);
+    assert!(!quiz.is_correct(&carries, &sums, 1));
+}
+
+fn stored(
+    quiz: &BinaryAdditionQuiz,
+    block: &BlockHandle<LogicGame>,
+    problem: usize,
+) -> (Vec<Option<bool>>, Vec<Option<bool>>) {
+    let answers = block.read().and_then(|game| game.quiz(problem).cloned());
+    let (carries, sums) = answers
+        .map(|answers| (answers.carries, answers.sums))
+        .unwrap_or_default();
+    quiz.fit(problem, carries, sums)
 }

@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use block_client::blocks::web_browser_tab::{HistoryItem, WebBrowserTab, WebBrowserTabOperation};
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::{App as _, EditorHost, WebViewCommand, WebViewEvent, egui};
-use block_ui_test::EditorTest;
+use block_editor_plugin::beui::{Key, Modifiers};
+use block_editor_plugin::{Editor, EditorHost, WebViewCommand, WebViewEvent};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::BrowserTabApp;
@@ -15,7 +16,7 @@ const ACCOUNT: Uuid = Uuid::from_u128(0x7765_622d_7465_7374_2d61_6363_6f75_6e74)
 const WORKSPACE: Uuid = Uuid::from_u128(0x7765_622d_7465_7374_2d77_6f72_6b73_7061);
 
 struct Fixture {
-    editor: EditorTest<'static, BrowserTabApp>,
+    editor: BeuiTest<BrowserTabApp>,
     host: EditorHost,
     block: BlockHandle<WebBrowserTab>,
 }
@@ -30,9 +31,8 @@ fn editor() -> Fixture {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(ACCOUNT);
-    let mut app = BrowserTabApp::default();
-    app.connect(host.clone(), client, block.id());
-    let mut editor = EditorTest::new(app);
+    let editor = Editor::new(host.clone(), client, block.id());
+    let mut editor = BeuiTest::new(editor);
     editor.run();
     Fixture {
         editor,
