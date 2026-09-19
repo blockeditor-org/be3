@@ -837,10 +837,12 @@ struct Counted {
     inner: Box<dyn Element>,
     layouts: Rc<Cell<usize>>,
     paints: Rc<Cell<usize>>,
+    measures: Rc<Cell<usize>>,
 }
 
 impl Element for Counted {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
+        self.measures.set(self.measures.get() + 1);
         self.inner.measure(doc, painter, available)
     }
 
@@ -891,21 +893,37 @@ impl Element for Counted {
     }
 }
 
+struct Counts {
+    layouts: Rc<Cell<usize>>,
+    paints: Rc<Cell<usize>>,
+    measures: Rc<Cell<usize>>,
+}
+
 fn counted(document: &mut Document, node: NodeId) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
-    let layouts = Rc::new(Cell::new(0));
-    let paints = Rc::new(Cell::new(0));
+    let counts = counted_with_measures(document, node);
+    (counts.layouts, counts.paints)
+}
+
+fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
+    let counts = Counts {
+        layouts: Rc::new(Cell::new(0)),
+        paints: Rc::new(Cell::new(0)),
+        measures: Rc::new(Cell::new(0)),
+    };
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,
         Box::new(Counted {
             inner,
-            layouts: layouts.clone(),
-            paints: paints.clone(),
+            layouts: counts.layouts.clone(),
+            paints: counts.paints.clone(),
+            measures: counts.measures.clone(),
         }),
     );
-    (layouts, paints)
+    counts
 }
 mod a_blinking_caret_only_damages_the_text_it_belongs_to;
+mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;
 mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;

@@ -46,8 +46,8 @@ pub struct Document {
     paint_revision: u64,
     delivering: bool,
     constrained: HashSet<NodeId>,
-    measurements: HashMap<Measured, Vec2>,
-    measurement_revision: u64,
+    measurements: HashMap<NodeId, Vec<(Vec2, Vec2)>>,
+    layout_parent: Option<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
     paint_cache: RefCell<PaintCache>,
@@ -76,21 +76,10 @@ struct SizeWatcher {
     write: ::reactive::WriteSignal<Vec2>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct Measured {
-    node: NodeId,
-    width: u32,
-    height: u32,
-}
+const REMEMBERED_MEASUREMENTS: usize = 4;
 
-impl Measured {
-    fn new(node: NodeId, available: Vec2) -> Self {
-        Self {
-            node,
-            width: available.x.to_bits(),
-            height: available.y.to_bits(),
-        }
-    }
+fn same_size(left: Vec2, right: Vec2) -> bool {
+    left.x.to_bits() == right.x.to_bits() && left.y.to_bits() == right.y.to_bits()
 }
 
 fn constrained(held: Vec2, available: Vec2) -> Vec2 {
@@ -137,7 +126,7 @@ impl Document {
             delivering: false,
             constrained: HashSet::new(),
             measurements: HashMap::new(),
-            measurement_revision: 0,
+            layout_parent: None,
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
@@ -389,6 +378,7 @@ impl Document {
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
         self.placements.remove(&id);
+        self.measurements.remove(&id);
         self.component_states.remove(&id);
         self.accessibility.remove(&id);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
@@ -777,22 +767,50 @@ impl Document {
     }
 
     pub(crate) fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
-        self.forget_stale_measurements();
-        self.measurements
-            .get(&Measured::new(id, available))
-            .copied()
-    }
-
-    pub(crate) fn remember_measurement(&mut self, id: NodeId, available: Vec2, size: Vec2) {
-        self.forget_stale_measurements();
-        self.measurements.insert(Measured::new(id, available), size);
-    }
-
-    fn forget_stale_measurements(&mut self) {
-        if self.measurement_revision != self.arena.revision {
-            self.measurements.clear();
-            self.measurement_revision = self.arena.revision;
+        if self.arena.stale(id) {
+            self.measurements.remove(&id);
+            return None;
         }
+        self.measurements
+            .get(&id)?
+            .iter()
+            .find(|(offered, _)| same_size(*offered, available))
+            .map(|(_, size)| *size)
+    }
+
+    pub(crate) fn remember_measurement(
+        &mut self,
+        id: NodeId,
+        available: Vec2,
+        size: Vec2,
+        watermark: u64,
+    ) {
+        if self.arena.revision != watermark {
+            return;
+        }
+        self.arena.clear_stale(id);
+        let held = self.measurements.entry(id).or_default();
+        held.retain(|(offered, _)| !same_size(*offered, available));
+        if held.len() >= REMEMBERED_MEASUREMENTS {
+            held.remove(0);
+        }
+        held.push((available, size));
+    }
+
+    pub(crate) fn note_parent(&mut self, id: NodeId) {
+        if !self.delivering {
+            return;
+        }
+        let parent = self.layout_parent;
+        self.arena.set_parent(id, parent);
+    }
+
+    pub(crate) fn enter_layout(&mut self, id: NodeId) -> Option<NodeId> {
+        self.layout_parent.replace(id)
+    }
+
+    pub(crate) fn leave_layout(&mut self, parent: Option<NodeId>) {
+        self.layout_parent = parent;
     }
 
     fn paints(&self, id: NodeId) -> bool {
@@ -826,6 +844,7 @@ impl Document {
             let context = self.reactive_scope().context();
             let placed = &mut rects;
             self.constrained.clear();
+            self.layout_parent = None;
             self.delivering = true;
             {
                 let _guard = crate::reactive::install(self);
