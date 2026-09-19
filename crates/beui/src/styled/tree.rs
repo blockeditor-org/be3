@@ -2,13 +2,14 @@ use std::hash::Hash;
 
 use beui_macros::{component, view};
 
-use crate::base::TextAlign;
 use crate::color::Color32;
+use crate::icons::{ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Callback, Direction, Frame, Func, ItemSize, List, Prop, RenderFn, Spacer, Text, clone,
+    Align, Callback, Direction, Frame, Func, ItemSize, List, Prop, RenderFn, Spacer, clone,
     create_memo, intrinsic, percent, size,
 };
+use crate::styled::text::IconSized;
 use crate::styled::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{TreeItem, TreeRowHandle};
@@ -84,13 +85,7 @@ where
     };
     let marker = view! {
         <Frame width=MARKER_WIDTH>
-            <Text
-                string={glyph}
-                font_size=FONT_SMALL
-                color={marker_color}
-                monospace=true
-                align=TextAlign::Center
-            />
+            <IconSized glyph={glyph} font_size=FONT_SMALL color={marker_color} />
         </Frame>
     };
     let cells = vec![
@@ -120,8 +115,8 @@ where
 
 fn marker(expandable: bool, expanded: bool) -> &'static str {
     match (expandable, expanded) {
-        (true, true) => "-",
-        (true, false) => "+",
+        (true, true) => ICON_KEYBOARD_ARROW_DOWN,
+        (true, false) => ICON_KEYBOARD_ARROW_RIGHT,
         (false, _) => "",
     }
 }

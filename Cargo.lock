@@ -1220,9 +1220,11 @@ dependencies = [
 name = "calendar"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block-client",
  "block-editor-plugin",
  "block-ui",
+ "block-ui-test",
  "uuid",
 ]
 
@@ -2652,6 +2654,7 @@ dependencies = [
 name = "file_tree"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",

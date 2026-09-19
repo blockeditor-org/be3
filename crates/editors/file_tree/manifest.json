@@ -11,8 +11,5 @@
   "regions": [
     "Frame"
   ],
-  "chrome": [
-    "Toolbar"
-  ],
   "entry_point": "file_tree.wasm"
 }

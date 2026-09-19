@@ -11,6 +11,7 @@ pub mod beui_frame;
 mod block_link;
 mod child;
 mod chrome;
+mod datetime;
 mod editor;
 #[cfg(target_arch = "wasm32")]
 mod editor_session;
@@ -37,6 +38,7 @@ pub use block_plugin_api::{
 pub use block_ui;
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
 pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
+pub use datetime::DateTimeRow;
 pub use editor::{BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,

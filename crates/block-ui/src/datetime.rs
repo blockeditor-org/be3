@@ -14,7 +14,7 @@ const MONTH_NAMES: [&str; 12] = [
     "December",
 ];
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct DateTimeFields {
     pub year: i32,
     pub month: u8,

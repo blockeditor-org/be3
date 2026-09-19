@@ -1,3 +1,3 @@
 pub mod app;
 
-block_editor_plugin::plugin!(app::FileTreeApp, "../manifest.json");
+block_editor_plugin::beui_plugin!(app::FileTreeApp, "../manifest.json");
