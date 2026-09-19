@@ -538,7 +538,6 @@ pub struct EditorHost {
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     hidden_bands: Rc<RefCell<HashSet<EditorBand>>>,
     beui: Rc<Cell<BeuiFrame>>,
-    beui_context: Rc<RefCell<Option<beui::Context>>>,
 }
 
 impl EditorHost {
@@ -1189,16 +1188,6 @@ impl EditorHost {
             egui::pos2(view.max.x / ratio, view.max.y / ratio),
         );
         self.set_view(rect.translate(-origin), scale);
-    }
-
-    pub fn set_beui_context(&self, context: beui::Context) {
-        *self.beui_context.borrow_mut() = Some(context);
-    }
-
-    pub fn request_repaint(&self) {
-        if let Some(context) = self.beui_context.borrow().as_ref() {
-            context.request_repaint();
-        }
     }
 
     pub fn begin_beui_frame(&self, ratio: f32, pixels_per_point: f32, chrome: bool) {
