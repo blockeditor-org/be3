@@ -20,6 +20,7 @@ impl NodeId {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct InteractInput {
     pub(crate) pointer_pos: Option<Pos2>,
     pub(crate) pointer_down: bool,

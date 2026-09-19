@@ -204,13 +204,7 @@ impl Element for OverlayNode {
         _rect: Rect,
         _focus_target: &mut Option<NodeId>,
     ) -> Vec<NodeId> {
-        if !self.open {
-            return Vec::new();
-        }
-        if self.mode == OverlayMode::Floating {
-            return self.content.into_iter().collect();
-        }
-        if self.mode == OverlayMode::Passive {
+        if !self.open || self.mode != OverlayMode::Modal {
             return Vec::new();
         }
         let mut children = vec![self.scrim];
