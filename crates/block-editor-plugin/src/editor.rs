@@ -475,9 +475,10 @@ impl Editor {
         let view = self.0.host.beui_view();
         let scale = view.scale().max(f32::EPSILON);
         self.0.set_canvas.set(view.canvas());
-        self.0
-            .set_world
-            .set(view.rect().map(|rect| Vec2::new(rect.width() / scale, rect.height() / scale)));
+        self.0.set_world.set(
+            view.rect()
+                .map(|rect| Vec2::new(rect.width() / scale, rect.height() / scale)),
+        );
         self.0.set_scale.set(view.scale());
         self.0.set_chrome.set(self.0.host.chrome_shown());
         self.0.set_editable.set(self.0.host.editable());

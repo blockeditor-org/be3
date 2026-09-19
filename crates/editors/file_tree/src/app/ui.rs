@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use block::BlockParent;
-use block_editor_plugin::beui::{NodeId, PointerPress, Pos2};
 use block_editor_plugin::beui::icons::{
     ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_AUTO_AWESOME, ICON_MY_LOCATION,
 };
@@ -16,6 +15,7 @@ use block_editor_plugin::beui::styled::{
     Tooltip, Tree, use_theme,
 };
 use block_editor_plugin::beui::unstyled::{MenuItem, TreeItem, tree_row_node};
+use block_editor_plugin::beui::{NodeId, PointerPress, Pos2};
 use block_editor_plugin::{BlockFilter, BlockPicker, BlockSource, Editor, Toolbar};
 use uuid::Uuid;
 
@@ -51,7 +51,12 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let (astray, set_astray) = create_signal(None::<Astray>);
     let tree_ref = NodeRef::new();
     let scroll_ref = NodeRef::new();
-    let strayed = (shown.clone(), buried.clone(), tree_ref.clone(), scroll_ref.clone());
+    let strayed = (
+        shown.clone(),
+        buried.clone(),
+        tree_ref.clone(),
+        scroll_ref.clone(),
+    );
     editor.each_frame(move || {
         set_astray.set(stray(&strayed.0, &strayed.1, &strayed.2, &strayed.3));
     });
@@ -413,18 +418,10 @@ fn TreeRow(
     view! {
         <ContextMenu items={items} on_select={chose}>
             <Frame outline={outline} outline_width=1.0 outline_visible={hovered} radius=3>
-                <ClickCatcher
-                    on_press={pressed}
-                    on_drag={moved}
-                    on_active_change={settled}
-                >
+                <ClickCatcher on_press={pressed} on_drag={moved} on_active_change={settled}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                         <Show condition={has_glyph}>
-                            <IconSized
-                                glyph={glyph}
-                                font_size=FONT_SMALL
-                                color={muted_color}
-                            />
+                            <IconSized glyph={glyph} font_size=FONT_SMALL color={muted_color} />
                         </Show>
                         <Body @sizing=ItemSize::Percent(100.0) content={label} color={color} />
                         <Show condition={generated}>

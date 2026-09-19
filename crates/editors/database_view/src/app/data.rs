@@ -137,9 +137,7 @@ impl ViewData {
             .iter()
             .position(|row| row.index == selection.row)
             .unwrap_or(0);
-        let next = position
-            .saturating_add_signed(rows)
-            .min(display.len() - 1);
+        let next = position.saturating_add_signed(rows).min(display.len() - 1);
         self.select(display[next].index, selection.field);
     }
 

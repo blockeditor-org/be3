@@ -216,12 +216,7 @@ fn Column(
                             let status = field_id.clone();
                             let board = Rc::clone(&board);
                             view! {
-                                <KanbanCard
-                                    data={data}
-                                    status={status}
-                                    board={board}
-                                    row={row}
-                                />
+                                <KanbanCard data={data} status={status} board={board} row={row} />
                             }
                         }}
                     </ForEach>

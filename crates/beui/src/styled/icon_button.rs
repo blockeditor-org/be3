@@ -3,10 +3,10 @@ use beui_macros::{component, view};
 
 use crate::node::NodeId;
 use crate::reactive::{ClickCallback, Frame, Prop, clone, create_memo};
-use crate::styled::tooltip::Tooltip;
 use crate::styled::button::ButtonVariant;
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, use_theme};
+use crate::styled::tooltip::Tooltip;
 use crate::unstyled;
 
 const PADDING: f32 = 8.0;

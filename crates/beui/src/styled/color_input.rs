@@ -3,9 +3,7 @@ use beui_macros::{component, view};
 use crate::base::{Align, Direction};
 use crate::color::Color32;
 use crate::node::NodeId;
-use crate::reactive::{
-    Callback, Frame, ItemSize, List, Prop, clone, create_effect, create_signal,
-};
+use crate::reactive::{Callback, Frame, ItemSize, List, Prop, clone, create_effect, create_signal};
 use crate::styled::text_input::TextInput;
 use crate::styled::theme::{RADIUS, use_theme};
 

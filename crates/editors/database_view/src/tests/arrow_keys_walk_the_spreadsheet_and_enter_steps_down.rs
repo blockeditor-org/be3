@@ -30,9 +30,10 @@ fn arrow_keys_walk_the_spreadsheet_and_enter_steps_down() {
 
     assert_eq!(fixture.test.label("database-view.cell-editor.cell"), "B2");
 
-    fixture
-        .test
-        .click(&format!("database-view.cell-editor.field.{}", fixture.fields[1]));
+    fixture.test.click(&format!(
+        "database-view.cell-editor.field.{}",
+        fixture.fields[1]
+    ));
     fixture.settle();
     fixture.test.key_press(Key::Enter);
     fixture.settle();
