@@ -14,8 +14,17 @@ pub struct PerformanceTimings {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FrameWork {
+    pub measured: usize,
+    pub reused_measurements: usize,
+    pub painted_nodes: usize,
+    pub replayed_nodes: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FramePerformance {
     pub timings: PerformanceTimings,
+    pub work: FrameWork,
     pub layout_passes: usize,
     pub painted: bool,
     pub nodes: usize,
@@ -73,6 +82,7 @@ impl PerformanceTracker {
 pub(crate) struct FrameMeasurement {
     started: Instant,
     pub(crate) timings: PerformanceTimings,
+    pub(crate) work: FrameWork,
     pub(crate) layout_passes: usize,
     pub(crate) painted: bool,
 }
@@ -82,6 +92,7 @@ impl FrameMeasurement {
         Self {
             started: Instant::now(),
             timings: PerformanceTimings::default(),
+            work: FrameWork::default(),
             layout_passes: 0,
             painted: false,
         }
@@ -104,6 +115,7 @@ impl FrameMeasurement {
         );
         FramePerformance {
             timings: self.timings,
+            work: self.work,
             layout_passes: self.layout_passes,
             painted: self.painted,
             nodes,
