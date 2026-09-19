@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::Range;
 use std::ptr;
 use std::rc::Rc;
@@ -206,13 +207,33 @@ impl Galley {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq)]
 struct GalleyKey {
     text: String,
     size: u32,
     family: FontFamily,
     wrap: u32,
     scale: u32,
+}
+
+impl GalleyKey {
+    fn matches(&self, text: &str, size: u32, family: FontFamily, wrap: u32, scale: u32) -> bool {
+        self.size == size
+            && self.family == family
+            && self.wrap == wrap
+            && self.scale == scale
+            && self.text == text
+    }
+}
+
+fn galley_hash(text: &str, size: u32, family: FontFamily, wrap: u32, scale: u32) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    text.hash(&mut hasher);
+    size.hash(&mut hasher);
+    family.hash(&mut hasher);
+    wrap.hash(&mut hasher);
+    scale.hash(&mut hasher);
+    hasher.finish()
 }
 
 const GALLEY_CACHE_LIMIT: usize = 4096;
@@ -283,7 +304,8 @@ pub(crate) struct Fonts {
     monospace: Vec<usize>,
     icons: Vec<usize>,
     glyphs: HashMap<GlyphId, Rc<GlyphImage>>,
-    galleys: HashMap<GalleyKey, Galley>,
+    galleys: HashMap<u64, Vec<(GalleyKey, Galley)>>,
+    cached_galleys: usize,
 }
 
 impl Fonts {
@@ -298,6 +320,7 @@ impl Fonts {
             icons: Vec::new(),
             glyphs: HashMap::new(),
             galleys: HashMap::new(),
+            cached_galleys: 0,
         };
         if opened {
             fonts.load_families(sources);
@@ -368,21 +391,33 @@ impl Fonts {
     ) -> Galley {
         let pixel_size = ((font.size * pixels_per_point).round() as u32).max(1);
         let wrap = (wrap_width * pixels_per_point).max(0.0);
+        let bits = wrap.to_bits();
+        let scale = pixels_per_point.to_bits();
+        let hash = galley_hash(text, pixel_size, font.family, bits, scale);
+        if let Some(bucket) = self.galleys.get(&hash)
+            && let Some((_, galley)) = bucket
+                .iter()
+                .find(|(key, _)| key.matches(text, pixel_size, font.family, bits, scale))
+        {
+            return galley.clone();
+        }
+        let galley = self.build(text, font.family, pixel_size, wrap, pixels_per_point);
+        if self.cached_galleys >= GALLEY_CACHE_LIMIT {
+            self.galleys.clear();
+            self.cached_galleys = 0;
+        }
         let key = GalleyKey {
             text: text.to_owned(),
             size: pixel_size,
             family: font.family,
-            wrap: wrap.to_bits(),
-            scale: pixels_per_point.to_bits(),
+            wrap: bits,
+            scale,
         };
-        if let Some(galley) = self.galleys.get(&key) {
-            return galley.clone();
-        }
-        let galley = self.build(text, font.family, pixel_size, wrap, pixels_per_point);
-        if self.galleys.len() >= GALLEY_CACHE_LIMIT {
-            self.galleys.clear();
-        }
-        self.galleys.insert(key, galley.clone());
+        self.galleys
+            .entry(hash)
+            .or_default()
+            .push((key, galley.clone()));
+        self.cached_galleys += 1;
         galley
     }
 
