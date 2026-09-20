@@ -28,6 +28,13 @@ pub enum Quad {
         corner_radius: f32,
         smooth: bool,
     },
+    Line {
+        rect: [f32; 4],
+        clip: [f32; 4],
+        segment: [f32; 4],
+        width: f32,
+        color: Color32,
+    },
     Punch {
         rect: [f32; 4],
         clip: [f32; 4],
@@ -149,6 +156,38 @@ pub fn quads_within(
                     tint: *tint,
                     corner_radius: corner_radius * pixels_per_point,
                     smooth: *smooth,
+                });
+            }
+            Shape::Line {
+                from,
+                to,
+                width,
+                color,
+                clip,
+            } => {
+                let clip = bounds(*clip, pixels_per_point);
+                let segment = [
+                    from.x * pixels_per_point,
+                    from.y * pixels_per_point,
+                    to.x * pixels_per_point,
+                    to.y * pixels_per_point,
+                ];
+                let width = (width * pixels_per_point).max(1.0);
+                let rect = [
+                    segment[0].min(segment[2]) - width / 2.0 - 1.0,
+                    segment[1].min(segment[3]) - width / 2.0 - 1.0,
+                    segment[0].max(segment[2]) + width / 2.0 + 1.0,
+                    segment[1].max(segment[3]) + width / 2.0 + 1.0,
+                ];
+                if skipped(damaged, rect, clip) {
+                    continue;
+                }
+                quads.push(Quad::Line {
+                    rect,
+                    clip,
+                    segment,
+                    width,
+                    color: *color,
                 });
             }
             Shape::Punch {

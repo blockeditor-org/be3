@@ -61,6 +61,21 @@ pub(crate) fn capture(
                     tint.to_array(),
                 )),
             ),
+            Quad::Line {
+                clip,
+                segment,
+                width,
+                color,
+                ..
+            } => (
+                clip,
+                Content::Mesh(band(
+                    points(segment),
+                    width / pixels_per_point,
+                    white(&mut textures)?,
+                    color.to_array(),
+                )),
+            ),
             Quad::Punch { rect, clip, .. } => (clip, Content::Callback(points(rect))),
         };
         primitives.push(Primitive {
@@ -104,6 +119,46 @@ fn mesh(rect: [f32; 4], source: [f32; 4], texture: TextureKey, color: [u8; 4]) -
             corners: [top_left, bottom_right, bottom_left],
         },
     ]
+}
+
+fn band(segment: [f32; 4], width: f32, texture: TextureKey, color: [u8; 4]) -> Vec<Triangle> {
+    let [x0, y0, x1, y1] = segment;
+    let length = (x1 - x0).hypot(y1 - y0);
+    let (nx, ny) = match length > 0.0 {
+        true => (
+            -(y1 - y0) / length * width / 2.0,
+            (x1 - x0) / length * width / 2.0,
+        ),
+        false => (width / 2.0, 0.0),
+    };
+    let corner = |x: f32, y: f32, u: f32, v: f32| Vertex {
+        pos: [x, y],
+        uv: [u, v],
+        color,
+    };
+    let start_left = corner(x0 + nx, y0 + ny, 0.0, 0.0);
+    let end_left = corner(x1 + nx, y1 + ny, 1.0, 0.0);
+    let end_right = corner(x1 - nx, y1 - ny, 1.0, 1.0);
+    let start_right = corner(x0 - nx, y0 - ny, 0.0, 1.0);
+    vec![
+        Triangle {
+            texture,
+            corners: [start_left, end_left, end_right],
+        },
+        Triangle {
+            texture,
+            corners: [start_left, end_right, start_right],
+        },
+    ]
+}
+
+fn white(textures: &mut BTreeMap<TextureKey, Texture>) -> Result<TextureKey, String> {
+    let pixels = [[255, 255, 255, 255]];
+    let key = paint_snapshot::fingerprint([1, 1], &pixels);
+    if let Entry::Vacant(entry) = textures.entry(key) {
+        entry.insert(Texture::encode([1, 1], &pixels)?);
+    }
+    Ok(key)
 }
 
 fn picture(

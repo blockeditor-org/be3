@@ -1369,6 +1369,7 @@ pub use crate::base::focusable::Focusable;
 pub use crate::base::frame::Frame;
 pub use crate::base::picture::Picture;
 pub use crate::base::scroll::{Scroll, VirtualList};
+pub use crate::base::stroke::Stroke;
 pub use crate::base::text::Text;
 
 #[component]

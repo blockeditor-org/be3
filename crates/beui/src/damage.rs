@@ -1,4 +1,4 @@
-use crate::geometry::Rect;
+use crate::geometry::{Pos2, Rect};
 use crate::painter::Shape;
 
 const REGIONS: usize = 4;
@@ -111,8 +111,23 @@ pub(crate) fn bounds(shape: &Shape) -> Rect {
             clip,
             ..
         } => Rect::from_min_size(*origin, galley.size()).intersect(*clip),
+        Shape::Line {
+            from,
+            to,
+            width,
+            clip,
+            ..
+        } => line_bounds(*from, *to, *width).intersect(*clip),
         Shape::Image { rect, clip, .. } | Shape::Punch { rect, clip, .. } => rect.intersect(*clip),
     }
+}
+
+pub(crate) fn line_bounds(from: Pos2, to: Pos2, width: f32) -> Rect {
+    Rect::from_min_max(
+        Pos2::new(from.x.min(to.x), from.y.min(to.y)),
+        Pos2::new(from.x.max(to.x), from.y.max(to.y)),
+    )
+    .expand(width / 2.0 + 1.0)
 }
 
 #[cfg(test)]

@@ -10,7 +10,7 @@ fn resetting_the_artwork_clears_painted_pixels() {
             color_index: 2,
         }],
     });
-    editor.step();
+    editor.run();
     assert!(
         block
             .read()
@@ -20,9 +20,9 @@ fn resetting_the_artwork_clears_painted_pixels() {
             .any(|pixel| *pixel != PIXEL_RAY_TRACER_BACKGROUND)
     );
 
-    editor.find("pixel_ray_tracer.reset").click();
-    editor.step();
-    editor.step();
+    editor.click("pixel_ray_tracer.reset");
+    editor.run();
+    editor.run();
 
     assert!(
         block
