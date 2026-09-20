@@ -9,6 +9,7 @@ use block_client::blocks::pixel_ray_tracer::{
     RaySettings,
 };
 use block_editor_plugin::beui::Image;
+use block_editor_plugin::beui::reactive::Draw;
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::{BlockProjection, Editor, PerformanceReporter};
 
@@ -113,8 +114,8 @@ pub(crate) struct RayState {
     set_lighting: WriteSignal<Option<Image>>,
     pub(crate) rays: ReadSignal<Option<Image>>,
     set_rays: WriteSignal<Option<Image>>,
-    pub(crate) overlay: ReadSignal<Option<Image>>,
-    set_overlay: WriteSignal<Option<Image>>,
+    pub(crate) overlay: ReadSignal<Draw>,
+    set_overlay: WriteSignal<Draw>,
     pub(crate) tool: ReadSignal<Tool>,
     set_tool: WriteSignal<Tool>,
     pub(crate) color_index: ReadSignal<u8>,
@@ -158,7 +159,7 @@ impl RayState {
         let entities = block.project(|scene| scene.entities().to_vec());
         let (lighting, set_lighting) = create_signal(None);
         let (rays, set_rays) = create_signal(None);
-        let (overlay, set_overlay) = create_signal(None);
+        let (overlay, set_overlay) = create_signal(overlay::draw(Vec::new(), None, Preview::None));
         let (tool, set_tool) = create_signal(Tool::Pencil);
         let (color_index, set_color_index) = create_signal(0);
         let (selected, set_selected) = create_signal(None);
@@ -519,8 +520,11 @@ impl RayState {
                 }
             }
         }
-        let image = overlay::draw(&entities, self.selected.get_untracked(), &self.preview());
-        self.set_overlay.set(Some(image));
+        self.set_overlay.set_unconditionally(overlay::draw(
+            entities,
+            self.selected.get_untracked(),
+            self.preview(),
+        ));
     }
 
     fn settle_lighting(&self) {
