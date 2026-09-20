@@ -3,7 +3,9 @@ use beui::{
     TouchPhase, Vec2,
 };
 use block_editor_plugin::beui_frame::BeuiFrame;
-use block_editor_plugin::{BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorRegion};
+use block_editor_plugin::{
+    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorRegion,
+};
 use std::marker::PhantomData;
 
 use crate::snapshot;
@@ -19,6 +21,7 @@ pub struct BeuiTest<A: BeuiApp> {
     pixels_per_point: f32,
     events: Vec<Event>,
     modifiers: Modifiers,
+    draft: Vec<u8>,
     output: Option<beui::FrameOutput>,
     children: Vec<ChildPlacement>,
     app: PhantomData<A>,
@@ -28,6 +31,7 @@ enum Region {
     Frame(Editor, BeuiFrame),
     Preview(Editor, Document),
     Creation(Creation, Document),
+    Settings(Artifacts, Document),
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
@@ -45,6 +49,25 @@ impl<A: BeuiApp> BeuiTest<A> {
             move || A::preview_view(editor)
         });
         Self::for_region(Region::Preview(editor, document))
+    }
+
+    pub fn settings(artifacts: Artifacts, data: Vec<u8>) -> Self {
+        let document = beui::reactive::build({
+            let artifacts = artifacts.clone();
+            move || A::artifact_settings_view(artifacts)
+        });
+        let mut editor = Self::for_region(Region::Settings(artifacts, document));
+        editor.set_draft(data);
+        editor.run();
+        editor
+    }
+
+    pub fn draft(&self) -> &[u8] {
+        &self.draft
+    }
+
+    pub fn set_draft(&mut self, data: Vec<u8>) {
+        self.draft = data;
     }
 
     pub fn creation(creation: Creation) -> Self {
@@ -65,6 +88,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             pixels_per_point: 1.0,
             events: Vec::new(),
             modifiers: Modifiers::NONE,
+            draft: Vec::new(),
             output: None,
             children: Vec::new(),
             app: PhantomData,
@@ -76,7 +100,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn document(&self) -> &Document {
         match &self.region {
             Region::Frame(_, frame) => frame.document(),
-            Region::Preview(_, document) | Region::Creation(_, document) => document,
+            Region::Preview(_, document)
+            | Region::Creation(_, document)
+            | Region::Settings(_, document) => document,
         }
     }
 
@@ -144,17 +170,29 @@ impl<A: BeuiApp> BeuiTest<A> {
                 let creation = creation.clone();
                 beui::reactive::with_reactive_scope(document, move || creation.begin_frame());
             }
+            Region::Settings(artifacts, document) => {
+                let artifacts = artifacts.clone();
+                let draft = std::mem::take(&mut self.draft);
+                beui::reactive::with_reactive_scope(document, move || {
+                    artifacts.receive_settings(&draft);
+                });
+            }
         }
         let output = context.run(beui::RawInput { events }, |context| match region {
             Region::Frame(_, frame) => frame.document_mut().show(context, rect),
-            Region::Preview(_, document) | Region::Creation(_, document) => {
-                document.show(context, rect)
-            }
+            Region::Preview(_, document)
+            | Region::Creation(_, document)
+            | Region::Settings(_, document) => document.show(context, rect),
         });
         match &self.region {
             Region::Frame(editor, frame) => editor.end_frame(frame.document()),
             Region::Preview(editor, document) => editor.end_frame(document),
             Region::Creation(..) => {}
+            Region::Settings(artifacts, _) => {
+                self.draft = artifacts
+                    .take_settings_edit()
+                    .unwrap_or_else(|| artifacts.settings().get_untracked());
+            }
         }
         let (children, _) = self.editor_host().end_region(placement);
         self.children = children;
@@ -164,6 +202,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn region(&self) -> EditorRegion {
         match &self.region {
             Region::Preview(..) => EditorRegion::Preview,
+            Region::Settings(..) => EditorRegion::ArtifactSettings,
             Region::Frame(..) | Region::Creation(..) => EditorRegion::Frame,
         }
     }
@@ -172,6 +211,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         match &self.region {
             Region::Frame(editor, _) | Region::Preview(editor, _) => editor.host().clone(),
             Region::Creation(creation, _) => creation.host().clone(),
+            Region::Settings(artifacts, _) => artifacts.host().clone(),
         }
     }
 

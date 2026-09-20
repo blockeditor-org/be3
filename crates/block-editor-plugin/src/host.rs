@@ -1218,6 +1218,16 @@ impl EditorHost {
         self.drag.set(drag);
     }
 
+    pub fn set_beui_drag(&self, drag: Option<crate::editor::Drag>) {
+        let ratio = self.beui.get().ratio;
+        self.drag.set(drag.map(|drag| BlockDrag {
+            position: egui::pos2(drag.position.x / ratio, drag.position.y / ratio),
+            block_id: drag.block_id,
+            block_type: drag.block_type,
+            dropped: drag.dropped,
+        }));
+    }
+
     pub fn take_drag_accepted(&self) -> Option<bool> {
         self.drag_accepted.take()
     }

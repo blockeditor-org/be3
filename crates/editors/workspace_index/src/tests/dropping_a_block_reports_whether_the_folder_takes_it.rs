@@ -10,8 +10,8 @@ fn dropping_a_block_reports_whether_the_folder_takes_it() {
     ) = editor(1);
     let middle = editor.rect().center();
 
-    host.set_drag(Some(BlockDrag {
-        position: egui::pos2(middle.x, middle.y),
+    host.set_beui_drag(Some(Drag {
+        position: middle,
         block_id: Uuid::new_v4(),
         block_type: Counter::TYPE_ID,
         dropped: false,
@@ -19,8 +19,8 @@ fn dropping_a_block_reports_whether_the_folder_takes_it() {
     editor.run();
     assert_eq!(host.take_drag_accepted(), Some(true));
 
-    host.set_drag(Some(BlockDrag {
-        position: egui::pos2(middle.x, middle.y),
+    host.set_beui_drag(Some(Drag {
+        position: middle,
         block_id: children[0],
         block_type: Counter::TYPE_ID,
         dropped: false,

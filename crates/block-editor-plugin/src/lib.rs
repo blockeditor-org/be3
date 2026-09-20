@@ -72,7 +72,9 @@ pub trait BeuiApp: 'static {
     fn describe_artifact(_data: &[u8]) -> Result<ArtifactDescription, String> {
         Err("this editor does not generate artifacts".into())
     }
-    fn artifact_settings_ui(_ui: &mut egui::Ui, _data: &mut Vec<u8>) {}
+    fn artifact_settings_view(_artifacts: Artifacts) -> beui::NodeId {
+        beui::reactive::Frame().build()
+    }
     fn intrinsic_size() -> Option<beui::Vec2> {
         None
     }
