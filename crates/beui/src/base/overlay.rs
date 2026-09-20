@@ -355,6 +355,18 @@ impl Document {
         })
     }
 
+    pub(crate) fn raise_overlay(&mut self, overlay: NodeId) {
+        let Some(index) = self.passive_overlays.iter().position(|id| *id == overlay) else {
+            return;
+        };
+        if index + 1 == self.passive_overlays.len() {
+            return;
+        }
+        let raised = self.passive_overlays.remove(index);
+        self.passive_overlays.push(raised);
+        self.arena.invalidate_node(raised);
+    }
+
     pub(crate) fn overlay_traps_focus(&self, overlay: NodeId) -> bool {
         self.arena.get_as::<OverlayNode>(overlay).traps_focus
     }

@@ -1680,6 +1680,8 @@ fn beui_cursor(cursor: beui::CursorIcon) -> CursorIcon {
         beui::CursorIcon::PointingHand => CursorIcon::Pointer,
         beui::CursorIcon::ResizeHorizontal => CursorIcon::ResizeHorizontal,
         beui::CursorIcon::ResizeVertical => CursorIcon::ResizeVertical,
+        beui::CursorIcon::ResizeNeSw => CursorIcon::ResizeNeSw,
+        beui::CursorIcon::ResizeNwSe => CursorIcon::ResizeNwSe,
         beui::CursorIcon::Text => CursorIcon::Text,
         beui::CursorIcon::Wait => CursorIcon::Wait,
     }

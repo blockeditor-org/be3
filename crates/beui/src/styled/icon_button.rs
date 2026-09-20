@@ -51,6 +51,7 @@ pub fn IconButton(
     #[prop(default = ButtonVariant::Secondary)] variant: ButtonVariant,
     #[prop(default = IconButtonSize::Regular)] size: IconButtonSize,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
     on_click: ClickCallback,
 ) -> NodeId {
     let accessibility = create_memo(clone!(label -> move || {
@@ -65,6 +66,7 @@ pub fn IconButton(
     view! {
         <unstyled::Button
             disabled
+            capture_presses
             accessibility
             on_click={move || on_click.call()}
             content={move |handle| view! {

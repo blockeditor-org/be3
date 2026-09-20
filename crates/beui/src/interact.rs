@@ -146,14 +146,37 @@ pub(crate) fn interact(
             );
         }
     }
-    for overlay in doc.floating_overlays() {
-        let Some(content) = doc.overlay_content(overlay) else {
-            continue;
+    let floating: Vec<NodeId> = doc
+        .floating_overlays()
+        .into_iter()
+        .filter_map(|overlay| doc.overlay_content(overlay))
+        .collect();
+    let shadowed: Vec<bool> = floating
+        .iter()
+        .enumerate()
+        .map(|(level, _)| {
+            floating[level + 1..].iter().any(|above| {
+                doc.node_rect(*above)
+                    .is_some_and(|rect| input.pointer_pos.is_some_and(|pos| rect.contains(pos)))
+            })
+        })
+        .collect();
+    for (content, shadowed) in floating.into_iter().zip(shadowed) {
+        let above = match shadowed {
+            false => input,
+            true => InteractInput {
+                pointer_pos: None,
+                zoom_pos: None,
+                wheel_target: None,
+                zoom_target: None,
+                touch_scroll_target: None,
+                ..input
+            },
         };
         interact_node(
             doc,
             painter,
-            &input,
+            &above,
             rects,
             content,
             &mut focus_target,

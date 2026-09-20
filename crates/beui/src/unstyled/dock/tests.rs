@@ -1,0 +1,8 @@
+use super::*;
+
+mod a_split_divides_its_area_between_the_panes_and_the_handle;
+mod a_tab_dropped_on_another_tab_bar_lands_at_the_place_it_was_dropped;
+mod closing_the_last_tab_of_a_window_closes_the_window;
+mod emptying_a_pane_gives_its_room_to_the_pane_it_was_split_from;
+mod focusing_a_window_raises_it_over_the_windows_it_overlaps;
+mod replacing_a_tab_leaves_it_where_it_was;

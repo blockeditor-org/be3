@@ -44,3 +44,7 @@ required-features = ["window"]
 [[example]]
 name = "counter"
 required-features = ["window"]
+
+[[example]]
+name = "dock"
+required-features = ["window"]

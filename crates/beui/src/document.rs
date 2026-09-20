@@ -270,7 +270,7 @@ impl Document {
         items: Vec<H::Stored>,
     ) {
         let host = self.arena.get_mut_as::<H>(node);
-        host.children().fill(slot, items);
+        host.children().fill_children(slot, items);
         host.children_changed();
     }
 

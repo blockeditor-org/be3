@@ -38,6 +38,7 @@ mod a_picture_paints_the_image_it_is_given;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
+mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_select_following_its_prop_does_not_report_a_change;
@@ -66,6 +67,7 @@ mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
 mod accessibility_exposes_and_operates_a_button;
 mod accessibility_reports_and_steps_a_slider;
+mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
 mod an_embed_punches_a_hole_in_the_surface_it_sits_on;
 mod an_embed_reports_a_rect_on_the_pixel_grid;
@@ -111,6 +113,9 @@ mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
 mod dragging_a_number_input_sideways_changes_its_value;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_slider_moves_its_value;
+mod dragging_a_tab_onto_the_edge_of_a_pane_splits_it;
+mod dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar;
+mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
 mod editing_one_row_of_a_keyed_list_leaves_every_node_in_place;
@@ -177,6 +182,7 @@ mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_poin
 mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
 mod swiping_the_simulated_middle_button_scrolls_in_ticks;
 mod switching_a_show_damages_both_panels;
+mod switching_dock_tabs_keeps_the_panel_it_hides;
 mod tab_focus_stays_in_the_active_document_when_the_inspector_is_open;
 mod tab_is_trapped_inside_an_open_context_menu;
 mod tab_moves_focus_from_one_text_input_to_the_next;
@@ -189,6 +195,7 @@ mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
 mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
 mod the_demo_catalog_survives_switching_tabs;
+mod the_dock_demo_opens_a_paper_from_the_files_it_lists;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
 mod the_inspector_follows_nodes_added_to_the_document;
@@ -235,8 +242,8 @@ use crate::input::{TouchId, TouchPhase};
 use crate::base::list::{Direction, ItemSize};
 use crate::inspector::Inspector;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Spacer, Text, VirtualOffset,
-    build, with_document,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, Func, List, NodeRef, Spacer, Text,
+    VirtualOffset, build, create_signal, with_document,
 };
 use crate::styled;
 use crate::unstyled;
@@ -854,6 +861,62 @@ pub(crate) fn indices(count: usize) -> Vec<usize> {
 
 pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
     document.text(id)
+}
+
+pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
+    let dock = NodeRef::new();
+    let built = dock.clone();
+    let tabs: Vec<unstyled::TabId> = (1..=tabs)
+        .map(|index| unstyled::TabId::new(index as u64))
+        .collect();
+    let document = build(move || {
+        let (state, set_state) = create_signal(unstyled::DockState::new(tabs));
+        view! {
+            <styled::DockArea
+                @node_ref=&built
+                state={state}
+                title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
+                on_change={move |next: unstyled::DockState| set_state.set(next)}
+                on_close={move |_: unstyled::TabId| {}}
+            >
+                {move |tab: unstyled::TabId| view! {
+                    <Frame @test_id={format!("content.{}", tab.value())} />
+                }}
+            </styled::DockArea>
+        }
+    });
+    (document, dock.get())
+}
+
+pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
+    if document.node_kind(root) == "text" && document.text(root) == text {
+        return Some(root);
+    }
+    document
+        .children(root)
+        .into_iter()
+        .find_map(|child| text_within(document, child, text))
+}
+
+pub(crate) fn dock_tab(document: &Document, dock: NodeId, title: &str) -> NodeId {
+    text_within(document, dock, title).unwrap_or_else(|| panic!("the dock shows {title}"))
+}
+
+pub(crate) fn drag_with(harness: &mut Harness, from: Pos2, to: Pos2, modifiers: Modifiers) {
+    harness.frame(vec![Event::PointerMoved(from), Event::Modifiers(modifiers)]);
+    harness.frame(vec![Event::PointerButton {
+        pos: from,
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers,
+    }]);
+    harness.frame(vec![Event::PointerMoved(to), Event::Modifiers(modifiers)]);
+    harness.frame(vec![Event::PointerButton {
+        pos: to,
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers,
+    }]);
 }
 
 pub(crate) fn toolbar_of<const N: usize>(

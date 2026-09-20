@@ -258,12 +258,12 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Tooltip`, `Floating`,
-`Scroll`, `VirtualList`, and `Stack`.
+`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Dock`, `Tooltip`,
+`Floating`, `Scroll`, `VirtualList`, and `Stack`.
 The styled
 module supplies themed buttons, icon buttons, links, text styles, cards,
 checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
-progress, scrolls and scrollbars, tooltips, and responsive layout. A control that can be turned off -
+progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen
@@ -426,6 +426,64 @@ face that draws a chevron of its own outside the name wants pressing the
 chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong.
+
+### Docking and windows
+
+`styled::DockArea` is the workspace layout: panes split from one another, a tab
+bar on each pane, and tabs that can be dragged between panes or out into
+windows that float over the rest of the dock. `unstyled::Dock` underneath it
+owns the tree, the dragging and the keyboard, and paints nothing;
+`crates/beui/examples/dock.rs` is the worked example, run with
+`cargo run -p beui --example dock`.
+
+The layout is a `DockState`, which the caller keeps in a signal and hands back
+when the dock reports a change, the way `PanZoom` takes its camera:
+
+```rust
+let (layout, set_layout) = create_signal(DockState::new([TabId::new(1)]));
+view! {
+    <DockArea
+        state={layout}
+        title={Func::new(move |tab: TabId| title_of(tab))}
+        closable={Func::new(|tab: TabId| tab != FILES)}
+        on_change={move |next: DockState| set_layout.set(next)}
+        on_close={move |tab: TabId| forget(tab)}
+    >
+        {move |tab: TabId| view! { <Panel tab /> }}
+    </DockArea>
+}
+```
+
+A tab is a `TabId` the caller mints, so whatever the tab stands for - a block,
+a file, a tool - stays the caller's. The dock asks for a title, hands the
+`TabId` back to the `content` builder for the panel to show, and reports the
+tabs it removes through `on_close` so the caller can drop what it was holding.
+Because the state is a plain value, the caller opens, closes, splits and floats
+by writing it: `show`, `push`, `push_to_focused`, `split`, `remove`, `replace`
+and `drop_tab` are the whole vocabulary, and `find`, `all_tabs`, `focused_tab`
+and `surface_tabs` read it back.
+
+Each surface - the main one and one per window - lays its tree out over the
+rectangle it was given, so panes and the bars between them are canvas items at
+computed rectangles rather than nested boxes. `layout_surface` is that
+calculation on its own, which is what the drop targets and the tests are
+resolved against. A window is a floating overlay, so it paints above the dock
+and takes the pointer where it actually is, and the document underneath it is
+shut out rather than answering a press through it.
+
+Dragging a tab picks a drop target from what is under the pointer: a tab bar
+inserts it between the tabs there, the middle of a pane joins that pane, and an
+edge of one splits it. Holding Alt while dropping floats the tab into a window
+instead, which is also what the button at the right of a tab bar does. Windows
+move by their title bar, resize from any of their eight grips, and are raised
+by whatever takes the focus inside them. The bar between two panes is a tab
+stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
+`Choice`, so the arrows, Home and End walk it like any other tab list.
+
+The panel a tab is not showing keeps its nodes: it is laid out at zero size and
+hidden rather than removed, so switching back to a tab finds the scroll
+position, the caret and the state its panel had. Moving a tab to another pane
+does rebuild its panel, because the panel belongs to the pane that shows it.
 
 ### Pan and zoom
 
