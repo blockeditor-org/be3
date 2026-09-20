@@ -6,7 +6,7 @@ const FOV_Y_RADIANS: f32 = 1.309;
 const NEAR: f32 = 0.05;
 const FAR: f32 = 200.0;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Camera {
     position: [f32; 3],
     yaw: f32,

@@ -76,7 +76,9 @@ pub(crate) fn capture(
                     color.to_array(),
                 )),
             ),
-            Quad::Punch { rect, clip, .. } => (clip, Content::Callback(points(rect))),
+            Quad::Punch { rect, clip, .. } | Quad::Drawing { rect, clip, .. } => {
+                (clip, Content::Callback(points(rect)))
+            }
         };
         primitives.push(Primitive {
             clip: points(clip),

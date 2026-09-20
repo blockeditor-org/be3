@@ -118,7 +118,9 @@ pub(crate) fn bounds(shape: &Shape) -> Rect {
             clip,
             ..
         } => line_bounds(*from, *to, *width).intersect(*clip),
-        Shape::Image { rect, clip, .. } | Shape::Punch { rect, clip, .. } => rect.intersect(*clip),
+        Shape::Image { rect, clip, .. }
+        | Shape::Punch { rect, clip, .. }
+        | Shape::Drawing { rect, clip, .. } => rect.intersect(*clip),
     }
 }
 

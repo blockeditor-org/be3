@@ -216,8 +216,8 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
   `Offset`, `VirtualOffset`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher`,
-  `Embed`, `Portal` — and it stays small because most things are compositions
-  of those.
+  `Embed`, `Portal`, `Viewport` — and it stays small because most things are
+  compositions of those.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
   arranging the existing nodes. `Portal` is one: it shows a subtree it does not
@@ -257,6 +257,9 @@ surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
+`Viewport` reserves a rectangle the renderer draws into rather than the
+document: it fills the space it is given and paints the `Drawing` it is handed
+in its place (see [Draw with the gpu](#draw-with-the-gpu)).
 `Offset` and `VirtualOffset` keep a run of items along a `direction` and lay
 them out from an offset; they answer no input at all, so nothing scrolls by
 putting one in a view (see [Scrolling](#scrolling)).
@@ -540,6 +543,42 @@ camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor
 the same way. Anything between the gesture and the camera - momentum, snapping,
 clamping the camera to the content - belongs to the caller, apart from the
 scale limits `min_scale` and `max_scale`.
+
+### Draw with the gpu
+
+A viewport whose pixels no arrangement of nodes can produce - a 3D scene, a ray
+tracer, a map - is a `Viewport` node holding a `Drawing`. `Viewport` fills the
+space it is laid out in and paints a `Shape::Drawing` over its rectangle;
+the renderer runs the `Draw` behind that drawing where the shape sits in the
+order everything else is painted in, so nodes written after it still paint over
+it.
+
+```rust
+view! {
+    <Viewport drawing={drawing} @sizing=ItemSize::Percent(100.0) />
+}
+```
+
+`Draw` has the two halves a gpu frame has. `prepare` is handed the device, the
+queue and an encoder, and is where the passes of its own go - rendering into
+its own textures, writing its own buffers. `paint` is handed the render pass
+beui is painting the document into, and draws there. Both are handed a `DrawAt`
+carrying the rectangle and the clip in physical pixels, the size of the whole
+target, the scale, and the target's texture format, which is what a pipeline
+built on the first frame is built against. A `Draw` must leave the pass's
+viewport and scissor as it found them: position what it draws from the
+rectangle it was given, the way beui's own shader does, rather than by setting
+a viewport.
+
+`Drawing::new` wraps a `Draw`, and two drawings are the same shape when they
+are the same `Rc`. That is what decides whether the frame changed, so a drawing
+whose contents have moved is a new `Drawing` and a frame that is showing the
+same thing keeps the one it had, which is what leaves an idle editor idle. The
+gpu resources belong to the `Draw` rather than to the drawing: keep them in an
+`Rc<RefCell<Option<..>>>` the drawing clones, build them on the first `prepare`
+from the format `DrawAt` names, and a headless test - which never builds a
+`Renderer` - never opens a device at all. The `scene_3d` editor is the worked
+example.
 
 ## Use beui in a standalone app
 

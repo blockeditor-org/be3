@@ -9,6 +9,7 @@ mod context;
 mod damage;
 mod document;
 mod draw;
+mod drawing;
 mod filter;
 mod flash;
 mod font;
@@ -40,6 +41,9 @@ pub use color::Color32;
 pub use context::{Context, FrameOutput};
 pub use document::Document;
 pub use draw::{Quad, Quads, quads, quads_within};
+pub use drawing::Drawing;
+#[cfg(feature = "render")]
+pub use drawing::{Draw, DrawAt};
 pub use filter::{ColorVision, Filter, MAX_BLUR};
 pub use font::{FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};

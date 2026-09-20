@@ -1464,11 +1464,16 @@ impl EditorSession {
                 state.emulated_touch = false;
                 state.events.push(beui::Event::Focus(false));
             }
-            InputEvent::PointerMotion { .. } | InputEvent::Ime(_) | InputEvent::Focus(_) => {}
+            InputEvent::Ime(_) | InputEvent::Focus(_) | InputEvent::PointerMotion { .. } => {}
         }
     }
 
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
+        match event {
+            InputEvent::PointerMotion { x, y } => self.host.push_pointer_motion(*x, *y),
+            InputEvent::Focus(focused) => self.host.set_input_focused(*focused),
+            _ => {}
+        }
         if self.beui.is_some() {
             return self.beui_input(region, event);
         }

@@ -242,6 +242,12 @@ struct EditorState {
     set_pixels_per_point: WriteSignal<f32>,
     resized: ReadSignal<Option<Vec2>>,
     set_resized: WriteSignal<Option<Vec2>>,
+    pointer_motion: ReadSignal<Vec2>,
+    set_pointer_motion: WriteSignal<Vec2>,
+    input_focused: ReadSignal<bool>,
+    set_input_focused: WriteSignal<bool>,
+    cursor_grabbed: ReadSignal<bool>,
+    set_cursor_grabbed: WriteSignal<bool>,
     pending_resize: Cell<Option<Vec2>>,
     content: RefCell<Option<NodeRef>>,
     content_rect: Cell<Rect>,
@@ -264,6 +270,9 @@ impl Editor {
         let (drag, set_drag) = create_signal(None::<Drag>);
         let (pixels_per_point, set_pixels_per_point) = create_signal(1.0_f32);
         let (resized, set_resized) = create_signal(None::<Vec2>);
+        let (pointer_motion, set_pointer_motion) = create_signal(Vec2::ZERO);
+        let (input_focused, set_input_focused) = create_signal(host.input_focused());
+        let (cursor_grabbed, set_cursor_grabbed) = create_signal(host.cursor_grabbed());
         Self(Rc::new(EditorState {
             host,
             client,
@@ -286,6 +295,12 @@ impl Editor {
             set_pixels_per_point,
             resized,
             set_resized,
+            pointer_motion,
+            set_pointer_motion,
+            input_focused,
+            set_input_focused,
+            cursor_grabbed,
+            set_cursor_grabbed,
             pending_resize: Cell::new(None),
             content: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
@@ -468,6 +483,23 @@ impl Editor {
         self.0.drag.clone()
     }
 
+    pub fn pointer_motion(&self) -> ReadSignal<Vec2> {
+        self.0.pointer_motion.clone()
+    }
+
+    pub fn input_focused(&self) -> ReadSignal<bool> {
+        self.0.input_focused.clone()
+    }
+
+    pub fn cursor_grabbed(&self) -> ReadSignal<bool> {
+        self.0.cursor_grabbed.clone()
+    }
+
+    pub fn grab_cursor(&self, grabbed: bool) {
+        self.0.host.grab_cursor(grabbed);
+        self.0.set_cursor_grabbed.set(grabbed);
+    }
+
     pub fn accept_drag(&self, accepted: bool) {
         self.0.host.accept_drag(accepted);
     }
@@ -514,6 +546,11 @@ impl Editor {
             .set_pixels_per_point
             .set(self.0.host.beui_pixels_per_point());
         self.0.set_resized.set(self.0.pending_resize.take());
+        self.0
+            .set_pointer_motion
+            .set(self.0.host.take_pointer_motion());
+        self.0.set_input_focused.set(self.0.host.input_focused());
+        self.0.set_cursor_grabbed.set(self.0.host.cursor_grabbed());
         for record in self.records() {
             let state = ChildState::of(&self.0.host, record.child.get());
             if record.read.get_untracked() == state {

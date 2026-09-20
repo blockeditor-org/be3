@@ -627,6 +627,10 @@ fn scale_shape(shape: &mut Shape, scale: f32) {
             *corner_radius *= scale;
             *clip = clip.scaled(scale);
         }
+        Shape::Drawing { rect, clip, .. } => {
+            *rect = rect.scaled(scale);
+            *clip = clip.scaled(scale);
+        }
     }
 }
 

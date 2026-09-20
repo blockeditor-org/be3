@@ -1,5 +1,6 @@
 use crate::color::Color32;
 use crate::context::FrameOutput;
+use crate::drawing::Drawing;
 use crate::font::Glyph;
 use crate::geometry::{Rect, vec2};
 use crate::image::Image;
@@ -39,6 +40,11 @@ pub enum Quad {
         rect: [f32; 4],
         clip: [f32; 4],
         corner_radius: f32,
+    },
+    Drawing {
+        rect: [f32; 4],
+        clip: [f32; 4],
+        drawing: Drawing,
     },
 }
 
@@ -207,6 +213,25 @@ pub fn quads_within(
                     rect,
                     clip,
                     corner_radius: corner_radius * pixels_per_point,
+                });
+            }
+            Shape::Drawing {
+                rect,
+                drawing,
+                clip,
+            } => {
+                if !rect.is_positive() {
+                    continue;
+                }
+                let rect = snapped(*rect, pixels_per_point);
+                let clip = bounds(*clip, pixels_per_point);
+                if skipped(damaged, rect, clip) {
+                    continue;
+                }
+                quads.push(Quad::Drawing {
+                    rect,
+                    clip,
+                    drawing: drawing.clone(),
                 });
             }
         }

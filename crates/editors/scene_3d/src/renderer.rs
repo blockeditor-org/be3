@@ -1,7 +1,10 @@
-use block_editor_plugin::egui_wgpu::{self, wgpu};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use beui::{Draw, DrawAt, Drawing};
 use bytemuck::{Pod, Zeroable};
 
-use crate::scene::SceneFrame;
+use crate::camera::Camera;
 
 const SKY_COLOR: wgpu::Color = wgpu::Color {
     r: 0.53,
@@ -10,7 +13,7 @@ const SKY_COLOR: wgpu::Color = wgpu::Color {
     a: 1.0,
 };
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-const OFFSCREEN_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+const OFFSCREEN_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -37,36 +40,48 @@ struct SceneUniform {
     view_projection: [[f32; 4]; 4],
 }
 
-pub(crate) struct Scene3DCallback {
-    pub(crate) frame: SceneFrame,
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct BlitUniform {
+    rect: [f32; 4],
+    clip: [f32; 4],
+    screen: [f32; 2],
+    padding: [f32; 2],
 }
 
-impl egui_wgpu::CallbackTrait for Scene3DCallback {
+#[derive(Clone, Default)]
+pub(crate) struct Scene(Rc<RefCell<Option<SceneRenderer>>>);
+
+impl Scene {
+    pub(crate) fn drawing(&self, camera: Camera) -> Drawing {
+        Drawing::new(SceneDraw {
+            scene: self.clone(),
+            camera,
+        })
+    }
+}
+
+struct SceneDraw {
+    scene: Scene,
+    camera: Camera,
+}
+
+impl Draw for SceneDraw {
     fn prepare(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        _screen_descriptor: &egui_wgpu::ScreenDescriptor,
-        egui_encoder: &mut wgpu::CommandEncoder,
-        callback_resources: &mut egui_wgpu::CallbackResources,
-    ) -> Vec<wgpu::CommandBuffer> {
-        let renderer = callback_resources
-            .entry::<Scene3DRenderer>()
-            .or_insert_with(|| {
-                Scene3DRenderer::new(device, queue, block_editor_plugin::surface_format())
-            });
-        renderer.render_scene(device, queue, egui_encoder, &self.frame);
-        Vec::new()
+        encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let mut held = self.scene.0.borrow_mut();
+        let renderer = held.get_or_insert_with(|| SceneRenderer::new(device, queue, at.format));
+        renderer.prepare(device, queue, encoder, self.camera, at);
     }
 
-    fn paint(
-        &self,
-        _info: block_editor_plugin::egui::PaintCallbackInfo,
-        render_pass: &mut wgpu::RenderPass<'static>,
-        callback_resources: &egui_wgpu::CallbackResources,
-    ) {
-        if let Some(renderer) = callback_resources.get::<Scene3DRenderer>() {
-            renderer.blit(render_pass);
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
+        if let Some(renderer) = self.scene.0.borrow().as_ref() {
+            renderer.blit(pass);
         }
     }
 }
@@ -78,10 +93,11 @@ struct SceneTarget {
     blit_bind_group: wgpu::BindGroup,
 }
 
-struct Scene3DRenderer {
+struct SceneRenderer {
     scene_pipeline: wgpu::RenderPipeline,
     blit_pipeline: wgpu::RenderPipeline,
     blit_bind_group_layout: wgpu::BindGroupLayout,
+    blit_uniform_buffer: wgpu::Buffer,
     sampler: wgpu::Sampler,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
@@ -90,7 +106,7 @@ struct Scene3DRenderer {
     target: Option<SceneTarget>,
 }
 
-impl Scene3DRenderer {
+impl SceneRenderer {
     fn new(device: &wgpu::Device, queue: &wgpu::Queue, target_format: wgpu::TextureFormat) -> Self {
         let scene_shader = device.create_shader_module(wgpu::include_wgsl!("renderer.wgsl"));
         let blit_shader = device.create_shader_module(wgpu::include_wgsl!("blit.wgsl"));
@@ -153,6 +169,16 @@ impl Scene3DRenderer {
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
@@ -162,7 +188,7 @@ impl Scene3DRenderer {
                         count: None,
                     },
                     wgpu::BindGroupLayoutEntry {
-                        binding: 1,
+                        binding: 2,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
@@ -192,7 +218,7 @@ impl Scene3DRenderer {
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
-                    blend: None,
+                    blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -221,6 +247,12 @@ impl Scene3DRenderer {
                 resource: uniform_buffer.as_entire_binding(),
             }],
         });
+        let blit_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("scene 3d blit uniform buffer"),
+            size: std::mem::size_of::<BlitUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         let vertices = scene_geometry();
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -235,6 +267,7 @@ impl Scene3DRenderer {
             scene_pipeline,
             blit_pipeline,
             blit_bind_group_layout,
+            blit_uniform_buffer,
             sampler,
             uniform_buffer,
             uniform_bind_group,
@@ -285,10 +318,14 @@ impl Scene3DRenderer {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&color_view),
+                    resource: self.blit_uniform_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&color_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
                 },
             ],
@@ -301,26 +338,35 @@ impl Scene3DRenderer {
         });
     }
 
-    fn render_scene(
+    fn prepare(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
-        frame: &SceneFrame,
+        camera: Camera,
+        at: DrawAt,
     ) {
-        if frame.viewport_size_px[0] == 0 || frame.viewport_size_px[1] == 0 {
-            return;
-        }
-        self.ensure_target(device, frame.viewport_size_px);
+        let size = [at.width().max(1), at.height().max(1)];
+        self.ensure_target(device, size);
         let Some(target) = &self.target else {
             return;
         };
 
         queue.write_buffer(
+            &self.blit_uniform_buffer,
+            0,
+            bytemuck::bytes_of(&BlitUniform {
+                rect: at.rect,
+                clip: at.clip,
+                screen: [at.screen.x, at.screen.y],
+                padding: [0.0, 0.0],
+            }),
+        );
+        queue.write_buffer(
             &self.uniform_buffer,
             0,
             bytemuck::bytes_of(&SceneUniform {
-                view_projection: frame.view_projection,
+                view_projection: camera.view_projection(size[0] as f32 / size[1] as f32),
             }),
         );
 
@@ -353,13 +399,13 @@ impl Scene3DRenderer {
         render_pass.draw(0..self.vertex_count, 0..1);
     }
 
-    fn blit(&self, render_pass: &mut wgpu::RenderPass<'static>) {
+    fn blit(&self, render_pass: &mut wgpu::RenderPass<'_>) {
         let Some(target) = &self.target else {
             return;
         };
         render_pass.set_pipeline(&self.blit_pipeline);
         render_pass.set_bind_group(0, &target.blit_bind_group, &[]);
-        render_pass.draw(0..3, 0..1);
+        render_pass.draw(0..6, 0..1);
     }
 }
 

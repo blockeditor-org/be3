@@ -486,6 +486,15 @@ fn beui_rect(rect: egui::Rect, ratio: f32) -> beui::Rect {
     )
 }
 
+#[derive(Clone, Copy)]
+struct InputFocus(bool);
+
+impl Default for InputFocus {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
@@ -533,6 +542,8 @@ pub struct EditorHost {
     web_view_events: Rc<RefCell<Vec<WebViewEvent>>>,
     cursor_grabbed: Rc<Cell<bool>>,
     cursor_grab_changed: Rc<Cell<bool>>,
+    pointer_motion: Rc<Cell<(f32, f32)>>,
+    input_focus: Rc<Cell<InputFocus>>,
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
@@ -991,6 +1002,26 @@ impl EditorHost {
 
     pub fn cursor_grabbed(&self) -> bool {
         self.cursor_grabbed.get()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn push_pointer_motion(&self, x: f32, y: f32) {
+        let (moved_x, moved_y) = self.pointer_motion.get();
+        self.pointer_motion.set((moved_x + x, moved_y + y));
+    }
+
+    pub fn take_pointer_motion(&self) -> beui::Vec2 {
+        let (x, y) = self.pointer_motion.replace((0.0, 0.0));
+        beui::vec2(x, y)
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn set_input_focused(&self, focused: bool) {
+        self.input_focus.set(InputFocus(focused));
+    }
+
+    pub fn input_focused(&self) -> bool {
+        self.input_focus.get().0
     }
 
     pub fn take_cursor_grab(&self) -> Option<bool> {
