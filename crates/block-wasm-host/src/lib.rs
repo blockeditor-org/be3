@@ -24,6 +24,8 @@ pub use state::{Connect, State};
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 
+const CONSTRUCTORS: &str = "__wasm_call_ctors";
+
 #[derive(Clone)]
 pub struct Host {
     engine: Engine,
@@ -122,6 +124,7 @@ impl Plugin {
         let instance = linker
             .instantiate(&mut store, &module)
             .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
+        call_constructors(&instance, &mut store)?;
         initialize_storage(&instance, &mut store)?;
         let plugin = Self {
             start: typed(&instance, &mut store, "plugin_start")?,
@@ -205,6 +208,15 @@ impl Plugin {
         self.store.data().threads.stop();
         let _ = self.shutdown.call(&mut self.store, ());
     }
+}
+
+fn call_constructors(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
+    let Ok(constructors) = instance.get_typed_func::<(), ()>(&mut *store, CONSTRUCTORS) else {
+        return Ok(());
+    };
+    constructors
+        .call(store, ())
+        .map_err(|error| format!("the plugin could not run its constructors: {error}"))
 }
 
 fn initialize_storage(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
