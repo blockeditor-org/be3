@@ -7,7 +7,7 @@ use beui_macros::{component, view};
 use crate::reactive::{
     Callback, Child, ChildScope, ChildValue, Children, Focusable, IntoProp, List, Memo, NodeRef,
     Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show, WriteSignal, clone, create_effect,
-    create_memo, create_selector, create_signal, intrinsic, set_component_state,
+    create_memo, create_selector, create_signal, set_component_state,
 };
 use crate::unstyled;
 use crate::unstyled::button::ButtonHandle;
@@ -164,7 +164,7 @@ pub(crate) fn MenuList(
         let count = state.rows.borrow().len();
         (0..count)
             .map(|index| {
-                intrinsic(view! {
+                view! {
                     <MenuRow
                         state={state.clone()}
                         index
@@ -173,7 +173,7 @@ pub(crate) fn MenuList(
                         panel={panel.clone()}
                         parent={parent.clone()}
                     />
-                })
+                }
             })
             .collect()
     });
@@ -274,7 +274,7 @@ fn MenuRow(
                     leave_open.set(false);
                     leave_state.set_focus.set(Focus::Row(index));
                 })));
-                intrinsic(view! {
+                view! {
                     <Overlay
                         anchor=&button
                         placement=Placement::RightStart
@@ -297,7 +297,7 @@ fn MenuRow(
                             />
                         })}
                     </Overlay>
-                })
+                }
                 }}
             </Show>
         </List>

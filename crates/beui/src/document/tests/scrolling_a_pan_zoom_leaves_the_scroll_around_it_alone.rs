@@ -1,6 +1,6 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ItemSize, List, Scroll, view};
+use crate::reactive::{ForEach, ItemSize, List, Scroll, view};
 use crate::unstyled::{PanZoomView, pan_zoom_view};
 
 #[test]
@@ -8,16 +8,6 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
     let reported = Rc::new(Cell::new(None));
     let sink = reported.clone();
     let document = build(move || {
-        let mut items = vec![view! {
-            <Frame height=200.0>
-                <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
-            </Frame>
-        }];
-        items.extend((0..20).map(|index| {
-            view! {
-                <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
-            }
-        }));
         view! {
             <List spacing=0.0>
                 <Scroll
@@ -25,8 +15,20 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
                     on_change={move |position: crate::base::ScrollPosition| {
                         sink.set(Some(position.offset));
                     }}
-                    children={items}
-                />
+                >
+                    <Frame height=200.0>
+                        <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+                    </Frame>
+                    <ForEach keys={indices(20)}>
+                        {|index: usize| view! {
+                            <Text
+                                string={format!("Row {index}")}
+                                font_size=20.0
+                                color=Color32::WHITE
+                            />
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

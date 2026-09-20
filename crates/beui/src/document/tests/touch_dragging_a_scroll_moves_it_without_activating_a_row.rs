@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, NodeRef, Scroll, build, view};
 
 #[test]
 fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
@@ -8,22 +8,23 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     let scroll = NodeRef::new();
     let scroll_ref = scroll.clone();
     let document = build(move || {
-        let items = (0..100)
-            .map(|index| {
-                let click_sink = click_sink.clone();
-                view! {
-                    <LabelledButton
-                        label={format!("Row {index}")}
-                        on_click={move || {
-                            click_sink.set(click_sink.get() + 1);
-                        }}
-                    />
-                }
-            })
-            .collect::<Vec<_>>();
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                    <ForEach keys={indices(100)}>
+                        {move |index: usize| {
+                            let click_sink = click_sink.clone();
+                            view! {
+                                <LabelledButton
+                                    label={format!("Row {index}")}
+                                    on_click={move || {
+                                        click_sink.set(click_sink.get() + 1);
+                                    }}
+                                />
+                            }
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

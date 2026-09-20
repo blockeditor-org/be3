@@ -25,10 +25,10 @@ use crate::unstyled::MenuRowHandle;
 use beui_macros::{component, view};
 
 use crate::reactive::{
-    Callback, Child, ClickCatcher, Dynamic, Focusable, Frame, IntoProp, List, Memo, NodeRef, Prop,
-    ReadSignal, Render, RenderFn, Show, Text, WriteSignal, clone, component_accessibility,
-    copy_text, create_effect, create_memo, create_signal, intrinsic, percent, set_component_state,
-    with_document,
+    Callback, Child, ClickCatcher, Dynamic, Focusable, ForEach, Frame, IntoProp, ItemSize, List,
+    Memo, NodeRef, Prop, ReadSignal, Render, RenderFn, Show, Text, WriteSignal, clone,
+    component_accessibility, copy_text, create_effect, create_memo, create_signal,
+    set_component_state, with_document,
 };
 
 const FONT_SIZE: f32 = 14.0;
@@ -201,88 +201,7 @@ pub fn TextInput(
         disabled.clone(),
         disabled.clone(),
     );
-    let catcher = view! {
-        <ClickCatcher
-            cursor
-            repeat_drag={autoscroll}
-            capture_at={{
-                let editor = editor.clone();
-                move |pos: Pos2| !capture_off.get_untracked() && handle_at(&editor, pos).is_some()
-            }}
-            on_press={{
-                let editor = editor.clone();
-                move |press: PointerPress| {
-                    if !press_off.get_untracked() {
-                        point(&editor, press);
-                    }
-                }
-            }}
-            on_click_at={{
-                let editor = editor.clone();
-                move |press: PointerPress| {
-                    if !tap_off.get_untracked() {
-                        tap(&editor, press);
-                    }
-                }
-            }}
-            on_drag={{
-                let editor = editor.clone();
-                move |press: PointerPress| {
-                    if !drag_off.get_untracked() {
-                        extend(&editor, press);
-                    }
-                }
-            }}
-            on_active_change={move |active: bool| {
-                if !active {
-                    set_autoscroll.set(false);
-                }
-            }}
-            on_hover_change={move |is_hovered: bool| {
-                set_hovered.set(is_hovered);
-                on_hover_change.call(is_hovered);
-            }}
-        >
-            {{
-                let field = view! {
-                    <Frame
-                        padding_horizontal={padding_horizontal}
-                        padding_vertical={padding_vertical}
-                    >
-                        <Text
-                            @node_ref=&text
-                            string
-                            font_size
-                            color
-                            selection_color
-                            caret_color
-                            caret
-                            selection
-                            handles
-                            align=TextAlign::Start
-                            clip=true
-                        />
-                    </Frame>
-                };
-                match content {
-                    Some(build) => build.call(TextInputHandle {
-                        field,
-                        hovered,
-                        focused,
-                        disabled: field_off.clone(),
-                    }),
-                    None => field,
-                }
-            }}
-        </ClickCatcher>
-    };
-    let mut children = vec![percent(catcher, 100.0)];
-    children.extend(menu.0.map(|(row, panel)| {
-        intrinsic(view! {
-            <TouchMenu editor={editor.clone()} at={menu_at} actions={menu_actions} row panel />
-        })
-    }));
-
+    let menu = menu.0;
     view! {
         <Focusable
             focused={focus_request}
@@ -324,7 +243,97 @@ pub fn TextInput(
                 }
             }}
         >
-            <List spacing=0.0 children />
+            <List spacing=0.0>
+                <ClickCatcher
+                    @sizing=ItemSize::Percent(100.0)
+                    cursor
+                    repeat_drag={autoscroll}
+                    capture_at={{
+                        let editor = editor.clone();
+                        move |pos: Pos2| !capture_off.get_untracked() && handle_at(&editor, pos).is_some()
+                    }}
+                    on_press={{
+                        let editor = editor.clone();
+                        move |press: PointerPress| {
+                            if !press_off.get_untracked() {
+                                point(&editor, press);
+                            }
+                        }
+                    }}
+                    on_click_at={{
+                        let editor = editor.clone();
+                        move |press: PointerPress| {
+                            if !tap_off.get_untracked() {
+                                tap(&editor, press);
+                            }
+                        }
+                    }}
+                    on_drag={{
+                        let editor = editor.clone();
+                        move |press: PointerPress| {
+                            if !drag_off.get_untracked() {
+                                extend(&editor, press);
+                            }
+                        }
+                    }}
+                    on_active_change={move |active: bool| {
+                        if !active {
+                            set_autoscroll.set(false);
+                        }
+                    }}
+                    on_hover_change={move |is_hovered: bool| {
+                        set_hovered.set(is_hovered);
+                        on_hover_change.call(is_hovered);
+                    }}
+                >
+                    {{
+                        let field = view! {
+                            <Frame
+                                padding_horizontal={padding_horizontal}
+                                padding_vertical={padding_vertical}
+                            >
+                                <Text
+                                    @node_ref=&text
+                                    string
+                                    font_size
+                                    color
+                                    selection_color
+                                    caret_color
+                                    caret
+                                    selection
+                                    handles
+                                    align=TextAlign::Start
+                                    clip=true
+                                />
+                            </Frame>
+                        };
+                        match content {
+                            Some(build) => build.call(TextInputHandle {
+                                field,
+                                hovered,
+                                focused,
+                                disabled: field_off.clone(),
+                            }),
+                            None => field,
+                        }
+                    }}
+                </ClickCatcher>
+                <Show condition={menu.is_some()}>
+                    {move || {
+                        let (row, panel) =
+                            menu.expect("a touch menu is only shown when it has builders");
+                        view! {
+                            <TouchMenu
+                                editor={editor.clone()}
+                                at={menu_at}
+                                actions={menu_actions}
+                                row
+                                panel
+                            />
+                        }
+                    }}
+                </Show>
+            </List>
         </Focusable>
     }
 }
@@ -344,7 +353,7 @@ fn TouchMenu(
             <Show condition={open.clone()}>
                 {move || {
                     let dismiss = editor.borrow().set_menu.clone();
-                    intrinsic(view! {
+                    view! {
                         <Overlay
                             anchor
                             open
@@ -354,34 +363,41 @@ fn TouchMenu(
                             {panel.call(view! {
                                 <List spacing=0.0>
                                     <Dynamic value={actions}>
-                                        {move |actions: Vec<MenuAction>| {
-                                            menu_rows(&editor, &row, actions)
+                                        {move |actions: Vec<MenuAction>| view! {
+                                            <TouchMenuRows
+                                                editor={editor.clone()}
+                                                actions
+                                                row={row.clone()}
+                                            />
                                         }}
                                     </Dynamic>
                                 </List>
                             })}
                         </Overlay>
-                    })
+                    }
                 }}
             </Show>
         </List>
     }
 }
 
-fn menu_rows(editor: &Handle, row: &RenderFn<MenuRowHandle>, actions: Vec<MenuAction>) -> NodeId {
+#[component]
+fn TouchMenuRows(editor: Handle, actions: Vec<MenuAction>, row: RenderFn<MenuRowHandle>) -> NodeId {
     let slots: Vec<NodeRef> = actions.iter().map(|_| NodeRef::new()).collect();
     editor.borrow_mut().menu_rows = slots.clone();
-    let rows: Vec<_> = actions
-        .into_iter()
-        .zip(slots)
-        .map(|(action, slot)| {
-            intrinsic(view! {
-                <TouchMenuRow editor={editor.clone()} slot action row={row.clone()} />
-            })
-        })
-        .collect();
+    let rows: Rc<Vec<(MenuAction, NodeRef)>> = Rc::new(actions.into_iter().zip(slots).collect());
+    let keys: Vec<usize> = (0..rows.len()).collect();
     view! {
-        <List spacing=MENU_SPACING children={rows} />
+        <List spacing=MENU_SPACING>
+            <ForEach keys>
+                {move |index: usize| {
+                    let (action, slot) = rows[index].clone();
+                    view! {
+                        <TouchMenuRow editor={editor.clone()} slot action row={row.clone()} />
+                    }
+                }}
+            </ForEach>
+        </List>
     }
 }
 

@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
-    ForEach, Frame, ItemSize, Keyed, List, ReadSignal, Scroll, clone, component, create_memo,
-    percent, view,
+    ForEach, Frame, ItemSize, Keyed, List, ReadSignal, Scroll, clone, component, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Card, Heading, Paragraph, use_theme,
@@ -99,8 +98,8 @@ pub(crate) fn Game(game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) 
         >
             <List spacing=0.0>
                 <Keyed value={snapshot} key={|snapshot: GameSnapshot| snapshot.shape()}>
-                    {move |snapshot: ReadSignal<GameSnapshot>| {
-                        percent(game_view(game.clone(), snapshot), 100.0)
+                    {move |snapshot: ReadSignal<GameSnapshot>| view! {
+                        {game_view(game.clone(), snapshot)} @sizing=ItemSize::Percent(100.0)
                     }}
                 </Keyed>
             </List>

@@ -1,21 +1,20 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, NodeRef, Scroll, build, view};
 
 #[test]
 fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
     let scroll = NodeRef::new();
     let scroll_ref = scroll.clone();
     let document = build(move || {
-        let items = (0..100)
-            .map(|index| {
-                view! {
-                    <LabelledButton label={format!("Row {index}")} />
-                }
-            })
-            .collect::<Vec<_>>();
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                    <ForEach keys={indices(100)}>
+                        {|index: usize| view! {
+                            <LabelledButton label={format!("Row {index}")} />
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

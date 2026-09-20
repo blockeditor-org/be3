@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{ClickCatcher, Frame, ItemSize, List, NodeRef, Scroll, Spacer, build, view};
+use crate::reactive::{
+    ClickCatcher, ForEach, Frame, ItemSize, List, NodeRef, Scroll, Spacer, build, view,
+};
 
 #[test]
 fn touch_overscroll_bands_without_hovering_a_row() {
@@ -8,23 +10,22 @@ fn touch_overscroll_bands_without_hovering_a_row() {
     let scroll = NodeRef::new();
     let scroll_ref = scroll.clone();
     let document = build(move || {
-        let mut items = vec![view! {
-            <ClickCatcher on_hover_change={move |value| hover_sink.set(value)}>
-                <Frame padding_horizontal=0.0 padding_vertical=20.0>
-                    <Spacer />
-                </Frame>
-            </ClickCatcher>
-        }];
-        items.extend((0..20).map(|_| {
-            view! {
-                <Frame padding_horizontal=0.0 padding_vertical=20.0>
-                    <Spacer />
-                </Frame>
-            }
-        }));
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                    <ClickCatcher on_hover_change={move |value| hover_sink.set(value)}>
+                        <Frame padding_horizontal=0.0 padding_vertical=20.0>
+                            <Spacer />
+                        </Frame>
+                    </ClickCatcher>
+                    <ForEach keys={indices(20)}>
+                        {|_: usize| view! {
+                            <Frame padding_horizontal=0.0 padding_vertical=20.0>
+                                <Spacer />
+                            </Frame>
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

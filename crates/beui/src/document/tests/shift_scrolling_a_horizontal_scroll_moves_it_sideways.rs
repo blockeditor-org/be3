@@ -1,32 +1,30 @@
 use super::*;
 use crate::base::Direction;
 use crate::geometry::vec2;
-use crate::reactive::{ItemSize, List, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, Scroll, build, view};
 
 #[test]
 fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
     let document = build(move || {
-        let items = (0..20)
-            .map(|index| {
-                view! {
-                    <Frame width=120.0>
-                        <Text
-                            string={format!("Card {index}")}
-                            font_size=14.0
-                            color=Color32::WHITE
-                        />
-                    </Frame>
-                }
-            })
-            .collect::<Vec<_>>();
         view! {
             <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     @test_id="strip"
                     direction=Direction::Horizontal
-                    children={items}
-                />
+                >
+                    <ForEach keys={indices(20)}>
+                        {|index: usize| view! {
+                            <Frame width=120.0>
+                                <Text
+                                    string={format!("Card {index}")}
+                                    font_size=14.0
+                                    color=Color32::WHITE
+                                />
+                            </Frame>
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

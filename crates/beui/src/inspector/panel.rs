@@ -12,8 +12,8 @@ use crate::filter::{ColorVision, MAX_BLUR};
 use crate::icons::ICON_CLOSE;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Children, Direction, Frame, ItemSize, List, ListChild, Memo, NodeRef, Prop, ReadSignal,
-    Scroll, Show, Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Scroll,
+    Show, Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use crate::screen_reader::Command;
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
@@ -50,6 +50,10 @@ const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("3x", Some(3.0)),
 ];
 const THEMES: [(&str, Theme); 2] = [("Dark", Theme::DARK), ("E-ink", Theme::EINK)];
+
+fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
+    options.iter().map(|(label, _)| *label).collect()
+}
 const COMMANDS: [(&str, &str, Command); 12] = [
     ("First", "first", Command::First),
     ("Last", "last", Command::Last),
@@ -380,27 +384,11 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
         .iter()
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
-    let ratio_options = PIXEL_RATIOS
-        .iter()
-        .map(|(label, _)| {
-            view! {
-                <ChoiceOption label={*label} />
-            }
-        })
-        .collect::<Vec<_>>();
     let theme = state.theme.get();
     let selected_theme = THEMES
         .iter()
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
-    let theme_options = THEMES
-        .iter()
-        .map(|(label, _)| {
-            view! {
-                <ChoiceOption label={*label} />
-            }
-        })
-        .collect::<Vec<_>>();
     let (touch_state, mouse_state, ratio_state, theme_state) =
         (state.clone(), state.clone(), state.clone(), state.clone());
     let reader_state = state.clone();
@@ -430,7 +418,13 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         <Heading content="Device pixel ratio" />
                         <RadioGroup
                             @test_id={"inspector.simulation.pixel_ratio"}
-                            options={ratio_options}
+                            options={view! {
+                                <ForEach keys={labels(&PIXEL_RATIOS)}>
+                                    {|label: &'static str| view! {
+                                        <ChoiceOption label />
+                                    }}
+                                </ForEach>
+                            }}
                             selected={Some(selected)}
                             on_change={move |index: Option<usize>| {
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
@@ -443,7 +437,13 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         <Heading content="Theme" />
                         <RadioGroup
                             @test_id={"inspector.simulation.theme"}
-                            options={theme_options}
+                            options={view! {
+                                <ForEach keys={labels(&THEMES)}>
+                                    {|label: &'static str| view! {
+                                        <ChoiceOption label />
+                                    }}
+                                </ForEach>
+                            }}
                             selected={Some(selected_theme)}
                             on_change={move |index: Option<usize>| {
                                 if let Some((_, theme)) = index.and_then(|index| THEMES.get(index)) {
@@ -474,14 +474,7 @@ fn FilterSection(state: Rc<State>) -> NodeId {
         .iter()
         .position(|(_, candidate)| *candidate == vision)
         .unwrap_or(0);
-    let vision_options = ColorVision::ALL
-        .iter()
-        .map(|(label, _)| {
-            view! {
-                <ChoiceOption label={*label} />
-            }
-        })
-        .collect::<Vec<_>>();
+    let vision_labels = labels(&ColorVision::ALL);
     view! {
         <List spacing=TIMING_SPACING>
             <Heading content="Filters" />
@@ -511,7 +504,13 @@ fn FilterSection(state: Rc<State>) -> NodeId {
             <Caption content="Colour vision" />
             <RadioGroup
                 @test_id={"inspector.simulation.color_vision"}
-                options={vision_options}
+                options={view! {
+                    <ForEach keys={vision_labels}>
+                        {|label: &'static str| view! {
+                            <ChoiceOption label />
+                        }}
+                    </ForEach>
+                }}
                 selected={Some(selected_vision)}
                 on_change={move |index: Option<usize>| {
                     if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
@@ -563,19 +562,14 @@ fn ScreenReaderSection(state: Rc<State>) -> NodeId {
 
 #[component]
 fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
-    let guides: Children<ListChild> = lines
-        .iter()
-        .map(|line| {
-            view! {
-                <Caption content={(*line).to_owned()} wrap=true />
-            }
-        })
-        .collect::<Vec<_>>()
-        .into();
     view! {
         <List spacing=FOOTER_SPACING>
             <Caption content={title.to_owned()} color={THEME.text} />
-            {guides}
+            <ForEach keys={lines.to_vec()}>
+                {|line: &'static str| view! {
+                    <Caption content={line.to_owned()} wrap=true />
+                }}
+            </ForEach>
         </List>
     }
 }

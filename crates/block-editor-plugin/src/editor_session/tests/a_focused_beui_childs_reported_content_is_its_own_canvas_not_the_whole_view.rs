@@ -1,5 +1,5 @@
 use super::*;
-use beui::reactive::{Direction, Frame, ItemSize, List, NodeRef, percent, size, view};
+use beui::reactive::{Direction, Frame, ItemSize, List, NodeRef, view};
 
 struct SidebarApp;
 
@@ -7,15 +7,11 @@ impl crate::BeuiApp for SidebarApp {
     fn view(editor: crate::Editor) -> beui::NodeId {
         let canvas = NodeRef::new();
         editor.content(&canvas);
-        let sidebar = view! {
-            <Frame />
-        };
-        let stage = view! {
-            <Frame @node_ref={&canvas} />
-        };
-        let children = vec![size(sidebar, ItemSize::Fixed(100.0)), percent(stage, 100.0)];
         view! {
-            <List direction=Direction::Horizontal spacing=0.0 children={children} />
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Frame @sizing=ItemSize::Fixed(100.0) />
+                <Frame @node_ref={&canvas} @sizing=ItemSize::Percent(100.0) />
+            </List>
         }
     }
 }

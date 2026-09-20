@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Button, List, NodeRef, Show, Text, build, create_signal, intrinsic, view};
+use crate::reactive::{Button, List, NodeRef, Show, Text, build, create_signal, view};
 
 #[test]
 fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
@@ -22,9 +22,9 @@ fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
                         condition={visible}
                         then={move || {
                             sink.set(sink.get() + 1);
-                            intrinsic(view! {
+                            view! {
                                 <Text string="panel" />
-                            })
+                            }
                         }}
                     />
                 </List>

@@ -4,8 +4,8 @@ use std::rc::Rc;
 use beui::NodeId;
 use beui::icons::ICON_CHEVRON_RIGHT;
 use beui::reactive::{
-    Align, ClickCallback, Direction, Dynamic, Frame, ItemSize, List, Prop, Text, WriteSignal,
-    clone, component, create_memo, create_signal, intrinsic, percent, view,
+    Align, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Prop, Show, Text,
+    WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
 use beui::{Context, Document, Key};
@@ -33,12 +33,11 @@ impl BeuiFrame {
         let document = beui::reactive::build(move || {
             let content = view();
             content_slot_writer.set(Some(content));
-            let top_bar = view! {
-                <TopBar trail shown on_exit={move || exit_writer.set(true)} />
-            };
-            let children = vec![intrinsic(top_bar), percent(content, 100.0)];
             view! {
-                <List spacing=0.0 children={children} />
+                <List spacing=0.0>
+                    <TopBar trail shown on_exit={move || exit_writer.set(true)} />
+                    {content} @sizing=ItemSize::Percent(100.0)
+                </List>
             }
         });
         Self {
@@ -98,7 +97,9 @@ pub(crate) fn TopBar(
                             spacing=STEP_SPACING
                         >
                             <Dynamic value={trail}>
-                                {move |trail: Vec<String>| breadcrumb(trail)}
+                                {move |trail: Vec<String>| view! {
+                                    <Breadcrumb trail />
+                                }}
                             </Dynamic>
                         </List>
                         <Button
@@ -115,31 +116,38 @@ pub(crate) fn TopBar(
     }
 }
 
-fn breadcrumb(trail: Vec<String>) -> NodeId {
-    let theme = use_theme();
-    let last_index = trail.len().saturating_sub(1);
-    let mut children = Vec::new();
-    for (index, step) in trail.into_iter().enumerate() {
-        if index > 0 {
-            children.push(intrinsic(view! {
-                <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={theme.text_muted.clone()} />
-            }));
-        }
-        let color = match index == last_index {
-            true => theme.text.clone(),
-            false => theme.text_muted.clone(),
-        };
-        children.push(intrinsic(view! {
-            <Text string={step} color={color} />
-        }));
-    }
+#[component]
+fn Breadcrumb(trail: Vec<String>) -> NodeId {
+    let steps: Rc<Vec<String>> = Rc::new(trail);
+    let last = steps.len().saturating_sub(1);
+    let keys: Vec<usize> = (0..steps.len()).collect();
     view! {
-        <List
-            direction=Direction::Horizontal
-            align=Align::Center
-            spacing=STEP_SPACING
-            children={children}
-        />
+        <List direction=Direction::Horizontal align=Align::Center spacing=STEP_SPACING>
+            <ForEach keys>
+                {move |index: usize| view! {
+                    <Step step={steps[index].clone()} separated={index > 0} last={index == last} />
+                }}
+            </ForEach>
+        </List>
+    }
+}
+
+#[component]
+fn Step(step: String, separated: bool, last: bool) -> NodeId {
+    let theme = use_theme();
+    let color = match last {
+        true => theme.text.clone(),
+        false => theme.text_muted.clone(),
+    };
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=STEP_SPACING>
+            <Show condition={separated}>
+                {move || view! {
+                    <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={theme.text_muted.clone()} />
+                }}
+            </Show>
+            <Text string={step} color={color} />
+        </List>
     }
 }
 
