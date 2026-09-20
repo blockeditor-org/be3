@@ -46,7 +46,7 @@ pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use image::{Image, ImageFit, ImageId};
 pub use input::{
     CursorIcon, Event, InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,
-    TouchId, TouchPhase, TouchPoint, TouchState,
+    ScrollGesture, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
 pub use node::{ClickHandler, Handler, NodeId};
 pub use painter::{Painter, Shape};
