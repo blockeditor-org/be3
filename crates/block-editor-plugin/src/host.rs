@@ -538,6 +538,7 @@ pub struct EditorHost {
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     hidden_bands: Rc<RefCell<HashSet<EditorBand>>>,
     beui: Rc<Cell<BeuiFrame>>,
+    next_frame: Rc<Cell<Option<Duration>>>,
 }
 
 impl EditorHost {
@@ -969,6 +970,17 @@ impl EditorHost {
 
     pub fn push_web_view_event(&self, event: WebViewEvent) {
         self.web_view_events.borrow_mut().push(event);
+    }
+
+    pub fn request_frame_in(&self, delay: Duration) {
+        let held = self.next_frame.get();
+        if held.is_none_or(|held| delay < held) {
+            self.next_frame.set(Some(delay));
+        }
+    }
+
+    pub fn take_frame_request(&self) -> Option<Duration> {
+        self.next_frame.take()
     }
 
     pub fn grab_cursor(&self, grabbed: bool) {

@@ -116,6 +116,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         self
     }
 
+    pub fn wants_another_frame(&self) -> bool {
+        self.output
+            .as_ref()
+            .is_some_and(|output| output.changed || output.repaint_after < std::time::Duration::MAX)
+    }
+
     pub fn document(&self) -> &Document {
         match &self.region {
             Region::Frame(_, frame) => frame.document(),
@@ -212,7 +218,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 });
             }
         }
-        let output = context.run(beui::RawInput { events }, |context| match region {
+        let mut output = context.run(beui::RawInput { events }, |context| match region {
             Region::Frame(_, frame) => frame.document_mut().show(context, rect),
             Region::Preview(_, document)
             | Region::Creation(_, document)
@@ -234,6 +240,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             viewport.settle(&host, rect);
         }
         self.children = children;
+        if let Some(delay) = host.take_frame_request() {
+            output.repaint_after = output.repaint_after.min(delay);
+        }
         self.output = Some(output);
     }
 

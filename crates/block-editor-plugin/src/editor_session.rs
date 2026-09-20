@@ -1301,6 +1301,10 @@ impl EditorSession {
             }
         });
 
+        let mut output = output;
+        if let Some(delay) = self.host.take_frame_request() {
+            output.repaint_after = output.repaint_after.min(delay);
+        }
         if let (Some(artifact), Some(draft)) = (self.artifact.as_mut(), draft) {
             artifact.edited |= artifact.draft != draft;
             artifact.draft = draft;
