@@ -8,8 +8,7 @@ use block_editor_plugin::beui::reactive::{
     Align, Direction, ForEach, Frame, List, Prop, Show, clone, component, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Checkbox, Heading, Slider, ToggleButton, Tooltip,
-    use_theme,
+    Body, Button, ButtonVariant, Caption, Heading, Slider, ToggleButton, Tooltip, use_theme,
 };
 use block_editor_plugin::beui::unstyled::{Pressable, SliderScale};
 
@@ -320,8 +319,6 @@ fn NewEntity(state: Rc<RayState>) -> NodeId {
 fn RaySettingsPanels(state: Rc<RayState>) -> NodeId {
     let tool = state.tool.clone();
     let tracing = create_memo(clone!(tool -> move || tool.get() == Tool::RayTrace));
-    let debug = state.debug_overlay.clone();
-    let toggled = Rc::clone(&state);
     let view_rays = Rc::clone(&state);
     let lighting = Rc::clone(&state);
     view! {
@@ -330,11 +327,6 @@ fn RaySettingsPanels(state: Rc<RayState>) -> NodeId {
                 <List spacing=6.0>
                     <Heading content="View rays" />
                     <RayControls state={view_rays} view=true />
-                    <Checkbox
-                        label="Debug positions"
-                        checked={debug}
-                        on_change={move |on: bool| toggled.set_debug(on)}
-                    />
                 </List>
             </Show>
             <List spacing=6.0>
