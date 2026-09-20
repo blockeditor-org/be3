@@ -1,38 +1,30 @@
-use std::collections::HashMap;
-
-use block::BlockReference;
-use block_client::{
-    block_ref::BlockRef,
-    blocks::video::{
-        Video, VideoAttachment, VideoClip, VideoClipTiming, VideoFrameRate, VideoOperation,
-    },
+use block_client::blocks::video::{
+    Video, VideoAttachment, VideoClip, VideoClipTiming, VideoFrameRate, VideoOperation,
 };
-use block_editor_plugin::EditorHost;
-use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel, paint_name};
-use block_editor_plugin::egui::{self, Color32, Rect, Sense, Stroke, Vec2};
+use block_editor_plugin::beui::{Pos2, Rect};
 use uuid::Uuid;
 
 use block_client::blocks::video::DEFAULT_CLIP_SECONDS;
 
-use crate::app::{ClipDrag, VideoApp};
+use crate::app::state::ClipDrag;
 
 pub(crate) const MIN_PIXELS_PER_FRAME: f32 = 0.02;
 pub(crate) const MAX_PIXELS_PER_FRAME: f32 = 40.0;
 
-const RULER_HEIGHT: f32 = 22.0;
-const LANE_HEIGHT: f32 = 38.0;
-const LANE_GAP: f32 = 3.0;
-const TRIM_HANDLE_WIDTH: f32 = 6.0;
+pub(crate) const RULER_HEIGHT: f32 = 22.0;
+pub(crate) const LANE_HEIGHT: f32 = 38.0;
+pub(crate) const LANE_GAP: f32 = 3.0;
+pub(crate) const TRIM_HANDLE_WIDTH: f32 = 6.0;
 
-const TAIL_PADDING: f32 = 240.0;
+pub(crate) const TAIL_PADDING: f32 = 240.0;
 const MIN_TICK_SPACING: f64 = 64.0;
 const TICK_SECONDS: [f64; 12] = [
     1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0,
 ];
 
-struct ClipRow {
-    timing: VideoClipTiming,
-    lane: usize,
+pub(crate) struct ClipRow {
+    pub(crate) timing: VideoClipTiming,
+    pub(crate) lane: usize,
 }
 
 pub(crate) fn timecode(frame_rate: VideoFrameRate, frame: u64) -> String {
@@ -41,7 +33,7 @@ pub(crate) fn timecode(frame_rate: VideoFrameRate, frame: u64) -> String {
     format!("{}:{:02}.{:02}", seconds / 60, seconds % 60, frame % fps)
 }
 
-fn lane_rows(video: &Video) -> Vec<ClipRow> {
+pub(crate) fn lane_rows(video: &Video) -> Vec<ClipRow> {
     let mut next_lane = 1;
     video
         .timeline()
@@ -58,11 +50,11 @@ fn lane_rows(video: &Video) -> Vec<ClipRow> {
         .collect()
 }
 
-fn lane_rect(content: Rect, lane: usize) -> Rect {
+pub(crate) fn lane_rect(content: Rect, lane: usize) -> Rect {
     let top = content.top() + RULER_HEIGHT + lane as f32 * (LANE_HEIGHT + LANE_GAP);
     Rect::from_min_max(
-        egui::pos2(content.left(), top),
-        egui::pos2(content.right(), top + LANE_HEIGHT),
+        Pos2::new(content.left(), top),
+        Pos2::new(content.right(), top + LANE_HEIGHT),
     )
 }
 
@@ -79,8 +71,8 @@ enum ClipDropZone {
     After,
 }
 
-#[derive(Clone, Copy)]
-enum TimelineDropTarget {
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum TimelineDropTarget {
     Attach {
         parent: Uuid,
         start: u64,
@@ -99,12 +91,12 @@ enum TimelineDropTarget {
     },
 }
 
-fn clip_rect(content: Rect, row: &ClipRow, pixels_per_frame: f32) -> Rect {
+pub(crate) fn clip_rect(content: Rect, row: &ClipRow, pixels_per_frame: f32) -> Rect {
     let lane = lane_rect(content, row.lane);
     let left = content.left() + row.timing.start as f32 * pixels_per_frame;
     Rect::from_min_max(
-        egui::pos2(left, lane.top()),
-        egui::pos2(
+        Pos2::new(left, lane.top()),
+        Pos2::new(
             left + (row.timing.length as f32 * pixels_per_frame).max(3.0),
             lane.bottom(),
         ),
@@ -126,8 +118,8 @@ fn drop_zone(rect: Rect, x: f32) -> ClipDropZone {
         ClipDropZone::After
     } else {
         ClipDropZone::Center(Rect::from_min_max(
-            egui::pos2(rect.left() + EDGE_WIDTH, rect.top()),
-            egui::pos2(rect.right() - EDGE_WIDTH, rect.bottom()),
+            Pos2::new(rect.left() + EDGE_WIDTH, rect.top()),
+            Pos2::new(rect.right() - EDGE_WIDTH, rect.bottom()),
         ))
     }
 }
@@ -187,12 +179,12 @@ fn base_target(
     }
 }
 
-fn drop_target_at(
+pub(crate) fn drop_target_at(
     video: &Video,
     rows: &[ClipRow],
     content: Rect,
     pixels_per_frame: f32,
-    pointer: egui::Pos2,
+    pointer: Pos2,
     moving: Option<&ClipDrag>,
 ) -> Option<TimelineDropTarget> {
     let moving_id = moving.map(|drag| drag.clip);
@@ -257,367 +249,12 @@ fn drop_target_at(
     (lane == 0).then(|| base_target(video, rows, content, pixels_per_frame, pointer.x, moving_id))
 }
 
-fn tick_seconds(frame_rate: VideoFrameRate, pixels_per_frame: f32) -> f64 {
+pub(crate) fn tick_seconds(frame_rate: VideoFrameRate, pixels_per_frame: f32) -> f64 {
     let pixels_per_second = frame_rate.frames_per_second() * f64::from(pixels_per_frame);
     TICK_SECONDS
         .into_iter()
         .find(|step| step * pixels_per_second >= MIN_TICK_SPACING)
         .unwrap_or(3600.0)
-}
-
-impl VideoApp {
-    pub(crate) fn timeline_ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        video: &Video,
-        resolved: &HashMap<BlockRef, Option<Uuid>>,
-        dependencies: &HashMap<Uuid, BlockReference>,
-        host: &EditorHost,
-        types: &BlockCatalog,
-    ) {
-        let rows = lane_rows(video);
-        let lanes = rows.iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1;
-        let duration = video.duration();
-        let viewport = ui.available_size();
-        if std::mem::take(&mut self.fit_requested) && duration > 0 {
-            self.pixels_per_frame = ((viewport.x - TAIL_PADDING * 0.25).max(160.0)
-                / duration as f32)
-                .clamp(MIN_PIXELS_PER_FRAME, MAX_PIXELS_PER_FRAME);
-        }
-        let block_id = self.block_id();
-        let content = Vec2::new(
-            (duration as f32 * self.pixels_per_frame + TAIL_PADDING).max(viewport.x),
-            (RULER_HEIGHT + lanes as f32 * (LANE_HEIGHT + LANE_GAP)).max(viewport.y),
-        );
-        egui::ScrollArea::both()
-            .auto_shrink([false, false])
-            .id_salt(("video-timeline", block_id))
-            .show(ui, |ui| {
-                let (rect, background) = ui.allocate_exact_size(content, Sense::click_and_drag());
-                self.draw_timeline(
-                    ui,
-                    rect,
-                    &background,
-                    &rows,
-                    video,
-                    resolved,
-                    dependencies,
-                    host,
-                    types,
-                );
-            });
-    }
-
-    fn draw_timeline(
-        &mut self,
-        ui: &mut egui::Ui,
-        content: Rect,
-        background: &egui::Response,
-        rows: &[ClipRow],
-        video: &Video,
-        resolved: &HashMap<BlockRef, Option<Uuid>>,
-        dependencies: &HashMap<Uuid, BlockReference>,
-        host: &EditorHost,
-        types: &BlockCatalog,
-    ) {
-        let pixels_per_frame = self.pixels_per_frame;
-        let frame_at = move |x: f32| ((x - content.left()) / pixels_per_frame).max(0.0) as u64;
-        let x_at = move |frame: u64| content.left() + frame as f32 * pixels_per_frame;
-        let duration = video.duration();
-        let visuals = ui.visuals().clone();
-        let painter = ui.painter().clone();
-
-        let lanes = rows.iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1;
-        for lane in 0..lanes {
-            painter.rect_filled(
-                lane_rect(content, lane),
-                3.0,
-                if lane == 0 {
-                    visuals.faint_bg_color
-                } else {
-                    visuals.extreme_bg_color
-                },
-            );
-        }
-        self.draw_ruler(&painter, content, video, &visuals);
-
-        for row in rows {
-            let Some(parent) = video.clip(row.timing.id).and_then(|clip| clip.parent()) else {
-                continue;
-            };
-            let Some(parent_lane) = rows.iter().find(|other| other.timing.id == parent) else {
-                continue;
-            };
-            let x = x_at(row.timing.start);
-            let stroke = if self.selected == Some(row.timing.id) {
-                Stroke::new(2.0_f32, visuals.selection.stroke.color)
-            } else {
-                Stroke::new(1.0_f32, visuals.widgets.noninteractive.bg_stroke.color)
-            };
-            painter.line_segment(
-                [
-                    egui::pos2(x, lane_rect(content, parent_lane.lane).bottom()),
-                    egui::pos2(x, lane_rect(content, row.lane).top()),
-                ],
-                stroke,
-            );
-        }
-
-        let parent_of_selected = self.selected_clip(video).and_then(VideoClip::parent);
-        let mut operations = Vec::new();
-        for row in rows {
-            let Some(clip) = video.clip(row.timing.id).cloned() else {
-                continue;
-            };
-            let clip_rect = clip_rect(content, row, pixels_per_frame);
-            let selected = self.selected == Some(clip.id);
-            let response = ui.interact(
-                clip_rect,
-                ui.id().with(("video-clip", clip.id)),
-                Sense::click_and_drag(),
-            );
-            let trim = ui.interact(
-                Rect::from_min_max(
-                    egui::pos2(clip_rect.right() - TRIM_HANDLE_WIDTH, clip_rect.top()),
-                    clip_rect.right_bottom(),
-                ),
-                ui.id().with(("video-trim", clip.id)),
-                Sense::drag(),
-            );
-            if trim.hovered() || trim.dragged() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-            }
-
-            self.paint_clip(
-                ui,
-                clip_rect,
-                &clip,
-                selected,
-                parent_of_selected == Some(clip.id),
-                resolved,
-                dependencies,
-                host,
-                types,
-                &visuals,
-            );
-
-            if response.clicked() {
-                self.selected = Some(clip.id);
-            }
-            if trim.dragged() {
-                if let Some(pointer) = ui.ctx().pointer_interact_pos() {
-                    let length = frame_at(pointer.x).saturating_sub(row.timing.start).max(1);
-                    if length != clip.length {
-                        let mut trimmed = clip.clone();
-                        trimmed.length = length;
-                        operations.push(VideoOperation::UpdateClips {
-                            clips: vec![trimmed],
-                        });
-                    }
-                }
-                continue;
-            }
-            if response.drag_started() {
-                self.selected = Some(clip.id);
-                self.drag = Some(ClipDrag {
-                    clip: clip.id,
-                    grab: ui
-                        .ctx()
-                        .pointer_interact_pos()
-                        .map_or(0, |pointer| frame_at(pointer.x))
-                        .saturating_sub(row.timing.start),
-                });
-            }
-        }
-
-        let pointer = ui
-            .ctx()
-            .pointer_interact_pos()
-            .or_else(|| ui.ctx().pointer_hover_pos());
-        let internal_target = self.drag.as_ref().and_then(|drag| {
-            pointer.and_then(|pointer| {
-                drop_target_at(video, rows, content, pixels_per_frame, pointer, Some(drag))
-            })
-        });
-        let dragged_block = host.drag().filter(|drag| drag.block_id != self.block_id());
-        let sidebar_target = dragged_block.as_ref().and_then(|drag| {
-            drop_target_at(video, rows, content, pixels_per_frame, drag.position, None)
-        });
-        if internal_target.is_some() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-        } else if sidebar_target.is_some() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Alias);
-        }
-        if let Some(target) = internal_target.or(sidebar_target) {
-            paint_drop_target(&painter, content, pixels_per_frame, target, &visuals);
-        }
-
-        let released = ui.input(|input| input.pointer.any_released());
-        let had_internal_drag = self.drag.is_some();
-        if released {
-            if let (Some(drag), Some(target)) = (self.drag.as_ref(), internal_target) {
-                apply_clip_drop(video, drag.clip, target, &mut operations);
-            }
-            self.drag = None;
-        }
-        if let Some(dragged) = &dragged_block {
-            host.accept_drag(sidebar_target.is_some());
-            if dragged.dropped
-                && let Some(target) = sidebar_target
-            {
-                match target {
-                    TimelineDropTarget::Attach { parent, start, .. } => {
-                        self.insert_clip(video, dragged.block_id, Some(parent), start, Some(0));
-                    }
-                    TimelineDropTarget::Base { index, .. } => {
-                        self.insert_clip(video, dragged.block_id, None, 0, Some(index));
-                    }
-                    TimelineDropTarget::Offset { .. } => {}
-                }
-                self.set_child_parent(dragged.block_id);
-            }
-        }
-        if background.clicked() || (background.dragged() && !had_internal_drag) {
-            if let Some(pointer) = ui.ctx().pointer_interact_pos() {
-                self.seek(frame_at(pointer.x), duration);
-            }
-            if background.clicked() {
-                self.selected = None;
-            }
-        }
-        for operation in operations {
-            self.operate(operation);
-        }
-
-        let playhead_x = x_at(self.playhead);
-        painter.line_segment(
-            [
-                egui::pos2(playhead_x, content.top()),
-                egui::pos2(playhead_x, content.bottom()),
-            ],
-            Stroke::new(1.5_f32, visuals.selection.stroke.color),
-        );
-        painter.rect_filled(
-            Rect::from_center_size(
-                egui::pos2(playhead_x, content.top() + 5.0),
-                Vec2::new(9.0, 10.0),
-            ),
-            2.0,
-            visuals.selection.stroke.color,
-        );
-    }
-
-    fn draw_ruler(
-        &self,
-        painter: &egui::Painter,
-        content: Rect,
-        video: &Video,
-        visuals: &egui::Visuals,
-    ) {
-        let ruler = Rect::from_min_max(
-            content.left_top(),
-            egui::pos2(content.right(), content.top() + RULER_HEIGHT),
-        );
-        painter.rect_filled(ruler, 0.0, visuals.extreme_bg_color);
-        let frame_rate = video.frame_rate();
-        let step = tick_seconds(frame_rate, self.pixels_per_frame);
-
-        let pixels_per_second =
-            (frame_rate.frames_per_second() * f64::from(self.pixels_per_frame)) as f32;
-        let pixels_per_step = step as f32 * pixels_per_second;
-        let ticks = (content.width() / pixels_per_step).ceil() as u32;
-        for tick in 0..=ticks {
-            let x = content.left() + tick as f32 * pixels_per_step;
-            painter.line_segment(
-                [
-                    egui::pos2(x, ruler.bottom() - 5.0),
-                    egui::pos2(x, ruler.bottom()),
-                ],
-                Stroke::new(1.0_f32, visuals.widgets.noninteractive.fg_stroke.color),
-            );
-            let seconds = (f64::from(tick) * step) as u64;
-            painter.text(
-                egui::pos2(x + 3.0, ruler.top() + 2.0),
-                egui::Align2::LEFT_TOP,
-                format!("{}:{:02}", seconds / 60, seconds % 60),
-                egui::FontId::proportional(10.0),
-                visuals.weak_text_color(),
-            );
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn paint_clip(
-        &self,
-        ui: &mut egui::Ui,
-        rect: Rect,
-        clip: &VideoClip,
-        selected: bool,
-        is_parent_of_selected: bool,
-        resolved: &HashMap<BlockRef, Option<Uuid>>,
-        dependencies: &HashMap<Uuid, BlockReference>,
-        host: &EditorHost,
-        types: &BlockCatalog,
-        visuals: &egui::Visuals,
-    ) {
-        let fill = if clip.attachment.is_some() {
-            visuals.widgets.active.weak_bg_fill
-        } else {
-            visuals.widgets.active.bg_fill
-        };
-        ui.painter().rect_filled(rect, 4.0, fill);
-        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-
-        let thumbnail = Rect::from_min_size(
-            rect.left_top() + Vec2::splat(3.0),
-            Vec2::new((rect.height() - 6.0) * 1.4, rect.height() - 6.0),
-        );
-        let resolved_id = resolved.get(&clip.block_id).copied().flatten();
-        if rect.width() > thumbnail.width() + 8.0 {
-            if let Some(reference) = resolved_id.and_then(|id| dependencies.get(&id)) {
-                crate::app::place_preview(ui, host, thumbnail, reference.id, reference.block_type);
-            }
-            let (name, automatic) = resolved_id
-                .and_then(|id| dependencies.get(&id))
-                .map_or_else(
-                    || {
-                        (
-                            if resolved_id.is_some() {
-                                "Loading…".to_owned()
-                            } else {
-                                "Broken link".to_owned()
-                            },
-                            false,
-                        )
-                    },
-                    |reference| {
-                        let label = BlockLabel::for_reference(types, reference);
-                        (label.name, label.automatic)
-                    },
-                );
-            paint_name(
-                &painter,
-                egui::pos2(thumbnail.right() + 5.0, rect.center().y),
-                egui::Align2::LEFT_CENTER,
-                &name,
-                egui::FontId::proportional(11.0),
-                visuals.strong_text_color(),
-                automatic,
-            );
-        }
-        painter.rect_stroke(
-            rect,
-            4.0,
-            if selected {
-                Stroke::new(2.0_f32, visuals.selection.stroke.color)
-            } else if is_parent_of_selected {
-                Stroke::new(2.0_f32, visuals.selection.stroke.color.gamma_multiply(0.7))
-            } else {
-                Stroke::new(1.0_f32, Color32::from_black_alpha(90))
-            },
-            egui::StrokeKind::Inside,
-        );
-    }
 }
 
 fn reattached(
@@ -636,81 +273,7 @@ fn reattached(
     })
 }
 
-fn paint_drop_target(
-    painter: &egui::Painter,
-    content: Rect,
-    pixels_per_frame: f32,
-    target: TimelineDropTarget,
-    visuals: &egui::Visuals,
-) {
-    let color = visuals.selection.stroke.color;
-    match target {
-        TimelineDropTarget::Attach {
-            start,
-            lane,
-            length,
-            highlight,
-            ..
-        } => {
-            painter.rect_filled(highlight.shrink(2.0), 3.0, color.gamma_multiply(0.25));
-            painter.rect_stroke(
-                highlight.shrink(1.0),
-                3.0,
-                Stroke::new(2.0_f32, color),
-                egui::StrokeKind::Inside,
-            );
-            let lane = lane_rect(content, lane);
-            let left = content.left() + start as f32 * pixels_per_frame;
-            let preview = Rect::from_min_max(
-                egui::pos2(left, lane.top()),
-                egui::pos2(
-                    left + (length as f32 * pixels_per_frame).max(3.0),
-                    lane.bottom(),
-                ),
-            );
-            painter.rect_filled(preview, 4.0, color.gamma_multiply(0.18));
-            painter.rect_stroke(
-                preview,
-                4.0,
-                Stroke::new(2.0_f32, color),
-                egui::StrokeKind::Inside,
-            );
-        }
-        TimelineDropTarget::Base { x, .. } => {
-            let lane = lane_rect(content, 0);
-            painter.line_segment(
-                [egui::pos2(x, lane.top()), egui::pos2(x, lane.bottom())],
-                Stroke::new(3.0_f32, color),
-            );
-            painter.circle_filled(egui::pos2(x, lane.top() + 3.0), 4.0, color);
-            painter.circle_filled(egui::pos2(x, lane.bottom() - 3.0), 4.0, color);
-        }
-        TimelineDropTarget::Offset {
-            start,
-            lane,
-            length,
-        } => {
-            let lane = lane_rect(content, lane);
-            let left = content.left() + start as f32 * pixels_per_frame;
-            let rect = Rect::from_min_max(
-                egui::pos2(left, lane.top()),
-                egui::pos2(
-                    left + (length as f32 * pixels_per_frame).max(3.0),
-                    lane.bottom(),
-                ),
-            );
-            painter.rect_filled(rect, 4.0, color.gamma_multiply(0.18));
-            painter.rect_stroke(
-                rect,
-                4.0,
-                Stroke::new(2.0_f32, color),
-                egui::StrokeKind::Inside,
-            );
-        }
-    }
-}
-
-fn apply_clip_drop(
+pub(crate) fn apply_clip_drop(
     video: &Video,
     clip_id: Uuid,
     target: TimelineDropTarget,
