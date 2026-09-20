@@ -91,6 +91,13 @@ enum Interaction {
     },
 }
 
+#[derive(PartialEq)]
+struct Overlay {
+    entities: Vec<RayEntity>,
+    selected: Option<u64>,
+    preview: Preview,
+}
+
 struct TracedRays {
     origin: Point,
     revision: u64,
@@ -109,6 +116,7 @@ pub(crate) struct RayState {
     rendered: RefCell<Vec<[u8; 4]>>,
     ray_job: RefCell<Option<Receiver<RayResult>>>,
     ray_state: RefCell<Option<TracedRays>>,
+    shown_overlay: RefCell<Option<Overlay>>,
     pub(crate) entities: ReadSignal<Vec<RayEntity>>,
     pub(crate) lighting: ReadSignal<Option<Image>>,
     set_lighting: WriteSignal<Option<Image>>,
@@ -177,6 +185,7 @@ impl RayState {
             rendered: RefCell::new(Vec::new()),
             ray_job: RefCell::new(None),
             ray_state: RefCell::new(None),
+            shown_overlay: RefCell::new(None),
             entities,
             lighting,
             set_lighting,
@@ -520,11 +529,20 @@ impl RayState {
                 }
             }
         }
-        self.set_overlay.set_unconditionally(overlay::draw(
+        let shown = Overlay {
             entities,
-            self.selected.get_untracked(),
-            self.preview(),
+            selected: self.selected.get_untracked(),
+            preview: self.preview(),
+        };
+        if self.shown_overlay.borrow().as_ref() == Some(&shown) {
+            return;
+        }
+        self.set_overlay.set_unconditionally(overlay::draw(
+            shown.entities.clone(),
+            shown.selected,
+            shown.preview.clone(),
         ));
+        *self.shown_overlay.borrow_mut() = Some(shown);
     }
 
     fn settle_lighting(&self) {

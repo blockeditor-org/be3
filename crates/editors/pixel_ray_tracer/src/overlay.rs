@@ -23,7 +23,7 @@ pub(crate) fn palette_color(index: u8) -> Color32 {
     Color32::from_rgb(rgb[0], rgb[1], rgb[2])
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) enum Preview {
     None,
     Pixels(Vec<(u16, u16)>, u8),
