@@ -27,6 +27,13 @@ runs:
     # out of rust-toolchain.toml: two copies of a version are one copy and a bug.
     - id: pin
       shell: bash
+      # The triple arrives through the environment rather than being expanded
+      # into the script text. Every caller passes a target this repository
+      # chose, so there is nothing to exploit today, but an expansion lands as
+      # shell source before bash sees it, and the one that is safe only because
+      # of who happens to call it is the one that stops being safe quietly.
+      env:
+        TRIPLE: ${{ inputs.triple }}
       run: |
         commit="$(sed -n "s/^ghostty_commit='\(.*\)'$/\1/p" scripts/internal/build-ghostty-vt.sh)"
         if [ -z "$commit" ]; then
@@ -34,7 +41,7 @@ runs:
           exit 1
         fi
         patch="$(git hash-object scripts/internal/ghostty-vt.patch)"
-        echo "key=ghostty-vt-${{ inputs.triple }}-$commit-$patch" >> "$GITHUB_OUTPUT"
+        echo "key=ghostty-vt-$TRIPLE-$commit-$patch" >> "$GITHUB_OUTPUT"
 
     - uses: actions/cache@v6
       with:

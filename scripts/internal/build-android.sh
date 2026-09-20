@@ -141,10 +141,15 @@ done
 cp "$cpp_runtime" "$native_libraries/"
 end_step
 
+# Through the wrapper rather than a gradle on PATH, so the Gradle that builds
+# the APK is the version android/gradle/wrapper/gradle-wrapper.properties names
+# and the distribution is checked against the distributionSha256Sum recorded
+# beside it. A gradle on PATH is whatever the machine happens to have, verified
+# by nobody, and it was also a second place the version had to be kept in step.
 step 'Assembling the APK with gradle'
 (
     cd "$repository/android"
-    gradle --no-daemon :app:assembleDebug \
+    ./gradlew --no-daemon :app:assembleDebug \
         -Pbe3ApplicationId="$application_id" \
         -Pbe3Label="$application_label"
 )

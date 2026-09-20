@@ -1,0 +1,38 @@
+version: 2
+
+# Every third-party action is pinned to a commit SHA rather than a tag, because
+# a tag is a mutable pointer and the thing it points at installs our compiler.
+# The cost of that is a pin nobody would otherwise notice going stale, which is
+# what this file is for: Dependabot moves the SHA and rewrites the "# vX.Y.Z"
+# comment beside it, so an upgrade arrives as a reviewable pull request instead
+# of arriving silently the way a tag would.
+#
+# Without this, pinning is strictly worse than floating: the same exposure to a
+# compromised upstream, minus the security fixes.
+updates:
+  - package-ecosystem: github-actions
+    # Plain "/" is only the workflows. The composite actions under
+    # .github/actions have `uses:` of their own, and dependabot looks for them
+    # in the directory holding the action.yml rather than finding them from the
+    # root, so each one is named. .github/actions/sccache-report runs only a
+    # shell script and has nothing to update.
+    directories:
+      - /
+      - /.github/actions/cargo-cache
+      - /.github/actions/ghostty-vt
+      - /.github/actions/rust-toolchain
+      - /.github/actions/sccache
+    schedule:
+      interval: weekly
+    # One pull request for all of them. These land together or not at all, and
+    # five separate bumps a week is the amount of noise that gets a bot muted.
+    groups:
+      actions:
+        patterns:
+          - '*'
+
+# Cargo is deliberately absent. Cargo.lock already pins and checksums every
+# crate, so the integrity half of what Dependabot offers is covered, and weekly
+# version bumps across a workspace this size would be noise rather than signal.
+# Security advisories are worth having, but those come from Dependabot security
+# updates, which is a repository setting rather than an entry here.

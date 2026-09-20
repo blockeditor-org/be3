@@ -28,7 +28,7 @@ runs:
     # the order their steps were declared, so declaring this one first is what
     # makes those entries save before this one empties the directories they
     # came out of.
-    - uses: Swatinem/rust-cache@v2
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
         save-if: ${{ github.ref == 'refs/heads/main' }}
         # The tools the jobs install come from taiki-e/install-action, which

@@ -46,7 +46,12 @@ wasm_bindgen="$cargo_home/bin/wasm-bindgen"
 
 if [[ ! -x "$wasm_bindgen" ]]; then
     step "Installing wasm-bindgen-cli $wasm_bindgen_version"
-    cargo install wasm-bindgen-cli --version "$wasm_bindgen_version"
+    # --locked, so this builds what wasm-bindgen-cli's own lockfile pins rather
+    # than re-resolving its dependency graph to whatever satisfies semver
+    # today. Without it the same command on two machines can produce two
+    # different binaries, and a bad minor release anywhere in that graph is
+    # picked up with nothing here changing to say so.
+    cargo install wasm-bindgen-cli --locked --version "$wasm_bindgen_version"
     end_step
 fi
 if [[ ! -x "$wasm_bindgen" ]]; then

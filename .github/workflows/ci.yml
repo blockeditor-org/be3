@@ -48,11 +48,45 @@ env:
 # this workflow by a wide margin, so everything else finished and waited. Split,
 # the wall clock is the longest part rather than the sum of all of them.
 jobs:
+  # What keeps the rest of this file honest. Everything a job installs before it
+  # builds anything is trusted completely, so the rules about how those are
+  # named - a commit for a third-party action, a tag only for GitHub's own, no
+  # expansion of an input into a shell script - are worth more as a check than
+  # as a convention. .github/zizmor.yml is where the policy is written.
+  #
+  # It is first because it costs seconds and needs nothing: a pull request that
+  # got the pinning wrong hears about it while the builds are still starting.
+  workflows:
+    name: workflow lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+        with:
+          tool: zizmor@1.30.1
+
+      # The token is what lets zizmor check that each pinned commit is really in
+      # the repository it is attributed to, which is the half of pinning that
+      # reading the workflow cannot tell you. Without it that audit is skipped
+      # and the rest still run.
+      - name: Lint the workflows
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
+
   lint:
     name: clippy and fmt
     runs-on: ubuntu-24.04
     steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # block-app links GTK and WebKitGTK for the file picker and the embedded
       # browser, and ALSA for audio playback, so the workspace does not
@@ -83,7 +117,7 @@ jobs:
         with:
           triple: x86_64-unknown-linux-gnu
 
-      - uses: mlugg/setup-zig@v2
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
 
@@ -96,7 +130,12 @@ jobs:
     name: tests
     runs-on: ubuntu-24.04
     steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # block-app links GTK and WebKitGTK for the file picker and the embedded
       # browser, and ALSA for audio playback, so the workspace does not
@@ -120,7 +159,7 @@ jobs:
 
       - uses: ./.github/actions/sccache
 
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
         with:
           tool: cargo-nextest
 
@@ -131,7 +170,7 @@ jobs:
         with:
           triple: x86_64-unknown-linux-gnu
 
-      - uses: mlugg/setup-zig@v2
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
 
@@ -144,7 +183,12 @@ jobs:
     name: plugin tests
     runs-on: ubuntu-24.04
     steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # The test runner is a native binary built out of the workspace, so this
       # job needs the same headers a native build does, and a plugin's tests
@@ -177,7 +221,7 @@ jobs:
 
       - uses: ./.github/actions/sccache
 
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
         with:
           tool: cargo-nextest
 
@@ -194,7 +238,7 @@ jobs:
         with:
           triple: x86_64-unknown-linux-gnu
 
-      - uses: mlugg/setup-zig@v2
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
 
@@ -207,7 +251,12 @@ jobs:
     name: web bundle
     runs-on: ubuntu-24.04
     steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # The WASI sysroot is built against by clang, not by rustc, so the build
       # needs a local LLVM of at least version 19: FreeType's setjmp/longjmp
@@ -230,7 +279,7 @@ jobs:
 
       # The build script installs this itself when it is missing; a prebuilt one
       # is much faster. The version has to match the wasm-bindgen crate.
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
         with:
           tool: wasm-bindgen-cli@0.2.122
 
@@ -247,7 +296,7 @@ jobs:
         with:
           triple: wasm32-wasip1-threads
 
-      - uses: mlugg/setup-zig@v2
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
 
@@ -274,7 +323,12 @@ jobs:
     name: plugin and game modules
     runs-on: ubuntu-24.04
     steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # A plugin's C dependencies are compiled by clang rather than by rustc,
       # so this needs a local LLVM of at least version 19 for the same reason
@@ -316,24 +370,42 @@ jobs:
     name: android apk
     runs-on: ubuntu-24.04
     steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
+      # android/gradle/wrapper/gradle-wrapper.jar is the one binary committed to
+      # this repository, and it runs before any build script does. This checks
+      # it byte for byte against the wrapper jars Gradle publishes, so a commit
+      # that quietly swapped it fails here rather than executing.
+      - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+
       # The runner image ships an Android SDK, but not the NDK release the app
-      # is built against. The canary channel also lists the stable packages.
+      # is built against. Every package is pinned to an exact version, and
+      # sdkmanager checks each one against the checksum in Google's repository
+      # manifest, so what is asked for here is the whole of what arrives.
+      #
+      # The NDK is the only one of these the stable channel does not list, so it
+      # is the only one fetched with --channel=3. Asking for the canary channel
+      # for all of them meant a typo in any version string could resolve to a
+      # canary build of something that has a perfectly good stable release.
       - name: Install the Android SDK packages
         run: |
           sdkmanager="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           yes | "$sdkmanager" --licenses > /dev/null
-          "$sdkmanager" --channel=3 --install \
+          "$sdkmanager" --install \
             "platform-tools" \
             "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;29.0.14206865"
+            "build-tools;35.0.0"
+          "$sdkmanager" --channel=3 --install "ndk;29.0.14206865"
 
       # Nothing here is compiled to wasm any more, so this job wants neither
       # wasm target, neither the WASI sysroot nor the LLVM that builds against
@@ -353,13 +425,15 @@ jobs:
         with:
           triple: aarch64-linux-android
 
-      - uses: mlugg/setup-zig@v2
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
+      # No gradle-version: the wrapper the build runs through names it, and this
+      # step is here for the dependency cache it keeps between runs. Naming a
+      # version here as well would install a second Gradle that nothing uses,
+      # and would be a copy of the version to keep in step with the wrapper.
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
 
       # A freshly generated keystore would sign every CI build with a different
       # key, and Android refuses to install an update signed with a different
@@ -449,7 +523,12 @@ jobs:
             target: x86_64-apple-darwin
             client: true
     steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Install system dependencies
         if: matrix.client && runner.os == 'Linux'
@@ -490,7 +569,7 @@ jobs:
 
       - name: Install Zig
         if: matrix.client
-        uses: mlugg/setup-zig@v2
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
 
@@ -537,7 +616,7 @@ jobs:
   ci-ok-queue:
     name: ${{ github.event_name != 'pull_request' && 'CI OK' || 'CI gate (merge queue only)' }}
     if: always() && github.event_name != 'pull_request'
-    needs: [lint, test, plugin-tests, web, plugins, android, native]
+    needs: [workflows, lint, test, plugin-tests, web, plugins, android, native]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to have passed
