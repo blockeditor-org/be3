@@ -2,20 +2,21 @@ use beui_macros::{component, view};
 
 use crate::base::{Align, Direction, ItemSize};
 use crate::color::Color32;
-use crate::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_OPEN_IN_NEW};
+use crate::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Child, ClickCallback, Frame, Func, List, Prop, RenderFn, Show, Spacer, Text, clone,
-    create_memo,
+    Callback, Child, ClickCallback, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn, Show,
+    Spacer, Text, clone, create_memo,
 };
 use crate::styled::button::ButtonVariant;
+use crate::styled::context_menu::ContextMenu;
 use crate::styled::icon_button::{IconButton, IconButtonSize};
 use crate::styled::text::{Body, IconSized};
 use crate::styled::theme::{BORDER_WIDTH, CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use crate::unstyled;
 use crate::unstyled::{
     DockPanelHandle, DockSplitterHandle, DockState, DockTabHandle, DockWindowGripHandle,
-    DockWindowHandle, TabId,
+    DockWindowHandle, MenuItem, TabId,
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
@@ -93,8 +94,49 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
         focused,
         dragged,
         close,
+        float,
+        floating,
         ..
     } = handle;
+    let closable = closable.call(tab);
+    let closing = close.clone();
+    view! {
+        <ContextMenu
+            items={view! {
+                <MenuItem label="Pop out into a window" disabled={floating} />
+                <MenuItem label="Close tab" disabled={!closable} />
+            }}
+            on_select={move |path: Vec<usize>| match path.first() {
+                Some(0) => float.call(),
+                Some(1) => closing.call(),
+                _ => {}
+            }}
+        >
+            <DockTabChrome
+                title
+                selected
+                hovered
+                active
+                focused
+                dragged
+                closable
+                close={move || close.call()}
+            />
+        </ContextMenu>
+    }
+}
+
+#[component]
+fn DockTabChrome(
+    title: Prop<String>,
+    selected: Memo<bool>,
+    hovered: ReadSignal<bool>,
+    active: ReadSignal<bool>,
+    focused: ReadSignal<bool>,
+    dragged: Memo<bool>,
+    closable: bool,
+    close: ClickCallback,
+) -> NodeId {
     let theme = use_theme();
     let fill = create_memo(clone!(theme selected hovered -> move || {
         match (selected.get(), hovered.get() || active.get(), dragged.get()) {
@@ -121,7 +163,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Text string={title} font_size=FONT_BODY color={label} clip=true />
-                <Show condition={closable.call(tab)}>
+                <Show condition={closable}>
                     <IconButton
                         glyph=ICON_CLOSE
                         label="Close tab"
@@ -143,7 +185,6 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
         focused,
         bar,
         body,
-        float,
         ..
     } = handle;
     let theme = use_theme();
@@ -161,11 +202,7 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
         >
             <List spacing=0.0>
                 <Show condition={bar.is_some()}>
-                    <DockBarRow
-                        bar={bar.unwrap_or_else(|| unreachable!())}
-                        float={move || float.call()}
-                        floating
-                    />
+                    <DockBarRow bar={bar.unwrap_or_else(|| unreachable!())} />
                 </Show>
                 {body} @sizing=ItemSize::Percent(100.0)
             </List>
@@ -174,7 +211,7 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
 }
 
 #[component]
-fn DockBarRow(bar: Child, float: ClickCallback, floating: bool) -> NodeId {
+fn DockBarRow(bar: Child) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
@@ -182,19 +219,7 @@ fn DockBarRow(bar: Child, float: ClickCallback, floating: bool) -> NodeId {
             padding_horizontal=BAR_PADDING
             padding_vertical=BAR_PADDING
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                {bar}
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Show condition={!floating}>
-                    <IconButton
-                        glyph=ICON_OPEN_IN_NEW
-                        label="Move this tab into a window"
-                        size=IconButtonSize::Compact
-                        variant=ButtonVariant::Ghost
-                        on_click={move || float.call()}
-                    />
-                </Show>
-            </List>
+            {bar}
         </Frame>
     }
 }

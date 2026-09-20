@@ -474,7 +474,7 @@ shut out rather than answering a press through it.
 Dragging a tab picks a drop target from what is under the pointer: a tab bar
 inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
-instead, which is also what the button at the right of a tab bar does. A window
+instead, which is also what "Pop out into a window" on a tab's own menu does. A window
 holds one pane, so a tab dropped anywhere inside one joins it rather than
 splitting it, and the pane's tab bar is the window's title bar: a grip to drag
 it by, the tabs, and the button that closes it. Windows resize from any of

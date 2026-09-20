@@ -41,8 +41,9 @@ const PAPERS: [(u64, &str, &str); 5] = [
     (
         3,
         "Windows",
-        "Hold Alt while dragging a tab, or use the button at the right of a tab bar, to \
-         float it into a window. Windows move by their title bar and resize from any edge.",
+        "Hold Alt while dragging a tab, or right-click one and pop it out, to float it in \
+         a window. A window moves by the grip at the left of its bar and resizes from \
+         any edge.",
     ),
     (
         4,

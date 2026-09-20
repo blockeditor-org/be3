@@ -166,6 +166,7 @@ mod resizing_an_element_damages_where_it_was_and_where_it_moved_to;
 mod resizing_rows_preserves_the_scroll_anchor;
 mod right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item;
 mod right_click_opens_a_context_menu_at_the_cursor_position;
+mod right_clicking_a_dock_tab_pops_it_out_into_a_window;
 mod scrolling_a_nested_scroll_leaves_the_one_around_it_alone;
 mod scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone;
 mod scrolling_a_pan_zoom_pans_it;
@@ -889,7 +890,10 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
-    if document.node_kind(root) == "text" && document.text(root) == text {
+    if document.node_kind(root) == "text"
+        && document.text(root) == text
+        && document.node_rect(root).is_some()
+    {
         return Some(root);
     }
     document

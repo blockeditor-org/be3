@@ -43,6 +43,7 @@ pub struct DockTabHandle {
     pub tab: TabId,
     pub leaf: LeafId,
     pub index: usize,
+    pub floating: bool,
     pub title: Memo<String>,
     pub selected: Memo<bool>,
     pub hovered: ReadSignal<bool>,
@@ -50,6 +51,7 @@ pub struct DockTabHandle {
     pub focused: ReadSignal<bool>,
     pub dragged: Memo<bool>,
     pub close: ClickCallback,
+    pub float: ClickCallback,
 }
 
 pub struct DockPanelHandle {
@@ -59,7 +61,6 @@ pub struct DockPanelHandle {
     pub focused: Memo<bool>,
     pub bar: Option<NodeId>,
     pub body: NodeId,
-    pub float: ClickCallback,
 }
 
 pub struct DockSplitterHandle {
@@ -644,11 +645,6 @@ fn DockPanelView(dock: Handle, surface: SurfaceId, leaf: LeafId, hoisted: bool) 
         state.with(|state| state.focused_leaf() == Some(leaf))
     }));
     let floating = state.with_untracked(|state| state.window_rect(surface).is_some());
-    let float = ClickCallback::new(clone!(dock -> move || {
-        if let Some(tab) = dock.state.get_untracked().active_tab(leaf) {
-            dock.float_tab(tab);
-        }
-    }));
     let bar = match hoisted {
         true => None,
         false => Some(view! {
@@ -665,7 +661,6 @@ fn DockPanelView(dock: Handle, surface: SurfaceId, leaf: LeafId, hoisted: bool) 
         focused,
         bar,
         body,
-        float,
     });
     let pressed = dock.clone();
     let hovered = dock.clone();
@@ -777,10 +772,20 @@ fn DockTabView(dock: Handle, leaf: LeafId, tab: TabId, handle: ChoiceOptionHandl
             .with(|drag| drag.as_ref().is_some_and(|drag| drag.tab == tab && drag.moved))
     }));
     let close = ClickCallback::new(clone!(dock -> move || dock.close_tab(tab)));
+    let float = ClickCallback::new(clone!(dock -> move || dock.float_tab(tab)));
+    let floating = dock
+        .state
+        .with_untracked(|state| {
+            state
+                .surface_of(leaf)
+                .and_then(|surface| state.window_rect(surface))
+        })
+        .is_some();
     let face = dock.tab.call(DockTabHandle {
         tab,
         leaf,
         index,
+        floating,
         title,
         selected,
         hovered,
@@ -788,6 +793,7 @@ fn DockTabView(dock: Handle, leaf: LeafId, tab: TabId, handle: ChoiceOptionHandl
         focused,
         dragged,
         close,
+        float,
     });
     let pressed = dock.clone();
     let moved = dock.clone();
