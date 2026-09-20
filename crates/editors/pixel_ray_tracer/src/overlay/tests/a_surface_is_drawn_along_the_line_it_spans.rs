@@ -12,19 +12,20 @@ fn a_surface_is_drawn_along_the_line_it_spans() {
         transmission: 0.0,
         refractive_index: 1.5,
     };
+    let rect = Rect::from_min_size(pos2(100.0, 200.0), Vec2::splat(256.0));
 
-    let image = draw(&[surface], None, &Preview::None);
+    let shapes = shapes_of(draw(vec![surface], None, Preview::None), rect);
 
+    let drawn: Vec<_> = shapes
+        .iter()
+        .filter_map(|shape| match shape {
+            Shape::Line { from, to, .. } => Some((*from, *to)),
+            _ => None,
+        })
+        .collect();
     assert_eq!(
-        (image.width(), image.height()),
-        (OVERLAY_SIZE, OVERLAY_SIZE)
+        drawn,
+        vec![(pos2(116.0, 216.0), pos2(148.0, 248.0))],
+        "the surface spans its two ends in the rectangle it was given"
     );
-    assert!(alpha(&image, 16, 16) > 0, "the middle of the line is drawn");
-    assert_eq!(alpha(&image, 16, 4), 0, "nothing is drawn beside the line");
-    assert_eq!(alpha(&image, 40, 8), 0, "nothing is drawn past the end");
-}
-
-fn alpha(image: &block_editor_plugin::beui::Image, x: u32, y: u32) -> u8 {
-    let at = ((y * OVERLAY_SCALE * OVERLAY_SIZE + x * OVERLAY_SCALE) * 4 + 3) as usize;
-    image.pixels()[at]
 }

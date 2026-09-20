@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, Focusable, Frame, ItemSize, List, Picture, clone, component,
-    component_rect, create_memo, view,
+    Canvas, CanvasItem, ClickCatcher, Drawing, Focusable, Frame, ItemSize, List, Picture, clone,
+    component, component_rect, create_memo, view,
 };
 use block_editor_plugin::beui::styled::use_theme;
 use block_editor_plugin::beui::{
@@ -129,7 +129,7 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                                 </Frame>
                             </CanvasItem>
                             <CanvasItem x={left} y={top} width={side.clone()} height={side}>
-                                <Picture image={overlay} fit=ImageFit::Fill smooth=false />
+                                <Drawing draw={overlay} />
                             </CanvasItem>
                         </Canvas>
                     </List>
