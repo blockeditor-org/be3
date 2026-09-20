@@ -276,6 +276,8 @@ pub(crate) struct CanvasState {
     set_import_error: WriteSignal<Option<String>>,
     pub(crate) labels: ReadSignal<HashMap<Uuid, BlockLabel>>,
     set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
+    pub(crate) types: ReadSignal<HashMap<Uuid, Uuid>>,
+    set_types: WriteSignal<HashMap<Uuid, Uuid>>,
     pub(crate) resolved: ReadSignal<HashMap<BlockRef, Option<Uuid>>>,
     set_resolved: WriteSignal<HashMap<BlockRef, Option<Uuid>>>,
     pub(crate) child_states: ReadSignal<HashMap<Uuid, ChildState>>,
@@ -297,6 +299,7 @@ impl CanvasState {
         let (editing_text, set_editing_text) = create_signal(None);
         let (import_error, set_import_error) = create_signal(None);
         let (labels, set_labels) = create_signal(HashMap::new());
+        let (types, set_types) = create_signal(HashMap::new());
         let (resolved, set_resolved) = create_signal(HashMap::new());
         let (child_states, set_child_states) = create_signal(HashMap::new());
         let (presence, set_presence) = create_signal(Presence::default());
@@ -353,6 +356,8 @@ impl CanvasState {
             set_import_error,
             labels,
             set_labels,
+            types,
+            set_types,
             resolved,
             set_resolved,
             child_states,
@@ -365,6 +370,10 @@ impl CanvasState {
 
     pub(crate) fn editor(&self) -> &Editor {
         &self.editor
+    }
+
+    pub(crate) fn previewing(&self) -> bool {
+        self.preview
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -433,6 +442,15 @@ impl CanvasState {
     pub(crate) fn label_of(&self, reference: BlockRef) -> Option<BlockLabel> {
         let id = self.resolve(reference)?;
         self.labels.get().get(&id).cloned()
+    }
+
+    pub(crate) fn block_type_of(&self, id: Uuid) -> Option<Uuid> {
+        self.types.get().get(&id).copied().or_else(|| {
+            self.editor
+                .client()
+                .cached_block(id)
+                .map(|cached| cached.block_type)
+        })
     }
 
     pub(crate) fn child_state(&self, entity: Uuid) -> ChildState {
@@ -1663,20 +1681,26 @@ impl CanvasState {
     }
 
     fn publish_references(&self) {
-        let types = self.types();
-        let labels: HashMap<Uuid, BlockLabel> = self
-            .dependencies
-            .read()
-            .into_iter()
+        let catalog = self.types();
+        let dependencies = self.dependencies.read();
+        let labels: HashMap<Uuid, BlockLabel> = dependencies
+            .iter()
             .map(|reference| {
                 (
                     reference.id,
-                    BlockLabel::for_reference(types.as_ref(), &reference),
+                    BlockLabel::for_reference(catalog.as_ref(), reference),
                 )
             })
             .collect();
         if self.labels.get_untracked() != labels {
             self.set_labels.set(labels);
+        }
+        let types: HashMap<Uuid, Uuid> = dependencies
+            .iter()
+            .map(|reference| (reference.id, reference.block_type))
+            .collect();
+        if self.types.get_untracked() != types {
+            self.set_types.set(types);
         }
         self.reference_cache.borrow_mut().poll();
         let client = Arc::clone(self.editor.client());

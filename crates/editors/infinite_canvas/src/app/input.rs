@@ -48,18 +48,30 @@ impl CanvasState {
         self.note_pointer(at);
     }
 
-    pub(crate) fn over_live_child(&self, world: CanvasPoint) -> bool {
-        self.entities.get_untracked().iter().any(|entity| {
-            matches!(entity.kind, CanvasEntityKind::DirectEditor { .. })
-                && !self.shows_preview(entity.id)
-                && direct_editor_layout(entity).is_some_and(|layout| layout.content.contains(world))
-        })
+    pub(crate) fn live_child_at(&self, world: CanvasPoint) -> Option<Uuid> {
+        self.entities
+            .get_untracked()
+            .iter()
+            .rev()
+            .find_map(|entity| {
+                (matches!(entity.kind, CanvasEntityKind::DirectEditor { .. })
+                    && !self.shows_preview(entity.id)
+                    && direct_editor_layout(entity)
+                        .is_some_and(|layout| layout.content.contains(world)))
+                .then_some(entity.id)
+            })
     }
 
     pub(crate) fn press(&self, press: PointerPress) {
+        if self.previewing() {
+            return;
+        }
         let world = self.world_at(press.pos);
         self.hover(Some(world));
-        if self.over_live_child(world) {
+        if let Some(child) = self.live_child_at(world) {
+            if self.interaction(child) == Some(InteractionMode::Live) {
+                self.focus_editor(Some(child));
+            }
             return;
         }
         self.hold_pointer(true);
@@ -192,6 +204,9 @@ impl CanvasState {
     }
 
     pub(crate) fn secondary_press(&self, press: PointerPress) {
+        if self.previewing() {
+            return;
+        }
         let world = self.world_at(press.pos);
         self.note_context_position(Some(world));
         let frame = selection_frame_of(self);
@@ -206,7 +221,7 @@ impl CanvasState {
     }
 
     pub(crate) fn drag(&self, press: PointerPress) {
-        if !self.pointer_held() {
+        if self.previewing() || !self.pointer_held() {
             return;
         }
         let world = self.world_at(press.pos);
@@ -302,7 +317,7 @@ impl CanvasState {
     }
 
     pub(crate) fn key(&self, press: KeyPress) -> bool {
-        if !press.pressed {
+        if self.previewing() || !press.pressed {
             return false;
         }
         if press.key == Key::Escape {

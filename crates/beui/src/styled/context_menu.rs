@@ -5,7 +5,8 @@ use crate::color::Color32;
 use crate::icons::ICON_CHEVRON_RIGHT;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Text, clone, create_memo,
+    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Prop, Text, clone,
+    create_memo,
 };
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
@@ -23,9 +24,8 @@ const SUBMENU_ICON_SIZE: f32 = 16.0;
 pub fn ContextMenu(
     children: Child,
     items: Children<MenuItem>,
-    #[prop(default = crate::reactive::ItemSize::Intrinsic)] child_size: crate::reactive::Prop<
-        crate::reactive::ItemSize,
-    >,
+    #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = false)] disabled: Prop<bool>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     view! {
@@ -34,6 +34,7 @@ pub fn ContextMenu(
             row={menu_row()}
             panel={menu_panel()}
             child_size={child_size}
+            disabled={disabled}
             on_select={move |path| on_select.call(path)}
         >
             {children}

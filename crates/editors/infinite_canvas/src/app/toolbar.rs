@@ -44,7 +44,7 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
     let errors = Rc::clone(&state);
     view! {
         <Toolbar shown={shown}>
-            <List spacing=6.0>
+            <List @sizing=ItemSize::Percent(100.0) spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap=true>
                     <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>
                         {move |index: usize| {
@@ -61,7 +61,6 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
                         on_click={move || blocks.open_block_picker(None)}
                     />
                     <ActionsMenu state={actions} />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
                     <ZoomControls state={zoom} />
                 </List>
                 <ImportError state={errors} />

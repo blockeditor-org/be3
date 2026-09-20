@@ -16,7 +16,7 @@ const LAYERS: [CanvasLayerMove; 4] = [
 ];
 
 #[component]
-pub(crate) fn CanvasMenu(state: Rc<CanvasState>, children: Child) -> NodeId {
+pub(crate) fn CanvasMenu(state: Rc<CanvasState>, disabled: bool, children: Child) -> NodeId {
     let empty = create_memo(clone!(state -> move || state.selection.get().is_empty()));
     let single = create_memo(clone!(state -> move || state.selection.get().len() != 1));
     let blocked = create_memo(clone!(state -> move || {
@@ -78,7 +78,12 @@ pub(crate) fn CanvasMenu(state: Rc<CanvasState>, children: Child) -> NodeId {
         <MenuItem label="Invert selection" />
     };
     view! {
-        <ContextMenu items={items} child_size=ItemSize::Percent(100.0) on_select={chosen}>
+        <ContextMenu
+            items={items}
+            child_size=ItemSize::Percent(100.0)
+            disabled={disabled}
+            on_select={chosen}
+        >
             {children}
         </ContextMenu>
     }

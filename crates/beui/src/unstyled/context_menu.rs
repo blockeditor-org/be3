@@ -23,6 +23,7 @@ pub fn ContextMenu(
     row: Option<RenderFn<MenuRowHandle>>,
     panel: Option<RenderFn<Child>>,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = false)] disabled: Prop<bool>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let row = row.unwrap_or_else(|| {
@@ -62,6 +63,9 @@ pub fn ContextMenu(
         <ClickCatcher
             cursor=CursorIcon::Default
             on_secondary_press={move |press: PointerPress| {
+                if disabled.get() {
+                    return;
+                }
                 set_position.set(press.pos);
                 set_open.set(true);
             }}

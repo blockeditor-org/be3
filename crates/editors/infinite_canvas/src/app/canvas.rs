@@ -6,7 +6,8 @@ use std::cell::RefCell;
 
 use block_editor_plugin::beui::reactive::{
     Canvas, CanvasItem, CanvasView, Child, ClickCatcher, Draw, Drawing, Focusable, ForEach, Memo,
-    ReadSignal, clone, component, component_rect, create_effect, create_memo, create_signal, view,
+    ReadSignal, Show, clone, component, component_rect, create_effect, create_memo, create_signal,
+    view,
 };
 use block_editor_plugin::beui::styled::use_theme;
 use block_editor_plugin::beui::{KeyPress, NodeId, PointerPress, Rect, Vec2, pos2};
@@ -51,8 +52,9 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
     let overlay_stage = placed.clone();
     let placement = camera.clone();
     let menu = Rc::clone(&state);
+    let previewing = state.previewing();
     view! {
-        <CanvasMenu state={menu}>
+        <CanvasMenu state={menu} disabled={previewing}>
             <CanvasSurface state={surface}>
                 <Canvas
                     view={create_memo(clone!(placement -> move || Some(placement.get())))}
@@ -75,7 +77,9 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                             }
                         }}
                     </ForEach>
-                    <CanvasOverlay state={over} camera={overlay_camera} stage={overlay_stage} />
+                    <Show condition={!previewing}>
+                        <CanvasOverlay state={over} camera={overlay_camera} stage={overlay_stage} />
+                    </Show>
                 </Canvas>
             </CanvasSurface>
         </CanvasMenu>
@@ -93,8 +97,10 @@ fn CanvasSurface(state: Rc<CanvasState>, children: Option<Child>) -> NodeId {
     let keying = Rc::clone(&state);
     let texting = Rc::clone(&state);
     let cursor = create_memo(clone!(state -> move || state.cursor()));
+    let interactive = !state.previewing();
     view! {
         <Focusable
+            tab_stop={interactive}
             on_key={move |press: KeyPress| keying.key(press)}
             on_text={move |text: String| {
                 texting.paste_text(&text);
@@ -238,7 +244,7 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
         let entity = entity.get()?;
         let reference = reference_of(&entity)?;
         let id = resolving.resolve(reference)?;
-        let block_type = resolving.editor().client().cached_block(id)?.block_type;
+        let block_type = resolving.block_type_of(id)?;
         Some(ChildTarget::new(id, block_type))
     }));
     let rotation = create_memo(clone!(entity -> move || {
