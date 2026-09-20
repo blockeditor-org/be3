@@ -33,6 +33,7 @@ pub struct Document {
     pub(crate) rects: Rc<NodeMap<Rect>>,
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
+    pub(crate) portal_holders: std::collections::HashMap<NodeId, NodeId>,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
     frame_hooks: RefCell<Vec<Weak<dyn Fn()>>>,
@@ -155,6 +156,7 @@ impl Document {
             rects: Rc::new(NodeMap::default()),
             inspector: None,
             inspectable: true,
+            portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
             frame_hooks: RefCell::new(Vec::new()),
@@ -423,8 +425,14 @@ impl Document {
         if !self.arena.contains(id) {
             return;
         }
-        let children = self.arena.get(id).children();
+        let element = self.arena.get(id);
+        let borrowed = element.borrowed();
+        let children = element.children();
+        self.release_portal(id, &borrowed);
         for child in children {
+            if borrowed.contains(&child) {
+                continue;
+            }
             self.detach_subtree(child, scopes);
         }
         self.arena.remove(id);

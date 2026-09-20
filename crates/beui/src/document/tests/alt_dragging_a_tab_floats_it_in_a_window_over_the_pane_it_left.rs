@@ -6,6 +6,9 @@ fn alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left() {
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
+    harness.click(harness.center(dock_tab(harness.document(), dock, "Tab 2")));
+    harness.frame(Vec::new());
+    let panel = harness.find("content.2");
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
 
     drag_with(
@@ -36,7 +39,12 @@ fn alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left() {
         "the window that was just made has the focus"
     );
 
-    let over = harness.rect(harness.find("content.2")).center();
+    assert_eq!(
+        harness.find("content.2"),
+        panel,
+        "the panel the tab brought into the window is the one it had"
+    );
+    let over = harness.rect(panel).center();
     harness.click(over);
     harness.frame(Vec::new());
 

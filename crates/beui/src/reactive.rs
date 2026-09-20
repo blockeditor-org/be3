@@ -1370,6 +1370,7 @@ pub use crate::base::focusable::Focusable;
 pub use crate::base::frame::Frame;
 pub use crate::base::offset::{Offset, VirtualOffset};
 pub use crate::base::picture::Picture;
+pub use crate::base::portal::Portal;
 pub use crate::base::stroke::Stroke;
 pub use crate::base::text::Text;
 

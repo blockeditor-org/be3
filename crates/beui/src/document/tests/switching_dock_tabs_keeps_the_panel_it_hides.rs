@@ -7,14 +7,13 @@ fn switching_dock_tabs_keeps_the_panel_it_hides() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let first = harness.find("content.1");
-    let second = harness.find("content.2");
     assert!(
         harness.rect(first).is_positive(),
         "the pane lays out the tab it is showing"
     );
     assert!(
-        harness.document().node_rect(second).is_none(),
-        "the pane does not lay out the tab it is not showing"
+        harness.document().find_test_id("content.2").is_none(),
+        "the panel of a tab that has not been shown is not built yet"
     );
 
     harness.click(harness.center(dock_tab(harness.document(), dock, "Tab 2")));
@@ -33,7 +32,11 @@ fn switching_dock_tabs_keeps_the_panel_it_hides() {
         "the panel that is now hidden keeps the nodes it had"
     );
     assert!(
-        harness.rect(second).is_positive(),
-        "the panel that was hidden is laid out once its tab is shown"
+        harness.document().node_rect(first).is_none(),
+        "the pane does not lay out the tab it stopped showing"
+    );
+    assert!(
+        harness.rect(harness.find("content.2")).is_positive(),
+        "the panel of the tab it shows now is laid out in its place"
     );
 }

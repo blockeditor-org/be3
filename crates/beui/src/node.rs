@@ -84,6 +84,10 @@ pub(crate) trait Element: Any {
 
     fn children(&self) -> Vec<NodeId>;
 
+    fn borrowed(&self) -> Vec<NodeId> {
+        Vec::new()
+    }
+
     fn kind(&self) -> &'static str;
 
     fn detail(&self) -> Option<String> {

@@ -216,10 +216,13 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
   `Offset`, `VirtualOffset`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher`,
-  `Embed` — and it stays small because most things are compositions of those.
+  `Embed`, `Portal` — and it stays small because most things are compositions
+  of those.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
-  arranging the existing nodes. If a new concern can share `Frame`'s single-child box model,
+  arranging the existing nodes. `Portal` is one: it shows a subtree it does not
+  own, which is how a node laid out in one place this frame is laid out
+  somewhere else the next without being rebuilt. If a new concern can share `Frame`'s single-child box model,
   extend `Frame` rather than adding another pass-through node.
 
 `unstyled::Button` shows the split. It composes `Focusable` and `ClickCatcher`,
@@ -242,7 +245,13 @@ children adds `align=Align::Center`; a one-line alias per combination is what
 which names exist. `Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node.
 `Text` carries its own decoration too: `underline` is painted from the galley's
-baseline, so switching it on never moves anything. `Embed` reserves a rectangle
+baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
+someone else: it takes a `NodeId`, lays it out and paints it where the portal
+stands, and leaves it alone when the portal goes away, so a subtree can move
+between places in the tree without being built again. Exactly one portal shows
+a given node - claiming it takes it from the portal that had it - and the
+subtree is kept alive by whoever built it, with `in_new_scope` or a scope of
+their own, until they remove it. `Embed` reserves a rectangle
 for something outside the document — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
@@ -484,10 +493,12 @@ stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 any other tab list and scroll the tab they reach into view when a pane has more
 tabs than it has room for.
 
-The panel a tab is not showing keeps its nodes: it is laid out at zero size and
-hidden rather than removed, so switching back to a tab finds the scroll
-position, the caret and the state its panel had. Moving a tab to another pane
-does rebuild its panel, because the panel belongs to the pane that shows it.
+A tab's panel is built the first time the tab is shown and belongs to the dock
+rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
+the panel keeps its nodes, its scroll position, its caret and its state when
+the tab is hidden behind another, dragged to another pane, or floated into a
+window. A panel no pane is showing is laid out by nobody, so it costs nothing
+and a screen reader does not read it. Closing the tab is what removes it.
 
 ### Pan and zoom
 

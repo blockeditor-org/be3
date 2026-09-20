@@ -17,9 +17,10 @@ use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
-    Func, IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Scroll, Show, WriteSignal,
-    clone, component_accessibility, component_rect, component_size, create_effect, create_memo,
-    create_signal, on_cleanup, set_component_state, with_document,
+    Func, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
+    WriteSignal, clone, component_accessibility, component_rect, component_size,
+    create_effect, create_memo, create_signal, node_scope, on_cleanup, owner_scope,
+    set_component_state, try_with_document, with_document,
 };
 use crate::unstyled::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, Scroll};
 
@@ -113,6 +114,8 @@ struct State {
     rect: ReadSignal<Rect>,
     panes: RefCell<HashMap<SurfaceId, NodeRef>>,
     bars: RefCell<HashMap<LeafId, TabBar>>,
+    panels: RefCell<HashMap<TabId, NodeId>>,
+    owner: Option<ScopeContext>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
     panel: RenderFn<DockPanelHandle>,
@@ -139,6 +142,37 @@ impl State {
 
     fn title(&self, tab: TabId) -> String {
         self.title.call(tab)
+    }
+
+    fn panel(&self, tab: TabId) -> NodeId {
+        if let Some(panel) = self.panels.borrow().get(&tab) {
+            return *panel;
+        }
+        let scope = with_document(|document| node_scope(document, self.owner.clone()));
+        let panel = scope.context().run(|| self.content.call(tab));
+        with_document(|document| document.register_node_scope(panel, scope));
+        self.panels.borrow_mut().insert(tab, panel);
+        panel
+    }
+
+    fn keep_panels(&self, tabs: &[TabId]) {
+        let dropped: Vec<TabId> = self
+            .panels
+            .borrow()
+            .keys()
+            .filter(|tab| !tabs.contains(tab))
+            .copied()
+            .collect();
+        for tab in dropped {
+            self.forget_panel(tab);
+        }
+    }
+
+    fn forget_panel(&self, tab: TabId) {
+        let Some(panel) = self.panels.borrow_mut().remove(&tab) else {
+            return;
+        };
+        try_with_document(|document| document.remove_node(panel));
     }
 
     fn pane_rect(&self, surface: SurfaceId) -> Option<Rect> {
@@ -437,6 +471,8 @@ pub fn Dock(
     let (drag, set_drag) = create_signal(None);
     let dock: Handle = Rc::new(State {
         state: current.clone(),
+        panels: RefCell::default(),
+        owner: owner_scope(),
         set_state: set_current,
         on_change,
         on_close,
@@ -493,6 +529,11 @@ pub fn Dock(
         }),
     });
     set_component_state(dock.clone());
+    create_effect(clone!(dock current -> move || {
+        let tabs = current.with(DockState::all_tabs);
+        dock.keep_panels(&tabs);
+    }));
+    on_cleanup(clone!(dock -> move || dock.keep_panels(&[])));
     let main = create_memo(clone!(current -> move || current.with(DockState::main)));
     let windows = create_memo(clone!(current -> move || current.with(DockState::windows)));
     let panes = dock.clone();
@@ -688,25 +729,13 @@ fn DockPanelView(dock: Handle, surface: SurfaceId, leaf: LeafId, hoisted: bool) 
 #[component]
 fn DockPanelBody(dock: Handle, leaf: LeafId) -> NodeId {
     let state = dock.state.clone();
-    let tabs = create_memo(clone!(state -> move || state.with(|state| state.tabs(leaf))));
     let shown = create_memo(clone!(state -> move || state.with(|state| state.active_tab(leaf))));
-    let content = dock.content.clone();
+    let (panel, set_panel) = create_signal(None);
+    create_effect(clone!(dock -> move || {
+        set_panel.set(shown.get().map(|tab| dock.panel(tab)));
+    }));
     view! {
-        <List spacing=0.0>
-            <ForEach keys={tabs}>
-                {move |tab: TabId| {
-                    let content = content.clone();
-                    let visible = create_memo(clone!(shown -> move || shown.get() == Some(tab)));
-                    let sizing = create_memo(clone!(visible -> move || match visible.get() {
-                        true => ItemSize::Percent(100.0),
-                        false => ItemSize::Fixed(0.0),
-                    }));
-                    view! {
-                        <Frame @sizing={sizing} visible={visible}>{content.call(tab)}</Frame>
-                    }
-                }}
-            </ForEach>
-        </List>
+        <Portal node={panel} />
     }
 }
 
