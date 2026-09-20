@@ -20,6 +20,7 @@ pub fn ChildBlock(
     #[prop(default = false)] own_frame: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
+    #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
@@ -38,6 +39,7 @@ pub fn ChildBlock(
         own_frame,
         turn.clone().into_prop(),
         opacity,
+        intrinsic,
         on_state,
     );
     let handle = ChildHandle { state };

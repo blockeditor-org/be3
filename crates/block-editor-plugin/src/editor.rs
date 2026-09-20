@@ -9,7 +9,9 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block::Block;
 use block_client::{BlockClient, BlockHandle};
-use block_plugin_api::{ChildId, ChildLayer, ChildMode};
+use block_plugin_api::{
+    ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode,
+};
 use block_reactive::BlockSource;
 use block_ui::BlockCatalog;
 use std::hash::Hash;
@@ -138,6 +140,9 @@ pub struct ChildState {
     pub active: bool,
     pub intrinsic_size: Option<Vec2>,
     pub aspect_ratio: Option<f32>,
+    pub interaction: Option<InteractionMode>,
+    pub capabilities: EditorCapabilities,
+    pub resize: ResizeMode,
     pub error: Option<String>,
 }
 
@@ -157,6 +162,9 @@ impl ChildState {
             intrinsic_size: (status.intrinsic_width > 0.0 && status.intrinsic_height > 0.0)
                 .then(|| Vec2::new(status.intrinsic_width, status.intrinsic_height)),
             aspect_ratio: (status.aspect_ratio > 0.0).then_some(status.aspect_ratio),
+            interaction: Some(status.interaction),
+            capabilities: status.capabilities,
+            resize: status.resize,
             error: status.error,
         }
     }
@@ -170,6 +178,7 @@ struct ChildRecord {
     own_frame: Prop<bool>,
     rotation: Prop<f32>,
     opacity: Prop<f32>,
+    intrinsic: Prop<Option<Vec2>>,
     state: WriteSignal<ChildState>,
     read: ReadSignal<ChildState>,
     report: Callback<ChildState>,
@@ -245,6 +254,13 @@ struct EditorState {
     resized: ReadSignal<Option<Vec2>>,
     set_resized: WriteSignal<Option<Vec2>>,
     pending_resize: Cell<Option<Vec2>>,
+    presence_visible: ReadSignal<bool>,
+    set_presence_visible: WriteSignal<bool>,
+    pending_presence: Cell<Option<bool>>,
+    revealed: ReadSignal<Option<u64>>,
+    set_revealed: WriteSignal<Option<u64>>,
+    pending_reveal: Cell<Option<u64>>,
+    replace: RefCell<Option<Rc<dyn Fn(Uuid, Uuid) -> bool>>>,
     content: RefCell<Option<NodeRef>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
@@ -266,6 +282,8 @@ impl Editor {
         let (drag, set_drag) = create_signal(None::<Drag>);
         let (pixels_per_point, set_pixels_per_point) = create_signal(1.0_f32);
         let (resized, set_resized) = create_signal(None::<Vec2>);
+        let (presence_visible, set_presence_visible) = create_signal(false);
+        let (revealed, set_revealed) = create_signal(None::<u64>);
         Self(Rc::new(EditorState {
             host,
             client,
@@ -289,6 +307,13 @@ impl Editor {
             resized,
             set_resized,
             pending_resize: Cell::new(None),
+            presence_visible,
+            set_presence_visible,
+            pending_presence: Cell::new(None),
+            revealed,
+            set_revealed,
+            pending_reveal: Cell::new(None),
+            replace: RefCell::new(None),
             content: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
@@ -394,6 +419,7 @@ impl Editor {
         own_frame: Prop<bool>,
         rotation: Prop<f32>,
         opacity: Prop<f32>,
+        intrinsic: Prop<Option<Vec2>>,
         report: Callback<ChildState>,
     ) -> ReadSignal<ChildState> {
         let (state, set_state) = create_signal(ChildState::default());
@@ -409,6 +435,7 @@ impl Editor {
                 own_frame,
                 rotation,
                 opacity,
+                intrinsic,
                 state: set_state,
                 read: state.clone(),
                 report,
@@ -470,6 +497,31 @@ impl Editor {
         self.0.pending_resize.set(Some(size));
     }
 
+    pub fn presence_visible(&self) -> ReadSignal<bool> {
+        self.0.presence_visible.clone()
+    }
+
+    pub fn report_presence_visible(&self, visible: bool) {
+        self.0.pending_presence.set(Some(visible));
+    }
+
+    pub fn revealed(&self) -> ReadSignal<Option<u64>> {
+        self.0.revealed.clone()
+    }
+
+    pub fn report_reveal(&self, client_id: u64) {
+        self.0.pending_reveal.set(Some(client_id));
+    }
+
+    pub fn on_replace_child(&self, replace: impl Fn(Uuid, Uuid) -> bool + 'static) {
+        *self.0.replace.borrow_mut() = Some(Rc::new(replace));
+    }
+
+    pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
+        let replace = self.0.replace.borrow().clone();
+        replace.is_some_and(|replace| replace(old, new))
+    }
+
     pub fn drag(&self) -> ReadSignal<Option<Drag>> {
         self.0.drag.clone()
     }
@@ -520,6 +572,10 @@ impl Editor {
             .set_pixels_per_point
             .set(self.0.host.beui_pixels_per_point());
         self.0.set_resized.set(self.0.pending_resize.take());
+        if let Some(visible) = self.0.pending_presence.take() {
+            self.0.set_presence_visible.set(visible);
+        }
+        self.0.set_revealed.set(self.0.pending_reveal.take());
         for record in self.records() {
             let state = ChildState::of(&self.0.host, record.child.get());
             if record.read.get_untracked() == state {
@@ -561,6 +617,7 @@ impl Editor {
             record.own_frame.peek(),
             record.rotation.peek(),
             record.opacity.peek(),
+            record.intrinsic.peek(),
         ))
     }
 }

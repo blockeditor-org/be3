@@ -1095,6 +1095,7 @@ impl EditorHost {
         own_frame: bool,
         rotation: f32,
         opacity: f32,
+        intrinsic: Option<beui::Vec2>,
     ) -> ChildId {
         let ratio = self.beui.get().ratio;
         let state = self.region.get();
@@ -1112,8 +1113,8 @@ impl EditorHost {
             corner_radius: 0.0,
             layer,
             mode,
-            intrinsic_width: 0.0,
-            intrinsic_height: 0.0,
+            intrinsic_width: intrinsic.map_or(0.0, |size| size.x.max(0.0)),
+            intrinsic_height: intrinsic.map_or(0.0, |size| size.y.max(0.0)),
             rotation,
             opacity: opacity.clamp(0.0, 1.0),
         });
