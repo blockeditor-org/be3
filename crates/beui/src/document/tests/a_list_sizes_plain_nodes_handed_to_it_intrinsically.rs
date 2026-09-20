@@ -7,16 +7,11 @@ fn a_list_sizes_plain_nodes_handed_to_it_intrinsically() {
     let document = build({
         let (first, second) = (first.clone(), second.clone());
         move || {
-            let children = vec![
-                view! {
-                    <Frame @node_ref=&first width=20.0 />
-                },
-                view! {
-                    <Frame @node_ref=&second width=30.0 />
-                },
-            ];
             view! {
-                <List direction=Direction::Horizontal spacing=0.0 children />
+                <List direction=Direction::Horizontal spacing=0.0>
+                    <Frame @node_ref=&first width=20.0 />
+                    <Frame @node_ref=&second width=30.0 />
+                </List>
             }
         }
     });

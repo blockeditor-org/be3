@@ -1,19 +1,20 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ItemSize, List, Scroll, view};
+use crate::reactive::{DynamicSegment, ForEach, ItemSize, List, Scroll, component, view};
 
 #[test]
 fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
     let document = build(move || {
-        let mut items = vec![view! {
-            <Frame height=150.0>
-                <Scroll @test_id="inner" children={rows(20)} />
-            </Frame>
-        }];
-        items.extend(rows(20));
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer" children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
+                    <Frame height=150.0>
+                        <Scroll @test_id="inner">
+                            <Rows count=20 />
+                        </Scroll>
+                    </Frame>
+                    <Rows count=20 />
+                </Scroll>
             </List>
         }
     });
@@ -34,12 +35,13 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
     assert_eq!(harness.document().scroll_offset(outer), 20.0);
 }
 
-fn rows(count: usize) -> Vec<NodeId> {
-    (0..count)
-        .map(|index| {
-            view! {
+#[component]
+fn Rows(count: usize) -> DynamicSegment<NodeId> {
+    view! {
+        <ForEach keys={indices(count)}>
+            {|index: usize| view! {
                 <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
-            }
-        })
-        .collect()
+            }}
+        </ForEach>
+    }
 }

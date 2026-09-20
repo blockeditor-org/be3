@@ -54,6 +54,7 @@ mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
+mod a_value_written_between_tags_takes_the_sizing_after_it;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
@@ -228,8 +229,8 @@ use crate::input::{TouchId, TouchPhase};
 use crate::base::list::{Direction, ItemSize};
 use crate::inspector::Inspector;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, Frame, List, NodeRef, Spacer, Text, VirtualList, build,
-    intrinsic, with_document,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Spacer, Text, VirtualList,
+    build, with_document,
 };
 use crate::styled;
 use crate::unstyled;
@@ -841,6 +842,10 @@ pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32)
     })
 }
 
+pub(crate) fn indices(count: usize) -> Vec<usize> {
+    (0..count).collect()
+}
+
 pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
     document.text(id)
 }
@@ -854,7 +859,9 @@ pub(crate) fn toolbar_of<const N: usize>(
         let nodes = controls();
         sink.set(Some(nodes));
         view! {
-            <List spacing=8.0 children={nodes.to_vec()} />
+            <List spacing=8.0>
+                <ForEach keys={indices(N)}>{move |index: usize| nodes[index]}</ForEach>
+            </List>
         }
     });
     let nodes = built.get().expect("the toolbar was built");

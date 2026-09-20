@@ -1,33 +1,33 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, List, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, Scroll, build, view};
 
 #[test]
 fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
     let clicks = Rc::new(Cell::new(0));
     let click_sink = clicks.clone();
     let document = build(move || {
-        let items = (0..40)
-            .map(|index| {
-                let click_sink = click_sink.clone();
-                view! {
-                    <Frame width=120.0>
-                        <LabelledButton
-                            label={format!("Card {index}")}
-                            on_click={move || click_sink.set(click_sink.get() + 1)}
-                        />
-                    </Frame>
-                }
-            })
-            .collect::<Vec<_>>();
         view! {
             <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     @test_id="strip"
                     direction=Direction::Horizontal
-                    children={items}
-                />
+                >
+                    <ForEach keys={indices(40)}>
+                        {move |index: usize| {
+                            let click_sink = click_sink.clone();
+                            view! {
+                                <Frame width=120.0>
+                                    <LabelledButton
+                                        label={format!("Card {index}")}
+                                        on_click={move || click_sink.set(click_sink.get() + 1)}
+                                    />
+                                </Frame>
+                            }
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

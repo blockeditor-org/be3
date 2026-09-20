@@ -1,8 +1,8 @@
 use block_editor_plugin::Editor;
 use block_editor_plugin::beui::icons::ICON_LEFT_PANEL_OPEN;
 use block_editor_plugin::beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, Direction, Frame, ItemSize, List, NodeRef, ReadSignal, Show,
-    Text, WriteSignal, clone, component, create_memo, create_signal, intrinsic, view,
+    Canvas, CanvasItem, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, NodeRef,
+    ReadSignal, Show, Text, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
 use block_editor_plugin::beui::unstyled;
@@ -36,6 +36,10 @@ impl Card {
     pub fn rect(&self) -> Rect {
         Rect::from_min_size(pos2(self.x, self.y), vec2(self.width, self.height))
     }
+}
+
+fn card_indices() -> Vec<usize> {
+    (0..CARDS.len()).collect()
 }
 
 pub const CARDS: &[Card] = &[
@@ -151,18 +155,6 @@ fn Sidebar(
     let zoom_in = clone!(editor -> move || editor.zoom(ZOOM_STEP));
     let fit = clone!(editor -> move || editor.fit());
     let hide = clone!(set_open -> move || set_open.set(false));
-    let rows: Vec<_> = (0..CARDS.len())
-        .map(|index| {
-            intrinsic(view! {
-                <FocusRow
-                    index={index}
-                    editor={editor.clone()}
-                    set_selected={set_selected.clone()}
-                />
-            })
-        })
-        .collect();
-
     view! {
         <Frame
             color={theme.surface.clone()}
@@ -209,7 +201,17 @@ fn Sidebar(
                     color={theme.text_muted.clone()}
                     @test_id={"pan_zoom.selected"}
                 />
-                <List spacing=4.0 children={rows} />
+                <List spacing=4.0>
+                    <ForEach keys={card_indices()}>
+                        {move |index: usize| view! {
+                            <FocusRow
+                                index
+                                editor={editor.clone()}
+                                set_selected={set_selected.clone()}
+                            />
+                        }}
+                    </ForEach>
+                </List>
                 <Separator />
                 <Button
                     label="Hide sidebar"
@@ -268,20 +270,19 @@ fn Stage(
     set_selected: WriteSignal<Option<usize>>,
 ) -> NodeId {
     let scale = editor.scale();
-    let cards: Vec<_> = (0..CARDS.len())
-        .map(|index| {
-            view! {
-                <CardView
-                    index={index}
-                    scale={scale.clone()}
-                    selected={selected.clone()}
-                    set_selected={set_selected.clone()}
-                />
-            }
-        })
-        .collect();
     view! {
-        <Canvas view={editor.canvas()} children={cards} />
+        <Canvas view={editor.canvas()}>
+            <ForEach keys={card_indices()}>
+                {move |index: usize| view! {
+                    <CardView
+                        index
+                        scale={scale.clone()}
+                        selected={selected.clone()}
+                        set_selected={set_selected.clone()}
+                    />
+                }}
+            </ForEach>
+        </Canvas>
     }
 }
 

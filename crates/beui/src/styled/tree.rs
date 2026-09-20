@@ -8,7 +8,7 @@ use crate::input::CursorIcon;
 use crate::node::NodeId;
 use crate::reactive::{
     Align, Callback, ClickCatcher, Direction, Frame, Func, ItemSize, List, Prop, RenderFn, Spacer,
-    clone, create_memo, create_signal, intrinsic, percent, size,
+    clone, create_memo, create_signal,
 };
 use crate::styled::text::IconSized;
 use crate::styled::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
@@ -90,25 +90,6 @@ where
         false => theme.text_muted.get(),
     }));
     let expandable = create_memo(clone!(item -> move || item.get().expandable));
-    let spacer = view! {
-        <Spacer />
-    };
-    let marker = view! {
-        <ClickCatcher
-            cursor=CursorIcon::PointingHand
-            capture_presses={expandable}
-            on_click={move || toggle()}
-        >
-            <Frame width=MARKER_WIDTH>
-                <IconSized glyph={glyph} font_size=FONT_SMALL color={marker_color} />
-            </Frame>
-        </ClickCatcher>
-    };
-    let cells = vec![
-        size(spacer, indent),
-        intrinsic(marker),
-        percent(content.call(key), 100.0),
-    ];
     view! {
         <ClickCatcher
             cursor=CursorIcon::PointingHand
@@ -128,12 +109,23 @@ where
                 padding_horizontal=PADDING_HORIZONTAL
                 padding_vertical=PADDING_VERTICAL
             >
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    spacing=SPACING
-                    children={cells}
-                />
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Spacer @sizing={indent} />
+                    <ClickCatcher
+                        cursor=CursorIcon::PointingHand
+                        capture_presses={expandable}
+                        on_click={move || toggle()}
+                    >
+                        <Frame width=MARKER_WIDTH>
+                            <IconSized
+                                glyph={glyph}
+                                font_size=FONT_SMALL
+                                color={marker_color}
+                            />
+                        </Frame>
+                    </ClickCatcher>
+                    {content.call(key)} @sizing=ItemSize::Percent(100.0)
+                </List>
             </Frame>
         </ClickCatcher>
     }

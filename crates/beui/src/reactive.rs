@@ -578,28 +578,6 @@ impl<T: Clone + PartialEq + 'static> IntoProp<T> for Memo<T> {
     }
 }
 
-pub fn intrinsic(node: NodeId) -> ListChild {
-    ListChild::new(node, ItemSize::Intrinsic)
-}
-
-pub fn fixed(node: NodeId, size: impl IntoProp<f32>) -> ListChild {
-    ListChild {
-        node,
-        size: size.into_prop().map(ItemSize::Fixed),
-    }
-}
-
-pub fn percent(node: NodeId, weight: impl IntoProp<f32>) -> ListChild {
-    ListChild {
-        node,
-        size: weight.into_prop().map(ItemSize::Percent),
-    }
-}
-
-pub fn size(node: NodeId, size: impl IntoProp<ItemSize>) -> ListChild {
-    ListChild::new(node, size)
-}
-
 pub type Child = NodeId;
 
 #[diagnostic::on_unimplemented(
@@ -715,9 +693,7 @@ impl IntoChild<ListChild> for NodeId {
 
 #[diagnostic::on_unimplemented(
     message = "`@sizing` only applies to a child of a list",
-    label = "remove `@sizing`, or put this child in a `Row`, `Column`, `List` or `Stack`",
-    note = "`intrinsic`, `fixed`, `percent` and `size` give a child a size too, so a hand-built \
-            `Vec<ListChild>` only fits a list"
+    label = "remove `@sizing`, or put this child in a `Row`, `Column`, `List` or `Stack`"
 )]
 pub trait AcceptsSizing {
     fn from_list_child(child: ListChild) -> Self;
@@ -954,9 +930,9 @@ impl<C: SlotChild> Run<C> {
         self.len() == 0
     }
 
-    pub fn build<R: SlotChild>(
+    pub fn build<R: SlotChild, U: IntoChild<R>>(
         &self,
-        rows: impl Fn(Vec<C::Stored>) -> Vec<R> + 'static,
+        rows: impl Fn(Vec<C::Stored>) -> Vec<U> + 'static,
     ) -> DynamicSegment<R> {
         let run = self.clone();
         DynamicSegment::new(move |slot: ChildSlot<R>| {
@@ -966,9 +942,12 @@ impl<C: SlotChild> Run<C> {
             create_effect(move || {
                 let items = run.items();
                 let scope = Scope::detached();
-                let built: Vec<R::Stored> = scope
-                    .context()
-                    .run(|| rows(items).into_iter().map(|row| slot.store(row)).collect());
+                let built: Vec<R::Stored> = scope.context().run(|| {
+                    rows(items)
+                        .into_iter()
+                        .map(|row| slot.store(row.into_child()))
+                        .collect()
+                });
                 slot.fill(built.clone());
                 let previous = held.borrow_mut().replace((built, scope));
                 if let Some((stored, scope)) = previous {
@@ -1195,6 +1174,18 @@ macro_rules! value_child_type {
 
 pub struct Children<T: SlotChild>(Vec<ChildSegment<T>>);
 
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` does not name a kind of child",
+    label = "type this prop `Children<_>`"
+)]
+pub trait ChildrenSlot {
+    type Child: SlotChild;
+}
+
+impl<T: SlotChild> ChildrenSlot for Children<T> {
+    type Child = T;
+}
+
 impl<T: SlotChild> Default for Children<T> {
     fn default() -> Self {
         Self(Vec::new())
@@ -1246,17 +1237,6 @@ impl<T: SlotChild> From<Run<T>> for Children<T> {
 impl<T: SlotChild> From<DynamicSegment<T>> for Children<T> {
     fn from(segment: DynamicSegment<T>) -> Self {
         Self::from(segment.into_segment())
-    }
-}
-
-impl<T: SlotChild, U: IntoChild<T>> From<Vec<U>> for Children<T> {
-    fn from(children: Vec<U>) -> Self {
-        Self(
-            children
-                .into_iter()
-                .map(|child| ChildSegment::One(child.into_child()))
-                .collect(),
-        )
     }
 }
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, Frame, NodeRef, Scroll, build, view};
 
 #[test]
 fn resizing_rows_preserves_the_scroll_anchor() {
@@ -10,27 +10,20 @@ fn resizing_rows_preserves_the_scroll_anchor() {
     let document = build({
         let (scroll, rows) = (scroll.clone(), rows.clone());
         move || {
-            let items: Vec<_> = rows
-                .iter()
-                .enumerate()
-                .map(|(index, row)| {
-                    view! {
-                        <Frame
-                            @node_ref={row}
-                            padding_horizontal=0.0
-                            padding_vertical={10.0 + (index % 3) as f32}
-                        >
-                            <Spacer />
-                        </Frame>
-                    }
-                })
-                .collect();
             view! {
-                <Scroll
-                    @node_ref=&scroll
-                    on_change={move |position| sink.set(Some(position))}
-                    children={items}
-                />
+                <Scroll @node_ref=&scroll on_change={move |position| sink.set(Some(position))}>
+                    <ForEach keys={indices(rows.len())}>
+                        {move |index: usize| view! {
+                            <Frame
+                                @node_ref={&rows[index]}
+                                padding_horizontal=0.0
+                                padding_vertical={10.0 + (index % 3) as f32}
+                            >
+                                <Spacer />
+                            </Frame>
+                        }}
+                    </ForEach>
+                </Scroll>
             }
         }
     });

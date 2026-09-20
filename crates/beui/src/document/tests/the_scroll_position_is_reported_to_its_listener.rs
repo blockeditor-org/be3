@@ -1,27 +1,27 @@
 use super::*;
-use crate::reactive::{ItemSize, List, Scroll, build};
+use crate::reactive::{ForEach, ItemSize, List, Scroll, build};
 
 #[test]
 fn the_scroll_position_is_reported_to_its_listener() {
     let reported = Rc::new(Cell::new(None));
     let sink = reported.clone();
-    let rows: Vec<_> = (0..100).map(|index| format!("Row {index}")).collect();
     let document = build(move || {
-        let items: Vec<_> = rows
-            .into_iter()
-            .map(|row| {
-                view! {
-                    <Text string={row} font_size=14.0 color=Color32::WHITE />
-                }
-            })
-            .collect();
         view! {
             <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     on_change={move |position| sink.set(Some(position))}
-                    children={items}
-                />
+                >
+                    <ForEach keys={indices(100)}>
+                        {|index: usize| view! {
+                            <Text
+                                string={format!("Row {index}")}
+                                font_size=14.0
+                                color=Color32::WHITE
+                            />
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

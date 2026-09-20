@@ -419,8 +419,8 @@ not be a node: `unstyled::MenuItem` and `unstyled::ChoiceOption` are components
 that build a value rather than a node, so a menu and a tab bar are written as
 tags and each row follows the signals its tag was given. Declare such a type
 with `value_child_type!`, which says how a run of it is kept, and it can be
-written between tags, collected into a `Vec` of them from runtime data, or
-built by a `show` or a `for_each` like any other child.
+written between tags or built by a `show` or a `for_each` like any other
+child.
 
 ```rust
 <ContextMenu items={view! {
@@ -443,7 +443,7 @@ of its own and keeping the two in step.
 fn Legend(entries: Children<Note>) -> NodeId {
     let entries = entries.into_run();
     let rows = entries.build(|notes: Vec<Rc<Note>>| {
-        notes.iter().map(|note| intrinsic(view! { <Row note /> })).collect()
+        notes.iter().map(|note| view! { <Row note /> }).collect()
     });
     view! { <Column spacing=0.0 children={rows} /> }
 }
@@ -464,9 +464,9 @@ view! { <List direction=Direction::Horizontal spacing=8.0 children={toolbar} /> 
 Roots take the same `@` sizing prefixes and `{expr}` form that children between
 tags take, and `view! {}` is the empty `Children`. A sizing prefix on a lone
 root is an error rather than a one-item `Children`, because with no siblings
-there is nothing to take a share of. A list built from runtime data is still a
-`Vec` of `intrinsic`/`fixed`/`percent`/`size` pairs; fragments are for siblings
-written out in source.
+there is nothing to take a share of. Fragments are for siblings written out in
+source; a list built from runtime data is a `ForEach` over its keys, because a
+`Vec` of children does not fill a `Children<T>` slot.
 
 Props that build part of the tree are typed `Render<H>` when the component calls
 them once, `RenderFn<H>` when it may call them many times, and `Option<..>` when
@@ -586,14 +586,14 @@ nothing in it, so its siblings take the room because nothing is there.
 The kind of child a run builds is the kind its parent takes: `ListChild`s in a
 list, plain nodes in a `scroll`, `CanvasItem`s in a `canvas`. So a row says how
 much room it wants the way any child of a list does — `@sizing` on the root it
-returns, or `intrinsic`, `fixed`, `percent` and `size` around a node built
-elsewhere — and a row builder that returns a plain node is intrinsic. Each row
-is free to differ from the others and to change its mind reactively.
+returns — and a row builder that returns a plain node is intrinsic. Each row is
+free to differ from the others and to change its mind reactively.
 
 Because they build no node, `@test_id` and `@node_ref` on one of them panic,
 and a slot that takes exactly one node — `frame`'s child, a `render` prop —
-needs a `List` around one. When the closure form of a render prop leaves the
-kind of child ambiguous, `intrinsic` around what it builds says which.
+needs a `List` around one. A row builder returns whatever kind of child the
+parent takes, so a closure that returns a plain node fits a list, a `scroll` or
+anything else that takes one child per row without saying so.
 
 ```rust
 <ForEach spacing=0.0 keys>
@@ -615,9 +615,17 @@ returned `ItemSize::Percent` in a row, for instance.
 <Card @sizing={rows_size}>
 ```
 
-An attribute has nothing to attach to on an `{expr}` child, which is always
-intrinsic; wrap the expression with `intrinsic`, `fixed`, `percent`, or `size`
-and pass the list as `children={...}` when such a child needs a size of its own.
+An `{expr}` child takes `@sizing` after it rather than inside the braces, which
+is how a node handed to a component — a render prop's result, a `NodeId` a
+caller built — takes a share of a list without a `Frame` wrapped around it:
+
+```rust
+<List direction=Direction::Horizontal spacing=SPACING>
+    <Spacer @sizing={indent} />
+    {content.call(key)} @sizing=ItemSize::Percent(100.0)
+</List>
+```
+
 `@sizing` on the single root of a `view!` makes that `view!` build a `ListChild`
 rather than a `NodeId`, which is what the row builder of a `Dynamic`, `ForEach`
 or `Keyed` returns, so a row picks its own size the same way any other child

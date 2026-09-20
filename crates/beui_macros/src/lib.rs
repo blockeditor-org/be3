@@ -111,29 +111,41 @@ fn render_setter(
     wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
 ) -> Setter {
     let child = render_child(render);
-    let (signature, build) = match (&render.handle, render.once) {
+    let (generics, signature, where_clause, build) = match (&render.handle, render.once) {
         (Some(handle), true) => (
+            quote! {},
             quote! { ::beui::reactive::IntoRender<#handle, #child> },
+            quote! {},
             quote! { ::beui::reactive::IntoRender::into_render(value) },
         ),
         (Some(handle), false) => (
+            quote! {},
             quote! { ::beui::reactive::IntoRenderFn<#handle, #child> },
+            quote! {},
             quote! { ::beui::reactive::IntoRenderFn::into_render_fn(value) },
         ),
         (None, true) => (
-            quote! { ::core::ops::FnOnce() -> #child + 'static },
-            quote! { ::beui::reactive::Render::new(move |()| value()) },
+            quote! { <Built> },
+            quote! { ::core::ops::FnOnce() -> Built + 'static },
+            quote! { where Built: ::beui::reactive::IntoChild<#child> },
+            quote! { ::beui::reactive::Render::new(
+                move |()| ::beui::reactive::into_child::<#child>(value()),
+            ) },
         ),
         (None, false) => (
-            quote! { ::core::ops::Fn() -> #child + 'static },
-            quote! { ::beui::reactive::RenderFn::new(move |()| value()) },
+            quote! { <Built> },
+            quote! { ::core::ops::Fn() -> Built + 'static },
+            quote! { where Built: ::beui::reactive::IntoChild<#child> },
+            quote! { ::beui::reactive::RenderFn::new(
+                move |()| ::beui::reactive::into_child::<#child>(value()),
+            ) },
         ),
     };
     Setter {
         method: method.clone(),
-        generics: quote! {},
+        generics,
         args: quote! { value: impl #signature },
-        where_clause: quote! {},
+        where_clause,
         value: wrap(build),
     }
 }
@@ -147,16 +159,17 @@ fn render_children_block(
         .clone()
         .unwrap_or_else(|| syn::parse_quote!(()));
     let child = render_child(render);
+    let block = quote! { [::beui::reactive::ChildSegment<#child>; CHILDREN] };
     let (bound, build) = if render.once {
         (
-            quote! { ::core::ops::FnOnce() -> ChildrenBlock + 'static },
+            quote! { ::core::ops::FnOnce() -> #block + 'static },
             quote! { ::beui::reactive::Render::new(
                 move |_handle: #handle| ::beui::reactive::OneChild::one_child(children()),
             ) },
         )
     } else {
         (
-            quote! { ::core::ops::Fn() -> ChildrenBlock + 'static },
+            quote! { ::core::ops::Fn() -> #block + 'static },
             quote! { ::beui::reactive::RenderFn::new(
                 move |_handle: #handle| ::beui::reactive::OneChild::one_child(children()),
             ) },
@@ -164,12 +177,12 @@ fn render_children_block(
     };
     Setter {
         method: format_ident!("children_block"),
-        generics: quote! { <ChildrenFn, ChildrenBlock> },
+        generics: quote! { <ChildrenFn, const CHILDREN: usize> },
         args: quote! { children: ChildrenFn },
         where_clause: quote! {
             where
                 ChildrenFn: #bound + ::beui::reactive::UnitHandle<#handle>,
-                ChildrenBlock: ::beui::reactive::OneChild<#child> + 'static,
+                #block: ::beui::reactive::OneChild<#child>,
         },
         value: wrap(build),
     }
@@ -179,12 +192,16 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
     let block = format_ident!("children_block");
     if prop.is_children {
         let ty = &prop.ty;
+        let child = quote! { <#ty as ::beui::reactive::ChildrenSlot>::Child };
         return vec![Setter {
             method: block,
-            generics: quote! { <ChildrenBlock> },
-            args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-            where_clause: quote! { where ChildrenBlock: Into<#ty> },
-            value: quote! { children().into() },
+            generics: quote! { <const CHILDREN: usize> },
+            args: quote! {
+                children: impl ::core::ops::FnOnce()
+                    -> [::beui::reactive::ChildSegment<#child>; CHILDREN]
+            },
+            where_clause: quote! {},
+            value: quote! { ::beui::reactive::Children::from(children()) },
         }];
     }
     if prop.is_optional_child {
@@ -1037,11 +1054,20 @@ struct ViewSizing {
 
 enum ViewChildKind {
     Node(ViewNode),
-    Expr(Expr),
+    Expr(Expr, Option<ViewSizing>),
 }
 
 struct ViewChild {
     kind: ViewChildKind,
+}
+
+impl ViewChild {
+    fn sizing(&self) -> Option<&ViewSizing> {
+        match &self.kind {
+            ViewChildKind::Node(node) => node.sizing.as_ref(),
+            ViewChildKind::Expr(_, sizing) => sizing.as_ref(),
+        }
+    }
 }
 
 impl Parse for ViewChild {
@@ -1051,10 +1077,33 @@ impl Parse for ViewChild {
         } else {
             let content;
             braced!(content in input);
-            ViewChildKind::Expr(content.parse()?)
+            let expr = content.parse()?;
+            ViewChildKind::Expr(expr, parse_expr_sizing(input)?)
         };
 
         Ok(ViewChild { kind })
+    }
+}
+
+fn parse_expr_sizing(input: ParseStream) -> syn::Result<Option<ViewSizing>> {
+    if !input.peek(Token![@]) {
+        return Ok(None);
+    }
+    let at = input.parse::<Token![@]>()?;
+    let attr = input.parse::<ViewAttr>()?;
+    match special_kind(&attr.key)? {
+        Special::Sizing => Ok(Some(ViewSizing {
+            span: at.span,
+            value: attr.value,
+        })),
+        Special::Setter(_) => Err(syn::Error::new(
+            attr.key.span(),
+            format!(
+                "`@{}` names a node of its own, so it belongs on a tag rather than on a value \
+                 written between tags; only `@sizing` follows a value",
+                attr.key
+            ),
+        )),
     }
 }
 
@@ -1186,16 +1235,16 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
     children
         .iter()
         .map(|child| {
-            let (node, sizing) = match &child.kind {
-                ViewChildKind::Node(node) => (expand_view_node(node), node.sizing.as_ref()),
-                ViewChildKind::Expr(expr) => (quote! { #expr }, None),
+            let node = match &child.kind {
+                ViewChildKind::Node(node) => expand_view_node(node),
+                ViewChildKind::Expr(expr, _) => quote! { #expr },
             };
-            match sizing {
+            match child.sizing() {
                 None => quote! { ::beui::reactive::into_segment(#node) },
                 Some(sizing) => {
                     let value = &sizing.value;
                     quote_spanned! { sizing.span =>
-                        ::beui::reactive::into_segment(::beui::reactive::size(#node, #value))
+                        ::beui::reactive::into_segment(::beui::reactive::ListChild::new(#node, #value))
                     }
                 }
             }
@@ -1230,7 +1279,7 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
         Some(children) => {
             if let [
                 ViewChild {
-                    kind: ViewChildKind::Expr(Expr::Closure(closure)),
+                    kind: ViewChildKind::Expr(Expr::Closure(closure), None),
                 },
             ] = children.as_slice()
             {
@@ -1265,20 +1314,18 @@ impl Parse for View {
 
 fn expand_view(view: &View) -> proc_macro2::TokenStream {
     if let [root] = view.roots.as_slice() {
-        return match &root.kind {
-            ViewChildKind::Node(node) => {
-                let built = expand_view_node(node);
-                match &node.sizing {
-                    None => built,
-                    Some(sizing) => {
-                        let value = &sizing.value;
-                        quote_spanned! { sizing.span =>
-                            ::beui::reactive::size(#built, #value)
-                        }
-                    }
+        let built = match &root.kind {
+            ViewChildKind::Node(node) => expand_view_node(node),
+            ViewChildKind::Expr(expr, _) => quote! { #expr },
+        };
+        return match root.sizing() {
+            None => built,
+            Some(sizing) => {
+                let value = &sizing.value;
+                quote_spanned! { sizing.span =>
+                    ::beui::reactive::ListChild::new(#built, #value)
                 }
             }
-            ViewChildKind::Expr(expr) => quote! { #expr },
         };
     }
     if view.roots.is_empty() {

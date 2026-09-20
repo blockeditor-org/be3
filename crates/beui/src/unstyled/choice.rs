@@ -10,7 +10,7 @@ use crate::node::NodeId;
 use crate::reactive::{
     Callback, ChildScope, ChildValue, Children, IntoProp, List, Memo, Prop, ReadSignal, RenderFn,
     Run, Scope, WriteSignal, clone, component_accessibility, create_effect, create_memo,
-    create_selector, create_signal, intrinsic, set_component_state,
+    create_selector, create_signal, set_component_state,
 };
 use crate::unstyled;
 use crate::unstyled::ButtonHandle;
@@ -139,7 +139,7 @@ pub fn Choice(
                 });
                 let (blur, click, key_press, text) =
                     (state.clone(), state.clone(), state.clone(), state.clone());
-                intrinsic(view! {
+                view! {
                     <unstyled::Button
                         tab_stop={tab_stop_owner.memo(index)}
                         focused={focused.memo(Some(index))}
@@ -163,7 +163,7 @@ pub fn Choice(
                             }
                         }}
                     />
-                })
+                }
             })
             .collect()
     });

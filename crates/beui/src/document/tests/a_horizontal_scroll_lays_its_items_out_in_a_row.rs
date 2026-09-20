@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, NodeRef, Scroll, build, view};
 
 #[test]
 fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
@@ -8,19 +8,6 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
     let second = NodeRef::new();
     let (first_ref, second_ref) = (first.clone(), second.clone());
     let document = build(move || {
-        let mut items = vec![
-            view! {
-                <Frame @node_ref=&first_ref width=120.0 />
-            },
-            view! {
-                <Frame @node_ref=&second_ref width=120.0 />
-            },
-        ];
-        items.extend((0..4).map(|_| {
-            view! {
-                <Frame width=120.0 />
-            }
-        }));
         view! {
             <List spacing=0.0>
                 <Scroll
@@ -28,8 +15,15 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
                     @test_id="strip"
                     direction=Direction::Horizontal
                     offset=30.0
-                    children={items}
-                />
+                >
+                    <Frame @node_ref=&first_ref width=120.0 />
+                    <Frame @node_ref=&second_ref width=120.0 />
+                    <ForEach keys={indices(4)}>
+                        {|_: usize| view! {
+                            <Frame width=120.0 />
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

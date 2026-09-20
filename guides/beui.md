@@ -640,11 +640,23 @@ number of plain nodes, as `Scroll` does; `children: Children<CanvasItem>` takes
 only the items a `Canvas` can place; `children: Child` and
 `children: Option<Child>` take one node. A plain node converts into whatever a
 slot asks for that takes one, so `<List><Text content="hi" /></List>` needs no
-ceremony and a `Vec<NodeId>` handed to `children=` gets intrinsic sizing per
-item. Writing
+ceremony. Writing
 `@sizing` on the child of a slot that does not size its children is a compile
-error rather than an attribute that quietly does nothing, and the same goes for
-a hand-built `Vec<ListChild>` from `intrinsic`, `fixed`, `percent` or `size`.
+error rather than an attribute that quietly does nothing.
+
+A `Vec` of children does not fill a slot. Children are written out as tags, and
+however many of them a collection asks for comes from a `ForEach` over its keys
+inside the same `view!`, so the sizing, the keying and the reconciliation all
+stay in one place:
+
+```rust
+<List spacing=4.0>
+    <Heading content="Cards" />
+    <ForEach keys={card_ids()}>
+        {move |id: Uuid| view! { <CardRow id /> }}
+    </ForEach>
+</List>
+```
 
 A slot holds its children in runs rather than one flat list, so a child can
 stand for none, one or many of them and change how many as it goes: that is how

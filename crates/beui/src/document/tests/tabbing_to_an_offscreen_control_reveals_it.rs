@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, NodeRef, Scroll, build, view};
 
 #[test]
 fn tabbing_to_an_offscreen_control_reveals_it() {
@@ -8,17 +8,17 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
     let document = build({
         let (scroll, buttons) = (scroll.clone(), buttons.clone());
         move || {
-            let items: Vec<_> = buttons
-                .iter()
-                .enumerate()
-                .map(|(index, button)| {
-                    view! {
-                        <LabelledButton @node_ref={button} label={format!("Button {index}")} />
-                    }
-                })
-                .collect();
             view! {
-                <Scroll @node_ref=&scroll children={items} />
+                <Scroll @node_ref=&scroll>
+                    <ForEach keys={indices(buttons.len())}>
+                        {move |index: usize| view! {
+                            <LabelledButton
+                                @node_ref={&buttons[index]}
+                                label={format!("Button {index}")}
+                            />
+                        }}
+                    </ForEach>
+                </Scroll>
             }
         }
     });

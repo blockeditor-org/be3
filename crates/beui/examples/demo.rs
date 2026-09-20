@@ -1,8 +1,8 @@
 use beui::icons::ICON_GRID_VIEW;
 use beui::reactive::{
-    Align, Callback, Canvas, CanvasItem, CanvasView, Frame, Keyed, List, Memo, ReadSignal, Scroll,
-    Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
-    create_selector, create_signal, percent, view,
+    Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
+    Scroll, Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
+    create_selector, create_signal, view,
 };
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
 use beui::styled::{
@@ -299,9 +299,9 @@ fn DemoBody(count: ReadSignal<i64>) -> NodeId {
             <Keyed value={cramped} key={|cramped: bool| cramped}>
                 {move |value: ReadSignal<bool>| {
                     let (cramped, count) = (value.get_untracked(), count.clone());
-                    percent(view! {
-                        <DemoPanels cramped count />
-                    }, 100.0)
+                    view! {
+                        <DemoPanels cramped count @sizing=ItemSize::Percent(100.0) />
+                    }
                 }}
             </Keyed>
         </List>
@@ -1016,14 +1016,6 @@ const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"
 
 #[component]
 fn MenuControls() -> NodeId {
-    let fruits = FRUITS
-        .iter()
-        .map(|label| {
-            view! {
-                <ChoiceOption label={*label} />
-            }
-        })
-        .collect::<Vec<_>>();
     let (fruit_status_text, set_fruit_status_text) = create_signal("Apple selected".to_string());
     let (menu_status_text, set_menu_status_text) = create_signal("Nothing chosen yet".to_string());
 
@@ -1043,7 +1035,13 @@ fn MenuControls() -> NodeId {
             <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <Caption content="Favorite fruit (type to search)" />
                 <Select
-                    options={fruits}
+                    options={view! {
+                        <ForEach keys={FRUITS.to_vec()}>
+                            {|label: &'static str| view! {
+                                <ChoiceOption label />
+                            }}
+                        </ForEach>
+                    }}
                     selected=Some(0)
                     on_change={move |selected| {
                         let text = selected

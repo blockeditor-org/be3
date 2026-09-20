@@ -1,27 +1,28 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, List, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, Scroll, build, view};
 
 #[test]
 fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {
     let document = build(move || {
-        let items = (0..40)
-            .map(|index| {
-                view! {
-                    <Frame width=120.0>
-                        <LabelledButton label={format!("Card {index}")} on_click={move || {}} />
-                    </Frame>
-                }
-            })
-            .collect::<Vec<_>>();
         view! {
             <List spacing=0.0>
                 <Scroll
                     @sizing=ItemSize::Percent(100.0)
                     @test_id="strip"
                     direction=Direction::Horizontal
-                    children={items}
-                />
+                >
+                    <ForEach keys={indices(40)}>
+                        {|index: usize| view! {
+                            <Frame width=120.0>
+                                <LabelledButton
+                                    label={format!("Card {index}")}
+                                    on_click={move || {}}
+                                />
+                            </Frame>
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

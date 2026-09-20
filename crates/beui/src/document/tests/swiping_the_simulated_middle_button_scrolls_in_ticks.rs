@@ -1,22 +1,21 @@
 use super::*;
 use crate::mouse_simulation::{SCROLL_TICK, WHEEL_LINE};
-use crate::reactive::{ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, NodeRef, Scroll, build, view};
 
 #[test]
 fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
     let scroll = NodeRef::new();
     let scroll_ref = scroll.clone();
     let document = build(move || {
-        let items = (0..100)
-            .map(|index| {
-                view! {
-                    <LabelledButton label={format!("Row {index}")} />
-                }
-            })
-            .collect::<Vec<_>>();
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref children={items} />
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                    <ForEach keys={indices(100)}>
+                        {|index: usize| view! {
+                            <LabelledButton label={format!("Row {index}")} />
+                        }}
+                    </ForEach>
+                </Scroll>
             </List>
         }
     });

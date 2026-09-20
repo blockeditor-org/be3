@@ -4,7 +4,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Children, List, Prop, ReadSignal, Show, clone, create_effect, create_memo,
-    create_signal, intrinsic, set_component_state,
+    create_signal, set_component_state,
 };
 use crate::styled::theme::NARROW_WIDTH;
 use crate::styled::{Select, Tabs};
@@ -35,7 +35,7 @@ pub fn ResponsiveTabs(
         <List spacing=0.0>
             <Show
                 condition={wide}
-                then={move || intrinsic(view! {
+                then={move || view! {
                     <Tabs
                         options={tab_options}
                         selected={tab_selected}
@@ -44,11 +44,11 @@ pub fn ResponsiveTabs(
                             tab_change.call(index);
                         }}
                     />
-                })}
+                }}
             />
             <Show
                 condition={narrow}
-                then={move || intrinsic(view! {
+                then={move || view! {
                     <Select
                         options
                         selected={highlighted}
@@ -59,7 +59,7 @@ pub fn ResponsiveTabs(
                             }
                         }}
                     />
-                })}
+                }}
             />
         </List>
     }

@@ -9,20 +9,13 @@ fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
     let second = outside.clone();
 
     let document = build(move || {
-        let rows = vec![
-            view! {
-                <Embed slot={first} height=200.0 />
-            },
-            view! {
-                <Embed slot={second} height=200.0 />
-            },
-            view! {
-                <Embed slot={EmbedSlot::new()} height=200.0 />
-            },
-        ];
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Fixed(120.0) children={rows} />
+                <Scroll @sizing=ItemSize::Fixed(120.0)>
+                    <Embed slot={first} height=200.0 />
+                    <Embed slot={second} height=200.0 />
+                    <Embed slot={EmbedSlot::new()} height=200.0 />
+                </Scroll>
             </List>
         }
     });

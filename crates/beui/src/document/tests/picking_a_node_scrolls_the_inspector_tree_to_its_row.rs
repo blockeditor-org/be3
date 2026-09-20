@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, List, NodeRef, build, view};
+use crate::reactive::{ForEach, Frame, List, NodeRef, build, view};
 
 const ROWS: usize = 40;
 const PICKED: usize = 28;
@@ -10,16 +10,14 @@ fn picking_a_node_scrolls_the_inspector_tree_to_its_row() {
     let document = build({
         let frames = frames.clone();
         move || {
-            let children: Vec<_> = frames
-                .iter()
-                .map(|frame| {
-                    intrinsic(view! {
-                        <Frame @node_ref=frame height=6.0 />
-                    })
-                })
-                .collect();
             view! {
-                <List spacing=0.0 children={children} />
+                <List spacing=0.0>
+                    <ForEach keys={indices(ROWS)}>
+                        {move |index: usize| view! {
+                            <Frame @node_ref={&frames[index]} height=6.0 />
+                        }}
+                    </ForEach>
+                </List>
             }
         }
     });
