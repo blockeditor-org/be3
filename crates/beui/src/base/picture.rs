@@ -12,10 +12,26 @@ use crate::reactive::{Prop, create_effect, with_document};
 
 pub(crate) struct PictureNode {
     image: Option<Image>,
+    source: Option<Rect>,
     fit: ImageFit,
     tint: Color32,
     radius: f32,
     smooth: bool,
+}
+
+const WHOLE: Rect = Rect {
+    min: crate::geometry::Pos2 { x: 0.0, y: 0.0 },
+    max: crate::geometry::Pos2 { x: 1.0, y: 1.0 },
+};
+
+impl PictureNode {
+    fn shown_size(&self, image: &Image) -> Vec2 {
+        let size = image.size();
+        match self.source {
+            Some(source) => Vec2::new(size.x * source.width(), size.y * source.height()),
+            None => size,
+        }
+    }
 }
 
 impl Element for PictureNode {
@@ -23,7 +39,7 @@ impl Element for PictureNode {
         let Some(image) = self.image.as_ref() else {
             return Vec2::ZERO;
         };
-        let size = image.size();
+        let size = self.shown_size(image);
         if !available.x.is_finite() || available.x <= 0.0 {
             return size;
         }
@@ -47,7 +63,8 @@ impl Element for PictureNode {
             return;
         };
         painter.image(
-            self.fit.place(rect, image.size()),
+            self.fit.place(rect, self.shown_size(image)),
+            self.source.unwrap_or(WHOLE),
             image,
             self.tint,
             self.radius,
@@ -93,6 +110,7 @@ impl Element for PictureNode {
 #[component]
 pub fn Picture(
     image: Prop<Option<Image>>,
+    #[prop(default = None)] source: Prop<Option<Rect>>,
     #[prop(default = ImageFit::Contain)] fit: Prop<ImageFit>,
     #[prop(default = Color32::WHITE)] tint: Prop<Color32>,
     #[prop(default = 0.0)] radius: Prop<f32>,
@@ -102,6 +120,10 @@ pub fn Picture(
     create_effect(move || {
         let image = image.get();
         with_document(|document| document.set_picture_image(picture, image));
+    });
+    create_effect(move || {
+        let source = source.get();
+        with_document(|document| document.set_picture_source(picture, source));
     });
     create_effect(move || {
         let fit = fit.get();
@@ -126,6 +148,7 @@ impl Document {
     pub(crate) fn create_picture(&mut self) -> NodeId {
         self.arena.insert(PictureNode {
             image: None,
+            source: None,
             fit: ImageFit::Contain,
             tint: Color32::WHITE,
             radius: 0.0,
@@ -136,6 +159,12 @@ impl Document {
     pub(crate) fn set_picture_image(&mut self, picture: NodeId, image: Option<Image>) {
         if self.arena.get_as::<PictureNode>(picture).image != image {
             self.arena.get_mut_as::<PictureNode>(picture).image = image;
+        }
+    }
+
+    pub(crate) fn set_picture_source(&mut self, picture: NodeId, source: Option<Rect>) {
+        if self.arena.get_as::<PictureNode>(picture).source != source {
+            self.arena.get_mut_as::<PictureNode>(picture).source = source;
         }
     }
 

@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
 use block_client::blocks::map::{MAX_LATITUDE, MapCoordinate, MapRegion};
-use block_editor_plugin::egui::{Pos2, Rect, Vec2};
+use block_editor_plugin::beui::{Pos2, Rect, Vec2};
 
 #[derive(Clone, Copy)]
 pub(crate) struct MapView {
@@ -61,8 +61,8 @@ impl MapView {
     }
 
     pub(crate) fn region(self, rect: Rect) -> MapRegion {
-        let top_left = self.coordinate(rect.left_top());
-        let bottom_right = self.coordinate(rect.right_bottom());
+        let top_left = self.coordinate(rect.min);
+        let bottom_right = self.coordinate(rect.max);
         MapRegion::new(
             top_left.longitude,
             bottom_right.latitude,
