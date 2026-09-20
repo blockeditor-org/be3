@@ -28,7 +28,7 @@ fn editor() -> (
     let editor = Editor::new(host.clone(), client, block.id());
     let mut editor = BeuiTest::new(editor).in_viewport();
     editor.settle_until("the lighting to land", |editor| {
-        editor.shown("pixel_ray_tracer.artwork")
+        editor.shown("pixel_ray_tracer.artwork") && !editor.wants_another_frame()
     });
     (editor, block, host)
 }
