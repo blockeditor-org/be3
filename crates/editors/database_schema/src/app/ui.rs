@@ -6,12 +6,12 @@ use block_client::blocks::database_schema::{
 };
 use block_editor_plugin::beui::icons::{ICON_ADD, ICON_DELETE};
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Scroll, Show, Spacer, clone, component,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
     create_effect, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Checkbox, Heading, IconButton, NumberInput, Select, Separator,
-    TextInput, use_theme,
+    Body, Button, ButtonVariant, Checkbox, Heading, IconButton, NumberInput, Scroll, Select,
+    Separator, TextInput, use_theme,
 };
 use block_editor_plugin::beui::unstyled::ChoiceOption;
 use block_editor_plugin::beui::{NodeId, Vec2};
@@ -87,7 +87,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=SECTION_SPACING>
                 <Heading content="Fields" />
-                <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <ForEach keys={keys}>
                             {move |id: Uuid| {

@@ -6,10 +6,10 @@ use block_editor_plugin::beui::icons::{
 };
 use block_editor_plugin::beui::reactive::{
     Align, Callback, ClickCallback, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize,
-    List, Memo, NodeRef, Prop, Scroll, Show, Spacer, clone, component, create_effect, create_memo,
-    view, with_document,
+    List, Memo, NodeRef, Prop, Show, Spacer, clone, component, create_effect, create_memo, view,
+    with_document,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, Icon, use_theme};
+use block_editor_plugin::beui::styled::{Body, Caption, Icon, Scroll, use_theme};
 use block_editor_plugin::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
 use block_editor_plugin::block_ui::database::cell_text;
 use uuid::Uuid;
@@ -68,11 +68,10 @@ fn Grid(
     keys: Memo<Vec<usize>>,
     on_key: Callback<KeyPress, bool>,
 ) -> NodeId {
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
-            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
-                <Scroll direction=Direction::Horizontal focus_color={theme.accent.clone()}>
+            <Scroll @sizing=ItemSize::Percent(100.0)>
+                <Scroll direction=Direction::Horizontal>
                     <Focusable on_key={move |press: KeyPress| on_key.call(press)}>
                         <List spacing=0.0>
                             <HeaderRow data={header} />

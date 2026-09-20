@@ -6,13 +6,12 @@ use block_client::blocks::version_control_worktree::VersionControlWorktree;
 use block_editor_plugin::Editor;
 use block_editor_plugin::beui::icons::{ICON_ALT_ROUTE, ICON_COMMIT, ICON_PERSON, ICON_SCHEDULE};
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Scroll, Selector, Show, Spacer,
-    WriteSignal, clone, component, create_effect, create_memo, create_selector, create_signal,
-    view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Selector, Show, Spacer, WriteSignal,
+    clone, component, create_effect, create_memo, create_selector, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Code, Heading, Icon, ListRow, Separator, TextInput,
-    use_theme,
+    Body, Button, ButtonVariant, Caption, Code, Heading, Icon, ListRow, Scroll, Separator,
+    TextInput, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, Vec2};
 
@@ -148,7 +147,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
                             <Heading content="Branches" />

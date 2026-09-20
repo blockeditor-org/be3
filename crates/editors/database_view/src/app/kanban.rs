@@ -5,12 +5,11 @@ use block_client::blocks::database::DatabaseValue;
 use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_plugin::beui::icons::ICON_ADD;
 use block_editor_plugin::beui::reactive::{
-    ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Scroll, Show,
-    Spacer, WriteSignal, clone, component, component_rect, create_memo, create_signal, on_cleanup,
-    view,
+    ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer,
+    WriteSignal, clone, component, component_rect, create_memo, create_signal, on_cleanup, view,
 };
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, ListRow, Separator, use_theme,
+    Body, Button, ButtonVariant, Caption, Card, ListRow, Scroll, Separator, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, PointerPress, Pos2, Rect, TextAlign};
 use block_editor_plugin::block_ui::database::cell_text;
@@ -113,11 +112,7 @@ pub fn Kanban(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Scroll
-                        @sizing=ItemSize::Percent(100.0)
-                        direction=Direction::Horizontal
-                        focus_color={theme.accent.clone()}
-                    >
+                    <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
                         <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                             <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
                                 <ForEach keys={columns}>

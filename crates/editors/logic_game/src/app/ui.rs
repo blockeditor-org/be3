@@ -5,11 +5,12 @@ use block_client::blocks::logic_game::LogicGame;
 use block_editor_plugin::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
 use block_editor_plugin::beui::reactive::ClickCallback;
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Scroll, Show, Spacer, clone,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone,
     component, create_effect, create_memo, create_selector, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, Icon, IconButton, Link, ListRow, use_theme,
+    Body, Button, ButtonVariant, Caption, Heading, Icon, IconButton, Link, ListRow, Scroll,
+    use_theme,
 };
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{BlockProjection, Editor};
@@ -82,7 +83,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                         </Show>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                     </List>
-                    <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
                         <List spacing=4.0>
                             <ForEach keys={keys}>
                                 {move |challenge: ChallengeId| {

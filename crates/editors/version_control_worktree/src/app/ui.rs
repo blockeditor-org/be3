@@ -9,12 +9,12 @@ use block_editor_plugin::beui::icons::{
     ICON_ALT_ROUTE, ICON_CHECK_CIRCLE, ICON_REFRESH, ICON_SYNC, ICON_WARNING,
 };
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Scroll, Show,
-    clone, component, create_effect, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show, clone,
+    component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Code, Heading, Icon, IconButton, Separator, TextInput,
-    use_theme,
+    Body, Button, ButtonVariant, Caption, Code, Heading, Icon, IconButton, Scroll, Separator,
+    TextInput, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{BlockLink, ChildTarget, Editor, Sidebar};
@@ -93,13 +93,12 @@ fn Members(
 ) -> NodeId {
     let keys = create_memo(clone!(members -> move || members.get()));
     let empty = create_memo(clone!(members -> move || members.with(Vec::is_empty)));
-    let theme = use_theme();
     view! {
         <List spacing=ROW_SPACING>
             <Show condition={empty}>
                 <Caption content="This worktree has no content yet." />
             </Show>
-            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+            <Scroll @sizing=ItemSize::Percent(100.0)>
                 <List spacing=4.0>
                     <ForEach keys={keys}>
                         {move |id: Uuid| {

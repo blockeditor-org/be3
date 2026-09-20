@@ -1,10 +1,10 @@
 use beui::NodeId;
 use beui::reactive::{
-    Align, Children, Direction, Frame, ItemSize, List, ListChild, Prop, Scroll, clone, component,
+    Align, Children, Direction, Frame, ItemSize, List, ListChild, Prop, clone, component,
     create_memo, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
-use beui::styled::{Separator, use_theme};
+use beui::styled::{Scroll, Separator, use_theme};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
 
@@ -37,7 +37,7 @@ pub fn Sidebar(
             <Frame visible={leading} width=BORDER_WIDTH color={theme.border.clone()} />
             <Frame visible={shown} width={width} color={theme.surface.clone()}>
                 <List spacing=0.0>
-                    <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
                         <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                             <List spacing=SPACING children={children} />
                         </Frame>

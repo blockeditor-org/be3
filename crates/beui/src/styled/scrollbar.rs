@@ -21,10 +21,11 @@ pub fn Scrollbar(
     let before = create_memo(clone!(position -> move || before_percent(position.get())));
     let thumb = create_memo(clone!(position -> move || thumb_percent(position.get())));
     let after = create_memo(clone!(position -> move || after_percent(position.get())));
-    let color = create_memo(clone!(theme -> move || thumb_color(&theme, position.get())));
+    let color = create_memo(clone!(theme position -> move || thumb_color(&theme, position.get())));
+    let track = create_memo(clone!(theme -> move || track_color(&theme, position.get())));
 
     view! {
-        <Frame color={theme.surface_raised.clone()} radius=RADIUS>
+        <Frame color={track} radius=RADIUS>
             <List direction spacing=0.0>
                 <Spacer @sizing={before} />
                 <Frame @sizing={thumb} color radius=RADIUS></Frame>
@@ -67,6 +68,14 @@ fn after_percent(position: ScrollPosition) -> ItemSize {
 fn thumb_color(theme: &ThemeStore, position: ScrollPosition) -> Color32 {
     if position.max_offset() > 0.0 {
         theme.scroll_thumb.get()
+    } else {
+        Color32::TRANSPARENT
+    }
+}
+
+fn track_color(theme: &ThemeStore, position: ScrollPosition) -> Color32 {
+    if position.max_offset() > 0.0 {
+        theme.surface_raised.get()
     } else {
         Color32::TRANSPARENT
     }

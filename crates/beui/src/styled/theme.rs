@@ -124,3 +124,4 @@ pub const NARROW_WIDTH: f32 = 720.0;
 pub const BORDER_WIDTH: f32 = 1.0;
 pub const SEPARATOR_HEIGHT: f32 = 1.0;
 pub const SCROLLBAR_WIDTH: f32 = 6.0;
+pub const SCROLLBAR_SPACING: f32 = 4.0;

@@ -250,18 +250,17 @@ is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
 `Scroll` and `VirtualList` take a `direction`, so the same node is a column of
 rows or a strip of cards; a horizontal one answers Shift+wheel, a sideways
-trackpad swipe, a touch drag and the left and right arrows, and
-`styled::Scrollbar` takes the same `direction`.
+trackpad swipe, a touch drag and the left and right arrows.
 A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
 `Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Tooltip`, `Floating`,
-and `Stack`.
+`Scroll`, `VirtualList`, and `Stack`.
 The styled
 module supplies themed buttons, icon buttons, links, text styles, cards,
 checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
-progress, scrollbars, tooltips, and responsive layout. A control that can be turned off -
+progress, scrolls and scrollbars, tooltips, and responsive layout. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen
@@ -269,6 +268,50 @@ reader, and paints in muted colours, which is what a read-only editor binds
 `editor.read_only()` to rather than leaving a live control that quietly throws
 edits away. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 lists.
+
+### Scrolling
+
+Scrolling exists at all three layers, and app code wants the styled one.
+`styled::Scroll` and `styled::VirtualList` are a scroll with the project's
+scrollbar already beside it, so a panel that scrolls is one tag:
+
+```rust
+view! {
+    <Scroll @sizing=ItemSize::Percent(100.0)>
+        <Rows />
+    </Scroll>
+}
+```
+
+The focus ring follows the theme's accent unless `focus_color` names another,
+and `on_change` still reports the position for anything else that wants it.
+
+`unstyled::Scroll` is the same arrangement without the appearance: it owns the
+base scroll, the position it reports, and the list that puts the bar on the
+scroll's cross axis, and it takes a `ScrollbarStyle` saying what to put there.
+That is the seam the styled layer fills, with a spacing and a builder that is
+handed a `ScrollHandle` of the live `position` and `direction`:
+
+```rust
+ScrollbarStyle::new(SCROLLBAR_SPACING, |handle: ScrollHandle| {
+    let ScrollHandle { position, direction } = handle;
+    view! {
+        <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position direction />
+    }
+})
+```
+
+Without one the scroll shows no bar, which is what the unstyled layer does on
+its own. A control that scrolls something of its own takes a `ScrollbarStyle`
+and passes it down, the way `unstyled::Select` hands one to the scroll behind
+its options, so the styled control decides the bar and the unstyled one never
+names a colour. The gutter is always reserved, and the bar paints nothing while
+its content fits, so a scroll that grows past its viewport does not shift the
+content beside it.
+
+The base `Scroll` and `VirtualList` stay what they were: the retained nodes,
+with no bar and no theme. Reach for them in a test that is about scrolling
+itself, and for the styled ones everywhere else.
 
 ### Slider scales
 

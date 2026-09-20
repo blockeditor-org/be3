@@ -4,12 +4,12 @@ use block_client::block_ref::BlockRef;
 use block_client::blocks::workspace_index::WorkspaceIndex;
 use block_editor_plugin::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Scroll,
-    Show, Spacer, WriteSignal, clone, component, create_effect, create_memo, create_selector,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show,
+    Spacer, WriteSignal, clone, component, create_effect, create_memo, create_selector,
     create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
-    Body, Caption, IconButton, IconSized, ListRow, Select, use_theme,
+    Body, Caption, IconButton, IconSized, ListRow, Scroll, Select, use_theme,
 };
 use block_editor_plugin::beui::unstyled::ChoiceOption;
 use block_editor_plugin::beui::{Color32, NodeId, TextAlign, Vec2};
@@ -212,7 +212,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                                 @test_id={"folder.empty"}
                             />
                         </Show>
-                        <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                        <Scroll @sizing=ItemSize::Percent(100.0)>
                             <Dynamic value={mode}>
                                 {move |shown: FolderView| {
                                     let cells = cells.clone();

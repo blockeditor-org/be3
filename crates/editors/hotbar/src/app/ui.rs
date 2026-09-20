@@ -10,10 +10,10 @@ use block_client::references::ReferenceResolutionCache;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::{ICON_DELETE, ICON_FOLDER};
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Scroll, Show, Spacer, clone, component,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
     create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, Icon, IconButton, use_theme};
+use block_editor_plugin::beui::styled::{Body, Caption, Icon, IconButton, Scroll, use_theme};
 use block_editor_plugin::{BlockLink, BlockProjection, ChildTarget, Editor};
 use uuid::Uuid;
 
@@ -83,7 +83,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                         content="Nothing is pinned yet. Compiling a grid pins the component it builds."
                     />
                 </Show>
-                <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=ROW_SPACING>
                         <ForEach keys={keys}>
                             {move |index: usize| {

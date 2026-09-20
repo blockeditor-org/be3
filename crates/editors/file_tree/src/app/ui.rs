@@ -8,12 +8,13 @@ use block_editor_plugin::beui::icons::{
     ICON_KEYBOARD_ARROW_RIGHT, ICON_MY_LOCATION,
 };
 use block_editor_plugin::beui::reactive::{
-    Align, ClickCatcher, Direction, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Scroll, Show,
-    Spacer, clone, component, component_rect, create_memo, create_signal, view, with_document,
+    Align, ClickCatcher, Direction, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show, Spacer,
+    clone, component, component_rect, create_memo, create_signal, view, with_document,
 };
 use block_editor_plugin::beui::styled::theme::{FONT_SMALL, RADIUS};
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, ContextMenu, IconButton, IconSized, Tooltip, use_theme,
+    Body, Button, ButtonVariant, Caption, ContextMenu, IconButton, IconSized, Scroll, Tooltip,
+    use_theme,
 };
 use block_editor_plugin::beui::unstyled::{
     self, ButtonHandle, Edge, Floating, MenuItem, TreeItem, TreeRowHandle, tree_row_node,
@@ -179,11 +180,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         <Show condition={failed}>
                             <Caption content={reason} color={theme.danger.clone()} />
                         </Show>
-                        <Scroll
-                            @sizing=ItemSize::Percent(100.0)
-                            @node_ref={&scroll_ref}
-                            focus_color={theme.accent.clone()}
-                        >
+                        <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&scroll_ref}>
                             <unstyled::Tree
                                 @node_ref={&tree_ref}
                                 keys={keys}
