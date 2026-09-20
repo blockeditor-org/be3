@@ -863,7 +863,6 @@ dependencies = [
  "block-wasm-host",
  "bytemuck",
  "eframe",
- "egui_dock",
  "egui_material_icons",
  "flate2",
  "game-host",

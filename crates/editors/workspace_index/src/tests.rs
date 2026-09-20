@@ -5,7 +5,7 @@ use block_client::BlockClient;
 use block_client::block_ref::BlockRef;
 use block_client::blocks::counter::Counter;
 use block_client::blocks::workspace_index::{WorkspaceIndex, WorkspaceIndexOperation};
-use block_editor_plugin::{BlockDrag, Editor, EditorHost, egui};
+use block_editor_plugin::{Drag, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

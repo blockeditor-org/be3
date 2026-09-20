@@ -9,10 +9,10 @@ use block_editor_plugin::beui::reactive::{
     create_signal, view,
 };
 use block_editor_plugin::beui::{ImageFit, NodeId, Vec2};
-use block_editor_plugin::egui;
 use block_editor_plugin::{ArtifactDescription, Artifacts, Creation, Editor, Side, Sidebar};
 
 use crate::artifact;
+use crate::artifact::Settings;
 use crate::panels::{ColorsPanel, Dialogs, ToolsPanel, TopBar};
 
 pub(crate) mod canvas;
@@ -80,8 +80,10 @@ impl block_editor_plugin::BeuiApp for PixelArtApp {
         artifact::describe(data)
     }
 
-    fn artifact_settings_ui(ui: &mut egui::Ui, data: &mut Vec<u8>) {
-        artifact::settings_ui(ui, data);
+    fn artifact_settings_view(artifacts: Artifacts) -> NodeId {
+        view! {
+            <Settings artifacts={artifacts} />
+        }
     }
 }
 

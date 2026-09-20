@@ -28,6 +28,9 @@ struct ArtifactState {
     artifact: crate::Artifact,
     regenerate: RefCell<Option<Regenerate>>,
     poll: RefCell<Option<PollArtifact>>,
+    settings: ReadSignal<Vec<u8>>,
+    set_settings: WriteSignal<Vec<u8>>,
+    edit: RefCell<Option<Vec<u8>>>,
 }
 
 impl Clone for Artifacts {
@@ -38,13 +41,36 @@ impl Clone for Artifacts {
 
 impl Artifacts {
     pub fn new(host: EditorHost, client: Arc<BlockClient>, artifact: crate::Artifact) -> Self {
+        let (settings, set_settings) = create_signal(Vec::new());
         Self(Rc::new(ArtifactState {
             host,
             client,
             artifact,
             regenerate: RefCell::new(None),
             poll: RefCell::new(None),
+            settings,
+            set_settings,
+            edit: RefCell::new(None),
         }))
+    }
+
+    pub fn settings(&self) -> ReadSignal<Vec<u8>> {
+        self.0.settings.clone()
+    }
+
+    pub fn edit_settings(&self, data: Vec<u8>) {
+        self.0.set_settings.set(data.clone());
+        *self.0.edit.borrow_mut() = Some(data);
+    }
+
+    pub fn receive_settings(&self, data: &[u8]) {
+        if self.0.settings.get_untracked() != data {
+            self.0.set_settings.set(data.to_vec());
+        }
+    }
+
+    pub fn take_settings_edit(&self) -> Option<Vec<u8>> {
+        self.0.edit.borrow_mut().take()
     }
 
     pub fn host(&self) -> &EditorHost {

@@ -3,12 +3,18 @@ use block_client::{
     BlockClient, BlockHandle, DynamicArtifactDescriptor,
     blocks::{image::Image, pixel_art::PixelArt},
 };
-use block_editor_plugin::{ArtifactDescription, egui};
+use block_editor_plugin::ArtifactDescription;
+use block_editor_plugin::Artifacts;
+use block_editor_plugin::beui::NodeId;
+use block_editor_plugin::beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
+use block_editor_plugin::beui::styled::{Caption, NumberInput, use_theme};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const MAX_EXPORT_SCALE: u32 = 16;
+const SETTINGS_PADDING: f32 = 14.0;
+const SETTINGS_SPACING: f32 = 12.0;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 struct ImageArtifact {
@@ -109,26 +115,50 @@ fn summary(settings: &ImageSettings) -> String {
     }
 }
 
-pub fn settings_ui(ui: &mut egui::Ui, data: &mut Vec<u8>) {
-    let Ok(mut artifact) = ImageArtifact::decode(data) else {
-        ui.label("These settings cannot be read.");
-        return;
+#[component]
+pub fn Settings(artifacts: Artifacts) -> NodeId {
+    let data = artifacts.settings();
+    let decoded = create_memo(clone!(data -> move || ImageArtifact::decode(&data.get()).ok()));
+    let readable = create_memo(clone!(decoded -> move || decoded.get().is_some()));
+    let scale = create_memo(clone!(decoded -> move || {
+        decoded.get().map_or(1.0, |artifact| f64::from(artifact.settings.scale))
+    }));
+    let caption = create_memo(clone!(decoded -> move || match decoded.get() {
+        Some(artifact) => summary(&artifact.settings),
+        None => "These settings cannot be read.".to_owned(),
+    }));
+    let edited = artifacts.clone();
+    let scaled = decoded.clone();
+    let set_scale = move |value: f64| {
+        let Some(mut artifact) = scaled.get_untracked() else {
+            return;
+        };
+        artifact.settings.scale = (value as u32).clamp(1, MAX_EXPORT_SCALE);
+        edited.edit_settings(artifact.encode());
     };
-    let changed = ui
-        .horizontal(|ui| {
-            ui.label("Scale");
-            ui.add(
-                egui::DragValue::new(&mut artifact.settings.scale)
-                    .range(1..=MAX_EXPORT_SCALE)
-                    .suffix("x"),
-            )
-            .changed()
-        })
-        .inner;
-    ui.add_space(12.0);
-    ui.weak(summary(&artifact.settings));
-    if changed {
-        *data = artifact.encode();
+
+    let theme = use_theme();
+
+    view! {
+        <Frame
+            color={theme.background.clone()}
+            padding_horizontal=SETTINGS_PADDING
+            padding_vertical=SETTINGS_PADDING
+        >
+            <List spacing=SETTINGS_SPACING>
+                <Show condition={readable}>
+                    <NumberInput
+                        value={scale}
+                        min=1.0
+                        max={f64::from(MAX_EXPORT_SCALE)}
+                        label="Scale"
+                        @test_id={"pixel-art.export-scale"}
+                        on_change={set_scale}
+                    />
+                </Show>
+                <Caption content={caption} @test_id={"pixel-art.export-summary"} />
+            </List>
+        </Frame>
     }
 }
 

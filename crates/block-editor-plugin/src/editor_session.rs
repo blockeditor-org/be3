@@ -128,6 +128,13 @@ trait AppUi {
     fn beui_after_layout(&mut self, _document: &beui::Document) {}
     fn beui_creation(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
     fn beui_preview(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
+    fn beui_artifact_settings(
+        &mut self,
+        _context: &beui::Context,
+        _rect: beui::Rect,
+        _draft: &mut Vec<u8>,
+    ) {
+    }
     fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid);
     fn connect_creation(&mut self, host: EditorHost, client: Arc<BlockClient>);
     fn create_block(&mut self) -> Result<Uuid, String>;
@@ -255,6 +262,7 @@ struct BeuiHolder<A: crate::BeuiApp> {
     creation: Option<crate::Creation>,
     dialog: Option<beui::Document>,
     artifacts: Option<crate::Artifacts>,
+    settings: Option<beui::Document>,
     app: PhantomData<A>,
 }
 
@@ -267,6 +275,7 @@ impl<A: crate::BeuiApp> BeuiHolder<A> {
             creation: None,
             dialog: None,
             artifacts: None,
+            settings: None,
             app: PhantomData,
         }
     }
@@ -364,8 +373,28 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         }
     }
 
-    fn artifact_settings_ui(&mut self, ui: &mut egui::Ui, data: &mut Vec<u8>) {
-        A::artifact_settings_ui(ui, data);
+    fn artifact_settings_ui(&mut self, _ui: &mut egui::Ui, _data: &mut Vec<u8>) {}
+
+    fn beui_artifact_settings(
+        &mut self,
+        context: &beui::Context,
+        rect: beui::Rect,
+        draft: &mut Vec<u8>,
+    ) {
+        let Some(artifacts) = self.artifacts.clone() else {
+            return;
+        };
+        let document = self.settings.get_or_insert_with(|| {
+            let built = artifacts.clone();
+            beui::reactive::build(move || A::artifact_settings_view(built))
+        });
+        let received = artifacts.clone();
+        let data = std::mem::take(draft);
+        beui::reactive::with_reactive_scope(document, move || received.receive_settings(&data));
+        document.show(context, rect);
+        *draft = artifacts
+            .take_settings_edit()
+            .unwrap_or_else(|| artifacts.settings().get_untracked());
     }
 
     fn regenerate_artifact(&mut self, data: &[u8]) {
@@ -1210,6 +1239,11 @@ impl EditorSession {
             .and_then(|state| state.frame.clone())
             .unwrap_or_default();
         let creating = self.creating;
+        let mut draft = self
+            .artifact
+            .as_ref()
+            .filter(|_| region == EditorRegion::ArtifactSettings)
+            .map(|artifact| artifact.draft.clone());
         let (ratio, pixels_per_point) = {
             let beui = self.beui.as_mut()?;
             let state = beui.entry(region).or_insert_with(BeuiRegion::new);
@@ -1260,9 +1294,17 @@ impl EditorSession {
                 painted = vec![frame];
             }
             EditorRegion::Preview => app.beui_preview(context, frame),
-            EditorRegion::ArtifactSettings => {}
+            EditorRegion::ArtifactSettings => {
+                if let Some(draft) = draft.as_mut() {
+                    app.beui_artifact_settings(context, frame, draft);
+                }
+            }
         });
 
+        if let (Some(artifact), Some(draft)) = (self.artifact.as_mut(), draft) {
+            artifact.edited |= artifact.draft != draft;
+            artifact.draft = draft;
+        }
         let (placed, occluders) = self.host.end_region(region);
         let origin = host.min.to_vec2();
         let screen = self.placement(region).map(|placement| placement.screen);
