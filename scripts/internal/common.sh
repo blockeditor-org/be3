@@ -423,9 +423,14 @@ export_wasi_toolchain() {
     # rustc links a cdylib with --no-entry, so lld strips the symbols a host
     # needs to lay out a thread's own storage. Exporting them is what lets it
     # turn the module into one that can be instantiated more than once.
+    # --no-entry also leaves the module with nothing that runs libc's
+    # constructors, which a command module reaches through _start. A guest
+    # whose constructors never ran has a libc that believes it has no thread
+    # storage, and the first thread it is asked to start deadlocks it, so the
+    # host calls __wasm_call_ctors itself and the plugin has to export it.
     local exports=''
     local symbol
-    for symbol in __heap_base __tls_base __tls_size __tls_align __wasm_init_tls; do
+    for symbol in __heap_base __tls_base __tls_size __tls_align __wasm_init_tls __wasm_call_ctors; do
         exports+=" -C link-arg=--export=$symbol"
     done
     export RUSTFLAGS="-C link-arg=-L$sysroot/lib/$wasm_rust_target/noeh -C link-arg=$sysroot/lib/$wasm_rust_target/libsetjmp.a$exports"
