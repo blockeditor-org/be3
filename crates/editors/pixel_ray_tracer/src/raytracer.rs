@@ -24,11 +24,6 @@ struct Hit {
     normal: Point,
 }
 
-pub(crate) struct RayTraceResult {
-    pub pixels: Vec<[u8; 4]>,
-    pub debug_positions: Vec<Point>,
-}
-
 pub(crate) fn trace_lighting(
     pixels: &[u8],
     entities: &[RayEntity],
@@ -128,12 +123,10 @@ pub(crate) fn trace_rays(
     entities: &[RayEntity],
     origin: Point,
     settings: RaySettings,
-    include_debug: bool,
-) -> RayTraceResult {
+) -> Vec<[u8; 4]> {
     let size = usize::from(PIXEL_RAY_TRACER_SIZE);
     let mut accumulated = vec![[0.0_f32; 3]; size * size];
     let mut counts = vec![0_u32; size * size];
-    let mut debug_positions = Vec::new();
     let mut branches = Vec::with_capacity(MAXIMUM_BRANCHES);
     let mut pending = Vec::with_capacity(MAXIMUM_BRANCHES * 2);
     let mut moved = Vec::with_capacity(MAXIMUM_BRANCHES);
@@ -148,9 +141,6 @@ pub(crate) fn trace_rays(
             render.y += direction.y * settings.step_distance;
             if !inside(render) {
                 break;
-            }
-            if include_debug {
-                debug_positions.push(render);
             }
             move_branches(
                 &mut branches,
@@ -185,7 +175,7 @@ pub(crate) fn trace_rays(
             counts[target] += 1;
         }
     }
-    let pixels = accumulated
+    accumulated
         .into_iter()
         .zip(counts)
         .map(|(color, count)| {
@@ -198,11 +188,7 @@ pub(crate) fn trace_rays(
             }
             result
         })
-        .collect();
-    RayTraceResult {
-        pixels,
-        debug_positions,
-    }
+        .collect()
 }
 
 fn create_branch(position: Point, angle: f32, entities: &[RayEntity], random: u32) -> Branch {

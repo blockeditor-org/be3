@@ -61,15 +61,7 @@ struct LightingKey {
 }
 
 type LightingResult = (LightingKey, Vec<[u8; 4]>, Duration);
-type RayResult = (
-    Point,
-    Vec<[u8; 4]>,
-    Vec<Point>,
-    u64,
-    RaySettings,
-    bool,
-    Duration,
-);
+type RayResult = (Point, Vec<[u8; 4]>, u64, RaySettings, Duration);
 
 #[derive(Clone)]
 enum Interaction {
@@ -104,7 +96,6 @@ struct TracedRays {
     origin: Point,
     revision: u64,
     settings: RaySettings,
-    include_debug: bool,
 }
 
 pub(crate) struct RayState {
@@ -132,8 +123,6 @@ pub(crate) struct RayState {
     set_color_index: WriteSignal<u8>,
     pub(crate) selected: ReadSignal<Option<u64>>,
     set_selected: WriteSignal<Option<u64>>,
-    pub(crate) debug_overlay: ReadSignal<bool>,
-    set_debug_overlay: WriteSignal<bool>,
     pub(crate) new_light_intensity: ReadSignal<f32>,
     set_new_light_intensity: WriteSignal<f32>,
     pub(crate) new_surface: ReadSignal<Surface>,
@@ -173,7 +162,6 @@ impl RayState {
         let (tool, set_tool) = create_signal(Tool::Pencil);
         let (color_index, set_color_index) = create_signal(0);
         let (selected, set_selected) = create_signal(None);
-        let (debug_overlay, set_debug_overlay) = create_signal(false);
         let (new_light_intensity, set_new_light_intensity) = create_signal(2.0);
         let (new_surface, set_new_surface) = create_signal(Surface::default());
         Rc::new(Self {
@@ -201,8 +189,6 @@ impl RayState {
             set_color_index,
             selected,
             set_selected,
-            debug_overlay,
-            set_debug_overlay,
             new_light_intensity,
             set_new_light_intensity,
             new_surface,
@@ -286,10 +272,6 @@ impl RayState {
     pub(crate) fn reset(&self) {
         self.block.operate(PixelRayTracerOperation::Reset);
         self.set_selected.set(None);
-    }
-
-    pub(crate) fn set_debug(&self, on: bool) {
-        self.set_debug_overlay.set(on);
     }
 
     pub(crate) fn set_light_intensity(&self, value: f32) {
@@ -641,14 +623,13 @@ impl RayState {
                 });
         if let Some(landed) = landed {
             self.ray_job.borrow_mut().take();
-            if let Ok((origin, pixels, _, revision, settings, include_debug, duration)) = landed {
+            if let Ok((origin, pixels, revision, settings, duration)) = landed {
                 self.performance.record_duration("View-ray trace", duration);
                 self.set_rays.set(Some(image_of(&pixels)));
                 *self.ray_state.borrow_mut() = Some(TracedRays {
                     origin,
                     revision,
                     settings,
-                    include_debug,
                 });
             }
         }
@@ -662,13 +643,11 @@ impl RayState {
                 block_revision: scene.lighting_revision(),
                 preview_revision: 0,
             });
-        let debug = self.debug_overlay.get_untracked();
         let hit = ready
             && self.ray_state.borrow().as_ref().is_some_and(|held| {
                 distance(held.origin, origin) <= 0.25
                     && held.revision == revision
                     && held.settings == settings
-                    && held.include_debug == debug
             });
         if hit {
             self.performance.record_count("View-ray cache hits", 1);
@@ -686,16 +665,8 @@ impl RayState {
             .name("pixel-ray-tracer-view-rays".into())
             .spawn(move || {
                 let started = Instant::now();
-                let result = raytracer::trace_rays(&source, &entities, origin, settings, debug);
-                let _ = sender.send((
-                    origin,
-                    result.pixels,
-                    result.debug_positions,
-                    revision,
-                    settings,
-                    debug,
-                    started.elapsed(),
-                ));
+                let pixels = raytracer::trace_rays(&source, &entities, origin, settings);
+                let _ = sender.send((origin, pixels, revision, settings, started.elapsed()));
                 waker.wake();
             })
             .expect("failed to start pixel ray tracer view-ray job");
