@@ -249,3 +249,70 @@ impl Rect {
         self.min.x < self.max.x && self.min.y < self.max.y
     }
 }
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Rotation {
+    pub pivot: Pos2,
+    pub angle: f32,
+}
+
+impl Rotation {
+    pub const NONE: Self = Self {
+        pivot: Pos2::ZERO,
+        angle: 0.0,
+    };
+
+    pub const fn new(pivot: Pos2, angle: f32) -> Self {
+        Self { pivot, angle }
+    }
+
+    pub fn turns(self) -> bool {
+        self.angle != 0.0
+    }
+
+    pub fn apply(self, point: Pos2) -> Pos2 {
+        self.turn(point, self.angle)
+    }
+
+    pub fn undo(self, point: Pos2) -> Pos2 {
+        self.turn(point, -self.angle)
+    }
+
+    pub fn bounds(self, rect: Rect) -> Rect {
+        if !self.turns() {
+            return rect;
+        }
+        let corners = [
+            rect.min,
+            pos2(rect.max.x, rect.min.y),
+            rect.max,
+            pos2(rect.min.x, rect.max.y),
+        ]
+        .map(|corner| self.apply(corner));
+        let mut bounds = Rect::from_min_max(corners[0], corners[0]);
+        for corner in corners {
+            bounds = bounds.union(Rect::from_min_max(corner, corner));
+        }
+        bounds
+    }
+
+    pub fn scaled(self, scale: f32) -> Self {
+        Self {
+            pivot: pos2(self.pivot.x * scale, self.pivot.y * scale),
+            angle: self.angle,
+        }
+    }
+
+    fn turn(self, point: Pos2, angle: f32) -> Pos2 {
+        if angle == 0.0 {
+            return point;
+        }
+        let (sin, cos) = angle.sin_cos();
+        let x = point.x - self.pivot.x;
+        let y = point.y - self.pivot.y;
+        pos2(
+            self.pivot.x + x * cos - y * sin,
+            self.pivot.y + x * sin + y * cos,
+        )
+    }
+}

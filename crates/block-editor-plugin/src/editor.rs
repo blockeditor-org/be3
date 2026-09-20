@@ -168,6 +168,8 @@ struct ChildRecord {
     mode: Prop<ChildMode>,
     layer: Prop<ChildLayer>,
     own_frame: Prop<bool>,
+    rotation: Prop<f32>,
+    opacity: Prop<f32>,
     state: WriteSignal<ChildState>,
     read: ReadSignal<ChildState>,
     report: Callback<ChildState>,
@@ -390,6 +392,8 @@ impl Editor {
         mode: Prop<ChildMode>,
         layer: Prop<ChildLayer>,
         own_frame: Prop<bool>,
+        rotation: Prop<f32>,
+        opacity: Prop<f32>,
         report: Callback<ChildState>,
     ) -> ReadSignal<ChildState> {
         let (state, set_state) = create_signal(ChildState::default());
@@ -403,6 +407,8 @@ impl Editor {
                 mode,
                 layer,
                 own_frame,
+                rotation,
+                opacity,
                 state: set_state,
                 read: state.clone(),
                 report,
@@ -553,6 +559,8 @@ impl Editor {
             record.mode.peek(),
             record.layer.peek(),
             record.own_frame.peek(),
+            record.rotation.peek(),
+            record.opacity.peek(),
         ))
     }
 }

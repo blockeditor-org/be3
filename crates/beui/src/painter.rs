@@ -2,7 +2,7 @@ use crate::color::Color32;
 use crate::context::Context;
 use crate::drawing::Drawing;
 use crate::font::{FontId, Galley};
-use crate::geometry::{Pos2, Rect};
+use crate::geometry::{Pos2, Rect, Rotation};
 use crate::image::Image;
 use crate::pixel_grid::PixelGrid;
 
@@ -13,12 +13,14 @@ pub enum Shape {
         corner_radius: f32,
         stroke_width: f32,
         color: Color32,
+        rotation: Rotation,
         clip: Rect,
     },
     Text {
         origin: Pos2,
         galley: Galley,
         color: Color32,
+        rotation: Rotation,
         clip: Rect,
     },
     Image {
@@ -28,6 +30,7 @@ pub enum Shape {
         tint: Color32,
         corner_radius: f32,
         smooth: bool,
+        rotation: Rotation,
         clip: Rect,
     },
     Line {
@@ -40,6 +43,7 @@ pub enum Shape {
     Punch {
         rect: Rect,
         corner_radius: f32,
+        rotation: Rotation,
         clip: Rect,
     },
     Drawing {
@@ -53,6 +57,7 @@ pub struct Painter {
     context: Context,
     clip: Rect,
     top: bool,
+    rotation: Rotation,
 }
 
 impl Painter {
@@ -61,6 +66,7 @@ impl Painter {
             context,
             clip,
             top: false,
+            rotation: Rotation::NONE,
         }
     }
 
@@ -81,6 +87,7 @@ impl Painter {
             context: self.context.clone(),
             clip: self.clip.intersect(clip),
             top: self.top,
+            rotation: self.rotation,
         }
     }
 
@@ -89,7 +96,25 @@ impl Painter {
             context: self.context.clone(),
             clip: self.clip,
             top: true,
+            rotation: self.rotation,
         }
+    }
+
+    pub fn rotated(&self, pivot: Pos2, angle: f32) -> Self {
+        let rotation = match angle == 0.0 {
+            true => Rotation::NONE,
+            false => Rotation::new(pivot, angle),
+        };
+        Self {
+            context: self.context.clone(),
+            clip: self.clip,
+            top: self.top,
+            rotation,
+        }
+    }
+
+    pub fn rotation(&self) -> Rotation {
+        self.rotation
     }
 
     fn push(&self, shape: Shape) {
@@ -113,6 +138,7 @@ impl Painter {
             corner_radius,
             stroke_width: 0.0,
             color,
+            rotation: self.rotation,
             clip: self.clip,
         });
     }
@@ -126,6 +152,7 @@ impl Painter {
             corner_radius,
             stroke_width: width,
             color,
+            rotation: self.rotation,
             clip: self.clip,
         });
     }
@@ -135,8 +162,8 @@ impl Painter {
             return;
         }
         self.push(Shape::Line {
-            from,
-            to,
+            from: self.rotation.apply(from),
+            to: self.rotation.apply(to),
             width,
             color,
             clip: self.clip,
@@ -162,6 +189,7 @@ impl Painter {
             tint,
             corner_radius,
             smooth,
+            rotation: self.rotation,
             clip: self.clip,
         });
     }
@@ -173,6 +201,7 @@ impl Painter {
         self.push(Shape::Punch {
             rect,
             corner_radius,
+            rotation: self.rotation,
             clip: self.clip,
         });
     }
@@ -196,6 +225,7 @@ impl Painter {
             origin,
             galley,
             color,
+            rotation: self.rotation,
             clip: self.clip,
         });
     }

@@ -44,6 +44,7 @@ pub(crate) struct EmbedNode {
     width: Option<f32>,
     height: Option<f32>,
     punch: bool,
+    rotation: f32,
     state: Rc<EmbedState>,
 }
 
@@ -79,7 +80,9 @@ impl Element for EmbedNode {
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
         if self.punch {
-            painter.punch(rect, 0.0);
+            painter
+                .rotated(rect.center(), self.rotation)
+                .punch(rect, 0.0);
         }
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
@@ -136,6 +139,7 @@ impl Document {
             width: None,
             height: None,
             punch: false,
+            rotation: 0.0,
             state,
         })
     }
@@ -149,6 +153,12 @@ impl Document {
     pub(crate) fn set_embed_punch(&mut self, embed: NodeId, punch: bool) {
         if self.arena.get_as::<EmbedNode>(embed).punch != punch {
             self.arena.get_mut_as::<EmbedNode>(embed).punch = punch;
+        }
+    }
+
+    pub(crate) fn set_embed_rotation(&mut self, embed: NodeId, rotation: f32) {
+        if self.arena.get_as::<EmbedNode>(embed).rotation != rotation {
+            self.arena.get_mut_as::<EmbedNode>(embed).rotation = rotation;
         }
     }
 
@@ -174,6 +184,7 @@ pub fn Embed(
     width: Option<Prop<f32>>,
     height: Option<Prop<f32>>,
     #[prop(default = true)] punch: Prop<bool>,
+    #[prop(default = 0.0)] rotation: Prop<f32>,
     children: Option<Child>,
 ) -> NodeId {
     let state = Rc::clone(&slot.0);
@@ -193,6 +204,10 @@ pub fn Embed(
     create_effect(move || {
         let punch = punch.get();
         with_document(|document| document.set_embed_punch(embed, punch));
+    });
+    create_effect(move || {
+        let rotation = rotation.get();
+        with_document(|document| document.set_embed_rotation(embed, rotation));
     });
     embed
 }

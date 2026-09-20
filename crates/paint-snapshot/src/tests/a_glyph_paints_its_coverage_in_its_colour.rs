@@ -1,5 +1,5 @@
 use super::*;
-use crate::Glyph;
+use crate::{Glyph, Turn};
 
 #[test]
 fn a_glyph_paints_its_coverage_in_its_colour() {
@@ -15,6 +15,7 @@ fn a_glyph_paints_its_coverage_in_its_colour() {
                     rect: [1.0, 1.0, 3.0, 2.0],
                     texture: 7,
                     color: [0, 255, 0, 255],
+                    turn: Turn::NONE,
                 }),
             }],
         },

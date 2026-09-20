@@ -20,6 +20,7 @@ fn clipped(bounds: Rect, clip: Rect) -> Shape {
         corner_radius: 0.0,
         stroke_width: 0.0,
         color: Color32::WHITE,
+        rotation: crate::geometry::Rotation::NONE,
         clip,
     }
 }

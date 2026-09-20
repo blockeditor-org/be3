@@ -3,7 +3,8 @@ use std::collections::btree_map::Entry;
 
 use beui::{Color32, FrameOutput, GlyphImage, Image, Quad, Vec2};
 use paint_snapshot::{
-    Content, Frame, Glyph, Primitive, RoundedRect, Snapshot, Texture, TextureKey, Triangle, Vertex,
+    Content, Frame, Glyph, Primitive, RoundedRect, Snapshot, Texture, TextureKey, Triangle, Turn,
+    Vertex,
 };
 
 pub(crate) fn capture(
@@ -23,6 +24,7 @@ pub(crate) fn capture(
                 color,
                 corner_radius,
                 stroke_width,
+                turn,
             } => (
                 clip,
                 Content::RoundedRect(RoundedRect {
@@ -30,6 +32,7 @@ pub(crate) fn capture(
                     corner_radius: corner_radius / pixels_per_point,
                     stroke_width: stroke_width / pixels_per_point,
                     color: color.to_array(),
+                    turn: turned(turn, pixels_per_point),
                 }),
             ),
             Quad::Glyph {
@@ -37,12 +40,14 @@ pub(crate) fn capture(
                 clip,
                 color,
                 glyph,
+                turn,
             } => (
                 clip,
                 Content::Glyph(Glyph {
                     rect: points(rect),
                     texture: texture(&mut textures, &glyph.image)?,
                     color: color.to_array(),
+                    turn: turned(turn, pixels_per_point),
                 }),
             ),
             Quad::Image {
@@ -51,6 +56,7 @@ pub(crate) fn capture(
                 source,
                 image,
                 tint,
+                turn,
                 ..
             } => (
                 clip,
@@ -59,6 +65,7 @@ pub(crate) fn capture(
                     source,
                     picture(&mut textures, &image)?,
                     tint.to_array(),
+                    turned(turn, pixels_per_point),
                 )),
             ),
             Quad::Line {
@@ -99,11 +106,30 @@ pub(crate) fn capture(
     ))
 }
 
-fn mesh(rect: [f32; 4], source: [f32; 4], texture: TextureKey, color: [u8; 4]) -> Vec<Triangle> {
-    let corner = |x: f32, y: f32, u: f32, v: f32| Vertex {
-        pos: [x, y],
-        uv: [u, v],
-        color,
+fn turned(turn: beui::Turn, pixels_per_point: f32) -> Turn {
+    Turn {
+        pivot: [
+            turn.pivot[0] / pixels_per_point,
+            turn.pivot[1] / pixels_per_point,
+        ],
+        angle: turn.sin.atan2(turn.cos),
+    }
+}
+
+fn mesh(
+    rect: [f32; 4],
+    source: [f32; 4],
+    texture: TextureKey,
+    color: [u8; 4],
+    turn: Turn,
+) -> Vec<Triangle> {
+    let corner = |x: f32, y: f32, u: f32, v: f32| {
+        let [x, y] = spun(turn, [x, y]);
+        Vertex {
+            pos: [x, y],
+            uv: [u, v],
+            color,
+        }
     };
     let [left, top, right, bottom] = rect;
     let [u0, v0, u1, v1] = source;
@@ -120,6 +146,18 @@ fn mesh(rect: [f32; 4], source: [f32; 4], texture: TextureKey, color: [u8; 4]) -
             texture,
             corners: [top_left, bottom_right, bottom_left],
         },
+    ]
+}
+
+fn spun(turn: Turn, point: [f32; 2]) -> [f32; 2] {
+    if !turn.turns() {
+        return point;
+    }
+    let (sin, cos) = turn.angle.sin_cos();
+    let (x, y) = (point[0] - turn.pivot[0], point[1] - turn.pivot[1]);
+    [
+        turn.pivot[0] + x * cos - y * sin,
+        turn.pivot[1] + x * sin + y * cos,
     ]
 }
 

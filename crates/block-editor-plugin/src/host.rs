@@ -472,6 +472,24 @@ impl BeuiView {
     }
 }
 
+fn swept(rect: egui::Rect, rotation: f32) -> egui::Rect {
+    if rotation == 0.0 {
+        return rect;
+    }
+    let center = rect.center();
+    let (sin, cos) = rotation.sin_cos();
+    let turned = |corner: egui::Pos2| {
+        let offset = corner - center;
+        center + egui::vec2(offset.x * cos - offset.y * sin, offset.x * sin + offset.y * cos)
+    };
+    egui::Rect::from_points(&[
+        turned(rect.left_top()),
+        turned(rect.right_top()),
+        turned(rect.right_bottom()),
+        turned(rect.left_bottom()),
+    ])
+}
+
 fn host_rect(rect: beui::Rect, ratio: f32) -> egui::Rect {
     egui::Rect::from_min_max(
         egui::pos2(rect.min.x / ratio, rect.min.y / ratio),
@@ -1075,11 +1093,13 @@ impl EditorHost {
         mode: ChildMode,
         layer: ChildLayer,
         own_frame: bool,
+        rotation: f32,
+        opacity: f32,
     ) -> ChildId {
         let ratio = self.beui.get().ratio;
         let state = self.region.get();
         let rect = host_rect(rect, ratio);
-        let clip = host_rect(clip, ratio).intersect(rect);
+        let clip = host_rect(clip, ratio).intersect(swept(rect, rotation));
         let mut children = self.children.borrow_mut();
         let child = children.identify(state.region.unwrap_or(EditorRegion::Frame), block_id);
         children.placements.push(ChildPlacement {
@@ -1094,8 +1114,8 @@ impl EditorHost {
             mode,
             intrinsic_width: 0.0,
             intrinsic_height: 0.0,
-            rotation: 0.0,
-            opacity: 1.0,
+            rotation,
+            opacity: opacity.clamp(0.0, 1.0),
         });
         child
     }

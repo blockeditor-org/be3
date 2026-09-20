@@ -602,16 +602,24 @@ fn scale_shape(shape: &mut Shape, scale: f32) {
             rect,
             corner_radius,
             stroke_width,
+            rotation,
             clip,
             ..
         } => {
             *rect = rect.scaled(scale);
             *corner_radius *= scale;
             *stroke_width *= scale;
+            *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
-        Shape::Text { origin, clip, .. } => {
+        Shape::Text {
+            origin,
+            rotation,
+            clip,
+            ..
+        } => {
             *origin = pos2(origin.x * scale, origin.y * scale);
+            *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
         Shape::Line {
@@ -629,16 +637,19 @@ fn scale_shape(shape: &mut Shape, scale: f32) {
         Shape::Image {
             rect,
             corner_radius,
+            rotation,
             clip,
             ..
         }
         | Shape::Punch {
             rect,
             corner_radius,
+            rotation,
             clip,
         } => {
             *rect = rect.scaled(scale);
             *corner_radius *= scale;
+            *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
         Shape::Drawing { rect, clip, .. } => {
