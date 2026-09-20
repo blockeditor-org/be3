@@ -480,7 +480,11 @@ fn swept(rect: egui::Rect, rotation: f32) -> egui::Rect {
     let (sin, cos) = rotation.sin_cos();
     let turned = |corner: egui::Pos2| {
         let offset = corner - center;
-        center + egui::vec2(offset.x * cos - offset.y * sin, offset.x * sin + offset.y * cos)
+        center
+            + egui::vec2(
+                offset.x * cos - offset.y * sin,
+                offset.x * sin + offset.y * cos,
+            )
     };
     egui::Rect::from_points(&[
         turned(rect.left_top()),
@@ -1328,7 +1332,7 @@ impl EditorHost {
         self.presenting.set(presenting);
     }
 
-    fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
+    pub(crate) fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
         self.child_views
             .borrow_mut()
             .remove(&child)

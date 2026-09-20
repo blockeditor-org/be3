@@ -296,6 +296,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.events.push(Event::PointerMotion(delta));
     }
 
+    pub fn intrinsic_size(&self) -> Option<Vec2> {
+        self.intrinsic()
+    }
+
     fn intrinsic(&self) -> Option<Vec2> {
         match &self.region {
             Region::Frame(editor, _) | Region::Preview(editor, _) => editor.intrinsic_size(),

@@ -130,6 +130,10 @@ pub fn copy_text(text: impl Into<String>) {
     with_document(|document| document.copy_text(text));
 }
 
+pub fn request_paste() {
+    with_document(Document::request_paste);
+}
+
 pub(crate) fn node_scope(document: &Document, owner: Option<ScopeContext>) -> Scope {
     owner
         .or_else(owner_scope)

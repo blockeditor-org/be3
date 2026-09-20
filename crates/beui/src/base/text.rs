@@ -27,7 +27,7 @@ const HANDLE_GAP: f32 = 4.0;
 const HANDLE_HIT_RADIUS: f32 = 24.0;
 const HANDLE_VISIBILITY_SLACK: f32 = 0.5;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum TextAlign {
     Start,
     Center,

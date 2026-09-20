@@ -10,7 +10,7 @@ use beui::{Document, Pos2, Rect, Vec2};
 use block::Block;
 use block_client::{BlockClient, BlockHandle};
 use block_plugin_api::{
-    ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode,
+    ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode, ViewChange,
 };
 use block_reactive::BlockSource;
 use block_ui::BlockCatalog;
@@ -21,6 +21,7 @@ use crate::{BlockFilter, BlockPicker, EditorHost, PickedBlock};
 
 type Regenerate = Rc<dyn Fn(&[u8])>;
 type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
+type ReplaceChild = Rc<dyn Fn(Uuid, Uuid) -> bool>;
 
 pub struct Artifacts(Rc<ArtifactState>);
 
@@ -182,6 +183,7 @@ struct ChildRecord {
     state: WriteSignal<ChildState>,
     read: ReadSignal<ChildState>,
     report: Callback<ChildState>,
+    view_change: Callback<ViewChange>,
     child: Cell<Option<ChildId>>,
 }
 
@@ -260,7 +262,7 @@ struct EditorState {
     revealed: ReadSignal<Option<u64>>,
     set_revealed: WriteSignal<Option<u64>>,
     pending_reveal: Cell<Option<u64>>,
-    replace: RefCell<Option<Rc<dyn Fn(Uuid, Uuid) -> bool>>>,
+    replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<NodeRef>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
@@ -421,6 +423,7 @@ impl Editor {
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
         report: Callback<ChildState>,
+        view_change: Callback<ViewChange>,
     ) -> ReadSignal<ChildState> {
         let (state, set_state) = create_signal(ChildState::default());
         let key = self.0.next_child.get();
@@ -439,6 +442,7 @@ impl Editor {
                 state: set_state,
                 read: state.clone(),
                 report,
+                view_change,
                 child: Cell::new(None),
             }),
         ));
@@ -542,6 +546,14 @@ impl Editor {
         self.0.host.beui_view().zoom(factor, None);
     }
 
+    pub fn zoom_at(&self, factor: f32, anchor: Pos2) {
+        self.0.host.beui_view().zoom(factor, Some(anchor));
+    }
+
+    pub fn resume_auto_fit(&self) {
+        self.0.host.resume_auto_fit_view();
+    }
+
     pub fn fit(&self) {
         self.0.host.beui_view().fit();
     }
@@ -577,6 +589,11 @@ impl Editor {
         }
         self.0.set_revealed.set(self.0.pending_reveal.take());
         for record in self.records() {
+            if let Some(child) = record.child.get() {
+                for change in self.0.host.take_child_view_changes(child) {
+                    record.view_change.call(change);
+                }
+            }
             let state = ChildState::of(&self.0.host, record.child.get());
             if record.read.get_untracked() == state {
                 continue;

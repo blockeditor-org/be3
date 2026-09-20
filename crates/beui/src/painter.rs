@@ -1,7 +1,7 @@
 use crate::color::Color32;
 use crate::context::Context;
 use crate::drawing::Drawing;
-use crate::font::{FontId, Galley};
+use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Rotation};
 use crate::image::Image;
 use crate::pixel_grid::PixelGrid;
@@ -126,7 +126,12 @@ impl Painter {
     }
 
     pub fn layout(&self, text: impl Into<String>, font: FontId, wrap_width: f32) -> Galley {
-        self.context.layout(&text.into(), font, wrap_width)
+        self.context
+            .layout(&text.into(), font, TextLayout::wrapped(wrap_width))
+    }
+
+    pub fn layout_text(&self, text: impl Into<String>, font: FontId, layout: TextLayout) -> Galley {
+        self.context.layout(&text.into(), font, layout)
     }
 
     pub fn rect_filled(&self, rect: Rect, corner_radius: f32, color: Color32) {

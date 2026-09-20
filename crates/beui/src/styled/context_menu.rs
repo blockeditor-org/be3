@@ -23,22 +23,38 @@ const SUBMENU_ICON_SIZE: f32 = 16.0;
 pub fn ContextMenu(
     children: Child,
     items: Children<MenuItem>,
+    #[prop(default = crate::reactive::ItemSize::Intrinsic)] child_size: crate::reactive::Prop<
+        crate::reactive::ItemSize,
+    >,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     view! {
         <unstyled::ContextMenu
             items
-            row={|handle| view! {
-                <MenuRow handle />
-            }}
-            panel={|content| view! {
-                <MenuPanel>{content}</MenuPanel>
-            }}
+            row={menu_row()}
+            panel={menu_panel()}
+            child_size={child_size}
             on_select={move |path| on_select.call(path)}
         >
             {children}
         </unstyled::ContextMenu>
     }
+}
+
+pub(crate) fn menu_row() -> crate::reactive::RenderFn<MenuRowHandle> {
+    crate::reactive::RenderFn::new(|handle| {
+        view! {
+            <MenuRow handle />
+        }
+    })
+}
+
+pub(crate) fn menu_panel() -> crate::reactive::RenderFn<Child> {
+    crate::reactive::RenderFn::new(|content| {
+        view! {
+            <MenuPanel>{content}</MenuPanel>
+        }
+    })
 }
 
 pub(crate) fn text_input_menu() -> TextInputMenu {

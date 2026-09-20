@@ -45,7 +45,9 @@ pub use drawing::Drawing;
 #[cfg(feature = "render")]
 pub use drawing::{Draw, DrawAt};
 pub use filter::{ColorVision, Filter, MAX_BLUR};
-pub use font::{FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT};
+pub use font::{
+    FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT, TextLayout,
+};
 pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 pub use image::{Image, ImageFit, ImageId};
 pub use input::{

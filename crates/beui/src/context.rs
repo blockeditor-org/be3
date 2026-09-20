@@ -8,7 +8,7 @@ use accesskit::{ActionRequest, TreeUpdate};
 use crate::accessibility::{self, Fragment};
 use crate::damage;
 use crate::filter::Filter;
-use crate::font::{FontId, FontSources, Fonts, Galley};
+use crate::font::{FontId, FontSources, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, InputState, RawInput};
 use crate::mouse_simulation::MouseSimulation;
@@ -544,11 +544,11 @@ impl Context {
         result
     }
 
-    pub(crate) fn layout(&self, text: &str, font: FontId, wrap_width: f32) -> Galley {
+    pub(crate) fn layout(&self, text: &str, font: FontId, layout: TextLayout) -> Galley {
         self.inner
             .fonts
             .borrow_mut()
-            .layout(text, font, wrap_width, self.pixels_per_point())
+            .layout(text, font, layout, self.pixels_per_point())
     }
 
     pub(crate) fn push(&self, shape: Shape) {
