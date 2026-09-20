@@ -50,6 +50,7 @@ fn threaded_guest(body: &str) -> String {
             (import "wasi" "thread-spawn" (func $spawn (param i32) (result i32)))
             (import "be3_gpu" "create_buffer" (func $create_buffer (param i32 i32) (result i32)))
             (import "be3_host" "host_send" (func $host_send (param i32 i32)))
+            (import "be3_host" "host_wake" (func $host_wake))
             (global (export "__tls_size") i32 (i32.const 0))
             (global (export "__tls_align") i32 (i32.const 1))
             (func (export "plugin_initialize_tls") (param i32 i32))
@@ -86,3 +87,5 @@ mod a_plugin_runs_its_constructors_before_it_starts;
 mod a_plugin_runs_on_a_thread_of_its_own;
 mod a_spawned_guest_thread_may_not_reach_the_gpu;
 mod a_spawned_guest_thread_shares_the_memory_it_was_given;
+mod a_spawned_guest_thread_wakes_the_host;
+mod a_thread_that_trapped_wakes_the_host_to_be_told;

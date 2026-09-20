@@ -306,6 +306,11 @@ pub extern "C" fn host_receive(pointer: u32, capacity: u32) -> i64 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn host_wake() {
+    with(|shim| shim.woken = true, ())
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn host_now() -> f64 {
     with(|shim| (crate::now() - shim.started) / 1000.0, 0.0)
 }

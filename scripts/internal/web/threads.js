@@ -7,7 +7,8 @@
 // the very same module against the very same shared memory and calls the
 // module's wasi_thread_start with the id and argument agreed here.
 //
-// Only the module and its memory are shared. Every other import the thread's
+// Only the module and its memory are shared. Apart from the wake, which the
+// thread reports back here as a message, every other import the thread's
 // instance is given is a stub that throws, because the JavaScript state that
 // wasm-bindgen keeps beside a module — its object table, its cached views —
 // belongs to the thread that made it. A thread is for computing, and reaching
@@ -15,6 +16,18 @@
 
 /** @type {{module: WebAssembly.Module, memory: WebAssembly.Memory} | null} */
 let context = null;
+
+/** @type {(() => void) | null} */
+let onWake = null;
+
+/**
+ * Says what to do when a thread reports that a job it was started for landed.
+ * The plugin worker steps the module again; the app has nothing to schedule
+ * and leaves this unset.
+ */
+export function bindWake(wake) {
+    onWake = wake;
+}
 
 // The id wasi-libc stores as the thread's own. Ids start above the main
 // thread's so that no live thread is ever mistaken for another.
@@ -38,6 +51,11 @@ function threadSpawn(startArgument) {
     const worker = new Worker(new URL("./thread.js", import.meta.url), { type: "module" });
     worker.onerror = (event) => {
         console.error(`thread ${id} failed`, event.message ?? event);
+    };
+    worker.onmessage = (event) => {
+        if (event.data?.kind === "wake") {
+            onWake?.();
+        }
     };
     worker.postMessage({
         module: context.module,

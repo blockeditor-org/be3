@@ -6,6 +6,11 @@
 // thread-local block the spawning thread already laid out for it. The module's
 // start function is deliberately not run: memory, and everything in it, is
 // already initialised by the thread that got there first.
+//
+// The one call out of the module a thread may make is the wake, which says a
+// job it was started for has landed and the module should be stepped again.
+// The JavaScript that answers the rest belongs to the thread that made it, so
+// the wake is passed to the spawning thread as a message instead.
 
 import * as wasi from "./wasi.js";
 import * as environment from "./env.js";
@@ -32,6 +37,8 @@ function imports(module, memory) {
             group[wanted.name] = threads[wanted.name];
         } else if (wanted.module === "env") {
             group[wanted.name] = environment[wanted.name];
+        } else if (wanted.module === "be3_host" && wanted.name === "host_wake") {
+            group[wanted.name] = () => self.postMessage({ kind: "wake" });
         } else {
             group[wanted.name] = stub(wanted.module, wanted.name);
         }

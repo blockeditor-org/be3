@@ -5,6 +5,7 @@ unsafe extern "C" {
     fn host_send(pointer: u32, length: u32);
     fn host_receive(pointer: u32, capacity: u32) -> i64;
     fn host_now() -> f64;
+    fn host_wake();
 }
 
 pub(crate) fn send(frame: &[u8]) {
@@ -31,4 +32,8 @@ pub(crate) fn receive() -> Option<Vec<u8>> {
 
 pub(crate) fn now() -> f64 {
     unsafe { host_now() }
+}
+
+pub(crate) fn wake() {
+    unsafe { host_wake() };
 }

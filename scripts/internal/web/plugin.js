@@ -181,7 +181,7 @@ function memoryLimits(bytes) {
     throw new Error("a plugin does not import the memory it runs in");
 }
 
-export async function boot(shimUrl, moduleUrl, canvas) {
+export async function boot(shimUrl, moduleUrl, canvas, wake) {
     const shimModule = await import(shimUrl);
     const shim = await shimModule.default();
     await shimModule.start(canvas);
@@ -191,14 +191,17 @@ export async function boot(shimUrl, moduleUrl, canvas) {
     const module = await WebAssembly.compile(bytes);
     wasi.bindMemory(memory);
     threads.bindThreads(module, memory);
+    threads.bindWake(wake);
     const instance = new WebAssembly.Instance(module, resolve(module, memory, shim));
     const exports = instance.exports;
+    exports.__wasm_call_ctors?.();
     exports.plugin_initialize_tls(exports.__tls_size.value, exports.__tls_align.value);
     exports.plugin_start();
     return {
         deliver: (frame) => shimModule.deliver(frame),
         collect: () => shimModule.collect(),
         failure: () => shimModule.failure(),
+        woken: () => shimModule.woken(),
         step: () => exports.plugin_step(),
         shutdown: () => exports.plugin_shutdown(),
     };

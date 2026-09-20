@@ -5,6 +5,7 @@ use wasmtime::SharedMemory;
 use wasmtime_wasi::p1::WasiP1Ctx;
 
 use crate::threads::{Spawner, Spawns};
+use crate::wake::{Wake, Wakes};
 
 pub type Connect = Arc<dyn Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync>;
 
@@ -39,11 +40,13 @@ pub struct State {
     pub(crate) outbox: Vec<Vec<u8>>,
     pub(crate) started: Instant,
     pub(crate) threads: Arc<Spawner>,
+    pub(crate) wake: Arc<Wake>,
 }
 
 pub(crate) struct Threaded {
     pub(crate) wasi: WasiP1Ctx,
     pub(crate) threads: Arc<Spawner>,
+    pub(crate) wake: Arc<Wake>,
 }
 
 impl Spawns for State {
@@ -55,6 +58,18 @@ impl Spawns for State {
 impl Spawns for Threaded {
     fn spawner(&self) -> &Arc<Spawner> {
         &self.threads
+    }
+}
+
+impl Wakes for State {
+    fn wake(&self) -> &Arc<Wake> {
+        &self.wake
+    }
+}
+
+impl Wakes for Threaded {
+    fn wake(&self) -> &Arc<Wake> {
+        &self.wake
     }
 }
 

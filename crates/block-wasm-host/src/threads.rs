@@ -8,6 +8,7 @@ use wasmtime::{Caller, Engine, Error, Linker, Module, SharedMemory, Store, Typed
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use crate::state::Threaded;
+use crate::wake::Wake;
 
 const MODULE: &str = "wasi";
 const SPAWN: &str = "thread-spawn";
@@ -22,17 +23,24 @@ pub(crate) struct Spawner {
     engine: Engine,
     module: Module,
     memory: SharedMemory,
+    wake: Arc<Wake>,
     next: AtomicI32,
     stopped: AtomicBool,
     failures: Mutex<Vec<String>>,
 }
 
 impl Spawner {
-    pub(crate) fn new(engine: Engine, module: Module, memory: SharedMemory) -> Arc<Self> {
+    pub(crate) fn new(
+        engine: Engine,
+        module: Module,
+        memory: SharedMemory,
+        wake: Arc<Wake>,
+    ) -> Arc<Self> {
         Arc::new(Self {
             engine,
             module,
             memory,
+            wake,
             next: AtomicI32::new(1),
             stopped: AtomicBool::new(false),
             failures: Mutex::new(Vec::new()),
@@ -78,6 +86,7 @@ impl Spawner {
         let state = Threaded {
             wasi,
             threads: Arc::clone(self),
+            wake: Arc::clone(&self.wake),
         };
         let mut store = Store::new(&self.engine, state);
         let mut linker: Linker<Threaded> = Linker::new(&self.engine);
@@ -87,6 +96,7 @@ impl Spawner {
             .define(&store, "env", "memory", self.memory.clone())
             .map_err(|error| format!("a plugin thread could not share memory: {error}"))?;
         link(&mut linker)?;
+        crate::wake::link(&mut linker)?;
         self.refuse_host_calls(&mut linker)?;
         linker
             .define_unknown_imports_as_traps(&self.module)
@@ -105,6 +115,9 @@ impl Spawner {
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {
         for import in self.module.imports() {
             if !matches!(import.module(), abi::GPU_MODULE | abi::HOST_MODULE) {
+                continue;
+            }
+            if import.module() == abi::HOST_MODULE && import.name() == abi::HOST_WAKE {
                 continue;
             }
             let Some(signature) = import.ty().func().cloned() else {
@@ -129,6 +142,7 @@ impl Spawner {
         if let Ok(mut failures) = self.failures.lock() {
             failures.push(failure);
         }
+        self.wake.wake();
     }
 }
 

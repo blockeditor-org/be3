@@ -35,6 +35,8 @@ function drain() {
     const frames = plugin.collect();
     if (frames.length > 0) {
         post(frames);
+    }
+    if (frames.length > 0 || plugin.woken()) {
         schedule();
     }
     const failure = plugin.failure();
@@ -66,6 +68,7 @@ self.onmessage = async (event) => {
                 new URL("./block_gpu_shim.js", data.url).href,
                 data.url,
                 data.canvas,
+                schedule,
             );
             drain();
             for (const frame of queued.splice(0)) plugin.deliver(frame);

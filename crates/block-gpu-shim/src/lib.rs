@@ -21,6 +21,7 @@ struct Shim {
     outbox: Vec<Vec<u8>>,
     scratch: Vec<u8>,
     started: f64,
+    woken: bool,
     failure: Option<String>,
 }
 
@@ -50,6 +51,7 @@ pub async fn start(canvas: JsValue) -> Result<(), JsValue> {
         outbox: Vec::new(),
         scratch: Vec::new(),
         started: now(),
+        woken: false,
         failure: None,
     };
     SHIM.with(|current| *current.borrow_mut() = Some(shim));
@@ -73,6 +75,11 @@ pub fn collect() -> js_sys::Array {
         (),
     );
     frames
+}
+
+#[wasm_bindgen]
+pub fn woken() -> bool {
+    with(|shim| std::mem::take(&mut shim.woken), false)
 }
 
 #[wasm_bindgen]

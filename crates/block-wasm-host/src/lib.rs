@@ -4,6 +4,7 @@ mod precompile;
 mod state;
 mod threads;
 mod transport;
+mod wake;
 
 #[cfg(test)]
 mod tests;
@@ -18,6 +19,7 @@ use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use state::Device;
 use threads::Spawner;
+use wake::Wake;
 
 pub use precompile::precompile;
 pub use state::{Connect, State};
@@ -90,6 +92,7 @@ pub struct Plugin {
     start: TypedFunc<(), ()>,
     step: TypedFunc<(), ()>,
     shutdown: TypedFunc<(), ()>,
+    wake: Arc<Wake>,
     stopped: bool,
 }
 
@@ -98,6 +101,7 @@ impl Plugin {
         let engine = host.engine.clone();
         let memory = shared_memory(&engine, &module)?;
         let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
+        let wake: Arc<Wake> = Arc::default();
         let state = State {
             wasi,
             memory: memory.clone(),
@@ -106,7 +110,13 @@ impl Plugin {
             inbox: Default::default(),
             outbox: Vec::new(),
             started: Instant::now(),
-            threads: Spawner::new(engine.clone(), module.clone(), memory.clone()),
+            threads: Spawner::new(
+                engine.clone(),
+                module.clone(),
+                memory.clone(),
+                Arc::clone(&wake),
+            ),
+            wake: Arc::clone(&wake),
         };
         let mut store = Store::new(&engine, state);
         let mut linker: Linker<State> = Linker::new(&engine);
@@ -118,6 +128,7 @@ impl Plugin {
         gpu::link(&mut linker)?;
         transport::link(&mut linker)?;
         threads::link(&mut linker)?;
+        wake::link(&mut linker)?;
         linker
             .define_unknown_imports_as_traps(&module)
             .map_err(|error| format!("the plugin imports could not be stubbed: {error}"))?;
@@ -131,6 +142,7 @@ impl Plugin {
             step: typed(&instance, &mut store, "plugin_step")?,
             shutdown: typed(&instance, &mut store, "plugin_shutdown")?,
             store,
+            wake,
             stopped: false,
         };
         Ok(plugin)
@@ -144,9 +156,21 @@ impl Plugin {
         self.call(self.step.clone())
     }
 
+    pub fn on_wake(&self, notify: impl Fn() + Send + Sync + 'static) {
+        self.wake.notify(notify);
+    }
+
+    pub fn take_wake(&self) -> bool {
+        self.wake.take()
+    }
+
     fn call(&mut self, function: TypedFunc<(), ()>) -> Result<(), String> {
         if self.stopped {
             return Ok(());
+        }
+        if let Some(failure) = self.store.data_mut().threads.take_failure() {
+            self.stopped = true;
+            return Err(failure);
         }
         let outcome = function
             .call(&mut self.store, ())
