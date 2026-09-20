@@ -1,4 +1,5 @@
 use std::cell::{Cell, RefCell};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use block_plugin_api::{ErrorCode, Message, ProtocolError, decode_frame, encode_frame};
 
@@ -6,9 +7,10 @@ use crate::{Waker, runtime::Runtime, wasm::host, wasm::surface};
 
 thread_local! {
     static PLUGIN: RefCell<Option<Runtime>> = const { RefCell::new(None) };
-    static WOKEN: Cell<bool> = const { Cell::new(false) };
     static STARTED: Cell<f64> = const { Cell::new(0.0) };
 }
+
+static WOKEN: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn start<A: crate::App>(
     id: &str,
@@ -41,7 +43,7 @@ pub(crate) fn step() -> Result<(), String> {
     while let Some(frame) = host::receive() {
         batch.push(decode_frame(&frame).map_err(|error| format!("{error:?}"))?);
     }
-    let woken = WOKEN.with(|woken| woken.replace(false));
+    let woken = WOKEN.swap(false, Ordering::AcqRel);
     let phase = host::now() - STARTED.with(Cell::get);
     let outcome = PLUGIN.with(|plugin| {
         let mut plugin = plugin.borrow_mut();
@@ -81,11 +83,9 @@ pub(crate) fn shutdown() {
 }
 
 fn waker() -> Waker {
-    let plugin_thread = std::thread::current().id();
-    Waker::new(move || {
-        if std::thread::current().id() == plugin_thread {
-            WOKEN.with(|woken| woken.set(true));
-        }
+    Waker::new(|| {
+        WOKEN.store(true, Ordering::Release);
+        host::wake();
     })
 }
 

@@ -1,9 +1,11 @@
-use std::{path::Path, time::Instant};
+use std::{path::Path, sync::Arc, time::Instant};
 
 use wasmtime::{Linker, Store, TypedFunc};
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
-use crate::{Host, gpu, precompile::test_module, shared_memory, state::State, threads, transport};
+use crate::{
+    Host, gpu, precompile::test_module, shared_memory, state::State, threads, transport, wake,
+};
 
 const START: &str = "_start";
 
@@ -26,6 +28,7 @@ impl Host {
                     root.display()
                 )
             })?;
+        let woken: Arc<wake::Wake> = Arc::default();
         let state = State {
             wasi: builder.build_p1(),
             memory: memory.clone(),
@@ -34,7 +37,13 @@ impl Host {
             inbox: Default::default(),
             outbox: Vec::new(),
             started: Instant::now(),
-            threads: threads::Spawner::new(self.engine.clone(), module.clone(), memory.clone()),
+            threads: threads::Spawner::new(
+                self.engine.clone(),
+                module.clone(),
+                memory.clone(),
+                Arc::clone(&woken),
+            ),
+            wake: Arc::clone(&woken),
         };
         let mut store = Store::new(&self.engine, state);
         let mut linker: Linker<State> = Linker::new(&self.engine);
@@ -46,6 +55,7 @@ impl Host {
         gpu::link(&mut linker)?;
         transport::link(&mut linker)?;
         threads::link(&mut linker)?;
+        wake::link(&mut linker)?;
         linker
             .define_unknown_imports_as_traps(&module)
             .map_err(|error| format!("the test imports could not be stubbed: {error}"))?;

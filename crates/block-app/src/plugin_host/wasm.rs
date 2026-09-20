@@ -274,10 +274,7 @@ fn run(
     reports: Sender<Event>,
     context: egui::Context,
 ) {
-    let mut plugin = match open(&host, &module).and_then(|mut plugin| {
-        plugin.start()?;
-        Ok(plugin)
-    }) {
+    let mut plugin = match open(&host, &module) {
         Ok(plugin) => plugin,
         Err(error) => {
             let _ = reports.send(Event::Failed(error));
@@ -285,7 +282,21 @@ fn run(
             return;
         }
     };
-    if !report(&reports, &context, Event::Ready(produced(&mut plugin))) {
+    plugin.on_wake({
+        let context = context.clone();
+        move || context.request_repaint()
+    });
+    if let Err(error) = plugin.start() {
+        let _ = reports.send(Event::Failed(error));
+        context.request_repaint();
+        return;
+    }
+    if !report(
+        &reports,
+        &context,
+        Event::Ready(produced(&mut plugin)),
+        true,
+    ) {
         return;
     }
     for order in orders {
@@ -293,20 +304,22 @@ fn run(
         for frame in frames {
             plugin.send(frame);
         }
+        plugin.take_wake();
         let event = match plugin.step() {
             Ok(()) => Event::Stepped(produced(&mut plugin)),
             Err(error) => Event::Failed(error),
         };
+        let woken = plugin.take_wake();
         let failed = matches!(event, Event::Failed(_));
-        if !report(&reports, &context, event) || failed {
+        if !report(&reports, &context, event, woken) || failed {
             return;
         }
     }
     plugin.stop();
 }
 
-fn report(reports: &Sender<Event>, context: &egui::Context, event: Event) -> bool {
-    let quiet = matches!(&event, Event::Stepped(produced) if produced.is_empty());
+fn report(reports: &Sender<Event>, context: &egui::Context, event: Event, woken: bool) -> bool {
+    let quiet = !woken && matches!(&event, Event::Stepped(produced) if produced.is_empty());
     let sent = reports.send(event).is_ok();
     if !quiet {
         context.request_repaint();
