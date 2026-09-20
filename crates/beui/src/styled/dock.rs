@@ -6,7 +6,7 @@ use crate::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Child, ClickCallback, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn, Show,
-    Spacer, Text, clone, create_memo,
+    Text, clone, create_memo,
 };
 use crate::styled::button::ButtonVariant;
 use crate::styled::context_menu::ContextMenu;
@@ -303,12 +303,11 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
                     >
                         {grip}
                         <Show condition={!titled}>
-                            {tabs.unwrap_or_else(|| unreachable!())}
+                            {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
                         </Show>
                         <Show condition={titled}>
-                            <Body content={title} />
+                            <Body content={title} @sizing=ItemSize::Percent(100.0) />
                         </Show>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Frame padding_horizontal=WINDOW_BAR_PADDING>
                             <IconButton
                                 glyph=ICON_CLOSE

@@ -17,8 +17,8 @@ use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
-    Func, IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Show, WriteSignal, clone,
-    component_accessibility, component_rect, component_size, create_effect, create_memo,
+    Func, IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Scroll, Show, WriteSignal,
+    clone, component_accessibility, component_rect, component_size, create_effect, create_memo,
     create_signal, on_cleanup, set_component_state, with_document,
 };
 use crate::unstyled::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, Scroll};
@@ -85,6 +85,12 @@ pub struct DockWindowHandle {
     pub pane: NodeId,
 }
 
+#[derive(Clone, Default)]
+struct TabBar {
+    strip: NodeRef,
+    tabs: NodeRef,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 struct Drag {
     tab: TabId,
@@ -106,7 +112,7 @@ struct State {
     thickness: f32,
     rect: ReadSignal<Rect>,
     panes: RefCell<HashMap<SurfaceId, NodeRef>>,
-    bars: RefCell<HashMap<LeafId, NodeRef>>,
+    bars: RefCell<HashMap<LeafId, TabBar>>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
     panel: RenderFn<DockPanelHandle>,
@@ -141,7 +147,7 @@ impl State {
     }
 
     fn bar_rect(&self, leaf: LeafId) -> Option<Rect> {
-        let node = self.bars.borrow().get(&leaf)?.try_get()?;
+        let node = self.bars.borrow().get(&leaf)?.strip.try_get()?;
         with_document(|document| document.node_rect(node))
     }
 
@@ -250,7 +256,12 @@ impl State {
 
     fn insert_index(&self, leaf: LeafId, pos: Pos2) -> (usize, Rect) {
         let bar = self.bar_rect(leaf).unwrap_or(Rect::ZERO);
-        let Some(node) = self.bars.borrow().get(&leaf).and_then(NodeRef::try_get) else {
+        let Some(node) = self
+            .bars
+            .borrow()
+            .get(&leaf)
+            .and_then(|bar| bar.tabs.try_get())
+        else {
             return (0, marker_rect(bar.left(), bar));
         };
         let rects: Vec<Rect> = with_document(|document| {
@@ -277,6 +288,7 @@ impl State {
 }
 
 fn marker_rect(x: f32, bar: Rect) -> Rect {
+    let x = x.clamp(bar.left(), bar.right());
     Rect::from_min_max(
         pos2(x - MARKER_WIDTH / 2.0, bar.top()),
         pos2(x + MARKER_WIDTH / 2.0, bar.bottom()),
@@ -700,8 +712,9 @@ fn DockPanelBody(dock: Handle, leaf: LeafId) -> NodeId {
 
 #[component]
 fn DockTabBar(dock: Handle, leaf: LeafId) -> NodeId {
-    let bar = NodeRef::new();
-    dock.bars.borrow_mut().insert(leaf, bar.clone());
+    let bar = TabBar::default();
+    let (strip, tab_list) = (bar.strip.clone(), bar.tabs.clone());
+    dock.bars.borrow_mut().insert(leaf, bar);
     on_cleanup(clone!(dock -> move || {
         dock.bars.borrow_mut().remove(&leaf);
     }));
@@ -725,34 +738,36 @@ fn DockTabBar(dock: Handle, leaf: LeafId) -> NodeId {
     let changed = dock.clone();
     let faces = dock.clone();
     view! {
-        <Choice
-            @node_ref=&bar
-            options={options}
-            selected={selected}
-            kind=ChoiceKind::Tabs
-            on_change={move |index: Option<usize>| {
-                let Some(index) = index else {
-                    return;
-                };
-                changed.edit(|state| {
-                    state.set_active_index(leaf, index);
-                    state.focus(leaf);
-                });
-            }}
-        >
-            {move |handle: ChoiceOptionHandle| {
-                let dock = faces.clone();
-                let tab = dock.state.get_untracked().tabs(leaf).get(handle.index).copied();
-                match tab {
-                    Some(tab) => view! {
-                        <DockTabView dock leaf tab handle />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }}
-        </Choice>
+        <Scroll direction=Direction::Horizontal @node_ref=&strip>
+            <Choice
+                @node_ref=&tab_list
+                options={options}
+                selected={selected}
+                kind=ChoiceKind::Tabs
+                on_change={move |index: Option<usize>| {
+                    let Some(index) = index else {
+                        return;
+                    };
+                    changed.edit(|state| {
+                        state.set_active_index(leaf, index);
+                        state.focus(leaf);
+                    });
+                }}
+            >
+                {move |handle: ChoiceOptionHandle| {
+                    let dock = faces.clone();
+                    let tab = dock.state.get_untracked().tabs(leaf).get(handle.index).copied();
+                    match tab {
+                        Some(tab) => view! {
+                            <DockTabView dock leaf tab handle />
+                        },
+                        None => view! {
+                            <Frame />
+                        },
+                    }
+                }}
+            </Choice>
+        </Scroll>
     }
 }
 

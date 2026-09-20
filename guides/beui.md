@@ -480,7 +480,9 @@ splitting it, and the pane's tab bar is the window's title bar: a grip to drag
 it by, the tabs, and the button that closes it. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
-`Choice`, so the arrows, Home and End walk it like any other tab list.
+`Choice` inside a horizontal `Scroll`, so the arrows, Home and End walk it like
+any other tab list and scroll the tab they reach into view when a pane has more
+tabs than it has room for.
 
 The panel a tab is not showing keeps its nodes: it is laid out at zero size and
 hidden rather than removed, so switching back to a tab finds the scroll
