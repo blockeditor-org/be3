@@ -600,6 +600,18 @@ fn scale_shape(shape: &mut Shape, scale: f32) {
             *origin = pos2(origin.x * scale, origin.y * scale);
             *clip = clip.scaled(scale);
         }
+        Shape::Line {
+            from,
+            to,
+            width,
+            clip,
+            ..
+        } => {
+            *from = pos2(from.x * scale, from.y * scale);
+            *to = pos2(to.x * scale, to.y * scale);
+            *width *= scale;
+            *clip = clip.scaled(scale);
+        }
         Shape::Image {
             rect,
             corner_radius,

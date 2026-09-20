@@ -529,6 +529,22 @@ impl Renderer {
                         params: [corner_radius, 0.0, 2.0, 0.0],
                     });
                 }
+                Quad::Line {
+                    rect,
+                    clip,
+                    segment,
+                    width,
+                    color,
+                } => {
+                    Run::push(layer, false, instances.len() as u32);
+                    instances.push(Instance {
+                        rect,
+                        clip,
+                        uv: segment,
+                        color: self.encode(color),
+                        params: [width / 2.0, 0.0, 3.0, 0.0],
+                    });
+                }
                 Quad::Punch {
                     rect,
                     clip,

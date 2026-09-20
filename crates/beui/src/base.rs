@@ -8,6 +8,7 @@ pub(crate) mod list;
 pub(crate) mod overlay;
 pub(crate) mod picture;
 pub(crate) mod scroll;
+pub(crate) mod stroke;
 pub(crate) mod text;
 
 pub use focusable::focus_within;

@@ -4,8 +4,8 @@ use block_client::blocks::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracer, PixelRayTracerOperation, PixelUpdate,
 };
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::{App as _, EditorHost};
-use block_ui_test::EditorTest;
+use block_editor_plugin::{Editor, EditorHost};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::PixelRayTracerApp;
@@ -15,7 +15,7 @@ mod resetting_the_artwork_clears_painted_pixels;
 mod zooming_the_view_grows_the_scene;
 
 fn editor() -> (
-    EditorTest<'static, PixelRayTracerApp>,
+    BeuiTest<PixelRayTracerApp>,
     BlockHandle<PixelRayTracer>,
     EditorHost,
 ) {
@@ -23,10 +23,10 @@ fn editor() -> (
     let block = client.create_block(PixelRayTracer::new());
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut app = PixelRayTracerApp::default();
-    app.connect(host.clone(), client, block.id());
-    let mut editor = EditorTest::viewport(app, host.clone());
-    editor.step();
-    editor.step_until("the lighting to land", |app| app.lighting_landed());
+    let editor = Editor::new(host.clone(), client, block.id());
+    let mut editor = BeuiTest::new(editor).in_viewport();
+    editor.settle_until("the lighting to land", |editor| {
+        editor.shown("pixel_ray_tracer.artwork")
+    });
     (editor, block, host)
 }

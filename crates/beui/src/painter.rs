@@ -29,6 +29,13 @@ pub enum Shape {
         smooth: bool,
         clip: Rect,
     },
+    Line {
+        from: Pos2,
+        to: Pos2,
+        width: f32,
+        color: Color32,
+        clip: Rect,
+    },
     Punch {
         rect: Rect,
         corner_radius: f32,
@@ -112,6 +119,19 @@ impl Painter {
             rect,
             corner_radius,
             stroke_width: width,
+            color,
+            clip: self.clip,
+        });
+    }
+
+    pub fn line(&self, from: Pos2, to: Pos2, width: f32, color: Color32) {
+        if color.alpha() == 0 || width <= 0.0 {
+            return;
+        }
+        self.push(Shape::Line {
+            from,
+            to,
+            width,
             color,
             clip: self.clip,
         });

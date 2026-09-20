@@ -2,10 +2,13 @@ use super::*;
 
 #[test]
 fn zooming_the_view_grows_the_scene() {
-    let (mut editor, _block, host) = editor();
-    host.zoom_view(2.0, None);
-    editor.step();
-    editor.step();
+    let (mut editor, _block, _host) = editor();
+    let fitted = editor.rect_of("pixel_ray_tracer.artwork");
 
+    editor.click("pixel_ray_tracer.fit");
+    editor.run();
+    editor.run();
+
+    assert!(fitted.width() > 0.0, "the artwork is shown before zooming");
     editor.snapshot("zooming_the_view_grows_the_scene");
 }
