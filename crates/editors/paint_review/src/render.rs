@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use block_editor_plugin::{Waker, egui};
+use block_editor_plugin::Waker;
+use block_editor_plugin::beui::{Image, Vec2};
 use paint_snapshot::{Content, Snapshot};
 
 mod difference;
@@ -21,45 +21,36 @@ use worker::start as start_raster;
 const BUDGET: usize = 48 * 1024 * 1024;
 
 pub struct Painted {
-    pub image: egui::ColorImage,
+    pub image: Image,
     pub description: String,
 }
 
 struct Held {
-    image: Arc<egui::ColorImage>,
+    image: Image,
     description: String,
-    texture: Option<egui::TextureHandle>,
 }
 
 impl Held {
     fn new(painted: Painted) -> Self {
         Self {
-            image: Arc::new(painted.image),
+            image: painted.image,
             description: painted.description,
-            texture: None,
         }
     }
 
-    fn shown(&mut self, context: &egui::Context) -> Rendered {
-        let image = &self.image;
-        let texture = self
-            .texture
-            .get_or_insert_with(|| upload(context, image))
-            .clone();
+    fn shown(&self) -> Rendered {
         Rendered {
-            texture,
-            size: egui::vec2(self.image.size[0] as f32, self.image.size[1] as f32),
-            image: Arc::clone(&self.image),
+            size: self.image.size(),
+            image: self.image.clone(),
             description: self.description.clone(),
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Rendered {
-    pub texture: egui::TextureHandle,
-    pub image: Arc<egui::ColorImage>,
-    pub size: egui::Vec2,
+    pub image: Image,
+    pub size: Vec2,
     pub description: String,
 }
 
@@ -96,10 +87,8 @@ pub struct Paintings {
     cached: Vec<(String, Reel)>,
     active: Option<Job>,
     queue: VecDeque<(String, Vec<u8>)>,
-    screen: Option<egui::Context>,
     kept: Vec<String>,
-    #[cfg(test)]
-    rasters: usize,
+    rastered: usize,
 }
 
 impl Paintings {
@@ -122,7 +111,7 @@ impl Paintings {
             || self.active.as_ref().is_some_and(|job| job.hash == hash)
     }
 
-    pub fn settle(&mut self, context: &egui::Context, waker: &Waker) {
+    pub fn settle(&mut self, waker: &Waker) -> bool {
         let finished = self.receive();
         if self.active.is_none()
             && !finished
@@ -133,9 +122,11 @@ impl Paintings {
                 hash,
             });
         }
-        if self.active.is_some() || !self.queue.is_empty() {
-            context.request_repaint();
+        let working = self.active.is_some() || !self.queue.is_empty();
+        if working {
+            waker.wake();
         }
+        finished || working
     }
 
     pub fn count(&self, hash: &str) -> Option<usize> {
@@ -149,30 +140,23 @@ impl Paintings {
         (done < reel.frames.len()).then_some((done, reel.frames.len()))
     }
 
-    pub fn rendered(
-        &mut self,
-        context: &egui::Context,
-        hash: &str,
-        frame: usize,
-    ) -> Option<Result<Rendered, String>> {
-        self.shown_on(context);
+    pub fn rendered(&mut self, hash: &str, frame: usize) -> Option<Result<Rendered, String>> {
         self.touch(hash);
-        let held = self.held(hash)?.frames.get_mut(frame)?.as_mut()?;
+        let held = self.held(hash)?.frames.get(frame)?.as_ref()?;
         Some(match held {
-            Ok(held) => Ok(held.shown(context)),
+            Ok(held) => Ok(held.shown()),
             Err(error) => Err(error.clone()),
         })
     }
 
     pub fn computed(
         &mut self,
-        context: &egui::Context,
         hash: &str,
         frame: usize,
         count: usize,
         paint: impl FnOnce() -> Result<Painted, String>,
     ) -> Result<Rendered, String> {
-        if let Some(held) = self.rendered(context, hash, frame) {
+        if let Some(held) = self.rendered(hash, frame) {
             return held;
         }
         let painted = paint();
@@ -181,15 +165,14 @@ impl Paintings {
         reel.frames[frame] = Some(painted.map(Held::new));
         reel.bytes = held_bytes(reel);
         let rendered = self
-            .rendered(context, hash, frame)
+            .rendered(hash, frame)
             .expect("the frame was just painted");
         self.evict();
         rendered
     }
 
-    #[cfg(test)]
-    pub fn rasters(&self) -> usize {
-        self.rasters
+    pub fn rastered(&self) -> usize {
+        self.rastered
     }
 
     fn reel(&self, hash: &str) -> Option<&Reel> {
@@ -211,23 +194,6 @@ impl Paintings {
             self.cached.push((hash.to_owned(), Reel::default()));
         }
         self.held(hash).expect("the reel was just inserted")
-    }
-
-    fn shown_on(&mut self, context: &egui::Context) {
-        if self.screen.as_ref().is_some_and(|screen| screen == context) {
-            return;
-        }
-        self.screen = Some(context.clone());
-        for (_, reel) in &mut self.cached {
-            for held in reel
-                .frames
-                .iter_mut()
-                .flatten()
-                .filter_map(|frame| frame.as_mut().ok())
-            {
-                held.texture = None;
-            }
-        }
     }
 
     fn touch(&mut self, hash: &str) {
@@ -264,10 +230,7 @@ impl Paintings {
                 reel.frames.resize_with(count, || None);
             }
             Message::Painted(index, painted) => {
-                #[cfg(test)]
-                {
-                    self.rasters += 1;
-                }
+                self.rastered += 1;
                 let held = painted.map(Held::new);
                 let reel = self.reel_mut(hash);
                 if index >= reel.frames.len() {
@@ -310,17 +273,8 @@ fn held_bytes(reel: &Reel) -> usize {
         .iter()
         .flatten()
         .filter_map(|frame| frame.as_ref().ok())
-        .map(|held| held.image.pixels.len() * 4)
+        .map(|held| held.image.pixels().len())
         .sum()
-}
-
-fn upload(context: &egui::Context, image: &Arc<egui::ColorImage>) -> egui::TextureHandle {
-    let options = egui::TextureOptions {
-        magnification: egui::TextureFilter::Nearest,
-        minification: egui::TextureFilter::Linear,
-        ..Default::default()
-    };
-    context.load_texture("paint-review", Arc::clone(image), options)
 }
 
 pub fn paint_all(data: &[u8], send: &mut impl FnMut(Message)) {
@@ -373,10 +327,7 @@ pub fn change(approved: &[u8], current: &[u8]) -> Result<Change, String> {
 fn paint(snapshot: &Snapshot, frame: usize) -> Result<Painted, String> {
     let image = paint_snapshot::render(snapshot, frame)?;
     Ok(Painted {
-        image: egui::ColorImage::from_rgba_unmultiplied(
-            [image.width() as usize, image.height() as usize],
-            image.as_raw(),
-        ),
+        image: Image::from_rgba(image.width(), image.height(), image.into_raw()),
         description: describe(snapshot, frame)?,
     })
 }

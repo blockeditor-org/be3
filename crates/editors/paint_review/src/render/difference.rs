@@ -1,4 +1,4 @@
-use block_editor_plugin::egui::{Color32, ColorImage};
+use block_editor_plugin::beui::{Color32, Image};
 
 use super::Painted;
 
@@ -8,10 +8,10 @@ const PAPER: f32 = 236.0;
 const GHOST: f32 = 0.22;
 const TINT: f32 = 0.55;
 
-pub fn difference(approved: &ColorImage, current: &ColorImage) -> Painted {
-    let width = approved.size[0].max(current.size[0]);
-    let height = approved.size[1].max(current.size[1]);
-    let mut pixels = Vec::with_capacity(width * height);
+pub fn difference(approved: &Image, current: &Image) -> Painted {
+    let width = approved.width().max(current.width()) as usize;
+    let height = approved.height().max(current.height()) as usize;
+    let mut pixels = Vec::with_capacity(width * height * 4);
     let mut changed = 0usize;
     let mut region: Option<[usize; 4]> = None;
 
@@ -37,26 +37,29 @@ pub fn difference(approved: &ColorImage, current: &ColorImage) -> Painted {
                     ],
                 });
             }
-            pixels.push(pixel);
+            pixels.extend_from_slice(&pixel.to_array());
         }
     }
 
     Painted {
-        image: ColorImage::new([width, height], pixels),
+        image: Image::from_rgba(width as u32, height as u32, pixels),
         description: describe(approved, current, changed, region),
     }
 }
 
 fn describe(
-    approved: &ColorImage,
-    current: &ColorImage,
+    approved: &Image,
+    current: &Image,
     changed: usize,
     region: Option<[usize; 4]>,
 ) -> String {
-    let resized = (approved.size != current.size).then(|| {
+    let resized = (approved.size() != current.size()).then(|| {
         format!(
             "the painting is {}x{}, it used to be {}x{}; ",
-            current.size[0], current.size[1], approved.size[0], approved.size[1]
+            current.width(),
+            current.height(),
+            approved.width(),
+            approved.height()
         )
     });
     let Some([left, top, right, bottom]) = region else {
@@ -71,21 +74,28 @@ fn describe(
     )
 }
 
-fn at(image: &ColorImage, x: usize, y: usize) -> Option<Color32> {
-    if x >= image.size[0] || y >= image.size[1] {
+fn at(image: &Image, x: usize, y: usize) -> Option<Color32> {
+    let width = image.width() as usize;
+    if x >= width || y >= image.height() as usize {
         return None;
     }
-    image.pixels.get(y * image.size[0] + x).copied()
+    let start = (y * width + x) * 4;
+    let pixel = image.pixels().get(start..start + 4)?;
+    Some(Color32::from_rgba_unmultiplied(
+        pixel[0], pixel[1], pixel[2], pixel[3],
+    ))
 }
 
 fn ghost(pixel: Color32) -> Color32 {
-    let luma = 0.299 * pixel.r() as f32 + 0.587 * pixel.g() as f32 + 0.114 * pixel.b() as f32;
+    let [red, green, blue, _] = pixel.to_array();
+    let luma = 0.299 * red as f32 + 0.587 * green as f32 + 0.114 * blue as f32;
     let value = PAPER + (luma - PAPER) * GHOST;
     Color32::from_gray(value.round().clamp(0.0, 255.0) as u8)
 }
 
 fn tinted(pixel: Color32) -> Color32 {
-    let channels = [pixel.r(), pixel.g(), pixel.b()];
+    let [red, green, blue, _] = pixel.to_array();
+    let channels = [red, green, blue];
     let mixed = channels
         .iter()
         .zip(HIGHLIGHT)

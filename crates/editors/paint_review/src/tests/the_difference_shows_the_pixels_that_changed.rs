@@ -5,26 +5,26 @@ fn the_difference_shows_the_pixels_that_changed() {
     let (review, mut editor) = Review::open();
     review.approve(PATH, &marked(30, 3.0));
     review.write(PATH, &marked(30, 12.0));
-    editor.find("paint_review.refresh").click();
+    editor.click("paint_review.refresh");
     editor.run();
-    editor.find(&entry_id(PATH)).click();
-    editor.run();
+    editor.click(&entry_id(PATH));
+    settled(&mut editor);
     editor.record();
 
-    editor.find("paint_review.view.difference").click();
-    editor.run();
-    let rastered = editor.app().rasters();
+    editor.click("paint_review.view.difference");
+    settled(&mut editor);
+    let rastered = rasters(&editor);
     editor.record();
 
-    editor.find("paint_review.view.side_by_side").click();
-    editor.run();
+    editor.click("paint_review.view.side_by_side");
+    settled(&mut editor);
     editor.record();
-    assert_eq!(editor.app().rasters(), rastered);
+    assert_eq!(rasters(&editor), rastered);
 
-    editor.find("paint_review.view.approved").click();
-    editor.run();
+    editor.click("paint_review.view.approved");
+    settled(&mut editor);
     editor.record();
-    assert_eq!(editor.app().rasters(), rastered);
+    assert_eq!(rasters(&editor), rastered);
 
     editor.snapshot("comparing_a_painting_with_the_one_it_was_approved_as");
 }

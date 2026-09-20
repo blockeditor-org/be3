@@ -12,7 +12,7 @@ pub const REPOSITORY: &str = "pfgithub/be3";
 pub const BRANCH: &str = "dev";
 pub const FOLDER: &str = "snapshots";
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Painting {
     pub path: String,
     pub hash: String,

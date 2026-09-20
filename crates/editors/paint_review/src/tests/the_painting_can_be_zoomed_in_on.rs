@@ -3,29 +3,29 @@ use super::*;
 #[test]
 fn the_painting_can_be_zoomed_in_on() {
     let (_review, mut editor) = Review::open();
-    editor.find(&entry_id(PATH)).click();
-    editor.run();
-    let fitted = editor.app().zoom();
+    editor.click(&entry_id(PATH));
+    settled(&mut editor);
+    let fitted = shown_zoom(&editor);
     editor.record();
 
     for _ in 0..4 {
-        editor.find("paint_review.zoom.in").click();
-        editor.run();
+        editor.click("paint_review.zoom.in");
+        settled(&mut editor);
     }
-    assert!(editor.app().zoom() > fitted);
+    assert!(shown_zoom(&editor) > fitted);
     editor.record();
 
-    editor.find("paint_review.zoom.out").click();
-    editor.run();
+    editor.click("paint_review.zoom.out");
+    settled(&mut editor);
     editor.record();
 
-    editor.find("paint_review.zoom.actual").click();
-    editor.run();
-    assert_eq!(editor.app().zoom(), 1.0);
+    editor.click("paint_review.zoom.actual");
+    settled(&mut editor);
+    assert_eq!(shown_zoom(&editor), 1.0);
 
-    editor.find("paint_review.zoom.fit").click();
-    editor.run();
-    assert_eq!(editor.app().zoom(), fitted);
+    editor.click("paint_review.zoom.fit");
+    settled(&mut editor);
+    assert_eq!(shown_zoom(&editor), fitted);
     editor.record();
 
     editor.snapshot("zooming_into_a_painting");

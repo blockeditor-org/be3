@@ -13,6 +13,10 @@ use crate::snapshot;
 mod capture;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
+const SETTLE_FRAMES: usize = 400;
+const SETTLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(2);
+const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
+const MAXIMUM_ZOOM: f32 = 32.0;
 
 pub struct BeuiTest<A: BeuiApp> {
     region: Region,
@@ -23,6 +27,8 @@ pub struct BeuiTest<A: BeuiApp> {
     modifiers: Modifiers,
     draft: Vec<u8>,
     output: Option<beui::FrameOutput>,
+    recording: Option<snapshot::Snapshot>,
+    viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
     app: PhantomData<A>,
 }
@@ -40,6 +46,11 @@ impl<A: BeuiApp> BeuiTest<A> {
             let editor = editor.clone();
             move || A::view(editor)
         });
+        Self::for_region(Region::Frame(editor, frame))
+    }
+
+    pub fn with_view(editor: Editor, view: impl FnOnce() -> beui::NodeId) -> Self {
+        let frame = BeuiFrame::build(view);
         Self::for_region(Region::Frame(editor, frame))
     }
 
@@ -90,11 +101,19 @@ impl<A: BeuiApp> BeuiTest<A> {
             modifiers: Modifiers::NONE,
             draft: Vec::new(),
             output: None,
+            recording: None,
+            viewport: None,
             children: Vec::new(),
             app: PhantomData,
         };
         editor.run();
         editor
+    }
+
+    pub fn in_viewport(mut self) -> Self {
+        self.viewport = Some(Viewport::new());
+        self.run();
+        self
     }
 
     pub fn document(&self) -> &Document {
@@ -148,12 +167,27 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
+    pub fn settle_until(&mut self, what: &str, ready: impl Fn(&Self) -> bool) {
+        for _ in 0..SETTLE_FRAMES {
+            self.run();
+            if ready(self) {
+                return;
+            }
+            std::thread::sleep(SETTLE_PAUSE);
+        }
+        panic!("the editor drew {SETTLE_FRAMES} frames and is still waiting for {what}");
+    }
+
     pub fn step(&mut self, events: Vec<Event>) {
         let rect = self.rect();
         let context = self.context.clone();
         let placement = self.region();
-        self.editor_host()
-            .begin_region(placement, block_editor_plugin::egui::Vec2::ZERO);
+        let host = self.editor_host();
+        let intrinsic = self.intrinsic();
+        if let Some(viewport) = &mut self.viewport {
+            viewport.place(&host, rect, intrinsic);
+        }
+        host.begin_region(placement, block_editor_plugin::egui::Vec2::ZERO);
         let region = &mut self.region;
         match region {
             Region::Frame(editor, frame) => {
@@ -195,8 +229,19 @@ impl<A: BeuiApp> BeuiTest<A> {
             }
         }
         let (children, _) = self.editor_host().end_region(placement);
+        let host = self.editor_host();
+        if let Some(viewport) = &mut self.viewport {
+            viewport.settle(&host, rect);
+        }
         self.children = children;
         self.output = Some(output);
+    }
+
+    fn intrinsic(&self) -> Option<Vec2> {
+        match &self.region {
+            Region::Frame(editor, _) | Region::Preview(editor, _) => editor.intrinsic_size(),
+            Region::Creation(..) | Region::Settings(..) => None,
+        }
     }
 
     fn region(&self) -> EditorRegion {
@@ -348,14 +393,29 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.events.push(Event::Text(text.into()));
     }
 
+    pub fn record(&mut self) {
+        let frame = self.painted();
+        match &mut self.recording {
+            Some(recording) => recording.append(frame),
+            None => self.recording = Some(frame),
+        }
+    }
+
     pub fn snapshot(&mut self, name: &str) {
+        let painting = match self.recording.take() {
+            Some(recording) => recording,
+            None => self.painted(),
+        };
+        snapshot::assert_snapshot(name, &painting);
+    }
+
+    fn painted(&mut self) -> snapshot::Snapshot {
         let output = self
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        let painting = capture::capture(output, self.size, self.pixels_per_point, Color32::BLACK)
-            .expect("the painting could not be rendered");
-        snapshot::assert_snapshot(name, &painting);
+        capture::capture(output, self.size, self.pixels_per_point, Color32::BLACK)
+            .expect("the painting could not be rendered")
     }
 }
 
@@ -369,5 +429,66 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
     }
     for child in document.children(node) {
         collect_text(document, child, collected);
+    }
+}
+
+struct Viewport {
+    zoom: f32,
+    pan: Vec2,
+    fitting: bool,
+}
+
+impl Viewport {
+    fn new() -> Self {
+        Self {
+            zoom: 1.0,
+            pan: Vec2::ZERO,
+            fitting: true,
+        }
+    }
+
+    fn place(
+        &mut self,
+        host: &block_editor_plugin::EditorHost,
+        region: Rect,
+        intrinsic: Option<Vec2>,
+    ) {
+        let content = intrinsic
+            .unwrap_or(Vec2::ZERO)
+            .max(region.size())
+            .max(Vec2::new(1.0, 1.0));
+        if self.fitting {
+            self.zoom = (region.width() / content.x)
+                .min(region.height() / content.y)
+                .min(1.0)
+                .clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+            self.pan = Vec2::ZERO;
+        }
+        let size = content * self.zoom;
+        let center = region.center() + self.pan;
+        let view = Rect::from_min_size(center - size * 0.5, size);
+        host.set_beui_view(view, self.zoom);
+    }
+
+    fn settle(&mut self, host: &block_editor_plugin::EditorHost, region: Rect) {
+        for change in host.take_view_changes() {
+            if change != block_editor_plugin::ViewChange::ResumeAutoFit {
+                self.fitting = false;
+            }
+            match change {
+                block_editor_plugin::ViewChange::Pan { x, y } => {
+                    self.pan = self.pan + Vec2::new(x, y)
+                }
+                block_editor_plugin::ViewChange::Zoom { factor, anchor } => {
+                    let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+                    let anchor =
+                        anchor.map_or(region.center(), |(x, y)| Pos2::new(x, y)) - region.center();
+                    self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
+                    self.zoom = zoom;
+                }
+                block_editor_plugin::ViewChange::Fit
+                | block_editor_plugin::ViewChange::ResumeAutoFit => self.fitting = true,
+            }
+        }
     }
 }
