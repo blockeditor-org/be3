@@ -485,8 +485,10 @@ inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
 instead, which is also what "Pop out into a window" on a tab's own menu does. A window
 holds one pane, so a tab dropped anywhere inside one joins it rather than
-splitting it, and the pane's tab bar is the window's title bar: a grip to drag
-it by, the tabs, and the button that closes it. Windows resize from any of
+splitting it, and the pane's tab bar is the window's title bar: a grip, the
+tabs, and the button that closes it. Anywhere on that bar that is not a tab
+drags the window, so the grip and whatever room is left beside the tabs are
+both handles. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 `Choice` inside a horizontal `Scroll`, so the arrows, Home and End walk it like

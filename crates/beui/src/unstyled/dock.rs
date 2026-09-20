@@ -180,6 +180,38 @@ impl State {
         with_document(|document| document.node_rect(node))
     }
 
+    fn tab_rects(&self, leaf: LeafId) -> Vec<Rect> {
+        let Some(node) = self
+            .bars
+            .borrow()
+            .get(&leaf)
+            .and_then(|bar| bar.tabs.try_get())
+        else {
+            return Vec::new();
+        };
+        with_document(|document| {
+            document
+                .children(node)
+                .into_iter()
+                .filter_map(|child| document.node_rect(child))
+                .collect()
+        })
+    }
+
+    fn over_window_bar(&self, surface: SurfaceId, pos: Pos2) -> bool {
+        let Some(pane) = self.pane_rect(surface) else {
+            return false;
+        };
+        if pos.y >= pane.top() {
+            return false;
+        }
+        let leaves = self.state.get_untracked().leaves(surface);
+        !leaves
+            .into_iter()
+            .flat_map(|leaf| self.tab_rects(leaf))
+            .any(|tab| tab.contains(pos))
+    }
+
     fn bar_rect(&self, leaf: LeafId) -> Option<Rect> {
         let node = self.bars.borrow().get(&leaf)?.strip.try_get()?;
         with_document(|document| document.node_rect(node))
@@ -290,21 +322,7 @@ impl State {
 
     fn insert_index(&self, leaf: LeafId, pos: Pos2) -> (usize, Rect) {
         let bar = self.bar_rect(leaf).unwrap_or(Rect::ZERO);
-        let Some(node) = self
-            .bars
-            .borrow()
-            .get(&leaf)
-            .and_then(|bar| bar.tabs.try_get())
-        else {
-            return (0, marker_rect(bar.left(), bar));
-        };
-        let rects: Vec<Rect> = with_document(|document| {
-            document
-                .children(node)
-                .into_iter()
-                .filter_map(|child| document.node_rect(child))
-                .collect()
-        });
+        let rects = self.tab_rects(leaf);
         for (index, rect) in rects.iter().enumerate() {
             if pos.x < rect.center().x {
                 return (index, marker_rect(rect.left(), bar));
@@ -968,33 +986,8 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         surface,
         focused: focused.clone(),
     });
-    let grabbed: Rc<Cell<(Rect, Pos2)>> = Rc::new(Cell::new((Rect::ZERO, Pos2::ZERO)));
-    let bar_rect = rect.clone();
-    let pressed = dock.clone();
-    let start = grabbed.clone();
-    let moved = dock.clone();
     let grip = view! {
-        <ClickCatcher
-            cursor=CursorIcon::Grab
-            on_press={move |press: PointerPress| {
-                start.set((bar_rect.get_untracked(), press.pos));
-                pressed.edit(|state| {
-                    if let Some(leaf) = state.leaves(surface).first().copied() {
-                        state.focus(leaf);
-                    }
-                });
-            }}
-            on_drag={move |press: PointerPress| {
-                let (start, from) = grabbed.get();
-                let placed = Rect::from_min_size(start.min + (press.pos - from), start.size());
-                let bounds = moved.rect.get_untracked().size();
-                let origin = moved.clamped_origin(placed, bounds);
-                moved.edit(|state| {
-                    state.set_window_rect(surface, Rect::from_min_size(origin, start.size()));
-                });
-            }}
-            children={grip_face}
-        />
+        <ClickCatcher cursor=CursorIcon::Grab children={grip_face} />
     };
     let hoisted = state.with_untracked(|state| state.leaves(surface).first().copied());
     let tabs = hoisted.map(|leaf| {
@@ -1026,6 +1019,12 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         close,
         pane,
     });
+    let grabbed: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
+    let bar_rect = rect.clone();
+    let pressed = dock.clone();
+    let start = grabbed.clone();
+    let moved = dock.clone();
+    let hovered = dock.clone();
     view! {
         <Overlay
             @node_ref=&overlay
@@ -1037,7 +1036,38 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         >
             <Frame width={width.clone()} height={height.clone()}>
                 <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>{chrome}</CanvasItem>
+                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                        <ClickCatcher
+                            on_press={move |press: PointerPress| {
+                                let bar = pressed.over_window_bar(surface, press.pos);
+                                start.set(bar.then(|| (bar_rect.get_untracked(), press.pos)));
+                                pressed.edit(|state| {
+                                    if let Some(leaf) = state.leaves(surface).first().copied() {
+                                        state.focus(leaf);
+                                    }
+                                });
+                            }}
+                            on_drag={move |press: PointerPress| {
+                                let Some((start, from)) = grabbed.get() else {
+                                    return;
+                                };
+                                let placed =
+                                    Rect::from_min_size(start.min + (press.pos - from), start.size());
+                                let bounds = moved.rect.get_untracked().size();
+                                let origin = moved.clamped_origin(placed, bounds);
+                                moved.edit(|state| {
+                                    state.set_window_rect(
+                                        surface,
+                                        Rect::from_min_size(origin, start.size()),
+                                    );
+                                });
+                            }}
+                            on_hover_move={move |press: PointerPress| {
+                                hovered.drag_to(press.pos, press.modifiers.alt)
+                            }}
+                            children={chrome}
+                        />
+                    </CanvasItem>
                     <ForEach keys={GRIPS.to_vec()}>
                         {move |grip: Grip| {
                             let dock = grips.clone();
