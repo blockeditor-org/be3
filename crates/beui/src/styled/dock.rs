@@ -2,18 +2,19 @@ use beui_macros::{component, view};
 
 use crate::base::{Align, Direction, ItemSize};
 use crate::color::Color32;
-use crate::icons::{ICON_CLOSE, ICON_OPEN_IN_NEW};
+use crate::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_OPEN_IN_NEW};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, Frame, Func, List, Prop, RenderFn, Show, Spacer, Text, clone, create_memo,
+    Callback, Child, ClickCallback, Frame, Func, List, Prop, RenderFn, Show, Spacer, Text, clone,
+    create_memo,
 };
 use crate::styled::button::ButtonVariant;
 use crate::styled::icon_button::{IconButton, IconButtonSize};
-use crate::styled::text::Body;
+use crate::styled::text::{Body, IconSized};
 use crate::styled::theme::{BORDER_WIDTH, CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use crate::unstyled;
 use crate::unstyled::{
-    DockPanelHandle, DockSplitterHandle, DockState, DockTabHandle, DockWindowBarHandle,
+    DockPanelHandle, DockSplitterHandle, DockState, DockTabHandle, DockWindowGripHandle,
     DockWindowHandle, TabId,
 };
 
@@ -22,7 +23,10 @@ const TAB_PADDING_VERTICAL: f32 = 6.0;
 const TAB_SPACING: f32 = 6.0;
 const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 4.0;
-const WINDOW_BAR_PADDING: f32 = 6.0;
+const WINDOW_BAR_PADDING: f32 = 5.0;
+const GRIP_WIDTH: f32 = 22.0;
+const GRIP_PADDING: f32 = 3.0;
+const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const DROP_ALPHA: u8 = 64;
@@ -58,8 +62,8 @@ pub fn DockArea(
             splitter={move |handle: DockSplitterHandle| view! {
                 <DockSplitterFace handle />
             }}
-            window_bar={move |handle: DockWindowBarHandle| view! {
-                <DockWindowBarFace handle />
+            window_grip={move |handle: DockWindowGripHandle| view! {
+                <DockWindowGrip handle />
             }}
             window={move |handle: DockWindowHandle| view! {
                 <DockWindowFace handle />
@@ -152,30 +156,44 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
             color={theme.surface.clone()}
             outline={outline}
             outline_width=BORDER_WIDTH
-            outline_visible=true
+            outline_visible={!floating}
             radius=RADIUS
         >
             <List spacing=0.0>
-                <Frame
-                    color={theme.background.clone()}
-                    padding_horizontal=BAR_PADDING
-                    padding_vertical=BAR_PADDING
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                        {bar}
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                        <Show condition={!floating}>
-                            <IconButton
-                                glyph=ICON_OPEN_IN_NEW
-                                label="Move this tab into a window"
-                                size=IconButtonSize::Compact
-                                variant=ButtonVariant::Ghost
-                                on_click={move || float.call()}
-                            />
-                        </Show>
-                    </List>
-                </Frame>
+                <Show condition={bar.is_some()}>
+                    <DockBarRow
+                        bar={bar.unwrap_or_else(|| unreachable!())}
+                        float={move || float.call()}
+                        floating
+                    />
+                </Show>
                 {body} @sizing=ItemSize::Percent(100.0)
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn DockBarRow(bar: Child, float: ClickCallback, floating: bool) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame
+            color={theme.background.clone()}
+            padding_horizontal=BAR_PADDING
+            padding_vertical=BAR_PADDING
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                {bar}
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Show condition={!floating}>
+                    <IconButton
+                        glyph=ICON_OPEN_IN_NEW
+                        label="Move this tab into a window"
+                        size=IconButtonSize::Compact
+                        variant=ButtonVariant::Ghost
+                        on_click={move || float.call()}
+                    />
+                </Show>
             </List>
         </Frame>
     }
@@ -208,36 +226,16 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 }
 
 #[component]
-fn DockWindowBarFace(handle: DockWindowBarHandle) -> NodeId {
-    let DockWindowBarHandle {
-        title,
-        focused,
-        close,
-        ..
-    } = handle;
+fn DockWindowGrip(handle: DockWindowGripHandle) -> NodeId {
+    let DockWindowGripHandle { focused, .. } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || match focused.get() {
-        true => theme.surface_raised.get(),
-        false => theme.surface.get(),
+    let color = create_memo(clone!(theme -> move || match focused.get() {
+        true => theme.text_muted.get(),
+        false => theme.border.get(),
     }));
     view! {
-        <Frame
-            color={fill}
-            padding_horizontal=WINDOW_BAR_PADDING
-            padding_vertical=WINDOW_BAR_PADDING
-        >
-            <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                <Body content={title} />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <IconButton
-                    glyph=ICON_CLOSE
-                    label="Close window"
-                    size=IconButtonSize::Compact
-                    variant=ButtonVariant::Ghost
-                    capture_presses=true
-                    on_click={move || close.call()}
-                />
-            </List>
+        <Frame width=GRIP_WIDTH padding_vertical=WINDOW_BAR_PADDING padding_horizontal=GRIP_PADDING>
+            <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
         </Frame>
     }
 }
@@ -245,13 +243,24 @@ fn DockWindowBarFace(handle: DockWindowBarHandle) -> NodeId {
 #[component]
 fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
     let DockWindowHandle {
-        focused, bar, pane, ..
+        focused,
+        title,
+        grip,
+        tabs,
+        close,
+        pane,
+        ..
     } = handle;
     let theme = use_theme();
-    let outline = create_memo(clone!(theme -> move || match focused.get() {
+    let outline = create_memo(clone!(theme focused -> move || match focused.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
     }));
+    let fill = create_memo(clone!(theme -> move || match focused.get() {
+        true => theme.surface_raised.get(),
+        false => theme.surface.get(),
+    }));
+    let titled = tabs.is_none();
     view! {
         <Frame
             color={theme.background.clone()}
@@ -261,7 +270,32 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
             radius=CARD_RADIUS
         >
             <List spacing=0.0>
-                {bar}
+                <Frame color={fill} padding_vertical=WINDOW_BAR_PADDING>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=BAR_SPACING
+                    >
+                        {grip}
+                        <Show condition={!titled}>
+                            {tabs.unwrap_or_else(|| unreachable!())}
+                        </Show>
+                        <Show condition={titled}>
+                            <Body content={title} />
+                        </Show>
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Frame padding_horizontal=WINDOW_BAR_PADDING>
+                            <IconButton
+                                glyph=ICON_CLOSE
+                                label="Close window"
+                                size=IconButtonSize::Compact
+                                variant=ButtonVariant::Ghost
+                                capture_presses=true
+                                on_click={move || close.call()}
+                            />
+                        </Frame>
+                    </List>
+                </Frame>
                 {pane} @sizing=ItemSize::Percent(100.0)
             </List>
         </Frame>

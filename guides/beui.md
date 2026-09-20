@@ -474,9 +474,11 @@ shut out rather than answering a press through it.
 Dragging a tab picks a drop target from what is under the pointer: a tab bar
 inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
-instead, which is also what the button at the right of a tab bar does. Windows
-move by their title bar, resize from any of their eight grips, and are raised
-by whatever takes the focus inside them. The bar between two panes is a tab
+instead, which is also what the button at the right of a tab bar does. A window
+holds one pane, so a tab dropped anywhere inside one joins it rather than
+splitting it, and the pane's tab bar is the window's title bar: a grip to drag
+it by, the tabs, and the button that closes it. Windows resize from any of
+their eight grips and are raised by whatever takes the focus inside them. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 `Choice`, so the arrows, Home and End walk it like any other tab list.
 

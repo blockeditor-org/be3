@@ -25,7 +25,7 @@ pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
     Dock, DockLayout, DockPanelHandle, DockSplitter, DockSplitterHandle, DockState, DockTabHandle,
-    DockWindowBarHandle, DockWindowHandle, DropTarget, LeafId, SPLITTER_THICKNESS, Side, SplitId,
+    DockWindowGripHandle, DockWindowHandle, DropTarget, LeafId, SPLITTER_THICKNESS, Side, SplitId,
     SurfaceId, TabId, TabPosition, dock_state, layout_surface,
 };
 pub use floating::{Edge, Floating};
