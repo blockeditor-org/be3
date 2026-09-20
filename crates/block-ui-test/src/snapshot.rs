@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use paint_snapshot::Snapshot;
+pub(crate) use paint_snapshot::Snapshot;
 
 const REVIEW: &str =
     "push it to the dev branch and review it in a Paint review block, which reads them from there";

@@ -6,16 +6,18 @@ use block_client::block_ref::BlockRef;
 use block_client::blocks::paint_review::{ApprovedPainting, PaintReview, PaintReviewOperation};
 use block_client::blocks::paint_snapshot::PaintSnapshot;
 use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::{App as _, EditorHost, egui};
-use block_ui_test::EditorTest;
+use block_editor_plugin::{Editor, EditorHost};
+use block_ui_test::BeuiTest;
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 use uuid::Uuid;
 
-use crate::app::{PaintReviewApp, Status};
+use block_editor_plugin::beui::NodeId;
+use block_editor_plugin::beui::reactive::view;
+
+use crate::app::{PaintReviewApp, PaintReviewEditor, Status};
 use crate::download::{Painting, Source};
 
 mod a_painting_being_shown_is_not_evicted_for_another;
-mod a_painting_belongs_to_the_screen_that_shows_it;
 mod a_painting_is_only_rastered_once;
 mod a_painting_that_changed_on_the_branch_is_modified;
 mod a_painting_that_vanished_is_removed;
@@ -39,22 +41,27 @@ struct Review {
 }
 
 impl Review {
-    fn open() -> (Self, EditorTest<'static, PaintReviewApp>) {
+    fn open() -> (Self, BeuiTest<PaintReviewApp>) {
         let branch = Arc::new(Mutex::new(Vec::new()));
         let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
         let block = client.create_block(PaintReview::new());
         let host = EditorHost::default();
         host.set_editable(true);
-        let mut app = PaintReviewApp::default();
-        app.connect(host.clone(), Arc::clone(&client), block.id());
-        app.review(Source::Fixed(Arc::clone(&branch)));
         let review = Self {
-            branch,
-            client,
-            block,
+            branch: Arc::clone(&branch),
+            client: Arc::clone(&client),
+            block: block.clone(),
         };
         review.write(PATH, &painting(30));
-        let mut editor = EditorTest::viewport(app, host);
+        let editor = Editor::new(host, client, block.id());
+        let source = Source::Fixed(branch);
+        let mut editor = BeuiTest::<PaintReviewApp>::with_view(editor.clone(), move || {
+            view! {
+                <PaintReviewEditor editor={editor} source={source} />
+            }
+        })
+        .in_viewport();
+        editor.run();
         editor.run();
         (review, editor)
     }
@@ -114,15 +121,53 @@ impl Review {
     fn approvals(&self) -> usize {
         self.block.read().unwrap().approved().len()
     }
+
+    fn status(&self, path: &str) -> Option<Status> {
+        let approved = self.block.read()?.approval(path).cloned();
+        let branch = self.branch.lock().unwrap();
+        let found = branch.iter().find(|painting| painting.path == path);
+        match (found, approved) {
+            (None, None) => None,
+            (None, Some(_)) => Some(Status::Removed),
+            (Some(_), None) => Some(Status::New),
+            (Some(found), Some(approved)) => Some(match found.hash == approved.hash {
+                true => Status::Unchanged,
+                false => Status::Modified,
+            }),
+        }
+    }
 }
 
-fn status(editor: &mut EditorTest<'_, PaintReviewApp>, path: &str) -> Option<Status> {
+fn stage(editor: &BeuiTest<PaintReviewApp>) -> NodeId {
     editor
-        .app()
-        .entries()?
-        .into_iter()
-        .find(|entry| entry.path == path)
-        .map(|entry| entry.status)
+        .document()
+        .find_test_id("paint_review.stage")
+        .expect("the stage has not been built")
+}
+
+fn settled(editor: &mut BeuiTest<PaintReviewApp>) {
+    let quiet = std::cell::Cell::new(0);
+    editor.settle_until("the review to settle", |editor| {
+        let resting = !crate::app::stage::busy(editor.document(), stage(editor))
+            && !editor.shown("paint_review.notice");
+        quiet.set(match resting {
+            true => quiet.get() + 1,
+            false => 0,
+        });
+        quiet.get() >= 3
+    });
+}
+
+fn rasters(editor: &BeuiTest<PaintReviewApp>) -> usize {
+    crate::app::stage::rastered(editor.document(), stage(editor))
+}
+
+fn shown_frame(editor: &BeuiTest<PaintReviewApp>) -> usize {
+    crate::app::stage::frame_shown(editor.document(), stage(editor))
+}
+
+fn shown_zoom(editor: &BeuiTest<PaintReviewApp>) -> f32 {
+    crate::app::stage::zoom(editor.document(), stage(editor))
 }
 
 fn painting(background: u8) -> Snapshot {

@@ -4967,6 +4967,7 @@ dependencies = [
 name = "paint_review"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
