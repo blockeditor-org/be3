@@ -17,6 +17,8 @@ use crate::geometry::{distance, distance_to_segment, inside, pixel_at, raster_li
 use crate::overlay::{self, Preview};
 use crate::raytracer;
 
+const JOB_POLL: Duration = Duration::from_millis(8);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Tool {
     Pencil,
@@ -518,6 +520,14 @@ impl RayState {
         self.settle_lighting();
         self.settle_rays();
         self.settle_overlay();
+        self.await_jobs();
+    }
+
+    fn await_jobs(&self) {
+        if self.lighting_job.borrow().is_none() && self.ray_job.borrow().is_none() {
+            return;
+        }
+        self.editor.host().request_frame_in(JOB_POLL);
     }
 
     fn settle_overlay(&self) {
