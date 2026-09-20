@@ -508,6 +508,7 @@ impl Renderer {
                 Quad::Image {
                     rect,
                     clip,
+                    source,
                     image,
                     tint,
                     corner_radius,
@@ -523,7 +524,7 @@ impl Renderer {
                     instances.push(Instance {
                         rect,
                         clip,
-                        uv: [0.0, 0.0, 1.0, 1.0],
+                        uv: source,
                         color: self.encode(tint),
                         params: [corner_radius, 0.0, 2.0, 0.0],
                     });

@@ -22,6 +22,7 @@ pub enum Shape {
     },
     Image {
         rect: Rect,
+        source: Rect,
         image: Image,
         tint: Color32,
         corner_radius: f32,
@@ -119,6 +120,7 @@ impl Painter {
     pub fn image(
         &self,
         rect: Rect,
+        source: Rect,
         image: &Image,
         tint: Color32,
         corner_radius: f32,
@@ -129,6 +131,7 @@ impl Painter {
         }
         self.push(Shape::Image {
             rect,
+            source,
             image: image.clone(),
             tint,
             corner_radius,

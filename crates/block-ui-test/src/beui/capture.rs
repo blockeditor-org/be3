@@ -48,6 +48,7 @@ pub(crate) fn capture(
             Quad::Image {
                 rect,
                 clip,
+                source,
                 image,
                 tint,
                 ..
@@ -55,6 +56,7 @@ pub(crate) fn capture(
                 clip,
                 Content::Mesh(mesh(
                     points(rect),
+                    source,
                     picture(&mut textures, &image)?,
                     tint.to_array(),
                 )),
@@ -80,17 +82,18 @@ pub(crate) fn capture(
     ))
 }
 
-fn mesh(rect: [f32; 4], texture: TextureKey, color: [u8; 4]) -> Vec<Triangle> {
+fn mesh(rect: [f32; 4], source: [f32; 4], texture: TextureKey, color: [u8; 4]) -> Vec<Triangle> {
     let corner = |x: f32, y: f32, u: f32, v: f32| Vertex {
         pos: [x, y],
         uv: [u, v],
         color,
     };
     let [left, top, right, bottom] = rect;
-    let top_left = corner(left, top, 0.0, 0.0);
-    let top_right = corner(right, top, 1.0, 0.0);
-    let bottom_right = corner(right, bottom, 1.0, 1.0);
-    let bottom_left = corner(left, bottom, 0.0, 1.0);
+    let [u0, v0, u1, v1] = source;
+    let top_left = corner(left, top, u0, v0);
+    let top_right = corner(right, top, u1, v0);
+    let bottom_right = corner(right, bottom, u1, v1);
+    let bottom_left = corner(left, bottom, u0, v1);
     vec![
         Triangle {
             texture,

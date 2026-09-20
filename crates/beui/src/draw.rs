@@ -22,6 +22,7 @@ pub enum Quad {
     Image {
         rect: [f32; 4],
         clip: [f32; 4],
+        source: [f32; 4],
         image: Image,
         tint: Color32,
         corner_radius: f32,
@@ -125,6 +126,7 @@ pub fn quads_within(
             }
             Shape::Image {
                 rect,
+                source,
                 image,
                 tint,
                 corner_radius,
@@ -142,6 +144,7 @@ pub fn quads_within(
                 quads.push(Quad::Image {
                     rect,
                     clip,
+                    source: [source.min.x, source.min.y, source.max.x, source.max.y],
                     image: image.clone(),
                     tint: *tint,
                     corner_radius: corner_radius * pixels_per_point,

@@ -4,11 +4,11 @@ use super::*;
 fn the_sidebar_captures_the_preview_region() {
     let (mut editor, block) = editor();
 
-    editor.find("map.preview-region").click();
-    editor.step();
-    editor.step();
+    editor.click("map.preview-region");
+    editor.run();
+    editor.run();
 
     let region = block.read().unwrap().preview_region();
     assert!(region.is_some());
-    assert_eq!(editor.app().displayed_region(), region.unwrap());
+    assert_eq!(displayed_region(&block), region.unwrap());
 }

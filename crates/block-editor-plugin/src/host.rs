@@ -1377,6 +1377,14 @@ pub struct ImagePaster {
 
 impl ImagePaster {
     pub fn poll(&mut self, ui: &egui::Ui, host: &EditorHost, enabled: bool) -> Option<PastedImage> {
+        self.settle(host, enabled && pasted(ui))
+    }
+
+    pub fn paste(&mut self, host: &EditorHost, asked: bool) -> Option<PastedImage> {
+        self.settle(host, asked)
+    }
+
+    fn settle(&mut self, host: &EditorHost, asked: bool) -> Option<PastedImage> {
         if let Some(request) = self.request {
             return match host.take_pasted_image(request)? {
                 ClipboardImage::Pasted { name, data } => {
@@ -1393,7 +1401,7 @@ impl ImagePaster {
                 }
             };
         }
-        if !enabled || !pasted(ui) {
+        if !asked {
             return None;
         }
         self.request = Some(host.paste_image());
