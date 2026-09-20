@@ -1,6 +1,7 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ForEach, ItemSize, List, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {

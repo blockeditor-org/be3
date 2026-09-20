@@ -6,10 +6,11 @@ use block_editor_plugin::beui::icons::{
     ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_SUBDIRECTORY_ARROW_RIGHT, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Prop, Scroll, clone, component, create_memo,
-    view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Prop, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Caption, IconButton, Select, Separator, use_theme};
+use block_editor_plugin::beui::styled::{
+    Caption, IconButton, Scroll, Select, Separator, use_theme,
+};
 use block_editor_plugin::beui::unstyled::ChoiceOption;
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{Creation, Editor, Toolbar};

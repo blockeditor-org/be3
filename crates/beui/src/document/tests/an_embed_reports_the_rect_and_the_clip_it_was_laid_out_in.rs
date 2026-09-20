@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Embed, EmbedSlot, ItemSize, List, Scroll, build, view};
+use crate::reactive::{Embed, EmbedSlot, ItemSize, List, Offset, build, view};
 
 #[test]
 fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
@@ -11,11 +11,11 @@ fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Fixed(120.0)>
+                <Offset @sizing=ItemSize::Fixed(120.0)>
                     <Embed slot={first} height=200.0 />
                     <Embed slot={second} height=200.0 />
                     <Embed slot={EmbedSlot::new()} height=200.0 />
-                </Scroll>
+                </Offset>
             </List>
         }
     });

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ForEach, Frame, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, Frame, NodeRef, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn resizing_rows_preserves_the_scroll_anchor() {

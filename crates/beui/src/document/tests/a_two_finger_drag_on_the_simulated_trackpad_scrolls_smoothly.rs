@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ForEach, ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, NodeRef, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {

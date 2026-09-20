@@ -72,6 +72,7 @@ mod an_embed_reports_a_rect_on_the_pixel_grid;
 mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
+mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
 mod arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_option;
@@ -234,7 +235,7 @@ use crate::input::{TouchId, TouchPhase};
 use crate::base::list::{Direction, ItemSize};
 use crate::inspector::Inspector;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Spacer, Text, VirtualList,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Spacer, Text, VirtualOffset,
     build, with_document,
 };
 use crate::styled;
@@ -720,7 +721,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId
         move || {
             view! {
                 <List spacing=0.0>
-                    <VirtualList
+                    <VirtualOffset
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
@@ -737,7 +738,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId
                                 </Frame>
                             }
                         }}
-                    </VirtualList>
+                    </VirtualOffset>
                 </List>
             }
         }

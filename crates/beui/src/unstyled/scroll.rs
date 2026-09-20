@@ -1,16 +1,33 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
+
+use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
 use crate::base::{Direction, ItemSize, ScrollPosition};
 use crate::color::Color32;
+use crate::document::Document;
+use crate::input::{DragGesture, Key, KeyPress, ScrollGesture};
 use crate::node::NodeId;
-use crate::reactive;
 use crate::reactive::{
-    Callback, Children, List, ListChild, Memo, Prop, ReadSignal, RenderFn, create_memo,
-    create_signal,
+    Callback, Children, ClickCatcher, Focusable, Frame, List, ListChild, Memo, Offset, Prop,
+    ReadSignal, Render, RenderFn, VirtualOffset, clone, component_accessibility, create_memo,
+    create_signal, each_frame, set_component_state, untrack, with_document,
 };
 
+const INERTIA_FRICTION: f32 = 4.5;
+const MINIMUM_VELOCITY: f32 = 5.0;
+const RUBBER_BAND_FACTOR: f32 = 0.55;
+const SPRING_DAMPING: f32 = 24.0;
+const SPRING_STIFFNESS: f32 = 180.0;
+const MAX_ANIMATION_STEP: f32 = 0.05;
+const FOCUS_RING_WIDTH: f32 = 2.0;
+const FOCUS_RING_INSET: f32 = -1.0;
+const STEP: f32 = 40.0;
+
 pub struct ScrollHandle {
-    pub position: ReadSignal<ScrollPosition>,
+    pub position: Memo<ScrollPosition>,
     pub direction: Prop<Direction>,
 }
 
@@ -28,7 +45,7 @@ impl ScrollbarStyle {
 
     fn beside(
         &self,
-        position: ReadSignal<ScrollPosition>,
+        position: Memo<ScrollPosition>,
         direction: Prop<Direction>,
     ) -> Children<ListChild> {
         match &self.0 {
@@ -38,6 +55,274 @@ impl ScrollbarStyle {
                 direction,
             })),
         }
+    }
+}
+
+struct Momentum {
+    overscroll: f32,
+    drag: Option<f32>,
+    dragging: bool,
+    velocity: f32,
+    stepped: Instant,
+}
+
+impl Momentum {
+    fn new() -> Self {
+        Self {
+            overscroll: 0.0,
+            drag: None,
+            dragging: false,
+            velocity: 0.0,
+            stepped: Instant::now(),
+        }
+    }
+
+    fn moving(&self) -> bool {
+        self.overscroll != 0.0 || self.velocity != 0.0
+    }
+
+    fn rest(&mut self) {
+        self.overscroll = 0.0;
+        self.drag = None;
+        self.velocity = 0.0;
+    }
+
+    fn drag(&mut self, position: &mut ScrollPosition, delta: f32) {
+        let raw = self.drag.unwrap_or(position.offset) - delta;
+        self.drag = Some(raw);
+        position.offset = raw.clamp(0.0, position.max_offset());
+        self.overscroll = rubber_band(raw - position.offset, position.viewport);
+        self.velocity = 0.0;
+    }
+
+    fn release(&mut self, velocity: f32) {
+        self.drag = None;
+        self.velocity = if self.overscroll == 0.0 {
+            velocity
+        } else {
+            velocity * 0.35
+        };
+        if self.velocity.abs() < MINIMUM_VELOCITY && self.overscroll == 0.0 {
+            self.velocity = 0.0;
+        }
+    }
+
+    fn animate(&mut self, position: &mut ScrollPosition, elapsed: f32) {
+        let elapsed = elapsed.min(MAX_ANIMATION_STEP);
+        if elapsed <= 0.0 {
+            return;
+        }
+        if self.overscroll != 0.0 {
+            let acceleration = -SPRING_STIFFNESS * self.overscroll - SPRING_DAMPING * self.velocity;
+            self.velocity += acceleration * elapsed;
+            self.overscroll += self.velocity * elapsed;
+            if self.overscroll.abs() < 0.25 && self.velocity.abs() < MINIMUM_VELOCITY {
+                self.overscroll = 0.0;
+                self.velocity = 0.0;
+            }
+            return;
+        }
+        if self.velocity == 0.0 {
+            return;
+        }
+        let raw = position.offset + self.velocity * elapsed;
+        position.offset = raw.clamp(0.0, position.max_offset());
+        self.velocity *= (-INERTIA_FRICTION * elapsed).exp();
+        if raw != position.offset {
+            self.overscroll = raw - position.offset;
+        } else if self.velocity.abs() < MINIMUM_VELOCITY {
+            self.velocity = 0.0;
+        }
+    }
+}
+
+fn rubber_band(distance: f32, viewport: f32) -> f32 {
+    if distance == 0.0 {
+        return 0.0;
+    }
+    let dimension = viewport.max(1.0);
+    let magnitude =
+        dimension * (1.0 - 1.0 / (distance.abs() * RUBBER_BAND_FACTOR / dimension + 1.0));
+    magnitude.copysign(distance)
+}
+
+#[derive(Clone)]
+struct Motion {
+    node: NodeId,
+    reported: ReadSignal<Option<ScrollPosition>>,
+    direction: Prop<Direction>,
+    momentum: Rc<RefCell<Momentum>>,
+}
+
+impl Motion {
+    fn axis(&self) -> Direction {
+        untrack(|| self.direction.get())
+    }
+
+    fn placed(&self) -> Option<ScrollPosition> {
+        let reported = untrack(|| self.reported.get())?;
+        let offset = with_document(|document| document.offset_value(self.node));
+        Some(ScrollPosition { offset, ..reported })
+    }
+
+    fn publish(&self, momentum: &Momentum, offset: f32) {
+        with_document(|document| {
+            document.drive_offset(self.node, offset);
+            document.set_offset_overscroll(self.node, momentum.overscroll);
+        });
+    }
+
+    fn wheel(&self, gesture: ScrollGesture) {
+        let wheel = self.axis().main(gesture.delta);
+        let Some(position) = self.placed().filter(|_| wheel != 0.0) else {
+            return;
+        };
+        let mut momentum = self.momentum.borrow_mut();
+        momentum.rest();
+        let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
+        self.publish(&momentum, offset);
+    }
+
+    fn drag(&self, gesture: DragGesture) {
+        let Some(mut position) = self.placed() else {
+            return;
+        };
+        let mut momentum = self.momentum.borrow_mut();
+        momentum.dragging = !gesture.ended && !gesture.cancelled;
+        if gesture.started {
+            momentum.drag = Some(position.offset);
+            momentum.velocity = 0.0;
+        }
+        let dragged = self.axis().main(gesture.delta);
+        if dragged != 0.0 {
+            momentum.drag(&mut position, dragged);
+        }
+        if gesture.ended {
+            momentum.release(-self.axis().main(gesture.velocity));
+        } else if gesture.cancelled {
+            momentum.release(0.0);
+        }
+        self.publish(&momentum, position.offset);
+    }
+
+    fn key(&self, press: KeyPress) -> bool {
+        if press.modifiers.ctrl || press.modifiers.alt {
+            return false;
+        }
+        let Some(position) = self.placed() else {
+            return false;
+        };
+        let (forwards, backwards) = match self.axis() {
+            Direction::Horizontal => (Key::ArrowRight, Key::ArrowLeft),
+            Direction::Vertical => (Key::ArrowDown, Key::ArrowUp),
+        };
+        let offset = match press.key {
+            key if key == forwards => position.offset + STEP,
+            key if key == backwards => position.offset - STEP,
+            Key::PageDown | Key::Space if !press.modifiers.shift => {
+                position.offset + position.viewport
+            }
+            Key::PageUp | Key::Space => position.offset - position.viewport,
+            Key::Home => 0.0,
+            Key::End => position.max_offset(),
+            _ => return false,
+        };
+        if press.pressed {
+            let mut momentum = self.momentum.borrow_mut();
+            momentum.rest();
+            self.publish(&momentum, offset.clamp(0.0, position.max_offset()));
+        }
+        true
+    }
+
+    fn step(&self) {
+        if !with_document(|document| document.contains(self.node)) {
+            return;
+        }
+        let steered = with_document(|document| document.take_offset_steered(self.node));
+        let mut momentum = self.momentum.borrow_mut();
+        let now = Instant::now();
+        let elapsed = now.duration_since(momentum.stepped).as_secs_f32();
+        momentum.stepped = now;
+        if steered {
+            momentum.rest();
+            with_document(|document| document.set_offset_overscroll(self.node, 0.0));
+        }
+        if std::mem::take(&mut momentum.dragging) {
+            return;
+        }
+        momentum.drag = None;
+        if !momentum.moving() {
+            return;
+        }
+        let Some(mut position) = self.placed() else {
+            return;
+        };
+        momentum.animate(&mut position, elapsed);
+        self.publish(&momentum, position.offset);
+        if momentum.moving() {
+            with_document(|document| document.request_repaint_after(Duration::ZERO));
+        }
+    }
+}
+
+#[component]
+fn Scrolling(
+    direction: Prop<Direction>,
+    focus_color: Prop<Color32>,
+    scrollbar: ScrollbarStyle,
+    on_change: Callback<ScrollPosition>,
+    #[prop(children)] content: Render<Callback<ScrollPosition>>,
+) -> NodeId {
+    let (reported, set_reported) = create_signal(None::<ScrollPosition>);
+    let node = content.call(Callback::new(move |position: ScrollPosition| {
+        set_reported.set(Some(position));
+        on_change.call(position);
+    }));
+    let motion = Motion {
+        node,
+        reported: reported.clone(),
+        direction: direction.clone(),
+        momentum: Rc::new(RefCell::new(Momentum::new())),
+    };
+    each_frame(clone!(motion -> move || motion.step()));
+    set_component_state(motion.clone());
+
+    let position = create_memo(clone!(reported -> move || reported.get().unwrap_or_default()));
+    component_accessibility(create_memo(
+        clone!(reported -> move || scroll_view(reported.get())),
+    ));
+
+    let (focused, set_focused) = create_signal(false);
+    let across = across(&direction);
+    let axis = create_memo(clone!(direction -> move || Some(direction.get())));
+    let (keyed, ancestor_keyed) = (motion.clone(), motion.clone());
+    let (wheeled, dragged) = (motion.clone(), motion);
+    view! {
+        <List direction={across} spacing={scrollbar.spacing()}>
+            <Focusable
+                @sizing=ItemSize::Percent(100.0)
+                on_focus_change={move |focused: bool| set_focused.set(focused)}
+                on_key={move |press: KeyPress| keyed.key(press)}
+                on_ancestor_key={move |press: KeyPress| ancestor_keyed.key(press)}
+            >
+                <ClickCatcher
+                    scroll_axis={axis}
+                    on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
+                    on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                >
+                    <Frame
+                        outline={focus_color}
+                        outline_width=FOCUS_RING_WIDTH
+                        outline_offset=FOCUS_RING_INSET
+                        outline_visible={focused}
+                    >
+                        {node}
+                    </Frame>
+                </ClickCatcher>
+            </Focusable>
+            {scrollbar.beside(position, direction)}
+        </List>
     }
 }
 
@@ -51,26 +336,27 @@ pub fn Scroll(
     on_change: Callback<ScrollPosition>,
     children: Children<NodeId>,
 ) -> NodeId {
-    let (position, set_position) = create_signal(ScrollPosition::ZERO);
-    let across = across(&direction);
     let content_direction = direction.clone();
     view! {
-        <List direction={across} spacing={scrollbar.spacing()}>
-            <reactive::Scroll
-                @sizing=ItemSize::Percent(100.0)
-                offset
-                reveal
-                direction={content_direction}
-                focus_color
-                on_change={move |reported: ScrollPosition| {
-                    set_position.set(reported);
-                    on_change.call(reported);
-                }}
-            >
-                {children}
-            </reactive::Scroll>
-            {scrollbar.beside(position, direction)}
-        </List>
+        <Scrolling
+            direction
+            focus_color
+            scrollbar
+            on_change={move |position: ScrollPosition| on_change.call(position)}
+        >
+            {move |report: Callback<ScrollPosition>| {
+                view! {
+                    <Offset
+                        offset
+                        reveal
+                        direction={content_direction}
+                        on_change={move |position: ScrollPosition| report.call(position)}
+                    >
+                        {children}
+                    </Offset>
+                }
+            }}
+        </Scrolling>
     }
 }
 
@@ -84,26 +370,49 @@ pub fn VirtualList(
     on_change: Callback<ScrollPosition>,
     #[prop(children)] item: RenderFn<usize>,
 ) -> NodeId {
-    let (position, set_position) = create_signal(ScrollPosition::ZERO);
-    let across = across(&direction);
     let content_direction = direction.clone();
     view! {
-        <List direction={across} spacing={scrollbar.spacing()}>
-            <reactive::VirtualList
-                @sizing=ItemSize::Percent(100.0)
-                count
-                item_size
-                direction={content_direction}
-                focus_color
-                item={item}
-                on_change={move |reported: ScrollPosition| {
-                    set_position.set(reported);
-                    on_change.call(reported);
-                }}
-            />
-            {scrollbar.beside(position, direction)}
-        </List>
+        <Scrolling
+            direction
+            focus_color
+            scrollbar
+            on_change={move |position: ScrollPosition| on_change.call(position)}
+        >
+            {move |report: Callback<ScrollPosition>| {
+                view! {
+                    <VirtualOffset
+                        count
+                        item_size
+                        direction={content_direction}
+                        item={item}
+                        on_change={move |position: ScrollPosition| report.call(position)}
+                    />
+                }
+            }}
+        </Scrolling>
     }
+}
+
+pub fn scroll_animating(document: &Document, scroll: NodeId) -> bool {
+    document
+        .component_state::<Motion>(scroll)
+        .momentum
+        .borrow()
+        .moving()
+}
+
+fn scroll_view(position: Option<ScrollPosition>) -> Node {
+    let mut node = Node::new(Role::ScrollView);
+    if let Some(position) = position {
+        node.set_scroll_y(position.offset.into());
+        node.set_scroll_y_min(0.0);
+        node.set_scroll_y_max(position.max_offset().into());
+        node.add_action(Action::Focus);
+        node.add_action(Action::ScrollUp);
+        node.add_action(Action::ScrollDown);
+        node.add_action(Action::SetScrollOffset);
+    }
+    node
 }
 
 fn across(direction: &Prop<Direction>) -> Memo<Direction> {

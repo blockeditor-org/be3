@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    ClickCatcher, ForEach, Frame, ItemSize, List, NodeRef, Scroll, Spacer, build, view,
-};
+use crate::reactive::{ClickCatcher, ForEach, Frame, ItemSize, List, NodeRef, Spacer, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn touch_overscroll_bands_without_hovering_a_row() {
@@ -46,6 +45,6 @@ fn touch_overscroll_bands_without_hovering_a_row() {
     assert_eq!(harness.document().focused_node(), None);
 
     harness.touch(TouchPhase::End, end);
-    assert!(harness.document().scroll_is_animating(scroll));
+    assert!(unstyled::scroll_animating(harness.document(), scroll));
     assert!(!hovered.get());
 }

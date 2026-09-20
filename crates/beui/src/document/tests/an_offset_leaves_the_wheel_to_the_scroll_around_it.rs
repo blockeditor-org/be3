@@ -1,18 +1,18 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{DynamicSegment, ForEach, ItemSize, List, component, view};
+use crate::reactive::{DynamicSegment, ForEach, ItemSize, List, Offset, component, view};
 use crate::unstyled::Scroll;
 
 #[test]
-fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
+fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
+                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="scroll">
                     <Frame height=150.0>
-                        <Scroll @test_id="inner">
+                        <Offset @test_id="offset">
                             <Rows count=20 />
-                        </Scroll>
+                        </Offset>
                     </Frame>
                     <Rows count=20 />
                 </Scroll>
@@ -21,19 +21,21 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let (inner, outer) = (harness.find("inner"), harness.find("outer"));
+    let (offset, scroll) = (harness.find("offset"), harness.find("scroll"));
 
     harness.scroll(pos2(200.0, 75.0), vec2(0.0, -20.0), Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.document().scroll_offset(inner), 20.0);
-    assert_eq!(harness.document().scroll_offset(outer), 0.0);
-
-    harness.scroll(pos2(200.0, 250.0), vec2(0.0, -20.0), Modifiers::NONE);
-    harness.frame(Vec::new());
-
-    assert_eq!(harness.document().scroll_offset(inner), 20.0);
-    assert_eq!(harness.document().scroll_offset(outer), 20.0);
+    assert_eq!(
+        harness.document().scroll_offset(offset),
+        0.0,
+        "an offset answers no input of its own"
+    );
+    assert_eq!(
+        harness.document().scroll_offset(scroll),
+        20.0,
+        "the wheel over an offset reaches the scroll around it"
+    );
 }
 
 #[component]

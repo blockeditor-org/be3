@@ -29,7 +29,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                             <Spacer @sizing=ItemSize::Percent(50.0) />
                             <List @sizing=ItemSize::Percent(50.0) spacing=0.0>
                                 <List @sizing={size} spacing=0.0>
-                                    <VirtualList
+                                    <VirtualOffset
                                         @sizing=ItemSize::Percent(100.0)
                                         @node_ref=&scroll
                                         count=VIRTUAL_ITEM_COUNT
@@ -46,7 +46,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                                 </Frame>
                                             }
                                         }}
-                                    </VirtualList>
+                                    </VirtualOffset>
                                 </List>
                             </List>
                         </Stack>

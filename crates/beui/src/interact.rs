@@ -51,10 +51,10 @@ pub(crate) fn interact(
 
     if input.touch_started {
         doc.touch_scroll_vertical = target(doc, rects, root, input.pointer_pos, &|element| {
-            scrolls_along(element, Direction::Vertical)
+            catches_drag(element, Direction::Vertical)
         });
         doc.touch_scroll_horizontal = target(doc, rects, root, input.pointer_pos, &|element| {
-            scrolls_along(element, Direction::Horizontal)
+            catches_drag(element, Direction::Horizontal)
         });
     }
     if input.pressed_this_frame
@@ -81,7 +81,7 @@ pub(crate) fn interact(
     let wheel_target = (input.scroll != Vec2::ZERO)
         .then(|| {
             target(doc, rects, root, input.pointer_pos, &|element| {
-                wants_wheel(element, input.scroll) || wants_gestures(element)
+                wants_wheel(element, input.scroll)
             })
         })
         .flatten();
@@ -201,7 +201,7 @@ pub(crate) fn interact(
             doc.reveal_focus(painter);
             continue;
         }
-        if doc.key_scroll_ancestor(press) {
+        if doc.key_ancestor(press) {
             continue;
         }
         match key {
@@ -252,18 +252,18 @@ fn captor(doc: &mut Document, rects: &NodeMap<Rect>, id: NodeId, pos: Pos2) -> O
     captures.then_some(id)
 }
 
-fn scrolls_along(element: &dyn crate::node::Element, direction: Direction) -> bool {
+fn catches_drag(element: &dyn crate::node::Element, direction: Direction) -> bool {
     element
         .as_any()
-        .downcast_ref::<crate::base::scroll::ScrollNode>()
-        .is_some_and(|scroll| scroll.direction == direction)
+        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
+        .is_some_and(|catcher| catcher.catches_drag(direction))
 }
 
 fn wants_wheel(element: &dyn crate::node::Element, wheel: Vec2) -> bool {
     element
         .as_any()
-        .downcast_ref::<crate::base::scroll::ScrollNode>()
-        .is_some_and(|scroll| scroll.direction.main(wheel) != 0.0)
+        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
+        .is_some_and(|catcher| catcher.wants_wheel(wheel))
 }
 
 fn wants_gestures(element: &dyn crate::node::Element) -> bool {

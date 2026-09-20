@@ -4,9 +4,9 @@ use std::rc::Rc;
 use super::*;
 use crate::reactive::create_effect;
 use crate::reactive::{
-    Button, ClickCatcher, ForEach, List, NodeRef, Scroll, Text, build, create_signal, view,
+    Button, ClickCatcher, ForEach, List, NodeRef, Text, build, create_signal, view,
 };
-use crate::unstyled::{Edge, Floating};
+use crate::unstyled::{Edge, Floating, Scroll};
 
 #[test]
 fn a_floating_child_pins_itself_over_the_scroll_it_names() {

@@ -114,6 +114,15 @@ pub struct ScrollGesture {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub struct DragGesture {
+    pub started: bool,
+    pub ended: bool,
+    pub cancelled: bool,
+    pub delta: Vec2,
+    pub velocity: Vec2,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ZoomGesture {
     pub factor: f32,
     pub pos: Pos2,

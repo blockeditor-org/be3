@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    Frame, ItemSize, List, NodeRef, Text, VirtualList, build, create_signal, view,
+    Frame, ItemSize, List, NodeRef, Text, VirtualOffset, build, create_signal, view,
 };
 
 #[test]
@@ -12,7 +12,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <VirtualList
+                    <VirtualOffset
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=100
@@ -26,7 +26,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
                                 </Frame>
                             }
                         }}
-                    </VirtualList>
+                    </VirtualOffset>
                 </List>
             }
         }

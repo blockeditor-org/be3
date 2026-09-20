@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ForEach, ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, NodeRef, Offset, build, view};
 
 #[test]
 fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
@@ -10,7 +10,7 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll
+                <Offset
                     @sizing=ItemSize::Percent(100.0)
                     @test_id="strip"
                     direction=Direction::Horizontal
@@ -23,7 +23,7 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
                             <Frame width=120.0 />
                         }}
                     </ForEach>
-                </Scroll>
+                </Offset>
             </List>
         }
     });

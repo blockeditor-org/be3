@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ItemSize, List, NodeRef, Offset, build, view};
 
 #[test]
 fn a_scroll_inside_a_scroll_lays_out_the_rows_it_holds() {
@@ -9,14 +9,14 @@ fn a_scroll_inside_a_scroll_lays_out_the_rows_it_holds() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Scroll direction=Direction::Horizontal>
+                <Offset @sizing=ItemSize::Percent(100.0)>
+                    <Offset direction=Direction::Horizontal>
                         <List spacing=0.0>
                             <Frame @node_ref=&held width=1200.0 height=40.0 />
                             <Frame width=1200.0 height=40.0 />
                         </List>
-                    </Scroll>
-                </Scroll>
+                    </Offset>
+                </Offset>
             </List>
         }
     });
