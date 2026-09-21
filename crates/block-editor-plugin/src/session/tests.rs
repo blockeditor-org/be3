@@ -44,8 +44,19 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
 }
 
 mod accepts_client_responses_after_the_last_instance_closes;
+mod accepts_content_for_an_open_instance;
 mod accepts_ordered_lifecycle;
 mod opens_and_closes_editor_instance;
 mod rejects_child_statuses_for_unopened_instances;
 mod rejects_out_of_order_messages;
 mod rejects_screens_for_unopened_instances;
+
+fn content(instance: EditorInstanceId) -> Message {
+    Message::Editor(block_plugin_api::EditorMessage::Content {
+        instance,
+        content_type: [7; 16],
+        bytes: vec![0; 8],
+        applied: 0,
+    })
+}
+mod rejects_content_for_an_instance_that_was_never_opened;

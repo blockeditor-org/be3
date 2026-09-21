@@ -867,6 +867,7 @@ dependencies = [
  "be-store",
  "block",
  "block-client",
+ "block-editor-plugin",
  "block-plugin-api",
  "block-server",
  "block-ui",

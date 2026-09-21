@@ -16,7 +16,7 @@ mod two_peers_of_one_workspace_share_a_counter;
 
 const PATIENCE: Duration = Duration::from_secs(20);
 
-struct Harness {
+pub(crate) struct Harness {
     directory: PathBuf,
     server: Option<platform::EmbeddedServer>,
     url: String,
@@ -26,7 +26,7 @@ struct Harness {
 }
 
 impl Harness {
-    fn start() -> Self {
+    pub(crate) fn start() -> Self {
         let directory = std::env::temp_dir().join(format!("block-app-be-test-{}", Uuid::new_v4()));
         let server = platform::start_embedded_server(directory.join("server"))
             .expect("the embedded block server starts");
@@ -76,7 +76,7 @@ impl Harness {
         );
     }
 
-    fn connect(&self) {
+    pub(crate) fn connect(&self) {
         start(Config {
             server_url: self.url.clone(),
             token: self.token.clone(),

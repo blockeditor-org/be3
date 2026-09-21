@@ -175,4 +175,7 @@ fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) use tests::Harness;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
