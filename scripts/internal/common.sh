@@ -400,16 +400,36 @@ clang_major() {
     "$1" --version 2> /dev/null | sed -n 's/.*clang version \([0-9][0-9]*\).*/\1/p' | head -1
 }
 
-pick_wasm_clang() {
-    local candidate major newest=''
+# The newest clang on PATH that is new enough, or nothing. ./scripts/setup asks
+# so that it only installs a clang when the machine has none it could use, and
+# pick_wasm_clang below turns the same answer into the three tools the wasm
+# build runs.
+newest_wasm_clang() {
+    local candidate major
     for candidate in clang clang-22 clang-21 clang-20 clang-19; do
         major="$(clang_major "$candidate" || true)"
         [[ -n "$major" ]] || continue
         if [[ "$major" -ge "$wasm_clang_minimum" ]]; then
-            newest="$candidate"
-            break
+            echo "$candidate"
+            return 0
         fi
     done
+    return 1
+}
+
+# Whether a machine already has everything the wasm build compiles HarfBuzz
+# with, which is a clang new enough and the llvm-ar that goes with it. Only
+# ./scripts/setup asks, to decide whether there is a clang to install.
+wasm_clang_installed() {
+    local candidate
+    candidate="$(newest_wasm_clang)" || return 1
+    command -v "${candidate/clang/llvm-ar}" > /dev/null \
+        || command -v llvm-ar > /dev/null
+}
+
+pick_wasm_clang() {
+    local newest
+    newest="$(newest_wasm_clang || true)"
     if [[ -z "$newest" ]]; then
         echo "The wasm build needs clang $wasm_clang_minimum or newer, and none was found on PATH." >&2
         echo "Install one (apt-get install clang-20 llvm-20) and run this again." >&2
@@ -605,6 +625,16 @@ precompile_plugin_wasm() {
     "$precompiler" --target "$triple" "${stale[@]}"
     end_step
 }
+
+# ./scripts/verify runs the tests through nextest, which is not a rustup
+# component. internal/install-nextest.sh fetches this release rather than
+# building it, because `cargo install cargo-nextest` spends around four minutes
+# compiling a test runner nothing in the workspace depends on, which was most of
+# what setting a machine up cost. The musl builds run on any glibc a machine
+# happens to have, which the gnu ones do not.
+nextest_version='0.9.145'
+nextest_sha256_x86_64='cd3c85194e8b28ad26676d287f41f0d6b4d456cef5bd94700def5dea8e328883'
+nextest_sha256_aarch64='103a8f68b20fb01ee5daf2eb4c037b54ace550a04a288ee35761c5e7b0351311'
 
 # sccache stands between cargo and rustc and answers a compilation from a shared
 # object store whenever some other machine has already compiled that crate with
