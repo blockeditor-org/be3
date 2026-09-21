@@ -251,6 +251,20 @@ load_plugins() {
     fi
 }
 
+# Packages that are not plugins themselves but whose tests only exist on wasm,
+# so a native run never builds them and a break in them is invisible until
+# someone compiles a plugin. block-editor-plugin's editor session is the whole
+# guest half of the plugin framework and is behind `cfg(target_arch =
+# "wasm32")`, so its tests belong to the plugin run rather than the native one.
+guest_only_packages=(block-editor-plugin)
+
+# Everything internal/test-plugins.sh compiles to wasm and runs through the
+# plugin host: every plugin, and the guest-only packages beside them.
+load_wasm_tested() {
+    load_plugins
+    wasm_tested=("${plugins[@]}" "${guest_only_packages[@]}")
+}
+
 plugin_manifest() {
     echo "$repository/crates/editors/$1/manifest.json"
 }
