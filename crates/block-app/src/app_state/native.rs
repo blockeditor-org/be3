@@ -158,7 +158,7 @@ impl AppStateStore {
         Ok(id)
     }
 
-    pub fn setting(&self, key: &str) -> Result<Option<String>, AppStateError> {
+    fn setting(&self, key: &str) -> Result<Option<String>, AppStateError> {
         let value = self
             .connection
             .query_row(
@@ -170,7 +170,7 @@ impl AppStateStore {
         Ok(value)
     }
 
-    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), AppStateError> {
+    fn set_setting(&self, key: &str, value: &str) -> Result<(), AppStateError> {
         self.connection.execute(
             "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",

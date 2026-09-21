@@ -1,28 +1,44 @@
-use uuid::Uuid;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-use super::{Content, Status};
+use be_store::MemoryStore;
+use tokio::sync::mpsc::UnboundedReceiver;
 
-pub(crate) fn stop() {}
+use super::{
+    Config,
+    worker::{Command, Shared, serve},
+};
 
-pub(crate) fn flush() {}
+pub(super) struct Running;
 
-pub(crate) fn open(block: Uuid, content_type: Uuid) {
-    let _ = (block, content_type);
+impl Running {
+    pub(super) fn finish(&mut self) {}
 }
 
-pub(crate) fn close(block: Uuid) {
-    let _ = block;
+pub(super) fn spawn(
+    config: Config,
+    commands: UnboundedReceiver<Command>,
+    shared: Arc<Mutex<Shared>>,
+) -> Running {
+    wasm_bindgen_futures::spawn_local(serve(config, || Ok(MemoryStore::new()), commands, shared));
+    Running
 }
 
-pub(crate) fn content(block: Uuid) -> Option<Content> {
-    let _ = block;
-    None
+pub(super) async fn sleep(duration: Duration) {
+    let Some(window) = web_sys::window() else {
+        return std::future::pending().await;
+    };
+    let promise = js_sys::Promise::new(&mut |resolve, _| {
+        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+            &resolve,
+            duration.as_millis() as i32,
+        );
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }
 
-pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
-    let _ = (block, operation);
-}
-
-pub(crate) fn status() -> Status {
-    Status::default()
+pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<()>) {
+    let _ = sealed;
 }

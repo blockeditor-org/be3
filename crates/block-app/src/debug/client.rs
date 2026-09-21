@@ -237,6 +237,7 @@ fn show_be_stack(ui: &mut egui::Ui, status: &crate::be::Status) {
                         },
                     );
                     field(ui, "Live blocks", status.blocks);
+                    field(ui, "Worker wake-ups", status.wakes);
                     field(
                         ui,
                         "Changes",

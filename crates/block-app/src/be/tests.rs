@@ -1,55 +1,90 @@
-use std::{
-    path::PathBuf,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use be_block::{BlockContent, CounterContent, CounterOp, LiveEdit};
+use block_client::ManagementClient;
 use uuid::Uuid;
 
 use super::*;
 use crate::platform;
 
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
+mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
+mod an_idle_peer_never_wakes_its_worker;
 mod an_unmigrated_block_type_has_no_content_in_the_new_stack;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
+mod two_peers_of_one_workspace_share_a_counter;
 
 const PATIENCE: Duration = Duration::from_secs(20);
 
 struct Harness {
     directory: PathBuf,
-    server: platform::EmbeddedServer,
-    password: String,
-    key: [u8; 32],
+    server: Option<platform::EmbeddedServer>,
+    url: String,
+    account: Uuid,
+    token: String,
+    workspace: Uuid,
 }
 
 impl Harness {
     fn start() -> Self {
         let directory = std::env::temp_dir().join(format!("block-app-be-test-{}", Uuid::new_v4()));
-        let server = platform::start_embedded_be_server(directory.join("server"))
-            .expect("the embedded be server starts");
+        let server = platform::start_embedded_server(directory.join("server"))
+            .expect("the embedded block server starts");
+        let url = server.url.clone();
+        let managed = url.clone();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a test runtime starts");
+        let (account, token, workspace) = runtime.block_on(async {
+            let client = ManagementClient::new(managed).expect("the management url is valid");
+            let session = client
+                .register("counter@example.com", "Counter", "correct horse battery")
+                .await
+                .expect("the account registers");
+            let workspace = client
+                .create_workspace(&session.token, "Counters")
+                .await
+                .expect("the workspace is created");
+            (session.account.id, session.token, workspace.id)
+        });
         Self {
             directory,
-            server,
-            password: "correct horse battery".into(),
-            key: [23; 32],
+            server: Some(server),
+            url,
+            account,
+            token,
+            workspace,
         }
     }
 
-    fn connect(&self, be_workspace: Option<Uuid>) -> Uuid {
-        let workspace = Uuid::new_v4();
+    fn address(&self) -> String {
+        self.url
+            .split_once("://")
+            .map(|(_, host)| host.to_owned())
+            .expect("the embedded server url has a scheme")
+    }
+
+    fn stop_server(&mut self) {
+        self.server = None;
+    }
+
+    fn start_server(&mut self, address: &str) {
+        self.server = Some(
+            platform::start_embedded_server_at(address, self.directory.join("server"))
+                .expect("the embedded block server starts again"),
+        );
+    }
+
+    fn connect(&self) {
         start(Config {
-            url: self.server.url.clone(),
-            directory: self.directory.join("objects"),
-            account: Uuid::new_v4(),
-            workspace,
-            email: "counter@example.com".into(),
-            display_name: "Counter".into(),
-            password: self.password.clone(),
-            key: self.key,
-            be_workspace,
+            server_url: self.url.clone(),
+            token: self.token.clone(),
+            account: self.account,
+            workspace: self.workspace,
+            data_dir: self.directory.join("objects"),
             context: eframe::egui::Context::default(),
         });
-        workspace
     }
 }
 
@@ -81,6 +116,17 @@ fn wait_for_count(block: Uuid, expected: i64) {
         count_of(block),
         status().error
     );
+}
+
+fn wait_until(what: &str, ready: impl Fn() -> bool) {
+    let deadline = Instant::now() + PATIENCE;
+    while Instant::now() < deadline {
+        if ready() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("the new stack never {what}: it says {:?}", status().error);
 }
 
 fn add(block: Uuid, by: i64) {

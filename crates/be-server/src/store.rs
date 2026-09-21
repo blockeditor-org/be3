@@ -207,6 +207,52 @@ impl ServerStore {
         })
     }
 
+    pub async fn adopt(
+        &self,
+        account: Uuid,
+        email: &str,
+        display_name: &str,
+        workspace: Uuid,
+        workspace_name: &str,
+        role: WorkspaceRole,
+    ) -> Result<String, ServerError> {
+        let email = normalize_email(email)?;
+        let display_name = display_name.trim().to_owned();
+        let database = self.database.lock().await;
+        database.execute(
+            "INSERT INTO accounts (id, email, display_name, password_hash)
+             VALUES (?1, ?2, ?3, '')
+             ON CONFLICT(id) DO UPDATE SET
+                email = excluded.email,
+                display_name = excluded.display_name",
+            params![account.to_string(), email, display_name],
+        )?;
+        database.execute(
+            "INSERT INTO workspaces (id, name, owner_id) VALUES (?1, ?2, ?3)
+             ON CONFLICT(id) DO UPDATE SET name = excluded.name",
+            params![
+                workspace.to_string(),
+                workspace_name.trim(),
+                account.to_string()
+            ],
+        )?;
+        database.execute(
+            "INSERT OR REPLACE INTO memberships (workspace_id, account_id, role)
+             VALUES (?1, ?2, ?3)",
+            params![
+                workspace.to_string(),
+                account.to_string(),
+                encode_role(role)
+            ],
+        )?;
+        issue_token(&database, account)
+    }
+
+    pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
+        let database = self.database.lock().await;
+        issue_token(&database, account)
+    }
+
     pub async fn membership(
         &self,
         account: Uuid,

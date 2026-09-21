@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn flushing_seals_what_the_sessions_hold_and_leaves_them_live() {
     let harness = Harness::start();
-    harness.connect(None);
+    harness.connect();
     let block = Uuid::new_v4();
 
     open(block, CounterContent::CONTENT_TYPE);

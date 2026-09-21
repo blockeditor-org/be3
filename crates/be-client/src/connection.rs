@@ -6,15 +6,14 @@ use std::{
     },
 };
 
-use be_protocol::{ClientMessage, MAX_FRAME_BYTES, ServerMessage, decode, encode};
-use futures_util::{SinkExt, StreamExt};
-use tokio::sync::{broadcast, mpsc, oneshot};
-use tokio_tungstenite::{
-    connect_async_with_config,
-    tungstenite::{Message, protocol::WebSocketConfig},
-};
+use be_protocol::{ClientMessage, ServerMessage, decode, encode};
+use futures_util::future::{Either, select};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
-use crate::ClientError;
+use crate::{
+    ClientError,
+    transport::{Frame, Reader, Writer, connect, spawn},
+};
 
 const EVENT_CAPACITY: usize = 256;
 
@@ -26,35 +25,36 @@ struct Outbound {
 pub struct Connection {
     commands: mpsc::UnboundedSender<Outbound>,
     events: broadcast::Sender<ServerMessage>,
+    closed: watch::Receiver<bool>,
     next: AtomicU64,
 }
 
 impl Connection {
     pub async fn connect(url: &str) -> Result<Arc<Self>, ClientError> {
-        let (socket, _) = connect_async_with_config(
-            url,
-            Some(WebSocketConfig {
-                max_frame_size: Some(MAX_FRAME_BYTES),
-                max_message_size: Some(MAX_FRAME_BYTES),
-                ..WebSocketConfig::default()
-            }),
-            false,
-        )
-        .await
-        .map_err(|error| ClientError::Disconnected(error.to_string()))?;
+        let (writer, reader) = connect(url).await.map_err(ClientError::Disconnected)?;
         let (commands, receiver) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(EVENT_CAPACITY);
+        let (closing, closed) = watch::channel(false);
         let connection = Arc::new(Self {
             commands,
             events: events.clone(),
+            closed,
             next: AtomicU64::new(0),
         });
-        tokio::spawn(worker(socket, receiver, events));
+        spawn(worker(writer, reader, receiver, events, closing));
         Ok(connection)
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<ServerMessage> {
         self.events.subscribe()
+    }
+
+    pub fn closed(&self) -> watch::Receiver<bool> {
+        self.closed.clone()
+    }
+
+    pub fn is_closed(&self) -> bool {
+        *self.closed.borrow()
     }
 
     pub async fn request(
@@ -80,47 +80,62 @@ impl Connection {
 }
 
 async fn worker(
-    socket: tokio_tungstenite::WebSocketStream<
-        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-    >,
+    writer: Writer,
+    reader: Reader,
+    commands: mpsc::UnboundedReceiver<Outbound>,
+    events: broadcast::Sender<ServerMessage>,
+    closing: watch::Sender<bool>,
+) {
+    carry(writer, reader, commands, events).await;
+    let _ = closing.send(true);
+}
+
+async fn carry(
+    mut writer: Writer,
+    mut reader: Reader,
     mut commands: mpsc::UnboundedReceiver<Outbound>,
     events: broadcast::Sender<ServerMessage>,
 ) {
-    let (mut sink, mut source) = socket.split();
     let mut pending: HashMap<u64, oneshot::Sender<ServerMessage>> = HashMap::new();
     loop {
-        tokio::select! {
-            command = commands.recv() => {
-                let Some(command) = command else { break };
-                let Ok(bytes) = encode(&command.message) else { continue };
+        let command = std::pin::pin!(commands.recv());
+        let frame = std::pin::pin!(reader.next());
+        match select(command, frame).await {
+            Either::Left((command, _)) => {
+                let Some(command) = command else { return };
+                let Ok(bytes) = encode(&command.message) else {
+                    continue;
+                };
                 pending.insert(command.message.request(), command.reply);
-                if sink.send(Message::Binary(bytes)).await.is_err() {
-                    break;
+                if writer.send(bytes).await.is_err() {
+                    return;
                 }
             }
-            frame = source.next() => {
-                let Some(Ok(frame)) = frame else { break };
-                match frame {
-                    Message::Binary(bytes) => {
-                        let Ok(message) = decode::<ServerMessage>(&bytes) else { continue };
-                        match message.request().and_then(|request| pending.remove(&request)) {
-                            Some(reply) => {
-                                let _ = reply.send(message);
-                            }
-                            None => {
-                                let _ = events.send(message);
-                            }
+            Either::Right((frame, _)) => match frame {
+                Some(Frame::Binary(bytes)) => {
+                    let Ok(message) = decode::<ServerMessage>(&bytes) else {
+                        continue;
+                    };
+                    match message
+                        .request()
+                        .and_then(|request| pending.remove(&request))
+                    {
+                        Some(reply) => {
+                            let _ = reply.send(message);
+                        }
+                        None => {
+                            let _ = events.send(message);
                         }
                     }
-                    Message::Close(_) => break,
-                    Message::Ping(payload) => {
-                        if sink.send(Message::Pong(payload)).await.is_err() {
-                            break;
-                        }
-                    }
-                    Message::Text(_) | Message::Pong(_) | Message::Frame(_) => {}
                 }
-            }
+                #[cfg(not(target_arch = "wasm32"))]
+                Some(Frame::Ping(payload)) => {
+                    if writer.pong(payload).await.is_err() {
+                        return;
+                    }
+                }
+                Some(Frame::Closed) | None => return,
+            },
         }
     }
 }

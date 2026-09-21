@@ -14,7 +14,7 @@ fn an_unmigrated_block_type_has_no_content_in_the_new_stack() {
     );
 
     let harness = Harness::start();
-    harness.connect(None);
+    harness.connect();
     let block = Uuid::new_v4();
 
     open(block, Uuid::from_u128(0xdead_beef));

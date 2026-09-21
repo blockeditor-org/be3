@@ -650,11 +650,16 @@ dependencies = [
  "be-server",
  "be-session",
  "be-store",
+ "futures-channel",
  "futures-util",
+ "js-sys",
  "serde",
  "tokio",
  "tokio-tungstenite",
  "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -859,7 +864,6 @@ dependencies = [
  "be-client",
  "be-graph",
  "be-protocol",
- "be-server",
  "be-store",
  "block",
  "block-client",
@@ -871,6 +875,7 @@ dependencies = [
  "eframe",
  "egui_material_icons",
  "flate2",
+ "futures-util",
  "game-host",
  "ghostty-vt",
  "image",
@@ -1036,6 +1041,8 @@ name = "block-server"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "be-protocol",
+ "be-server",
  "block",
  "futures-util",
  "httparse",
