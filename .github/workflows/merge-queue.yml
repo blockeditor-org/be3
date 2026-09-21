@@ -92,11 +92,6 @@ on:
   pull_request_target:
     types: [closed, synchronize, labeled, unlabeled]
 
-  # The safety net. Webhooks are delivered once and at most once, and a tick
-  # that is never triggered is a queue that quietly stops.
-  schedule:
-    - cron: '*/15 * * * *'
-
   workflow_dispatch:
 
 # Serial by construction. cancel-in-progress stays false because a tick that is
