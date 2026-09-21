@@ -34,7 +34,8 @@ fn a_styled_scroll_puts_its_scrollbar_beside_the_content() {
     assert_eq!(bar.height(), whole.height());
 
     let track = harness.document().children(children[1])[0];
-    let thumb = harness.rect(harness.document().children(track)[1]);
+    let list = harness.document().children(track)[0];
+    let thumb = harness.rect(harness.document().children(list)[1]);
     let wanted = bar.height() * (whole.height() / CONTENT_HEIGHT);
     assert!(
         (thumb.height() - wanted).abs() <= 1.0,
