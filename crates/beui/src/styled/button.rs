@@ -85,11 +85,12 @@ pub fn Button(
 }
 
 #[component]
-fn ButtonFace(
+pub(crate) fn ButtonFace(
     handle: unstyled::ButtonHandle,
     variant: ButtonVariant,
     label: Prop<String>,
     glyph: Prop<String>,
+    #[prop(default = String::new())] trailing_glyph: Prop<String>,
     disabled: Prop<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
@@ -106,6 +107,9 @@ fn ButtonFace(
     let icon_color = label_color.clone();
     let glyph_text = create_memo(move || glyph.get());
     let has_glyph = create_memo(clone!(glyph_text -> move || !glyph_text.get().is_empty()));
+    let trailing = create_memo(move || trailing_glyph.get());
+    let has_trailing = create_memo(clone!(trailing -> move || !trailing.get().is_empty()));
+    let trailing_color = label_color.clone();
     view! {
         <Frame
             outline={theme.accent.clone()}
@@ -133,6 +137,9 @@ fn ButtonFace(
                         color={label_color}
                         align=TextAlign::Center
                     />
+                    <Show condition={has_trailing}>
+                        <IconSized glyph={trailing} font_size=ICON_SIZE color={trailing_color} />
+                    </Show>
                 </List>
             </Frame>
         </Frame>

@@ -236,6 +236,9 @@ fn revealed_offset(direction: Direction, viewport: Rect, item: Rect, offset: f32
     let length = direction.main(viewport.size());
     let start = direction.main(item.min - viewport.min) + offset;
     let end = direction.main(item.max - viewport.min) + offset;
+    if start <= offset && end >= offset + length {
+        return None;
+    }
     let revealed = if start < offset {
         start
     } else if end > offset + length {

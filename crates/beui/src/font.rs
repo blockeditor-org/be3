@@ -8,7 +8,13 @@ use freetype::freetype as ft;
 use harfbuzz_rs::{Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, shape};
 use unicode_script::{Script, UnicodeScript};
 
+use crate::base::TextAlign;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+
+unsafe extern "C" {
+    fn FT_GlyphSlot_Embolden(slot: ft::FT_GlyphSlot);
+    fn FT_GlyphSlot_Oblique(slot: ft::FT_GlyphSlot);
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum FontFamily {
@@ -21,28 +27,74 @@ pub enum FontFamily {
 pub struct FontId {
     pub size: f32,
     pub family: FontFamily,
+    pub bold: bool,
+    pub italic: bool,
 }
 
 impl FontId {
-    pub fn proportional(size: f32) -> Self {
+    pub fn new(size: f32, family: FontFamily) -> Self {
         Self {
             size,
-            family: FontFamily::Proportional,
+            family,
+            bold: false,
+            italic: false,
         }
+    }
+
+    pub fn proportional(size: f32) -> Self {
+        Self::new(size, FontFamily::Proportional)
     }
 
     pub fn monospace(size: f32) -> Self {
-        Self {
-            size,
-            family: FontFamily::Monospace,
-        }
+        Self::new(size, FontFamily::Monospace)
     }
 
     pub fn icons(size: f32) -> Self {
+        Self::new(size, FontFamily::Icons)
+    }
+
+    pub fn bold(self, bold: bool) -> Self {
+        Self { bold, ..self }
+    }
+
+    pub fn italic(self, italic: bool) -> Self {
+        Self { italic, ..self }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct TextLayout {
+    pub wrap_width: f32,
+    pub align: TextAlign,
+    pub line_spacing: f32,
+}
+
+impl TextLayout {
+    pub const DEFAULT: Self = Self {
+        wrap_width: f32::INFINITY,
+        align: TextAlign::Start,
+        line_spacing: 1.0,
+    };
+
+    pub fn wrapped(wrap_width: f32) -> Self {
         Self {
-            size,
-            family: FontFamily::Icons,
+            wrap_width,
+            ..Self::DEFAULT
         }
+    }
+
+    fn indent_of(self, width: f32, line: f32) -> f32 {
+        match self.align {
+            TextAlign::Start => 0.0,
+            TextAlign::Center => ((width - line) * 0.5).round(),
+            TextAlign::End => (width - line).round(),
+        }
+    }
+}
+
+impl Default for TextLayout {
+    fn default() -> Self {
+        Self::DEFAULT
     }
 }
 
@@ -52,6 +104,8 @@ pub struct GlyphId {
     glyph: u32,
     pixel_size: u32,
     subpixel: u32,
+    bold: bool,
+    italic: bool,
 }
 
 pub struct GlyphImage {
@@ -212,28 +266,71 @@ struct GalleyKey {
     text: String,
     size: u32,
     family: FontFamily,
-    wrap: u32,
+    shape: Shaping,
     scale: u32,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct Shaping {
+    wrap: u32,
+    align: TextAlign,
+    spacing: u32,
+    bold: bool,
+    italic: bool,
+}
+
+impl Shaping {
+    fn of(font: FontId, layout: TextLayout, pixels_per_point: f32) -> Self {
+        Self {
+            wrap: (layout.wrap_width * pixels_per_point).max(0.0).to_bits(),
+            align: layout.align,
+            spacing: layout.line_spacing.max(0.1).to_bits(),
+            bold: font.bold,
+            italic: font.italic,
+        }
+    }
+
+    fn wrap(self) -> f32 {
+        f32::from_bits(self.wrap)
+    }
+
+    fn spacing(self) -> f32 {
+        f32::from_bits(self.spacing)
+    }
+}
+
 impl GalleyKey {
-    fn matches(&self, text: &str, size: u32, family: FontFamily, wrap: u32, scale: u32) -> bool {
+    fn matches(
+        &self,
+        text: &str,
+        size: u32,
+        family: FontFamily,
+        shape: Shaping,
+        scale: u32,
+    ) -> bool {
         self.size == size
             && self.family == family
-            && self.wrap == wrap
+            && self.shape == shape
             && self.scale == scale
             && self.text == text
     }
 }
 
-fn galley_hash(text: &str, size: u32, family: FontFamily, wrap: u32, scale: u32) -> u64 {
+fn galley_hash(text: &str, size: u32, family: FontFamily, shape: Shaping, scale: u32) -> u64 {
     let mut hasher = DefaultHasher::new();
     text.hash(&mut hasher);
     size.hash(&mut hasher);
     family.hash(&mut hasher);
-    wrap.hash(&mut hasher);
+    shape.hash(&mut hasher);
     scale.hash(&mut hasher);
     hasher.finish()
+}
+
+struct Row {
+    glyphs: Vec<ShapedGlyph>,
+    start: usize,
+    end: usize,
+    advance: f32,
 }
 
 const GALLEY_CACHE_LIMIT: usize = 4096;
@@ -388,18 +485,17 @@ impl Fonts {
         &mut self,
         text: &str,
         font: FontId,
-        wrap_width: f32,
+        layout: TextLayout,
         pixels_per_point: f32,
     ) -> Galley {
         let pixel_size = ((font.size * pixels_per_point).round() as u32).max(1);
-        let wrap = (wrap_width * pixels_per_point).max(0.0);
-        let bits = wrap.to_bits();
+        let shape = Shaping::of(font, layout, pixels_per_point);
         let scale = pixels_per_point.to_bits();
-        let hash = galley_hash(text, pixel_size, font.family, bits, scale);
-        if let Some(galley) = self.remembered(hash, text, pixel_size, font.family, bits, scale) {
+        let hash = galley_hash(text, pixel_size, font.family, shape, scale);
+        if let Some(galley) = self.remembered(hash, text, pixel_size, font.family, shape, scale) {
             return galley;
         }
-        let galley = self.build(text, font.family, pixel_size, wrap, pixels_per_point);
+        let galley = self.build(text, font.family, pixel_size, shape, pixels_per_point);
         if self.cached_galleys >= GALLEY_CACHE_LIMIT {
             self.cooling = std::mem::take(&mut self.galleys);
             self.cached_galleys = 0;
@@ -408,7 +504,7 @@ impl Fonts {
             text: text.to_owned(),
             size: pixel_size,
             family: font.family,
-            wrap: bits,
+            shape,
             scale,
         };
         self.remember(hash, key, galley.clone());
@@ -421,20 +517,20 @@ impl Fonts {
         text: &str,
         size: u32,
         family: FontFamily,
-        wrap: u32,
+        shape: Shaping,
         scale: u32,
     ) -> Option<Galley> {
         if let Some(bucket) = self.galleys.get(&hash)
             && let Some((_, galley)) = bucket
                 .iter()
-                .find(|(key, _)| key.matches(text, size, family, wrap, scale))
+                .find(|(key, _)| key.matches(text, size, family, shape, scale))
         {
             return Some(galley.clone());
         }
         let bucket = self.cooling.get_mut(&hash)?;
         let found = bucket
             .iter()
-            .position(|(key, _)| key.matches(text, size, family, wrap, scale))?;
+            .position(|(key, _)| key.matches(text, size, family, shape, scale))?;
         let (key, galley) = bucket.swap_remove(found);
         self.remember(hash, key, galley.clone());
         Some(galley)
@@ -450,19 +546,18 @@ impl Fonts {
         text: &str,
         family: FontFamily,
         pixel_size: u32,
-        wrap: f32,
+        shape: Shaping,
         scale: f32,
     ) -> Galley {
-        let (ascent, line_height) = self.metrics(family, pixel_size);
-        let mut glyphs = Vec::new();
-        let mut lines = Vec::new();
+        let (ascent, natural) = self.metrics(family, pixel_size);
+        let line_height = natural * shape.spacing();
+        let mut rows: Vec<Row> = Vec::new();
         let mut width = 0.0f32;
-        let mut cursor = 0.0;
         let mut start = 0;
 
         for line in text.split('\n') {
             let shaped = self.shape_line(line, family, pixel_size);
-            let runs = break_lines(&shaped, line, wrap);
+            let runs = break_lines(&shaped, line, shape.wrap());
             let last = runs.len() - 1;
             for (index, run) in runs.into_iter().enumerate() {
                 let end = start
@@ -470,29 +565,48 @@ impl Fonts {
                         Some(glyph) if index < last => glyph.cluster,
                         _ => line.len(),
                     };
-                let mut pen = 0.0;
-                let mut cursors = Vec::new();
-                for glyph in &shaped[run] {
-                    let at = start + glyph.cluster;
-                    if cursors.last().is_none_or(|(previous, _)| *previous != at) {
-                        cursors.push((at, pen / scale));
-                    }
-                    let placed = self.place(*glyph, pixel_size, pen, cursor + ascent);
-                    if let Some(placed) = placed {
-                        glyphs.push(placed);
-                    }
-                    pen += glyph.x_advance;
-                }
-                cursors.push((end, pen / scale));
-                width = width.max(pen);
-                lines.push(GalleyLine {
-                    top: cursor / scale,
-                    range: cursors[0].0..end,
-                    cursors,
+                let glyphs = shaped[run].to_vec();
+                let advance = glyphs.iter().map(|glyph| glyph.x_advance).sum::<f32>();
+                width = width.max(advance);
+                rows.push(Row {
+                    glyphs,
+                    start,
+                    end,
+                    advance,
                 });
-                cursor += line_height;
             }
             start += line.len() + 1;
+        }
+
+        let mut placed = Vec::new();
+        let mut lines = Vec::new();
+        let mut cursor = 0.0;
+        for row in rows {
+            let indent = TextLayout {
+                wrap_width: f32::INFINITY,
+                align: shape.align,
+                line_spacing: 1.0,
+            }
+            .indent_of(width, row.advance);
+            let mut pen = indent;
+            let mut cursors = Vec::new();
+            for glyph in &row.glyphs {
+                let at = row.start + glyph.cluster;
+                if cursors.last().is_none_or(|(previous, _)| *previous != at) {
+                    cursors.push((at, pen / scale));
+                }
+                if let Some(glyph) = self.place(*glyph, shape, pixel_size, pen, cursor + ascent) {
+                    placed.push(glyph);
+                }
+                pen += glyph.x_advance;
+            }
+            cursors.push((row.end, pen / scale));
+            lines.push(GalleyLine {
+                top: cursor / scale,
+                range: cursors[0].0..row.end,
+                cursors,
+            });
+            cursor += line_height;
         }
 
         Galley {
@@ -500,8 +614,8 @@ impl Fonts {
                 size: vec2(width.ceil() / scale, cursor.ceil() / scale),
                 line_height: line_height / scale,
                 baseline: ascent / scale,
-                pixel_bounds: pixel_bounds(&glyphs),
-                glyphs,
+                pixel_bounds: pixel_bounds(&placed),
+                glyphs: placed,
                 lines,
             }),
         }
@@ -510,6 +624,7 @@ impl Fonts {
     fn place(
         &mut self,
         glyph: ShapedGlyph,
+        shape: Shaping,
         pixel_size: u32,
         pen: f32,
         baseline: f32,
@@ -520,6 +635,8 @@ impl Fonts {
             glyph: glyph.glyph,
             pixel_size,
             subpixel,
+            bold: shape.bold,
+            italic: shape.italic,
         };
         let image = self.image(id)?;
         if image.width == 0 || image.height == 0 {
@@ -556,6 +673,12 @@ impl Fonts {
             if (*slot).format == ft::FT_Glyph_Format::FT_GLYPH_FORMAT_OUTLINE {
                 let shift = (key.subpixel as ft::FT_Pos * 64) / SUBPIXEL_POSITIONS as ft::FT_Pos;
                 ft::FT_Outline_Translate(&(*slot).outline, shift, 0);
+            }
+            if key.bold {
+                FT_GlyphSlot_Embolden(slot);
+            }
+            if key.italic {
+                FT_GlyphSlot_Oblique(slot);
             }
             if ft::FT_Render_Glyph(slot, ft::FT_Render_Mode::FT_RENDER_MODE_NORMAL) != 0 {
                 return None;

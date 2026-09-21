@@ -2,10 +2,12 @@ use beui_macros::{component, view};
 
 use crate::base::TextAlign;
 use crate::color::Color32;
+use crate::geometry::Pos2;
 use crate::icons::ICON_CHEVRON_RIGHT;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Text, clone, create_memo,
+    Align, Callback, Child, Children, ClickCallback, Direction, Frame, ItemSize, List, Prop, Text,
+    clone, create_memo,
 };
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
@@ -23,22 +25,42 @@ const SUBMENU_ICON_SIZE: f32 = 16.0;
 pub fn ContextMenu(
     children: Child,
     items: Children<MenuItem>,
+    #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = None)] open_at: Prop<Option<Pos2>>,
+    on_close: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     view! {
         <unstyled::ContextMenu
             items
-            row={|handle| view! {
-                <MenuRow handle />
-            }}
-            panel={|content| view! {
-                <MenuPanel>{content}</MenuPanel>
-            }}
+            row={menu_row()}
+            panel={menu_panel()}
+            child_size={child_size}
+            disabled={disabled}
+            open_at={open_at}
+            on_close={move || on_close.call()}
             on_select={move |path| on_select.call(path)}
         >
             {children}
         </unstyled::ContextMenu>
     }
+}
+
+pub(crate) fn menu_row() -> crate::reactive::RenderFn<MenuRowHandle> {
+    crate::reactive::RenderFn::new(|handle| {
+        view! {
+            <MenuRow handle />
+        }
+    })
+}
+
+pub(crate) fn menu_panel() -> crate::reactive::RenderFn<Child> {
+    crate::reactive::RenderFn::new(|content| {
+        view! {
+            <MenuPanel>{content}</MenuPanel>
+        }
+    })
 }
 
 pub(crate) fn text_input_menu() -> TextInputMenu {

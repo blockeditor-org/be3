@@ -139,14 +139,14 @@ name, a uuid, the time - repacks the atlas without moving anything in the snapsh
 that varies in the frame the test captures is of course a different painting, and still
 has to be kept out of it.
 
-Nor does a snapshot hold what a paint callback draws - a plugin's surface, a 3D scene -
-since those contents never reach the painter: the snapshot keeps the region and nothing
-inside it, so a test of one asserts on the block instead.
+Nor does a snapshot hold what a paint callback or a beui Drawing draws - a plugin's
+surface, a 3D scene - since those contents never reach the painter: the snapshot keeps the
+region and nothing inside it, so a test of one asserts on the block instead.
 
-An editor that rasterizes its own glyphs rather than egui's - the text editor, which shapes
-and rasterizes through HarfBuzz and FreeType - draws with the fonts it carries once it is
-compiled to wasm, which is how its tests run, so what it paints is comparable like anything
-else. What is still not comparable is anything the frame itself varies: a temporary
+An editor that rasterizes its own glyphs rather than egui's - a beui one, which shapes and
+rasterizes through the HarfBuzz and FreeType beui carries - draws with the fonts it carries
+once it is compiled to wasm, which is how its tests run, so what it paints is comparable like
+anything else. What is still not comparable is anything the frame itself varies: a temporary
 directory's name, a uuid, the time.
 
 5. Running them

@@ -1,6 +1,8 @@
-mod access;
 pub mod app;
+mod geometry;
 mod images;
-mod viewport;
 
-block_editor_plugin::plugin!(app::CanvasApp, "../manifest.json");
+block_editor_plugin::beui_plugin!(app::CanvasApp, "../manifest.json");
+
+#[cfg(test)]
+mod tests;

@@ -13,6 +13,7 @@ struct Instance {
     @location(2) uv: vec4<f32>,
     @location(3) color: vec4<f32>,
     @location(4) params: vec4<f32>,
+    @location(5) turn: vec4<f32>,
 };
 
 struct Fragment {
@@ -24,6 +25,7 @@ struct Fragment {
     @location(4) clip: vec4<f32>,
     @location(5) params: vec4<f32>,
     @location(6) @interpolate(flat) segment: vec4<f32>,
+    @location(7) @interpolate(flat) turn: vec4<f32>,
 };
 
 fn corner(index: u32) -> vec2<f32> {
@@ -42,6 +44,16 @@ fn segment_distance(point: vec2<f32>, segment_start: vec2<f32>, segment_end: vec
     return distance(point, segment_start + span * t);
 }
 
+fn turned(point: vec2<f32>, turn: vec4<f32>, direction: f32) -> vec2<f32> {
+    let offset = point - turn.xy;
+    let cosine = turn.z;
+    let sine = turn.w * direction;
+    return turn.xy + vec2<f32>(
+        offset.x * cosine - offset.y * sine,
+        offset.x * sine + offset.y * cosine,
+    );
+}
+
 fn rounded_distance(point: vec2<f32>, extent: vec2<f32>, radius: f32) -> f32 {
     let limit = min(radius, min(extent.x, extent.y));
     let offset = abs(point) - extent + vec2<f32>(limit);
@@ -55,7 +67,7 @@ fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
     let low = instance.rect.xy - vec2<f32>(bleed);
     let high = instance.rect.zw + vec2<f32>(bleed);
     let weight = corner(index);
-    let point = mix(low, high, weight);
+    let point = turned(mix(low, high, weight), instance.turn, 1.0);
 
     var fragment: Fragment;
     fragment.position = vec4<f32>(
@@ -70,6 +82,7 @@ fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
     fragment.clip = instance.clip;
     fragment.params = instance.params;
     fragment.segment = instance.uv;
+    fragment.turn = instance.turn;
     return fragment;
 }
 
@@ -82,6 +95,7 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         discard;
     }
 
+    let local = turned(input.point, input.turn, -1.0);
     var coverage = 1.0;
     if input.params.z > 2.5 {
         let reach = segment_distance(input.point, input.segment.xy, input.segment.zw);
@@ -92,7 +106,7 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         let texel = textureSample(atlas, atlas_sampler, input.uv);
         let center = (input.rect.xy + input.rect.zw) * 0.5;
         let extent = (input.rect.zw - input.rect.xy) * 0.5;
-        let distance = rounded_distance(input.point - center, extent, input.params.x);
+        let distance = rounded_distance(local - center, extent, input.params.x);
         let edge = clamp(0.5 - distance, 0.0, 1.0);
         return vec4<f32>(texel.rgb * input.color.rgb, texel.a * input.color.a * edge);
     }
@@ -101,7 +115,7 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
     } else {
         let center = (input.rect.xy + input.rect.zw) * 0.5;
         let extent = (input.rect.zw - input.rect.xy) * 0.5;
-        var distance = rounded_distance(input.point - center, extent, input.params.x);
+        var distance = rounded_distance(local - center, extent, input.params.x);
         let width = input.params.y;
         if width > 0.0 {
             distance = abs(distance + width * 0.5) - width * 0.5;

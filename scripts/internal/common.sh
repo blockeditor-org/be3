@@ -113,6 +113,55 @@ assert_command() {
     fi
 }
 
+# macOS has shasum rather than sha256sum; both read a "hash  path" pair in the
+# same format, so which one is picked only changes the command.
+sha256_of() {
+    if command -v sha256sum > /dev/null; then
+        sha256sum "$1" | cut -d ' ' -f 1
+    else
+        assert_command shasum 'Install coreutils (sha256sum) or shasum.'
+        shasum -a 256 "$1" | cut -d ' ' -f 1
+    fi
+}
+
+# Everything this repository downloads goes through here, so that a pinned URL
+# is also a pinned set of bytes. A version in a URL only says what we asked
+# for; the hash is what says we got it. Without one, a moved release asset, a
+# compromised host or a proxy that rewrites a response is a toolchain nobody
+# looked at, running with whatever rights the build has - and a build fetches a
+# compiler, a compiler wrapper and a sysroot, all of which end up in what ships.
+#
+# A mismatch deletes the download before exiting, so a retry fetches afresh
+# instead of finding the rejected file already in place and extracting it.
+#
+# --proto and --proto-redir together keep both the request and anything it is
+# redirected to on https, so a redirect cannot quietly downgrade the transport.
+download_verified() {
+    local url="$1" destination="$2" expected="$3"
+    assert_command curl 'Install curl.'
+    rm -f "$destination"
+    curl --fail --location --proto '=https' --proto-redir '=https' \
+        --output "$destination" "$url"
+
+    local actual
+    actual="$(sha256_of "$destination")"
+    if [[ "$actual" == "$expected" ]]; then
+        return 0
+    fi
+
+    rm -f "$destination"
+    echo '' >&2
+    echo "The download from $url is not the file this repository expects." >&2
+    echo "  sha256 is   $actual" >&2
+    echo "  sha256 want $expected" >&2
+    echo '' >&2
+    echo 'Nothing has been installed. If the release was legitimately replaced, check the' >&2
+    echo "new bytes against upstream's own provenance before recording the new hash here;" >&2
+    echo 'recomputing it from the same download only proves the download agrees with' >&2
+    echo 'itself.' >&2
+    exit 1
+}
+
 # clang and rust-lld are native programs even when the build runs under a POSIX
 # shell on Windows, and neither can open the /c/... form such a shell hands out,
 # so every path that travels to one of them as an argument goes through here.
@@ -318,6 +367,10 @@ build_games() {
 # wasm-bindgen. The web build exports the same environment for its own cargo
 # call; a plugin built for wasmtime is the same target with none of the glue.
 wasi_sdk_version='33'
+# The sysroot every plugin and the web bundle are linked against, so of the
+# archives fetched here this is the one that reaches what CI publishes: the web
+# and plugin jobs both download it on a cache miss.
+wasi_sysroot_sha256='063bc1b56582b9923e08ac9b89e58789618d851763f01530b3ff20b9e5df0ca3'
 wasm_rust_target='wasm32-wasip1-threads'
 
 # The flags below are LLVM 19's, so an older clang stops at the first of them
@@ -377,17 +430,27 @@ export_wasi_toolchain() {
     if [[ -z "$wasi_sysroot" ]]; then
         local tools="$repository/target/tools"
         wasi_sysroot="$tools/wasi-sysroot"
-        if ! wasi_sysroot_is_complete "$wasi_sysroot"; then
+        # The hash of the archive it came out of, so that a sysroot left by a
+        # different pin is replaced rather than linked against. CI restores this
+        # directory from a cache whose key is written by hand (see "Cache the
+        # WASI sysroot" in ci.yml), so without this, bumping wasi_sdk_version
+        # and forgetting the key would quietly build against the old sysroot.
+        local stamp="$wasi_sysroot/.stamp"
+        if ! wasi_sysroot_is_complete "$wasi_sysroot" \
+            || [[ "$(cat "$stamp" 2> /dev/null)" != "$wasi_sysroot_sha256" ]]; then
             local archive="$tools/wasi-sysroot.tar.gz"
             local extracted="$tools/wasi-sysroot-$wasi_sdk_version.0+m"
             local url="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$wasi_sdk_version/wasi-sysroot-$wasi_sdk_version.0+m.tar.gz"
             step "Downloading the WASI sysroot from $url"
             mkdir -p "$tools"
             rm -rf "$wasi_sysroot" "$extracted"
-            curl --fail --location --output "$archive" "$url"
+            download_verified "$url" "$archive" "$wasi_sysroot_sha256"
             tar -xzf "$archive" -C "$tools"
             mv "$extracted" "$wasi_sysroot"
             rm "$archive"
+            # Written last, so an interrupted extraction leaves a directory
+            # that fails the check above rather than one that passes it.
+            echo "$wasi_sysroot_sha256" > "$stamp"
             end_step
         fi
     fi
@@ -543,6 +606,12 @@ precompile_plugin_wasm() {
 # the cache is read-only, which costs a miss nothing but a locally reported
 # write error.
 sccache_version='0.18.0'
+# internal/install-sccache.sh fetches the musl release for one of these two
+# architectures and checks it against the hash here. It becomes RUSTC_WRAPPER,
+# so it wraps every rustc and, off Windows, every cc the build runs: of
+# everything downloaded here this is the one with the most to see.
+sccache_sha256_x86_64='45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89'
+sccache_sha256_aarch64='2b3284d5da3b46a47dc4229e75bb7b88ac4aa99c8d754fb7d2f84997e5a4354a'
 sccache_directory="$repository/target/tools/sccache"
 sccache_bucket='sccache'
 sccache_read_only_password='11737dc0-6417-4dcc-a076dc81ac00-71a7-461f'

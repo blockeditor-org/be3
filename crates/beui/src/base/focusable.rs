@@ -25,6 +25,7 @@ pub(crate) struct FocusableNode {
     pub(crate) on_text: Callback<String>,
     pub(crate) on_key: KeyCallback,
     pub(crate) on_ancestor_key: KeyCallback,
+    pub(crate) on_motion: Callback<Vec2>,
 }
 
 impl FocusableNode {
@@ -40,6 +41,7 @@ impl FocusableNode {
             on_text: Callback::empty(),
             on_key: Callback::empty(),
             on_ancestor_key: Callback::empty(),
+            on_motion: Callback::empty(),
         }
     }
 }
@@ -134,6 +136,12 @@ impl Document {
     pub(crate) fn text_focused(&mut self, text: &str) {
         if let Some(focused) = self.focused {
             self.call_focusable_handler(focused, text.to_owned(), |node| &node.on_text);
+        }
+    }
+
+    pub(crate) fn motion_focused(&mut self, motion: Vec2) {
+        if let Some(focused) = self.focused {
+            self.call_focusable_handler(focused, motion, |node| &node.on_motion);
         }
     }
 
@@ -445,6 +453,7 @@ pub fn Focusable(
     on_text: Callback<String>,
     on_key: Callback<KeyPress, bool>,
     on_ancestor_key: Callback<KeyPress, bool>,
+    on_motion: Callback<Vec2>,
     children: Option<Child>,
 ) -> NodeId {
     let focusable = with_document(|document| {
@@ -457,6 +466,7 @@ pub fn Focusable(
         node.on_text = on_text;
         node.on_key = on_key;
         node.on_ancestor_key = on_ancestor_key;
+        node.on_motion = on_motion;
         if let Some(child) = children {
             document.set_focusable_child(focusable, child);
         }

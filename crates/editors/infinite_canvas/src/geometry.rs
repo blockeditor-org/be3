@@ -1,10 +1,166 @@
-use super::*;
+use block_client::blocks::infinite_canvas::{
+    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
+    CanvasTextStyle, CanvasTransform,
+};
+use block_editor_plugin::beui::{Pos2, Rect, Vec2, pos2};
+use block_editor_plugin::block_ui::{
+    EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT,
+};
+use block_editor_plugin::{ResizeMode, block_ui};
+use uuid::Uuid;
 
-pub(super) fn duplicate_entities(
+pub(crate) const MIN_SIZE: f32 = 4.0;
+pub(crate) const HIT_RADIUS: f32 = 7.0;
+pub(crate) const HANDLE_RADIUS: f32 = 5.0;
+pub(crate) const ROTATE_OFFSET: f32 = 28.0;
+pub(crate) const IMPORT_CASCADE_OFFSET: f32 = 24.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct WorldRect {
+    pub(crate) min: CanvasPoint,
+    pub(crate) max: CanvasPoint,
+}
+
+impl WorldRect {
+    pub(crate) fn from_points(a: CanvasPoint, b: CanvasPoint) -> Self {
+        Self {
+            min: CanvasPoint::new(a.x.min(b.x), a.y.min(b.y)),
+            max: CanvasPoint::new(a.x.max(b.x), a.y.max(b.y)),
+        }
+    }
+
+    pub(crate) fn center(self) -> CanvasPoint {
+        CanvasPoint::new(
+            (self.min.x + self.max.x) * 0.5,
+            (self.min.y + self.max.y) * 0.5,
+        )
+    }
+
+    pub(crate) fn size(self) -> CanvasPoint {
+        CanvasPoint::new(self.max.x - self.min.x, self.max.y - self.min.y)
+    }
+
+    pub(crate) fn union(self, other: Self) -> Self {
+        Self {
+            min: CanvasPoint::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y)),
+            max: CanvasPoint::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y)),
+        }
+    }
+
+    pub(crate) fn contains_rect(self, other: Self) -> bool {
+        self.min.x <= other.min.x
+            && self.max.x >= other.max.x
+            && self.min.y <= other.min.y
+            && self.max.y >= other.max.y
+    }
+
+    pub(crate) fn contains(self, point: CanvasPoint) -> bool {
+        point.x >= self.min.x
+            && point.x <= self.max.x
+            && point.y >= self.min.y
+            && point.y <= self.max.y
+    }
+
+    pub(crate) fn rect(self) -> Rect {
+        Rect::from_min_max(
+            pos2(self.min.x, self.min.y),
+            pos2(self.max.x.max(self.min.x), self.max.y.max(self.min.y)),
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SelectionFrame {
+    pub(crate) center: CanvasPoint,
+    pub(crate) size: CanvasPoint,
+    pub(crate) rotation: f32,
+}
+
+impl SelectionFrame {
+    pub(crate) fn from_world_rect(bounds: WorldRect) -> Self {
+        Self {
+            center: bounds.center(),
+            size: bounds.size(),
+            rotation: 0.0,
+        }
+    }
+
+    pub(crate) fn point(self, local: CanvasPoint) -> CanvasPoint {
+        local_to_world(
+            CanvasTransform::new(self.center, self.size, self.rotation),
+            local,
+        )
+    }
+
+    pub(crate) fn contains(self, point: CanvasPoint) -> bool {
+        let local = world_to_local(
+            CanvasTransform::new(self.center, self.size, self.rotation),
+            point,
+        );
+        local.x.abs() <= 0.5 && local.y.abs() <= 0.5
+    }
+
+    pub(crate) fn local_bounds(self) -> WorldRect {
+        WorldRect {
+            min: CanvasPoint::new(-self.size.x * 0.5, -self.size.y * 0.5),
+            max: CanvasPoint::new(self.size.x * 0.5, self.size.y * 0.5),
+        }
+    }
+
+    pub(crate) fn corners(self) -> [CanvasPoint; 4] {
+        [
+            CanvasPoint::new(-0.5, -0.5),
+            CanvasPoint::new(0.5, -0.5),
+            CanvasPoint::new(0.5, 0.5),
+            CanvasPoint::new(-0.5, 0.5),
+        ]
+        .map(|corner| self.point(corner))
+    }
+
+    pub(crate) fn rotate_handle(self) -> CanvasPoint {
+        let top = self.point(CanvasPoint::new(0.0, -0.5));
+        let angle = self.rotation - std::f32::consts::FRAC_PI_2;
+        CanvasPoint::new(
+            top.x + angle.cos() * ROTATE_OFFSET,
+            top.y + angle.sin() * ROTATE_OFFSET,
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ResizeHandle {
+    pub(crate) x: i8,
+    pub(crate) y: i8,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct DirectEditorLayout {
+    pub(crate) title_bar: WorldRect,
+    pub(crate) content: WorldRect,
+}
+
+pub(crate) fn point(point: CanvasPoint) -> Pos2 {
+    pos2(point.x, point.y)
+}
+
+pub(crate) fn gesture_rect(
+    start: CanvasPoint,
+    current: CanvasPoint,
+    from_center: bool,
+) -> WorldRect {
+    let opposite = if from_center {
+        CanvasPoint::new(start.x * 2.0 - current.x, start.y * 2.0 - current.y)
+    } else {
+        start
+    };
+    WorldRect::from_points(opposite, current)
+}
+
+pub(crate) fn duplicate_entities(
     entities: Vec<CanvasEntity>,
     offset: CanvasPoint,
 ) -> Vec<CanvasEntity> {
-    let mut duplicate_groups = HashMap::new();
+    let mut duplicate_groups = std::collections::HashMap::new();
     entities
         .into_iter()
         .map(|mut entity| {
@@ -23,20 +179,7 @@ pub(super) fn duplicate_entities(
         .collect()
 }
 
-pub(super) fn focused_direct_editor(
-    focused: Option<Uuid>,
-    entities: &[CanvasEntity],
-) -> Option<(Uuid, BlockRef, f32)> {
-    let focused = focused?;
-    entities.iter().find_map(|entity| match entity.kind {
-        CanvasEntityKind::DirectEditor {
-            block_id, scale, ..
-        } if entity.id == focused => Some((entity.id, block_id, scale)),
-        _ => None,
-    })
-}
-
-pub(super) fn entity_kind_label(kind: &CanvasEntityKind) -> &'static str {
+pub(crate) fn entity_kind_label(kind: &CanvasEntityKind) -> &'static str {
     match kind {
         CanvasEntityKind::Line => "Line",
         CanvasEntityKind::Rectangle => "Rectangle",
@@ -47,7 +190,7 @@ pub(super) fn entity_kind_label(kind: &CanvasEntityKind) -> &'static str {
     }
 }
 
-pub(super) fn preview_region_for_entities(entities: &[CanvasEntity]) -> CanvasPreviewRegion {
+pub(crate) fn preview_region_for_entities(entities: &[CanvasEntity]) -> CanvasPreviewRegion {
     let bounds = entities.iter().map(entity_bounds).reduce(WorldRect::union);
     bounds.map_or_else(
         || CanvasPreviewRegion::new(CanvasPoint::default(), CanvasPoint::new(100.0, 100.0)),
@@ -60,7 +203,7 @@ pub(super) fn preview_region_for_entities(entities: &[CanvasEntity]) -> CanvasPr
     )
 }
 
-pub(super) fn preview_region_bounds(region: CanvasPreviewRegion) -> WorldRect {
+pub(crate) fn preview_region_bounds(region: CanvasPreviewRegion) -> WorldRect {
     let half = CanvasPoint::new(region.size.x * 0.5, region.size.y * 0.5);
     WorldRect {
         min: CanvasPoint::new(region.center.x - half.x, region.center.y - half.y),
@@ -68,188 +211,20 @@ pub(super) fn preview_region_bounds(region: CanvasPreviewRegion) -> WorldRect {
     }
 }
 
-pub(super) fn common_value<T: Copy + PartialEq>(
-    values: impl IntoIterator<Item = T>,
-) -> CommonValue<T> {
-    let mut values = values.into_iter();
-    let Some(first) = values.next() else {
-        return CommonValue::None;
-    };
-    if values.all(|value| value == first) {
-        CommonValue::Uniform(first)
-    } else {
-        CommonValue::Mixed
-    }
-}
-
-pub(super) fn mixed_checkbox(
-    ui: &mut egui::Ui,
-    label: &str,
-    value: CommonValue<bool>,
-) -> Option<bool> {
-    let mixed = matches!(value, CommonValue::Mixed);
-    let mut checked = matches!(value, CommonValue::Uniform(true));
-    let label = if mixed {
-        format!("{label} (Mixed)")
-    } else {
-        label.into()
-    };
-    ui.checkbox(&mut checked, label)
-        .changed()
-        .then_some(checked)
-}
-
-const COLOR_PRESETS: [(&str, CanvasColor); 5] = [
-    ("Default", CanvasColor::Auto),
-    (
-        "Red",
-        CanvasColor::Rgba {
-            red: 224,
-            green: 49,
-            blue: 49,
-            alpha: 255,
-        },
-    ),
-    (
-        "Orange",
-        CanvasColor::Rgba {
-            red: 240,
-            green: 140,
-            blue: 0,
-            alpha: 255,
-        },
-    ),
-    (
-        "Green",
-        CanvasColor::Rgba {
-            red: 47,
-            green: 158,
-            blue: 68,
-            alpha: 255,
-        },
-    ),
-    (
-        "Blue",
-        CanvasColor::Rgba {
-            red: 25,
-            green: 113,
-            blue: 194,
-            alpha: 255,
-        },
-    ),
-];
-
-pub(super) fn color_menu(
-    ui: &mut egui::Ui,
-    label: &str,
-    value: CommonValue<CanvasColor>,
-) -> Option<CanvasColor> {
-    let mut changed = None;
-    let current = match value {
-        CommonValue::Uniform(color) => color,
-        CommonValue::Mixed | CommonValue::None => CanvasColor::Auto,
-    };
-    ui.horizontal(|ui| {
-        ui.label(label);
-        for (name, color) in COLOR_PRESETS {
-            if color_button(ui, name, color, value == CommonValue::Uniform(color)).clicked() {
-                changed = Some(color);
-            }
-        }
-        let mut color = resolve_color(current, ui.visuals().text_color()).to_srgba_unmultiplied();
-        if ui
-            .color_edit_button_srgba_unmultiplied(&mut color)
-            .on_hover_text("Custom color")
-            .changed()
-        {
-            changed = Some(CanvasColor::Rgba {
-                red: color[0],
-                green: color[1],
-                blue: color[2],
-                alpha: color[3],
-            });
-        }
-    });
-    changed
-}
-
-pub(super) fn fill_color_menu(
-    ui: &mut egui::Ui,
-    value: CommonValue<Option<CanvasColor>>,
-) -> Option<Option<CanvasColor>> {
-    let mut changed = None;
-    let current = match value {
-        CommonValue::Uniform(Some(color)) => color,
-        CommonValue::Uniform(None) | CommonValue::Mixed | CommonValue::None => CanvasColor::Auto,
-    };
-    ui.horizontal(|ui| {
-        ui.label("Fill");
-        if ui
-            .selectable_label(value == CommonValue::Uniform(None), ICON_FORMAT_COLOR_RESET)
-            .on_hover_text("No fill")
-            .clicked()
-        {
-            changed = Some(None);
-        }
-        for (name, color) in COLOR_PRESETS {
-            if color_button(ui, name, color, value == CommonValue::Uniform(Some(color))).clicked() {
-                changed = Some(Some(color));
-            }
-        }
-        let mut color = resolve_color(current, ui.visuals().text_color()).to_srgba_unmultiplied();
-        if ui
-            .color_edit_button_srgba_unmultiplied(&mut color)
-            .on_hover_text("Custom color")
-            .changed()
-        {
-            changed = Some(Some(CanvasColor::Rgba {
-                red: color[0],
-                green: color[1],
-                blue: color[2],
-                alpha: color[3],
-            }));
-        }
-    });
-    changed
-}
-
-pub(super) fn color_button(
-    ui: &mut egui::Ui,
-    name: &str,
-    color: CanvasColor,
-    selected: bool,
-) -> egui::Response {
-    let color = resolve_color(color, ui.visuals().text_color());
-    ui.selectable_label(selected, ICON_CIRCLE.rich_text().color(color))
-        .on_hover_text(name)
-}
-
-pub(super) fn resolve_color(color: CanvasColor, auto: Color32) -> Color32 {
-    match color {
-        CanvasColor::Auto => auto,
-        CanvasColor::Rgba {
-            red,
-            green,
-            blue,
-            alpha,
-        } => Color32::from_rgba_unmultiplied(red, green, blue, alpha),
-    }
-}
-
-pub(super) fn midpoint(a: CanvasPoint, b: CanvasPoint) -> CanvasPoint {
+pub(crate) fn midpoint(a: CanvasPoint, b: CanvasPoint) -> CanvasPoint {
     CanvasPoint::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5)
 }
 
-pub(super) fn distance(a: CanvasPoint, b: CanvasPoint) -> f32 {
+pub(crate) fn distance(a: CanvasPoint, b: CanvasPoint) -> f32 {
     (a.x - b.x).hypot(a.y - b.y)
 }
 
-pub(super) fn rotate(point: CanvasPoint, angle: f32) -> CanvasPoint {
+pub(crate) fn rotate(point: CanvasPoint, angle: f32) -> CanvasPoint {
     let (sin, cos) = angle.sin_cos();
     CanvasPoint::new(point.x * cos - point.y * sin, point.x * sin + point.y * cos)
 }
 
-pub(super) fn local_to_world(transform: CanvasTransform, local: CanvasPoint) -> CanvasPoint {
+pub(crate) fn local_to_world(transform: CanvasTransform, local: CanvasPoint) -> CanvasPoint {
     let scaled = CanvasPoint::new(local.x * transform.size.x, local.y * transform.size.y);
     let rotated = rotate(scaled, transform.rotation);
     CanvasPoint::new(
@@ -258,7 +233,7 @@ pub(super) fn local_to_world(transform: CanvasTransform, local: CanvasPoint) -> 
     )
 }
 
-pub(super) fn world_to_local(transform: CanvasTransform, world: CanvasPoint) -> CanvasPoint {
+pub(crate) fn world_to_local(transform: CanvasTransform, world: CanvasPoint) -> CanvasPoint {
     let relative = CanvasPoint::new(world.x - transform.center.x, world.y - transform.center.y);
     let rotated = rotate(relative, -transform.rotation);
     CanvasPoint::new(
@@ -267,7 +242,7 @@ pub(super) fn world_to_local(transform: CanvasTransform, world: CanvasPoint) -> 
     )
 }
 
-pub(super) fn entity_corners(entity: &CanvasEntity) -> [CanvasPoint; 4] {
+pub(crate) fn entity_corners(entity: &CanvasEntity) -> [CanvasPoint; 4] {
     [
         local_to_world(entity.transform, CanvasPoint::new(-0.5, -0.5)),
         local_to_world(entity.transform, CanvasPoint::new(0.5, -0.5)),
@@ -276,7 +251,7 @@ pub(super) fn entity_corners(entity: &CanvasEntity) -> [CanvasPoint; 4] {
     ]
 }
 
-pub(super) fn entity_bounds(entity: &CanvasEntity) -> WorldRect {
+pub(crate) fn entity_bounds(entity: &CanvasEntity) -> WorldRect {
     match &entity.kind {
         CanvasEntityKind::Line => {
             let start = local_to_world(entity.transform, CanvasPoint::new(-0.5, 0.0));
@@ -289,38 +264,25 @@ pub(super) fn entity_bounds(entity: &CanvasEntity) -> WorldRect {
             .map(|point| WorldRect::from_points(point, point))
             .reduce(WorldRect::union)
             .unwrap(),
-        _ => {
-            let corners = entity_corners(entity);
-            corners
-                .into_iter()
-                .map(|point| WorldRect::from_points(point, point))
-                .reduce(WorldRect::union)
-                .unwrap()
-        }
+        _ => entity_corners(entity)
+            .into_iter()
+            .map(|point| WorldRect::from_points(point, point))
+            .reduce(WorldRect::union)
+            .unwrap(),
     }
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct DirectEditorLayout {
-    pub(super) title_bar: WorldRect,
-    pub(super) content: WorldRect,
+pub(crate) fn direct_editor_entity_size(intrinsic: Vec2, scale: f32) -> CanvasPoint {
+    let size = block_ui::embedded_editor_frame_size(
+        block_editor_plugin::egui::vec2(intrinsic.x, intrinsic.y),
+        scale,
+    );
+    CanvasPoint::new(size.x.max(MIN_SIZE), size.y.max(MIN_SIZE))
 }
 
-pub(super) fn direct_editor_entity_size(intrinsic: Vec2, scale: f32) -> CanvasPoint {
-    CanvasPoint::new(
-        ((intrinsic.x + EMBEDDED_EDITOR_PADDING * 2.0) * scale).max(MIN_SIZE),
-        ((intrinsic.y
-            + EMBEDDED_EDITOR_PADDING * 2.0
-            + EMBEDDED_EDITOR_TITLE_HEIGHT
-            + EMBEDDED_EDITOR_TITLE_GAP)
-            * scale)
-            .max(MIN_SIZE),
-    )
-}
-
-pub(super) fn direct_editor_to_preview(
+pub(crate) fn direct_editor_to_preview(
     entity: &CanvasEntity,
-    block_id: BlockRef,
+    block_id: block_client::block_ref::BlockRef,
 ) -> Option<CanvasEntity> {
     let content = direct_editor_layout(entity)?.content;
     let content_size = content.size();
@@ -333,9 +295,9 @@ pub(super) fn direct_editor_to_preview(
     Some(preview)
 }
 
-pub(super) fn preview_to_direct_editor(
+pub(crate) fn preview_to_direct_editor(
     entity: &CanvasEntity,
-    block_id: BlockRef,
+    block_id: block_client::block_ref::BlockRef,
     intrinsic: Vec2,
 ) -> CanvasEntity {
     let content = entity_bounds(entity);
@@ -356,7 +318,7 @@ pub(super) fn preview_to_direct_editor(
     direct
 }
 
-pub(super) fn direct_editor_layout(entity: &CanvasEntity) -> Option<DirectEditorLayout> {
+pub(crate) fn direct_editor_layout(entity: &CanvasEntity) -> Option<DirectEditorLayout> {
     let CanvasEntityKind::DirectEditor { scale, .. } = entity.kind else {
         return None;
     };
@@ -382,7 +344,7 @@ pub(super) fn direct_editor_layout(entity: &CanvasEntity) -> Option<DirectEditor
     })
 }
 
-pub(super) fn hit_entity(entity: &CanvasEntity, point: CanvasPoint, radius: f32) -> bool {
+pub(crate) fn hit_entity(entity: &CanvasEntity, point: CanvasPoint, radius: f32) -> bool {
     match &entity.kind {
         CanvasEntityKind::Line => {
             let a = local_to_world(entity.transform, CanvasPoint::new(-0.5, 0.0));
@@ -415,7 +377,7 @@ pub(super) fn hit_entity(entity: &CanvasEntity, point: CanvasPoint, radius: f32)
     }
 }
 
-pub(super) fn point_segment_distance(point: CanvasPoint, a: CanvasPoint, b: CanvasPoint) -> f32 {
+pub(crate) fn point_segment_distance(point: CanvasPoint, a: CanvasPoint, b: CanvasPoint) -> f32 {
     let ab = CanvasPoint::new(b.x - a.x, b.y - a.y);
     let length_squared = ab.x * ab.x + ab.y * ab.y;
     if length_squared <= f32::EPSILON {
@@ -429,152 +391,48 @@ pub(super) fn point_segment_distance(point: CanvasPoint, a: CanvasPoint, b: Canv
     )
 }
 
-pub(super) fn screen_rect(editor: &InfiniteCanvasEditor, bounds: WorldRect, rect: Rect) -> Rect {
-    Rect::from_two_pos(
-        editor.world_to_screen(bounds.min, rect),
-        editor.world_to_screen(bounds.max, rect),
-    )
-}
-
-pub(super) fn resize_handle_at(
-    editor: &InfiniteCanvasEditor,
+pub(crate) fn resize_handle_at(
     frame: SelectionFrame,
-    rect: Rect,
     world: CanvasPoint,
-    resize: DirectEditorResize,
+    scale: f32,
+    resize: ResizeMode,
 ) -> Option<ResizeHandle> {
-    let pointer = editor.world_to_screen(world, rect);
+    let reach = (HANDLE_RADIUS + 3.0) / scale.max(f32::EPSILON);
     resize_handles(frame)
         .into_iter()
         .filter(|(handle, _)| resize_handle_allowed(*handle, resize))
-        .find_map(|(handle, point)| {
-            (editor.world_to_screen(point, rect).distance(pointer) <= HANDLE_RADIUS + 3.0)
-                .then_some(handle)
-        })
+        .find_map(|(handle, at)| (distance(at, world) <= reach).then_some(handle))
 }
 
-pub(super) fn resize_handle_allowed(handle: ResizeHandle, resize: DirectEditorResize) -> bool {
+pub(crate) fn rotate_handle_at(frame: SelectionFrame, world: CanvasPoint, scale: f32) -> bool {
+    let reach = (HANDLE_RADIUS + 3.0) / scale.max(f32::EPSILON);
+    distance(frame.rotate_handle(), world) <= reach
+}
+
+pub(crate) fn resize_handle_allowed(handle: ResizeHandle, resize: ResizeMode) -> bool {
     (handle.x == 0 || resize.horizontal()) && (handle.y == 0 || resize.vertical())
 }
 
-pub(super) fn resize_handles(frame: SelectionFrame) -> [(ResizeHandle, CanvasPoint); 8] {
+pub(crate) fn resize_handles(frame: SelectionFrame) -> [(ResizeHandle, CanvasPoint); 8] {
     [
-        (
-            ResizeHandle { x: -1, y: -1 },
-            frame.point(CanvasPoint::new(-0.5, -0.5)),
-        ),
-        (
-            ResizeHandle { x: 0, y: -1 },
-            frame.point(CanvasPoint::new(0.0, -0.5)),
-        ),
-        (
-            ResizeHandle { x: 1, y: -1 },
-            frame.point(CanvasPoint::new(0.5, -0.5)),
-        ),
-        (
-            ResizeHandle { x: 1, y: 0 },
-            frame.point(CanvasPoint::new(0.5, 0.0)),
-        ),
-        (
-            ResizeHandle { x: 1, y: 1 },
-            frame.point(CanvasPoint::new(0.5, 0.5)),
-        ),
-        (
-            ResizeHandle { x: 0, y: 1 },
-            frame.point(CanvasPoint::new(0.0, 0.5)),
-        ),
-        (
-            ResizeHandle { x: -1, y: 1 },
-            frame.point(CanvasPoint::new(-0.5, 0.5)),
-        ),
-        (
-            ResizeHandle { x: -1, y: 0 },
-            frame.point(CanvasPoint::new(-0.5, 0.0)),
-        ),
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+        (0, 1),
+        (-1, 1),
+        (-1, 0),
     ]
+    .map(|(x, y)| {
+        (
+            ResizeHandle { x, y },
+            frame.point(CanvasPoint::new(x as f32 * 0.5, y as f32 * 0.5)),
+        )
+    })
 }
 
-pub(super) fn rotate_handle_at(
-    editor: &InfiniteCanvasEditor,
-    frame: SelectionFrame,
-    rect: Rect,
-) -> Pos2 {
-    let top = editor.world_to_screen(frame.point(CanvasPoint::new(0.0, -0.5)), rect);
-    top + Vec2::angled(frame.rotation - std::f32::consts::FRAC_PI_2) * ROTATE_OFFSET
-}
-
-pub(super) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
-    match gesture {
-        Gesture::Move {
-            start,
-            current,
-            originals,
-            ..
-        } => {
-            let delta = CanvasPoint::new(current.x - start.x, current.y - start.y);
-            originals
-                .iter()
-                .cloned()
-                .map(|mut entity| {
-                    entity.transform.center.x += delta.x;
-                    entity.transform.center.y += delta.y;
-                    entity
-                })
-                .collect()
-        }
-        Gesture::Resize {
-            handle,
-            frame,
-            current,
-            originals,
-            preserve_aspect_ratio,
-            scale_text,
-            scale_editors,
-            ..
-        } => resize_entities(
-            *handle,
-            *frame,
-            *current,
-            originals,
-            *preserve_aspect_ratio,
-            *scale_text,
-            *scale_editors,
-        ),
-        Gesture::Rotate {
-            frame,
-            start_angle,
-            current,
-            originals,
-            snap_angle,
-        } => {
-            let center = frame.center;
-            let current_angle = (current.y - center.y).atan2(current.x - center.x);
-            let mut delta = current_angle - start_angle;
-            if *snap_angle {
-                let step = 15.0_f32.to_radians();
-                delta = (delta / step).round() * step;
-            }
-            originals
-                .iter()
-                .cloned()
-                .map(|mut entity| {
-                    let relative = CanvasPoint::new(
-                        entity.transform.center.x - center.x,
-                        entity.transform.center.y - center.y,
-                    );
-                    let rotated = rotate(relative, delta);
-                    entity.transform.center =
-                        CanvasPoint::new(center.x + rotated.x, center.y + rotated.y);
-                    entity.transform.rotation += delta;
-                    entity
-                })
-                .collect()
-        }
-        _ => Vec::new(),
-    }
-}
-
-pub(super) fn constrain_point_angle(
+pub(crate) fn constrain_point_angle(
     start: CanvasPoint,
     current: CanvasPoint,
     step: f32,
@@ -588,7 +446,37 @@ pub(super) fn constrain_point_angle(
     )
 }
 
-pub(super) fn resize_entities(
+pub(crate) fn rotate_entities(
+    frame: SelectionFrame,
+    start_angle: f32,
+    current: CanvasPoint,
+    originals: &[CanvasEntity],
+    snap_angle: bool,
+) -> Vec<CanvasEntity> {
+    let center = frame.center;
+    let current_angle = (current.y - center.y).atan2(current.x - center.x);
+    let mut delta = current_angle - start_angle;
+    if snap_angle {
+        let step = 15.0_f32.to_radians();
+        delta = (delta / step).round() * step;
+    }
+    originals
+        .iter()
+        .cloned()
+        .map(|mut entity| {
+            let relative = CanvasPoint::new(
+                entity.transform.center.x - center.x,
+                entity.transform.center.y - center.y,
+            );
+            let rotated = rotate(relative, delta);
+            entity.transform.center = CanvasPoint::new(center.x + rotated.x, center.y + rotated.y);
+            entity.transform.rotation += delta;
+            entity
+        })
+        .collect()
+}
+
+pub(crate) fn resize_entities(
     handle: ResizeHandle,
     frame: SelectionFrame,
     current: CanvasPoint,
@@ -636,7 +524,7 @@ pub(super) fn resize_entities(
     .collect()
 }
 
-pub(super) fn resize_entities_axis(
+pub(crate) fn resize_entities_axis(
     handle: ResizeHandle,
     bounds: WorldRect,
     current: CanvasPoint,
@@ -740,7 +628,7 @@ pub(super) fn resize_entities_axis(
         .collect()
 }
 
-pub(super) fn proportional_resize_bounds(
+pub(crate) fn proportional_resize_bounds(
     handle: ResizeHandle,
     bounds: WorldRect,
     resized: WorldRect,
@@ -783,7 +671,7 @@ pub(super) fn proportional_resize_bounds(
     }
 }
 
-pub(super) fn pen_entity(points: Vec<CanvasPoint>, style: CanvasEntityStyle) -> CanvasEntity {
+pub(crate) fn pen_entity(points: Vec<CanvasPoint>, style: CanvasEntityStyle) -> CanvasEntity {
     let bounds = points
         .iter()
         .copied()
@@ -805,4 +693,12 @@ pub(super) fn pen_entity(points: Vec<CanvasPoint>, style: CanvasEntityStyle) -> 
         locked: false,
         components: Vec::new(),
     }
+}
+
+pub(crate) fn text_box_size(text_style: &CanvasTextStyle, measured: Vec2) -> CanvasPoint {
+    let font_size = text_style.font_size.clamp(4.0, 256.0);
+    CanvasPoint::new(
+        (measured.x + 8.0).max(16.0),
+        (measured.y + 8.0).max(font_size * text_style.line_height),
+    )
 }

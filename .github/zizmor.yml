@@ -1,0 +1,25 @@
+# Configuration for zizmor, the workflow security linter the "workflows" job in
+# ci.yml runs. What is set here is the project's pinning policy, written down
+# somewhere a machine checks rather than only in a review comment.
+rules:
+  # A third-party action must be pinned to a commit, because a tag is a mutable
+  # pointer: whoever owns it, or whoever takes their account, can repoint it at
+  # anything, and what these actions install is the toolchain everything else in
+  # the job trusts. Actions under actions/ are GitHub's own, published from the
+  # same place the runner and the workflow syntax come from, so a tag there is
+  # not a wider trust than the one already being extended, and their tags carry
+  # the security fixes a frozen SHA would miss.
+  unpinned-uses:
+    config:
+      policies:
+        actions/*: ref-pin
+        '*': hash-pin
+
+  # zizmor prefers GitHub's newer "$/..." spelling over "./..." for an action
+  # that lives in this repository. Both resolve to the same checked-out file and
+  # neither widens what is trusted, so this is a style preference rather than a
+  # finding, and taking it would mean changing every call site in the workflow
+  # to a spelling that is younger than the runners some of them target.
+  self-repository:
+    ignore:
+      - ci.yml

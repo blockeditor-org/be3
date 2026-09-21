@@ -87,9 +87,9 @@ packages+=(libgtk-3-dev)
 if full_build; then
     packages+=(libwebkit2gtk-4.1-dev)
 fi
-# beui takes the first font it finds from a fixed list of paths, and DejaVu Sans
-# heads it. With no system font the text in the paint snapshots is not what the
-# accepted ones hold.
+# Nothing the workspace builds reads a system font any more - beui and egui both
+# carry theirs - but the GTK dialogs and the window manager the app runs under
+# still want one, and a machine with no font at all is a confusing one to debug.
 packages+=(fonts-dejavu-core fonts-dejavu-mono)
 # ./scripts/run --smoke starts the app against a virtual display.
 packages+=(xvfb)
@@ -134,10 +134,49 @@ fi
 # rustup is enough to get all three; any cargo call in the repository then
 # fetches them. Asking for the toolchain here means that download happens now
 # rather than in the middle of the first build.
+#
+# rustup-init is fetched at a pinned version and checked against a hash rather
+# than piping https://sh.rustup.rs into a shell. That form runs whatever is
+# served at the moment it is run, without ever writing it down, so there is no
+# version to review and nothing left afterwards to say what ran. These hashes
+# are the ones static.rust-lang.org publishes alongside the binaries
+# (rustup-init.sha256), not ones recomputed from these downloads.
+rustup_version='1.29.1'
+rustup_sha256_x86_64='dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71'
+rustup_sha256_aarch64='15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433'
 if ! command -v rustup > /dev/null; then
-    echo 'Installing Rust from https://rustup.rs...'
-    curl --fail --location --proto '=https' --tlsv1.2 https://sh.rustup.rs \
-        | sh -s -- -y --no-modify-path
+    # This script already refused anything but Linux above, so these are the
+    # only two rustup-init builds it can ever want.
+    case "$(uname -m)" in
+        x86_64 | amd64)
+            rustup_triple='x86_64-unknown-linux-gnu'
+            rustup_sha256="$rustup_sha256_x86_64"
+            ;;
+        aarch64 | arm64)
+            rustup_triple='aarch64-unknown-linux-gnu'
+            rustup_sha256="$rustup_sha256_aarch64"
+            ;;
+        *)
+            echo "No rustup-init is pinned here for $(uname -m)." >&2
+            echo 'Install Rust from https://rustup.rs by hand, then run this again.' >&2
+            exit 1
+            ;;
+    esac
+
+    echo "Installing Rust $rustup_version from https://static.rust-lang.org..."
+    rustup_init="$repository/target/tools/rustup-init"
+    mkdir -p "$(dirname "$rustup_init")"
+    download_verified \
+        "https://static.rust-lang.org/rustup/archive/$rustup_version/$rustup_triple/rustup-init" \
+        "$rustup_init" \
+        "$rustup_sha256"
+    chmod +x "$rustup_init"
+    # --no-modify-path, because the PATH line below is what this shell needs and
+    # a profile it has already read would not help it. What is pinned here is
+    # the installer that bootstraps rustup, not a ceiling on the rustup a
+    # machine keeps: `rustup self update` moves it on from this version.
+    "$rustup_init" -y --no-modify-path
+    rm -f "$rustup_init"
     # The installer only edits the shell profile, which this shell already read.
     PATH="$HOME/.cargo/bin:$PATH"
     export PATH

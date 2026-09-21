@@ -11,6 +11,7 @@ use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::Context;
 use crate::damage::{Damage, Region};
 use crate::flash::FlashLog;
+use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::input::{Event, Key, KeyPress};
 
@@ -235,6 +236,10 @@ impl Document {
 
     pub(crate) fn theme_store(&self) -> ThemeStore {
         self.theme.clone()
+    }
+
+    pub(crate) fn context(&self) -> Option<&Context> {
+        self.viewport.as_ref().map(|(context, _, _)| context)
     }
 
     pub fn request_repaint_after(&self, delay: std::time::Duration) {
@@ -1019,6 +1024,11 @@ impl Document {
 
     pub fn pixels_per_point(&self) -> f32 {
         self.viewport.as_ref().map_or(1.0, |(_, _, scale)| *scale)
+    }
+
+    pub fn layout_text(&self, text: &str, font: FontId, layout: TextLayout) -> Option<Galley> {
+        let (ctx, _, _) = self.viewport.as_ref()?;
+        Some(ctx.painter().layout_text(text, font, layout))
     }
 
     pub(crate) fn pixel_grid(&self) -> PixelGrid {

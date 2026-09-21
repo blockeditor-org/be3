@@ -15,9 +15,14 @@ pub const EMBEDDED_EDITOR_TITLE_HEIGHT: f32 = 28.0;
 pub const EMBEDDED_EDITOR_TITLE_GAP: f32 = 8.0;
 
 pub fn embedded_editor_frame_size(intrinsic: egui::Vec2, scale: f32) -> egui::Vec2 {
-    egui::vec2(
-        (intrinsic.x + EMBEDDED_EDITOR_PADDING * 2.0) * scale,
-        (intrinsic.y
+    let (width, height) = embedded_editor_frame(intrinsic.x, intrinsic.y, scale);
+    egui::vec2(width, height)
+}
+
+pub fn embedded_editor_frame(width: f32, height: f32, scale: f32) -> (f32, f32) {
+    (
+        (width + EMBEDDED_EDITOR_PADDING * 2.0) * scale,
+        (height
             + EMBEDDED_EDITOR_PADDING * 2.0
             + EMBEDDED_EDITOR_TITLE_HEIGHT
             + EMBEDDED_EDITOR_TITLE_GAP)

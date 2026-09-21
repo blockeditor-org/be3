@@ -6,10 +6,12 @@ use std::time::Instant;
 use accesskit_winit::{Adapter as AccessKitAdapter, Event as AccessKitEvent};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition};
-use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{CustomCursor, CustomCursorSource, Window, WindowId};
+use winit::window::{CursorGrabMode, CustomCursor, CustomCursorSource, Window, WindowId};
 
 use self::clipboard::Clipboard;
 use crate::color::Color32;
@@ -71,6 +73,7 @@ struct Surface {
     config: wgpu::SurfaceConfiguration,
     renderer: Renderer,
     cursor_icon: CursorIcon,
+    pointer_locked: bool,
     touch_emulation: bool,
     touch_cursor: CustomCursor,
     prepared_size: Option<(Vec2, f32)>,
@@ -155,15 +158,18 @@ impl Runner {
         self.events.push(event);
     }
 
-    fn logical(&self, position: PhysicalPosition<f64>) -> Pos2 {
+    fn scale_factor(&self) -> f64 {
         let native = self
             .surface
             .as_ref()
             .map_or(1.0, |surface| surface.window.scale_factor());
-        let scale = self
-            .context
+        self.context
             .simulated_pixels_per_point()
-            .map_or(native, f64::from);
+            .map_or(native, f64::from)
+    }
+
+    fn logical(&self, position: PhysicalPosition<f64>) -> Pos2 {
+        let scale = self.scale_factor();
         pos2((position.x / scale) as f32, (position.y / scale) as f32)
     }
 
@@ -207,6 +213,10 @@ impl Runner {
         {
             self.events.push(Event::Text(text));
             surface.window.request_redraw();
+        }
+        if output.pointer_locked != surface.pointer_locked {
+            surface.pointer_locked = output.pointer_locked;
+            lock_pointer(&surface.window, output.pointer_locked);
         }
         let touch_emulation = self.context.touch_emulation();
         if output.cursor_icon != surface.cursor_icon || touch_emulation != surface.touch_emulation {
@@ -536,6 +546,25 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
         }
     }
 
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device: DeviceId,
+        event: DeviceEvent,
+    ) {
+        let DeviceEvent::MouseMotion { delta } = event else {
+            return;
+        };
+        if !self.context.pointer_locked() {
+            return;
+        }
+        let scale = self.scale_factor() as f32;
+        self.push(Event::PointerMotion(vec2(
+            delta.0 as f32 / scale,
+            delta.1 as f32 / scale,
+        )));
+    }
+
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AccessKitEvent) {
         let Some(surface) = &self.surface else {
             return;
@@ -657,6 +686,7 @@ async fn create_surface(
         config,
         renderer,
         cursor_icon: CursorIcon::Default,
+        pointer_locked: false,
         touch_emulation: false,
         touch_cursor,
         prepared_size: None,
@@ -788,4 +818,15 @@ fn key(code: KeyCode) -> Option<Key> {
         _ => return None,
     };
     Some(key)
+}
+
+fn lock_pointer(window: &Window, locked: bool) {
+    let grab = match locked {
+        true => CursorGrabMode::Locked,
+        false => CursorGrabMode::None,
+    };
+    if window.set_cursor_grab(grab).is_err() && locked {
+        let _ = window.set_cursor_grab(CursorGrabMode::Confined);
+    }
+    window.set_cursor_visible(!locked);
 }

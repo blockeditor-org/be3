@@ -27,7 +27,7 @@ const HANDLE_GAP: f32 = 4.0;
 const HANDLE_HIT_RADIUS: f32 = 24.0;
 const HANDLE_VISIBILITY_SLACK: f32 = 0.5;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum TextAlign {
     Start,
     Center,
@@ -66,6 +66,8 @@ pub(crate) struct TextNode {
     vertical: TextAlign,
     wrap: bool,
     monospace: bool,
+    bold: bool,
+    italic: bool,
     icon: bool,
     clip: bool,
     underline: bool,
@@ -85,12 +87,13 @@ impl TextNode {
 
     fn font(&self) -> FontId {
         if self.icon {
-            FontId::icons(self.font_size)
-        } else if self.monospace {
-            FontId::monospace(self.font_size)
-        } else {
-            FontId::proportional(self.font_size)
+            return FontId::icons(self.font_size);
         }
+        let family = match self.monospace {
+            true => FontId::monospace(self.font_size),
+            false => FontId::proportional(self.font_size),
+        };
+        family.bold(self.bold).italic(self.italic)
     }
 
     fn wrap_width(&self, available_width: f32) -> f32 {
@@ -375,6 +378,8 @@ impl Document {
             vertical: TextAlign::Start,
             wrap: false,
             monospace: false,
+            bold: false,
+            italic: false,
             icon: false,
             clip: false,
             underline: false,
@@ -426,6 +431,18 @@ impl Document {
     pub(crate) fn set_text_monospace(&mut self, text: NodeId, monospace: bool) {
         if self.arena.get_as::<TextNode>(text).monospace != monospace {
             self.arena.get_mut_as::<TextNode>(text).monospace = monospace;
+        }
+    }
+
+    pub(crate) fn set_text_bold(&mut self, text: NodeId, bold: bool) {
+        if self.arena.get_as::<TextNode>(text).bold != bold {
+            self.arena.get_mut_as::<TextNode>(text).bold = bold;
+        }
+    }
+
+    pub(crate) fn set_text_italic(&mut self, text: NodeId, italic: bool) {
+        if self.arena.get_as::<TextNode>(text).italic != italic {
+            self.arena.get_mut_as::<TextNode>(text).italic = italic;
         }
     }
 
@@ -528,6 +545,8 @@ pub fn Text(
     vertical_align: Option<Prop<TextAlign>>,
     #[prop(default = false)] wrap: Prop<bool>,
     #[prop(default = false)] monospace: Prop<bool>,
+    #[prop(default = false)] bold: Prop<bool>,
+    #[prop(default = false)] italic: Prop<bool>,
     #[prop(default = false)] icon: Prop<bool>,
     #[prop(default = false)] clip: Prop<bool>,
     #[prop(default = false)] underline: Prop<bool>,
@@ -551,6 +570,8 @@ pub fn Text(
     create_effect(move || {
         with_document(|document| document.set_text_monospace(node, monospace.get()))
     });
+    create_effect(move || with_document(|document| document.set_text_bold(node, bold.get())));
+    create_effect(move || with_document(|document| document.set_text_italic(node, italic.get())));
     create_effect(move || with_document(|document| document.set_text_icon(node, icon.get())));
     create_effect(move || with_document(|document| document.set_text_clip(node, clip.get())));
     create_effect(move || {

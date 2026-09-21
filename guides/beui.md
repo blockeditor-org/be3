@@ -215,15 +215,36 @@ need:
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
-  `Offset`, `VirtualOffset`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher`,
-  `Embed`, `Portal` — and it stays small because most things are compositions
-  of those.
+  `Offset`, `VirtualOffset`, `Canvas`, `Drawing`, `Overlay`, `Focusable`,
+  `ClickCatcher`, `Embed`, `Portal`, `Viewport` — and it stays small because most things are
+  compositions of those.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
   arranging the existing nodes. `Portal` is one: it shows a subtree it does not
   own, which is how a node laid out in one place this frame is laid out
   somewhere else the next without being rebuilt. If a new concern can share `Frame`'s single-child box model,
   extend `Frame` rather than adding another pass-through node.
+
+`Drawing` is the one base node that paints rather than arranges: it takes a
+`Draw`, a callback handed the `Painter` and the rectangle the node was laid out
+at. It is for content whose shape is computed rather than arranged - the text
+editor lays a syntax-highlighted document out itself, byte by byte, and paints
+the result as four layers. Build the callback in a memo over the page it draws,
+so the closure is replaced only when that page changes, and cull to
+`painter.clip_rect()` inside it, so a document far taller than the viewport
+costs the screenful it shows. Reach for it only when there genuinely is no
+arrangement of nodes that says the same thing: a row of labels is a `List` of
+`Text`, not a `Drawing`. It measures to nothing, so it takes its size from
+whatever places it - a `Frame` with a width and a height, or a `CanvasItem`.
+
+The galleys such a page paints come from `layout_text(text, font, layout)`,
+which lays text out with the shown document's fonts and answers `None` until
+the document has been shown once. It is how a component measures text outside
+`measure` and `paint` - to work out where a caret sits, or how wide a column
+is - and the galleys it returns are cached, so asking for the same word twice
+costs a hash lookup. A `FontId` carries `bold` and `italic` alongside its size
+and family; both are synthesised by FreeType rather than loaded as separate
+faces, and `Text` takes them as props.
 
 `unstyled::Button` shows the split. It composes `Focusable` and `ClickCatcher`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
@@ -257,6 +278,9 @@ surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
+`Viewport` reserves a rectangle the renderer draws into rather than the
+document: it fills the space it is given and paints the `Drawing` it is handed
+in its place (see [Draw with the gpu](#draw-with-the-gpu)).
 `Offset` and `VirtualOffset` keep a run of items along a `direction` and lay
 them out from an offset; they answer no input at all, so nothing scrolls by
 putting one in a view (see [Scrolling](#scrolling)).
@@ -267,11 +291,15 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Dock`, `Tooltip`,
-`Floating`, `Scroll`, `VirtualList`, and `Stack`.
+`Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`, `PanZoom`,
+`PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `VirtualList`, and
+`Stack`. `MenuButton` is the button that opens a menu under itself, which is
+what a toolbar reaches for where `Select` would imply the choice sticks;
+`ContextMenu` is the same menu on a secondary press, and it also takes an
+`open_at` point so a touch gesture can raise it where the finger was.
 The styled
-module supplies themed buttons, icon buttons, links, text styles, cards,
-checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
+module supplies themed buttons, icon buttons, menu buttons, links, text styles,
+cards, checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
 progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
@@ -540,6 +568,77 @@ camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor
 the same way. Anything between the gesture and the camera - momentum, snapping,
 clamping the camera to the content - belongs to the caller, apart from the
 scale limits `min_scale` and `max_scale`.
+
+### Hold the pointer
+
+A control that looks around rather than pointing at something - a first-person
+scene, a modeller's orbit - is `unstyled::PointerLock`. It is a tab stop that
+takes the pointer when it is pressed, and while it holds it the pointer stops
+moving, is hidden, and reports how far it moved instead of where it is:
+
+```rust
+view! {
+    <PointerLock
+        locked={looking}
+        on_change={move |looking| set_looking.set(looking)}
+        on_motion={move |motion: Vec2| camera.look(motion)}
+        on_key={walk}
+    >
+        {move |handle: PointerLockHandle| view! { <Scene /> }}
+    </PointerLock>
+}
+```
+
+The lock is controlled state, like a `Toggle`'s: the control follows the
+`locked` prop and reports what it wants through `on_change`. It lets go on
+Escape, when it loses focus, and when it is removed, and keys it does not use
+itself go on to `on_key`, which is what a control that also walks with the
+keyboard binds.
+
+Beui does not hold the pointer itself - it asks. `Document::show` publishes the
+wish as `FrameOutput::pointer_locked`, and whoever is showing the document does
+it: the winit runner locks the cursor and hides it, and the plugin framework
+asks the host to (guides/adding_a_plugin_editor.md). What comes back is
+`Event::PointerMotion`, a delta with no position, which the document delivers to
+the focused node while the pointer is held and nowhere at all while it is not.
+So a control that is not the one holding the pointer never sees motion, and a
+window that loses the keyboard gives the pointer back.
+
+### Draw with the gpu
+
+A viewport whose pixels no arrangement of nodes can produce - a 3D scene, a ray
+tracer, a map - is a `Viewport` node holding a `Drawing`. `Viewport` fills the
+space it is laid out in and paints a `Shape::Drawing` over its rectangle;
+the renderer runs the `Draw` behind that drawing where the shape sits in the
+order everything else is painted in, so nodes written after it still paint over
+it.
+
+```rust
+view! {
+    <Viewport drawing={drawing} @sizing=ItemSize::Percent(100.0) />
+}
+```
+
+`Draw` has the two halves a gpu frame has. `prepare` is handed the device, the
+queue and an encoder, and is where the passes of its own go - rendering into
+its own textures, writing its own buffers. `paint` is handed the render pass
+beui is painting the document into, and draws there. Both are handed a `DrawAt`
+carrying the rectangle and the clip in physical pixels, the size of the whole
+target, the scale, and the target's texture format, which is what a pipeline
+built on the first frame is built against. A `Draw` must leave the pass's
+viewport and scissor as it found them: position what it draws from the
+rectangle it was given, the way beui's own shader does, rather than by setting
+a viewport.
+
+`Drawing::new` wraps a `Draw`, and two drawings are the same shape when they
+are the same `Rc`. That is what decides whether the frame changed, so a drawing
+whose contents have moved is a new `Drawing` and a frame that is showing the
+same thing keeps the one it had, which is what leaves an idle editor idle. The
+gpu resources belong to the `Draw` rather than to the drawing: keep them in an
+`Rc<RefCell<Option<..>>>` the drawing clones, build them on the first `prepare`
+from the format `DrawAt` names, and a headless test - which never builds a
+`Renderer` - never opens a device at all. The `scene_3d` editor is the worked
+example.
 
 ## Use beui in a standalone app
 

@@ -193,11 +193,22 @@ pub(crate) fn interact(
     }
 
     doc.validate_focus();
+    if ctx.pointer_locked() && keyboard_interactive {
+        let motion = ctx.input(|input| input.pointer.motion);
+        if motion != Vec2::ZERO {
+            doc.motion_focused(motion);
+        }
+        doc.validate_focus();
+    }
+
     for event in ctx.input(|input| input.events.clone()) {
         doc.validate_focus();
         let (key, pressed, repeat, modifiers) = match event {
             Event::Focus(false) => {
                 doc.cancel_focus_activation();
+                if ctx.pointer_locked() {
+                    doc.update_focus(None);
+                }
                 continue;
             }
             Event::Text(_) | Event::Key { .. } if !keyboard_interactive => continue,

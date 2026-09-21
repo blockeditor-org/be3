@@ -16,20 +16,19 @@ pub fn Floating(
     anchor: NodeRef,
     #[prop(default = Edge::Bottom)] edge: Prop<Edge>,
     #[prop(default = true)] open: Prop<bool>,
+    #[prop(default = true)] interactive: Prop<bool>,
     children: Child,
 ) -> NodeId {
     let placement = edge.map(|edge| match edge {
         Edge::Top => Placement::InsideTop,
         Edge::Bottom => Placement::InsideBottom,
     });
+    let mode = interactive.map(|interactive| match interactive {
+        true => OverlayMode::Floating,
+        false => OverlayMode::Passive,
+    });
     view! {
-        <Overlay
-            anchor=&anchor
-            placement={placement}
-            mode=OverlayMode::Floating
-            traps_focus=false
-            open={open}
-        >
+        <Overlay anchor=&anchor placement={placement} mode={mode} traps_focus=false open={open}>
             {children}
         </Overlay>
     }

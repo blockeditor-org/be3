@@ -4,8 +4,9 @@
 #
 # A prebuilt release is fetched rather than built with `cargo install`, because
 # compiling sccache costs more than the first build it accelerates saves. The
-# version is common.sh's, so a machine and a CI runner fill the same cache with
-# the same compiler cache.
+# version and the hash it is checked against are both common.sh's, so a machine
+# and a CI runner fill the same cache with the same compiler cache, and neither
+# runs a wrapper around rustc that nobody vouched for.
 #
 # Usage:
 #   install-sccache.sh
@@ -28,9 +29,11 @@ fi
 case "$(uname -m)" in
     x86_64 | amd64)
         architecture='x86_64'
+        sha256="$sccache_sha256_x86_64"
         ;;
     aarch64 | arm64)
         architecture='aarch64'
+        sha256="$sccache_sha256_aarch64"
         ;;
     *)
         echo "sccache publishes no release for $(uname -m), so builds here will not share a cache." >&2
@@ -48,7 +51,7 @@ archive="$tools/sccache.tar.gz"
 echo "Downloading sccache from $url..."
 mkdir -p "$tools"
 rm -rf "$sccache_directory" "$tools/$release"
-curl --fail --location --output "$archive" "$url"
+download_verified "$url" "$archive" "$sha256"
 tar -xzf "$archive" -C "$tools"
 mv "$tools/$release" "$sccache_directory"
 rm "$archive"

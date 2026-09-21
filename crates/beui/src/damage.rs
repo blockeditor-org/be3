@@ -102,15 +102,19 @@ pub(crate) fn bounds(shape: &Shape) -> Rect {
         Shape::Rect {
             rect,
             stroke_width,
+            rotation,
             clip,
             ..
-        } => rect.expand(*stroke_width).intersect(*clip),
+        } => rotation.bounds(rect.expand(*stroke_width)).intersect(*clip),
         Shape::Text {
             origin,
             galley,
+            rotation,
             clip,
             ..
-        } => Rect::from_min_size(*origin, galley.size()).intersect(*clip),
+        } => rotation
+            .bounds(Rect::from_min_size(*origin, galley.size()))
+            .intersect(*clip),
         Shape::Line {
             from,
             to,
@@ -118,7 +122,19 @@ pub(crate) fn bounds(shape: &Shape) -> Rect {
             clip,
             ..
         } => line_bounds(*from, *to, *width).intersect(*clip),
-        Shape::Image { rect, clip, .. } | Shape::Punch { rect, clip, .. } => rect.intersect(*clip),
+        Shape::Image {
+            rect,
+            rotation,
+            clip,
+            ..
+        }
+        | Shape::Punch {
+            rect,
+            rotation,
+            clip,
+            ..
+        } => rotation.bounds(*rect).intersect(*clip),
+        Shape::Drawing { rect, clip, .. } => rect.intersect(*clip),
     }
 }
 

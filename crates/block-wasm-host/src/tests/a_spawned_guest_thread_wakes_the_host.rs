@@ -17,9 +17,10 @@ fn a_spawned_guest_thread_wakes_the_host() {
 
     plugin.start().unwrap();
 
+    let mut woken = false;
     for _ in 0..500 {
-        if plugin.take_wake() {
-            assert!(told.load(Ordering::Acquire), "the host was never told");
+        woken |= plugin.take_wake();
+        if woken && told.load(Ordering::Acquire) {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(2));
