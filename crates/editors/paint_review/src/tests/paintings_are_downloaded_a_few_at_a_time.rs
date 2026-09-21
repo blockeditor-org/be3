@@ -1,6 +1,6 @@
 use super::*;
 
-use block_editor_plugin::FetchResult;
+use block_editor_plugin::{FetchResult, HostReply, HostRequest};
 
 use crate::download::{Source, start};
 
@@ -8,9 +8,12 @@ const AT_ONCE: usize = 8;
 const COUNT: usize = 20;
 
 fn answer(host: &EditorHost, body: impl Fn(&str) -> Vec<u8>) -> usize {
-    let asked = host.take_fetches();
+    let asked = host.take_requests();
     for (request, url) in &asked {
-        host.set_fetched(*request, FetchResult::Body(body(url)));
+        let HostRequest::Fetch(url) = url else {
+            panic!("the download asked the host for something other than a fetch");
+        };
+        host.set_reply(*request, HostReply::Fetched(FetchResult::Body(body(url))));
     }
     asked.len()
 }

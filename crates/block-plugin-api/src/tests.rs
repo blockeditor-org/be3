@@ -12,6 +12,22 @@ fn hello() -> Message {
     })
 }
 
+fn request(instance: u64, request_id: u64, request: HostRequest) -> Message {
+    Message::Editor(EditorMessage::Request {
+        instance: EditorInstanceId(instance),
+        request_id,
+        request,
+    })
+}
+
+fn reply(instance: u64, request_id: u64, reply: HostReply) -> Message {
+    Message::Editor(EditorMessage::Replied {
+        instance: EditorInstanceId(instance),
+        request_id,
+        reply,
+    })
+}
+
 fn screen(
     screen: u64,
     instance: u64,

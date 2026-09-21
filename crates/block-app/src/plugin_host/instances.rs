@@ -3,9 +3,9 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FetchResult,
-    FilePick, FrameReport, FrameSpec, ImeArea, Message, Occluder, PerformanceMeasurement,
-    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet,
-    TunnelMessage, ViewChange,
+    FilePick, FrameReport, FrameSpec, HostReply, HostRequest, ImeArea, Message, Occluder,
+    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenSet, TunnelMessage, ViewChange,
 };
 use eframe::egui;
 use std::{
@@ -69,9 +69,7 @@ struct Instance {
     drag_accepted: bool,
     intrinsic: Option<egui::Vec2>,
     aspect_ratio: Option<f32>,
-    picks: Vec<PendingPick>,
-    fetches: Vec<PendingFetch>,
-    pastes: Vec<PendingPaste>,
+    pending: Vec<Pending>,
     text_pastes: Vec<String>,
     audio: Option<AudioPlayer>,
     reported_audio: AudioStatus,
@@ -147,9 +145,7 @@ impl Instance {
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
-            picks: Vec::new(),
-            fetches: Vec::new(),
-            pastes: Vec::new(),
+            pending: Vec::new(),
             text_pastes: Vec::new(),
             audio: None,
             reported_audio: AudioStatus::default(),
@@ -171,19 +167,43 @@ impl Instance {
     }
 }
 
-struct PendingPick {
+struct Pending {
     request_id: u64,
-    picker: FilePicker,
+    work: Work,
 }
 
-struct PendingFetch {
-    request_id: u64,
-    fetch: Fetch,
+enum Work {
+    Pick(FilePicker),
+    Fetch(Fetch),
+    Paste(ClipboardImage),
 }
 
-struct PendingPaste {
-    request_id: u64,
-    image: ClipboardImage,
+impl Work {
+    fn poll(&mut self, context: &egui::Context) -> Option<HostReply> {
+        match self {
+            Self::Pick(picker) => Some(HostReply::FilePicked(match picker.poll(context) {
+                Some(Ok(file)) => FilePick::Chosen {
+                    name: file.name,
+                    data: file.data,
+                },
+                Some(Err(error)) => FilePick::Failed(error),
+                None if picker.is_open() => return None,
+                None => FilePick::Cancelled,
+            })),
+            Self::Fetch(fetch) => match fetch.poll() {
+                Some(Ok(body)) => Some(HostReply::Fetched(FetchResult::Body(body))),
+                Some(Err(error)) => Some(HostReply::Fetched(FetchResult::Failed(error))),
+                None => {
+                    context.request_repaint_after(FETCH_POLL_INTERVAL);
+                    None
+                }
+            },
+            Self::Paste(image) => Some(HostReply::ImagePasted(std::mem::replace(
+                image,
+                ClipboardImage::Empty,
+            ))),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -580,7 +600,7 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
-            entry.fetches.clear();
+            entry.pending.clear();
         }
     }
 
@@ -1060,10 +1080,10 @@ impl Instances {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Message::Editor(EditorMessage::BlockPicked {
+        vec![Message::Editor(EditorMessage::Replied {
             instance,
             request_id,
-            pick,
+            reply: HostReply::BlockPicked(pick),
         })]
     }
 
@@ -1463,49 +1483,20 @@ impl Instances {
         for instance in instances {
             let entry = self.entries.get_mut(&instance).unwrap();
             let context = entry.context.clone();
-            let mut picks = std::mem::take(&mut entry.picks);
-            picks.retain_mut(|pending| {
-                let pick = match pending.picker.poll(&context) {
-                    Some(Ok(file)) => FilePick::Chosen {
-                        name: file.name,
-                        data: file.data,
-                    },
-                    Some(Err(error)) => FilePick::Failed(error),
-                    None if pending.picker.is_open() => return true,
-                    None => FilePick::Cancelled,
-                };
-                messages.push(Message::Editor(EditorMessage::FilePicked {
-                    instance,
-                    request_id: pending.request_id,
-                    pick,
-                }));
-                false
-            });
-            self.entries.get_mut(&instance).unwrap().picks = picks;
-            let entry = self.entries.get_mut(&instance).unwrap();
-            entry.fetches.retain(|pending| {
-                let Some(result) = pending.fetch.poll() else {
-                    context.request_repaint_after(FETCH_POLL_INTERVAL);
+            let mut waiting = std::mem::take(&mut entry.pending);
+            waiting.retain_mut(|pending| {
+                let Some(reply) = pending.work.poll(&context) else {
                     return true;
                 };
-                messages.push(Message::Editor(EditorMessage::Fetched {
+                messages.push(Message::Editor(EditorMessage::Replied {
                     instance,
                     request_id: pending.request_id,
-                    result: match result {
-                        Ok(body) => FetchResult::Body(body),
-                        Err(error) => FetchResult::Failed(error),
-                    },
+                    reply,
                 }));
                 false
             });
             let entry = self.entries.get_mut(&instance).unwrap();
-            for pending in std::mem::take(&mut entry.pastes) {
-                messages.push(Message::Editor(EditorMessage::ImagePasted {
-                    instance,
-                    request_id: pending.request_id,
-                    image: pending.image,
-                }));
-            }
+            entry.pending = waiting;
             let texts = std::mem::take(&mut entry.text_pastes);
             if !texts.is_empty()
                 && let Some(screen) = entry
@@ -1539,6 +1530,45 @@ impl Instances {
             }
         }
         messages
+    }
+
+    fn request(
+        &mut self,
+        instance: EditorInstanceId,
+        request_id: u64,
+        request: HostRequest,
+    ) -> bool {
+        let network = self.network.clone();
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        let work = match request {
+            HostRequest::PickFile(filter) => {
+                let mut picker = FilePicker::default();
+                picker.open(&entry.context, &host_filter(filter));
+                Work::Pick(picker)
+            }
+            HostRequest::PasteImage => Work::Paste(super::clipboard::read_clipboard_image()),
+            HostRequest::Fetch(url) => Work::Fetch(match allowed(&url, &network) {
+                true => Fetch::get(url, Vec::new()),
+                false => Fetch::refused(format!("{REFUSED} {url}")),
+            }),
+            HostRequest::PickBlock(filter) => {
+                entry.block_picks.push(BlockPickRequest {
+                    request_id,
+                    block_types: filter
+                        .block_types
+                        .into_iter()
+                        .map(Uuid::from_bytes)
+                        .collect(),
+                    excluded: filter.excluded.into_iter().map(Uuid::from_bytes).collect(),
+                    templates: filter.templates,
+                });
+                return true;
+            }
+        };
+        entry.pending.push(Pending { request_id, work });
+        true
     }
 
     pub(super) fn editor_message(&mut self, message: EditorMessage) -> bool {
@@ -1608,6 +1638,11 @@ impl Instances {
                     .push((Uuid::from_bytes(block_id), command));
                 true
             }
+            EditorMessage::Request {
+                instance,
+                request_id,
+                request,
+            } => self.request(instance, request_id, request),
             EditorMessage::DragAccepted { instance, accepted } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
@@ -1615,32 +1650,6 @@ impl Instances {
                 let changed = entry.drag_accepted != accepted;
                 entry.drag_accepted = accepted;
                 changed
-            }
-            EditorMessage::PickFile {
-                instance,
-                request_id,
-                filter,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let mut picker = FilePicker::default();
-                picker.open(&entry.context, &host_filter(filter));
-                entry.picks.push(PendingPick { request_id, picker });
-                true
-            }
-            EditorMessage::PasteImage {
-                instance,
-                request_id,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.pastes.push(PendingPaste {
-                    request_id,
-                    image: super::clipboard::read_clipboard_image(),
-                });
-                true
             }
             EditorMessage::PlayAudio {
                 instance,
@@ -1670,21 +1679,6 @@ impl Instances {
                 }
                 true
             }
-            EditorMessage::Fetch {
-                instance,
-                request_id,
-                url,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let fetch = match allowed(&url, &self.network) {
-                    true => Fetch::get(url, Vec::new()),
-                    false => Fetch::refused(format!("{REFUSED} {url}")),
-                };
-                entry.fetches.push(PendingFetch { request_id, fetch });
-                true
-            }
             EditorMessage::WebView {
                 instance,
                 region,
@@ -1708,26 +1702,6 @@ impl Instances {
                     return false;
                 };
                 entry.grabbed = grabbed;
-                true
-            }
-            EditorMessage::PickBlock {
-                instance,
-                request_id,
-                filter,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.block_picks.push(BlockPickRequest {
-                    request_id,
-                    block_types: filter
-                        .block_types
-                        .into_iter()
-                        .map(Uuid::from_bytes)
-                        .collect(),
-                    excluded: filter.excluded.into_iter().map(Uuid::from_bytes).collect(),
-                    templates: filter.templates,
-                });
                 true
             }
             EditorMessage::CreationReady { instance, ready } => {

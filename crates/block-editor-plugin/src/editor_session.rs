@@ -3,11 +3,11 @@ use block_client::{
     presence::{UserActive, pick_free_color},
 };
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildId, ChildPlacement, ChildPlacements, ChildRect,
-    ChildStatus, CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage,
-    EditorRegion, FetchResult, FilePick, FrameChrome, FrameReport, FrameSpec, ImeArea, ImeInput,
-    InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize,
-    ScreenPlacement, ScreenRequest, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
+    ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
+    CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage, EditorRegion,
+    FrameChrome, FrameReport, FrameSpec, HostReply, ImeArea, ImeInput, InputEvent, MAX_CHILDREN,
+    MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize, ScreenPlacement,
+    ScreenRequest, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
 };
 use block_ui::BlockCatalog;
 use eframe::egui;
@@ -511,10 +511,6 @@ impl EditorSession {
         self.host.set_block_types(catalog);
     }
 
-    pub(crate) fn set_pasted_image(&self, request: u64, image: block_plugin_api::ClipboardImage) {
-        self.host.set_pasted_image(request, image);
-    }
-
     pub(crate) fn set_audio(&self, status: block_plugin_api::AudioStatus) {
         self.host.set_audio(status);
     }
@@ -801,24 +797,11 @@ impl EditorSession {
                 replaced,
             }));
         }
-        for (request_id, filter) in self.host.take_picks() {
-            messages.push(Message::Editor(EditorMessage::PickFile {
+        for (request_id, request) in self.host.take_requests() {
+            messages.push(Message::Editor(EditorMessage::Request {
                 instance,
                 request_id,
-                filter,
-            }));
-        }
-        for (request_id, filter) in self.host.take_block_picks() {
-            messages.push(Message::Editor(EditorMessage::PickBlock {
-                instance,
-                request_id,
-                filter,
-            }));
-        }
-        for request_id in self.host.take_pastes() {
-            messages.push(Message::Editor(EditorMessage::PasteImage {
-                instance,
-                request_id,
+                request,
             }));
         }
         for (block_id, command) in self.host.take_audio_commands() {
@@ -826,13 +809,6 @@ impl EditorSession {
                 instance,
                 block_id: block_id.into_bytes(),
                 command,
-            }));
-        }
-        for (request_id, url) in self.host.take_fetches() {
-            messages.push(Message::Editor(EditorMessage::Fetch {
-                instance,
-                request_id,
-                url,
             }));
         }
         for (region, rect) in self.host.take_web_view_placements() {
@@ -976,16 +952,8 @@ impl EditorSession {
         state.used = Some(egui::vec2(used.x.round(), used.y.round()));
     }
 
-    pub(crate) fn file_picked(&self, request_id: u64, pick: FilePick) {
-        self.host.set_pick(request_id, pick);
-    }
-
-    pub(crate) fn block_picked(&self, request_id: u64, pick: BlockPick) {
-        self.host.set_block_pick(request_id, pick);
-    }
-
-    pub(crate) fn fetched(&self, request_id: u64, result: FetchResult) {
-        self.host.set_fetched(request_id, result);
+    pub(crate) fn replied(&self, request_id: u64, reply: HostReply) {
+        self.host.set_reply(request_id, reply);
     }
 
     pub(crate) fn web_view_event(&self, event: WebViewEvent) {

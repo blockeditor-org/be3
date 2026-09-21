@@ -559,34 +559,15 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         accepted: bool,
     },
-    PickFile {
+    Request {
         instance: EditorInstanceId,
         request_id: u64,
-        filter: FileFilter,
+        request: HostRequest,
     },
-    FilePicked {
+    Replied {
         instance: EditorInstanceId,
         request_id: u64,
-        pick: FilePick,
-    },
-    PickBlock {
-        instance: EditorInstanceId,
-        request_id: u64,
-        filter: BlockFilter,
-    },
-    BlockPicked {
-        instance: EditorInstanceId,
-        request_id: u64,
-        pick: BlockPick,
-    },
-    PasteImage {
-        instance: EditorInstanceId,
-        request_id: u64,
-    },
-    ImagePasted {
-        instance: EditorInstanceId,
-        request_id: u64,
-        image: ClipboardImage,
+        reply: HostReply,
     },
     PlayAudio {
         instance: EditorInstanceId,
@@ -596,16 +577,6 @@ pub enum EditorMessage {
     AudioStatus {
         instance: EditorInstanceId,
         status: AudioStatus,
-    },
-    Fetch {
-        instance: EditorInstanceId,
-        request_id: u64,
-        url: String,
-    },
-    Fetched {
-        instance: EditorInstanceId,
-        request_id: u64,
-        result: FetchResult,
     },
     GrabCursor {
         instance: EditorInstanceId,
@@ -756,16 +727,10 @@ impl EditorMessage {
             | Self::FileDrop { instance, .. }
             | Self::FileDropLeft { instance, .. }
             | Self::DragAccepted { instance, .. }
-            | Self::PickFile { instance, .. }
-            | Self::FilePicked { instance, .. }
-            | Self::PickBlock { instance, .. }
-            | Self::BlockPicked { instance, .. }
-            | Self::PasteImage { instance, .. }
-            | Self::ImagePasted { instance, .. }
+            | Self::Request { instance, .. }
+            | Self::Replied { instance, .. }
             | Self::PlayAudio { instance, .. }
             | Self::AudioStatus { instance, .. }
-            | Self::Fetch { instance, .. }
-            | Self::Fetched { instance, .. }
             | Self::GrabCursor { instance, .. }
             | Self::WebView { instance, .. }
             | Self::WebViewCommand { instance, .. }
@@ -913,6 +878,22 @@ pub enum BlockCommand {
         parent: [u8; 16],
         linked: bool,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HostRequest {
+    PickFile(FileFilter),
+    PickBlock(BlockFilter),
+    PasteImage,
+    Fetch(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HostReply {
+    FilePicked(FilePick),
+    BlockPicked(BlockPick),
+    ImagePasted(ClipboardImage),
+    Fetched(FetchResult),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1095,10 +1076,7 @@ impl EditorMessage {
             | Self::DragLeft { .. }
             | Self::FileDrop { .. }
             | Self::FileDropLeft { .. }
-            | Self::FilePicked { .. }
-            | Self::BlockPicked { .. }
-            | Self::ImagePasted { .. }
-            | Self::Fetched { .. }
+            | Self::Replied { .. }
             | Self::AudioStatus { .. }
             | Self::WebViewEvent { .. }
             | Self::CommitCreation { .. }
@@ -1112,10 +1090,7 @@ impl EditorMessage {
             | Self::DragBlock { .. }
             | Self::BlockCommand { .. }
             | Self::DragAccepted { .. }
-            | Self::PickFile { .. }
-            | Self::PickBlock { .. }
-            | Self::PasteImage { .. }
-            | Self::Fetch { .. }
+            | Self::Request { .. }
             | Self::PlayAudio { .. }
             | Self::ChangeView { .. }
             | Self::Present { .. }
@@ -1465,13 +1440,8 @@ fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
 
 fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
-        EditorMessage::PickFile { filter, .. } => {
-            string(&filter.name)?;
-            string(&filter.default_file_name)?;
-            collection(filter.extensions.len())?;
-            collection(filter.mime_types.len())?;
-            strings(filter.extensions.iter().chain(&filter.mime_types))
-        }
+        EditorMessage::Request { request, .. } => validate_request(request),
+        EditorMessage::Replied { reply, .. } => validate_reply(reply),
         EditorMessage::Performance {
             group,
             measurements,
@@ -1508,28 +1478,9 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        EditorMessage::ImagePasted { image, .. } => match image {
-            ClipboardImage::Pasted { name, data } => string(name).and_then(|()| blob(data)),
-            ClipboardImage::Failed(message) => string(message),
-            ClipboardImage::Empty => Ok(()),
-        },
         EditorMessage::AudioStatus { status, .. } => match &status.error {
             Some(message) => string(message),
             None => Ok(()),
-        },
-        EditorMessage::FilePicked { pick, .. } => match pick {
-            FilePick::Chosen { name, data } => string(name).and_then(|()| blob(data)),
-            FilePick::Failed(message) => string(message),
-            FilePick::Cancelled => Ok(()),
-        },
-        EditorMessage::PickBlock { filter, .. } => {
-            string(&filter.name)?;
-            collection(filter.block_types.len())?;
-            collection(filter.excluded.len())
-        }
-        EditorMessage::BlockPicked { pick, .. } => match pick {
-            BlockPick::Failed(message) => string(message),
-            BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
         },
         EditorMessage::Focused { via, .. } | EditorMessage::FocusChanged { via, .. } => {
             collection(via.len())
@@ -1546,11 +1497,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::Fetch { url, .. } => string(url),
-        EditorMessage::Fetched { result, .. } => match result {
-            FetchResult::Failed(message) => string(message),
-            FetchResult::Body(body) => blob(body),
-        },
         EditorMessage::WebViewCommand { command, .. } => match command {
             WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
             WebViewCommand::Reload | WebViewCommand::FocusApp | WebViewCommand::Close => Ok(()),
@@ -1567,6 +1513,44 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             WebViewEvent::History(_) => Ok(()),
         },
         _ => Ok(()),
+    }
+}
+
+fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
+    match request {
+        HostRequest::PickFile(filter) => {
+            string(&filter.name)?;
+            string(&filter.default_file_name)?;
+            collection(filter.extensions.len())?;
+            collection(filter.mime_types.len())?;
+            strings(filter.extensions.iter().chain(&filter.mime_types))
+        }
+        HostRequest::PickBlock(filter) => {
+            string(&filter.name)?;
+            collection(filter.block_types.len())?;
+            collection(filter.excluded.len())
+        }
+        HostRequest::PasteImage => Ok(()),
+        HostRequest::Fetch(url) => string(url),
+    }
+}
+
+fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
+    match reply {
+        HostReply::FilePicked(FilePick::Chosen { name, data }) => {
+            string(name).and_then(|()| blob(data))
+        }
+        HostReply::ImagePasted(ClipboardImage::Pasted { name, data }) => {
+            string(name).and_then(|()| blob(data))
+        }
+        HostReply::Fetched(FetchResult::Body(body)) => blob(body),
+        HostReply::FilePicked(FilePick::Failed(message))
+        | HostReply::BlockPicked(BlockPick::Failed(message))
+        | HostReply::ImagePasted(ClipboardImage::Failed(message))
+        | HostReply::Fetched(FetchResult::Failed(message)) => string(message),
+        HostReply::FilePicked(FilePick::Cancelled)
+        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
+        | HostReply::ImagePasted(ClipboardImage::Empty) => Ok(()),
     }
 }
 

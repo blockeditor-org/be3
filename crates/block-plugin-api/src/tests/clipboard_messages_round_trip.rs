@@ -3,23 +3,16 @@ use super::*;
 #[test]
 fn clipboard_messages_round_trip() {
     let messages = [
-        Message::Editor(EditorMessage::PasteImage {
-            instance: EditorInstanceId(12),
-            request_id: 3,
-        }),
-        Message::Editor(EditorMessage::ImagePasted {
-            instance: EditorInstanceId(12),
-            request_id: 3,
-            image: ClipboardImage::Pasted {
+        request(12, 3, HostRequest::PasteImage),
+        reply(
+            12,
+            3,
+            HostReply::ImagePasted(ClipboardImage::Pasted {
                 name: "Pasted Image.png".into(),
                 data: vec![1, 2, 3],
-            },
-        }),
-        Message::Editor(EditorMessage::ImagePasted {
-            instance: EditorInstanceId(12),
-            request_id: 4,
-            image: ClipboardImage::Empty,
-        }),
+            }),
+        ),
+        reply(12, 4, HostReply::ImagePasted(ClipboardImage::Empty)),
         Message::Editor(EditorMessage::PasteText {
             instance: EditorInstanceId(12),
         }),

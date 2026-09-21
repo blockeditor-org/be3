@@ -182,15 +182,6 @@ impl Screens {
                     session.resized(egui::vec2(*width, *height));
                 }
             }
-            Message::Editor(EditorMessage::ImagePasted {
-                instance,
-                request_id,
-                image,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_pasted_image(*request_id, image.clone());
-                }
-            }
             Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_audio(status.clone());
@@ -374,31 +365,13 @@ impl Screens {
                     )));
                 }
             }
-            Message::Editor(EditorMessage::FilePicked {
+            Message::Editor(EditorMessage::Replied {
                 instance,
                 request_id,
-                pick,
+                reply,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.file_picked(*request_id, pick.clone());
-                }
-            }
-            Message::Editor(EditorMessage::BlockPicked {
-                instance,
-                request_id,
-                pick,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.block_picked(*request_id, pick.clone());
-                }
-            }
-            Message::Editor(EditorMessage::Fetched {
-                instance,
-                request_id,
-                result,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.fetched(*request_id, result.clone());
+                    session.replied(*request_id, reply.clone());
                 }
             }
             Message::Editor(EditorMessage::WebViewEvent { instance, event }) => {
