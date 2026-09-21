@@ -7,12 +7,15 @@ import {
     classifyMergeFailure,
     decideComment,
     decideLabel,
+    decidePositions,
     decideTick,
     hasWriteAccess,
     markerKeyOf,
     mergeFailureAction,
+    isPositionLabel,
     orderQueue,
     parseCommand,
+    positionLabel,
     summarizeChecks,
 } from './decide.js'
 
@@ -260,6 +263,112 @@ describe('orderQueue', () => {
             ordered.map((entry) => entry.number),
             [4, 9],
         )
+    })
+})
+
+describe('position labels', () => {
+    const queued = (number, ...labels) => ({ number, labels: [LABEL, ...labels] })
+
+    it('counts from one, not from zero', () => {
+        assert.equal(positionLabel(0), '#1')
+        assert.equal(positionLabel(2), '#3')
+    })
+
+    it('stops counting past the fourth place', () => {
+        assert.equal(positionLabel(3), '#4')
+        assert.equal(positionLabel(4), '#5+')
+        assert.equal(positionLabel(5), '#5+')
+        assert.equal(positionLabel(40), '#5+')
+    })
+
+    it('recognises its own labels and nothing else', () => {
+        assert.ok(isPositionLabel('#1'))
+        assert.ok(isPositionLabel('#42'))
+        assert.ok(isPositionLabel('#5+'))
+        assert.ok(!isPositionLabel(LABEL))
+        assert.ok(!isPositionLabel(FAILED_LABEL))
+        assert.ok(!isPositionLabel('#'))
+        assert.ok(!isPositionLabel('#1a'))
+        assert.ok(!isPositionLabel('1'))
+        assert.ok(!isPositionLabel(undefined))
+    })
+
+    it('numbers a queue that has none', () => {
+        const changes = decidePositions([queued(7), queued(9), queued(3)])
+        assert.deepEqual(changes, [
+            { number: 7, add: '#1', remove: [] },
+            { number: 9, add: '#2', remove: [] },
+            { number: 3, add: '#3', remove: [] },
+        ])
+    })
+
+    it('writes nothing when the queue has not moved', () => {
+        const changes = decidePositions([queued(7, '#1'), queued(9, '#2')])
+        assert.deepEqual(changes, [])
+    })
+
+    it('renumbers what is left after the head merges', () => {
+        const changes = decidePositions([queued(9, '#2'), queued(3, '#3')])
+        assert.deepEqual(changes, [
+            { number: 9, add: '#1', remove: ['#2'] },
+            { number: 3, add: '#2', remove: ['#3'] },
+        ])
+    })
+
+    it('touches only what moved', () => {
+        const changes = decidePositions([queued(7, '#1'), queued(3, '#9'), queued(5, '#3')])
+        assert.deepEqual(changes, [{ number: 3, add: '#2', remove: ['#9'] }])
+    })
+
+    it('leaves a pull request holding exactly one of them', () => {
+        const changes = decidePositions([queued(7, '#4', '#1', '#2')])
+        assert.deepEqual(changes, [{ number: 7, add: null, remove: ['#4', '#2'] }])
+    })
+
+    it('ignores labels that are not its own', () => {
+        const changes = decidePositions([queued(7, 'bug', FAILED_LABEL, '#1')])
+        assert.deepEqual(changes, [])
+    })
+
+    it('numbers only the front of a long queue', () => {
+        const changes = decidePositions(Array.from({ length: 7 }, (_, index) => queued(100 + index)))
+        assert.deepEqual(
+            changes.map((change) => change.add),
+            ['#1', '#2', '#3', '#4', '#5+', '#5+', '#5+'],
+        )
+    })
+
+    // The whole point of the cap: what a merge costs stops growing with the
+    // queue, because everything past the fourth place already says what it
+    // will go on saying.
+    it('costs the same four writes however deep the queue is', () => {
+        const settled = (length) =>
+            Array.from({ length }, (_, index) => queued(100 + index, positionLabel(index)))
+
+        for (const depth of [6, 12, 50]) {
+            const afterTheHeadMerged = settled(depth).slice(1)
+            const changes = decidePositions(afterTheHeadMerged)
+
+            assert.equal(changes.length, 4, `a queue of ${depth} should cost four writes`)
+            assert.deepEqual(
+                changes.map((change) => change.add),
+                ['#1', '#2', '#3', '#4'],
+            )
+            assert.deepEqual(changes.at(-1).remove, ['#5+'], 'the fourth place is promoted out of #5+')
+        }
+    })
+
+    it('leaves a settled long queue completely alone', () => {
+        const settled = Array.from({ length: 20 }, (_, index) => queued(100 + index, positionLabel(index)))
+        assert.deepEqual(decidePositions(settled), [])
+    })
+
+    it('has nothing to do with an empty queue', () => {
+        assert.deepEqual(decidePositions([]), [])
+    })
+
+    it('copes with an entry whose labels were never read', () => {
+        assert.deepEqual(decidePositions([{ number: 7 }]), [{ number: 7, add: '#1', remove: [] }])
     })
 })
 

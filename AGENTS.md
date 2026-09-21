@@ -37,3 +37,15 @@ Do:
 - In your handoff message, mention any small issues you encountered or small things you noticed that could make the code / application better.
 - If you don't need tests in your search results, consider `grep --exclude-dir="tests"`
 - If you find yourself polling waiting for a command to finish, run `./scripts/nopoll` in the foreground
+
+Design principles:
+- if a request appears to violate one of these, confirm using the question tool. do not edit this list.
+- general:
+  - we should never be sleeping in a test. if we need to wait for something, we need to find a way to wait for it without sleeping.
+- beui:
+  - beui is a retained-mode ui that you interact with using a solidjs-like reactive framework.
+  - beui layout is O(n) or better on the number of nodes in the tree.
+  - beui is a reactive framework; we should push changes, not poll for changes.
+- block-app plugins:
+  - the plugin protocol is framework-independent. we theoretically could use it with different GUI frameworks without modifying the plugin protocol.
+  - the plugin protocol passes textures without them leaving the GPU.
