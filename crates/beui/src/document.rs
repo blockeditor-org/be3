@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::damage::{Damage, Region};
 use crate::flash::FlashLog;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
-use crate::input::{Event, Key};
+use crate::input::{Event, Key, KeyPress};
 
 use crate::inspector::Inspector;
 use crate::interact;
@@ -23,6 +23,8 @@ use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::styled::{Theme, ThemeStore};
+
+pub(crate) type Shortcut = dyn Fn(KeyPress) -> bool;
 
 pub struct Document {
     pub(crate) arena: Arena,
@@ -37,6 +39,7 @@ pub struct Document {
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
     frame_hooks: RefCell<Vec<Weak<dyn Fn()>>>,
+    shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
     pub(crate) touch_scroll_horizontal: Option<NodeId>,
     pub(crate) pointer_capture: Option<NodeId>,
@@ -160,6 +163,7 @@ impl Document {
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
             frame_hooks: RefCell::new(Vec::new()),
+            shortcuts: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
             touch_scroll_horizontal: None,
             pointer_capture: None,
@@ -241,6 +245,18 @@ impl Document {
 
     pub(crate) fn register_frame_hook(&self, work: Weak<dyn Fn()>) {
         self.frame_hooks.borrow_mut().push(work);
+    }
+
+    pub(crate) fn register_shortcut(&self, shortcut: Weak<Shortcut>) {
+        self.shortcuts.borrow_mut().push(shortcut);
+    }
+
+    pub(crate) fn key_shortcut(&self, press: KeyPress) -> bool {
+        let mut shortcuts = self.shortcuts.borrow_mut();
+        shortcuts.retain(|shortcut| shortcut.strong_count() > 0);
+        let live: Vec<Rc<Shortcut>> = shortcuts.iter().filter_map(Weak::upgrade).collect();
+        drop(shortcuts);
+        live.into_iter().any(|shortcut| shortcut(press))
     }
 
     fn run_frame_hooks(&self) {

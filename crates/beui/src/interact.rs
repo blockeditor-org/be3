@@ -220,6 +220,10 @@ pub(crate) fn interact(
             repeat,
             modifiers,
         };
+        if doc.overlay_stack.is_empty() && doc.key_shortcut(press) {
+            doc.reveal_focus(painter);
+            continue;
+        }
         if doc.key_focused(press) {
             doc.reveal_focus(painter);
             continue;

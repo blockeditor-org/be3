@@ -55,7 +55,8 @@ const PAPERS: [(u64, &str, &str); 5] = [
     (
         6,
         "Tabs",
-        "The tab bar is a tab list: the arrow keys walk it, Home and End jump to its ends, \
+        "The tab bar is a tab list: the arrow keys walk it and Home and End jump to its \
+         ends. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of whichever pane you are in, \
          and the counter below keeps its value while you switch between tabs.",
     ),
     (

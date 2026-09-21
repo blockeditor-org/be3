@@ -18,8 +18,8 @@ use crate::node::NodeId;
 use crate::reactive::{
     Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
     Func, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
-    WriteSignal, clone, component_accessibility, component_rect, component_size,
-    create_effect, create_memo, create_signal, node_scope, on_cleanup, owner_scope,
+    WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect,
+    create_memo, create_signal, node_scope, on_cleanup, on_shortcut, owner_scope,
     set_component_state, try_with_document, with_document,
 };
 use crate::unstyled::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, Scroll};
@@ -248,6 +248,24 @@ impl State {
         let x = rect.min.x.clamp(0.0, (bounds.x - rect.width()).max(0.0));
         let y = rect.min.y.clamp(0.0, (bounds.y - rect.height()).max(0.0));
         pos2(x, y)
+    }
+
+    fn cycle(&self, backwards: bool) -> bool {
+        let state = self.state.get_untracked();
+        let Some(leaf) = state.focused_leaf() else {
+            return false;
+        };
+        let count = state.tabs(leaf).len();
+        if count < 2 {
+            return false;
+        }
+        let index = state.active_index(leaf);
+        let next = match backwards {
+            true => (index + count - 1) % count,
+            false => (index + 1) % count,
+        };
+        self.edit(|state| state.set_active_index(leaf, next));
+        true
     }
 
     fn begin_drag(&self, tab: TabId, pos: Pos2) {
@@ -564,6 +582,13 @@ pub fn Dock(
         }),
     });
     set_component_state(dock.clone());
+    on_shortcut(clone!(dock -> move |press: KeyPress| {
+        if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt
+        {
+            return false;
+        }
+        dock.cycle(press.modifiers.shift)
+    }));
     create_effect(clone!(dock current -> move || {
         let tabs = current.with(DockState::all_tabs);
         dock.keep_panels(&tabs);

@@ -143,6 +143,12 @@ pub fn each_frame(work: impl Fn() + 'static) {
     on_cleanup(move || drop(work));
 }
 
+pub fn on_shortcut(shortcut: impl Fn(crate::input::KeyPress) -> bool + 'static) {
+    let shortcut: Rc<crate::document::Shortcut> = Rc::new(shortcut);
+    with_document(|document| document.register_shortcut(Rc::downgrade(&shortcut)));
+    on_cleanup(move || drop(shortcut));
+}
+
 pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     let reading = match test_id {
         Prop::Static(value) => {

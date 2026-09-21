@@ -489,7 +489,9 @@ splitting it, and the pane's tab bar is the window's title bar: a grip, the
 tabs, and the button that closes it. Anywhere on that bar that is not a tab
 drags the window, so the grip and whatever room is left beside the tabs are
 both handles. Windows resize from any of
-their eight grips and are raised by whatever takes the focus inside them. The bar between two panes is a tab
+their eight grips and are raised by whatever takes the focus inside them. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
+registered with `on_shortcut` so they arrive even from inside a text input in a
+panel. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 `Choice` inside a horizontal `Scroll`, so the arrows, Home and End walk it like
 any other tab list and scroll the tab they reach into view when a pane has more
