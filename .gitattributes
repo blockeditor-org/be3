@@ -3,3 +3,9 @@
 # through bash, and scripts/internal/ghostty-vt.patch is applied verbatim
 # against an LF checkout of Ghostty, so a CRLF copy fails to apply.
 * text=auto eol=lf
+
+# The one exception: gradlew.bat is read by cmd.exe rather than by bash, and a
+# batch file is the thing on Windows that is picky about its line endings.
+# Nothing in CI runs it - the android job is Linux, through ./gradlew - so this
+# is for whoever builds the APK on Windows.
+*.bat text eol=crlf

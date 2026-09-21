@@ -23,6 +23,14 @@ ghostty_revision="$ghostty_commit $(git hash-object "$ghostty_patch")"
 # since Zig breaks its build API between releases; otherwise this one is
 # downloaded into target/tools rather than failing.
 zig_version='0.16.0'
+# The hashes ziglang.org publishes for that release in its own download index
+# (https://ziglang.org/download/index.json), not ones recomputed from these
+# downloads. Only the platforms the tarball is fetched for are listed; anywhere
+# else ensure_zig asks for a zig on PATH instead of downloading one.
+zig_sha256_x86_64_linux='70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00'
+zig_sha256_aarch64_linux='ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17'
+zig_sha256_x86_64_macos='0387557ed1877bc6a2e1802c8391953baddba76081876301c522f52977b52ba7'
+zig_sha256_aarch64_macos='b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489'
 
 triple=''
 while [[ $# -gt 0 ]]; do
@@ -53,12 +61,24 @@ ensure_zig() {
         return
     fi
 
-    local platform
+    local platform sha256
     case "$(uname -s)-$(uname -m)" in
-        Linux-x86_64) platform='x86_64-linux' ;;
-        Linux-aarch64 | Linux-arm64) platform='aarch64-linux' ;;
-        Darwin-x86_64) platform='x86_64-macos' ;;
-        Darwin-arm64) platform='aarch64-macos' ;;
+        Linux-x86_64)
+            platform='x86_64-linux'
+            sha256="$zig_sha256_x86_64_linux"
+            ;;
+        Linux-aarch64 | Linux-arm64)
+            platform='aarch64-linux'
+            sha256="$zig_sha256_aarch64_linux"
+            ;;
+        Darwin-x86_64)
+            platform='x86_64-macos'
+            sha256="$zig_sha256_x86_64_macos"
+            ;;
+        Darwin-arm64)
+            platform='aarch64-macos'
+            sha256="$zig_sha256_aarch64_macos"
+            ;;
         *)
             assert_command zig "Install Zig $zig_version from https://ziglang.org/download."
             echo "Found Zig $(zig version) on PATH, but Ghostty needs Zig $zig_version." >&2
@@ -84,7 +104,7 @@ ensure_zig() {
     # The extraction is into a directory named after the release, so an
     # interrupted one leaves nothing that a later run would take for complete.
     rm -rf "$directory" "$archive"
-    curl --fail --location --output "$archive" "$url"
+    download_verified "$url" "$archive" "$sha256"
     tar -xJf "$archive" -C "$tools"
     rm "$archive"
     if [[ ! -x "$zig" ]]; then
@@ -273,16 +293,26 @@ prefetch_url() {
     (cd "$source_directory" && "$zig" fetch "$path" > /dev/null)
 }
 
-# Zig's package fetcher speaks TLS itself and knows nothing about HTTPS_PROXY,
-# so on a machine whose egress is a proxy - a CI sandbox, a corporate network -
-# every dependency download fails and the build never starts. curl and git do
-# go through a proxy, so when the build fails this fetches what the manifests
-# name with those instead and hands each one to `zig fetch`. Unpacking a
-# package reveals the manifest of its own dependencies, so this repeats until a
-# pass turns up nothing new. A URL that cannot be fetched is left to the build
-# to complain about: several of them are optional packages for platforms this
-# library is not built for, and one is a placeholder in Ghostty's own
-# documentation.
+# On a machine whose egress is a proxy - a CI sandbox, a corporate network -
+# Zig's package fetcher cannot download anything, so the build never starts.
+# As of 0.16 it does read HTTPS_PROXY and issues a correct CONNECT, but having
+# been told the tunnel is open it waits to read instead of starting the TLS
+# handshake, and the proxy closes an idle tunnel. So this is not something a
+# newer Zig has fixed; it was retested on 0.16 and still hangs.
+#
+# curl and git go through a proxy properly, so when the build fails this
+# fetches what the manifests name with those instead and hands each one to
+# `zig fetch`. That is only a transport: the package cache is content
+# addressed, and every dependency is pinned by hash in a .zon manifest, so a
+# tarball that arrived altered hashes to a name the build is not looking for
+# and fails rather than being used. Unpacking a package reveals the manifest of
+# its own dependencies, so this repeats until a pass turns up nothing new. A
+# URL that cannot be fetched is left to the build to complain about: several of
+# them are optional packages for platforms this library is not built for, and
+# one is a placeholder in Ghostty's own documentation.
+#
+# The proxy is what the sandbox enforces its egress policy with, so this works
+# within it rather than around it: nothing here unsets HTTPS_PROXY.
 prefetch_dependencies() {
     echo 'Fetching Ghostty dependencies without zig, for a proxied network...' >&2
     mkdir -p "$prefetch_directory"
