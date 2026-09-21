@@ -29,6 +29,7 @@ const STEP: f32 = 40.0;
 pub struct ScrollHandle {
     pub position: Memo<ScrollPosition>,
     pub direction: Prop<Direction>,
+    pub scroll_to: Callback<f32>,
 }
 
 #[derive(Clone, Default)]
@@ -47,12 +48,14 @@ impl ScrollbarStyle {
         &self,
         position: Memo<ScrollPosition>,
         direction: Prop<Direction>,
+        scroll_to: Callback<f32>,
     ) -> Children<ListChild> {
         match &self.0 {
             None => Children::default(),
             Some((_, bar)) => Children::from(bar.call(ScrollHandle {
                 position,
                 direction,
+                scroll_to,
             })),
         }
     }
@@ -205,6 +208,15 @@ impl Motion {
         self.publish(&momentum, position.offset);
     }
 
+    fn scroll_to(&self, offset: f32) {
+        let Some(position) = self.placed() else {
+            return;
+        };
+        let mut momentum = self.momentum.borrow_mut();
+        momentum.rest();
+        self.publish(&momentum, offset.clamp(0.0, position.max_offset()));
+    }
+
     fn key(&self, press: KeyPress) -> bool {
         if press.modifiers.ctrl || press.modifiers.alt {
             return false;
@@ -297,7 +309,8 @@ fn Scrolling(
     let across = across(&direction);
     let axis = create_memo(clone!(direction -> move || Some(direction.get())));
     let (keyed, ancestor_keyed) = (motion.clone(), motion.clone());
-    let (wheeled, dragged) = (motion.clone(), motion);
+    let (wheeled, dragged) = (motion.clone(), motion.clone());
+    let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
             <Focusable
@@ -321,7 +334,7 @@ fn Scrolling(
                     </Frame>
                 </ClickCatcher>
             </Focusable>
-            {scrollbar.beside(position, direction)}
+            {scrollbar.beside(position, direction, scroll_to)}
         </List>
     }
 }
