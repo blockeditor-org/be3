@@ -6,7 +6,7 @@ Guides:
 - guides/adding_a_block.md
 - guides/adding_a_game.md
 - guides/adding_a_plugin_editor.md
-- guides/beui.md
+- guides/beui.md (Read in full before using beui)
 - guides/beui_components.md
 - guides/beui_extending.md
 - guides/beui_inspector.md
@@ -15,10 +15,6 @@ Guides:
 - guides/reactive.md
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md
-
-If you are touching beui at all, read guides/beui.md in full before you start.
-It is kept short so that it can be read in full, and it links the other beui
-guides for the parts it does not cover.
 
 Do not:
 - When making changes to serialization formats or network requests, do not consider backwards compatibility with existing clients or data. The project is still early, and it is fine to ask the user to delete all their data. The crash handler in block-app will offer this automatically.
