@@ -215,6 +215,44 @@ export function orderQueue(entries) {
     })
 }
 
+// --- position labels ------------------------------------------------------
+
+// Purely something to look at. The queue's order is the order the merge-queue
+// labels went on, read from the issue events every tick; these say what that
+// order currently is, so that a list of open pull requests can be read without
+// opening any of them. Nothing decides anything from them, and a tick that
+// fails to write them still merges.
+const POSITION = /^#(\d+)$/
+
+export function positionLabel(index) {
+    return `#${index + 1}`
+}
+
+export function isPositionLabel(name) {
+    return POSITION.test(name ?? '')
+}
+
+// The minimum set of label writes that makes the labels match the queue: what
+// is already right is left alone, so a tick on a queue that has not moved
+// writes nothing at all. A pull request carrying more than one of these - two
+// ticks raced, or one died between the remove and the add - loses all but the
+// right one.
+export function decidePositions(queue) {
+    const changes = []
+
+    queue.forEach((entry, index) => {
+        const wanted = positionLabel(index)
+        const held = (entry.labels ?? []).filter(isPositionLabel)
+        const stale = held.filter((name) => name !== wanted)
+        const add = held.includes(wanted) ? null : wanted
+
+        if (stale.length === 0 && add === null) return
+        changes.push({ number: entry.number, add, remove: stale })
+    })
+
+    return changes
+}
+
 // --- the tick -------------------------------------------------------------
 
 function checkList(names) {

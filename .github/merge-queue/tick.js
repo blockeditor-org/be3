@@ -20,7 +20,9 @@ import {
     LABEL,
     decideComment,
     decideLabel,
+    decidePositions,
     hasWriteAccess,
+    isPositionLabel,
     decideTick,
     markerKeyOf,
     mergeFailureAction,
@@ -152,6 +154,7 @@ async function getQueue() {
             title: issue.title,
             labeledAt: application?.at ?? issue.updated_at,
             labeledBy: application?.by ?? null,
+            labels: (issue.labels ?? []).map((label) => label.name ?? label),
         })
     }
     return orderQueue(entries)
@@ -239,6 +242,51 @@ async function clearFailed(number) {
     await removeLabel(number, FAILED_LABEL)
 }
 
+async function clearPosition(number) {
+    const issue = await github.getOrNull(github.repoPath(`/issues/${number}`))
+    for (const label of issue?.labels ?? []) {
+        const name = label.name ?? label
+        if (isPositionLabel(name)) await removeLabel(number, name)
+    }
+}
+
+// Every way out of the queue goes through here, so that a position label
+// cannot outlive the queue entry it describes. The position is cosmetic and
+// the label is not, so the label goes first: if this run dies in between, the
+// pull request is out of the queue with a stale number on it, which the next
+// tick corrects, rather than in the queue with no number, which it would not.
+async function leaveQueue(number) {
+    await removeLabel(number, LABEL)
+    await clearPosition(number)
+}
+
+// Created on demand, because how many there are is however many are queued.
+async function ensurePositionLabel(name) {
+    const existing = await github.getOrNull(github.repoPath(`/labels/${encodeURIComponent(name)}`))
+    if (existing) return
+    await github.request('POST', github.repoPath('/labels'), {
+        body: { name, color: 'ededed', description: 'Position in the merge queue' },
+    })
+}
+
+// Cosmetic, and treated as such by its caller: this throwing must not stop a
+// pull request merging.
+async function syncPositions(queue) {
+    const changes = decidePositions(queue)
+    if (changes.length === 0) {
+        log('queue positions are already correct')
+        return
+    }
+    for (const change of changes) {
+        for (const name of change.remove) await removeLabel(change.number, name)
+        if (change.add) {
+            await ensurePositionLabel(change.add)
+            await addLabel(change.number, change.add)
+        }
+        log(`#${change.number} is now ${change.add ?? 'unnumbered'}`)
+    }
+}
+
 async function comment(number, body) {
     await github.request('POST', github.repoPath(`/issues/${number}/comments`), { body: { body } })
 }
@@ -314,7 +362,7 @@ async function handleComment() {
         await addLabel(issue.number)
     }
     if (action.kind === 'cancel') {
-        await removeLabel(issue.number)
+        await leaveQueue(issue.number)
         await comment(issue.number, action.body)
     }
 }
@@ -343,7 +391,7 @@ async function handleLabeled() {
     if (action.kind === 'ignore') return
 
     if (action.kind === 'reject') {
-        await removeLabel(pullRequest.number)
+        await leaveQueue(pullRequest.number)
         await comment(pullRequest.number, action.body)
         return true
     }
@@ -374,7 +422,7 @@ async function handleSynchronize() {
     }
 
     log(`#${pullRequest.number} got new commits from @${sender}; dequeueing`)
-    await removeLabel(pullRequest.number)
+    await leaveQueue(pullRequest.number)
     await clearFailed(pullRequest.number)
     await comment(
         pullRequest.number,
@@ -392,7 +440,7 @@ async function cleanupClosed() {
     for (const issue of closed) {
         if (!issue.pull_request) continue
         log(`#${issue.number} is closed; removing the ${LABEL} label`)
-        await removeLabel(issue.number)
+        await leaveQueue(issue.number)
     }
 }
 
@@ -424,7 +472,7 @@ async function merge(action, head) {
         const outcome = mergeFailureAction(action.number, head.headSha, error.status, error.apiMessage, head.botComments)
         log(`-> ${outcome.kind}: ${outcome.reason}`)
         if (outcome.kind === 'dequeue') {
-            await removeLabel(outcome.number)
+            await leaveQueue(outcome.number)
             if (outcome.failed) await addLabel(outcome.number, FAILED_LABEL)
             if (outcome.comment) await comment(outcome.number, outcome.comment.body)
         }
@@ -432,7 +480,7 @@ async function merge(action, head) {
     }
 
     log(`merged #${action.number}`)
-    await removeLabel(action.number)
+    await leaveQueue(action.number)
     await comment(action.number, `Merged by the merge queue at \`${action.sha.slice(0, 7)}\`.`)
 }
 
@@ -442,10 +490,10 @@ async function perform(action, head) {
         case 'wait':
             return
         case 'unlabel':
-            await removeLabel(action.number)
+            await leaveQueue(action.number)
             return
         case 'dequeue':
-            await removeLabel(action.number)
+            await leaveQueue(action.number)
             if (action.failed) await addLabel(action.number, FAILED_LABEL)
             if (action.comment) await comment(action.number, action.comment.body)
             return
@@ -487,6 +535,14 @@ async function tick() {
     log(`queue (${queue.length}):`)
     for (const [index, entry] of queue.entries()) {
         log(`  ${index + 1}. #${entry.number} ${entry.title} (queued ${entry.labeledAt})`)
+    }
+
+    // Labels nobody reads back. A queue that merges without them is working;
+    // a queue that refuses to merge because it could not write one is not.
+    try {
+        await syncPositions(queue)
+    } catch (error) {
+        log(`WARNING: could not update the queue position labels: ${error.message}`)
     }
 
     const head = await hydrate(queue[0], defaultBranch, required)
