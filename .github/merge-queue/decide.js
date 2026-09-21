@@ -222,10 +222,21 @@ export function orderQueue(entries) {
 // order currently is, so that a list of open pull requests can be read without
 // opening any of them. Nothing decides anything from them, and a tick that
 // fails to write them still merges.
-const POSITION = /^#(\d+)$/
+// Only the front of the queue is numbered exactly. Everything behind it shares
+// one label, which is what stops the cost of a merge growing with the queue:
+// when the head goes, the four numbered places all shift and the pull request
+// promoted into the last of them changes, and that is four writes whether
+// there are five pull requests waiting or fifty. The rest already say #5+ and
+// go on saying it.
+const NUMBERED_POSITIONS = 4
+
+// Matches a trailing + as well, so that labels left by a different value of
+// NUMBERED_POSITIONS are still recognised as this queue's and cleaned up.
+const POSITION = /^#\d+\+?$/
 
 export function positionLabel(index) {
-    return `#${index + 1}`
+    if (index < NUMBERED_POSITIONS) return `#${index + 1}`
+    return `#${NUMBERED_POSITIONS + 1}+`
 }
 
 export function isPositionLabel(name) {
