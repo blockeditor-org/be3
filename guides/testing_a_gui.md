@@ -123,6 +123,10 @@ way for the test to fail.
   not git and a reviewer is not the tests: a painting nobody approved is new again the next
   time the block is opened, and one nobody had approved before it vanished is not reported
   at all.
+- cargo run -p paint-snapshot --example rasterize -- snapshots/<crate>.<name>.paint out.png
+  turns one into a PNG, and a trailing frame number or all picks which frames of a recording
+  to write. It is for a person looking at a painting on the machine that made it; the review
+  that matters still happens in a Paint review block.
 - Regenerating them is cheap and mechanical - an egui upgrade rewrites every one - so a
   changed painting is not by itself a failure to explain, and there is nothing in it for you
   to look at. Say in your handoff which paintings changed and why, and leave the images
