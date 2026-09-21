@@ -19,7 +19,7 @@ use crate::screen_reader::Command;
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS};
 use crate::styled::{
     Button, ButtonVariant, Caption, Checkbox, Code, Heading, IconSized, RadioGroup, Scroll,
-    Separator, Slider, Tabs, Theme, Tree,
+    Separator, Slider, Tabs, Theme, Tree, TreeRowFace,
 };
 use crate::unstyled;
 use crate::unstyled::{ChoiceOption, SliderScale, TreeItem};
@@ -295,9 +295,9 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                                 hover_state.hover(key.node(), hovered);
                                             }}
                                         >
-                                            {move |key: Key| view! {
+                                            {move |row: TreeRowFace<Key>| view! {
                                                 <TreeCells
-                                                    row_key={key}
+                                                    row_key={row.key}
                                                     entries={row_entries.clone()}
                                                 />
                                             }}

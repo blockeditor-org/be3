@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::reactive::{Text, build, clone, create_memo, create_signal, view};
-use crate::styled::Tree;
+use crate::styled::{Tree, TreeRowFace};
 use crate::unstyled::TreeItem;
 
 #[test]
@@ -33,8 +33,11 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
                     on_expand={move |(_, open): (usize, bool)| set_expanded.set(open)}
                     expand_on_select=false
                 >
-                    {move |key: usize| view! {
-                        <Text @test_id={format!("row.{key}")} string={format!("row {key}")} />
+                    {move |row: TreeRowFace<usize>| view! {
+                        <Text
+                            @test_id={format!("row.{}", row.key)}
+                            string={format!("row {}", row.key)}
+                        />
                     }}
                 </Tree>
             }

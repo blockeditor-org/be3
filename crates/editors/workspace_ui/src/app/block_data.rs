@@ -6,7 +6,7 @@ use block_editor_plugin::beui::reactive::{
     Frame, Func, ItemSize, List, ReadSignal, Show, clone, component, create_memo, create_signal,
     view,
 };
-use block_editor_plugin::beui::styled::{Caption, Code, Scroll, Tree};
+use block_editor_plugin::beui::styled::{Caption, Code, Scroll, Tree, TreeRowFace};
 use block_editor_plugin::beui::unstyled::TreeItem;
 use serde_json::Value;
 
@@ -106,7 +106,8 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                             });
                         }}
                     >
-                        {move |path: String| {
+                        {move |face: TreeRowFace<String>| {
+                            let path = face.key;
                             let label = create_memo(clone!(content_rows -> move || {
                                 content_rows.with(|rows| {
                                     rows.iter()
