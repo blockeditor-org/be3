@@ -11,6 +11,7 @@ mod pan_zoom;
 mod pointer_lock;
 mod pressable;
 mod scroll;
+mod scrollbar;
 mod select;
 mod slider;
 mod stack;
@@ -40,6 +41,7 @@ pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, pa
 pub use pointer_lock::{PointerLock, PointerLockHandle};
 pub use pressable::Pressable;
 pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, VirtualList, scroll_animating};
+pub use scrollbar::{Scrollbar, ScrollbarHandle, thumb_length, thumb_start};
 pub use select::{
     Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,
     select_option_button, select_search, select_selected, select_trigger,

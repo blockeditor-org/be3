@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
 # Builds every plugin's tests for WebAssembly and runs them with cargo nextest
-# through the same host the app runs a plugin in.
+# through the same host the app runs a plugin in. The guest half of the plugin
+# framework is built and run here too: its tests are behind
+# `cfg(target_arch = "wasm32")`, so a native run never compiles them.
 #
 # A plugin is a wasm guest wherever it runs, and what it paints depends on the
 # FreeType and HarfBuzz it was compiled against. Running its tests natively
@@ -62,7 +64,7 @@ done
 
 assert_command cargo 'Install Rust from https://rustup.rs.'
 cd "$repository"
-load_plugins
+load_wasm_tested
 
 # What this prints, and why the cargo calls below are loud unless asked not to
 # be. Nearly all of a plugin test run is building: the runner, the test modules
@@ -145,14 +147,15 @@ for argument in "$@"; do
 done
 selection=()
 if [[ ${#packages[@]} -eq 0 ]]; then
-    for plugin in "${plugins[@]}"; do
-        selection+=(-p "$plugin")
+    for package in "${wasm_tested[@]}"; do
+        selection+=(-p "$package")
     done
     packages=("${selection[@]}")
 fi
 # packages holds a -p and a name for each one, so what the steps below report
-# is how many plugins that is rather than how many arguments it took to say so.
-plugin_count=$((${#packages[@]} / 2))
+# is how many packages that is rather than how many arguments it took to say
+# so.
+package_count=$((${#packages[@]} / 2))
 
 build=(--cargo-profile plugin --target "$wasm_rust_target")
 
@@ -166,7 +169,7 @@ build=(--cargo-profile plugin --target "$wasm_rust_target")
 
     # Listing the test binaries is what builds them, so this is the compile of
     # every plugin's tests for wasm and not the bookkeeping its name suggests.
-    step "Building the test modules for $plugin_count plugins"
+    step "Building the test modules for $package_count packages"
     listing="$(cargo nextest list "${nextest_quiet[@]}" --list-type binaries-only --message-format json "${build[@]}" "${packages[@]}")"
     end_step
     # An artifact the runner will not map in is one every test process
@@ -183,7 +186,7 @@ build=(--cargo-profile plugin --target "$wasm_rust_target")
         fi
     done < <(grep -o '"binary-path":"[^"]*"' <<< "$listing" | sed 's/^"binary-path":"//; s/"$//')
     if [[ ${#stale[@]} -gt 0 ]]; then
-        step "Compiling ${#stale[@]} plugin test modules"
+        step "Compiling ${#stale[@]} test modules"
         "$runner" --precompile "${stale[@]}"
         end_step
     fi
@@ -195,7 +198,7 @@ build=(--cargo-profile plugin --target "$wasm_rust_target")
     if ! $check; then
         export UPDATE_SNAPSHOTS=1
     fi
-    step "Running the tests of $plugin_count plugins"
+    step "Running the tests of $package_count packages"
     cargo nextest run --no-fail-fast "${build[@]}" "${selection[@]}" "$@"
     end_step
 )
