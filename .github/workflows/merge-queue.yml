@@ -1,0 +1,158 @@
+# A serial merge queue, without GitHub's.
+#
+# Someone with write access comments `/merge` on a pull request; it gets the
+# merge-queue label and waits its turn. The queue merges one at a time, and
+# nothing merges unless its required checks passed on a head that already
+# contains the current main. `/merge cancel` takes it back out.
+#
+# Every run of this workflow is one "tick": .github/merge-queue/tick.js reads
+# the whole state of the queue from the API and takes at most one action. It
+# stores nothing between runs, so a dropped run, a cancelled run and a crashed
+# run all cost the same thing, which is the wait until the next trigger.
+#
+# What has to be true of the repository for this to be safe:
+#
+#   * A ruleset on main requires status checks AND has "require branches to be
+#     up to date before merging" turned on. That second setting is what makes
+#     each merge atomic: the queue decides to merge a head it believes contains
+#     main, and if main moved in between, GitHub refuses the call instead of
+#     merging something whose checks described a main that no longer exists.
+#     The tick treats that refusal as a normal outcome and re-evaluates.
+#   * Squash merging is enabled for the repository. The queue only ever squashes.
+#   * GitHub's own merge queue is NOT enabled. Two queues on one branch would
+#     each be reacting to the other's merges.
+#   * The app below needs no bypass of any of that. It merges through the same
+#     rules a person does, which is the point: if the rules would refuse a
+#     person, they refuse the queue, and the queue says so on the pull request.
+#
+# Setting it up:
+#
+#   1. Create a GitHub App (org settings -> Developer settings -> GitHub Apps)
+#      with these repository permissions, and nothing else:
+#        contents: read and write        (updating a branch, merging)
+#        pull requests: read and write   (reading and merging pull requests)
+#        issues: read and write          (labels, comments, reactions)
+#        checks: read                    (reading check run results)
+#        actions: read                   (reading workflow runs)
+#        members: read                   (resolving a commenter's permission)
+#        metadata: read                  (mandatory, granted automatically)
+#   2. Install it on this repository.
+#   3. Generate a private key and add two repository secrets:
+#        MERGE_QUEUE_APP_ID            the app's numeric ID
+#        MERGE_QUEUE_APP_PRIVATE_KEY   the whole .pem, newlines and all
+#
+# Why an app and not GITHUB_TOKEN: a push made with GITHUB_TOKEN does not
+# trigger workflows. The queue's central move is updating a branch with main
+# and waiting for CI on the result, and with GITHUB_TOKEN that CI would never
+# start, so the queue would wait forever on a run nobody scheduled.
+#
+# Troubleshooting is in the run log. Every tick prints the queue it saw, the
+# head's state and checks, and the one decision it made.
+
+name: Merge queue
+
+on:
+  # The commands. This fires for pull request comments too; the tick works out
+  # which is which.
+  issue_comment:
+    types: [created]
+
+  # The queue's main wake-up: CI finished on something, so the head of the
+  # queue may now be mergeable.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+  # A merge landed, so whatever is next is now behind main and needs updating.
+  push:
+    branches: [main]
+
+  # synchronize is a push to a pull request branch, which for a queued one
+  # means a person changed what the queue was about to merge. closed is the
+  # queue's own merges and anyone else's.
+  pull_request_target:
+    types: [closed, synchronize]
+
+  # The safety net. Webhooks are delivered once and at most once, and a tick
+  # that is never triggered is a queue that quietly stops.
+  schedule:
+    - cron: '*/15 * * * *'
+
+  workflow_dispatch:
+
+# Serial by construction. cancel-in-progress stays false because a tick that is
+# half-done has already called update-branch or merge, and cancelling it would
+# leave the comment it was about to write unwritten. Actions still drops older
+# *pending* runs from the group, which is harmless: each tick recomputes
+# everything, so the newest one sees whatever the dropped ones would have.
+concurrency:
+  group: merge-queue
+  cancel-in-progress: false
+
+# Nothing here uses GITHUB_TOKEN. This is the checkout's read of this
+# repository and nothing else; every API call the tick makes is the app's.
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    name: tick
+    runs-on: ubuntu-24.04
+
+    # Most comments on this repository are not commands, and spinning a runner
+    # to find that out is a minute of queue latency for everyone else.
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/merge'))
+
+    steps:
+      # Asked for by name rather than taken wholesale. An installation token
+      # defaults to everything the app was granted, and the app is granted what
+      # it needs across its whole installation; naming them here is what keeps
+      # this job's token to the six it actually uses.
+      #
+      # members: read is not among them. The only thing the queue needs it for
+      # is resolving a commenter's permission, and the endpoint that answers
+      # that is satisfied by metadata: read, which every installation token
+      # carries. Asking for a permission the installation does not hold fails
+      # this step outright, so it is not asked for.
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.MERGE_QUEUE_APP_ID }}
+          private-key: ${{ secrets.MERGE_QUEUE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+          permission-checks: read
+          permission-actions: read
+          permission-metadata: read
+
+      # issue_comment, pull_request_target and workflow_run all run in the base
+      # repository, with this repository's secrets available to them. The one
+      # rule that makes that safe is that none of a pull request's content is
+      # ever read as code, so this checks out the default branch explicitly and
+      # takes nothing from the pull request. There is no install step and no
+      # build step below for the same reason: the tick is the standard library
+      # and two files from this branch.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      # MERGE_QUEUE_REQUIRED_CHECKS is only read when the branch names no
+      # required checks of its own, which on a correctly configured repository
+      # never happens. It is here so that a ruleset that is missing or
+      # unreadable fails closed on the real gate rather than merging everything
+      # because it found nothing to wait for.
+      - name: Tick
+        env:
+          MERGE_QUEUE_TOKEN: ${{ steps.app-token.outputs.token }}
+          MERGE_QUEUE_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          MERGE_QUEUE_REQUIRED_CHECKS: CI OK
+        run: node .github/merge-queue/tick.js
