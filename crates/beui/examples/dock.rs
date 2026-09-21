@@ -15,6 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 const FILES: TabId = TabId::new(1);
+const EMPTY: TabId = TabId::new(2);
 const FILES_SHARE: f32 = 0.78;
 const SHELL_PADDING: f32 = 10.0;
 const SHELL_SPACING: f32 = 10.0;
@@ -33,32 +34,32 @@ struct Paper {
 
 const PAPERS: [(u64, &str, &str); 5] = [
     (
-        2,
+        3,
         "Welcome",
         "Drag a tab by its label. Drop it over the middle of a pane to join that pane, \
          over an edge to split it, or over a tab bar to land between the tabs there.",
     ),
     (
-        3,
+        4,
         "Windows",
         "Hold Alt while dragging a tab, or right-click one and pop it out, to float it in \
          a window. A window moves by the grip at the left of its bar and resizes from \
          any edge.",
     ),
     (
-        4,
+        5,
         "Splits",
         "Drag the bar between two panes to resize them, or focus it with Tab and use the \
          arrow keys.",
     ),
     (
-        5,
+        6,
         "Tabs",
         "The tab bar is a tab list: the arrow keys walk it, Home and End jump to its ends, \
          and the counter below keeps its value while you switch between tabs.",
     ),
     (
-        6,
+        7,
         "Notes",
         "Closing a tab leaves the paper in Files, so it can be opened again.",
     ),
@@ -104,12 +105,49 @@ fn papers() -> Vec<Paper> {
 fn starting_state() -> DockState {
     let mut state = DockState::new([FILES]);
     let files = state.leaves(state.main())[0];
-    state.split(files, Side::Right, FILES_SHARE, vec![TabId::new(2)]);
+    state.split(
+        files,
+        Side::Right,
+        FILES_SHARE,
+        vec![TabId::new(PAPERS[0].0)],
+    );
+    state
+}
+
+fn settled(mut state: DockState) -> DockState {
+    let open = state
+        .all_tabs()
+        .into_iter()
+        .any(|tab| tab != FILES && tab != EMPTY);
+    if open {
+        state.remove(EMPTY);
+        return state;
+    }
+    if state.contains(EMPTY) {
+        return state;
+    }
+    let files = state.find(FILES).map(|position| position.leaf);
+    let elsewhere = state
+        .surfaces()
+        .into_iter()
+        .flat_map(|surface| state.leaves(surface))
+        .find(|leaf| Some(*leaf) != files);
+    match (elsewhere, files) {
+        (Some(leaf), _) => state.push(leaf, EMPTY),
+        (None, Some(files)) => {
+            state.split(files, Side::Right, FILES_SHARE, vec![EMPTY]);
+        }
+        (None, None) => state.push_to_focused(EMPTY),
+    }
     state
 }
 
 fn open(state: &mut DockState, tab: TabId) {
     if state.contains(tab) {
+        state.show(tab);
+        return;
+    }
+    if state.replace(EMPTY, tab) {
         state.show(tab);
         return;
     }
@@ -139,6 +177,7 @@ fn DockShell() -> NodeId {
     let (state, set_state) = create_signal(starting_state());
     let title = Func::new(clone!(papers -> move |tab: TabId| match tab {
         FILES => "Files".to_owned(),
+        EMPTY => "Workspace".to_owned(),
         tab => papers.with(|papers| {
             papers
                 .iter()
@@ -161,8 +200,8 @@ fn DockShell() -> NodeId {
                     @sizing=ItemSize::Percent(100.0)
                     state={state}
                     title={title}
-                    closable={Func::new(|tab: TabId| tab != FILES)}
-                    on_change={move |next: DockState| set_state.set(next)}
+                    closable={Func::new(|tab: TabId| tab != FILES && tab != EMPTY)}
+                    on_change={move |next: DockState| set_state.set(settled(next))}
                     on_close={move |_: TabId| {}}
                 >
                     {move |tab: TabId| {
@@ -171,6 +210,9 @@ fn DockShell() -> NodeId {
                         match tab {
                             FILES => view! {
                                 <FilesPanel papers set_state />
+                            },
+                            EMPTY => view! {
+                                <EmptyPanel />
                             },
                             tab => view! {
                                 <PaperPanel tab papers />
@@ -206,12 +248,13 @@ fn DockToolbar(set_papers: WriteSignal<Vec<Paper>>, set_state: WriteSignal<DockS
                         });
                     });
                     added.update(|state| open(state, tab));
+                    added.update(|state| *state = settled(state.clone()));
                 }}
             />
             <Button
                 label="Reset layout"
                 variant=ButtonVariant::Secondary
-                on_click={move || reset.set(starting_state())}
+                on_click={move || reset.set(settled(starting_state()))}
             />
         </List>
     }
@@ -231,13 +274,32 @@ fn FilesPanel(papers: ReadSignal<Vec<Paper>>, set_state: WriteSignal<DockState>)
                         let set_state = set_state.clone();
                         let title = create_memo(move || title_of(&papers, tab));
                         view! {
-                            <ListRow on_click={move || set_state.update(|state| open(state, tab))}>
+                            <ListRow
+                                on_click={move || {
+                                    set_state.update(|state| {
+                                        open(state, tab);
+                                        *state = settled(state.clone());
+                                    });
+                                }}
+                            >
                                 <Body content={title} />
                             </ListRow>
                         }
                     }}
                 </ForEach>
             </Scroll>
+        </Frame>
+    }
+}
+
+#[component]
+fn EmptyPanel() -> NodeId {
+    view! {
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+            <List spacing=ROW_SPACING align=Align::Center>
+                <Heading content="Nothing open" />
+                <Caption content="Open a paper from Files to get started." />
+            </List>
         </Frame>
     }
 }
