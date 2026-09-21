@@ -1541,7 +1541,13 @@ impl Instances {
         request_id: u64,
         request: HostRequest,
     ) -> bool {
-        let network = self.network.clone();
+        let fetch = match &request {
+            HostRequest::Fetch(url) => Some(match allowed(url, &self.network) {
+                true => Fetch::get(url.clone(), Vec::new()),
+                false => Fetch::refused(format!("{REFUSED} {url}")),
+            }),
+            _ => None,
+        };
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
@@ -1552,10 +1558,10 @@ impl Instances {
                 Work::Pick(picker)
             }
             HostRequest::PasteImage => Work::Paste(super::clipboard::read_clipboard_image()),
-            HostRequest::Fetch(url) => Work::Fetch(match allowed(&url, &network) {
-                true => Fetch::get(url, Vec::new()),
-                false => Fetch::refused(format!("{REFUSED} {url}")),
-            }),
+            HostRequest::Fetch(_) => match fetch {
+                Some(fetch) => Work::Fetch(fetch),
+                None => return false,
+            },
             HostRequest::PickBlock(filter) => {
                 entry.block_picks.push(BlockPickRequest {
                     request_id,
