@@ -1,5 +1,6 @@
 use crate::color::Color32;
 use crate::context::Context;
+use crate::drawing::Drawing;
 use crate::font::{FontId, Galley};
 use crate::geometry::{Pos2, Rect};
 use crate::image::Image;
@@ -39,6 +40,11 @@ pub enum Shape {
     Punch {
         rect: Rect,
         corner_radius: f32,
+        clip: Rect,
+    },
+    Drawing {
+        rect: Rect,
+        drawing: Drawing,
         clip: Rect,
     },
 }
@@ -167,6 +173,17 @@ impl Painter {
         self.push(Shape::Punch {
             rect,
             corner_radius,
+            clip: self.clip,
+        });
+    }
+
+    pub fn drawing(&self, rect: Rect, drawing: &Drawing) {
+        if !rect.is_positive() {
+            return;
+        }
+        self.push(Shape::Drawing {
+            rect,
+            drawing: drawing.clone(),
             clip: self.clip,
         });
     }

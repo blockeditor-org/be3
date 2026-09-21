@@ -236,6 +236,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         let (children, _) = self.editor_host().end_region(placement);
         let host = self.editor_host();
+        host.grab_cursor(output.pointer_locked);
         if let Some(viewport) = &mut self.viewport {
             viewport.settle(&host, rect);
         }
@@ -244,6 +245,17 @@ impl<A: BeuiApp> BeuiTest<A> {
             output.repaint_after = output.repaint_after.min(delay);
         }
         self.output = Some(output);
+    }
+
+    pub fn pointer_locked(&self) -> bool {
+        self.output
+            .as_ref()
+            .expect("the editor has not drawn a frame yet")
+            .pointer_locked
+    }
+
+    pub fn pointer_motion(&mut self, delta: Vec2) {
+        self.events.push(Event::PointerMotion(delta));
     }
 
     fn intrinsic(&self) -> Option<Vec2> {

@@ -1379,6 +1379,7 @@ pub use crate::base::picture::Picture;
 pub use crate::base::portal::Portal;
 pub use crate::base::stroke::Stroke;
 pub use crate::base::text::Text;
+pub use crate::base::viewport::Viewport;
 
 #[component]
 pub fn List(

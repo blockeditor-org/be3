@@ -35,6 +35,7 @@ struct Inner {
     copied_text: RefCell<Option<String>>,
     paste_requested: Cell<bool>,
     cursor_icon: Cell<CursorIcon>,
+    pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
     mouse_simulation: RefCell<MouseSimulation>,
     pixels_per_point: Cell<f32>,
@@ -54,6 +55,7 @@ pub struct FrameOutput {
     pub(crate) filter: Option<(Filter, usize)>,
     test_ids: HashMap<String, Rect>,
     pub cursor_icon: CursorIcon,
+    pub pointer_locked: bool,
     pub copied_text: Option<String>,
     pub paste_requested: bool,
     pub repaint: bool,
@@ -120,6 +122,7 @@ impl Context {
                 copied_text: RefCell::new(None),
                 paste_requested: Cell::new(false),
                 cursor_icon: Cell::new(CursorIcon::Default),
+                pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 mouse_simulation: RefCell::new(MouseSimulation::default()),
                 pixels_per_point: Cell::new(1.0),
@@ -214,6 +217,7 @@ impl Context {
             changed,
             repaint_after: self.inner.repaint_after.get(),
             cursor_icon: self.inner.cursor_icon.get(),
+            pointer_locked: self.inner.pointer_locked.get(),
             repaint: self.inner.repaint.get(),
             accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
             pixels_per_point: scale,
@@ -240,6 +244,16 @@ impl Context {
 
     pub fn request_paste(&self) {
         self.inner.paste_requested.set(true);
+    }
+
+    pub fn set_pointer_locked(&self, locked: bool) {
+        if self.inner.pointer_locked.replace(locked) != locked {
+            self.request_repaint();
+        }
+    }
+
+    pub fn pointer_locked(&self) -> bool {
+        self.inner.pointer_locked.get()
     }
 
     pub fn set_cursor_icon(&self, cursor_icon: CursorIcon) {
@@ -625,6 +639,10 @@ fn scale_shape(shape: &mut Shape, scale: f32) {
         } => {
             *rect = rect.scaled(scale);
             *corner_radius *= scale;
+            *clip = clip.scaled(scale);
+        }
+        Shape::Drawing { rect, clip, .. } => {
+            *rect = rect.scaled(scale);
             *clip = clip.scaled(scale);
         }
     }

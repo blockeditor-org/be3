@@ -5,6 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use crate::color::Color32;
 use crate::context::FrameOutput;
 use crate::draw::{Quad, quads_within};
+use crate::drawing::{DrawAt, Drawing};
 use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
 use crate::geometry::{Rect, Vec2};
@@ -204,6 +205,7 @@ pub struct Renderer {
 struct Run {
     punch: bool,
     picture: Option<(ImageId, bool)>,
+    drawing: Option<(Drawing, DrawAt)>,
     start: u32,
     count: u32,
 }
@@ -215,14 +217,27 @@ impl Run {
 
     fn push_picture(runs: &mut Vec<Self>, punch: bool, picture: Option<(ImageId, bool)>, at: u32) {
         match runs.last_mut() {
-            Some(run) if run.punch == punch && run.picture == picture => run.count += 1,
+            Some(run) if run.punch == punch && run.picture == picture && run.drawing.is_none() => {
+                run.count += 1
+            }
             _ => runs.push(Self {
                 punch,
                 picture,
+                drawing: None,
                 start: at,
                 count: 1,
             }),
         }
+    }
+
+    fn push_drawing(runs: &mut Vec<Self>, drawing: Drawing, at: DrawAt, start: u32) {
+        runs.push(Self {
+            punch: false,
+            picture: None,
+            drawing: Some((drawing, at)),
+            start,
+            count: 0,
+        });
     }
 }
 
@@ -441,6 +456,7 @@ impl Renderer {
         let mut instances = Vec::new();
         let mut runs = Vec::new();
         let mut overlay = Vec::new();
+        let mut drawings = Vec::new();
         let damaged = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, background } => {
@@ -559,8 +575,24 @@ impl Renderer {
                         params: [corner_radius, 0.0, 0.0, 0.0],
                     });
                 }
+                Quad::Drawing {
+                    rect,
+                    clip,
+                    drawing,
+                } => {
+                    let at = DrawAt {
+                        rect,
+                        clip,
+                        screen,
+                        pixels_per_point,
+                        format: self.format,
+                    };
+                    drawings.push((drawing.clone(), at));
+                    Run::push_drawing(layer, drawing, at, instances.len() as u32);
+                }
             }
         }
+        self.record_drawings(device, queue, &drawings);
 
         self.pictures.retain(|_, picture| {
             let used = picture.used;
@@ -585,6 +617,26 @@ impl Renderer {
         }
         queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
         repaint
+    }
+
+    fn record_drawings(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        drawings: &[(Drawing, DrawAt)],
+    ) {
+        if drawings.is_empty() {
+            return;
+        }
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("beui drawings"),
+        });
+        for (drawing, at) in drawings {
+            if let Some(draw) = drawing.draw() {
+                draw.prepare(device, queue, &mut encoder, *at);
+            }
+        }
+        queue.submit([encoder.finish()]);
     }
 
     fn encode(&self, color: Color32) -> [f32; 4] {
@@ -689,9 +741,17 @@ impl Renderer {
         if runs.is_empty() {
             return;
         }
-        pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         let mut bound = None;
+        let mut vertices = false;
         for run in runs {
+            if let Some((drawing, at)) = run.drawing.as_ref() {
+                if let Some(draw) = drawing.draw() {
+                    draw.paint(pass, *at);
+                    bound = None;
+                    vertices = false;
+                }
+                continue;
+            }
             let group = run.picture.and_then(|(id, smooth)| {
                 self.pictures
                     .get(&id)
@@ -699,6 +759,10 @@ impl Renderer {
             });
             if run.picture.is_some() && group.is_none() {
                 continue;
+            }
+            if !vertices {
+                pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
+                vertices = true;
             }
             if bound != Some(run.picture) {
                 pass.set_bind_group(0, group.unwrap_or(&self.bind_group), &[]);

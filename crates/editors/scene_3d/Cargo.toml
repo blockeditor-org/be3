@@ -8,15 +8,12 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-client = { path = "../../block-client" }
 block-editor-plugin = { path = "../../block-editor-plugin" }
-uuid = "1"
-
-# The scene is drawn by a paint callback, which only exists in the guest: a
-# native build of this crate is the editor without its renderer, which is what
-# its own tests drive.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
 bytemuck = { version = "1", features = ["derive"] }
+uuid = "1"
+wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [dev-dependencies]
 block-ui-test = { path = "../../block-ui-test" }

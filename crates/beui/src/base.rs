@@ -12,6 +12,7 @@ pub(crate) mod picture;
 pub(crate) mod portal;
 pub(crate) mod stroke;
 pub(crate) mod text;
+pub(crate) mod viewport;
 
 pub use focusable::focus_within;
 pub use list::{Align, Direction, ItemSize};
