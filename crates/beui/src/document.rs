@@ -315,6 +315,9 @@ impl Document {
 
     pub fn set_test_id(&mut self, id: NodeId, test_id: impl Into<String>) {
         let test_id = test_id.into();
+        if test_id.is_empty() {
+            return;
+        }
         if let Some(previous) = self.test_ids.insert(test_id.clone(), id)
             && previous != id
         {

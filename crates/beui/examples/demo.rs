@@ -8,8 +8,8 @@ use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SEPARATOR_HEIGHT};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
     Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
-    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, VirtualList,
-    use_theme,
+    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, TreeRowFace,
+    VirtualList, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
@@ -938,8 +938,8 @@ fn TreeControls() -> NodeId {
                     });
                 }}
             >
-                {move |row: usize| view! {
-                    <Body content={TREE_NODES[row].0} />
+                {move |row: TreeRowFace<usize>| view! {
+                    <Body content={TREE_NODES[row.key].0} />
                 }}
             </Tree>
             <Caption content={status_text} />

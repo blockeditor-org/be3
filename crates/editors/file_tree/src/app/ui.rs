@@ -4,34 +4,29 @@ use std::rc::Rc;
 use block::BlockParent;
 use block_editor_plugin::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_plugin::beui::icons::{
-    ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_AUTO_AWESOME, ICON_KEYBOARD_ARROW_DOWN,
-    ICON_KEYBOARD_ARROW_RIGHT, ICON_MY_LOCATION,
+    ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_AUTO_AWESOME, ICON_MY_LOCATION,
 };
 use block_editor_plugin::beui::reactive::{
-    Align, ClickCatcher, Direction, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show, Spacer,
-    clone, component, component_rect, create_memo, create_signal, view, with_document,
+    Align, Direction, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show, Spacer, clone,
+    component, create_memo, create_signal, view, with_document,
 };
-use block_editor_plugin::beui::styled::theme::{FONT_SMALL, RADIUS};
+use block_editor_plugin::beui::styled::theme::FONT_SMALL;
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Caption, ContextMenu, IconButton, IconSized, Scroll, Tooltip,
-    use_theme,
+    Tree, TreeRowFace, use_theme,
 };
 use block_editor_plugin::beui::unstyled::{
-    self, ButtonHandle, Edge, Floating, MenuItem, TreeItem, TreeRowHandle, tree_row_node,
+    self, ButtonHandle, Edge, Floating, MenuItem, TreeItem, tree_row_node,
 };
-use block_editor_plugin::beui::{Color32, CursorIcon, NodeId, PointerPress, Pos2};
-use block_editor_plugin::{BlockFilter, BlockPicker, BlockSource, Editor, Toolbar};
+use block_editor_plugin::beui::{Color32, NodeId, Rect};
+use block_editor_plugin::{BlockFilter, BlockPicker, BlockSource, Drag, Editor, Toolbar};
 use uuid::Uuid;
 
 use super::rows::{Row, RowKey, Tree as FileTree, access_hint, access_marker};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 6.0;
-const ROW_HEIGHT: f32 = 22.0;
-const ROW_INDENT: f32 = 12.0;
-const CHEVRON_WIDTH: f32 = 16.0;
 const ADD_WIDTH: f32 = 20.0;
-const DRAG_THRESHOLD: f32 = 6.0;
 
 #[component]
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
@@ -68,6 +63,26 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     editor.each_frame(move || {
         set_astray.set(stray(&strayed.0, &strayed.1, &strayed.2, &strayed.3));
     });
+    let (landing, set_landing) = create_signal(None::<(RowKey, bool)>);
+    let dropping = (
+        editor.clone(),
+        Rc::clone(&held),
+        rows.clone(),
+        tree_ref.clone(),
+        editor.drag(),
+    );
+    editor.each_frame(move || {
+        let landed = arrival(
+            &dropping.0,
+            &dropping.1,
+            &dropping.2,
+            &dropping.3,
+            &dropping.4,
+        );
+        set_landing.set(landed);
+    });
+    let arriving = create_memo(clone!(landing -> move || landing.get()));
+
     let adrift = create_memo(clone!(astray -> move || astray.get().is_some()));
     let edge = create_memo(clone!(astray -> move || match astray.get() {
         Some(Astray::Above) => Edge::Top,
@@ -148,10 +163,34 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
 
+    let theme = use_theme();
+    let outline = clone!(arriving theme -> move |key: RowKey| {
+        let (landed, accepts) = arriving.get()?;
+        (landed == key).then(|| match accepts {
+            true => theme.accent.get(),
+            false => theme.danger.get(),
+        })
+    });
+    let start = clone!(editor held rows -> move |key: RowKey| {
+        let carried = rows.with_untracked(|rows| {
+            let row = rows.iter().find(|row| row.key == key)?;
+            Some(Carried {
+                id: row.id?,
+                block_type: row.block_type,
+                source: row.source,
+                is_reference: row.is_reference,
+            })
+        });
+        let Some(carried) = carried else {
+            return;
+        };
+        held.set(Some(carried));
+        editor.host().drag_block(carried.id, carried.block_type);
+    });
+
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
@@ -181,7 +220,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                             <Caption content={reason} color={theme.danger.clone()} />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&scroll_ref}>
-                            <unstyled::Tree
+                            <Tree
                                 @node_ref={&tree_ref}
                                 keys={keys}
                                 item={item}
@@ -189,23 +228,25 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 reveal={reveal}
                                 spacing=2.0
                                 expand_on_select=false
+                                row_test_id={move |key: RowKey| row_test_id(&key)}
+                                outline={outline}
                                 on_select={open}
                                 on_expand={expand}
+                                on_drag_start={start}
                             >
-                                {move |handle: TreeRowHandle<RowKey>| {
-                                    let row = tree.row(handle.key.clone());
+                                {move |face: TreeRowFace<RowKey>| {
+                                    let row = tree.row(face.key.clone());
                                     view! {
                                         <TreeRow
                                             editor={editor.clone()}
                                             tree={Rc::clone(&tree)}
                                             picker={picker.clone()}
-                                            held={Rc::clone(&held)}
                                             row={row}
-                                            handle={handle}
+                                            face={face}
                                         />
                                     }
                                 }}
-                            </unstyled::Tree>
+                            </Tree>
                         </Scroll>
                         <Floating anchor={scroll_ref} edge={edge} open={adrift}>
                             <Button
@@ -275,13 +316,14 @@ fn stray(
 }
 
 fn row_test_id(key: &RowKey) -> String {
-    match key {
+    let named = match key {
         RowKey::Block(path) => path
             .last()
             .map_or_else(|| "block".to_owned(), Uuid::to_string),
         RowKey::Orphans => "orphans".to_owned(),
         RowKey::Note(path) => format!("note.{}", path.len()),
-    }
+    };
+    format!("file-tree.{named}")
 }
 
 #[component]
@@ -289,67 +331,11 @@ fn TreeRow(
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,
-    held: Held,
     row: Memo<Option<Row>>,
-    handle: TreeRowHandle<RowKey>,
+    face: TreeRowFace<RowKey>,
 ) -> NodeId {
-    let named = row_test_id(&handle.key);
-    let TreeRowHandle {
-        item,
-        selected,
-        focused,
-        select,
-        toggle,
-        hover,
-        ..
-    } = handle;
-    let rect = component_rect();
-    let start = clone!(editor held row -> move || {
-        let Some(shown) = row.get_untracked() else {
-            return;
-        };
-        let Some(id) = shown.id else {
-            return;
-        };
-        held.set(Some(Carried {
-            id,
-            block_type: shown.block_type,
-            source: shown.source,
-            is_reference: shown.is_reference,
-        }));
-        editor.host().drag_block(id, shown.block_type);
-    });
-    let gesture: Rc<std::cell::Cell<Option<(Pos2, bool)>>> = Rc::default();
-    let pressed = clone!(gesture -> move |press: PointerPress| {
-        gesture.set(Some((press.pos, false)));
-    });
-    let moved = clone!(gesture -> move |at: PointerPress| {
-        let Some((origin, started)) = gesture.get() else {
-            return;
-        };
-        if started || (at.pos - origin).length() < DRAG_THRESHOLD {
-            return;
-        }
-        gesture.set(Some((origin, true)));
-        start();
-    });
-    let settled = clone!(gesture -> move |active: bool| {
-        if !active {
-            gesture.set(None);
-        }
-    });
-    let chose_row = clone!(gesture -> move || {
-        if gesture.get().is_none_or(|(_, dragged)| !dragged) {
-            select();
-        }
-    });
-    let (hovered, set_hovered) = create_signal(false);
-    let arriving = arrival(&editor, rect, held, row.clone());
-    let welcome = create_memo(clone!(arriving -> move || arriving.get() == Some(true)));
-    let arriving_here = create_memo(clone!(arriving -> move || arriving.get().is_some()));
-    let indent = create_memo(clone!(item -> move || {
-        ItemSize::Fixed(item.get().depth as f32 * ROW_INDENT)
-    }));
+    let named = format!("{}.add", row_test_id(&face.key));
+    let hovered = face.hovered;
     let label = create_memo(clone!(row -> move || {
         row.get().map(|row| row.label).unwrap_or_default()
     }));
@@ -420,190 +406,32 @@ fn TreeRow(
         true => theme.text_muted.get(),
         false => theme.text.get(),
     }));
-    let fill = create_memo(clone!(theme selected hovered -> move || {
-        match (selected.get(), hovered.get()) {
-            (true, _) => theme.accent_soft.get(),
-            (false, true) => theme.hover.get(),
-            (false, false) => Color32::TRANSPARENT,
-        }
-    }));
-    let outline = create_memo(clone!(theme welcome arriving_here focused -> move || {
-        match (arriving_here.get(), welcome.get(), focused.get()) {
-            (true, true, _) => theme.accent.get(),
-            (true, false, _) => theme.danger.get(),
-            (false, _, _) => theme.accent.get(),
-        }
-    }));
-    let outlined = create_memo(clone!(arriving_here focused -> move || {
-        arriving_here.get() || focused.get()
-    }));
     view! {
-        <Frame height=ROW_HEIGHT>
+        <ContextMenu child_size=ItemSize::Percent(100.0) items={items} on_select={chose}>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Spacer @sizing={indent} />
-                <Chevron item={item} toggle={toggle} named={named.clone()} />
-                <ContextMenu @sizing=ItemSize::Percent(100.0) items={items} on_select={chose}>
-                    <Frame
-                        @test_id={format!("file-tree.row.{named}")}
-                        height=ROW_HEIGHT
-                        color={fill}
-                        outline={outline}
-                        outline_width=1.0
-                        outline_visible={outlined}
-                        radius=RADIUS
-                        padding_horizontal=4.0
-                    >
-                        <ClickCatcher
-                            cursor=CursorIcon::PointingHand
-                            on_press={pressed}
-                            on_drag={moved}
-                            on_click={chose_row}
-                            on_active_change={settled}
-                            on_hover_change={move |over: bool| {
-                                set_hovered.set(over);
-                                hover(over);
-                            }}
-                        >
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=ROW_SPACING
-                            >
-                                <Show condition={has_glyph}>
-                                    <IconSized
-                                        glyph={glyph}
-                                        font_size=FONT_SMALL
-                                        color={glyph_color}
-                                    />
-                                </Show>
-                                <Body
-                                    @sizing=ItemSize::Percent(100.0)
-                                    content={label}
-                                    color={color}
-                                />
-                                <Show condition={generated}>
-                                    <Tooltip label="Generated from another block">
-                                        <IconSized
-                                            glyph={ICON_AUTO_AWESOME.to_owned()}
-                                            font_size=FONT_SMALL
-                                            color={generated_color}
-                                        />
-                                    </Tooltip>
-                                </Show>
-                                <Show condition={restricted}>
-                                    <Tooltip label={access_label}>
-                                        <IconSized
-                                            glyph={access}
-                                            font_size=FONT_SMALL
-                                            color={access_color}
-                                        />
-                                    </Tooltip>
-                                </Show>
-                                <Show condition={can_add}>
-                                    <AddChild shown={hovered} named={named} on_click={add_child} />
-                                </Show>
-                            </List>
-                        </ClickCatcher>
-                    </Frame>
-                </ContextMenu>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn Chevron(item: Memo<TreeItem>, toggle: Rc<dyn Fn()>, named: String) -> NodeId {
-    let expandable = create_memo(clone!(item -> move || item.get().expandable));
-    let glyph = create_memo(clone!(item -> move || {
-        match (item.get().expandable, item.get().expanded) {
-            (false, _) => String::new(),
-            (true, true) => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
-            (true, false) => ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
-        }
-    }));
-    let marked = create_memo(clone!(item -> move || item.get().marked));
-    let label = create_memo(clone!(item -> move || match item.get().expanded {
-        true => "Collapse".to_owned(),
-        false => "Expand".to_owned(),
-    }));
-    view! {
-        <Frame width=CHEVRON_WIDTH>
-            <List spacing=0.0>
-                <Show condition={expandable}>
-                    <unstyled::Button
-                        @test_id={format!("file-tree.chevron.{named}")}
-                        tab_stop=false
-                        accessibility={chevron_accessibility(item)}
-                        on_click={move || toggle()}
-                        content={move |button: ButtonHandle| view! {
-                            <ChevronFace
-                                handle={button}
-                                glyph={glyph}
-                                marked={marked}
-                                label={label}
-                            />
-                        }}
-                    />
+                <Show condition={has_glyph}>
+                    <IconSized glyph={glyph} font_size=FONT_SMALL color={glyph_color} />
+                </Show>
+                <Body @sizing=ItemSize::Percent(100.0) content={label} color={color} />
+                <Show condition={generated}>
+                    <Tooltip label="Generated from another block">
+                        <IconSized
+                            glyph={ICON_AUTO_AWESOME.to_owned()}
+                            font_size=FONT_SMALL
+                            color={generated_color}
+                        />
+                    </Tooltip>
+                </Show>
+                <Show condition={restricted}>
+                    <Tooltip label={access_label}>
+                        <IconSized glyph={access} font_size=FONT_SMALL color={access_color} />
+                    </Tooltip>
+                </Show>
+                <Show condition={can_add}>
+                    <AddChild shown={hovered} named={named} on_click={add_child} />
                 </Show>
             </List>
-        </Frame>
-    }
-}
-
-fn chevron_accessibility(item: Memo<TreeItem>) -> Memo<AccessNode> {
-    create_memo(move || {
-        let mut node = AccessNode::new(Role::Button);
-        node.set_expanded(item.get().expanded);
-        node.set_label(match item.get().expanded {
-            true => "Collapse",
-            false => "Expand",
-        });
-        node
-    })
-}
-
-#[component]
-fn ChevronFace(
-    handle: ButtonHandle,
-    glyph: Memo<String>,
-    marked: Memo<bool>,
-    label: Memo<String>,
-) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-    } = handle;
-    let theme = use_theme();
-    let fill = create_memo(clone!(theme marked hovered active -> move || {
-        match (active.get(), marked.get(), hovered.get()) {
-            (true, _, _) => theme.pressed.get(),
-            (false, true, _) => theme.accent_soft.get(),
-            (false, false, true) => theme.hover.get(),
-            (false, false, false) => Color32::TRANSPARENT,
-        }
-    }));
-    let outlined = create_memo(clone!(marked focused -> move || marked.get() || focused.get()));
-    let color = create_memo(clone!(theme marked hovered -> move || {
-        match marked.get() || hovered.get() {
-            true => theme.text.get(),
-            false => theme.text_muted.get(),
-        }
-    }));
-    view! {
-        <Tooltip label={label}>
-            <Frame
-                width=CHEVRON_WIDTH
-                height=ROW_HEIGHT
-                color={fill}
-                outline={theme.accent.clone()}
-                outline_width=1.0
-                outline_visible={outlined}
-                radius=3
-            >
-                <IconSized glyph={glyph} font_size=FONT_SMALL color={color} />
-            </Frame>
-        </Tooltip>
+        </ContextMenu>
     }
 }
 
@@ -618,7 +446,7 @@ fn AddChild(
             <List spacing=0.0>
                 <Show condition={shown}>
                     <unstyled::Button
-                        @test_id={format!("file-tree.add.{named}")}
+                        @test_id={named}
                         tab_stop=false
                         capture_presses=true
                         accessibility={add_child_accessibility()}
@@ -686,45 +514,48 @@ pub(crate) type Held = Rc<std::cell::Cell<Option<Carried>>>;
 
 fn arrival(
     editor: &Editor,
-    rect: block_editor_plugin::beui::reactive::ReadSignal<block_editor_plugin::beui::Rect>,
-    held: Held,
-    row: Memo<Option<Row>>,
-) -> Memo<Option<bool>> {
-    let (state, set_state) = create_signal(None::<bool>);
-    let drag = editor.drag();
-    let here = editor.clone();
-    editor.each_frame(move || {
-        let (Some(drag), Some(shown)) = (drag.get_untracked(), row.get_untracked()) else {
-            set_state.set(None);
-            return;
-        };
-        let (Some(id), Some(carried)) = (shown.id, held.get()) else {
-            set_state.set(None);
-            return;
-        };
-        if carried.id != drag.block_id || !rect.get_untracked().contains(drag.position) {
-            set_state.set(None);
-            return;
+    held: &Held,
+    rows: &Memo<Vec<Row>>,
+    tree: &NodeRef,
+    drag: &ReadSignal<Option<Drag>>,
+) -> Option<(RowKey, bool)> {
+    let drag = drag.get_untracked()?;
+    let carried = held.get()?;
+    let tree = tree.try_get()?;
+    if carried.id != drag.block_id {
+        return None;
+    }
+    let (key, id, can_add) = rows.with_untracked(|rows| {
+        rows.iter().find_map(|row| {
+            let id = row.id?;
+            let rect = row_rect(tree, &row.key)?;
+            rect.contains(drag.position)
+                .then(|| (row.key.clone(), id, row.can_add))
+        })
+    })?;
+    let accepts = can_add && carried.id != id && carried.source != BlockSource::Block(id);
+    if drag.dropped {
+        held.set(None);
+        if accepts {
+            editor.host().move_block(
+                carried.id,
+                carried.block_type,
+                carried.source,
+                id,
+                carried.is_reference,
+            );
         }
-        let accepts = shown.can_add && carried.id != id && carried.source != BlockSource::Block(id);
-        if drag.dropped {
-            set_state.set(None);
-            held.set(None);
-            if accepts {
-                here.host().move_block(
-                    carried.id,
-                    carried.block_type,
-                    carried.source,
-                    id,
-                    carried.is_reference,
-                );
-            }
-            return;
-        }
-        here.accept_drag(accepts);
-        set_state.set(Some(accepts));
-    });
-    create_memo(move || state.get())
+        return None;
+    }
+    editor.accept_drag(accepts);
+    Some((key, accepts))
+}
+
+fn row_rect(tree: NodeId, key: &RowKey) -> Option<Rect> {
+    with_document(|document| {
+        let node = tree_row_node::<RowKey>(document, tree, key)?;
+        document.node_rect(node)
+    })
 }
 
 fn menu_action(

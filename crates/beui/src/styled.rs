@@ -58,7 +58,7 @@ pub use text::{Body, Caption, Code, Display, Heading, Icon, IconSized, Paragraph
 pub use text_input::{TextInput, text_input_value};
 pub use theme::{Theme, ThemeProvider, ThemeStore, use_theme};
 pub use tooltip::Tooltip;
-pub use tree::Tree;
+pub use tree::{Tree, TreeRowFace};
 
 mod choice;
 mod listbox;
