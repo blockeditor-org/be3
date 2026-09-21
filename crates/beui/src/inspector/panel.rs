@@ -16,7 +16,7 @@ use crate::reactive::{
     Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use crate::screen_reader::Command;
-use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, SEPARATOR_HEIGHT};
+use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS};
 use crate::styled::{
     Button, ButtonVariant, Caption, Checkbox, Code, Heading, IconSized, RadioGroup, Scroll,
     Separator, Slider, Tabs, Theme, Tree,
@@ -232,7 +232,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         let footer_simulation_visible = simulation_visible;
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator direction=Direction::Vertical />
                 <Frame @sizing=ItemSize::Percent(100.0) color={THEME.surface} radius=0>
                     <List spacing=0.0>
                         <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
@@ -269,7 +269,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 />
                             </List>
                         </Frame>
-                        <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                        <Separator />
                         <Frame
                             @sizing=ItemSize::Percent(100.0)
                             padding_horizontal=BODY_PADDING
@@ -320,7 +320,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                 </Show>
                             </List>
                         </Frame>
-                        <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                        <Separator />
                         <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
                             <List spacing=0.0>
                                 <Show condition={footer_tree_visible}>
@@ -394,7 +394,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                     checked={state.mouse_simulation.get()}
                     on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
                 />
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <List spacing=TIMING_SPACING>
                     <Heading content="Device pixel ratio" />
                     <RadioGroup
@@ -413,7 +413,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         }}
                     />
                 </List>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <List spacing=TIMING_SPACING>
                     <Heading content="Theme" />
                     <RadioGroup
@@ -433,9 +433,9 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         }}
                     />
                 </List>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <FilterSection state={filter_state} />
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <ScreenReaderSection state={reader_state} />
             </List>
         </Scroll>
@@ -607,7 +607,7 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
                     <Code content={cache} color={THEME.text_muted} />
                     <Code content={reuse} color={THEME.text_muted} />
                 </List>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <List spacing=TIMING_SPACING>
                     <List
                         direction=Direction::Horizontal
@@ -625,7 +625,7 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
                     <TimingRow label="Accessibility" values={accessibility} />
                     <TimingRow label="Other" values={other} />
                 </List>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <List spacing=TIMING_SPACING>
                     <Heading content="Visualize" />
                     <Checkbox
