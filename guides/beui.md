@@ -227,9 +227,9 @@ need:
 
 `Drawing` is the one base node that paints rather than arranges: it takes a
 `Draw`, a callback handed the `Painter` and the rectangle the node was laid out
-at. It is for content whose shape is computed rather than arranged - the text
-editor lays a syntax-highlighted document out itself, byte by byte, and paints
-the result as four layers. Build the callback in a memo over the page it draws,
+at. It is for content whose shape is computed rather than arranged -
+`unstyled::TextArea` lays a syntax-highlighted document out itself, byte by
+byte, and paints the result as four layers. Build the callback in a memo over the page it draws,
 so the closure is replaced only when that page changes, and cull to
 `painter.clip_rect()` inside it, so a document far taller than the viewport
 costs the screenful it shows. Reach for it only when there genuinely is no
@@ -293,16 +293,22 @@ sideways trackpad swipe, a touch drag and the left and right arrows.
 A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
-`Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`, `PanZoom`,
-`PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-`VirtualList`, and `Stack`. `MenuButton` is the button that opens a menu under itself, which is
+`Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
+`Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`,
+`PanZoom`, `PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
+`VirtualList`, and `Stack`. `TextArea` is the multiline one: it owns a
+`text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
+document out with a gutter, wrapping, collapsible sections and markdown
+checkboxes, and reserves room for the inline and block `TextWidget`s the caller
+names - which is how a block editor puts an embedded block inside the text and
+drives the same document from a toolbar of its own. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
-cards, checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
+cards, checkboxes, switches, choices, text and number inputs, a multiline text
+editor with its find and replace bar, menus, tabs, trees,
 progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout.
 `Separator` is the rule between them: it runs `Direction::Horizontal` unless the
 tag says otherwise, takes a line's thickness across its `direction` and the

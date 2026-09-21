@@ -22,6 +22,7 @@ mod interact;
 mod layout;
 mod mouse_simulation;
 mod node;
+mod page;
 mod paint;
 mod painter;
 mod performance;
@@ -56,6 +57,7 @@ pub use input::{
     ScrollGesture, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
 pub use node::{ClickHandler, Handler, NodeId};
+pub use page::{Page, PageShape};
 pub use painter::{Painter, Shape};
 pub use performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
 #[cfg(feature = "render")]
