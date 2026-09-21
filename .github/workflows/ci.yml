@@ -605,16 +605,18 @@ jobs:
           retention-days: 14
 
   # allow adding a PR to the merge queue before its checks pass
-  ci-ok-pr:
-    name: ${{ github.event_name == 'pull_request' && 'CI OK' || 'CI OK (pull requests only)' }}
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    steps:
-      - run: exit 0
+  # currently disabled because the merge queue is disabled
+  # ci-ok-pr:
+  #   name: ${{ github.event_name == 'pull_request' && 'CI OK' || 'CI OK (pull requests only)' }}
+  #   if: github.event_name == 'pull_request'
+  #   runs-on: ubuntu-24.04
+  #   steps:
+  #     - run: exit 0
 
   # require checks to actually pass once in the merge queue
   ci-ok-queue:
-    name: ${{ github.event_name != 'pull_request' && 'CI OK' || 'CI gate (merge queue only)' }}
+    #name: ${{ github.event_name != 'pull_request' && 'CI OK' || 'CI gate (merge queue only)' }}
+    name: 'CI OK'
     if: always() && github.event_name != 'pull_request'
     needs: [workflows, lint, test, plugin-tests, web, plugins, android, native]
     runs-on: ubuntu-24.04

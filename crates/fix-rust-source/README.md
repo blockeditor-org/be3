@@ -47,15 +47,11 @@ empirical:
 ## format view! calls:
 
 justification:
-- rustfmt gives up on `view!` because the body is not Rust syntax, so nothing else keeps it tidy and tag lines had grown past 240 columns
-- a canonical shape means diffs show what changed in the ui rather than how someone happened to wrap it
-- agents write views by pattern-matching nearby code, so one consistent shape is a better example than a mix
+- looks nice sometimes
 
 counter:
-- the expressions inside `{...}` are still only re-indented, never reflowed, so a long one can push a line past 100 columns anyway
-- a component child always takes its own line, so a one-child wrapper costs three lines where one read fine
-- `view!` never collapses, so `build(|| view! { <App /> })` spans three lines, as does every one-line callback that builds a view in an attribute
-- it is a second formatter to keep in step with rustfmt, and the two can disagree about a line rustfmt rewraps around a view
+- looks ugly sometimes
 
 empirical:
-- the first run reformatted 77 files and the workspace still compiled unchanged
+- some of the changes it made looked good
+- agent performance has not been measured

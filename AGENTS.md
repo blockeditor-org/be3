@@ -18,6 +18,7 @@ Do not:
 - Do not use unicode symbols for icons, either use an icon library or no icon at all.
 - Do not edit README.md. If it is out of date, you may say so in your handoff message.
 - Don't use worktrees. If using subagents, run them sequentially rather than in parallel.
+- Do not create routines. Do not subscribe to PRs. Do not set check-in timers.
 
 Verification:
 - `./scripts/check`: Use this for fast compile feedback. It prepares non-Cargo prerequisites and checks the complete workspace with the feature unification the project expects. Prefer this over `cargo build` or `cargo check` directly.
@@ -26,18 +27,13 @@ Verification:
   - This will run all project tests and clippy lints
   - A plugin's own tests are not part of the workspace run: they are compiled to wasm and run through the plugin host by `scripts/internal/test-plugins.sh`, which verify calls for you. Run that script on its own for faster feedback on one editor (`scripts/internal/test-plugins.sh -p checklist`); it takes `cargo nextest run`'s arguments.
   - It will autofix formatting, clippy fixable rules, and it will autofix to enforce project-specific rules: It will delete all code comments & doc comments, it will structure test folders & files to the project's one test per file standard, it will automatically move+rename mod.rs files to be in the parent folder named after the folder instead, and it will format the bodies of `view!` macro calls (rustfmt cannot, because the body is not Rust syntax).
-  - Use manual Cargo commands only for a narrow diagnostic after a supported script has exposed a failure. A package by itself may not be a valid build unit. Always finish with `./scripts/verify`.
-- `./scripts/build --target android --android-sdk /home/ubuntu/Android/Sdk`: run this for changes that affect features specific to Android. The build runs gradle through `android/gradlew`, which fetches the pinned distribution itself, so no gradle needs to be on PATH.
-- `./scripts/build --target web`: run this for changes that affect features specific to web
-- `./scripts/run --smoke`: run this for changes that could affect native startup or runtime integration. It performs a bounded automated launch in a virtual display with isolated data; it does not require GUI interaction.
-- You may run non-GUI binaries, examples, and headless test harnesses when they exercise changed behavior.
+- `./scripts/build --target android`: run this for changes that affect features specific to Android.
+- `./scripts/build --target web`: run this for changes that affect features specific to web.
+- `./scripts/run --smoke`: run this for changes that could affect native startup or runtime integration. It performs a bounded automated launch in a virtual display with isolated data.
 
 Do:
 - Use commit message format `type: message`. Include Co-Authored-By: (model name).
-- When done, create a pull request on github for the change.
-- You may push a change even if it still needs GUI verification or other verification that you are unable to perform.
-- In your handoff message, mention any small issues you encoutered or small things you noticed that could make the code / application better.
+- When done, create a pull request on github for the change. Do not watch the pull request and do not check in on its status.
+- In your handoff message, mention any small issues you encountered or small things you noticed that could make the code / application better.
 - If you don't need tests in your search results, consider `grep --exclude-dir="tests"`
-- If you find yourself polling waiting for a command to finish, run ./scripts/nopoll in the foreground
-- Anything fetched from a URL is pinned to an exact version and checked against a sha256 recorded next to the URL. `download_verified` in `scripts/internal/common.sh` does both; nothing should call `curl` to fetch an artifact without it. Record the hash upstream publishes where there is one, and say in a comment where it came from: a hash recomputed from the same download only proves the download agrees with itself.
-- Third-party GitHub Actions are pinned to a commit sha with the version in a trailing comment (`uses: owner/action@<sha> # v1.2.3`). Actions under `actions/` are GitHub's own and may stay on tags. `.github/zizmor.yml` encodes this and the `workflows` job in CI enforces it.
+- If you find yourself polling waiting for a command to finish, run `./scripts/nopoll` in the foreground
