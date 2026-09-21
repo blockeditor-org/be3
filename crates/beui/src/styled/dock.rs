@@ -281,21 +281,21 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
         true => theme.accent.get(),
         false => theme.border.get(),
     }));
-    let fill = create_memo(clone!(theme -> move || match focused.get() {
-        true => theme.surface_raised.get(),
-        false => theme.surface.get(),
-    }));
     let titled = tabs.is_none();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.surface.clone()}
             outline={outline}
             outline_width=FOCUS_RING_WIDTH
             outline_visible=true
             radius=CARD_RADIUS
         >
             <List spacing=0.0>
-                <Frame color={fill} padding_vertical=WINDOW_BAR_PADDING>
+                <Frame
+                    color={theme.background.clone()}
+                    padding_vertical=BAR_PADDING
+                    padding_horizontal=BAR_PADDING
+                >
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
