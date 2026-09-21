@@ -18,6 +18,7 @@ Do not:
 - Do not use unicode symbols for icons, either use an icon library or no icon at all.
 - Do not edit README.md. If it is out of date, you may say so in your handoff message.
 - Don't use worktrees. If using subagents, run them sequentially rather than in parallel.
+- Do not create routines. Do not subscribe to PRs. Do not set check-in timers.
 
 Verification:
 - `./scripts/check`: Use this for fast compile feedback. It prepares non-Cargo prerequisites and checks the complete workspace with the feature unification the project expects. Prefer this over `cargo build` or `cargo check` directly.
