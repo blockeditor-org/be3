@@ -34,7 +34,7 @@ Verification:
 
 Do:
 - Use commit message format `type: message`. Include Co-Authored-By: (model name).
-- When done, create a pull request on github for the change.
+- When done, create a pull request on github for the change. Do not watch the pull request and do not check in on its status.
 - You may push a change even if it still needs GUI verification or other verification that you are unable to perform.
 - In your handoff message, mention any small issues you encoutered or small things you noticed that could make the code / application better.
 - If you don't need tests in your search results, consider `grep --exclude-dir="tests"`
