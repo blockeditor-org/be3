@@ -115,6 +115,14 @@ pub const FONT_TITLE: f32 = 21.0;
 pub const FONT_DISPLAY: f32 = 46.0;
 pub const ICON_SIZE: f32 = 18.0;
 
+pub fn icon_glyph_size(text_size: f32) -> f32 {
+    text_size * ICON_SIZE / FONT_BODY
+}
+
+pub fn icon_text_size(glyph_size: f32) -> f32 {
+    glyph_size * FONT_BODY / ICON_SIZE
+}
+
 pub const RADIUS: u8 = 6;
 pub const CARD_RADIUS: u8 = 10;
 pub const CHIP_RADIUS: u8 = 4;

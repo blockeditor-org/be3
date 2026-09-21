@@ -4,7 +4,7 @@ use std::ops::Range;
 use std::time::{Duration, Instant};
 
 use crate::color::Color32;
-use crate::font::{FontId, Galley};
+use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
@@ -59,6 +59,7 @@ struct Placed {
 pub(crate) struct TextNode {
     content: String,
     font_size: f32,
+    line_height: Option<f32>,
     color: Color32,
     selection_color: Color32,
     caret_color: Color32,
@@ -105,10 +106,14 @@ impl TextNode {
     }
 
     fn galley(&self, painter: &Painter, text: &str, available_width: f32) -> Galley {
-        painter.layout(
+        painter.layout_text(
             text.to_owned(),
             self.font(),
-            self.wrap_width(available_width),
+            TextLayout {
+                wrap_width: self.wrap_width(available_width),
+                line_height: self.line_height,
+                ..TextLayout::DEFAULT
+            },
         )
     }
 
@@ -371,6 +376,7 @@ impl Document {
         self.arena.insert(TextNode {
             content: content.into(),
             font_size,
+            line_height: None,
             color,
             selection_color: DEFAULT_SELECTION_COLOR,
             caret_color: color,
@@ -425,6 +431,12 @@ impl Document {
     pub(crate) fn set_text_font_size(&mut self, text: NodeId, font_size: f32) {
         if self.arena.get_as::<TextNode>(text).font_size != font_size {
             self.arena.get_mut_as::<TextNode>(text).font_size = font_size;
+        }
+    }
+
+    pub(crate) fn set_text_line_height(&mut self, text: NodeId, line_height: Option<f32>) {
+        if self.arena.get_as::<TextNode>(text).line_height != line_height {
+            self.arena.get_mut_as::<TextNode>(text).line_height = line_height;
         }
     }
 
@@ -535,6 +547,7 @@ pub fn text_index_at(text: &NodeRef, pos: Pos2) -> usize {
 pub fn Text(
     string: Prop<String>,
     #[prop(default = DEFAULT_FONT_SIZE)] font_size: Prop<f32>,
+    line_height: Option<Prop<f32>>,
     #[prop(default = Color32::WHITE)] color: Prop<Color32>,
     #[prop(default = DEFAULT_SELECTION_COLOR)] selection_color: Prop<Color32>,
     #[prop(default = Color32::WHITE)] caret_color: Prop<Color32>,
@@ -581,6 +594,11 @@ pub fn Text(
     create_effect(move || {
         with_document(|document| document.set_text_font_size(node, font_size.get()))
     });
+    if let Some(line_height) = line_height {
+        create_effect(move || {
+            with_document(|document| document.set_text_line_height(node, Some(line_height.get())))
+        });
+    }
     create_effect(move || with_document(|document| document.set_text_color(node, color.get())));
     create_effect(move || {
         with_document(|document| document.set_text_selection_color(node, selection_color.get()))
