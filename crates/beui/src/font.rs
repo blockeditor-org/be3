@@ -11,6 +11,11 @@ use unicode_script::{Script, UnicodeScript};
 use crate::base::TextAlign;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 
+unsafe extern "C" {
+    fn FT_GlyphSlot_Embolden(slot: ft::FT_GlyphSlot);
+    fn FT_GlyphSlot_Oblique(slot: ft::FT_GlyphSlot);
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum FontFamily {
     Proportional,
@@ -22,28 +27,38 @@ pub enum FontFamily {
 pub struct FontId {
     pub size: f32,
     pub family: FontFamily,
+    pub bold: bool,
+    pub italic: bool,
 }
 
 impl FontId {
-    pub fn proportional(size: f32) -> Self {
+    pub fn new(size: f32, family: FontFamily) -> Self {
         Self {
             size,
-            family: FontFamily::Proportional,
+            family,
+            bold: false,
+            italic: false,
         }
+    }
+
+    pub fn proportional(size: f32) -> Self {
+        Self::new(size, FontFamily::Proportional)
     }
 
     pub fn monospace(size: f32) -> Self {
-        Self {
-            size,
-            family: FontFamily::Monospace,
-        }
+        Self::new(size, FontFamily::Monospace)
     }
 
     pub fn icons(size: f32) -> Self {
-        Self {
-            size,
-            family: FontFamily::Icons,
-        }
+        Self::new(size, FontFamily::Icons)
+    }
+
+    pub fn bold(self, bold: bool) -> Self {
+        Self { bold, ..self }
+    }
+
+    pub fn italic(self, italic: bool) -> Self {
+        Self { italic, ..self }
     }
 }
 
@@ -89,6 +104,8 @@ pub struct GlyphId {
     glyph: u32,
     pixel_size: u32,
     subpixel: u32,
+    bold: bool,
+    italic: bool,
 }
 
 pub struct GlyphImage {
@@ -258,14 +275,18 @@ struct Shaping {
     wrap: u32,
     align: TextAlign,
     spacing: u32,
+    bold: bool,
+    italic: bool,
 }
 
 impl Shaping {
-    fn of(layout: TextLayout, pixels_per_point: f32) -> Self {
+    fn of(font: FontId, layout: TextLayout, pixels_per_point: f32) -> Self {
         Self {
             wrap: (layout.wrap_width * pixels_per_point).max(0.0).to_bits(),
             align: layout.align,
             spacing: layout.line_spacing.max(0.1).to_bits(),
+            bold: font.bold,
+            italic: font.italic,
         }
     }
 
@@ -468,7 +489,7 @@ impl Fonts {
         pixels_per_point: f32,
     ) -> Galley {
         let pixel_size = ((font.size * pixels_per_point).round() as u32).max(1);
-        let shape = Shaping::of(layout, pixels_per_point);
+        let shape = Shaping::of(font, layout, pixels_per_point);
         let scale = pixels_per_point.to_bits();
         let hash = galley_hash(text, pixel_size, font.family, shape, scale);
         if let Some(galley) = self.remembered(hash, text, pixel_size, font.family, shape, scale) {
@@ -574,7 +595,7 @@ impl Fonts {
                 if cursors.last().is_none_or(|(previous, _)| *previous != at) {
                     cursors.push((at, pen / scale));
                 }
-                if let Some(glyph) = self.place(*glyph, pixel_size, pen, cursor + ascent) {
+                if let Some(glyph) = self.place(*glyph, shape, pixel_size, pen, cursor + ascent) {
                     placed.push(glyph);
                 }
                 pen += glyph.x_advance;
@@ -603,6 +624,7 @@ impl Fonts {
     fn place(
         &mut self,
         glyph: ShapedGlyph,
+        shape: Shaping,
         pixel_size: u32,
         pen: f32,
         baseline: f32,
@@ -613,6 +635,8 @@ impl Fonts {
             glyph: glyph.glyph,
             pixel_size,
             subpixel,
+            bold: shape.bold,
+            italic: shape.italic,
         };
         let image = self.image(id)?;
         if image.width == 0 || image.height == 0 {
@@ -649,6 +673,12 @@ impl Fonts {
             if (*slot).format == ft::FT_Glyph_Format::FT_GLYPH_FORMAT_OUTLINE {
                 let shift = (key.subpixel as ft::FT_Pos * 64) / SUBPIXEL_POSITIONS as ft::FT_Pos;
                 ft::FT_Outline_Translate(&(*slot).outline, shift, 0);
+            }
+            if key.bold {
+                FT_GlyphSlot_Embolden(slot);
+            }
+            if key.italic {
+                FT_GlyphSlot_Oblique(slot);
             }
             if ft::FT_Render_Glyph(slot, ft::FT_Render_Mode::FT_RENDER_MODE_NORMAL) != 0 {
                 return None;

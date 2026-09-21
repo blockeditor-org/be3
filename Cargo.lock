@@ -6798,15 +6798,13 @@ checksum = "f18aa187839b2bdb1ad2fa35ead8c4c2976b64e4363c386d45ac0f7ee85c9233"
 name = "text_block"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
  "block-ui-test",
- "freetype",
- "harfbuzz_rs",
  "serde",
  "text-editor-core",
- "unicode-script",
  "uuid",
 ]
 

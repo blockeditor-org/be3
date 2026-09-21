@@ -1,4 +1,4 @@
-use super::super::parse_markdown_checkboxes;
+use super::parse_markdown_checkboxes;
 
 #[test]
 fn parses_markdown_checkboxes() {

@@ -1,3 +1,4 @@
+use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::base::overlay::{Overlay, Placement};
@@ -24,8 +25,10 @@ pub fn MenuButton(
     row: Option<RenderFn<MenuRowHandle>>,
     panel: Option<RenderFn<Child>>,
     #[prop(default = false)] disabled: Prop<bool>,
+    accessibility: Option<Prop<Node>>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
+    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
     let row = row.expect("a menu button needs a `row` builder");
     let panel = panel.expect("a menu button needs a `panel` builder");
     let (open, set_open) = create_signal(false);
@@ -49,6 +52,7 @@ pub fn MenuButton(
             <unstyled::Button
                 @node_ref=&button
                 disabled={disabled}
+                accessibility={accessibility}
                 on_click={clone!(set_open -> move || set_open.update(|open| *open = !*open))}
                 content={Render::new(clone!(open -> move |handle: unstyled::ButtonHandle| {
                     trigger.call(MenuButtonHandle {

@@ -215,8 +215,8 @@ need:
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
-  `Offset`, `VirtualOffset`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher`,
-  `Embed`, `Portal`, `Viewport` — and it stays small because most things are
+  `Offset`, `VirtualOffset`, `Canvas`, `Drawing`, `Overlay`, `Focusable`,
+  `ClickCatcher`, `Embed`, `Portal`, `Viewport` — and it stays small because most things are
   compositions of those.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -224,6 +224,27 @@ need:
   own, which is how a node laid out in one place this frame is laid out
   somewhere else the next without being rebuilt. If a new concern can share `Frame`'s single-child box model,
   extend `Frame` rather than adding another pass-through node.
+
+`Drawing` is the one base node that paints rather than arranges: it takes a
+`Draw`, a callback handed the `Painter` and the rectangle the node was laid out
+at. It is for content whose shape is computed rather than arranged - the text
+editor lays a syntax-highlighted document out itself, byte by byte, and paints
+the result as four layers. Build the callback in a memo over the page it draws,
+so the closure is replaced only when that page changes, and cull to
+`painter.clip_rect()` inside it, so a document far taller than the viewport
+costs the screenful it shows. Reach for it only when there genuinely is no
+arrangement of nodes that says the same thing: a row of labels is a `List` of
+`Text`, not a `Drawing`. It measures to nothing, so it takes its size from
+whatever places it - a `Frame` with a width and a height, or a `CanvasItem`.
+
+The galleys such a page paints come from `layout_text(text, font, layout)`,
+which lays text out with the shown document's fonts and answers `None` until
+the document has been shown once. It is how a component measures text outside
+`measure` and `paint` - to work out where a caret sits, or how wide a column
+is - and the galleys it returns are cached, so asking for the same word twice
+costs a hash lookup. A `FontId` carries `bold` and `italic` alongside its size
+and family; both are synthesised by FreeType rather than loaded as separate
+faces, and `Text` takes them as props.
 
 `unstyled::Button` shows the split. It composes `Focusable` and `ClickCatcher`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
@@ -270,11 +291,15 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `PointerLock`, `Dock`,
-`Tooltip`, `Floating`, `Scroll`, `VirtualList`, and `Stack`.
+`Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`, `PanZoom`,
+`PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `VirtualList`, and
+`Stack`. `MenuButton` is the button that opens a menu under itself, which is
+what a toolbar reaches for where `Select` would imply the choice sticks;
+`ContextMenu` is the same menu on a secondary press, and it also takes an
+`open_at` point so a touch gesture can raise it where the finger was.
 The styled
-module supplies themed buttons, icon buttons, links, text styles, cards,
-checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
+module supplies themed buttons, icon buttons, menu buttons, links, text styles,
+cards, checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
 progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
