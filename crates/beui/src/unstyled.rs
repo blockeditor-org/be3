@@ -7,6 +7,7 @@ mod dock;
 mod floating;
 mod menu;
 mod pan_zoom;
+mod pointer_lock;
 mod pressable;
 mod scroll;
 mod select;
@@ -34,6 +35,7 @@ pub use menu::{
     menu_list_row_submenu_content,
 };
 pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, pan_zoom_view};
+pub use pointer_lock::{PointerLock, PointerLockHandle};
 pub use pressable::Pressable;
 pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, VirtualList, scroll_animating};
 pub use select::{

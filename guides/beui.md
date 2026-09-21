@@ -270,8 +270,8 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Dock`, `Tooltip`,
-`Floating`, `Scroll`, `VirtualList`, and `Stack`.
+`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `PointerLock`, `Dock`,
+`Tooltip`, `Floating`, `Scroll`, `VirtualList`, and `Stack`.
 The styled
 module supplies themed buttons, icon buttons, links, text styles, cards,
 checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
@@ -543,6 +543,41 @@ camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor
 the same way. Anything between the gesture and the camera - momentum, snapping,
 clamping the camera to the content - belongs to the caller, apart from the
 scale limits `min_scale` and `max_scale`.
+
+### Hold the pointer
+
+A control that looks around rather than pointing at something - a first-person
+scene, a modeller's orbit - is `unstyled::PointerLock`. It is a tab stop that
+takes the pointer when it is pressed, and while it holds it the pointer stops
+moving, is hidden, and reports how far it moved instead of where it is:
+
+```rust
+view! {
+    <PointerLock
+        locked={looking}
+        on_change={move |looking| set_looking.set(looking)}
+        on_motion={move |motion: Vec2| camera.look(motion)}
+        on_key={walk}
+    >
+        {move |handle: PointerLockHandle| view! { <Scene /> }}
+    </PointerLock>
+}
+```
+
+The lock is controlled state, like a `Toggle`'s: the control follows the
+`locked` prop and reports what it wants through `on_change`. It lets go on
+Escape, when it loses focus, and when it is removed, and keys it does not use
+itself go on to `on_key`, which is what a control that also walks with the
+keyboard binds.
+
+Beui does not hold the pointer itself - it asks. `Document::show` publishes the
+wish as `FrameOutput::pointer_locked`, and whoever is showing the document does
+it: the winit runner locks the cursor and hides it, and the plugin framework
+asks the host to (guides/adding_a_plugin_editor.md). What comes back is
+`Event::PointerMotion`, a delta with no position, which the document delivers to
+the focused node while the pointer is held and nowhere at all while it is not.
+So a control that is not the one holding the pointer never sees motion, and a
+window that loses the keyboard gives the pointer back.
 
 ### Draw with the gpu
 

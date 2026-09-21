@@ -237,6 +237,10 @@ impl Document {
         self.theme.clone()
     }
 
+    pub(crate) fn context(&self) -> Option<&Context> {
+        self.viewport.as_ref().map(|(context, _, _)| context)
+    }
+
     pub fn request_repaint_after(&self, delay: std::time::Duration) {
         if let Some((ctx, _, _)) = &self.viewport {
             ctx.request_repaint_after(delay);

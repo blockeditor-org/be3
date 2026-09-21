@@ -173,6 +173,7 @@ pub enum Event {
         modifiers: Modifiers,
     },
     PointerGone,
+    PointerMotion(Vec2),
     PointerMoved(Pos2),
     Scroll(Vec2),
     Text(String),
@@ -243,6 +244,7 @@ impl InputState {
             }
         }
         input.pointer.pos = input.pointer.pos.map(scale);
+        input.pointer.motion = input.pointer.motion * factor;
         input.pointer.last_click = input
             .pointer
             .last_click
@@ -277,6 +279,9 @@ impl InputState {
         for event in &raw.events {
             match event {
                 Event::PointerMoved(pos) if !suppress_mouse => self.pointer.pos = Some(*pos),
+                Event::PointerMotion(delta) => {
+                    self.pointer.motion = self.pointer.motion + *delta;
+                }
                 Event::PointerGone if !suppress_mouse => {
                     self.pointer.pos = None;
                     self.pointer.primary_down = false;
@@ -349,6 +354,7 @@ impl InputState {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,
+    pub motion: Vec2,
     pub primary_down: bool,
     pub primary_pressed: bool,
     pub primary_released: bool,
@@ -681,6 +687,7 @@ impl Pointer {
         self.secondary_released = false;
         self.middle_pressed = false;
         self.middle_released = false;
+        self.motion = Vec2::ZERO;
     }
 
     fn count_click(&mut self, pos: Pos2) {

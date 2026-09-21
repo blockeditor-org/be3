@@ -1337,11 +1337,18 @@ impl EditorSession {
                 floating: Vec::new(),
             });
         }
+        self.host.grab_cursor(self.beui_pointer_locked());
         if let Some(text) = &output.copied_text {
             self.copied.push(text.clone());
         }
         self.paste_requested |= output.paste_requested;
         Some(output)
+    }
+
+    fn beui_pointer_locked(&self) -> bool {
+        self.beui
+            .as_ref()
+            .is_some_and(|beui| beui.values().any(|region| region.context.pointer_locked()))
     }
 
     fn beui_input(&mut self, region: EditorRegion, event: &InputEvent) {
@@ -1460,20 +1467,20 @@ impl EditorSession {
             InputEvent::Zoom { factor } => {
                 state.events.push(beui::Event::Zoom(*factor));
             }
+            InputEvent::PointerMotion { x, y } => {
+                state
+                    .events
+                    .push(beui::Event::PointerMotion(beui::vec2(*x, *y) * ratio));
+            }
             InputEvent::Focus(false) => {
                 state.emulated_touch = false;
                 state.events.push(beui::Event::Focus(false));
             }
-            InputEvent::Ime(_) | InputEvent::Focus(_) | InputEvent::PointerMotion { .. } => {}
+            InputEvent::Ime(_) | InputEvent::Focus(_) => {}
         }
     }
 
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
-        match event {
-            InputEvent::PointerMotion { x, y } => self.host.push_pointer_motion(*x, *y),
-            InputEvent::Focus(focused) => self.host.set_input_focused(*focused),
-            _ => {}
-        }
         if self.beui.is_some() {
             return self.beui_input(region, event);
         }
