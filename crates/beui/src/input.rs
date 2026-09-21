@@ -196,6 +196,8 @@ pub enum CursorIcon {
     PointingHand,
     ResizeHorizontal,
     ResizeVertical,
+    ResizeNeSw,
+    ResizeNwSe,
     Text,
     Wait,
 }

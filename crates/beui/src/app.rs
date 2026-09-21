@@ -731,6 +731,8 @@ fn cursor(icon: CursorIcon) -> winit::window::CursorIcon {
         CursorIcon::PointingHand => winit::window::CursorIcon::Pointer,
         CursorIcon::ResizeHorizontal => winit::window::CursorIcon::EwResize,
         CursorIcon::ResizeVertical => winit::window::CursorIcon::NsResize,
+        CursorIcon::ResizeNeSw => winit::window::CursorIcon::NeswResize,
+        CursorIcon::ResizeNwSe => winit::window::CursorIcon::NwseResize,
         CursorIcon::Text => winit::window::CursorIcon::Text,
         CursorIcon::Wait => winit::window::CursorIcon::Wait,
     }

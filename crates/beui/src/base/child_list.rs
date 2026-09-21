@@ -14,7 +14,7 @@ impl ChildItem for NodeId {
 pub struct SlotId(u32);
 
 pub(crate) trait ChildHost: crate::node::Element {
-    type Stored;
+    type Stored: ChildItem;
 
     fn children(&mut self) -> &mut ChildList<Self::Stored>;
 
@@ -152,5 +152,26 @@ impl<T: ChildItem> ChildList<T> {
 
     pub(crate) fn find_mut(&mut self, child: NodeId) -> Option<&mut T> {
         self.iter_mut().find(|item| item.node() == child)
+    }
+
+    pub(crate) fn fill_children(&mut self, slot: SlotId, items: Vec<T>) {
+        let Some(index) = self.slots.iter().position(|held| held.id == slot) else {
+            return;
+        };
+        let taken = std::mem::replace(&mut self.slots[index].items, SlotItems::Many(Vec::new()));
+        let mut held = match taken {
+            SlotItems::One(item) => vec![item],
+            SlotItems::Many(items) => items,
+        };
+        let items = items
+            .into_iter()
+            .map(
+                |item| match held.iter().position(|kept| kept.node() == item.node()) {
+                    Some(found) => held.swap_remove(found),
+                    None => item,
+                },
+            )
+            .collect();
+        self.slots[index].items = SlotItems::Many(items);
     }
 }

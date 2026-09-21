@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::damage::{Damage, Region};
 use crate::flash::FlashLog;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
-use crate::input::{Event, Key};
+use crate::input::{Event, Key, KeyPress};
 
 use crate::inspector::Inspector;
 use crate::interact;
@@ -24,6 +24,8 @@ use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, Perfo
 use crate::pixel_grid::PixelGrid;
 use crate::styled::{Theme, ThemeStore};
 
+pub(crate) type Shortcut = dyn Fn(KeyPress) -> bool;
+
 pub struct Document {
     pub(crate) arena: Arena,
     pub(crate) root: Option<NodeId>,
@@ -33,9 +35,11 @@ pub struct Document {
     pub(crate) rects: Rc<NodeMap<Rect>>,
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
+    pub(crate) portal_holders: std::collections::HashMap<NodeId, NodeId>,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
     frame_hooks: RefCell<Vec<Weak<dyn Fn()>>>,
+    shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
     pub(crate) touch_scroll_horizontal: Option<NodeId>,
     pub(crate) pointer_capture: Option<NodeId>,
@@ -155,9 +159,11 @@ impl Document {
             rects: Rc::new(NodeMap::default()),
             inspector: None,
             inspectable: true,
+            portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
             frame_hooks: RefCell::new(Vec::new()),
+            shortcuts: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
             touch_scroll_horizontal: None,
             pointer_capture: None,
@@ -241,6 +247,18 @@ impl Document {
         self.frame_hooks.borrow_mut().push(work);
     }
 
+    pub(crate) fn register_shortcut(&self, shortcut: Weak<Shortcut>) {
+        self.shortcuts.borrow_mut().push(shortcut);
+    }
+
+    pub(crate) fn key_shortcut(&self, press: KeyPress) -> bool {
+        let mut shortcuts = self.shortcuts.borrow_mut();
+        shortcuts.retain(|shortcut| shortcut.strong_count() > 0);
+        let live: Vec<Rc<Shortcut>> = shortcuts.iter().filter_map(Weak::upgrade).collect();
+        drop(shortcuts);
+        live.into_iter().any(|shortcut| shortcut(press))
+    }
+
     fn run_frame_hooks(&self) {
         let mut hooks = self.frame_hooks.borrow_mut();
         hooks.retain(|hook| hook.strong_count() > 0);
@@ -270,7 +288,7 @@ impl Document {
         items: Vec<H::Stored>,
     ) {
         let host = self.arena.get_mut_as::<H>(node);
-        host.children().fill(slot, items);
+        host.children().fill_children(slot, items);
         host.children_changed();
     }
 
@@ -423,8 +441,14 @@ impl Document {
         if !self.arena.contains(id) {
             return;
         }
-        let children = self.arena.get(id).children();
+        let element = self.arena.get(id);
+        let borrowed = element.borrowed();
+        let children = element.children();
+        self.release_portal(id, &borrowed);
         for child in children {
+            if borrowed.contains(&child) {
+                continue;
+            }
             self.detach_subtree(child, scopes);
         }
         self.arena.remove(id);

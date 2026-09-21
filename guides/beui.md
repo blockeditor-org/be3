@@ -216,10 +216,13 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
   `Offset`, `VirtualOffset`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher`,
-  `Embed` — and it stays small because most things are compositions of those.
+  `Embed`, `Portal` — and it stays small because most things are compositions
+  of those.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
-  arranging the existing nodes. If a new concern can share `Frame`'s single-child box model,
+  arranging the existing nodes. `Portal` is one: it shows a subtree it does not
+  own, which is how a node laid out in one place this frame is laid out
+  somewhere else the next without being rebuilt. If a new concern can share `Frame`'s single-child box model,
   extend `Frame` rather than adding another pass-through node.
 
 `unstyled::Button` shows the split. It composes `Focusable` and `ClickCatcher`,
@@ -242,7 +245,13 @@ children adds `align=Align::Center`; a one-line alias per combination is what
 which names exist. `Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node.
 `Text` carries its own decoration too: `underline` is painted from the galley's
-baseline, so switching it on never moves anything. `Embed` reserves a rectangle
+baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
+someone else: it takes a `NodeId`, lays it out and paints it where the portal
+stands, and leaves it alone when the portal goes away, so a subtree can move
+between places in the tree without being built again. Exactly one portal shows
+a given node - claiming it takes it from the portal that had it - and the
+subtree is kept alive by whoever built it, with `in_new_scope` or a scope of
+their own, until they remove it. `Embed` reserves a rectangle
 for something outside the document — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
@@ -258,12 +267,12 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Tooltip`, `Floating`,
-`Scroll`, `VirtualList`, and `Stack`.
+`Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Dock`, `Tooltip`,
+`Floating`, `Scroll`, `VirtualList`, and `Stack`.
 The styled
 module supplies themed buttons, icon buttons, links, text styles, cards,
 checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
-progress, scrolls and scrollbars, tooltips, and responsive layout. A control that can be turned off -
+progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen
@@ -426,6 +435,74 @@ face that draws a chevron of its own outside the name wants pressing the
 chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong.
+
+### Docking and windows
+
+`styled::DockArea` is the workspace layout: panes split from one another, a tab
+bar on each pane, and tabs that can be dragged between panes or out into
+windows that float over the rest of the dock. `unstyled::Dock` underneath it
+owns the tree, the dragging and the keyboard, and paints nothing;
+`crates/beui/examples/dock.rs` is the worked example, run with
+`cargo run -p beui --example dock`.
+
+The layout is a `DockState`, which the caller keeps in a signal and hands back
+when the dock reports a change, the way `PanZoom` takes its camera:
+
+```rust
+let (layout, set_layout) = create_signal(DockState::new([TabId::new(1)]));
+view! {
+    <DockArea
+        state={layout}
+        title={Func::new(move |tab: TabId| title_of(tab))}
+        closable={Func::new(|tab: TabId| tab != FILES)}
+        on_change={move |next: DockState| set_layout.set(next)}
+        on_close={move |tab: TabId| forget(tab)}
+    >
+        {move |tab: TabId| view! { <Panel tab /> }}
+    </DockArea>
+}
+```
+
+A tab is a `TabId` the caller mints, so whatever the tab stands for - a block,
+a file, a tool - stays the caller's. The dock asks for a title, hands the
+`TabId` back to the `content` builder for the panel to show, and reports the
+tabs it removes through `on_close` so the caller can drop what it was holding.
+Because the state is a plain value, the caller opens, closes, splits and floats
+by writing it: `show`, `push`, `push_to_focused`, `split`, `remove`, `replace`
+and `drop_tab` are the whole vocabulary, and `find`, `all_tabs`, `focused_tab`
+and `surface_tabs` read it back.
+
+Each surface - the main one and one per window - lays its tree out over the
+rectangle it was given, so panes and the bars between them are canvas items at
+computed rectangles rather than nested boxes. `layout_surface` is that
+calculation on its own, which is what the drop targets and the tests are
+resolved against. A window is a floating overlay, so it paints above the dock
+and takes the pointer where it actually is, and the document underneath it is
+shut out rather than answering a press through it.
+
+Dragging a tab picks a drop target from what is under the pointer: a tab bar
+inserts it between the tabs there, the middle of a pane joins that pane, and an
+edge of one splits it. Holding Alt while dropping floats the tab into a window
+instead, which is also what "Pop out into a window" on a tab's own menu does. A window
+holds one pane, so a tab dropped anywhere inside one joins it rather than
+splitting it, and the pane's tab bar is the window's title bar: a grip, the
+tabs, and the button that closes it. Anywhere on that bar that is not a tab
+drags the window, so the grip and whatever room is left beside the tabs are
+both handles. Windows resize from any of
+their eight grips and are raised by whatever takes the focus inside them. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
+registered with `on_shortcut` so they arrive even from inside a text input in a
+panel. The bar between two panes is a tab
+stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
+`Choice` inside a horizontal `Scroll`, so the arrows, Home and End walk it like
+any other tab list and scroll the tab they reach into view when a pane has more
+tabs than it has room for.
+
+A tab's panel is built the first time the tab is shown and belongs to the dock
+rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
+the panel keeps its nodes, its scroll position, its caret and its state when
+the tab is hidden behind another, dragged to another pane, or floated into a
+window. A panel no pane is showing is laid out by nobody, so it costs nothing
+and a screen reader does not read it. Closing the tab is what removes it.
 
 ### Pan and zoom
 

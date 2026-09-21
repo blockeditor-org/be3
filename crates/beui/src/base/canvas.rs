@@ -85,7 +85,9 @@ impl Element for CanvasNode {
             let placed = view.rect_to_screen(doc.canvas_item_rect(*item));
             if placed.intersects(rect) {
                 crate::layout::layout(doc, &clipped, *item, placed, out);
+                continue;
             }
+            doc.note_parent(*item);
         }
     }
 
