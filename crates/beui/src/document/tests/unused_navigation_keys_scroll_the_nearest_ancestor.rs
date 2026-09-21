@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{ForEach, NodeRef, Scroll, Text, build, view};
+use crate::reactive::{ForEach, NodeRef, Text, build, view};
 use crate::styled::{Slider, Tabs};
+use crate::unstyled::Scroll;
 
 #[test]
 fn unused_navigation_keys_scroll_the_nearest_ancestor() {

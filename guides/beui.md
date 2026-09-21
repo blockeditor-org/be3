@@ -198,7 +198,7 @@ deliberate:
 
 | Layer | Location and public path | Responsibility |
 | --- | --- | --- |
-| Base | `crates/beui/src/base`; re-exported from `beui::reactive` | Retained nodes for layout, painting, visibility, focus, pointer input, scrolling, and text. |
+| Base | `crates/beui/src/base`; re-exported from `beui::reactive` | Retained nodes for layout, painting, visibility, focus, pointer input, offset content, and text. |
 | Unstyled | `crates/beui/src/unstyled`; `beui::unstyled` | Accessible interaction behavior composed from base components, without theme colors, typography, borders, or spacing. |
 | Styled | `crates/beui/src/styled`; `beui::styled` | Application-ready controls that compose an unstyled control and paint its state with base components and `styled::theme` tokens. |
 
@@ -215,7 +215,7 @@ need:
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
-  `Scroll`, `VirtualList`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher`,
+  `Offset`, `VirtualOffset`, `Canvas`, `Overlay`, `Focusable`, `ClickCatcher`,
   `Embed` — and it stays small because most things are compositions of those.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -232,8 +232,8 @@ sits on the same interaction behavior.
 Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
 
-The main base building blocks are `List`, `Frame`, `Text`, `Scroll`, and
-`VirtualList`. `List` is the only box that arranges siblings: it takes a
+The main base building blocks are `List`, `Frame`, `Text`, `Offset`, and
+`VirtualOffset`. `List` is the only box that arranges siblings: it takes a
 `direction`, which is vertical unless the tag says otherwise, an `align` for
 the cross axis, and `spacing`. Nothing wraps it, so a row is written
 `<List direction=Direction::Horizontal spacing=8.0>` and a row that centres its
@@ -248,20 +248,22 @@ surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
-`Scroll` and `VirtualList` take a `direction`, so the same node is a column of
-rows or a strip of cards; a horizontal one answers Shift+wheel, a sideways
-trackpad swipe, a touch drag and the left and right arrows, and
-`styled::Scrollbar` takes the same `direction`.
+`Offset` and `VirtualOffset` keep a run of items along a `direction` and lay
+them out from an offset; they answer no input at all, so nothing scrolls by
+putting one in a view (see [Scrolling](#scrolling)).
+`Scroll` and `VirtualList` take the same `direction`, so the same tag is a
+column of rows or a strip of cards; a horizontal one answers Shift+wheel, a
+sideways trackpad swipe, a touch drag and the left and right arrows.
 A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
 `Tree`, `Select`, `ContextMenu`, `Container`, `PanZoom`, `Tooltip`, `Floating`,
-and `Stack`.
+`Scroll`, `VirtualList`, and `Stack`.
 The styled
 module supplies themed buttons, icon buttons, links, text styles, cards,
 checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
-progress, scrollbars, tooltips, and responsive layout. A control that can be turned off -
+progress, scrolls and scrollbars, tooltips, and responsive layout. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen
@@ -269,6 +271,63 @@ reader, and paints in muted colours, which is what a read-only editor binds
 `editor.read_only()` to rather than leaving a live control that quietly throws
 edits away. The re-exports in `unstyled.rs` and `styled.rs` are the authoritative
 lists.
+
+### Scrolling
+
+Scrolling exists at all three layers, and app code wants the styled one.
+`styled::Scroll` and `styled::VirtualList` are a scroll with the project's
+scrollbar already beside it, so a panel that scrolls is one tag:
+
+```rust
+view! {
+    <Scroll @sizing=ItemSize::Percent(100.0)>
+        <Rows />
+    </Scroll>
+}
+```
+
+The focus ring follows the theme's accent unless `focus_color` names another,
+and `on_change` still reports the position for anything else that wants it.
+
+`unstyled::Scroll` is the same arrangement without the appearance: it owns the
+base offset, the input that drives it, the position it reports, and the list
+that puts the bar on the scroll's cross axis, and it takes a `ScrollbarStyle`
+saying what to put there.
+That is the seam the styled layer fills, with a spacing and a builder that is
+handed a `ScrollHandle` of the live `position` and `direction`:
+
+```rust
+ScrollbarStyle::new(SCROLLBAR_SPACING, |handle: ScrollHandle| {
+    let ScrollHandle { position, direction } = handle;
+    view! {
+        <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position direction />
+    }
+})
+```
+
+Without one the scroll shows no bar, which is what the unstyled layer does on
+its own. A control that scrolls something of its own takes a `ScrollbarStyle`
+and passes it down, the way `unstyled::Select` hands one to the scroll behind
+its options, so the styled control decides the bar and the unstyled one never
+names a colour. The gutter is always reserved, and the bar paints nothing while
+its content fits, so a scroll that grows past its viewport does not shift the
+content beside it.
+
+Under both sits the base `Offset` and `VirtualOffset`, which are named for what
+they do rather than for what they are used for: they hold a run of items along a
+direction and lay them out from an offset, with no bar, no theme, and no input
+of their own. A wheel, a touch drag and the arrow keys are `unstyled::Scroll`'s,
+which wraps the offset in a `Focusable` for the keys and a `ClickCatcher` for
+the wheel and the drag, keeps the momentum an unfinished fling carries, and
+drives the offset from all three. So reach for `Offset` when something needs its
+content shifted under a viewport and nothing more, and for a `Scroll` whenever
+something needs to scroll.
+
+That offset is anchored to a node, not measured from the top of the content:
+the scroll remembers the item at the top of its viewport and the distance it
+starts above the edge, so a row further up growing or shrinking - a wrapping
+label, an image that finished loading - leaves what is being read exactly where
+it is.
 
 ### Slider scales
 
@@ -798,6 +857,12 @@ Compose it from base components. For an interactive control this normally means:
    reactive state needed to paint the control.
 6. Return the root base node directly so component state and framework slots
    attach to the node callers receive.
+
+A catcher takes the wheel with `on_scroll` and a touch drag with
+`on_scroll_drag`, and `scroll_axis` names the axis it takes them along, so a
+vertical wheel over a horizontal strip passes through to whatever is around it
+and a drag reaches the innermost catcher that scrolls that way.
+`unstyled::Scroll` is built out of those three.
 
 A press normally reaches every `ClickCatcher` under the pointer. A control that
 must win a press, or that reacts to presses outside its own rect, captures it:

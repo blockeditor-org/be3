@@ -5,12 +5,13 @@ use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Child, Children, Frame, IntoProp, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
-    Render, RenderFn, Run, Scroll, Selector, WriteSignal, clone, create_effect, create_memo,
+    Render, RenderFn, Run, Selector, WriteSignal, clone, create_effect, create_memo,
     create_selector, create_signal, set_component_state,
 };
 use crate::unstyled;
 use crate::unstyled::ChoiceOption;
 use crate::unstyled::button::ButtonHandle;
+use crate::unstyled::scroll::ScrollbarStyle;
 use crate::unstyled::text_input::{TextInputHandle, TextInputMenu};
 use beui_macros::{component, view};
 use std::cell::RefCell;
@@ -84,6 +85,7 @@ pub fn Select(
     search_padding_horizontal: Prop<f32>,
     search_content: Option<Render<TextInputHandle>>,
     #[prop(default = TextInputMenu::default())] search_menu: TextInputMenu,
+    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     trigger: Option<Render<SelectTriggerHandle>>,
     option: Option<RenderFn<SelectOptionHandle>>,
     #[prop(children)] popup: Option<Render<Child>>,
@@ -249,9 +251,10 @@ pub fn Select(
                             }}
                             on_key_override={move |press: KeyPress| navigate(&navigate_state, press)}
                         />
-                        <Scroll
+                        <unstyled::Scroll
                             @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT)
                             reveal
+                            scrollbar={scrollbar}
                             children={items}
                         />
                     </List>

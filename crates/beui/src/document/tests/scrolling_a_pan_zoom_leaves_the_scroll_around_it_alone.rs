@@ -1,7 +1,7 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ForEach, ItemSize, List, Scroll, view};
-use crate::unstyled::{PanZoomView, pan_zoom_view};
+use crate::reactive::{ForEach, ItemSize, List, view};
+use crate::unstyled::{PanZoomView, Scroll, pan_zoom_view};
 
 #[test]
 fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {

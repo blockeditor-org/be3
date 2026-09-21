@@ -9,7 +9,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
     harness.frame(Vec::new());
 
     let compact_height = VIRTUAL_ITEM_HEIGHT / 2.0;
-    harness.document.set_scroll_virtual_items(
+    harness.document.set_offset_virtual_items(
         scroll,
         VIRTUAL_ITEM_COUNT,
         compact_height,
@@ -32,7 +32,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
 
     harness
         .document
-        .set_scroll_virtual_items(scroll, 0, compact_height, |_| {
+        .set_offset_virtual_items(scroll, 0, compact_height, |_| {
             panic!("an empty scroll must not build any items")
         });
     harness.frame(Vec::new());

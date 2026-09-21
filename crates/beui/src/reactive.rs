@@ -8,7 +8,7 @@ pub use crate::base::{Align, Direction, ItemSize};
 
 use crate::base::child_list::{ChildHost, ChildList, SlotId};
 use crate::base::list::{ListItem, ListNode};
-use crate::base::scroll::ScrollNode;
+use crate::base::offset::OffsetNode;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{ClickHandler, Handler, NodeId};
@@ -865,7 +865,7 @@ impl SlotChild for NodeId {
 }
 
 impl NodeSlot for NodeId {
-    type Host = ScrollNode;
+    type Host = OffsetNode;
 }
 
 struct RunState<S> {
@@ -1368,8 +1368,8 @@ pub use crate::base::drawing::{Draw, Drawing};
 pub use crate::base::embed::{Embed, EmbedPlacement, EmbedSlot};
 pub use crate::base::focusable::Focusable;
 pub use crate::base::frame::Frame;
+pub use crate::base::offset::{Offset, VirtualOffset};
 pub use crate::base::picture::Picture;
-pub use crate::base::scroll::{Scroll, VirtualList};
 pub use crate::base::stroke::Stroke;
 pub use crate::base::text::Text;
 

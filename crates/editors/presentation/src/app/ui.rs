@@ -5,11 +5,11 @@ use block_editor_plugin::beui::icons::{
 };
 use block_editor_plugin::beui::reactive::{
     Align, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize, List, NodeRef, Prop,
-    ReadSignal, Scroll, Show, Text, WriteSignal, clone, component, create_memo, create_selector,
+    ReadSignal, Show, Text, WriteSignal, clone, component, create_memo, create_selector,
     create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
-    Button, ButtonVariant, Caption, IconButton, theme, use_theme,
+    Button, ButtonVariant, Caption, IconButton, Scroll, theme, use_theme,
 };
 use block_editor_plugin::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
 use block_editor_plugin::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
@@ -358,11 +358,7 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
                 <Show condition={empty}>
                     <Caption content="Add a slide to start this deck." />
                 </Show>
-                <Scroll
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id={"presentation.filmstrip"}
-                    focus_color={theme.accent.clone()}
-                >
+                <Scroll @sizing=ItemSize::Percent(100.0) @test_id={"presentation.filmstrip"}>
                     <ForEach keys={keys} view={tiles} />
                 </Scroll>
             </List>

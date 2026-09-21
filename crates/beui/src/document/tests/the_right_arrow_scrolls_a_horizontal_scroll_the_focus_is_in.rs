@@ -1,6 +1,7 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ForEach, ItemSize, List, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {

@@ -7,6 +7,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{Callback, Child, Children, Frame, Prop, Run, Text, clone, create_memo};
 use crate::styled::context_menu::text_input_menu;
+use crate::styled::scroll::scrollbar_style;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 use crate::unstyled::{ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle};
@@ -56,6 +57,7 @@ pub fn Select(
                 <SearchField handle />
             }}
             search_menu={text_input_menu()}
+            scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
                 <SelectTrigger options={trigger_options} handle />
             }}

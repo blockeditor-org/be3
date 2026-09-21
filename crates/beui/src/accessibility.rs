@@ -9,7 +9,6 @@ use crate::Document;
 use crate::base::focusable::FocusableNode;
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
-use crate::base::scroll::ScrollNode;
 use crate::base::text::TextNode;
 use crate::geometry::{Rect, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
@@ -128,8 +127,7 @@ impl Document {
             .as_any()
             .downcast_ref::<TextNode>()
             .and_then(TextNode::accessible_text);
-        let scroll = element.as_any().downcast_ref::<ScrollNode>();
-        if explicit.is_none() && text.is_none() && scroll.is_none() && !force {
+        if explicit.is_none() && text.is_none() && !force {
             return children;
         }
 
@@ -138,17 +136,6 @@ impl Document {
         } else if let Some(text) = text {
             let mut node = Node::new(Role::Label);
             node.set_value(text);
-            node
-        } else if let Some(scroll) = scroll {
-            let mut node = Node::new(Role::ScrollView);
-            if let Some(position) = scroll.position {
-                node.set_scroll_y(position.offset.into());
-                node.set_scroll_y_min(0.0);
-                node.set_scroll_y_max(position.max_offset().into());
-                node.add_action(Action::ScrollUp);
-                node.add_action(Action::ScrollDown);
-                node.add_action(Action::SetScrollOffset);
-            }
             node
         } else {
             Node::new(Role::GenericContainer)
@@ -264,19 +251,18 @@ impl Document {
                 _ => {}
             },
             Action::ScrollUp | Action::ScrollDown | Action::SetScrollOffset => {
-                if let Some(scroll) = self.first_scroll_within(target) {
-                    let position = self.arena.get_as::<ScrollNode>(scroll).position;
-                    if let Some(position) = position {
-                        let offset = match (request.action, request.data) {
-                            (Action::ScrollUp, _) => position.offset - position.viewport,
-                            (Action::ScrollDown, _) => position.offset + position.viewport,
-                            (Action::SetScrollOffset, Some(ActionData::SetScrollOffset(point))) => {
-                                point.y as f32
-                            }
-                            _ => position.offset,
-                        };
-                        self.set_scroll_offset(scroll, offset.clamp(0.0, position.max_offset()));
-                    }
+                if let Some(scroll) = self.first_offset_within(target)
+                    && let Some(position) = self.offset_position(scroll)
+                {
+                    let offset = match (request.action, request.data) {
+                        (Action::ScrollUp, _) => position.offset - position.viewport,
+                        (Action::ScrollDown, _) => position.offset + position.viewport,
+                        (Action::SetScrollOffset, Some(ActionData::SetScrollOffset(point))) => {
+                            point.y as f32
+                        }
+                        _ => position.offset,
+                    };
+                    self.set_offset_value(scroll, offset.clamp(0.0, position.max_offset()));
                 }
             }
             _ => {}
@@ -295,24 +281,13 @@ impl Document {
 
     fn first_focusable_within(&self, id: NodeId) -> Option<NodeId> {
         let element = self.arena.get(id);
-        if element.as_any().is::<FocusableNode>() || element.as_any().is::<ScrollNode>() {
+        if element.as_any().is::<FocusableNode>() {
             return Some(id);
         }
         element
             .children()
             .into_iter()
             .find_map(|child| self.first_focusable_within(child))
-    }
-
-    fn first_scroll_within(&self, id: NodeId) -> Option<NodeId> {
-        let element = self.arena.get(id);
-        if element.as_any().is::<ScrollNode>() {
-            return Some(id);
-        }
-        element
-            .children()
-            .into_iter()
-            .find_map(|child| self.first_scroll_within(child))
     }
 
     fn focusable_can_activate(&self, id: NodeId) -> bool {

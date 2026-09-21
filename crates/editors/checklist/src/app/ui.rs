@@ -4,11 +4,11 @@ use block_client::blocks::checklist::{
     Checklist as ChecklistBlock, ChecklistItem, ChecklistOperation,
 };
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, KeyedStore, List, Scroll, Show, WriteSignal, clone,
+    Align, Direction, ForEach, Frame, ItemSize, KeyedStore, List, Show, WriteSignal, clone,
     component, create_memo, create_selector, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, TextInput,
+    Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, Scroll, TextInput,
     ToggleButton, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, TextAlign};
@@ -175,7 +175,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                         <Show condition={empty}>
                             <Body content="No tasks match this view." align=TextAlign::Center />
                         </Show>
-                        <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                        <Scroll @sizing=ItemSize::Percent(100.0)>
                             <List spacing=8.0>
                                 <ForEach keys={visible} view={rows} />
                             </List>

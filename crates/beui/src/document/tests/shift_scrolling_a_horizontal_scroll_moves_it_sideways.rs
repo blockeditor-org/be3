@@ -1,7 +1,8 @@
 use super::*;
 use crate::base::Direction;
 use crate::geometry::vec2;
-use crate::reactive::{ForEach, ItemSize, List, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {

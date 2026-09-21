@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ForEach, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, NodeRef, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn tabbing_to_an_offscreen_control_reveals_it() {

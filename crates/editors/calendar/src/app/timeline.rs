@@ -3,9 +3,9 @@ use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::TextAlign;
 use block_editor_plugin::beui::reactive::{
     Callback, Canvas, CanvasItem, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo,
-    Scroll, clone, component, component_rect, component_size, create_memo, view,
+    clone, component, component_rect, component_size, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, ListRow, use_theme};
+use block_editor_plugin::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
 use block_ui::datetime::civil_from_days;
 use uuid::Uuid;
 
@@ -57,7 +57,7 @@ pub(crate) fn Timeline(
                 </ForEach>
             </List>
             <Frame height=RULE color={theme.border.clone()} radius=0 />
-            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+            <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Grid
                     first_day={first_day}
                     days={days}

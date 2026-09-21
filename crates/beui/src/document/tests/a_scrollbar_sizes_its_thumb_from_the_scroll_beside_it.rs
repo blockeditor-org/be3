@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::ScrollPosition;
-use crate::reactive::{ItemSize, List, VirtualList, create_signal};
+use crate::reactive::{ItemSize, List, VirtualOffset, create_signal};
 use crate::styled::Scrollbar;
 
 const BAR_HEIGHT: f32 = 8.0;
@@ -16,7 +16,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
             let (position, set_position) = create_signal(ScrollPosition::ZERO);
             view! {
                 <List spacing=0.0>
-                    <VirtualList
+                    <VirtualOffset
                         @sizing=ItemSize::Percent(100.0)
                         count=ROWS
                         item_size=ROW_HEIGHT
@@ -31,7 +31,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
                                 />
                             </Frame>
                         }}
-                    </VirtualList>
+                    </VirtualOffset>
                     <Scrollbar @sizing=ItemSize::Fixed(BAR_HEIGHT) @node_ref=&thumb position />
                 </List>
             }

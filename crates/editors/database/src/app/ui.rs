@@ -4,10 +4,12 @@ use block_client::blocks::database::Database;
 use block_client::blocks::database_schema::DatabaseSchema;
 use block_client::blocks::database_view::DatabaseView;
 use block_editor_plugin::beui::reactive::{
-    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Scroll, Show, Spacer, clone,
-    component, create_effect, create_memo, create_signal, view,
+    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone, component,
+    create_effect, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
+use block_editor_plugin::beui::styled::{
+    Button, ButtonVariant, Caption, Heading, Scroll, use_theme,
+};
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
 use uuid::Uuid;
@@ -66,7 +68,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                         <Show condition={none_yet}>
                             <Caption content="This database has no views yet." />
                         </Show>
-                        <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                        <Scroll @sizing=ItemSize::Percent(100.0)>
                             <ViewLinks editor={links} rows={rows} />
                         </Scroll>
                         <List direction=Direction::Horizontal spacing=0.0>

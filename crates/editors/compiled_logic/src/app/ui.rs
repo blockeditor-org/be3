@@ -2,11 +2,11 @@ use block::Block;
 use block_client::blocks::compiled_logic::CompiledLogic;
 use block_client::blocks::logic_grid::LogicGrid;
 use block_editor_plugin::beui::reactive::{
-    ForEach, Frame, ItemSize, List, ReadSignal, Scroll, Show, Text, clone, component,
-    create_effect, create_memo, view,
+    ForEach, Frame, ItemSize, List, ReadSignal, Show, Text, clone, component, create_effect,
+    create_memo, view,
 };
 use block_editor_plugin::beui::styled::theme::FONT_SMALL;
-use block_editor_plugin::beui::styled::{Caption, Heading, Separator, use_theme};
+use block_editor_plugin::beui::styled::{Caption, Heading, Scroll, Separator, use_theme};
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{BlockLink, ChildTarget, Editor};
 use logicgame::grid::{ComponentPort, ConnectionDirection};
@@ -60,7 +60,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) focus_color={theme.accent.clone()}>
+                <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
                             <Heading content="Compiled from" />

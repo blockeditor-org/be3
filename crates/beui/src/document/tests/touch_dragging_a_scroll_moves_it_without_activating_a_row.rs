@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ForEach, ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, NodeRef, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
@@ -46,7 +47,7 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     harness.frame(Vec::new());
 
     assert!(harness.document().scroll_offset(scroll) > released_offset);
-    assert!(harness.document().scroll_is_animating(scroll));
+    assert!(unstyled::scroll_animating(harness.document(), scroll));
     assert_eq!(harness.document().focused_node(), None);
     assert_eq!(clicks.get(), 0);
 }

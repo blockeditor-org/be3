@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ForEach, ItemSize, List, Scroll, build};
+use crate::reactive::{ForEach, ItemSize, List, Offset, build};
 
 #[test]
 fn the_scroll_position_is_reported_to_its_listener() {
@@ -8,7 +8,7 @@ fn the_scroll_position_is_reported_to_its_listener() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll
+                <Offset
                     @sizing=ItemSize::Percent(100.0)
                     on_change={move |position| sink.set(Some(position))}
                 >
@@ -21,7 +21,7 @@ fn the_scroll_position_is_reported_to_its_listener() {
                             />
                         }}
                     </ForEach>
-                </Scroll>
+                </Offset>
             </List>
         }
     });

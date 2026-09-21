@@ -7,6 +7,7 @@ mod floating;
 mod menu;
 mod pan_zoom;
 mod pressable;
+mod scroll;
 mod select;
 mod slider;
 mod stack;
@@ -28,6 +29,7 @@ pub use menu::{
 };
 pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, pan_zoom_view};
 pub use pressable::Pressable;
+pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, VirtualList, scroll_animating};
 pub use select::{
     Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,
     select_option_button, select_search, select_selected, select_trigger,

@@ -1,23 +1,21 @@
 use beui::icons::ICON_GRID_VIEW;
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
-    Scroll, Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
-    create_selector, create_signal, view,
+    Selector, Show, Spacer, Text, WriteSignal, build, clone, create_memo, create_selector,
+    create_signal, view,
 };
-use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SCROLLBAR_WIDTH, SEPARATOR_HEIGHT};
+use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SEPARATOR_HEIGHT};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
-    Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scrollbar, Select,
-    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, use_theme,
+    Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
+    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, VirtualList,
+    use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
     SliderScale, TreeItem, narrower_than, shorter_than,
 };
-use beui::{
-    Color32, Context, Direction, Document, ItemSize, NodeId, Rect, ScrollPosition, TextAlign,
-    unstyled,
-};
+use beui::{Color32, Context, Direction, Document, ItemSize, NodeId, Rect, TextAlign, unstyled};
 use beui_macros::component;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -315,17 +313,10 @@ fn DemoPanels(cramped: bool, count: ReadSignal<i64>) -> NodeId {
             <PaddedPanels cramped count />
         };
     }
-    let (position, set_position) = create_signal(ScrollPosition::ZERO);
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Scroll
-                @sizing=ItemSize::Percent(100.0)
-                on_change={move |value| set_position.set(value)}
-            >
-                <PaddedPanels cramped count />
-            </Scroll>
-            <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position />
-        </List>
+        <Scroll>
+            <PaddedPanels cramped count />
+        </Scroll>
     }
 }
 
@@ -404,7 +395,6 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
         }
     });
     let item_rows = rows.clone();
-    let (scroll_position, set_scroll_position) = create_signal(ScrollPosition::ZERO);
     let rows_size = if cramped {
         ItemSize::Fixed(CRAMPED_ROWS_HEIGHT)
     } else {
@@ -437,31 +427,19 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                         />
                     </List>
                     <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
-                    <List
+                    <VirtualList
                         @sizing=ItemSize::Percent(100.0)
-                        direction=Direction::Horizontal
-                        spacing=10.0
+                        count=ROW_COUNT
+                        item_size={row_height}
                     >
-                        <VirtualList
-                            @sizing=ItemSize::Percent(100.0)
-                            count=ROW_COUNT
-                            item_size={row_height}
-                            focus_color={use_theme().accent.clone()}
-                            on_change={move |position| set_scroll_position.set(position)}
-                        >
-                            {move |index: usize| {
-                                let rows = item_rows.clone();
-                                let compact = rows.compact.get();
-                                view! {
-                                    <ScrollRow index rows compact />
-                                }
-                            }}
-                        </VirtualList>
-                        <Scrollbar
-                            @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
-                            position={scroll_position}
-                        />
-                    </List>
+                        {move |index: usize| {
+                            let rows = item_rows.clone();
+                            let compact = rows.compact.get();
+                            view! {
+                                <ScrollRow index rows compact />
+                            }
+                        }}
+                    </VirtualList>
                 </List>
             </Card>
         </List>
@@ -681,9 +659,6 @@ fn ListControls(rows: Rows) -> NodeId {
 
 #[component]
 fn StripControls() -> NodeId {
-    let (position, set_position) = create_signal(ScrollPosition::ZERO);
-    let theme = use_theme();
-
     view! {
         <List spacing=12.0>
             <Paragraph
@@ -695,18 +670,11 @@ fn StripControls() -> NodeId {
                 direction=Direction::Horizontal
                 count=STRIP_COUNT
                 item_size=STRIP_ITEM_WIDTH
-                focus_color={theme.accent.clone()}
-                on_change={move |position| set_position.set(position)}
             >
                 {move |index: usize| view! {
                     <StripCard index />
                 }}
             </VirtualList>
-            <Scrollbar
-                @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
-                direction=Direction::Horizontal
-                position={position}
-            />
         </List>
     }
 }

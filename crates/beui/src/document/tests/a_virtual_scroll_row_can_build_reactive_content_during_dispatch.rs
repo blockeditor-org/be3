@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Text, VirtualList, build, view};
+use crate::reactive::{ItemSize, List, NodeRef, Text, VirtualOffset, build, view};
 
 #[test]
 fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
@@ -9,7 +9,7 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <VirtualList
+                    <VirtualOffset
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
@@ -18,7 +18,7 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
                         {|index: usize| view! {
                             <Text string={format!("Row {index}")} />
                         }}
-                    </VirtualList>
+                    </VirtualOffset>
                 </List>
             }
         }

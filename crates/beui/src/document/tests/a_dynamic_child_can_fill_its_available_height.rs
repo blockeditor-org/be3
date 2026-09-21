@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Dynamic, Frame, List, NodeRef, Scroll, build, create_signal, view};
+use crate::reactive::{Dynamic, Frame, List, NodeRef, Offset, build, create_signal, view};
 
 #[test]
 fn a_dynamic_child_can_fill_its_available_height() {
@@ -17,7 +17,7 @@ fn a_dynamic_child_can_fill_its_available_height() {
                                 view! {
                                     <List @sizing=ItemSize::Percent(100.0) spacing=10.0>
                                         <Frame height=20.0 />
-                                        <Scroll
+                                        <Offset
                                             @sizing=ItemSize::Percent(100.0)
                                             @node_ref=&scroll
                                         />

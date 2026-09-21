@@ -2,7 +2,6 @@ use std::any::Any;
 
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
-use crate::base::scroll::ScrollNode;
 use crate::geometry::{Rect, Vec2};
 use crate::input::{Key, KeyPress};
 use crate::painter::Painter;
@@ -25,6 +24,7 @@ pub(crate) struct FocusableNode {
     pub(crate) on_step: Callback<f32>,
     pub(crate) on_text: Callback<String>,
     pub(crate) on_key: KeyCallback,
+    pub(crate) on_ancestor_key: KeyCallback,
 }
 
 impl FocusableNode {
@@ -39,6 +39,7 @@ impl FocusableNode {
             on_step: Callback::empty(),
             on_text: Callback::empty(),
             on_key: Callback::empty(),
+            on_ancestor_key: Callback::empty(),
         }
     }
 }
@@ -140,9 +141,6 @@ impl Document {
         let Some(focused) = self.focused else {
             return false;
         };
-        if self.arena.get(focused).as_any().is::<ScrollNode>() {
-            return self.key_scroll(focused, press);
-        }
         let Some(on_key) = self
             .arena
             .get(focused)
@@ -252,7 +250,7 @@ impl Document {
         {
             return;
         }
-        if element.as_any().is::<FocusableNode>() || element.as_any().is::<ScrollNode>() {
+        if element.as_any().is::<FocusableNode>() {
             out.push(id);
         }
         for child in element.children() {
@@ -341,14 +339,6 @@ impl Document {
         {
             node.focused = focused;
         }
-        if let Some(node) = self
-            .arena
-            .get_mut(id)
-            .as_any_mut()
-            .downcast_mut::<ScrollNode>()
-        {
-            node.focused = focused;
-        }
         self.call_focusable_handler(id, focused, |node| &node.on_focus_change);
     }
 
@@ -370,6 +360,66 @@ impl Document {
         if let Some(handler) = handler {
             handler.call(value);
         }
+    }
+
+    pub(crate) fn key_ancestor(&mut self, press: KeyPress) -> bool {
+        if !matches!(
+            press.key,
+            Key::ArrowUp
+                | Key::ArrowDown
+                | Key::ArrowLeft
+                | Key::ArrowRight
+                | Key::Home
+                | Key::End
+                | Key::PageUp
+                | Key::PageDown
+        ) {
+            return false;
+        }
+        let (Some(root), Some(focused)) = (self.root, self.focused) else {
+            return false;
+        };
+        if self
+            .arena
+            .get(focused)
+            .as_any()
+            .downcast_ref::<FocusableNode>()
+            .is_some_and(|node| !node.on_step.is_empty())
+        {
+            return false;
+        }
+        let mut path = Vec::new();
+        if !self.focus_path(root, focused, &mut path) {
+            return false;
+        }
+        for id in path.into_iter().rev().skip(1) {
+            let handler = self
+                .arena
+                .get(id)
+                .as_any()
+                .downcast_ref::<FocusableNode>()
+                .map(|node| node.on_ancestor_key.clone());
+            if let Some(handler) = handler
+                && handler.call(press)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub(crate) fn focus_path(&self, id: NodeId, focused: NodeId, path: &mut Vec<NodeId>) -> bool {
+        path.push(id);
+        if id == focused {
+            return true;
+        }
+        for child in self.children(id) {
+            if self.focus_path(child, focused, path) {
+                return true;
+            }
+        }
+        path.pop();
+        false
     }
 }
 
@@ -394,6 +444,7 @@ pub fn Focusable(
     on_step: Callback<f32>,
     on_text: Callback<String>,
     on_key: Callback<KeyPress, bool>,
+    on_ancestor_key: Callback<KeyPress, bool>,
     children: Option<Child>,
 ) -> NodeId {
     let focusable = with_document(|document| {
@@ -405,6 +456,7 @@ pub fn Focusable(
         node.on_step = on_step;
         node.on_text = on_text;
         node.on_key = on_key;
+        node.on_ancestor_key = on_ancestor_key;
         if let Some(child) = children {
             document.set_focusable_child(focusable, child);
         }

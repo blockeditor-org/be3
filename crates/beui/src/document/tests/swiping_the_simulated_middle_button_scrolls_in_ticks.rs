@@ -1,6 +1,7 @@
 use super::*;
 use crate::mouse_simulation::{SCROLL_TICK, WHEEL_LINE};
-use crate::reactive::{ForEach, ItemSize, List, NodeRef, Scroll, build, view};
+use crate::reactive::{ForEach, ItemSize, List, NodeRef, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn swiping_the_simulated_middle_button_scrolls_in_ticks() {

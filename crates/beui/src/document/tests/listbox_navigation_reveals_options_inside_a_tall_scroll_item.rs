@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, Scroll, build, view};
+use crate::reactive::{NodeRef, build, view};
 use crate::styled::Listbox;
+use crate::unstyled::Scroll;
 
 #[test]
 fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {

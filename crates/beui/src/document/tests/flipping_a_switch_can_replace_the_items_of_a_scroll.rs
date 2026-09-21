@@ -31,7 +31,7 @@ fn check_compact_rows(inset: f32) {
                         on=false
                         on_change={move |on: bool| set_compact.set(on)}
                     />
-                    <VirtualList
+                    <VirtualOffset
                         @sizing=ItemSize::Percent(100.0)
                         @node_ref=&scroll
                         count=VIRTUAL_ITEM_COUNT
@@ -46,7 +46,7 @@ fn check_compact_rows(inset: f32) {
                                 </Frame>
                             }
                         }}
-                    </VirtualList>
+                    </VirtualOffset>
                 </List>
             }
         }

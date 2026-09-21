@@ -1,7 +1,8 @@
 use std::any::Any;
 
+use crate::base::list::Direction;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{CursorIcon, PointerPress, ScrollGesture, ZoomGesture};
+use crate::input::{CursorIcon, DragGesture, PointerPress, ScrollGesture, ZoomGesture};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -13,6 +14,7 @@ use beui_macros::component;
 pub(crate) struct ClickCatcherNode {
     pub(crate) child: Option<NodeId>,
     pub(crate) cursor: CursorIcon,
+    pub(crate) scroll_axis: Option<Direction>,
     pub(crate) armed: bool,
     pub(crate) capture_presses: bool,
     pub(crate) repeat_drag: bool,
@@ -34,6 +36,7 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) on_pan_drag: Callback<Vec2>,
     pub(crate) on_pan_active_change: Callback<bool>,
     pub(crate) on_scroll: Callback<ScrollGesture>,
+    pub(crate) on_scroll_drag: Callback<DragGesture>,
     pub(crate) on_zoom: Callback<ZoomGesture>,
     pub(crate) capture_at: Callback<Pos2, bool>,
 }
@@ -43,6 +46,7 @@ impl ClickCatcherNode {
         Self {
             child: None,
             cursor,
+            scroll_axis: None,
             armed: false,
             capture_presses: false,
             repeat_drag: false,
@@ -64,13 +68,29 @@ impl ClickCatcherNode {
             on_pan_drag: Callback::empty(),
             on_pan_active_change: Callback::empty(),
             on_scroll: Callback::empty(),
+            on_scroll_drag: Callback::empty(),
             on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
         }
     }
 
     pub(crate) fn wants_gestures(&self) -> bool {
-        !self.on_scroll.is_empty() || !self.on_zoom.is_empty()
+        !self.on_zoom.is_empty() || !self.on_pan_drag.is_empty()
+    }
+
+    pub(crate) fn wants_wheel(&self, wheel: Vec2) -> bool {
+        !self.on_scroll.is_empty() && self.along(wheel)
+    }
+
+    pub(crate) fn catches_drag(&self, direction: Direction) -> bool {
+        !self.on_scroll_drag.is_empty() && self.scroll_axis.is_none_or(|axis| axis == direction)
+    }
+
+    fn along(&self, wheel: Vec2) -> bool {
+        match self.scroll_axis {
+            Some(axis) => axis.main(wheel) != 0.0,
+            None => wheel != Vec2::ZERO,
+        }
     }
 
     pub(crate) fn is_active(&self) -> bool {
@@ -265,6 +285,15 @@ impl Element for ClickCatcherNode {
                 modifiers: input.modifiers,
             });
         }
+        if input.touch_scroll_target == Some(id) {
+            self.on_scroll_drag.call(DragGesture {
+                started: input.touch_started,
+                ended: input.touch_ended,
+                cancelled: input.touch_cancelled,
+                delta: input.touch_scroll_delta,
+                velocity: input.touch_velocity,
+            });
+        }
         if input.zoom_target == Some(id)
             && input.zoom != 1.0
             && let Some(pos) = input.zoom_pos
@@ -329,6 +358,12 @@ impl Document {
         }
     }
 
+    pub(crate) fn set_click_catcher_scroll_axis(&mut self, id: NodeId, axis: Option<Direction>) {
+        if self.arena.get_as::<ClickCatcherNode>(id).scroll_axis != axis {
+            self.arena.get_mut_as::<ClickCatcherNode>(id).scroll_axis = axis;
+        }
+    }
+
     pub(crate) fn set_click_catcher_repeat_drag(&mut self, id: NodeId, repeat_drag: bool) {
         if self.arena.get_as::<ClickCatcherNode>(id).repeat_drag != repeat_drag {
             self.arena.get_mut_as::<ClickCatcherNode>(id).repeat_drag = repeat_drag;
@@ -357,6 +392,7 @@ pub fn ClickCatcher(
     #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = false)] repeat_drag: Prop<bool>,
+    #[prop(default = None)] scroll_axis: Prop<Option<Direction>>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
@@ -368,6 +404,7 @@ pub fn ClickCatcher(
     on_pan_drag: Callback<Vec2>,
     on_pan_active_change: Callback<bool>,
     on_scroll: Callback<ScrollGesture>,
+    on_scroll_drag: Callback<DragGesture>,
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
     children: Option<Child>,
@@ -386,6 +423,7 @@ pub fn ClickCatcher(
         node.on_pan_drag = on_pan_drag;
         node.on_pan_active_change = on_pan_active_change;
         node.on_scroll = on_scroll;
+        node.on_scroll_drag = on_scroll_drag;
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
         if let Some(child) = children {
@@ -404,6 +442,11 @@ pub fn ClickCatcher(
     create_effect(move || {
         with_document(|document| {
             document.set_click_catcher_repeat_drag(click_catcher, repeat_drag.get())
+        })
+    });
+    create_effect(move || {
+        with_document(|document| {
+            document.set_click_catcher_scroll_axis(click_catcher, scroll_axis.get())
         })
     });
     create_effect(move || {
