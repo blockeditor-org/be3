@@ -1,17 +1,18 @@
-use std::collections::HashMap;
+use std::rc::Rc;
 
-use block::{BlockParent, BlockReferenceList};
-use block_client::ReferenceList;
-use block_editor_plugin::{
-    block_ui::BlockLabel,
-    egui,
-    egui_material_icons::icons::{ICON_LINK_OFF, ICON_SHARE},
-};
+use block::{BlockParent, BlockReference};
+use block_editor_plugin::BlockSource;
+use block_editor_plugin::beui::reactive::{Memo, clone, component, create_memo, view};
+use block_editor_plugin::beui::unstyled::{MenuItem, TabId};
+use block_editor_plugin::block_ui::{BlockLabel, BlockTypes};
 use uuid::Uuid;
 
-use super::{Frame, NO_EDIT_ACCESS};
+use super::tab::{Navigation, TabItem};
+use super::workspace::Workspace;
 
+#[derive(Clone, Copy)]
 pub(crate) enum Action {
+    Open,
     Picker,
     SetParent(BlockParent),
     Rename,
@@ -25,133 +26,181 @@ pub(crate) struct Permissions {
     pub(crate) edit: bool,
     pub(crate) delete: bool,
     pub(crate) unlink: Result<(), &'static str>,
+    pub(crate) is_reference: bool,
+    pub(crate) source: BlockSource,
 }
 
-pub(crate) fn show(
-    ui: &mut egui::Ui,
-    frame: &Frame<'_>,
-    parent_candidates: &mut HashMap<Uuid, ReferenceList>,
-    subject: Uuid,
-    current_parent: BlockParent,
-    permissions: Permissions,
-    is_reference: bool,
-) -> Option<Action> {
-    let mut action = None;
-    ui.add_enabled_ui(permissions.add, |ui| {
-        if ui.button("Add").clicked() {
-            action = Some(Action::Picker);
-            ui.close();
+pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
+    match path {
+        [0] => Some(Action::Open),
+        [1] => Some(Action::Picker),
+        [2, 0] => Some(Action::SetParent(BlockParent::Root)),
+        [2, 1] => Some(Action::SetParent(BlockParent::Orphaned)),
+        [3] => Some(Action::Rename),
+        [4] => Some(Action::Share),
+        [5] => Some(Action::Unlink),
+        [6] => Some(Action::Delete),
+        _ => None,
+    }
+}
+
+pub(crate) fn source_of(parent: BlockParent) -> BlockSource {
+    match parent {
+        BlockParent::Root => BlockSource::Root,
+        BlockParent::Orphaned => BlockSource::Orphaned,
+        BlockParent::Uuid(id) => BlockSource::Block(id),
+    }
+}
+
+pub(crate) fn unlink_permission(
+    workspace: &Workspace,
+    container: Option<Uuid>,
+) -> Result<(), &'static str> {
+    let container_type = container.and_then(|container| workspace.known_type(container));
+    let types = workspace.types();
+    match (container, container_type) {
+        (Some(_), Some(block_type)) if !types.child_edits(block_type).replace => {
+            Err("This container doesn't support replacing a reference")
         }
-    })
-    .response
-    .on_disabled_hover_text(NO_EDIT_ACCESS);
-    ui.add_enabled_ui(permissions.edit, |ui| {
-        ui.menu_button("Set parent", |ui| {
-            if ui
-                .add_enabled(
-                    current_parent != BlockParent::Root,
-                    egui::Button::new("Root"),
-                )
-                .clicked()
-            {
-                action = Some(Action::SetParent(BlockParent::Root));
-                ui.close();
-            }
-            if ui
-                .add_enabled(
-                    current_parent != BlockParent::Orphaned,
-                    egui::Button::new("Orphaned"),
-                )
-                .clicked()
-            {
-                action = Some(Action::SetParent(BlockParent::Orphaned));
-                ui.close();
-            }
-            ui.separator();
-            let backrefs = parent_candidates.entry(subject).or_insert_with(|| {
-                frame
-                    .client
-                    .watch_references(BlockReferenceList::Backrefs(subject))
-            });
-            let listed = backrefs.read();
-            if listed.is_empty() {
-                ui.weak(match backrefs.is_loaded() {
-                    true => "No backrefs",
-                    false => "Loading\u{2026}",
-                });
-            }
-            for backref in listed {
-                let is_current = current_parent == BlockParent::Uuid(backref.id);
-                let label =
-                    BlockLabel::for_reference(frame.types, &backref).widget_text(ui.style());
-                if ui
-                    .add_enabled(!is_current, egui::Button::new(label))
-                    .clicked()
-                {
-                    action = Some(Action::SetParent(BlockParent::Uuid(backref.id)));
-                    ui.close();
-                }
-            }
-        });
-    })
-    .response
-    .on_disabled_hover_text(NO_EDIT_ACCESS);
-    if ui
-        .add_enabled(permissions.edit, egui::Button::new("Rename"))
-        .on_disabled_hover_text(NO_EDIT_ACCESS)
-        .clicked()
-    {
-        action = Some(Action::Rename);
-        ui.close();
+        (Some(container), Some(_)) if !workspace.can_edit(container) => {
+            Err("You don't have permission to edit this container")
+        }
+        (Some(_), Some(_)) => Ok(()),
+        _ => Err("Loading…"),
     }
-    if ui
-        .add_enabled(
-            permissions.edit,
-            egui::Button::new(format!("{} Share", ICON_SHARE.codepoint)),
-        )
-        .on_disabled_hover_text("Only accounts that can edit a block may share it")
-        .clicked()
-    {
-        action = Some(Action::Share);
-        ui.close();
-    }
-    if is_reference {
-        let button = ui.add_enabled(
-            permissions.unlink.is_ok(),
-            egui::Button::new(format!("{} Unlink", ICON_LINK_OFF.codepoint)),
-        );
-        let clicked = match permissions.unlink {
-            Ok(()) => button
-                .on_hover_text(
-                    "Replace this occurrence with its own copy, unaffected by the original",
-                )
-                .clicked(),
-            Err(hover) => button.on_disabled_hover_text(hover).clicked(),
-        };
-        if clicked {
-            action = Some(Action::Unlink);
-            ui.close();
+}
+
+fn can_delete_from(workspace: &Workspace, source: BlockSource) -> bool {
+    match source {
+        BlockSource::Root | BlockSource::Orphaned => true,
+        BlockSource::Block(id) => {
+            let types = workspace.types();
+            workspace
+                .known_type(id)
+                .is_some_and(|block_type| types.child_edits(block_type).delete)
+                && workspace.can_edit(id)
         }
     }
-    let delete_label = match is_reference {
-        true => "Remove link",
-        false => "Delete",
-    };
-    let delete_text = egui::RichText::new(delete_label);
-    let delete_text = match permissions.delete {
-        true => delete_text.color(ui.visuals().error_fg_color),
-        false => delete_text,
-    };
-    let response = ui.add_enabled(permissions.delete, egui::Button::new(delete_text));
-    let response = match is_reference {
-        true => response.on_hover_text(
-            "Removes this link only, without creating a copy. The original block is not deleted.",
+}
+
+pub(crate) fn permissions(
+    workspace: &Workspace,
+    reference: &BlockReference,
+    containing: Option<Uuid>,
+) -> Permissions {
+    let can_edit = workspace.can_edit(reference.id);
+    let source = containing.map_or_else(|| source_of(reference.parent), BlockSource::Block);
+    let is_reference = containing.is_some_and(|id| reference.parent != BlockParent::Uuid(id));
+    let types = workspace.types();
+    Permissions {
+        add: types.child_edits(reference.block_type).add && can_edit,
+        edit: can_edit,
+        delete: source != BlockSource::Orphaned
+            && can_delete_from(workspace, source)
+            && (is_reference || can_edit),
+        unlink: unlink_permission(workspace, containing),
+        is_reference,
+        source,
+    }
+}
+
+pub(crate) fn apply(
+    workspace: &Rc<Workspace>,
+    tab: TabId,
+    reference: &BlockReference,
+    containing: Option<Uuid>,
+    action: Action,
+) {
+    let permissions = permissions(workspace, reference, containing);
+    match action {
+        Action::Open => workspace.navigate(
+            tab,
+            Navigation::Open(TabItem {
+                id: reference.id,
+                block_type: reference.block_type,
+            }),
         ),
-        false => response,
-    };
-    if response.clicked() {
-        action = Some(Action::Delete);
-        ui.close();
+        Action::Picker => workspace.open_picker(reference.id),
+        Action::SetParent(parent) => workspace.client().set_block_parent(reference.id, parent),
+        Action::Rename => workspace.host().rename_block(reference.id),
+        Action::Share => workspace.host().share_block(reference.id),
+        Action::Unlink => {
+            if let BlockSource::Block(container) = permissions.source {
+                workspace.host().unlink_block(reference.id, container);
+            }
+        }
+        Action::Delete => workspace.host().delete_block(
+            reference.id,
+            reference.block_type,
+            permissions.source,
+            permissions.is_reference,
+        ),
     }
-    action
+}
+
+#[component]
+pub(crate) fn ReferenceMenuItem(
+    workspace: Rc<Workspace>,
+    reference: Memo<Option<BlockReference>>,
+    containing: Memo<Option<Uuid>>,
+) -> MenuItem {
+    let naming = Rc::clone(&workspace);
+    let label = create_memo(clone!(reference -> move || {
+        let types = naming.types();
+        reference.with(|reference| {
+            reference.as_ref().map_or_else(
+                || "Untitled".to_owned(),
+                |reference| BlockLabel::for_reference(types.as_ref(), reference).name,
+            )
+        })
+    }));
+    let allowed = Rc::clone(&workspace);
+    let rights = create_memo(clone!(reference containing -> move || {
+        let containing = containing.get();
+        reference.with(|reference| {
+            reference.as_ref().map(|reference| {
+                let permissions = permissions(&allowed, reference, containing);
+                (
+                    !permissions.add,
+                    !permissions.edit,
+                    !permissions.delete,
+                    !(permissions.is_reference && permissions.unlink.is_ok()),
+                    reference.parent,
+                    permissions.is_reference,
+                )
+            })
+        })
+    }));
+    let add = create_memo(clone!(rights -> move || rights.get().is_none_or(|rights| rights.0)));
+    let edit = create_memo(clone!(rights -> move || rights.get().is_none_or(|rights| rights.1)));
+    let delete = create_memo(clone!(rights -> move || rights.get().is_none_or(|rights| rights.2)));
+    let unlink = create_memo(clone!(rights -> move || rights.get().is_none_or(|rights| rights.3)));
+    let rooted = create_memo(clone!(rights edit -> move || {
+        edit.get() || rights.get().is_none_or(|rights| rights.4 == BlockParent::Root)
+    }));
+    let orphaned = create_memo(clone!(rights edit -> move || {
+        edit.get() || rights.get().is_none_or(|rights| rights.4 == BlockParent::Orphaned)
+    }));
+    let delete_label = create_memo(clone!(rights -> move || {
+        match rights.get().is_some_and(|rights| rights.5) {
+            true => "Remove link".to_owned(),
+            false => "Delete".to_owned(),
+        }
+    }));
+    let parent_disabled = edit.clone();
+    let share_disabled = edit.clone();
+    view! {
+        <MenuItem label={label}>
+            <MenuItem label="Open" />
+            <MenuItem label="Add" disabled={add} />
+            <MenuItem label="Set parent" disabled={parent_disabled}>
+                <MenuItem label="Root" disabled={rooted} />
+                <MenuItem label="Orphaned" disabled={orphaned} />
+            </MenuItem>
+            <MenuItem label="Rename" disabled={edit} />
+            <MenuItem label="Share" disabled={share_disabled} />
+            <MenuItem label="Unlink" disabled={unlink} />
+            <MenuItem label={delete_label} disabled={delete} />
+        </MenuItem>
+    }
 }
