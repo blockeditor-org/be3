@@ -1294,6 +1294,7 @@ impl EditorSession {
         let mut exit = false;
         let mut content_rect = None;
         let mut painted = Vec::new();
+        let mut floating = Vec::new();
         let output = context.run(beui::RawInput { events }, |context| match region {
             EditorRegion::Frame if creating => app.beui_creation(context, frame),
             EditorRegion::Frame => {
@@ -1314,6 +1315,7 @@ impl EditorSession {
                 content_rect = chrome.document().node_rect(chrome.content());
                 exit = chrome.exit().get() || beui_frame::escaped(context);
                 painted = vec![frame];
+                floating = chrome.document().overlay_rects();
             }
             EditorRegion::Preview => app.beui_preview(context, frame),
             EditorRegion::ArtifactSettings => {
@@ -1356,7 +1358,7 @@ impl EditorSession {
                 screen,
                 content: reported(reported_content),
                 painted: painted.iter().map(|rect| reported(*rect)).collect(),
-                floating: Vec::new(),
+                floating: floating.iter().map(|rect| reported(*rect)).collect(),
             });
         }
         self.host.grab_cursor(self.beui_pointer_locked());

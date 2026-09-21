@@ -32,7 +32,7 @@ fn a_child_block_asks_the_host_for_the_frame_it_will_own() {
         Waker::default(),
     );
     let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    session.connect(client, Uuid::new_v4());
+    session.connect(client, Uuid::new_v4(), Uuid::new_v4());
     session.regions.insert(
         EditorRegion::Frame,
         RegionState {

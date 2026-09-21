@@ -659,15 +659,15 @@ impl ChildValue for ListChild {
 }
 
 #[derive(Clone, Default)]
-pub struct ChildScope(Option<Rc<Scope>>);
+pub struct ChildScope(Vec<Rc<Scope>>);
 
 impl ChildScope {
     pub fn adopt(&mut self, scope: Scope) {
-        self.0 = Some(Rc::new(scope));
+        self.0.push(Rc::new(scope));
     }
 
     pub fn is_alive(&self) -> bool {
-        self.0.as_ref().is_some_and(|scope| !scope.is_disposed())
+        self.0.last().is_some_and(|scope| !scope.is_disposed())
     }
 }
 

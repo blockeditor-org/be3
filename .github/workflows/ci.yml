@@ -314,7 +314,7 @@ jobs:
           path: target/web
           retention-days: 14
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
         with:
           path: target/web
@@ -377,7 +377,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -386,7 +386,7 @@ jobs:
       # this repository, and it runs before any build script does. This checks
       # it byte for byte against the wrapper jars Gradle publishes, so a commit
       # that quietly swapped it fails here rather than executing.
-      - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+      - uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       # The runner image ships an Android SDK, but not the NDK release the app
       # is built against. Every package is pinned to an exact version, and
@@ -433,7 +433,7 @@ jobs:
       # step is here for the dependency cache it keeps between runs. Naming a
       # version here as well would install a second Gradle that nothing uses,
       # and would be a copy of the version to keep in step with the wrapper.
-      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       # A freshly generated keystore would sign every CI build with a different
       # key, and Android refuses to install an update signed with a different
@@ -604,21 +604,46 @@ jobs:
           path: dist
           retention-days: 14
 
-  # allow adding a PR to the merge queue before its checks pass
-  # currently disabled because the merge queue is disabled
-  # ci-ok-pr:
-  #   name: ${{ github.event_name == 'pull_request' && 'CI OK' || 'CI OK (pull requests only)' }}
-  #   if: github.event_name == 'pull_request'
-  #   runs-on: ubuntu-24.04
-  #   steps:
-  #     - run: exit 0
+  # The merge queue's decision logic is JavaScript rather than Rust, so
+  # ./scripts/verify's three parts do not compile it and cargo nextest does not
+  # run it. It is a few seconds of Node either way, and what it guards is the
+  # thing that decides whether a pull request merges, so it gets a job of its
+  # own and a place in the gate below.
+  merge-queue-tests:
+    name: merge queue tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-  # require checks to actually pass once in the merge queue
-  ci-ok-queue:
-    #name: ${{ github.event_name != 'pull_request' && 'CI OK' || 'CI gate (merge queue only)' }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      # No install step, because there is nothing to install: the queue runs on
+      # the standard library and node:test, so that the code holding the merge
+      # button has no dependency anyone has to keep pinned.
+      - name: Test the merge queue
+        run: node --test --test-reporter=spec '.github/merge-queue/*.test.js'
+
+  # The one check the ruleset on main requires, and the only thing the merge
+  # queue in merge-queue.yml waits for. Everything above is a job this needs,
+  # so requiring this one name requires all of them, and adding a job to the
+  # list above extends the gate without anyone editing the ruleset.
+  #
+  # always(), and nothing else. A job whose `if` is false does not run, and
+  # GitHub reports what did not run as a skipped check run, which a required
+  # status check accepts the same way it accepts a pass. A condition here that
+  # can be false is therefore a gate that opens itself: this job spent a while
+  # carrying `github.event_name != 'pull_request'` and resolved to skipped on
+  # every pull request, which satisfied the rule without reading a single one
+  # of its needs. always() is what makes it run after the needs finish
+  # whatever they did, so that the step below is the thing that decides.
+  ci-ok:
     name: 'CI OK'
-    if: always() && github.event_name != 'pull_request'
-    needs: [workflows, lint, test, plugin-tests, web, plugins, android, native]
+    if: always()
+    needs: [workflows, lint, test, plugin-tests, web, plugins, android, native, merge-queue-tests]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to have passed

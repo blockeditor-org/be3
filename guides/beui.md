@@ -295,8 +295,8 @@ horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
 `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`, `PanZoom`,
-`PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `VirtualList`, and
-`Stack`. `MenuButton` is the button that opens a menu under itself, which is
+`PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
+`VirtualList`, and `Stack`. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was.
@@ -340,16 +340,32 @@ base offset, the input that drives it, the position it reports, and the list
 that puts the bar on the scroll's cross axis, and it takes a `ScrollbarStyle`
 saying what to put there.
 That is the seam the styled layer fills, with a spacing and a builder that is
-handed a `ScrollHandle` of the live `position` and `direction`:
+handed a `ScrollHandle` of the live `position`, the `direction`, and a
+`scroll_to` that drives the offset the way the wheel and the arrow keys do:
 
 ```rust
 ScrollbarStyle::new(SCROLLBAR_SPACING, |handle: ScrollHandle| {
-    let ScrollHandle { position, direction } = handle;
+    let ScrollHandle { position, direction, scroll_to } = handle;
     view! {
-        <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position direction />
+        <Scrollbar
+            @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
+            position
+            direction
+            on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+        />
     }
 })
 ```
+
+The bar answers the pointer itself. `unstyled::Scrollbar` owns that: it takes
+the position, the direction and an `on_scroll_to`, hit-tests the press against
+the thumb it would paint, drags the thumb with the pointer, pages by a viewport
+towards a press on the track either side of it, and hands its content a
+`ScrollbarHandle` of `hovered` and `dragging` so the styled bar can paint those
+states. `thumb_start` and `thumb_length` are the same fractions both layers
+work in, so what is painted and what is pressed cannot drift apart. A press on
+the bar rests whatever momentum a fling left, so the content stops where it is
+put.
 
 Without one the scroll shows no bar, which is what the unstyled layer does on
 its own. A control that scrolls something of its own takes a `ScrollbarStyle`

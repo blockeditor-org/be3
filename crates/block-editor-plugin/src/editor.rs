@@ -609,6 +609,9 @@ impl Editor {
         for record in self.records() {
             record.child.set(self.place_child(document, &record));
         }
+        for rect in document.overlay_rects() {
+            self.0.host.occlude_beui(rect);
+        }
         let node = self.0.content.borrow().as_ref().and_then(NodeRef::try_get);
         let Some(rect) = node.and_then(|node| document.node_rect(node)) else {
             return;
