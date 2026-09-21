@@ -62,6 +62,7 @@ struct Instance {
     block_drags: Vec<(Uuid, Uuid)>,
     block_commands: Vec<(Uuid, BlockCommand)>,
     reported_focus: Option<Focus>,
+    reported_editable: Option<bool>,
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     reported_artifacts: Vec<block_plugin_api::ArtifactState>,
@@ -139,6 +140,7 @@ impl Instance {
             block_drags: Vec::new(),
             block_commands: Vec::new(),
             reported_focus: None,
+            reported_editable: None,
             focus_reports: Vec::new(),
             artifact_watch: None,
             reported_artifacts: Vec::new(),
@@ -575,6 +577,7 @@ impl Instances {
             entry.opened = false;
             entry.deferred.clear();
             entry.reported_focus = None;
+            entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
             entry.fetches.clear();
@@ -631,7 +634,12 @@ impl Instances {
                         account_id,
                         workspace_id,
                         client_id,
-                        editable: client.block_access(block.id) == block::BlockAccess::Edit,
+                        editable: {
+                            let editable =
+                                client.block_access(block.id) == block::BlockAccess::Edit;
+                            entry.reported_editable = Some(editable);
+                            editable
+                        },
                     }),
                     InstanceRole::Creation => Message::Editor(EditorMessage::OpenCreation {
                         instance,
@@ -651,6 +659,16 @@ impl Instances {
                 });
             }
             opened.append(&mut entry.deferred);
+            if let InstanceRole::Editor(block) = entry.role {
+                let editable = client.block_access(block.id) == block::BlockAccess::Edit;
+                if entry.reported_editable != Some(editable) {
+                    entry.reported_editable = Some(editable);
+                    opened.push(Message::Editor(EditorMessage::EditabilityChanged {
+                        instance,
+                        editable,
+                    }));
+                }
+            }
             if entry.reported_focus.as_ref() != Some(&focus) {
                 entry.reported_focus = Some(focus.clone());
                 let (block_id, block_type) = match focus.block {
@@ -659,7 +677,7 @@ impl Instances {
                     }
                     None => (None, [0; 16]),
                 };
-                opened.push(Message::Editor(EditorMessage::Focused {
+                opened.push(Message::Editor(EditorMessage::FocusChanged {
                     instance,
                     block_id,
                     block_type,

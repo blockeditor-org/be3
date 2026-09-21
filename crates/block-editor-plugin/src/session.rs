@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Capability, EditorInstanceId, ErrorCode, Hello, Message, PROTOCOL_VERSION, PluginIdentity,
-    ProtocolError, ScreenId,
+    Capability, Direction, EditorInstanceId, EditorMessage, ErrorCode, Hello, Message,
+    PROTOCOL_VERSION, PluginIdentity, ProtocolError, ScreenId,
 };
 use std::collections::HashSet;
 
@@ -38,6 +38,7 @@ impl ClientSession {
             instances: HashSet::new(),
         }
     }
+
     pub fn state(&self) -> State {
         self.state
     }
@@ -48,120 +49,14 @@ impl ClientSession {
         #[cfg(target_arch = "wasm32")]
         capabilities.push(Capability::Surface);
         Message::Hello(Hello {
-            minimum_version: PROTOCOL_VERSION,
-            maximum_version: PROTOCOL_VERSION,
+            version: PROTOCOL_VERSION,
             plugin: self.plugin.clone(),
             capabilities,
         })
     }
 
     pub fn receive(&mut self, message: Message) -> Vec<Message> {
-        let result = match (&self.state, message) {
-            (State::AwaitingHello, Message::HelloAccepted(accepted))
-                if accepted.version == PROTOCOL_VERSION =>
-            {
-                self.state = State::Running;
-                Ok(Vec::new())
-            }
-            (State::AwaitingHello, Message::HelloRejected(error)) => Err(error.message),
-            (State::Running, Message::Screens(set)) => {
-                if set
-                    .screens
-                    .iter()
-                    .any(|screen| !self.instances.contains(&screen.instance))
-                {
-                    Err("a screen referenced an unopened editor instance".into())
-                } else {
-                    self.screens = set.screens.iter().map(|screen| screen.screen).collect();
-                    Ok(vec![Message::Acknowledged {
-                        request_id: set.request_id,
-                    }])
-                }
-            }
-            (State::Running, Message::Input(input)) if self.screens.contains(&input.screen) => {
-                Ok(Vec::new())
-            }
-            (
-                State::Running,
-                Message::Editor(
-                    block_plugin_api::EditorMessage::Open { instance, .. }
-                    | block_plugin_api::EditorMessage::OpenCreation { instance, .. }
-                    | block_plugin_api::EditorMessage::OpenArtifact { instance, .. },
-                ),
-            ) if !self.instances.contains(&instance) => {
-                self.instances.insert(instance);
-                Ok(vec![Message::Editor(
-                    block_plugin_api::EditorMessage::Acknowledged {
-                        instance,
-                        request_id: 0,
-                    },
-                )])
-            }
-            (
-                State::Running,
-                Message::Editor(
-                    block_plugin_api::EditorMessage::EditabilityChanged { instance, .. }
-                    | block_plugin_api::EditorMessage::Focused { instance, .. }
-                    | block_plugin_api::EditorMessage::PresentingChanged { instance, .. }
-                    | block_plugin_api::EditorMessage::ViewChanged { instance, .. }
-                    | block_plugin_api::EditorMessage::Resized { instance, .. }
-                    | block_plugin_api::EditorMessage::Presence { instance, .. }
-                    | block_plugin_api::EditorMessage::ReplaceChild { instance, .. }
-                    | block_plugin_api::EditorMessage::ChildView { instance, .. }
-                    | block_plugin_api::EditorMessage::ShowBlock { instance, .. }
-                    | block_plugin_api::EditorMessage::ArtifactStates { instance, .. },
-                ),
-            ) if self.instances.contains(&instance) => Ok(Vec::new()),
-            (
-                State::Running,
-                Message::Editor(block_plugin_api::EditorMessage::Close { instance }),
-            ) if self.instances.contains(&instance) => {
-                self.instances.remove(&instance);
-                Ok(vec![Message::Editor(
-                    block_plugin_api::EditorMessage::Acknowledged {
-                        instance,
-                        request_id: 0,
-                    },
-                )])
-            }
-            (State::Running, Message::Client(_)) => Ok(Vec::new()),
-            (State::Running, Message::DrawFrame) => Ok(Vec::new()),
-            (State::Running, Message::BlockTypes(_)) => Ok(Vec::new()),
-            (State::Running, Message::ChildStatuses(statuses))
-                if statuses
-                    .iter()
-                    .all(|status| self.instances.contains(&status.instance)) =>
-            {
-                Ok(Vec::new())
-            }
-            (
-                State::Running,
-                Message::Editor(
-                    block_plugin_api::EditorMessage::DragOver { instance, .. }
-                    | block_plugin_api::EditorMessage::DragLeft { instance }
-                    | block_plugin_api::EditorMessage::FileDrop { instance, .. }
-                    | block_plugin_api::EditorMessage::FileDropLeft { instance }
-                    | block_plugin_api::EditorMessage::CommitCreation { instance }
-                    | block_plugin_api::EditorMessage::FilePicked { instance, .. }
-                    | block_plugin_api::EditorMessage::BlockPicked { instance, .. }
-                    | block_plugin_api::EditorMessage::Fetched { instance, .. }
-                    | block_plugin_api::EditorMessage::WebViewEvent { instance, .. }
-                    | block_plugin_api::EditorMessage::AudioStatus { instance, .. }
-                    | block_plugin_api::EditorMessage::ImagePasted { instance, .. }
-                    | block_plugin_api::EditorMessage::ArtifactSettings { instance, .. }
-                    | block_plugin_api::EditorMessage::RegenerateArtifact { instance, .. },
-                ),
-            ) if self.instances.contains(&instance) => Ok(Vec::new()),
-            (State::Running, Message::Ping { nonce }) => Ok(vec![Message::Pong { nonce }]),
-            (State::Running, Message::Shutdown) => {
-                self.state = State::Closed;
-                Ok(vec![Message::ShutdownAcknowledged])
-            }
-            (State::Closed | State::Failed, _) => Ok(Vec::new()),
-            _ => Err("host message is invalid in the current plugin state".into()),
-        };
-
-        match result {
+        match self.dispatch(message) {
             Ok(messages) => messages,
             Err(message) => {
                 self.state = State::Failed;
@@ -172,6 +67,126 @@ impl ClientSession {
                 })]
             }
         }
+    }
+
+    fn dispatch(&mut self, message: Message) -> Result<Vec<Message>, String> {
+        if matches!(self.state, State::Closed | State::Failed) {
+            return Ok(Vec::new());
+        }
+        if message.direction() == Direction::ToHost {
+            return Err(format!(
+                "the host sent {}, which only a plugin may send",
+                name(&message)
+            ));
+        }
+        match (self.state, message) {
+            (State::AwaitingHello, Message::HelloAccepted(accepted)) => {
+                if accepted.version != PROTOCOL_VERSION {
+                    return Err(format!(
+                        "the host speaks protocol version {} and this plugin speaks {PROTOCOL_VERSION}",
+                        accepted.version
+                    ));
+                }
+                self.state = State::Running;
+                Ok(Vec::new())
+            }
+            (State::AwaitingHello, Message::HelloRejected(error)) => Err(error.message),
+            (State::AwaitingHello, message) => Err(format!(
+                "the host sent {} before accepting this plugin",
+                name(&message)
+            )),
+            (State::Running, Message::Screens(set)) => {
+                if let Some(request) = set
+                    .screens
+                    .iter()
+                    .find(|screen| !self.instances.contains(&screen.instance))
+                {
+                    return Err(format!(
+                        "a screen referenced editor instance {}, which is not open",
+                        request.instance.0
+                    ));
+                }
+                self.screens = set.screens.iter().map(|screen| screen.screen).collect();
+                Ok(vec![Message::Acknowledged {
+                    request_id: set.request_id,
+                }])
+            }
+            (State::Running, Message::Input(input)) => match self.screens.contains(&input.screen) {
+                true => Ok(Vec::new()),
+                false => Err(format!(
+                    "input arrived for screen {}, which this plugin was not given",
+                    input.screen.0
+                )),
+            },
+            (State::Running, Message::ChildStatuses(statuses)) => {
+                match statuses
+                    .iter()
+                    .all(|status| self.instances.contains(&status.instance))
+                {
+                    true => Ok(Vec::new()),
+                    false => Err("a child status named an editor instance that is not open".into()),
+                }
+            }
+            (State::Running, Message::Editor(editor)) => self.editor(editor),
+            (State::Running, Message::Shutdown) => {
+                self.state = State::Closed;
+                Ok(vec![Message::ShutdownAcknowledged])
+            }
+            (State::Running, _) => Ok(Vec::new()),
+            (State::Closed | State::Failed, _) => Ok(Vec::new()),
+        }
+    }
+
+    fn editor(&mut self, message: EditorMessage) -> Result<Vec<Message>, String> {
+        let instance = message.instance();
+        match message {
+            EditorMessage::Open { .. }
+            | EditorMessage::OpenCreation { .. }
+            | EditorMessage::OpenArtifact { .. } => match self.instances.insert(instance) {
+                true => Ok(Vec::new()),
+                false => Err(format!("editor instance {} was opened twice", instance.0)),
+            },
+            EditorMessage::Close { .. } => match self.instances.remove(&instance) {
+                true => Ok(Vec::new()),
+                false => Err(format!(
+                    "editor instance {} was closed without being open",
+                    instance.0
+                )),
+            },
+            _ => match self.instances.contains(&instance) {
+                true => Ok(Vec::new()),
+                false => Err(format!(
+                    "a message named editor instance {}, which is not open",
+                    instance.0
+                )),
+            },
+        }
+    }
+}
+
+fn name(message: &Message) -> &'static str {
+    match message {
+        Message::Hello(_) => "a hello",
+        Message::HelloAccepted(_) => "an accepted hello",
+        Message::HelloRejected(_) => "a rejected hello",
+        Message::Theme(_) => "a theme",
+        Message::Screens(_) => "a screen set",
+        Message::Layout(_) => "a layout",
+        Message::RegionSizes(_) => "region sizes",
+        Message::Frames(_) => "frame reports",
+        Message::Input(_) => "input",
+        Message::DrawFrame => "a draw request",
+        Message::FrameNeeded => "a frame request",
+        Message::FrameReady(_) => "a ready frame",
+        Message::Acknowledged { .. } => "an acknowledgement",
+        Message::Error(_) => "an error",
+        Message::Shutdown => "a shutdown",
+        Message::ShutdownAcknowledged => "a shutdown acknowledgement",
+        Message::Editor(_) => "an editor message",
+        Message::Client(_) => "a client frame",
+        Message::BlockTypes(_) => "block types",
+        Message::Children(_) => "child placements",
+        Message::ChildStatuses(_) => "child statuses",
     }
 }
 

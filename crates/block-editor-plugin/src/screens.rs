@@ -83,6 +83,13 @@ impl Screens {
         self.theme
     }
 
+    fn set_theme(&mut self, theme: block_plugin_api::Theme) {
+        self.theme = match theme.dark {
+            true => egui::Theme::Dark,
+            false => egui::Theme::Light,
+        };
+    }
+
     pub(crate) fn waker(&self) -> Waker {
         self.waker.clone()
     }
@@ -97,12 +104,8 @@ impl Screens {
 
     pub(crate) fn receive(&mut self, message: &Message) -> bool {
         match message {
-            Message::HelloAccepted(accepted) => {
-                self.theme = match accepted.dark_theme {
-                    true => egui::Theme::Dark,
-                    false => egui::Theme::Light,
-                };
-            }
+            Message::HelloAccepted(accepted) => self.set_theme(accepted.theme),
+            Message::Theme(theme) => self.set_theme(*theme),
             Message::Editor(EditorMessage::Open {
                 instance,
                 block_id,
@@ -213,7 +216,7 @@ impl Screens {
                     session.set_editable(*editable);
                 }
             }
-            Message::Editor(EditorMessage::Focused {
+            Message::Editor(EditorMessage::FocusChanged {
                 instance,
                 block_id,
                 block_type,

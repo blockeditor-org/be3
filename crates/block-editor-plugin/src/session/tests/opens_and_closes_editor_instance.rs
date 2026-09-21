@@ -14,26 +14,24 @@ fn opens_and_closes_editor_instance() {
         client_id: [5; 16],
         editable: true,
     }));
-    assert_eq!(
-        opened,
-        vec![Message::Editor(
-            block_plugin_api::EditorMessage::Acknowledged {
-                instance,
-                request_id: 0,
-            }
-        )]
-    );
+    assert_eq!(opened, Vec::new());
+    let resized = session.receive(Message::Editor(block_plugin_api::EditorMessage::Resized {
+        instance,
+        width: 10.0,
+        height: 10.0,
+    }));
+    assert_eq!(resized, Vec::new());
+    assert_eq!(session.state(), State::Running);
     let closed = session.receive(Message::Editor(block_plugin_api::EditorMessage::Close {
         instance,
     }));
-    assert_eq!(
-        closed,
-        vec![Message::Editor(
-            block_plugin_api::EditorMessage::Acknowledged {
-                instance,
-                request_id: 0,
-            }
-        )]
-    );
+    assert_eq!(closed, Vec::new());
     assert_eq!(session.state(), State::Running);
+    let stray = session.receive(Message::Editor(block_plugin_api::EditorMessage::Resized {
+        instance,
+        width: 10.0,
+        height: 10.0,
+    }));
+    assert!(matches!(stray.as_slice(), [Message::Error(_)]));
+    assert_eq!(session.state(), State::Failed);
 }

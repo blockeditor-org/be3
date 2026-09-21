@@ -128,7 +128,7 @@ fn hello_accepted() -> Message {
         version: PROTOCOL_VERSION,
         host_name: "instantiate".to_owned(),
         capabilities: Vec::new(),
-        dark_theme: true,
+        theme: block_plugin_api::Theme { dark: true },
     })
 }
 

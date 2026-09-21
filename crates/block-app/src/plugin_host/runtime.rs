@@ -8,7 +8,7 @@ use std::{
 use block_plugin_api::{
     ArtifactDescription, BlockCommand, BlockPick, Capability, EditorInstanceId, EditorMessage,
     EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, ScreenId,
-    ScreenLayout, ScreenRequest, SessionState, ViewChange,
+    ScreenLayout, ScreenRequest, SessionState, Theme, ViewChange,
 };
 use eframe::egui;
 use uuid::Uuid;
@@ -127,6 +127,7 @@ pub(super) struct Runtime {
     next_slot: u32,
     paint_at: Option<f64>,
     requested_at: Option<f64>,
+    theme: Theme,
 }
 
 impl Runtime {
@@ -155,6 +156,7 @@ impl Runtime {
             next_slot: 0,
             paint_at: None,
             requested_at: None,
+            theme: theme(context),
         }
     }
 
@@ -176,6 +178,7 @@ impl Runtime {
         self.needed = false;
         self.paint_at = None;
         self.requested_at = None;
+        self.theme = theme(&self.context);
         self.instances.reopen();
         self.backend.start(plugin, &self.context);
     }
@@ -189,7 +192,13 @@ impl Runtime {
         self.pass = pass;
         self.next_slot = 0;
         let next = self.instances.next_screens(previous);
-        let mut messages = next.opened;
+        let mut messages = Vec::new();
+        let theme = theme(&self.context);
+        if self.theme != theme {
+            self.theme = theme;
+            messages.push(Message::Theme(theme));
+        }
+        messages.extend(next.opened);
         if self.sent != next.screens {
             self.sent.clone_from(&next.screens);
             messages.push(self.instances.screen_set(next.screens));
@@ -1220,8 +1229,14 @@ fn session(context: &egui::Context) -> HostSession {
             Capability::Input,
             Capability::Surface,
         ],
-        context.global_style().visuals.dark_mode,
+        theme(context),
     )
+}
+
+fn theme(context: &egui::Context) -> Theme {
+    Theme {
+        dark: context.global_style().visuals.dark_mode,
+    }
 }
 
 fn milliseconds(context: &egui::Context) -> u64 {

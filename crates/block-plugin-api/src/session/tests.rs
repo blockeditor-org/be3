@@ -1,14 +1,17 @@
 use super::*;
-use crate::{Hello, Modifiers, PluginIdentity, PointerButton, WheelUnit, encode_frame};
+use crate::{Hello, Modifiers, PluginIdentity, PointerButton, Theme, WheelUnit, encode_frame};
 
 fn session() -> HostSession {
-    HostSession::new("BE3", vec![Capability::Input, Capability::Lifecycle], true)
+    HostSession::new(
+        "BE3",
+        vec![Capability::Input, Capability::Lifecycle],
+        Theme { dark: true },
+    )
 }
 
 fn hello() -> Message {
     Message::Hello(Hello {
-        minimum_version: PROTOCOL_VERSION,
-        maximum_version: PROTOCOL_VERSION,
+        version: PROTOCOL_VERSION,
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),

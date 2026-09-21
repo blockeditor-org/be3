@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, TunnelMessage,
+    EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, Theme, TunnelMessage,
     ViewportMetrics,
 };
 
@@ -9,7 +9,7 @@ fn accept(session: &mut ClientSession) {
         version: PROTOCOL_VERSION,
         host_name: "test host".into(),
         capabilities: vec![Capability::Lifecycle, Capability::Input],
-        dark_theme: true,
+        theme: Theme { dark: true },
     }));
 }
 
@@ -43,9 +43,11 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
     }
 }
 
+mod accepts_a_theme_change_while_running;
 mod accepts_client_responses_after_the_last_instance_closes;
 mod accepts_ordered_lifecycle;
 mod opens_and_closes_editor_instance;
 mod rejects_child_statuses_for_unopened_instances;
+mod rejects_messages_only_a_plugin_may_send;
 mod rejects_out_of_order_messages;
 mod rejects_screens_for_unopened_instances;

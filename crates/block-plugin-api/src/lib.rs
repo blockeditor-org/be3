@@ -7,9 +7,11 @@ mod session;
 pub use manifest::{ManifestDocument, manifest_from_json};
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 50;
+pub const PROTOCOL_VERSION: u16 = 51;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
+pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
+pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
@@ -507,6 +509,13 @@ pub enum EditorMessage {
         via: Vec<[u8; 16]>,
     },
 
+    FocusChanged {
+        instance: EditorInstanceId,
+        block_id: Option<[u8; 16]>,
+        block_type: [u8; 16],
+        via: Vec<[u8; 16]>,
+    },
+
     DragBlock {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -722,15 +731,6 @@ pub enum EditorMessage {
         group: String,
         measurements: Vec<PerformanceMeasurement>,
     },
-    Acknowledged {
-        instance: EditorInstanceId,
-        request_id: u64,
-    },
-    Failure {
-        instance: EditorInstanceId,
-        request_id: Option<u64>,
-        message: String,
-    },
 }
 
 impl EditorMessage {
@@ -748,6 +748,7 @@ impl EditorMessage {
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
             | Self::Focused { instance, .. }
+            | Self::FocusChanged { instance, .. }
             | Self::DragBlock { instance, .. }
             | Self::BlockCommand { instance, .. }
             | Self::DragOver { instance, .. }
@@ -791,9 +792,7 @@ impl EditorMessage {
             | Self::PasteText { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
-            | Self::Performance { instance, .. }
-            | Self::Acknowledged { instance, .. }
-            | Self::Failure { instance, .. } => *instance,
+            | Self::Performance { instance, .. } => *instance,
         }
     }
 }
@@ -1009,6 +1008,7 @@ pub enum Message {
     Hello(Hello),
     HelloAccepted(HelloAccepted),
     HelloRejected(ProtocolError),
+    Theme(Theme),
     Screens(ScreenSet),
     Layout(ScreenLayout),
     RegionSizes(Vec<RegionSize>),
@@ -1018,8 +1018,6 @@ pub enum Message {
     FrameNeeded,
     FrameReady(FrameReady),
     Acknowledged { request_id: u64 },
-    Ping { nonce: u64 },
-    Pong { nonce: u64 },
     Error(ProtocolError),
     Shutdown,
     ShutdownAcknowledged,
@@ -1038,8 +1036,6 @@ impl Message {
                 | Self::HelloAccepted(_)
                 | Self::HelloRejected(_)
                 | Self::Acknowledged { .. }
-                | Self::Ping { .. }
-                | Self::Pong { .. }
                 | Self::Error(_)
                 | Self::Shutdown
                 | Self::ShutdownAcknowledged
@@ -1047,10 +1043,107 @@ impl Message {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Direction {
+    ToPlugin,
+    ToHost,
+    Either,
+}
+
+impl Message {
+    pub fn direction(&self) -> Direction {
+        match self {
+            Self::HelloAccepted(_)
+            | Self::HelloRejected(_)
+            | Self::Theme(_)
+            | Self::Screens(_)
+            | Self::Input(_)
+            | Self::DrawFrame
+            | Self::Shutdown
+            | Self::BlockTypes(_)
+            | Self::ChildStatuses(_) => Direction::ToPlugin,
+            Self::Hello(_)
+            | Self::Acknowledged { .. }
+            | Self::ShutdownAcknowledged
+            | Self::Layout(_)
+            | Self::RegionSizes(_)
+            | Self::Frames(_)
+            | Self::FrameNeeded
+            | Self::FrameReady(_)
+            | Self::Children(_) => Direction::ToHost,
+            Self::Error(_) | Self::Client(_) => Direction::Either,
+            Self::Editor(editor) => editor.direction(),
+        }
+    }
+}
+
+impl EditorMessage {
+    pub fn direction(&self) -> Direction {
+        match self {
+            Self::Open { .. }
+            | Self::OpenCreation { .. }
+            | Self::OpenArtifact { .. }
+            | Self::Close { .. }
+            | Self::Resized { .. }
+            | Self::EditabilityChanged { .. }
+            | Self::ViewChanged { .. }
+            | Self::PresentingChanged { .. }
+            | Self::Presence { .. }
+            | Self::FocusChanged { .. }
+            | Self::ShowBlock { .. }
+            | Self::DragOver { .. }
+            | Self::DragLeft { .. }
+            | Self::FileDrop { .. }
+            | Self::FileDropLeft { .. }
+            | Self::FilePicked { .. }
+            | Self::BlockPicked { .. }
+            | Self::ImagePasted { .. }
+            | Self::Fetched { .. }
+            | Self::AudioStatus { .. }
+            | Self::WebViewEvent { .. }
+            | Self::CommitCreation { .. }
+            | Self::ArtifactSettings { .. }
+            | Self::RegenerateArtifact { .. }
+            | Self::ArtifactStates { .. }
+            | Self::ReplaceChild { .. }
+            | Self::ChildView { .. } => Direction::ToPlugin,
+            Self::OpenBlock { .. }
+            | Self::Focused { .. }
+            | Self::DragBlock { .. }
+            | Self::BlockCommand { .. }
+            | Self::DragAccepted { .. }
+            | Self::PickFile { .. }
+            | Self::PickBlock { .. }
+            | Self::PasteImage { .. }
+            | Self::Fetch { .. }
+            | Self::PlayAudio { .. }
+            | Self::ChangeView { .. }
+            | Self::Present { .. }
+            | Self::LeaveFrame { .. }
+            | Self::GrabCursor { .. }
+            | Self::WebView { .. }
+            | Self::WebViewCommand { .. }
+            | Self::CreationReady { .. }
+            | Self::CreationBlock { .. }
+            | Self::ArtifactDescribed { .. }
+            | Self::ArtifactEdited { .. }
+            | Self::ArtifactRegenerated { .. }
+            | Self::WatchArtifacts { .. }
+            | Self::Cursor { .. }
+            | Self::Ime { .. }
+            | Self::ChildReplaced { .. }
+            | Self::CopyText { .. }
+            | Self::PasteText { .. }
+            | Self::AspectRatio { .. }
+            | Self::IntrinsicSize { .. }
+            | Self::Performance { .. } => Direction::ToHost,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hello {
-    pub minimum_version: u16,
-    pub maximum_version: u16,
+    pub version: u16,
     pub plugin: PluginIdentity,
     pub capabilities: Vec<Capability>,
 }
@@ -1060,7 +1153,12 @@ pub struct HelloAccepted {
     pub version: u16,
     pub host_name: String,
     pub capabilities: Vec<Capability>,
-    pub dark_theme: bool,
+    pub theme: Theme,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Theme {
+    pub dark: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1222,10 +1320,8 @@ pub struct ProtocolError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     UnsupportedVersion,
-    UnsupportedCapability,
     InvalidMessage,
     InvalidState,
-    Timeout,
     Internal,
 }
 
@@ -1290,12 +1386,14 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         Message::Input(value) => {
             collection(value.events.len())?;
             for event in &value.events {
-                if let InputEvent::Key { logical, .. }
-                | InputEvent::Text(logical)
-                | InputEvent::Paste(logical)
-                | InputEvent::Ime(ImeInput::Preedit(logical) | ImeInput::Commit(logical)) = event
-                {
-                    string(logical)?;
+                match event {
+                    InputEvent::Key { logical, .. } => string(logical)?,
+                    InputEvent::Text(value)
+                    | InputEvent::Paste(value)
+                    | InputEvent::Ime(ImeInput::Preedit(value) | ImeInput::Commit(value)) => {
+                        text(value)?
+                    }
+                    _ => {}
                 }
             }
             Ok(())
@@ -1329,6 +1427,9 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             }
             Ok(())
         }
+        Message::Client(
+            TunnelMessage::Request { payload } | TunnelMessage::Response { payload },
+        ) => text(payload),
         Message::Children(value) => validate_children(value),
         Message::ChildStatuses(value) => {
             collection(value.len())?;
@@ -1364,7 +1465,6 @@ fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
 
 fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
-        EditorMessage::Failure { message, .. } => string(message),
         EditorMessage::PickFile { filter, .. } => {
             string(&filter.name)?;
             string(&filter.default_file_name)?;
@@ -1402,10 +1502,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         | EditorMessage::RegenerateArtifact { data, .. } => descriptor(data),
         EditorMessage::FileDrop { files, .. } => {
             collection(files.len())?;
-            strings(files.iter().map(|file| &file.name))
+            for file in files {
+                string(&file.name)?;
+                blob(&file.data)?;
+            }
+            Ok(())
         }
         EditorMessage::ImagePasted { image, .. } => match image {
-            ClipboardImage::Pasted { name, .. } => string(name),
+            ClipboardImage::Pasted { name, data } => string(name).and_then(|()| blob(data)),
             ClipboardImage::Failed(message) => string(message),
             ClipboardImage::Empty => Ok(()),
         },
@@ -1414,7 +1518,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             None => Ok(()),
         },
         EditorMessage::FilePicked { pick, .. } => match pick {
-            FilePick::Chosen { name, .. } => string(name),
+            FilePick::Chosen { name, data } => string(name).and_then(|()| blob(data)),
             FilePick::Failed(message) => string(message),
             FilePick::Cancelled => Ok(()),
         },
@@ -1427,7 +1531,9 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             BlockPick::Failed(message) => string(message),
             BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
         },
-        EditorMessage::Focused { via, .. } => collection(via.len()),
+        EditorMessage::Focused { via, .. } | EditorMessage::FocusChanged { via, .. } => {
+            collection(via.len())
+        }
         EditorMessage::WatchArtifacts { blocks, .. } => collection(blocks.len()),
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
@@ -1439,11 +1545,11 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        EditorMessage::CopyText { text, .. } => string(text),
+        EditorMessage::CopyText { text: value, .. } => text(value),
         EditorMessage::Fetch { url, .. } => string(url),
         EditorMessage::Fetched { result, .. } => match result {
             FetchResult::Failed(message) => string(message),
-            FetchResult::Body(_) => Ok(()),
+            FetchResult::Body(body) => blob(body),
         },
         EditorMessage::WebViewCommand { command, .. } => match command {
             WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
@@ -1483,6 +1589,22 @@ fn collection(length: usize) -> Result<(), DecodeError> {
 fn string(value: &str) -> Result<(), DecodeError> {
     if value.len() > MAX_STRING_BYTES {
         Err(DecodeError::LimitExceeded("string"))
+    } else {
+        Ok(())
+    }
+}
+
+fn text(value: &str) -> Result<(), DecodeError> {
+    if value.len() > MAX_TEXT_BYTES {
+        Err(DecodeError::LimitExceeded("text"))
+    } else {
+        Ok(())
+    }
+}
+
+fn blob(value: &[u8]) -> Result<(), DecodeError> {
+    if value.len() > MAX_BLOB_BYTES {
+        Err(DecodeError::LimitExceeded("blob"))
     } else {
         Ok(())
     }
