@@ -2,22 +2,26 @@ use std::sync::Arc;
 
 use block_client::blocks::text::TextDocument;
 use block_client::{BlockClient, BlockHandle, block_ref::BlockRef, block_url};
-use block_editor_plugin::App as _;
-use block_ui_test::EditorTest;
+use block_editor_plugin::{Editor, EditorHost};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
-use super::{TextApp, image_embed_directive, parse_embeds};
+use crate::app::TextApp;
+use crate::app::embeds::{image_embed_directive, parse_embeds};
+use crate::app::state::parse_markdown_checkboxes;
 
 mod classifies_markdown_image;
 mod foreign_workspace_url_is_not_an_embed;
 mod image_embed_directive_uses_markdown_image;
 mod image_embed_directive_uses_plain_url;
+mod markdown_is_painted_with_its_styles;
 mod parses_markdown_checkboxes;
 mod replacing_a_referenced_block_rewrites_its_url;
 mod switching_to_hex_view_shows_the_bytes;
 mod the_intrinsic_size_follows_the_width_it_was_given;
+mod typing_inserts_text_into_the_document;
 
-fn editor(text: &str) -> (EditorTest<'static, TextApp>, BlockHandle<TextDocument>) {
+fn editor(text: &str) -> (BeuiTest<TextApp>, BlockHandle<TextDocument>) {
     let client = Arc::new(BlockClient::new(ACCOUNT_ID, WORKSPACE_ID));
     let block = client.create_block(TextDocument::new());
     let mut core =
@@ -28,11 +32,11 @@ fn editor(text: &str) -> (EditorTest<'static, TextApp>, BlockHandle<TextDocument
         focus: start,
     });
     core.execute_command(text_editor_core::EditorCommand::InsertText(text.as_bytes()));
-    let mut app = TextApp::default();
-    app.connect(Default::default(), client, block.id());
-    let mut editor = EditorTest::new(app);
-    editor.run();
-    (editor, block)
+
+    let host = EditorHost::default();
+    host.set_editable(true);
+    let editor = Editor::new(host, client, block.id());
+    (BeuiTest::new(editor), block)
 }
 
 fn text(block: &BlockHandle<TextDocument>) -> String {

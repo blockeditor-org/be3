@@ -238,6 +238,13 @@ impl Rect {
         )
     }
 
+    pub fn translate(&self, offset: Vec2) -> Self {
+        Self {
+            min: self.min + offset,
+            max: self.max + offset,
+        }
+    }
+
     pub fn intersects(&self, other: Self) -> bool {
         self.min.x < other.max.x
             && other.min.x < self.max.x

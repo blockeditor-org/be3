@@ -1,5 +1,4 @@
 use super::{Uuid, WORKSPACE_ID, block_url, editor, text};
-use block_editor_plugin::App as _;
 
 #[test]
 fn replacing_a_referenced_block_rewrites_its_url() {
@@ -7,7 +6,7 @@ fn replacing_a_referenced_block_rewrites_its_url() {
     let new = Uuid::from_u128(0x0e00_0000_0000_4000_8000_0000_0000_0002);
     let (mut editor, block) = editor(&format!("see {}\n", block_url(WORKSPACE_ID, old)));
 
-    assert!(editor.app().replace_child(old, new));
+    assert!(editor.replace_child(old, new));
 
     assert_eq!(
         text(&block),

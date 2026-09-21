@@ -87,9 +87,9 @@ packages+=(libgtk-3-dev)
 if full_build; then
     packages+=(libwebkit2gtk-4.1-dev)
 fi
-# beui takes the first font it finds from a fixed list of paths, and DejaVu Sans
-# heads it. With no system font the text in the paint snapshots is not what the
-# accepted ones hold.
+# Nothing the workspace builds reads a system font any more - beui and egui both
+# carry theirs - but the GTK dialogs and the window manager the app runs under
+# still want one, and a machine with no font at all is a confusing one to debug.
 packages+=(fonts-dejavu-core fonts-dejavu-mono)
 # ./scripts/run --smoke starts the app against a virtual display.
 packages+=(xvfb)

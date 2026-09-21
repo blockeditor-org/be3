@@ -55,6 +55,7 @@ impl ChildHost for CanvasNode {
 
 pub(crate) struct CanvasNode {
     view: Option<CanvasView>,
+    size: Vec2,
     items: ChildList<NodeId>,
 }
 
@@ -69,7 +70,7 @@ impl CanvasNode {
 
 impl Element for CanvasNode {
     fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
-        Vec2::ZERO
+        self.size
     }
 
     fn layout(
@@ -210,6 +211,7 @@ impl Document {
     pub(crate) fn create_canvas(&mut self) -> NodeId {
         self.arena.insert(CanvasNode {
             view: None,
+            size: Vec2::ZERO,
             items: ChildList::default(),
         })
     }
@@ -217,6 +219,12 @@ impl Document {
     pub(crate) fn set_canvas_view(&mut self, canvas: NodeId, view: Option<CanvasView>) {
         if self.arena.get_as::<CanvasNode>(canvas).view != view {
             self.arena.get_mut_as::<CanvasNode>(canvas).view = view;
+        }
+    }
+
+    pub(crate) fn set_canvas_size(&mut self, canvas: NodeId, size: Vec2) {
+        if self.arena.get_as::<CanvasNode>(canvas).size != size {
+            self.arena.get_mut_as::<CanvasNode>(canvas).size = size;
         }
     }
 
@@ -279,11 +287,17 @@ impl NodeSlot for CanvasItem {
 #[component]
 pub fn Canvas(
     #[prop(default = None)] view: Prop<Option<CanvasView>>,
+    #[prop(default = 0.0)] width: Prop<f32>,
+    #[prop(default = 0.0)] height: Prop<f32>,
     children: Children<CanvasItem>,
 ) -> NodeId {
     let canvas = with_document(Document::create_canvas);
     children.mount(canvas);
     create_effect(move || with_document(|document| document.set_canvas_view(canvas, view.get())));
+    create_effect(move || {
+        let size = Vec2::new(width.get(), height.get());
+        with_document(|document| document.set_canvas_size(canvas, size));
+    });
     canvas
 }
 

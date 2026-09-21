@@ -125,6 +125,14 @@ pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
     with_document(|document| document.watch_placement(node))
 }
 
+pub fn layout_text(
+    text: &str,
+    font: crate::font::FontId,
+    layout: crate::font::TextLayout,
+) -> Option<crate::font::Galley> {
+    try_with_document(|document| document.layout_text(text, font, layout)).flatten()
+}
+
 pub fn copy_text(text: impl Into<String>) {
     let text = text.into();
     with_document(|document| document.copy_text(text));
