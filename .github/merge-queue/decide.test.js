@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import {
+    FAILED_LABEL,
     LABEL,
     classifyMergeFailure,
     decideComment,
+    decideLabel,
     decideTick,
     hasWriteAccess,
     markerKeyOf,
@@ -32,6 +34,8 @@ function head(overrides = {}) {
         defaultBranch: 'main',
         mergeable: true,
         behindBy: 0,
+        queuedBy: 'dev',
+        queuedByAuthorized: true,
         checks: summarizeChecks(REQUIRED, green()),
         botComments: [],
         ...overrides,
@@ -121,6 +125,40 @@ describe('decideComment', () => {
     it('checks permission before anything else it would act on', () => {
         const action = decideComment({ ...base, permission: 'read', hasLabel: true })
         assert.equal(action.kind, 'reply')
+    })
+})
+
+describe('decideLabel', () => {
+    const base = { label: LABEL, sender: 'dev', permission: 'write', isOwnAction: false }
+
+    it('accepts the label from someone with write access', () => {
+        assert.equal(decideLabel(base).kind, 'accept')
+        assert.equal(decideLabel({ ...base, permission: 'admin' }).kind, 'accept')
+        assert.equal(decideLabel({ ...base, permission: 'maintain' }).kind, 'accept')
+    })
+
+    it('takes the label back off someone who only has triage', () => {
+        const action = decideLabel({ ...base, permission: 'triage' })
+        assert.equal(action.kind, 'reject')
+        assert.match(action.body, /write access/)
+        assert.match(action.body, /@dev/)
+    })
+
+    it('refuses read and none as well', () => {
+        for (const permission of ['read', 'none', undefined]) {
+            assert.equal(decideLabel({ ...base, permission }).kind, 'reject', `${permission} should be refused`)
+        }
+    })
+
+    it('ignores every label but its own', () => {
+        assert.equal(decideLabel({ ...base, label: FAILED_LABEL }).kind, 'ignore')
+        assert.equal(decideLabel({ ...base, label: 'bug' }).kind, 'ignore')
+    })
+
+    it('ignores the label it applied itself, whatever the bot can do', () => {
+        const action = decideLabel({ ...base, isOwnAction: true, permission: 'none' })
+        assert.equal(action.kind, 'ignore')
+        assert.match(action.reason, /itself/)
     })
 })
 
@@ -298,6 +336,41 @@ describe('decideTick', () => {
         assert.match(action.comment.body, /release/)
     })
 
+    it('refuses to merge something labelled by someone without write access', () => {
+        const action = decideTick(state({ queuedBy: 'drive-by', queuedByAuthorized: false }))
+        assert.equal(action.kind, 'dequeue')
+        assert.notEqual(action.failed, true)
+        assert.match(action.comment.body, /@drive-by/)
+        assert.match(action.comment.body, /write access/)
+    })
+
+    it('checks who queued it before anything it would act on', () => {
+        const action = decideTick(state({ queuedByAuthorized: false, mergeable: false, behindBy: 5 }))
+        assert.equal(action.kind, 'dequeue')
+        assert.match(action.reason, /write access/)
+    })
+
+    it('still just unlabels a closed pull request, whoever queued it', () => {
+        assert.equal(decideTick(state({ state: 'closed', queuedByAuthorized: false })).kind, 'unlabel')
+    })
+
+    it('marks a dequeue as a failure so the label says so', () => {
+        const runs = [{ id: 1, name: 'CI OK', status: 'completed', conclusion: 'failure' }]
+        assert.equal(decideTick(state({ checks: summarizeChecks(REQUIRED, runs) })).failed, true)
+        assert.equal(decideTick(state({ mergeable: false })).failed, true)
+        assert.equal(decideTick(state({ baseRef: 'release' })).failed, true)
+    })
+
+    it('does not call a closed or merged pull request a failure', () => {
+        assert.notEqual(decideTick(state({ state: 'closed' })).failed, true)
+        assert.notEqual(decideTick(state({ state: 'closed', merged: true })).failed, true)
+    })
+
+    it('does not call waiting a failure', () => {
+        assert.notEqual(decideTick(state({ behindBy: 2 })).failed, true)
+        assert.notEqual(decideTick(state({ checks: summarizeChecks(REQUIRED, []) })).failed, true)
+    })
+
     it('acts only on the head when several are queued', () => {
         const several = state({}, 3)
         assert.equal(several.queue.length, 3)
@@ -359,7 +432,13 @@ describe('mergeFailureAction', () => {
         const message = 'At least 1 approving review is required by reviewers with write access.'
         const action = mergeFailureAction(7, SHA, 405, message, [])
         assert.equal(action.kind, 'dequeue')
+        assert.equal(action.failed, true)
         assert.match(action.comment.body, /approving review is required/)
+    })
+
+    it('does not mark a lost race as a failure', () => {
+        const action = mergeFailureAction(7, SHA, 409, 'Head branch was modified. Review and try merging again.')
+        assert.notEqual(action.failed, true)
     })
 
     it('does not repeat a dequeue comment it already left', () => {
@@ -371,8 +450,13 @@ describe('mergeFailureAction', () => {
     })
 })
 
-describe('LABEL', () => {
-    it('is the name the workflow and the ruleset docs use', () => {
+describe('the labels', () => {
+    it('are the names the workflow filters on', () => {
         assert.equal(LABEL, 'merge-queue')
+        assert.equal(FAILED_LABEL, 'merge-queue: failed')
+    })
+
+    it('do not collide, so the loop guard in the workflow can tell them apart', () => {
+        assert.notEqual(LABEL, FAILED_LABEL)
     })
 })

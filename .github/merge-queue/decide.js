@@ -5,7 +5,15 @@
 // The split is what makes the queue testable without a repository to run
 // against, and decide.test.js is the whole of the behaviour written down.
 
+// Adding this is how something enters the queue, and it is also the whole of
+// the queue's memory. Removing it is a cancellation, whoever removes it.
 export const LABEL = 'merge-queue'
+
+// Left behind when the queue gives up on a pull request, so that a list of
+// open pull requests says which ones need someone to look at them. It is
+// cleared the moment the author does something about it: a new push, or asking
+// for the queue again.
+export const FAILED_LABEL = 'merge-queue: failed'
 
 // Every comment the queue writes carries one of these, invisible in the
 // rendered body. It is how a stateless tick knows it has already said a thing:
@@ -53,6 +61,26 @@ export function parseCommand(body) {
 // asking for "write or higher" means naming the three that are.
 export function hasWriteAccess(permission) {
     return ['admin', 'maintain', 'write'].includes(permission)
+}
+
+// Applying a label needs triage permission, which is one step below write, so
+// the label on its own is not the authorisation. Anyone who can reach the
+// label can be told no, and the label taken back off.
+export function decideLabel(input) {
+    const { label, sender, permission, isOwnAction } = input
+
+    if (label !== LABEL) return { kind: 'ignore', reason: `${label} is not the queue's label` }
+    if (isOwnAction) return { kind: 'ignore', reason: 'this queue applied the label itself' }
+
+    if (!hasWriteAccess(permission)) {
+        return {
+            kind: 'reject',
+            reason: `@${sender} has ${permission ?? 'no'} permission`,
+            body: `@${sender}, the merge queue only takes pull requests from people with write access to this repository, so this label has been removed.`,
+        }
+    }
+
+    return { kind: 'accept', reason: `queued by @${sender}` }
 }
 
 export function decideComment(input) {
@@ -213,12 +241,32 @@ export function decideTick(state) {
         return { kind: 'unlabel', number, reason: `the pull request is ${head.state}` }
     }
 
+    // Checked here and not only when the label goes on, because the label is
+    // what the queue reads and the label outlives the event that applied it.
+    // A labelled pull request whose labelling event was never processed - the
+    // run failed, the app token step failed, the webhook was never delivered -
+    // would otherwise be merged by the next scheduled tick on nobody's
+    // authority. This is the check that actually gates a merge.
+    if (!head.queuedByAuthorized) {
+        return {
+            kind: 'dequeue',
+            number,
+            reason: `@${head.queuedBy ?? 'someone'} does not have write access`,
+            comment: once(
+                head.botComments,
+                `dequeued-unauthorized-${head.queuedBy}`,
+                `Removed from the merge queue: the \`${LABEL}\` label was applied by @${head.queuedBy ?? 'someone'}, who does not have write access to this repository.`,
+            ),
+        }
+    }
+
     // The queue merges into one branch and reads one branch's rules. A pull
     // request aimed anywhere else would be measured against the wrong checks.
     if (head.baseRef !== head.defaultBranch) {
         return {
             kind: 'dequeue',
             number,
+            failed: true,
             reason: `targets ${head.baseRef}, not ${head.defaultBranch}`,
             comment: once(
                 head.botComments,
@@ -232,6 +280,7 @@ export function decideTick(state) {
         return {
             kind: 'dequeue',
             number,
+            failed: true,
             reason: 'conflicts with the base branch',
             comment: once(
                 head.botComments,
@@ -281,6 +330,7 @@ export function decideTick(state) {
         return {
             kind: 'dequeue',
             number,
+            failed: true,
             reason: `required checks failed: ${checks.failed.map((failure) => failure.name).join(', ')}`,
             comment: once(
                 head.botComments,
@@ -335,6 +385,7 @@ export function mergeFailureAction(number, headSha, status, message, botComments
     return {
         kind: 'dequeue',
         number,
+        failed: true,
         reason: `the merge call was refused (${status}: ${message})`,
         comment: once(
             botComments,

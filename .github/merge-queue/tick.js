@@ -16,8 +16,11 @@ import { setTimeout as sleep } from 'node:timers/promises'
 
 import { ApiError, GitHub } from './github.js'
 import {
+    FAILED_LABEL,
     LABEL,
     decideComment,
+    decideLabel,
+    hasWriteAccess,
     decideTick,
     markerKeyOf,
     mergeFailureAction,
@@ -113,14 +116,29 @@ async function getRequiredChecks(branch) {
 
 // The order the labels were applied in is the queue, and the issue events API
 // is where that is written down.
-async function labeledAt(number) {
+// The same scan answers both questions the queue asks about a label: when it
+// went on, which is the order, and who put it there, which is the authority.
+// The second is free here, where asking the API who labelled something
+// otherwise is not.
+async function labelApplication(number) {
     const events = await github.paginate(github.repoPath(`/issues/${number}/events`))
-    let when = null
+    let application = null
     for (const entry of events) {
-        if (entry.event === 'labeled' && entry.label?.name === LABEL) when = entry.created_at
-        if (entry.event === 'unlabeled' && entry.label?.name === LABEL) when = null
+        if (entry.event === 'labeled' && entry.label?.name === LABEL) {
+            application = { at: entry.created_at, by: entry.actor?.login ?? null }
+        }
+        if (entry.event === 'unlabeled' && entry.label?.name === LABEL) application = null
     }
-    return when
+    return application
+}
+
+// The bot labels a pull request only after decideComment has approved the
+// person who asked, so its own labelling carries that approval forward rather
+// than being an unattributable one.
+async function authorizedToQueue(login) {
+    if (!login) return false
+    if (botLogin && login === botLogin) return true
+    return hasWriteAccess(await permissionOf(login))
 }
 
 async function getQueue() {
@@ -128,10 +146,12 @@ async function getQueue() {
     const entries = []
     for (const issue of issues) {
         if (!issue.pull_request) continue
+        const application = await labelApplication(issue.number)
         entries.push({
             number: issue.number,
             title: issue.title,
-            labeledAt: (await labeledAt(issue.number)) ?? issue.updated_at,
+            labeledAt: application?.at ?? issue.updated_at,
+            labeledBy: application?.by ?? null,
         })
     }
     return orderQueue(entries)
@@ -177,6 +197,8 @@ async function hydrate(entry, defaultBranch, required) {
         defaultBranch,
         mergeable: pullRequest.mergeable,
         behindBy: comparison ? comparison.behind_by : null,
+        queuedBy: entry.labeledBy,
+        queuedByAuthorized: await authorizedToQueue(entry.labeledBy),
         checks: summarizeChecks(required, checkRuns, combined?.statuses ?? []),
         botComments: await botCommentKeys(entry.number),
     }
@@ -184,26 +206,37 @@ async function hydrate(entry, defaultBranch, required) {
 
 // --- writing to the world -------------------------------------------------
 
-async function ensureLabel() {
-    const existing = await github.getOrNull(github.repoPath(`/labels/${encodeURIComponent(LABEL)}`))
-    if (existing) return
-    log(`creating the ${LABEL} label`)
-    await github.request('POST', github.repoPath('/labels'), {
-        body: { name: LABEL, color: '1f6feb', description: 'Queued to merge into the default branch' },
-    })
+const LABELS = [
+    { name: LABEL, color: '1f6feb', description: 'Queued to merge into the default branch' },
+    { name: FAILED_LABEL, color: 'd73a4a', description: 'The merge queue gave up on this; see the latest comment' },
+]
+
+async function ensureLabels() {
+    for (const label of LABELS) {
+        const existing = await github.getOrNull(github.repoPath(`/labels/${encodeURIComponent(label.name)}`))
+        if (existing) continue
+        log(`creating the ${label.name} label`)
+        await github.request('POST', github.repoPath('/labels'), { body: label })
+    }
 }
 
-async function addLabel(number) {
-    await github.request('POST', github.repoPath(`/issues/${number}/labels`), { body: { labels: [LABEL] } })
+async function addLabel(number, name = LABEL) {
+    await github.request('POST', github.repoPath(`/issues/${number}/labels`), { body: { labels: [name] } })
 }
 
-async function removeLabel(number) {
+async function removeLabel(number, name = LABEL) {
     try {
-        await github.request('DELETE', github.repoPath(`/issues/${number}/labels/${encodeURIComponent(LABEL)}`))
+        await github.request('DELETE', github.repoPath(`/issues/${number}/labels/${encodeURIComponent(name)}`))
     } catch (error) {
         if (error instanceof ApiError && error.status === 404) return
         throw error
     }
+}
+
+// The failure label answers "does this need me?" in a list of pull requests,
+// so it stops being true the moment its author does something about it.
+async function clearFailed(number) {
+    await removeLabel(number, FAILED_LABEL)
 }
 
 async function comment(number, body) {
@@ -217,6 +250,21 @@ async function react(commentId) {
 }
 
 // --- the comment commands -------------------------------------------------
+
+// The queue's own update-branch call and its own labelling both arrive back
+// as events, and acting on them would mean undoing what was just done: every
+// branch update would dequeue what it updated, and every label the queue
+// applied would be checked against a bot's permissions and taken off again.
+// When the app's own login is unknown, any bot gets the benefit of the doubt
+// rather than none.
+function isOwnAction() {
+    const sender = event.sender?.login ?? ''
+    if (!botLogin) {
+        log('WARNING: MERGE_QUEUE_APP_SLUG is not set, so this queue cannot tell its own actions from other bots.')
+        return event.sender?.type === 'Bot'
+    }
+    return sender === botLogin
+}
 
 async function permissionOf(login) {
     const result = await github.getOrNull(github.repoPath(`/collaborators/${encodeURIComponent(login)}/permission`))
@@ -261,11 +309,47 @@ async function handleComment() {
 
     await react(event.comment.id)
 
-    if (action.kind === 'enqueue') await addLabel(issue.number)
+    if (action.kind === 'enqueue') {
+        await clearFailed(issue.number)
+        await addLabel(issue.number)
+    }
     if (action.kind === 'cancel') {
         await removeLabel(issue.number)
         await comment(issue.number, action.body)
     }
+}
+
+// Adding the label is what puts a pull request in the queue, so this is where
+// the permission check for that lives. The label itself cannot be the
+// authorisation: applying one needs triage permission, which is a step below
+// the write access the queue asks for.
+async function handleLabeled() {
+    heading('label')
+
+    const pullRequest = event.pull_request ?? {}
+    const label = event.label?.name ?? ''
+    const sender = event.sender?.login ?? 'someone'
+
+    const action = decideLabel({
+        label,
+        sender,
+        permission: isOwnAction() ? null : await permissionOf(sender),
+        isOwnAction: isOwnAction(),
+    })
+
+    log(`#${pullRequest.number} ${label} added by @${sender}`)
+    log(`-> ${action.kind}: ${action.reason}`)
+
+    if (action.kind === 'ignore') return
+
+    if (action.kind === 'reject') {
+        await removeLabel(pullRequest.number)
+        await comment(pullRequest.number, action.body)
+        return true
+    }
+
+    await clearFailed(pullRequest.number)
+    return false
 }
 
 // A human pushing to a queued branch has changed what the queue was about to
@@ -280,24 +364,18 @@ async function handleSynchronize() {
     const hasLabel = (pullRequest.labels ?? []).some((label) => label.name === LABEL)
 
     if (!hasLabel) {
-        log(`#${pullRequest.number} is not queued; nothing to do`)
+        log(`#${pullRequest.number} is not queued; clearing any failure label`)
+        await clearFailed(pullRequest.number)
         return
     }
-    // The queue's own update-branch call arrives here as a push by the app.
-    // Failing to recognise it would make every update dequeue the thing it
-    // just updated, so when the app's own login is unknown, any bot gets the
-    // benefit of the doubt rather than none.
-    const isOwnPush = botLogin ? sender === botLogin : event.sender?.type === 'Bot'
-    if (!botLogin) {
-        log('WARNING: MERGE_QUEUE_APP_SLUG is not set, so pushes by this queue cannot be told from other bots.')
-    }
-    if (isOwnPush) {
+    if (isOwnAction()) {
         log(`#${pullRequest.number} was updated by ${sender}, which is this queue; keeping it queued`)
         return
     }
 
     log(`#${pullRequest.number} got new commits from @${sender}; dequeueing`)
     await removeLabel(pullRequest.number)
+    await clearFailed(pullRequest.number)
     await comment(
         pullRequest.number,
         `Removed from the merge queue: @${sender} pushed new commits while it was queued. Comment \`/merge\` again when it is ready.`,
@@ -347,6 +425,7 @@ async function merge(action, head) {
         log(`-> ${outcome.kind}: ${outcome.reason}`)
         if (outcome.kind === 'dequeue') {
             await removeLabel(outcome.number)
+            if (outcome.failed) await addLabel(outcome.number, FAILED_LABEL)
             if (outcome.comment) await comment(outcome.number, outcome.comment.body)
         }
         return
@@ -367,6 +446,7 @@ async function perform(action, head) {
             return
         case 'dequeue':
             await removeLabel(action.number)
+            if (action.failed) await addLabel(action.number, FAILED_LABEL)
             if (action.comment) await comment(action.number, action.comment.body)
             return
         case 'update-branch':
@@ -412,6 +492,7 @@ async function tick() {
     const head = await hydrate(queue[0], defaultBranch, required)
 
     log(`head of queue: #${head.number} at ${head.headSha}`)
+    log(`  queued by @${head.queuedBy ?? 'unknown'} (authorized: ${head.queuedByAuthorized})`)
     log(`  state=${head.state} merged=${head.merged} mergeable=${head.mergeable} behind=${head.behindBy}`)
     log(`  checks=${head.checks.state}`)
     if (head.checks.failed.length > 0) {
@@ -432,9 +513,18 @@ async function main() {
 
     log(`merge queue: ${owner}/${repo}, triggered by ${eventName}`)
 
-    await ensureLabel()
+    await ensureLabels()
 
     if (eventName === 'issue_comment') await handleComment()
+    if (eventName === 'pull_request_target' && event.action === 'labeled') {
+        // The label was taken back off a moment ago, and the endpoint that
+        // lists labelled pull requests does not necessarily know that yet.
+        // Ticking now risks acting on the very thing that was just refused.
+        if (await handleLabeled()) {
+            log('the label was refused; leaving the tick to the next event')
+            return
+        }
+    }
     if (eventName === 'pull_request_target' && event.action === 'synchronize') await handleSynchronize()
 
     await cleanupClosed()

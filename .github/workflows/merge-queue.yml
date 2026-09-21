@@ -1,9 +1,26 @@
 # A serial merge queue, without GitHub's.
 #
-# Someone with write access comments `/merge` on a pull request; it gets the
-# merge-queue label and waits its turn. The queue merges one at a time, and
-# nothing merges unless its required checks passed on a head that already
-# contains the current main. `/merge cancel` takes it back out.
+# Someone with write access puts the merge-queue label on a pull request and it
+# waits its turn. The queue merges one at a time, and nothing merges unless its
+# required checks passed on a head that already contains the current main.
+# Taking the label off takes it back out.
+#
+# `/merge` and `/merge cancel` are comments that do the same two things, for
+# anyone who would rather type than reach for the label menu. The label is the
+# state either way: the comment only puts it on or takes it off.
+#
+# Two labels, so that a list of open pull requests reads as a queue:
+#
+#   merge-queue           in the queue, waiting its turn or being worked on
+#   merge-queue: failed   the queue gave up; the reason is the latest comment
+#
+# The failure label is cleared as soon as its author pushes again or asks for
+# the queue again, so it never outlives the thing it is describing. Both labels
+# are created on the first run if they do not exist.
+#
+# Applying a label needs triage permission, which is a step below the write
+# access the queue asks for, so the label is not the authorisation: a label
+# added by someone without write access is removed again with a comment.
 #
 # Every run of this workflow is one "tick": .github/merge-queue/tick.js reads
 # the whole state of the queue from the API and takes at most one action. It
@@ -67,11 +84,13 @@ on:
   push:
     branches: [main]
 
-  # synchronize is a push to a pull request branch, which for a queued one
-  # means a person changed what the queue was about to merge. closed is the
-  # queue's own merges and anyone else's.
+  # labeled is the queue's front door: adding merge-queue is what puts a pull
+  # request in it, and unlabeled is how anyone takes it back out. synchronize
+  # is a push to a pull request branch, which for a queued one means a person
+  # changed what the queue was about to merge. closed is the queue's own merges
+  # and anyone else's.
   pull_request_target:
-    types: [closed, synchronize]
+    types: [closed, synchronize, labeled, unlabeled]
 
   # The safety net. Webhooks are delivered once and at most once, and a tick
   # that is never triggered is a queue that quietly stops.
@@ -99,12 +118,21 @@ jobs:
     name: tick
     runs-on: ubuntu-24.04
 
-    # Most comments on this repository are not commands, and spinning a runner
-    # to find that out is a minute of queue latency for everyone else.
+    # Two filters, both of them about not starting a runner for nothing.
+    #
+    # Most comments on this repository are not commands, and finding that out
+    # on a runner is a minute of queue latency for everyone else.
+    #
+    # The label filter also closes a loop: dequeueing a pull request adds the
+    # failure label, which is itself a labeled event. github.event.label is
+    # only set for labeled and unlabeled, so closed and synchronize fall
+    # through it untouched.
     if: >-
-      github.event_name != 'issue_comment' ||
-      (github.event.issue.pull_request != null &&
-       contains(github.event.comment.body, '/merge'))
+      (github.event_name != 'issue_comment' ||
+       (github.event.issue.pull_request != null &&
+        contains(github.event.comment.body, '/merge'))) &&
+      (github.event.label == null ||
+       github.event.label.name == 'merge-queue')
 
     steps:
       # Asked for by name rather than taken wholesale. An installation token
