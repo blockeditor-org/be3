@@ -20,7 +20,7 @@ use crate::unstyled::{
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
-const TAB_PADDING_VERTICAL: f32 = 6.0;
+const TAB_HEIGHT: f32 = 33.0;
 const TAB_SPACING: f32 = 6.0;
 const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 4.0;
@@ -154,8 +154,8 @@ fn DockTabChrome(
         <Frame
             color={fill}
             radius=RADIUS
+            height=TAB_HEIGHT
             padding_horizontal=TAB_PADDING_HORIZONTAL
-            padding_vertical=TAB_PADDING_VERTICAL
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             outline_offset=1.0
@@ -354,8 +354,8 @@ fn DockDragPreview(title: Prop<String>) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             outline_visible=true
             radius=RADIUS
+            height=TAB_HEIGHT
             padding_horizontal=PREVIEW_PADDING
-            padding_vertical=TAB_PADDING_VERTICAL
         >
             <Body content={title} />
         </Frame>
