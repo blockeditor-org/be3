@@ -145,7 +145,7 @@ jobs:
       # that is satisfied by metadata: read, which every installation token
       # carries. Asking for a permission the installation does not hold fails
       # this step outright, so it is not asked for.
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@v3
         id: app-token
         with:
           app-id: ${{ secrets.MERGE_QUEUE_APP_ID }}
@@ -169,7 +169,7 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
 
