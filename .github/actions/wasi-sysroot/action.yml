@@ -1,0 +1,36 @@
+name: Cache the WASI sysroot
+description: >-
+  Restores the WASI sysroot a previous run downloaded, so that a job does not
+  have to fetch it from a release asset which intermittently answers 504.
+
+# Only target/tools/wasi-sysroot is cached, not the whole of target/tools. The
+# directory is shared with every other tool a job downloads, and a cache saved
+# under this key with all of that in it would be restored into the two other
+# jobs that use this action as well, handing each of them whatever the first
+# one to finish happened to have on disk.
+runs:
+  using: composite
+  steps:
+    # The key comes out of the build script rather than being repeated here,
+    # for the same reason the toolchain action reads the channel out of
+    # rust-toolchain.toml: two copies of a version are one copy and a bug. The
+    # hash of the archive is what it is keyed on rather than the SDK version,
+    # so that a repin the version number does not capture - a rebuilt release
+    # under the same tag - still misses this cache.
+    - id: pin
+      shell: bash
+      run: |
+        sha256="$(sed -n "s/^wasi_sysroot_sha256='\(.*\)'$/\1/p" scripts/internal/common.sh)"
+        if [ -z "$sha256" ]; then
+          echo 'scripts/internal/common.sh pins no WASI sysroot hash' >&2
+          exit 1
+        fi
+        echo "key=wasi-sysroot-$sha256" >> "$GITHUB_OUTPUT"
+
+    # A download that fails leaves nothing at this path, so a run that could
+    # not reach the sysroot saves no cache entry and the next one tries again,
+    # rather than this key existing forever with nothing useful under it.
+    - uses: actions/cache@v6
+      with:
+        path: target/tools/wasi-sysroot
+        key: ${{ steps.pin.outputs.key }}

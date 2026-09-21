@@ -265,6 +265,9 @@ children adds `align=Align::Center`; a one-line alias per combination is what
 `Row`, `Column` and `CenteredRow` were, and reading the props beats remembering
 which names exist. `Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node.
+Its `width`, `max_width`, `height` and `aspect_ratio` each take an optional
+measurement, so a signal behind one can hand it back to nothing and leave that
+axis measuring intrinsically again.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal
@@ -292,15 +295,21 @@ horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
 `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`, `PanZoom`,
-`PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `VirtualList`, and
-`Stack`. `MenuButton` is the button that opens a menu under itself, which is
+`PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
+`VirtualList`, and `Stack`. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
-progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout. A control that can be turned off -
+progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout.
+`Separator` is the rule between them: it runs `Direction::Horizontal` unless the
+tag says otherwise, takes a line's thickness across its `direction` and the
+space its list gives it along it, so a divider in a row is
+`<Separator direction=Direction::Vertical />` and neither needs an `@sizing`.
+A `length` pins the long axis for a row that centres its children rather than
+stretching them. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen
@@ -331,16 +340,32 @@ base offset, the input that drives it, the position it reports, and the list
 that puts the bar on the scroll's cross axis, and it takes a `ScrollbarStyle`
 saying what to put there.
 That is the seam the styled layer fills, with a spacing and a builder that is
-handed a `ScrollHandle` of the live `position` and `direction`:
+handed a `ScrollHandle` of the live `position`, the `direction`, and a
+`scroll_to` that drives the offset the way the wheel and the arrow keys do:
 
 ```rust
 ScrollbarStyle::new(SCROLLBAR_SPACING, |handle: ScrollHandle| {
-    let ScrollHandle { position, direction } = handle;
+    let ScrollHandle { position, direction, scroll_to } = handle;
     view! {
-        <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position direction />
+        <Scrollbar
+            @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
+            position
+            direction
+            on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+        />
     }
 })
 ```
+
+The bar answers the pointer itself. `unstyled::Scrollbar` owns that: it takes
+the position, the direction and an `on_scroll_to`, hit-tests the press against
+the thumb it would paint, drags the thumb with the pointer, pages by a viewport
+towards a press on the track either side of it, and hands its content a
+`ScrollbarHandle` of `hovered` and `dragging` so the styled bar can paint those
+states. `thumb_start` and `thumb_length` are the same fractions both layers
+work in, so what is painted and what is pressed cannot drift apart. A press on
+the bar rests whatever momentum a fling left, so the content stops where it is
+put.
 
 Without one the scroll shows no bar, which is what the unstyled layer does on
 its own. A control that scrolls something of its own takes a `ScrollbarStyle`

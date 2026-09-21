@@ -225,11 +225,7 @@ jobs:
         with:
           tool: cargo-nextest
 
-      - name: Cache the WASI sysroot
-        uses: actions/cache@v6
-        with:
-          path: target/tools
-          key: wasi-sysroot-33
+      - uses: ./.github/actions/wasi-sysroot
 
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
@@ -283,11 +279,7 @@ jobs:
         with:
           tool: wasm-bindgen-cli@0.2.122
 
-      - name: Cache the WASI sysroot
-        uses: actions/cache@v6
-        with:
-          path: target/tools
-          key: wasi-sysroot-33
+      - uses: ./.github/actions/wasi-sysroot
 
       # The app links libghostty-vt, the terminal emulator behind the debug
       # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
@@ -346,11 +338,7 @@ jobs:
 
       - uses: ./.github/actions/sccache
 
-      - name: Cache the WASI sysroot
-        uses: actions/cache@v6
-        with:
-          path: target/tools
-          key: wasi-sysroot-33
+      - uses: ./.github/actions/wasi-sysroot
 
       - run: ./scripts/build --target plugins --release --output dist
 

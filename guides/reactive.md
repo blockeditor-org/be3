@@ -357,9 +357,19 @@ omissions.
 fn Badge(
     label: Prop<String>,                                  // required
     #[prop(default = Color32::WHITE)] color: Prop<Color32>, // optional, with a default
+    #[prop(default = None)] width: Prop<Option<f32>>,     // optional, and can clear itself
     tooltip: Option<Prop<String>>,                        // optional, absence is visible
 ) -> NodeId
 ```
+
+`Option<Prop<T>>` settles at build time: the tag either wrote the attribute or
+it did not, and a signal behind it can only ever hand over another `T`. A prop
+that has to go back to "nothing" while it is alive — a `Frame` whose `width`
+stops constraining it and leaves it measuring intrinsically again — is
+`Prop<Option<T>>` with `#[prop(default = None)]` instead. Its attribute takes a
+plain `T` or a signal of one and lifts it into `Some`, as well as an
+`Option<T>` or a signal of one written out in full, so `width=TRIGGER_WIDTH`
+and `width={maybe_width}` are both that same prop.
 
 The base elements and the structural primitives that insert and remove nodes for
 a living — `show`, `dynamic`, `keyed`, `for_each`, `virtual_list` — are the only code that
@@ -610,7 +620,7 @@ that reads `narrower_than` and returns `ItemSize::Fixed` in a column where it
 returned `ItemSize::Percent` in a row, for instance.
 
 ```rust
-<Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+<Toolbar @sizing=ItemSize::Fixed(TOOLBAR_HEIGHT) />
 <Caption @sizing=ItemSize::Percent(100.0) content=count_text align=TextAlign::End />
 <Card @sizing={rows_size}>
 ```

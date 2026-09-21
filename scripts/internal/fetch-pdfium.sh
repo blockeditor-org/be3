@@ -76,17 +76,6 @@ case "$triple" in
 esac
 library_name="$(basename "$library_path")"
 
-# macOS has shasum rather than sha256sum; both read a "hash  path" pair from
-# stdin in the same format, so which one is picked only changes the command.
-hash_of() {
-    if command -v sha256sum > /dev/null; then
-        sha256sum "$1" | cut -d ' ' -f 1
-    else
-        assert_command shasum 'Install coreutils (sha256sum) or shasum.'
-        shasum -a 256 "$1" | cut -d ' ' -f 1
-    fi
-}
-
 mkdir -p "$output"
 destination="$output/$library_name"
 if [[ -f "$destination" ]]; then
@@ -103,15 +92,11 @@ if [[ ! -f "$extract_directory/$library_path" ]]; then
     mkdir -p "$tools_directory"
     archive="$tools_directory/$asset.tgz"
     url="https://github.com/bblanchon/pdfium-binaries/releases/download/$pdfium_release/$asset.tgz"
+    # The asset name repeats across releases, so the mirror qualifies it with
+    # the release it came out of; see download_mirror in common.sh.
+    mirror="$download_mirror/$asset-${pdfium_release//\//-}.tgz"
     echo "Downloading PDFium from $url..."
-    curl --fail --location --output "$archive" "$url"
-
-    actual_sha256="$(hash_of "$archive")"
-    if [[ "$actual_sha256" != "$sha256" ]]; then
-        rm -f "$archive"
-        echo "$asset.tgz has sha256 $actual_sha256, expected $sha256" >&2
-        exit 1
-    fi
+    download_verified "$url" "$archive" "$sha256" "$mirror"
 
     rm -rf "$extract_directory"
     mkdir -p "$extract_directory"

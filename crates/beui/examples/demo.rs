@@ -4,7 +4,7 @@ use beui::reactive::{
     Selector, Show, Spacer, Text, WriteSignal, build, clone, create_memo, create_selector,
     create_signal, view,
 };
-use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SEPARATOR_HEIGHT};
+use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
     Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
@@ -35,6 +35,7 @@ const SHORT_HEIGHT: f32 = 900.0;
 const CARD_NARROW_WIDTH: f32 = 460.0;
 const TABS_NARROW_WIDTH: f32 = 380.0;
 const ICON_BUTTON_WIDTH: f32 = 44.0;
+const TOOLBAR_RULE_LENGTH: f32 = 20.0;
 const ROW_COUNT: usize = 10_000;
 const CRAMPED_ROWS_HEIGHT: f32 = 320.0;
 const ROW_HEIGHT: f32 = 34.0;
@@ -229,7 +230,7 @@ fn DemoShell(count: ReadSignal<i64>, set_count: WriteSignal<i64>) -> NodeId {
     view! {
         <List spacing=0.0>
             <DemoHeader @sizing={header_height} set_count />
-            <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+            <Separator />
             <DemoBody @sizing=ItemSize::Percent(100.0) count />
         </List>
     }
@@ -361,7 +362,7 @@ fn Sidebar() -> NodeId {
                          components compose them, and the styled components paint them."
                     />
                 </Accordion>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <Accordion title="Keyboard" open={keyboard_open}>
                     <List spacing=12.0>
                         <Shortcut keys="Tab" description="move focus to the next control" />
@@ -426,7 +427,7 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                             align=TextAlign::End
                         />
                     </List>
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Separator />
                     <VirtualList
                         @sizing=ItemSize::Percent(100.0)
                         count=ROW_COUNT
@@ -462,6 +463,7 @@ fn CanvasCard() -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                     <Heading @sizing=ItemSize::Percent(100.0) content="Canvas" />
                     <Caption content={zoom_label} />
+                    <Separator direction=Direction::Vertical length=TOOLBAR_RULE_LENGTH />
                     <Button
                         @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
                         label="-"
@@ -480,7 +482,7 @@ fn CanvasCard() -> NodeId {
                         on_click={move || set_stage_view.set(STAGE_VIEW)}
                     />
                 </List>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <CanvasStage
                     @sizing=ItemSize::Percent(100.0)
                     view={stage_view}
