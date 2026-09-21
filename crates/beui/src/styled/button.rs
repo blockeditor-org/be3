@@ -7,8 +7,8 @@ use crate::node::NodeId;
 use crate::reactive::{
     Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
 };
-use crate::styled::text::IconSized;
-use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, ThemeStore, use_theme};
+use crate::styled::text::Icon;
+use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
 
 const GLYPH_SPACING: f32 = 6.0;
@@ -129,7 +129,7 @@ pub(crate) fn ButtonFace(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>
-                        <IconSized glyph={glyph_text} font_size=ICON_SIZE color={icon_color} />
+                        <Icon glyph={glyph_text} color={icon_color} />
                     </Show>
                     <Text
                         string={label}
@@ -138,7 +138,7 @@ pub(crate) fn ButtonFace(
                         align=TextAlign::Center
                     />
                     <Show condition={has_trailing}>
-                        <IconSized glyph={trailing} font_size=ICON_SIZE color={trailing_color} />
+                        <Icon glyph={trailing} color={trailing_color} />
                     </Show>
                 </List>
             </Frame>

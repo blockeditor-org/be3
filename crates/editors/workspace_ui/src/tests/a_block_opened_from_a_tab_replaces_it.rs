@@ -2,18 +2,24 @@ use super::*;
 
 #[test]
 fn a_block_opened_from_a_tab_replaces_it() {
-    let (mut editor, host, opened) = editor();
+    let (mut fixture, opened) = editor();
     let linked = Uuid::new_v4();
 
-    host.show_block(opened, FileTree::TYPE_ID, None, None);
-    editor.step();
-    host.show_block(linked, FileTree::TYPE_ID, None, Some(opened));
-    editor.step();
+    show(&mut fixture, opened, None, None);
+    show(&mut fixture, linked, None, Some(opened));
 
-    assert_eq!(editor.app().open_blocks(), vec![linked]);
+    assert_eq!(
+        fixture.shown(),
+        vec![linked],
+        "a block opened from a tab takes that tab over"
+    );
 
-    editor.find("workspace.back").click();
-    editor.step();
-    editor.step();
-    assert_eq!(editor.app().open_blocks(), vec![opened]);
+    fixture.test.click("workspace.back");
+    fixture.settle();
+
+    assert_eq!(
+        fixture.shown(),
+        vec![opened],
+        "the tab it replaced is still behind it in the history"
+    );
 }

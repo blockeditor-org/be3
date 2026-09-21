@@ -1125,6 +1125,11 @@ impl EditorHost {
         child
     }
 
+    pub fn occlude_beui(&self, rect: beui::Rect) {
+        let ratio = self.beui.get().ratio;
+        self.occlude(host_rect(rect, ratio));
+    }
+
     pub fn child_status(&self, child: ChildId) -> Option<ChildStatus> {
         self.child_statuses.borrow().get(&child).cloned()
     }
