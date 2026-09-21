@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashSet;
 
 fn hello() -> Message {
     Message::Hello(Hello {
@@ -84,6 +85,7 @@ mod creation_messages_round_trip;
 mod cursor_round_trips;
 mod drag_messages_round_trip;
 mod every_editor_manifest_parses;
+mod every_key_round_trips;
 mod fetch_messages_round_trip;
 mod file_drop_messages_round_trip;
 mod file_pick_messages_round_trip;
