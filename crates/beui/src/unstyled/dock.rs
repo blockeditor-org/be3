@@ -113,6 +113,7 @@ struct State {
     thickness: f32,
     rect: ReadSignal<Rect>,
     panes: RefCell<HashMap<SurfaceId, NodeRef>>,
+    windows: RefCell<HashMap<SurfaceId, NodeRef>>,
     bars: RefCell<HashMap<LeafId, TabBar>>,
     panels: RefCell<HashMap<TabId, NodeId>>,
     owner: Option<ScopeContext>,
@@ -178,6 +179,18 @@ impl State {
     fn pane_rect(&self, surface: SurfaceId) -> Option<Rect> {
         let node = self.panes.borrow().get(&surface)?.try_get()?;
         with_document(|document| document.node_rect(node))
+    }
+
+    fn surface_rect(&self, surface: SurfaceId) -> Option<Rect> {
+        let window = self
+            .windows
+            .borrow()
+            .get(&surface)
+            .and_then(NodeRef::try_get);
+        match window {
+            Some(window) => with_document(|document| document.node_rect(window)),
+            None => self.pane_rect(surface),
+        }
     }
 
     fn tab_rects(&self, leaf: LeafId) -> Vec<Rect> {
@@ -280,12 +293,15 @@ impl State {
         let state = self.state.get_untracked();
         if !float {
             for surface in state.surfaces().into_iter().rev() {
+                let Some(within) = self.surface_rect(surface) else {
+                    continue;
+                };
+                if !within.contains(pos) {
+                    continue;
+                }
                 let Some(area) = self.pane_rect(surface) else {
                     continue;
                 };
-                if !area.contains(pos) {
-                    continue;
-                }
                 let layout = layout_surface(&state, surface, area, self.thickness);
                 let Some(leaf) = nearest_leaf(&layout, pos) else {
                     continue;
@@ -489,6 +505,7 @@ pub fn Dock(
     let (drag, set_drag) = create_signal(None);
     let dock: Handle = Rc::new(State {
         state: current.clone(),
+        windows: RefCell::default(),
         panels: RefCell::default(),
         owner: owner_scope(),
         set_state: set_current,
@@ -625,10 +642,10 @@ fn DockPane(
     let placement = component_rect();
     let thickness = dock.thickness;
     let state = dock.state.clone();
-    let layout = create_memo(move || {
+    let layout = create_memo(clone!(state -> move || {
         let area = Rect::from_min_size(Pos2::ZERO, size.get());
         state.with(|state| layout_surface(state, surface, area, thickness))
-    });
+    }));
     let leaves = create_memo(clone!(layout -> move || {
         layout.with(|layout| layout.leaves.iter().map(|(leaf, _)| *leaf).collect::<Vec<_>>())
     }));
@@ -641,28 +658,8 @@ fn DockPane(
     let splitters = dock.clone();
     let splitter_layout = layout.clone();
     let marked = dock.clone();
-    let marker = create_memo(clone!(dock placement -> move || {
-        let state = dock.state.get_untracked();
-        let drag = dock.drag.get()?;
-        let leaf = match drag.target? {
-            DropTarget::Tab { leaf, .. }
-            | DropTarget::Pane { leaf }
-            | DropTarget::Split { leaf, .. } => leaf,
-            DropTarget::Window { .. } => return None,
-        };
-        if state.surface_of(leaf) != Some(surface) {
-            return None;
-        }
-        let origin = placement.get().min.to_vec2();
-        let highlight = drag.highlight?;
-        Some(Rect::from_min_size(highlight.min - origin, highlight.size()))
-    }));
-    let marker_shown = create_memo(clone!(marker -> move || marker.get().is_some()));
-    let marker_rect = create_memo(clone!(marker -> move || marker.get().unwrap_or(Rect::ZERO)));
-    let marker_x = create_memo(clone!(marker_rect -> move || marker_rect.get().min.x));
-    let marker_y = create_memo(clone!(marker_rect -> move || marker_rect.get().min.y));
-    let marker_width = create_memo(clone!(marker_rect -> move || marker_rect.get().width()));
-    let marker_height = create_memo(clone!(marker_rect -> move || marker_rect.get().height()));
+    let windowed = state.with_untracked(|state| state.window_rect(surface).is_some());
+    let pane_origin = create_memo(clone!(placement -> move || placement.get().min));
     view! {
         <Canvas @node_ref=&canvas>
             <ForEach keys={leaves}>
@@ -702,10 +699,43 @@ fn DockPane(
                     }
                 }}
             </ForEach>
-            <CanvasItem x={marker_x} y={marker_y} width={marker_width} height={marker_height}>
-                <Frame visible={marker_shown}>{marked.highlight.call(())}</Frame>
-            </CanvasItem>
+            <Show condition={!windowed}>
+                <DockDropMarker dock={marked} surface origin={pane_origin} />
+            </Show>
         </Canvas>
+    }
+}
+
+#[component]
+fn DockDropMarker(dock: Handle, surface: SurfaceId, origin: Memo<Pos2>) -> CanvasItem {
+    let marker = create_memo(clone!(dock origin -> move || {
+        let state = dock.state.get_untracked();
+        let drag = dock.drag.get()?;
+        let leaf = match drag.target? {
+            DropTarget::Tab { leaf, .. }
+            | DropTarget::Pane { leaf }
+            | DropTarget::Split { leaf, .. } => leaf,
+            DropTarget::Window { .. } => return None,
+        };
+        if state.surface_of(leaf) != Some(surface) {
+            return None;
+        }
+        let highlight = drag.highlight?;
+        Some(Rect::from_min_size(
+            highlight.min - origin.get().to_vec2(),
+            highlight.size(),
+        ))
+    }));
+    let shown = create_memo(clone!(marker -> move || marker.get().is_some()));
+    let rect = create_memo(clone!(marker -> move || marker.get().unwrap_or(Rect::ZERO)));
+    let x = create_memo(clone!(rect -> move || rect.get().min.x));
+    let y = create_memo(clone!(rect -> move || rect.get().min.y));
+    let width = create_memo(clone!(rect -> move || rect.get().width()));
+    let height = create_memo(clone!(rect -> move || rect.get().height()));
+    view! {
+        <CanvasItem x={x} y={y} width={width} height={height}>
+            <Frame visible={shown}>{dock.highlight.call(())}</Frame>
+        </CanvasItem>
     }
 }
 
@@ -946,15 +976,19 @@ fn DockSplitterView(dock: Handle, surface: SurfaceId, split: SplitId) -> NodeId 
 
 #[component]
 fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
+    let frame = NodeRef::new();
+    dock.windows.borrow_mut().insert(surface, frame.clone());
+    on_cleanup(clone!(dock -> move || {
+        dock.windows.borrow_mut().remove(&surface);
+    }));
     let state = dock.state.clone();
     let rect = create_memo(clone!(state -> move || {
         state.with(|state| state.window_rect(surface)).unwrap_or(Rect::ZERO)
     }));
     let area = dock.rect.clone();
-    let anchor =
-        create_memo(clone!(rect area -> move || area.get().min + rect.get().min.to_vec2()))
-            .into_prop()
-            .map(OverlayAnchor::Point);
+    let origin =
+        create_memo(clone!(rect area -> move || area.get().min + rect.get().min.to_vec2()));
+    let anchor = origin.clone().into_prop().map(OverlayAnchor::Point);
     let width = create_memo(clone!(rect -> move || rect.get().width()));
     let height = create_memo(clone!(rect -> move || rect.get().height()));
     let size = create_memo(clone!(rect -> move || rect.get().size()));
@@ -996,6 +1030,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         }
     });
     let grips = dock.clone();
+    let marker = dock.clone();
     let grip_rect = rect.clone();
     let overlay = NodeRef::new();
     create_effect(clone!(focused overlay -> move || {
@@ -1034,7 +1069,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             traps_focus=false
             open=true
         >
-            <Frame width={width.clone()} height={height.clone()}>
+            <Frame @node_ref=&frame width={width.clone()} height={height.clone()}>
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                         <ClickCatcher
@@ -1068,6 +1103,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                             children={chrome}
                         />
                     </CanvasItem>
+                    <DockDropMarker dock={marker} surface origin={origin} />
                     <ForEach keys={GRIPS.to_vec()}>
                         {move |grip: Grip| {
                             let dock = grips.clone();
