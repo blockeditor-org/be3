@@ -60,10 +60,12 @@ fn rounded(canvas: &mut RgbaImage, clip: [f32; 4], shape: &RoundedRect, scale: f
     let rect = exact(shape.rect, scale);
     let radius = shape.corner_radius * scale;
     let width = shape.stroke_width * scale;
+    let turn = shape.turn.scaled(scale);
     let center = [(rect[0] + rect[2]) * 0.5, (rect[1] + rect[3]) * 0.5];
     let extent = [(rect[2] - rect[0]) * 0.5, (rect[3] - rect[1]) * 0.5];
-    let bled = [rect[0] - 1.0, rect[1] - 1.0, rect[2] + 1.0, rect[3] + 1.0];
+    let bled = turn.swept([rect[0] - 1.0, rect[1] - 1.0, rect[2] + 1.0, rect[3] + 1.0]);
     cover(canvas, clip, bled, shape.color, |point| {
+        let point = turn.undo(point);
         let mut distance =
             rounded_distance([point[0] - center[0], point[1] - center[1]], extent, radius);
         if width > 0.0 {
@@ -85,11 +87,16 @@ fn rounded_distance(point: [f32; 2], extent: [f32; 2], radius: f32) -> f32 {
 fn stamp(canvas: &mut RgbaImage, clip: [f32; 4], glyph: &Glyph, scale: f32, sampler: &Sampler) {
     let rect = glyph.rect.map(|value| (value * scale).round());
     let size = [rect[2] - rect[0], rect[3] - rect[1]];
-    cover(canvas, clip, rect, glyph.color, |point| {
+    let turn = glyph.turn.scaled(scale);
+    cover(canvas, clip, turn.swept(rect), glyph.color, |point| {
+        let point = turn.undo(point);
         let uv = [
             (point[0] - rect[0]) / size[0],
             (point[1] - rect[1]) / size[1],
         ];
+        if !(0.0..=1.0).contains(&uv[0]) || !(0.0..=1.0).contains(&uv[1]) {
+            return 0.0;
+        }
         sampler.sample(uv)[3] / 255.0
     });
 }

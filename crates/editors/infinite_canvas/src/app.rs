@@ -1,341 +1,100 @@
-mod app_impl;
-mod core;
+use std::rc::Rc;
 
-pub use app_impl::CanvasApp;
-mod geometry;
-mod inspector;
-mod interaction;
-mod painting;
-#[cfg(test)]
-mod tests;
-
-use geometry::*;
-use painting::*;
-
-use std::collections::{HashMap, HashSet};
-
-use block::{BlockParent, BlockReferenceList, ClientId};
-use block_client::{
-    BlockClient, BlockHandle, ReferenceList,
-    block_ref::BlockRef,
-    blocks::{
-        database::DatabaseValue,
-        database_schema::DatabaseSchema,
-        image::Image as ImageBlock,
-        infinite_canvas::{
-            CanvasColor, CanvasComponent, CanvasCursor, CanvasEntity, CanvasEntityKind,
-            CanvasEntityStyle, CanvasLayerMove, CanvasPoint, CanvasPreviewRegion, CanvasTextAlign,
-            CanvasTextStyle, CanvasTextWeight, CanvasTransform, InfiniteCanvas,
-            InfiniteCanvasOperation,
-        },
-    },
-    presence::{PresenceColor, UserActive},
+use block_client::blocks::infinite_canvas::InfiniteCanvas;
+use block_editor_plugin::beui::NodeId;
+use block_editor_plugin::beui::Vec2;
+use block_editor_plugin::beui::reactive::{
+    Direction, ItemSize, List, NodeRef, component, create_effect, view,
 };
-use block_editor_plugin::{
-    BlockFilter, BlockPicker, ChildMode, EditorHost, FilePicker, ImagePaster, PastedImage,
-    ViewChange,
-    block_ui::{
-        self, BlockLabel, EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP,
-        EMBEDDED_EDITOR_TITLE_HEIGHT,
-        database::{DatabaseValueEditor, DatabaseValueEditorOutput},
-        name_galley, paint_name,
-    },
-    egui::{self, Color32, PointerButton, Pos2, Rect, Stroke, Vec2},
-    egui_material_icons::icons::{
-        ICON_CIRCLE, ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_FORMAT_COLOR_RESET,
-        ICON_KEYBOARD_ARROW_DOWN, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN,
-        ICON_ZOOM_OUT,
-    },
-};
-use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use block_editor_plugin::{Creation, Editor};
 use uuid::Uuid;
 
-use block_client::references;
+pub(crate) mod canvas;
+pub(crate) mod components;
+pub(crate) mod input;
+pub(crate) mod menu;
+pub(crate) mod overlay;
+pub(crate) mod paint;
+pub(crate) mod sidebar;
+pub(crate) mod state;
+pub(crate) mod toolbar;
 
-use crate::access::{Access, Children, DirectEditorInteraction, DirectEditorResize, shows_preview};
-use crate::images::{image_filter, imported_image};
-use crate::viewport::Viewport as DirectEditorViewport;
+use canvas::CanvasStage;
+use sidebar::CanvasSidebar;
+use state::CanvasState;
+use toolbar::CanvasToolbar;
 
-pub(crate) enum EditorAction {
-    OpenBlock { id: Uuid, block_type: Uuid },
-}
+use crate::geometry::{MIN_SIZE, preview_region_for_entities};
 
-const MIN_SIZE: f32 = 4.0;
-const HIT_RADIUS: f32 = 7.0;
-const HANDLE_RADIUS: f32 = 5.0;
-const ROTATE_OFFSET: f32 = 28.0;
-const ZOOM_STEP: f32 = 1.25;
-const IMPORT_CASCADE_OFFSET: f32 = 24.0;
+pub struct CanvasApp;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum CommonValue<T> {
-    None,
-    Mixed,
-    Uniform(T),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Tool {
-    Select,
-    Line,
-    Rectangle,
-    Text,
-    Pen,
-}
-
-#[derive(Clone, Copy)]
-enum Alignment {
-    Left,
-    HorizontalCenter,
-    Right,
-    Top,
-    VerticalCenter,
-    Bottom,
-}
-
-#[derive(Clone, Copy)]
-enum CanvasCommand {
-    SelectAll,
-    InvertSelection,
-    Duplicate,
-    Delete,
-    Lock,
-    Unlock,
-    Group,
-    Ungroup,
-    Reorder(CanvasLayerMove),
-    Copy,
-    Cut,
-    Paste,
-}
-
-#[cfg_attr(any(target_os = "android", target_arch = "wasm32"), allow(dead_code))]
-const CANVAS_CLIPBOARD_PREFIX: &str = "be3-infinite-canvas:";
-
-#[derive(Deserialize, Serialize)]
-#[cfg_attr(any(target_os = "android", target_arch = "wasm32"), allow(dead_code))]
-struct CanvasClipboardPayload {
-    entities: Vec<CanvasEntity>,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct WorldRect {
-    min: CanvasPoint,
-    max: CanvasPoint,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct SelectionFrame {
-    center: CanvasPoint,
-    size: CanvasPoint,
-    rotation: f32,
-}
-
-impl SelectionFrame {
-    fn from_world_rect(bounds: WorldRect) -> Self {
-        Self {
-            center: bounds.center(),
-            size: bounds.size(),
-            rotation: 0.0,
+impl block_editor_plugin::BeuiApp for CanvasApp {
+    fn view(editor: Editor) -> NodeId {
+        view! {
+            <CanvasEditor editor={editor} />
         }
     }
 
-    fn point(self, local: CanvasPoint) -> CanvasPoint {
-        local_to_world(
-            CanvasTransform::new(self.center, self.size, self.rotation),
-            local,
-        )
-    }
-
-    fn contains(self, point: CanvasPoint) -> bool {
-        let local = world_to_local(
-            CanvasTransform::new(self.center, self.size, self.rotation),
-            point,
-        );
-        local.x.abs() <= 0.5 && local.y.abs() <= 0.5
-    }
-
-    fn local_bounds(self) -> WorldRect {
-        WorldRect {
-            min: CanvasPoint::new(-self.size.x * 0.5, -self.size.y * 0.5),
-            max: CanvasPoint::new(self.size.x * 0.5, self.size.y * 0.5),
-        }
-    }
-}
-
-impl WorldRect {
-    fn from_points(a: CanvasPoint, b: CanvasPoint) -> Self {
-        Self {
-            min: CanvasPoint::new(a.x.min(b.x), a.y.min(b.y)),
-            max: CanvasPoint::new(a.x.max(b.x), a.y.max(b.y)),
+    fn preview_view(editor: Editor) -> NodeId {
+        view! {
+            <CanvasPreview editor={editor} />
         }
     }
 
-    fn center(self) -> CanvasPoint {
-        CanvasPoint::new(
-            (self.min.x + self.max.x) * 0.5,
-            (self.min.y + self.max.y) * 0.5,
-        )
-    }
-
-    fn size(self) -> CanvasPoint {
-        CanvasPoint::new(self.max.x - self.min.x, self.max.y - self.min.y)
-    }
-
-    fn union(self, other: Self) -> Self {
-        Self {
-            min: CanvasPoint::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y)),
-            max: CanvasPoint::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y)),
-        }
-    }
-
-    fn contains_rect(self, other: Self) -> bool {
-        self.min.x <= other.min.x
-            && self.max.x >= other.max.x
-            && self.min.y <= other.min.y
-            && self.max.y >= other.max.y
-    }
-
-    fn contains(self, point: CanvasPoint) -> bool {
-        point.x >= self.min.x
-            && point.x <= self.max.x
-            && point.y >= self.min.y
-            && point.y <= self.max.y
+    fn create_block(creation: &Creation) -> Result<Uuid, String> {
+        Ok(creation.client().create_block(InfiniteCanvas::new()).id())
     }
 }
 
-fn gesture_rect(start: CanvasPoint, current: CanvasPoint, from_center: bool) -> WorldRect {
-    let opposite = if from_center {
-        CanvasPoint::new(start.x * 2.0 - current.x, start.y * 2.0 - current.y)
-    } else {
-        start
-    };
-    WorldRect::from_points(opposite, current)
+#[component]
+fn CanvasEditor(editor: Editor) -> NodeId {
+    let state = CanvasState::new(&editor, false);
+    let polled = Rc::clone(&state);
+    editor.each_frame(move || polled.poll());
+
+    let replacing = Rc::clone(&state);
+    editor.on_replace_child(move |old, new| replacing.replace_referenced_block(old, new));
+
+    report_intrinsic_size(&editor, &state);
+
+    let content = NodeRef::new();
+    editor.content(&content);
+    let chrome = editor.chrome_shown();
+    let bar = Rc::clone(&state);
+    let stage = Rc::clone(&state);
+    view! {
+        <List spacing=0.0>
+            <CanvasToolbar state={bar} shown={chrome.clone()} />
+            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+                <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={stage} />
+                <CanvasSidebar state={state} shown={chrome} />
+            </List>
+        </List>
+    }
 }
 
-fn inspector_text_size(ui: &egui::Ui, text_style: &CanvasTextStyle, text: &str) -> CanvasPoint {
-    let font_size = text_style.font_size.clamp(4.0, 256.0);
-    let mut job = egui::text::LayoutJob::simple(
-        text.to_owned(),
-        egui::FontId::proportional(font_size),
-        Color32::WHITE,
-        f32::INFINITY,
-    );
-    job.sections[0].format.line_height = Some(font_size * text_style.line_height.max(0.5));
-    let size = ui.painter().layout_job(job).size();
-    CanvasPoint::new(
-        (size.x + 8.0).max(16.0),
-        (size.y + 8.0).max(font_size * text_style.line_height),
-    )
+#[component]
+fn CanvasPreview(editor: Editor) -> NodeId {
+    let state = CanvasState::new(&editor, true);
+    let polled = Rc::clone(&state);
+    editor.each_frame(move || polled.poll());
+    report_intrinsic_size(&editor, &state);
+    view! {
+        <CanvasStage state={state} />
+    }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct ResizeHandle {
-    x: i8,
-    y: i8,
-}
-
-#[derive(Clone, Debug)]
-enum Gesture {
-    Create {
-        tool: Tool,
-        start: CanvasPoint,
-        current: CanvasPoint,
-        pointer: CanvasPoint,
-        from_center: bool,
-    },
-    Pen {
-        points: Vec<CanvasPoint>,
-    },
-    SelectBox {
-        start: CanvasPoint,
-        current: CanvasPoint,
-        pointer: CanvasPoint,
-        from_center: bool,
-        additive: bool,
-    },
-    Move {
-        start: CanvasPoint,
-        current: CanvasPoint,
-        originals: Vec<CanvasEntity>,
-        duplicate: bool,
-    },
-    Resize {
-        handle: ResizeHandle,
-        frame: SelectionFrame,
-        current: CanvasPoint,
-        originals: Vec<CanvasEntity>,
-        default_preserve_aspect_ratio: bool,
-        force_preserve_aspect_ratio: bool,
-        preserve_aspect_ratio: bool,
-        scale_text: bool,
-        scale_editors: bool,
-    },
-    Rotate {
-        frame: SelectionFrame,
-        start_angle: f32,
-        current: CanvasPoint,
-        originals: Vec<CanvasEntity>,
-        snap_angle: bool,
-    },
-}
-
-#[derive(Clone, Copy, Debug)]
-struct TwoFingerTouch {
-    start_time: f64,
-    start_center: Pos2,
-    last_center: Pos2,
-    max_touches: usize,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct PendingComponentValuePick {
-    schema_id: BlockRef,
-    field_id: Uuid,
-    entity_ids: Vec<Uuid>,
-}
-
-pub(crate) struct InfiniteCanvasEditor {
-    access: Access,
-    presence_visible: bool,
-    block: BlockHandle<InfiniteCanvas>,
-    tool: Tool,
-    render_scale: f32,
-    selection: HashSet<Uuid>,
-    gesture: Option<Gesture>,
-    two_finger_touch: Option<TwoFingerTouch>,
-    picker: BlockPicker,
-    component_picker: BlockPicker,
-    value_picker: BlockPicker,
-    pending_value_target: Option<PendingComponentValuePick>,
-    pending_component_entities: Option<Vec<Uuid>>,
-    pending_block_center: Option<CanvasPoint>,
-    context_menu_position: Option<CanvasPoint>,
-    context_menu_for_selection: bool,
-    dependencies: ReferenceList,
-    editing_text: Option<Uuid>,
-    focus_text_requested: bool,
-    image_import_error: Option<String>,
-    image_picker: FilePicker,
-    pending_image_center: Option<CanvasPoint>,
-    pending_file_drop_position: Option<CanvasPoint>,
-    clipboard_image_paste: ImagePaster,
-    focused_editor: Option<Uuid>,
-    confirmed_editor: Option<Uuid>,
-    viewport_center: CanvasPoint,
-
-    pointer_world: Option<CanvasPoint>,
-    fit_selection_requested: bool,
-    fit_preview_region_requested: bool,
-    fit_entity_requested: Option<Uuid>,
-    pending_presence_reveal: Option<u64>,
-    grouped_inspector_edit_active: bool,
-    last_foreground: CanvasColor,
-    last_fill: Option<CanvasColor>,
-    reference_cache: references::ReferenceResolutionCache,
-    pending_entities: references::ReferenceClassificationQueue<(Uuid, CanvasTransform)>,
-    pending_components: references::ReferenceClassificationQueue<Vec<Uuid>>,
-    pending_values: references::ReferenceClassificationQueue<PendingComponentValuePick>,
-    component_editors: HashMap<BlockRef, DatabaseValueEditor>,
-    component_editor_selection: Vec<Uuid>,
+fn report_intrinsic_size(editor: &Editor, state: &Rc<CanvasState>) {
+    let sized = Rc::clone(state);
+    let sizing = editor.clone();
+    create_effect(move || {
+        let region = sized
+            .preview_region
+            .get()
+            .unwrap_or_else(|| preview_region_for_entities(&sized.entities.get()));
+        sizing.set_intrinsic_size(Some(Vec2::new(
+            region.size.x.max(MIN_SIZE),
+            region.size.y.max(MIN_SIZE),
+        )));
+    });
 }

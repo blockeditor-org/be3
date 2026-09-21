@@ -3804,6 +3804,7 @@ dependencies = [
 name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",

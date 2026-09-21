@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 
 use crate::color::Color32;
 use crate::context::FrameOutput;
-use crate::draw::{Quad, quads_within};
+use crate::draw::{Quad, Turn, quads_within};
 use crate::drawing::{DrawAt, Drawing};
 use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
@@ -24,15 +24,17 @@ struct Instance {
     uv: [f32; 4],
     color: [f32; 4],
     params: [f32; 4],
+    turn: [f32; 4],
 }
 
 impl Instance {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+    const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
         0 => Float32x4,
         1 => Float32x4,
         2 => Float32x4,
         3 => Float32x4,
-        4 => Float32x4
+        4 => Float32x4,
+        5 => Float32x4
     ];
 
     fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -472,6 +474,7 @@ impl Renderer {
                     uv: [0.0; 4],
                     color: self.encode(background),
                     params: [0.0, 0.0, 0.0, 0.0],
+                    turn: turn(Turn::NONE),
                 });
                 Some(region)
             }
@@ -493,6 +496,7 @@ impl Renderer {
                     color,
                     corner_radius,
                     stroke_width,
+                    turn: rotation,
                 } => {
                     Run::push(layer, false, instances.len() as u32);
                     instances.push(Instance {
@@ -501,6 +505,7 @@ impl Renderer {
                         uv: [0.0; 4],
                         color: self.encode(color),
                         params: [corner_radius, stroke_width, 0.0, 0.0],
+                        turn: turn(rotation),
                     });
                 }
                 Quad::Glyph {
@@ -508,6 +513,7 @@ impl Renderer {
                     clip,
                     color,
                     glyph,
+                    turn: rotation,
                 } => {
                     let Some(uv) = self.atlas.insert(queue, glyph.id, &glyph.image) else {
                         continue;
@@ -519,6 +525,7 @@ impl Renderer {
                         uv,
                         color: self.encode(color),
                         params: [0.0, 0.0, 1.0, 0.0],
+                        turn: turn(rotation),
                     });
                 }
                 Quad::Image {
@@ -529,6 +536,7 @@ impl Renderer {
                     tint,
                     corner_radius,
                     smooth,
+                    turn: rotation,
                 } => {
                     self.upload(device, queue, &image);
                     Run::push_picture(
@@ -543,6 +551,7 @@ impl Renderer {
                         uv: source,
                         color: self.encode(tint),
                         params: [corner_radius, 0.0, 2.0, 0.0],
+                        turn: turn(rotation),
                     });
                 }
                 Quad::Line {
@@ -559,12 +568,14 @@ impl Renderer {
                         uv: segment,
                         color: self.encode(color),
                         params: [width / 2.0, 0.0, 3.0, 0.0],
+                        turn: turn(Turn::NONE),
                     });
                 }
                 Quad::Punch {
                     rect,
                     clip,
                     corner_radius,
+                    turn: rotation,
                 } => {
                     Run::push(layer, true, instances.len() as u32);
                     instances.push(Instance {
@@ -573,6 +584,7 @@ impl Renderer {
                         uv: [0.0; 4],
                         color: [0.0, 0.0, 0.0, 1.0],
                         params: [corner_radius, 0.0, 0.0, 0.0],
+                        turn: turn(rotation),
                     });
                 }
                 Quad::Drawing {
@@ -775,6 +787,10 @@ impl Renderer {
             pass.draw(0..6, run.start..run.start + run.count);
         }
     }
+}
+
+fn turn(turn: Turn) -> [f32; 4] {
+    [turn.pivot[0], turn.pivot[1], turn.cos, turn.sin]
 }
 
 fn physical(region: Rect, screen: Vec2, pixels_per_point: f32) -> [f32; 4] {

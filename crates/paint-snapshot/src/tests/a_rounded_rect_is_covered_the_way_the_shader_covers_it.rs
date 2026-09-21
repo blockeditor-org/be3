@@ -1,5 +1,5 @@
 use super::*;
-use crate::RoundedRect;
+use crate::{RoundedRect, Turn};
 
 #[test]
 fn a_rounded_rect_is_covered_the_way_the_shader_covers_it() {
@@ -15,6 +15,7 @@ fn a_rounded_rect_is_covered_the_way_the_shader_covers_it() {
                     corner_radius: 3.0,
                     stroke_width: 0.0,
                     color: [255, 255, 255, 255],
+                    turn: Turn::NONE,
                 }),
             }],
         },

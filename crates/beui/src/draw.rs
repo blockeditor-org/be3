@@ -2,7 +2,7 @@ use crate::color::Color32;
 use crate::context::FrameOutput;
 use crate::drawing::Drawing;
 use crate::font::Glyph;
-use crate::geometry::{Rect, vec2};
+use crate::geometry::{Rect, Rotation, vec2};
 use crate::image::Image;
 use crate::painter::Shape;
 
@@ -13,12 +13,14 @@ pub enum Quad {
         color: Color32,
         corner_radius: f32,
         stroke_width: f32,
+        turn: Turn,
     },
     Glyph {
         rect: [f32; 4],
         clip: [f32; 4],
         color: Color32,
         glyph: Glyph,
+        turn: Turn,
     },
     Image {
         rect: [f32; 4],
@@ -28,6 +30,7 @@ pub enum Quad {
         tint: Color32,
         corner_radius: f32,
         smooth: bool,
+        turn: Turn,
     },
     Line {
         rect: [f32; 4],
@@ -40,12 +43,73 @@ pub enum Quad {
         rect: [f32; 4],
         clip: [f32; 4],
         corner_radius: f32,
+        turn: Turn,
     },
     Drawing {
         rect: [f32; 4],
         clip: [f32; 4],
         drawing: Drawing,
     },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Turn {
+    pub pivot: [f32; 2],
+    pub cos: f32,
+    pub sin: f32,
+}
+
+impl Turn {
+    pub const NONE: Self = Self {
+        pivot: [0.0, 0.0],
+        cos: 1.0,
+        sin: 0.0,
+    };
+
+    fn of(rotation: Rotation, pixels_per_point: f32) -> Self {
+        if !rotation.turns() {
+            return Self::NONE;
+        }
+        let (sin, cos) = rotation.angle.sin_cos();
+        Self {
+            pivot: [
+                rotation.pivot.x * pixels_per_point,
+                rotation.pivot.y * pixels_per_point,
+            ],
+            cos,
+            sin,
+        }
+    }
+
+    fn swept(self, rect: [f32; 4]) -> [f32; 4] {
+        if self == Self::NONE {
+            return rect;
+        }
+        let turned = |x: f32, y: f32| {
+            let (x, y) = (x - self.pivot[0], y - self.pivot[1]);
+            [
+                self.pivot[0] + x * self.cos - y * self.sin,
+                self.pivot[1] + x * self.sin + y * self.cos,
+            ]
+        };
+        let corners = [
+            turned(rect[0], rect[1]),
+            turned(rect[2], rect[1]),
+            turned(rect[2], rect[3]),
+            turned(rect[0], rect[3]),
+        ];
+        corners.into_iter().fold(
+            [f32::MAX, f32::MAX, f32::MIN, f32::MIN],
+            |bounds, [x, y]| {
+                [
+                    bounds[0].min(x),
+                    bounds[1].min(y),
+                    bounds[2].max(x),
+                    bounds[3].max(y),
+                ]
+            },
+        )
+    }
 }
 
 pub struct Quads {
@@ -75,15 +139,17 @@ pub fn quads_within(
                 corner_radius,
                 stroke_width,
                 color,
+                rotation,
                 clip,
             } => {
                 if !rect.is_positive() {
                     continue;
                 }
+                let turn = Turn::of(*rotation, pixels_per_point);
                 let rect = snapped(*rect, pixels_per_point);
                 let clip = bounds(*clip, pixels_per_point);
                 let stroke_width = stroke(*stroke_width, pixels_per_point);
-                if skipped(damaged, expand(rect, stroke_width), clip) {
+                if skipped(damaged, turn.swept(expand(rect, stroke_width)), clip) {
                     continue;
                 }
                 quads.push(Quad::Rect {
@@ -92,14 +158,17 @@ pub fn quads_within(
                     color: *color,
                     corner_radius: corner_radius * pixels_per_point,
                     stroke_width,
+                    turn,
                 });
             }
             Shape::Text {
                 origin,
                 galley,
                 color,
+                rotation,
                 clip,
             } => {
+                let turn = Turn::of(*rotation, pixels_per_point);
                 let clip = bounds(*clip, pixels_per_point);
                 let origin = vec2(
                     (origin.x * pixels_per_point).round(),
@@ -112,7 +181,7 @@ pub fn quads_within(
                     origin.x + right,
                     origin.y + bottom,
                 ];
-                if skipped(damaged, run, clip) {
+                if skipped(damaged, turn.swept(run), clip) {
                     continue;
                 }
                 for glyph in galley.glyphs() {
@@ -126,7 +195,7 @@ pub fn quads_within(
                         min.x + glyph.image.width as f32,
                         min.y + glyph.image.height as f32,
                     ];
-                    if skipped(damaged, rect, clip) {
+                    if skipped(damaged, turn.swept(rect), clip) {
                         continue;
                     }
                     quads.push(Quad::Glyph {
@@ -134,6 +203,7 @@ pub fn quads_within(
                         clip,
                         color: *color,
                         glyph: glyph.clone(),
+                        turn,
                     });
                 }
             }
@@ -144,14 +214,16 @@ pub fn quads_within(
                 tint,
                 corner_radius,
                 smooth,
+                rotation,
                 clip,
             } => {
                 if !rect.is_positive() {
                     continue;
                 }
+                let turn = Turn::of(*rotation, pixels_per_point);
                 let rect = snapped(*rect, pixels_per_point);
                 let clip = bounds(*clip, pixels_per_point);
-                if skipped(damaged, rect, clip) {
+                if skipped(damaged, turn.swept(rect), clip) {
                     continue;
                 }
                 quads.push(Quad::Image {
@@ -162,6 +234,7 @@ pub fn quads_within(
                     tint: *tint,
                     corner_radius: corner_radius * pixels_per_point,
                     smooth: *smooth,
+                    turn,
                 });
             }
             Shape::Line {
@@ -199,20 +272,23 @@ pub fn quads_within(
             Shape::Punch {
                 rect,
                 corner_radius,
+                rotation,
                 clip,
             } => {
                 if !rect.is_positive() {
                     continue;
                 }
+                let turn = Turn::of(*rotation, pixels_per_point);
                 let rect = snapped(*rect, pixels_per_point);
                 let clip = bounds(*clip, pixels_per_point);
-                if skipped(damaged, rect, clip) {
+                if skipped(damaged, turn.swept(rect), clip) {
                     continue;
                 }
                 quads.push(Quad::Punch {
                     rect,
                     clip,
                     corner_radius: corner_radius * pixels_per_point,
+                    turn,
                 });
             }
             Shape::Drawing {

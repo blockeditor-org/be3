@@ -1080,6 +1080,7 @@ mod slider_home_end_and_page_keys_clamp_at_the_bounds;
 mod space_toggles_checkboxes_switches_and_toggle_buttons;
 mod tabbing_to_an_offscreen_control_reveals_it;
 mod tabs_have_one_tab_stop_and_wrap_with_arrow_keys;
+mod text_laid_out_to_an_alignment_indents_each_line_to_it;
 mod unchanged_input_reuses_layout_and_paint;
 
 mod unused_navigation_keys_scroll_the_nearest_ancestor;

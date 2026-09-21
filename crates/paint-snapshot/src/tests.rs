@@ -9,6 +9,7 @@ mod a_recording_keeps_the_frames_it_was_given;
 mod a_rounded_rect_is_covered_the_way_the_shader_covers_it;
 mod a_snapshot_survives_a_round_trip;
 mod a_triangle_is_filled_with_its_corner_colour;
+mod a_turned_rounded_rect_is_covered_where_it_turned_to;
 
 fn white() -> Texture {
     Texture::encode([1, 1], &[[255, 255, 255, 255]]).unwrap()

@@ -1,5 +1,4 @@
-use super::{BlockRef, CanvasEntityKind, Uuid, editor, entities, entity};
-use block_editor_plugin::App as _;
+use super::*;
 
 #[test]
 fn replacing_a_referenced_block_rewrites_the_entity() {
@@ -12,7 +11,7 @@ fn replacing_a_referenced_block_rewrites_the_entity() {
     };
     let (mut editor, block) = editor(std::slice::from_ref(&referencing));
 
-    assert!(editor.app().replace_child(old, new));
+    assert!(editor.replace_child(old, new));
 
     let kinds = entities(&block)
         .into_iter()

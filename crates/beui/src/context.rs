@@ -8,7 +8,7 @@ use accesskit::{ActionRequest, TreeUpdate};
 use crate::accessibility::{self, Fragment};
 use crate::damage;
 use crate::filter::Filter;
-use crate::font::{FontId, FontSources, Fonts, Galley};
+use crate::font::{FontId, FontSources, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, InputState, RawInput};
 use crate::mouse_simulation::MouseSimulation;
@@ -544,11 +544,11 @@ impl Context {
         result
     }
 
-    pub(crate) fn layout(&self, text: &str, font: FontId, wrap_width: f32) -> Galley {
+    pub(crate) fn layout(&self, text: &str, font: FontId, layout: TextLayout) -> Galley {
         self.inner
             .fonts
             .borrow_mut()
-            .layout(text, font, wrap_width, self.pixels_per_point())
+            .layout(text, font, layout, self.pixels_per_point())
     }
 
     pub(crate) fn push(&self, shape: Shape) {
@@ -602,16 +602,24 @@ fn scale_shape(shape: &mut Shape, scale: f32) {
             rect,
             corner_radius,
             stroke_width,
+            rotation,
             clip,
             ..
         } => {
             *rect = rect.scaled(scale);
             *corner_radius *= scale;
             *stroke_width *= scale;
+            *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
-        Shape::Text { origin, clip, .. } => {
+        Shape::Text {
+            origin,
+            rotation,
+            clip,
+            ..
+        } => {
             *origin = pos2(origin.x * scale, origin.y * scale);
+            *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
         Shape::Line {
@@ -629,16 +637,19 @@ fn scale_shape(shape: &mut Shape, scale: f32) {
         Shape::Image {
             rect,
             corner_radius,
+            rotation,
             clip,
             ..
         }
         | Shape::Punch {
             rect,
             corner_radius,
+            rotation,
             clip,
         } => {
             *rect = rect.scaled(scale);
             *corner_radius *= scale;
+            *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
         Shape::Drawing { rect, clip, .. } => {

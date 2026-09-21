@@ -435,12 +435,22 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         A::aspect_ratio()
     }
 
-    fn presence_visible(&mut self, _visible: bool) {}
+    fn presence_visible(&mut self, visible: bool) {
+        if let Some(editor) = &self.editor {
+            editor.report_presence_visible(visible);
+        }
+    }
 
-    fn reveal_presence(&mut self, _client_id: u64) {}
+    fn reveal_presence(&mut self, client_id: u64) {
+        if let Some(editor) = &self.editor {
+            editor.report_reveal(client_id);
+        }
+    }
 
-    fn replace_child(&mut self, _old: Uuid, _new: Uuid) -> bool {
-        false
+    fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
+        self.editor
+            .as_ref()
+            .is_some_and(|editor| editor.replace_child(old, new))
     }
 }
 
@@ -577,7 +587,19 @@ impl EditorSession {
     }
 
     pub(crate) fn replace_child(&mut self, request_id: u64, old: Uuid, new: Uuid) {
-        let replaced = self.app.replace_child(old, new);
+        let document = self
+            .beui
+            .as_mut()
+            .and_then(|regions| regions.get_mut(&EditorRegion::Frame))
+            .and_then(|region| region.chrome.as_mut())
+            .map(BeuiFrame::document_mut);
+        let app = &mut self.app;
+        let replaced = match document {
+            Some(document) => {
+                beui::reactive::with_reactive_scope(document, || app.replace_child(old, new))
+            }
+            None => app.replace_child(old, new),
+        };
         self.replacements.push((request_id, replaced));
     }
 

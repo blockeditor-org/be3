@@ -135,6 +135,44 @@ impl<A: BeuiApp> BeuiTest<A> {
         &self.children
     }
 
+    pub fn replace_child(&mut self, old: uuid::Uuid, new: uuid::Uuid) -> bool {
+        let Region::Frame(editor, frame) = &mut self.region else {
+            return false;
+        };
+        let editor = editor.clone();
+        beui::reactive::with_reactive_scope(frame.document_mut(), move || {
+            editor.replace_child(old, new)
+        })
+    }
+
+    pub fn presence_visible(&mut self, visible: bool) {
+        self.editor_handle()
+            .expect("this region has no editor")
+            .report_presence_visible(visible);
+        self.run();
+    }
+
+    pub fn reveal_presence(&mut self, client_id: u64) {
+        self.editor_handle()
+            .expect("this region has no editor")
+            .report_reveal(client_id);
+        self.run();
+    }
+
+    pub fn resize(&mut self, size: Vec2) {
+        self.editor_handle()
+            .expect("this region has no editor")
+            .report_resize(size);
+        self.run();
+    }
+
+    fn editor_handle(&self) -> Option<&Editor> {
+        match &self.region {
+            Region::Frame(editor, _) | Region::Preview(editor, _) => Some(editor),
+            Region::Creation(..) | Region::Settings(..) => None,
+        }
+    }
+
     pub fn report_children(&mut self, report: impl Fn(&ChildPlacement) -> ChildStatus) {
         let statuses: Vec<_> = self.children.iter().map(report).collect();
         self.editor_host().set_child_statuses(statuses);
@@ -256,6 +294,10 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn pointer_motion(&mut self, delta: Vec2) {
         self.events.push(Event::PointerMotion(delta));
+    }
+
+    pub fn intrinsic_size(&self) -> Option<Vec2> {
+        self.intrinsic()
     }
 
     fn intrinsic(&self) -> Option<Vec2> {

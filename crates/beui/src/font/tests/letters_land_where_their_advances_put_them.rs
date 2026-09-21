@@ -15,7 +15,12 @@ fn letters_land_where_their_advances_put_them() {
         for size in [11.0, 12.0, 13.0, 14.0, 16.0, 21.0] {
             let pixel_size = size as u32;
             let shaped = fonts.shape_line(text, FontFamily::Proportional, pixel_size);
-            let galley = fonts.layout(text, FontId::proportional(size), f32::INFINITY, 1.0);
+            let galley = fonts.layout(
+                text,
+                FontId::proportional(size),
+                crate::font::TextLayout::DEFAULT,
+                1.0,
+            );
             let mut pen = 0.0;
 
             for (shaped, placed) in shaped.iter().zip(galley.glyphs()) {
