@@ -59,6 +59,7 @@ mod artifact_messages_round_trip;
 mod artifact_watch_messages_round_trip;
 mod audio_messages_round_trip;
 mod block_commands_round_trip;
+mod block_content_and_operations_round_trip;
 mod block_types_round_trip;
 mod child_placements_round_trip;
 mod child_statuses_round_trip;

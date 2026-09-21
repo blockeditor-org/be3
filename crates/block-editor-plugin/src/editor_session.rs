@@ -527,6 +527,10 @@ impl EditorSession {
         self.host.set_editable(editable);
     }
 
+    pub(crate) fn set_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
+        self.host.set_content(content_type, bytes, applied);
+    }
+
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
         self.host.set_focused_block(focused);
     }
@@ -715,6 +719,12 @@ impl EditorSession {
                 instance,
                 region,
                 area,
+            }));
+        }
+        for operation in self.host.take_content_operations() {
+            messages.push(Message::Editor(EditorMessage::Operate {
+                instance,
+                operation,
             }));
         }
         if let Some(accepted) = self.host.take_drag_accepted() {

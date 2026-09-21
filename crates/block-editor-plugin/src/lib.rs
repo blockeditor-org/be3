@@ -1,3 +1,4 @@
+pub use be_block;
 pub use beui;
 pub use eframe::egui;
 #[cfg(target_arch = "wasm32")]
@@ -11,6 +12,7 @@ pub mod beui_frame;
 mod block_link;
 mod child;
 mod chrome;
+mod content;
 pub mod database;
 mod datetime;
 mod editor;
@@ -40,15 +42,16 @@ pub use block_plugin_api::{
 pub use block_ui;
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
 pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
+pub use content::ContentProjection;
 pub use datetime::DateTimeRow;
 pub use editor::{
     Artifacts, BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor, fit_content,
 };
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
-    ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, ImagePaster,
-    OpenRequest, PastedImage, PerformanceMeasurementGuard, PerformanceReporter, PickedBlock,
-    PickedFile, ShowRequest, Task, Waker,
+    ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, HostContent,
+    ImagePaster, OpenRequest, PastedImage, PerformanceMeasurementGuard, PerformanceReporter,
+    PickedBlock, PickedFile, ShowRequest, Task, Waker,
 };
 pub use related::RelatedBlock;
 

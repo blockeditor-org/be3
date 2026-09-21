@@ -31,6 +31,14 @@ pub struct BlockDrag {
 }
 
 #[derive(Clone)]
+pub struct HostContent {
+    pub content_type: Uuid,
+    pub bytes: Vec<u8>,
+    pub applied: u64,
+    pub revision: u64,
+}
+
+#[derive(Clone)]
 pub struct FileDrop {
     pub position: egui::Pos2,
     pub files: Vec<PickedFile>,
@@ -561,6 +569,8 @@ pub struct EditorHost {
     hidden_bands: Rc<RefCell<HashSet<EditorBand>>>,
     beui: Rc<Cell<BeuiFrame>>,
     next_frame: Rc<Cell<Option<Duration>>>,
+    content: Rc<RefCell<Option<HostContent>>>,
+    content_operations: Rc<RefCell<Vec<Vec<u8>>>>,
 }
 
 impl EditorHost {
@@ -789,6 +799,29 @@ impl EditorHost {
 
     pub fn editable(&self) -> bool {
         self.editable.get()
+    }
+
+    pub fn content(&self) -> Option<HostContent> {
+        self.content.borrow().clone()
+    }
+
+    pub fn set_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
+        let mut held = self.content.borrow_mut();
+        let revision = held.as_ref().map_or(1, |content| content.revision + 1);
+        *held = Some(HostContent {
+            content_type,
+            bytes,
+            applied,
+            revision,
+        });
+    }
+
+    pub fn operate_content(&self, operation: Vec<u8>) {
+        self.content_operations.borrow_mut().push(operation);
+    }
+
+    pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
+        std::mem::take(&mut self.content_operations.borrow_mut())
     }
 
     pub fn client_id(&self) -> Uuid {

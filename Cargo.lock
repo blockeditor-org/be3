@@ -855,6 +855,12 @@ name = "block-app"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "be-block",
+ "be-client",
+ "be-graph",
+ "be-protocol",
+ "be-server",
+ "be-store",
  "block",
  "block-client",
  "block-plugin-api",
@@ -944,6 +950,7 @@ dependencies = [
 name = "block-editor-plugin"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "beui",
  "block",
  "block-client",

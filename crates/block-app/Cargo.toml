@@ -51,6 +51,7 @@ web-view = ["dep:wry"]
 full = ["terminal", "web-view"]
 
 [dependencies]
+be-block = { path = "../be-block" }
 block = { path = "../block" }
 block-client = { path = "../block-client" }
 block-plugin-api = { path = "../block-plugin-api" }
@@ -75,8 +76,16 @@ wasi-threads = { path = "../wasi-threads" }
 # browser. The browser runs the same wasm in a worker of its own.
 block-wasm-host = { path = "../block-wasm-host" }
 block-server = { path = "../block-server" }
+# The new block stack: the app is a peer of it, with a local object store and a
+# server of its own beside the old one. be-client is native-only for now, which
+# is why none of this is in the browser build.
+be-client = { path = "../be-client" }
+be-graph = { path = "../be-graph" }
+be-protocol = { path = "../be-protocol" }
+be-server = { path = "../be-server" }
+be-store = { path = "../be-store" }
 rusqlite = { version = "0.32", features = ["bundled"] }
-tokio = { version = "1", features = ["net", "rt-multi-thread", "sync"] }
+tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "time"] }
 ureq = { version = "2", features = ["gzip"] }
 # rodio (via cpal) reaches ALSA/CoreAudio/WASAPI on desktop and Oboe on
 # Android. The web build talks to the Web Audio API through web-sys directly

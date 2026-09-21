@@ -1,5 +1,5 @@
-use block_client::blocks::counter::{Counter as CounterBlock, CounterOperation};
 use block_editor_plugin::Editor;
+use block_editor_plugin::be_block::{CounterContent, CounterOp};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
@@ -11,12 +11,12 @@ const BUTTON_WIDTH: f32 = 44.0;
 
 #[component]
 pub fn Counter(editor: Editor) -> NodeId {
-    let counter = editor.block::<CounterBlock>();
-    let count = counter.project(CounterBlock::count);
+    let counter = editor.block_content::<CounterContent>();
+    let count = counter.project(CounterContent::count);
     let shown = create_memo(clone!(count -> move || count.get().to_string()));
-    let decrement = clone!(counter -> move || counter.operate(CounterOperation::Decrement));
-    let increment = clone!(counter -> move || counter.operate(CounterOperation::Increment));
-    let reset = clone!(counter -> move || counter.operate(CounterOperation::Reset));
+    let decrement = clone!(counter -> move || counter.operate(CounterOp::Add { by: -1 }));
+    let increment = clone!(counter -> move || counter.operate(CounterOp::Add { by: 1 }));
+    let reset = clone!(counter -> move || counter.operate(CounterOp::Reset));
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>

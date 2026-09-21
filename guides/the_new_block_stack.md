@@ -1,9 +1,10 @@
 # The new block stack
 
 The `be-*` crates are a replacement for `block`, `block-server` and
-`block-client`. They live beside the old stack rather than inside it: nothing in
-`block-app` uses them yet, and the old stack still runs the application. Work on
-them by migrating one thing at a time, not by rewriting the app around them.
+`block-client`. They live beside the old stack rather than inside it: the old
+stack still runs the application, and one editor - the counter - keeps its
+content in the new one. Work on them by migrating one thing at a time, not by
+rewriting the app around them.
 
 If you are changing an existing editor or block type today, you want
 `guides/adding_a_block.md` and the `block` crate. This guide is for work on the
@@ -230,10 +231,64 @@ cargo run -p be-server -- --address 127.0.0.1:8787 --data-dir be-server-data
 Tests start their own server on an ephemeral port; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`.
 
+## The counter, migrated
+
+The counter editor is the first thing in `block-app` that keeps its content
+here. It is the shape every later migration should take, so it is worth reading
+before starting another one.
+
+Identity stays where it was. `block_client::blocks::counter::Counter` is still
+the block type: it is what the new-block menu offers, what the file tree draws,
+where the block sits in the workspace, and who may edit it. It stores nothing
+any more. The count is `be_block::CounterContent`, held in the new stack under
+the same block id, and `crates/block-app/src/be.rs` is the only place that says
+which block types that is true of (`content_type_for`).
+
+The app is the peer, not the plugin. `crates/block-app/src/be/native.rs` owns a
+`Peer<FileStore>` on a worker thread of its own, with a `Live` session per open
+block, and `platform::start_embedded_be_server` runs a `be-server` beside the
+old embedded one. The plugin never sees the content key or the connection: it
+is handed content bytes and hands back operation bytes, through two messages on
+the plugin protocol.
+
+- `EditorMessage::Content { content_type, bytes, applied }` - host to plugin.
+  `applied` counts the operations *this instance* sent that the stack has taken,
+  which is what lets a plugin tell its own unacknowledged edits from everyone
+  else's.
+- `EditorMessage::Operate { operation }` - plugin to host.
+
+On the plugin side that is `editor.block_content::<C>()`, the `ContentProjection`
+beside `BlockProjection`: `project` registers a reader, `operate` applies the
+operation to what the view sees and queues it for the host, and each echo
+replaces the confirmed state and replays whatever is still pending on top.
+`block_editor_plugin` re-exports `be_block`, so an editor names its content type
+without depending on the crate itself.
+
+Three things are worth copying. A migrated editor's block type keeps its old
+entry in `block_types!` with no state in it, rather than disappearing: the graph
+still needs it. The peer writes out what its sessions hold before it goes away:
+`flush()` seals and waits, `stop()` does the same and then joins the worker, and
+the close handler and every workspace change go through one of them, because a
+session that is merely dropped loses everything since the last autosave
+(`status().unsealed` is what says whether anything is outstanding). And the host
+refuses an `Operate` for a block the account may only read: the plugin holds its
+own edits behind `editable()`, but nothing between the plugin and the peer knows
+about access, so `Instances::editable` asks the old client the same question
+`Open` asked.
+
 ## What is not built yet
 
-- Nothing in `block-app` uses any of this. Wiring an editor to `be-client` is the
-  next migration step, and it should be done one editor at a time.
+- `be-client` is native only: its connection is tokio and tokio-tungstenite, so
+  the browser build of `block-app` has no peer and the counter shows nothing
+  there. `block-client` already solved this shape, with a `Socket` per platform
+  and a tunnel for the hosted case; be-client wants the same before the next
+  editor moves.
+- A migrated block's content is not in the old workspace index, so nothing but
+  the editor can read it: no preview, no search, no name.
+- `Live` is generic over its content type, so `be::native::Session` names each
+  migrated type in an arm of its own rather than holding a trait object.
+- The content key is per device (`be_content_key` in the app's settings), which
+  is as far as `ContentKey` goes today - see the key wrapping note below.
 - Keys are passed in whole (`ContentKey`). There is no per-recipient key
   wrapping, so sharing a block across accounts does not yet share its key, and
   `crypto::STATIC_KEY` in the old client has no counterpart here on purpose.

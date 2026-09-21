@@ -213,6 +213,17 @@ impl Screens {
                     session.set_editable(*editable);
                 }
             }
+            Message::Editor(EditorMessage::Content {
+                instance,
+                content_type,
+                bytes,
+                applied,
+            }) => {
+                let Some(session) = self.sessions.get(instance) else {
+                    return false;
+                };
+                session.set_content(Uuid::from_bytes(*content_type), bytes.clone(), *applied);
+            }
             Message::Editor(EditorMessage::Focused {
                 instance,
                 block_id,

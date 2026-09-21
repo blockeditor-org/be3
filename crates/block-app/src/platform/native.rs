@@ -3,6 +3,7 @@ use std::{
     future::Future,
     net::TcpListener as StdTcpListener,
     path::PathBuf,
+    pin::Pin,
     sync::mpsc::{self, Receiver},
     thread,
 };
@@ -47,37 +48,62 @@ impl Drop for EmbeddedServer {
 pub(crate) fn start_embedded_server(
     data_dir: PathBuf,
 ) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
+    embedded("block-app-server", "http", move |listener, shutdown| {
+        Box::pin(async move {
+            let shutdown = async {
+                let _ = shutdown.await;
+            };
+            if let Err(error) = block_server::serve_until_shutdown(
+                listener,
+                data_dir,
+                block_server::ServerConfig::default(),
+                shutdown,
+            )
+            .await
+            {
+                panic!("embedded block server stopped: {error}");
+            }
+        })
+    })
+}
+
+pub(crate) fn start_embedded_be_server(
+    data_dir: PathBuf,
+) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
+    embedded("block-app-be-server", "ws", move |listener, shutdown| {
+        Box::pin(async move {
+            if let Err(error) = be_server::serve_until_shutdown(listener, data_dir, shutdown).await
+            {
+                panic!("embedded be server stopped: {error}");
+            }
+        })
+    })
+}
+
+type Served = Pin<Box<dyn Future<Output = ()> + Send>>;
+
+fn embedded(
+    name: &str,
+    scheme: &str,
+    serve: impl FnOnce(TcpListener, tokio::sync::oneshot::Receiver<()>) -> Served + Send + 'static,
+) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
     let listener = StdTcpListener::bind("127.0.0.1:0")?;
     listener.set_nonblocking(true)?;
     let address = listener.local_addr()?;
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel();
-    let thread = thread::Builder::new()
-        .name("block-app-server".into())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("failed to create embedded block server runtime");
-            runtime.block_on(async move {
-                let listener = TcpListener::from_std(listener)
-                    .expect("failed to initialize embedded block server listener");
-                let shutdown = async {
-                    let _ = shutdown_receiver.await;
-                };
-                if let Err(error) = block_server::serve_until_shutdown(
-                    listener,
-                    data_dir,
-                    block_server::ServerConfig::default(),
-                    shutdown,
-                )
-                .await
-                {
-                    panic!("embedded block server stopped: {error}");
-                }
-            });
-        })?;
+    let thread = thread::Builder::new().name(name.into()).spawn(move || {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to create an embedded server runtime");
+        runtime.block_on(async move {
+            let listener =
+                TcpListener::from_std(listener).expect("failed to initialize an embedded listener");
+            serve(listener, shutdown_receiver).await;
+        });
+    })?;
     Ok(EmbeddedServer {
-        url: format!("http://{address}"),
+        url: format!("{scheme}://{address}"),
         shutdown: Some(shutdown_sender),
         thread: Some(thread),
     })

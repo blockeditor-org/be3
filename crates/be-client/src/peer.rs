@@ -10,7 +10,8 @@ use be_commit::{
 };
 use be_graph::{Access, BlockParent};
 use be_protocol::{
-    BlockSummary, ClientId, ClientMessage, HistoryEntry, ServerMessage, SessionState, WorkspaceRole,
+    BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, ServerMessage, SessionState,
+    WorkspaceRole,
 };
 use be_store::{ChunkerConfig, ContentKey, Hash, Manifest, ObjectStore, Vault};
 use uuid::Uuid;
@@ -185,7 +186,14 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn create<C: BlockContent>(&self, parent: BlockParent) -> Result<Uuid, ClientError> {
-        let block = Uuid::new_v4();
+        self.create_with_id::<C>(Uuid::new_v4(), parent).await
+    }
+
+    pub async fn create_with_id<C: BlockContent>(
+        &self,
+        block: Uuid,
+        parent: BlockParent,
+    ) -> Result<Uuid, ClientError> {
         let response = self
             .connection
             .request(|request| ClientMessage::CreateBlock {
@@ -198,6 +206,18 @@ impl<S: ObjectStore> Peer<S> {
         match response {
             ServerMessage::Block { .. } => Ok(block),
             _ => Err(ClientError::Unexpected),
+        }
+    }
+
+    pub async fn ensure<C: BlockContent>(
+        &self,
+        block: Uuid,
+        parent: BlockParent,
+    ) -> Result<(), ClientError> {
+        match self.create_with_id::<C>(block, parent).await {
+            Ok(_) => Ok(()),
+            Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => Ok(()),
+            Err(error) => Err(error),
         }
     }
 

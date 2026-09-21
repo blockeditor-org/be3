@@ -1,4 +1,5 @@
 mod app_state;
+mod be;
 mod block_picker;
 mod debug;
 mod editors;
@@ -194,6 +195,10 @@ struct BlockApp {
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
     embedded_server: Option<platform::EmbeddedServer>,
+    #[cfg(not(target_arch = "wasm32"))]
+    embedded_be_server: Option<platform::EmbeddedServer>,
+    #[cfg(not(target_arch = "wasm32"))]
+    be_workspace_saved: bool,
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
 }
@@ -326,11 +331,13 @@ impl BlockApp {
         std::fs::create_dir_all(&data_dir)?;
         plugin_host::cache_in(data_dir.join("plugin-cache"));
         let embedded_server = platform::start_embedded_server(data_dir.join("server"))?;
+        let embedded_be_server = platform::start_embedded_be_server(data_dir.join("be-server"))?;
         let url = embedded_server.url.clone();
         let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
         let mut app = Self::with_state(app_state, url)?;
         app.data_dir = data_dir;
         app.embedded_server = Some(embedded_server);
+        app.embedded_be_server = Some(embedded_be_server);
         Ok(app)
     }
 
@@ -426,6 +433,10 @@ impl BlockApp {
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
             embedded_server: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            embedded_be_server: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            be_workspace_saved: false,
             error: None,
             pending_error_action: None,
         })
@@ -959,6 +970,11 @@ impl BlockApp {
     }
 
     fn open_workspace(&mut self, workspace: Workspace) {
+        be::stop();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.be_workspace_saved = false;
+        }
         let client = Arc::new(BlockClient::new(self.account.id, workspace.id));
         client.connect(self.server_url.clone(), self.account.token.clone());
         self.block_types.clear();
@@ -1356,7 +1372,11 @@ impl BlockApp {
     }
 
     fn intercept_close(&mut self, ctx: &egui::Context) {
-        if !ctx.input(|input| input.viewport().close_requested()) || self.allow_close {
+        if !ctx.input(|input| input.viewport().close_requested()) {
+            return;
+        }
+        be::flush();
+        if self.allow_close {
             return;
         }
         if self.client.network_debug_snapshot().changes_saved {
@@ -2245,6 +2265,7 @@ impl BlockApp {
         performance::begin_frame(ui.ctx());
         plugin_host::poll(ui.ctx(), frame);
         if !self.signed_in {
+            be::stop();
             self.show_account_onboarding(ui);
             performance::end_frame();
             ui.ctx().request_repaint_after(Duration::from_millis(100));
@@ -2261,6 +2282,7 @@ impl BlockApp {
             self.switch_account(ui.ctx(), account);
         }
         if self.workspace.is_none() {
+            be::stop();
             self.show_workspace_onboarding(ui);
             self.show_reauth(ui.ctx());
             performance::end_frame();
@@ -2268,6 +2290,7 @@ impl BlockApp {
             return;
         }
         self.sync_ui_settings(ui.ctx());
+        self.sync_be_stack(ui.ctx());
         self.poll_workspace_request();
         self.show_reauth(ui.ctx());
         self.intercept_close(ui.ctx());
@@ -2297,6 +2320,93 @@ impl BlockApp {
         performance::show(ui.ctx());
         plugin_host::flush();
         performance::end_frame();
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn sync_be_stack(&mut self, _context: &egui::Context) {}
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn sync_be_stack(&mut self, context: &egui::Context) {
+        let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) else {
+            return;
+        };
+        if be::installed_for(self.account.id, workspace) {
+            if !self.be_workspace_saved {
+                self.remember_be_workspace(workspace);
+            }
+            return;
+        }
+        if let Some(server) = &self.embedded_be_server {
+            let key = match self.be_content_key() {
+                Ok(key) => key,
+                Err(error) => {
+                    self.workspace_error = Some(error.to_string());
+                    return;
+                }
+            };
+            let password = match self.be_password() {
+                Ok(password) => password,
+                Err(error) => {
+                    self.workspace_error = Some(error.to_string());
+                    return;
+                }
+            };
+            be::start(be::Config {
+                url: server.url.clone(),
+                directory: self.data_dir.join("be-objects"),
+                account: self.account.id,
+                workspace,
+                email: self.account.email.clone(),
+                display_name: self.account.name.clone(),
+                password,
+                key,
+                be_workspace: self
+                    .app_state
+                    .setting(&be_workspace_key(workspace))
+                    .ok()
+                    .flatten()
+                    .and_then(|id| Uuid::parse_str(&id).ok()),
+                context: context.clone(),
+            });
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn remember_be_workspace(&mut self, workspace: Uuid) {
+        let Some(be_workspace) = be::workspace() else {
+            return;
+        };
+        self.be_workspace_saved = true;
+        let key = be_workspace_key(workspace);
+        if self.app_state.setting(&key).ok().flatten().is_some() {
+            return;
+        }
+        let _ = self.app_state.set_setting(&key, &be_workspace.to_string());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn be_content_key(&self) -> Result<[u8; 32], app_state::AppStateError> {
+        if let Some(stored) = self.app_state.setting("be_content_key")?
+            && let Some(key) = decode_key(&stored)
+        {
+            return Ok(key);
+        }
+        let mut key = [0; 32];
+        key[..16].copy_from_slice(Uuid::new_v4().as_bytes());
+        key[16..].copy_from_slice(Uuid::new_v4().as_bytes());
+        self.app_state
+            .set_setting("be_content_key", &encode_key(&key))?;
+        Ok(key)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn be_password(&self) -> Result<String, app_state::AppStateError> {
+        if let Some(stored) = self.app_state.setting("be_password")? {
+            return Ok(stored);
+        }
+        let password = Uuid::new_v4().simple().to_string();
+        self.app_state.set_setting("be_password", &password)?;
+        Ok(password)
     }
 
     fn sync_ui_settings(&mut self, context: &egui::Context) {
@@ -2456,4 +2566,28 @@ impl BlockApp {
         }
         self.restart();
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn be_workspace_key(workspace: Uuid) -> String {
+    format!("be_workspace.{workspace}")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn encode_key(key: &[u8; 32]) -> String {
+    key.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn decode_key(encoded: &str) -> Option<[u8; 32]> {
+    let bytes = encoded.as_bytes();
+    if bytes.len() != 64 {
+        return None;
+    }
+    let mut key = [0; 32];
+    for (index, slot) in key.iter_mut().enumerate() {
+        let pair = std::str::from_utf8(&bytes[index * 2..index * 2 + 2]).ok()?;
+        *slot = u8::from_str_radix(pair, 16).ok()?;
+    }
+    Some(key)
 }
