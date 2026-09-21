@@ -13,9 +13,11 @@
 # phase leaves behind, so it has to be warmed after that phase rather than
 # before it.
 #
-# This builds all of that and stops there. ./scripts/setup runs it so the
-# waiting happens once, while the machine is being prepared, rather than in the
-# middle of the first verify. Running it again later is cheap: it is the same
+# This builds all of that and stops there. ./scripts/setup runs it when it is
+# asked for with --warm-cache, for a machine that would rather wait while it is
+# being prepared than in the middle of the first verify; a default setup leaves
+# it out, because the compiling happens either way and most of it comes out of
+# the shared sccache store. Running it again later is cheap: it is the same
 # cargo calls verify makes, so anything still current is left alone.
 #
 # Usage:

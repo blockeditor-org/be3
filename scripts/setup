@@ -7,34 +7,35 @@
 # unrestricted network: the Rust toolchain, cargo-nextest, Zig and Ghostty's
 # dependencies are all fetched from the internet.
 #
-# It finishes by compiling everything ./scripts/verify needs, which is most of
-# what setting a machine up costs. Verify on a cold target directory spends
-# over ten minutes building before the first test runs and well under a
-# minute once it has been built once, so the wait belongs here, where a machine
-# is being prepared anyway, rather than in the first check someone runs.
-# --no-warm-cache leaves it out for a machine that only wants the prerequisites.
+# It installs prerequisites and stops there, so it is minutes rather than the
+# best part of an hour. Nothing here compiles the workspace: the first
+# ./scripts/verify does that, and what it would have to build it mostly pulls
+# out of the shared sccache store anyway, so building it twice only moved the
+# wait into setup. --warm-cache asks for it for a machine that would rather
+# spend the time now, on the checkout as it currently stands.
 #
 # Usage:
 #   ./scripts/setup
-#   ./scripts/setup --no-warm-cache
+#   ./scripts/setup --warm-cache
 
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
-warm=true
+warm=false
 for argument in "$@"; do
     case "$argument" in
-        --no-warm-cache) warm=false ;;
+        --warm-cache) warm=true ;;
         --full) export BE3_FULL=1 ;;
         *)
-            echo 'Usage: ./scripts/setup [--no-warm-cache] [--full]' >&2
+            echo 'Usage: ./scripts/setup [--warm-cache] [--full]' >&2
             exit 1
             ;;
     esac
 done
 
 cd "$repository"
+time_script 'Setup'
 
 if [[ "$(uname -s)" != 'Linux' ]] || ! command -v apt-get > /dev/null; then
     echo 'This script only knows how to set up Ubuntu. Install the equivalents of' >&2
@@ -57,11 +58,13 @@ packages=(build-essential pkg-config)
 packages+=(curl git tar xz-utils)
 # The web build, and every plugin's tests, compile HarfBuzz for
 # wasm32-wasip1-threads with clang and archive it with llvm-ar, neither of
-# which comes from rustup. 24.04 still ships 18 as plain clang, which is older
-# than the setjmp lowering FreeType needs, so a newer one is installed beside
-# it and the build scripts pick that one up.
-packages+=(clang llvm)
-if [[ "$(clang_major clang || echo 0)" -lt "$wasm_clang_minimum" ]]; then
+# which comes from rustup. The build scripts take the newest clang on PATH, so
+# a machine that already has one new enough needs no package at all; 24.04
+# ships 18 as plain clang, which is older than the setjmp lowering FreeType
+# needs, so there a newer pair is installed instead of that default one, which
+# nothing would have used. An LLVM is several hundred megabytes of apt, so
+# installing the one that gets used is worth asking which that is.
+if ! wasm_clang_installed; then
     packages+=(clang-20 llvm-20)
 fi
 # alsa-sys compiles against the ALSA headers; audio playback is behind it.
@@ -104,20 +107,20 @@ done
 if [[ ${#missing[@]} -eq 0 ]]; then
     echo "All ${#packages[@]} system packages are already installed."
 else
-    echo "Installing ${#missing[@]} system packages..."
+    step "Installing ${#missing[@]} system packages"
     $sudo apt-get update
     DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y "${missing[@]}"
 fi
 
-# Everything cargo compiles from here on, including cargo-nextest and the cache
-# warming at the end, goes through sccache, which answers from the project's
-# shared store whatever some other machine has already built. That is most of
-# what setting a machine up costs, so it is installed before the first cargo
-# call rather than after. Sourcing common.sh above found nothing to point cargo
-# at; configuring it again is what picks up what was just installed.
+# Everything cargo compiles from here on, which with --warm-cache is the whole
+# workspace, goes through sccache, which answers from the project's shared store
+# whatever some other machine has already built. Sourcing common.sh above found
+# nothing to point cargo at; configuring it again is what picks up what was just
+# installed.
 #
 # Nothing here depends on the cache, so a machine that cannot reach it is set up
 # the slow way rather than turned away.
+step 'Installing sccache'
 if "$internal/install-sccache.sh"; then
     configure_sccache
 fi
@@ -163,7 +166,7 @@ if ! command -v rustup > /dev/null; then
             ;;
     esac
 
-    echo "Installing Rust $rustup_version from https://static.rust-lang.org..."
+    step "Installing Rust $rustup_version from https://static.rust-lang.org"
     rustup_init="$repository/target/tools/rustup-init"
     mkdir -p "$(dirname "$rustup_init")"
     download_verified \
@@ -182,23 +185,19 @@ if ! command -v rustup > /dev/null; then
     export PATH
 fi
 
-echo 'Installing the pinned Rust toolchain...'
+step 'Installing the pinned Rust toolchain'
 rustup show active-toolchain
 
 # rustup installs a toolchain with neither of these, and ./scripts/verify runs
 # both. A default profile would carry them, but the one a machine already has is
 # whatever it was set up with, so ask for them by name.
-echo 'Installing rustfmt and clippy...'
+step 'Installing rustfmt and clippy'
 rustup component add rustfmt clippy
 
 # ./scripts/verify runs the tests through nextest, which is not a rustup
-# component and has to be built.
-if cargo nextest --version > /dev/null 2>&1; then
-    echo "cargo-nextest is already installed: $(cargo nextest --version | head -1)"
-else
-    echo 'Installing cargo-nextest, which takes a few minutes...'
-    cargo install cargo-nextest --locked
-fi
+# component. The script fetches the pinned release rather than building it.
+step 'Installing cargo-nextest'
+"$internal/install-nextest.sh"
 
 # The one prerequisite that is not a package, and the only one a full build
 # alone has: block-app links this, and cargo builds none of it. The script
@@ -206,7 +205,7 @@ fi
 # gigabyte and the rest of what this setup needs the network for. A default
 # build has no terminal to link, so it skips all of that.
 if full_build; then
-    echo 'Building libghostty-vt...'
+    step 'Building libghostty-vt'
     host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
     if ! ensure_ghostty_vt "$host_triple"; then
         echo '' >&2
@@ -217,15 +216,15 @@ if full_build; then
     fi
 fi
 
-# Everything above is a prerequisite, so a machine is usable from here even if
-# what follows does not finish. The tree being warmed is whatever is checked
-# out, which may well be mid-change and not compile; that is a thing to hear
-# about rather than a reason for a machine to fail to set itself up, so the
-# warming reports and setup still succeeds.
+# Everything above is a prerequisite and is all a default run does, so a machine
+# is usable from here. The rest is the first ./scripts/verify's compiling brought
+# forward, for a machine that asked for that. The tree being warmed is whatever
+# is checked out, which may well be mid-change and not compile; that is a thing
+# to hear about rather than a reason for a machine to fail to set itself up, so
+# the warming reports and setup still succeeds.
 if $warm; then
     echo ''
-    echo 'Warming the build caches, which takes a while and is what saves the'
-    echo 'first ./scripts/verify from doing it instead...'
+    step 'Warming the build caches, which is the first ./scripts/verify done early'
     if ! "$internal/warm-cache.sh"; then
         echo ''
         echo 'The caches could not be warmed, which only means the first' >&2
@@ -233,6 +232,7 @@ if $warm; then
     fi
 fi
 
+end_step
 echo ''
 echo 'Setup finished. Check the workspace compiles with ./scripts/check, and run'
 echo './scripts/verify before committing.'
