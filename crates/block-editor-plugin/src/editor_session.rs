@@ -7,7 +7,7 @@ use block_plugin_api::{
     CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage, EditorRegion,
     FrameChrome, FrameReport, FrameSpec, HostReply, ImeArea, ImeInput, InputEvent, MAX_CHILDREN,
     MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize, ScreenPlacement,
-    ScreenRequest, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
+    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
 };
 use block_ui::BlockCatalog;
 use eframe::egui;
@@ -722,23 +722,21 @@ impl EditorSession {
         let intrinsic = self.app.intrinsic_size();
         if intrinsic != self.intrinsic {
             self.intrinsic = intrinsic;
-            if let Some(size) = intrinsic {
-                messages.push(Message::Editor(EditorMessage::IntrinsicSize {
-                    instance,
+            messages.push(Message::Editor(EditorMessage::IntrinsicSize {
+                instance,
+                size: intrinsic.map(|size| Size {
                     width: size.x,
                     height: size.y,
-                }));
-            }
+                }),
+            }));
         }
         let aspect_ratio = self.app.aspect_ratio();
         if aspect_ratio != self.aspect_ratio {
             self.aspect_ratio = aspect_ratio;
-            if let Some(ratio) = aspect_ratio {
-                messages.push(Message::Editor(EditorMessage::AspectRatio {
-                    instance,
-                    ratio,
-                }));
-            }
+            messages.push(Message::Editor(EditorMessage::AspectRatio {
+                instance,
+                ratio: aspect_ratio,
+            }));
         }
         if let Some(ready) = self.host.take_creation_ready() {
             messages.push(Message::Editor(EditorMessage::CreationReady {

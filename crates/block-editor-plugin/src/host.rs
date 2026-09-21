@@ -13,8 +13,8 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
     EditorBand, EditorCapabilities, EditorRegion, FetchResult, FilePick, HostReply, HostRequest,
-    InteractionMode, Occluder, PerformanceMeasurement, ResizeMode, ViewChange, WebViewCommand,
-    WebViewEvent,
+    InteractionMode, Occluder, PerformanceMeasurement, ResizeMode, Size, ViewChange,
+    WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter};
 use block_ui::BlockCatalog;
@@ -333,8 +333,10 @@ impl ChildHandle {
 
     pub fn set_intrinsic_size(&self, size: egui::Vec2) {
         self.host.update_child(self.index, |placement| {
-            placement.intrinsic_width = size.x.max(0.0);
-            placement.intrinsic_height = size.y.max(0.0);
+            placement.intrinsic = Some(Size {
+                width: size.x.max(0.0),
+                height: size.y.max(0.0),
+            });
         });
     }
 
@@ -360,13 +362,14 @@ impl ChildHandle {
 
     pub fn intrinsic_size(&self) -> Option<egui::Vec2> {
         let status = self.status.as_ref()?;
-        (status.intrinsic_width > 0.0 && status.intrinsic_height > 0.0)
-            .then(|| egui::vec2(status.intrinsic_width, status.intrinsic_height))
+        status
+            .intrinsic
+            .map(|size| egui::vec2(size.width, size.height))
     }
 
     pub fn aspect_ratio(&self) -> Option<f32> {
         let status = self.status.as_ref()?;
-        (status.aspect_ratio > 0.0).then_some(status.aspect_ratio)
+        status.aspect_ratio
     }
 
     pub fn set_mode(&self, mode: ChildMode) {
@@ -1121,8 +1124,10 @@ impl EditorHost {
             corner_radius: 0.0,
             layer,
             mode,
-            intrinsic_width: intrinsic.map_or(0.0, |size| size.x.max(0.0)),
-            intrinsic_height: intrinsic.map_or(0.0, |size| size.y.max(0.0)),
+            intrinsic: intrinsic.map(|size| Size {
+                width: size.x.max(0.0),
+                height: size.y.max(0.0),
+            }),
             rotation,
             opacity: opacity.clamp(0.0, 1.0),
         });
@@ -1159,8 +1164,7 @@ impl EditorHost {
             corner_radius: 0.0,
             layer,
             mode: ChildMode::Passive,
-            intrinsic_width: 0.0,
-            intrinsic_height: 0.0,
+            intrinsic: None,
             rotation: 0.0,
             opacity: 1.0,
         });

@@ -8,7 +8,7 @@ fn hello() -> Message {
             name: "Plugin Demo".into(),
             version: "1.0".into(),
         },
-        capabilities: vec![Capability::Input, Capability::Surface],
+        surface: SurfaceSupport::Texture,
     })
 }
 

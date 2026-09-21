@@ -96,6 +96,9 @@ impl Runtime {
     }
 
     fn replace_surface(&mut self, outbound: &mut Vec<Message>) -> Result<bool, String> {
+        let Some(spec) = self.screens.surface() else {
+            return Ok(false);
+        };
         let layout = self.screens.layout().clone();
         if layout.is_empty()
             || self
@@ -117,7 +120,7 @@ impl Runtime {
         ));
         self.surface = Some(match self.surface.take() {
             Some(previous) => previous.resize(layout.clone(), self.generation)?,
-            None => Surface::new(layout.clone(), self.generation)?,
+            None => Surface::new(layout.clone(), self.generation, spec)?,
         });
         outbound.push(Message::Layout(layout));
         Ok(true)

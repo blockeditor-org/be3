@@ -21,8 +21,22 @@ fn drag_messages_round_trip() {
         }),
         Message::Editor(EditorMessage::IntrinsicSize {
             instance: EditorInstanceId(4),
-            width: 400.0,
-            height: 264.0,
+            size: Some(Size {
+                width: 400.0,
+                height: 264.0,
+            }),
+        }),
+        Message::Editor(EditorMessage::IntrinsicSize {
+            instance: EditorInstanceId(4),
+            size: None,
+        }),
+        Message::Editor(EditorMessage::AspectRatio {
+            instance: EditorInstanceId(4),
+            ratio: Some(16.0 / 9.0),
+        }),
+        Message::Editor(EditorMessage::AspectRatio {
+            instance: EditorInstanceId(4),
+            ratio: None,
         }),
     ] {
         assert_eq!(

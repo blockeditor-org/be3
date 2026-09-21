@@ -15,7 +15,7 @@ pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
-pub const MAX_SURFACE_SIDE: u32 = 8192;
+pub const DEFAULT_SURFACE_SIDE: u32 = 8192;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -95,7 +95,7 @@ impl ScreenPlacement {
 }
 
 impl ScreenLayout {
-    pub fn packed(screens: &[ScreenRequest]) -> Self {
+    pub fn packed(screens: &[ScreenRequest], max_side: u32) -> Self {
         let mut slots: Vec<&ScreenRequest> = screens
             .iter()
             .filter(|request| request.metrics.pixel_width > 0 && request.metrics.pixel_height > 0)
@@ -119,7 +119,7 @@ impl ScreenLayout {
             .sum();
         let shelf_width = widest
             .max((area as f64).sqrt().ceil() as u32)
-            .min(MAX_SURFACE_SIDE)
+            .min(max_side)
             .max(widest);
         let mut layout = Self::default();
         let mut x = 0;
@@ -185,6 +185,12 @@ pub enum ChildMode {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Size {
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ChildRect {
     pub x: f32,
     pub y: f32,
@@ -203,8 +209,7 @@ pub struct ChildPlacement {
     pub corner_radius: f32,
     pub layer: ChildLayer,
     pub mode: ChildMode,
-    pub intrinsic_width: f32,
-    pub intrinsic_height: f32,
+    pub intrinsic: Option<Size>,
     pub rotation: f32,
     pub opacity: f32,
 }
@@ -249,9 +254,8 @@ pub struct ChildStatus {
     pub region: EditorRegion,
     pub child: ChildId,
     pub available: bool,
-    pub intrinsic_width: f32,
-    pub intrinsic_height: f32,
-    pub aspect_ratio: f32,
+    pub intrinsic: Option<Size>,
+    pub aspect_ratio: Option<f32>,
     pub hovered: bool,
     pub active: bool,
     pub interaction: InteractionMode,
@@ -689,13 +693,12 @@ pub enum EditorMessage {
     },
     AspectRatio {
         instance: EditorInstanceId,
-        ratio: f32,
+        ratio: Option<f32>,
     },
 
     IntrinsicSize {
         instance: EditorInstanceId,
-        width: f32,
-        height: f32,
+        size: Option<Size>,
     },
     Performance {
         instance: EditorInstanceId,
@@ -1120,14 +1123,14 @@ impl EditorMessage {
 pub struct Hello {
     pub version: u16,
     pub plugin: PluginIdentity,
-    pub capabilities: Vec<Capability>,
+    pub surface: SurfaceSupport,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelloAccepted {
     pub version: u16,
     pub host_name: String,
-    pub capabilities: Vec<Capability>,
+    pub surface: Option<SurfaceSpec>,
     pub theme: Theme,
 }
 
@@ -1143,11 +1146,24 @@ pub struct PluginIdentity {
     pub version: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Capability {
-    Input,
-    Lifecycle,
-    Surface,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SurfaceSupport {
+    None,
+    Texture,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SurfaceSpec {
+    pub format: SurfaceFormat,
+    pub max_side: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SurfaceFormat {
+    Rgba8Unorm,
+    Rgba8UnormSrgb,
+    Bgra8Unorm,
+    Bgra8UnormSrgb,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -1350,13 +1366,9 @@ pub fn decode_frame(frame: &[u8]) -> Result<Message, DecodeError> {
 fn validate(message: &Message) -> Result<(), DecodeError> {
     match message {
         Message::Hello(value) => {
-            strings([&value.plugin.id, &value.plugin.name, &value.plugin.version])?;
-            collection(value.capabilities.len())
+            strings([&value.plugin.id, &value.plugin.name, &value.plugin.version])
         }
-        Message::HelloAccepted(value) => {
-            string(&value.host_name)?;
-            collection(value.capabilities.len())
-        }
+        Message::HelloAccepted(value) => string(&value.host_name),
         Message::HelloRejected(value) | Message::Error(value) => string(&value.message),
         Message::Input(value) => {
             collection(value.events.len())?;

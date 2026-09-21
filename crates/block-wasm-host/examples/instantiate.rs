@@ -134,7 +134,10 @@ fn hello_accepted() -> Message {
     Message::HelloAccepted(HelloAccepted {
         version: PROTOCOL_VERSION,
         host_name: "instantiate".to_owned(),
-        capabilities: Vec::new(),
+        surface: Some(block_plugin_api::SurfaceSpec {
+            format: block_plugin_api::SurfaceFormat::Rgba8Unorm,
+            max_side: block_plugin_api::DEFAULT_SURFACE_SIDE,
+        }),
         theme: block_plugin_api::Theme { dark: true },
     })
 }

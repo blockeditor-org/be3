@@ -6,9 +6,10 @@ use std::{
 };
 
 use block_plugin_api::{
-    ArtifactDescription, BlockCommand, BlockPick, Capability, EditorInstanceId, EditorMessage,
-    EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, ScreenId,
-    ScreenLayout, ScreenRequest, SessionState, Theme, ViewChange,
+    ArtifactDescription, BlockCommand, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId,
+    EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest,
+    ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec, Theme,
+    ViewChange,
 };
 use eframe::egui;
 use uuid::Uuid;
@@ -30,6 +31,10 @@ const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
 const UNIT: egui::Rect = egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0));
 const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
+const SURFACE: SurfaceSpec = SurfaceSpec {
+    format: SurfaceFormat::Rgba8Unorm,
+    max_side: DEFAULT_SURFACE_SIDE,
+};
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::new());
@@ -191,6 +196,7 @@ impl Runtime {
         let previous = self.pass;
         self.pass = pass;
         self.next_slot = 0;
+        let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(previous);
         let mut messages = Vec::new();
         let theme = theme(&self.context);
@@ -199,7 +205,7 @@ impl Runtime {
             messages.push(Message::Theme(theme));
         }
         messages.extend(next.opened);
-        if self.sent != next.screens {
+        if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
             messages.push(self.instances.screen_set(next.screens));
         }
@@ -233,7 +239,7 @@ impl Runtime {
                 .drive_web_views(frame, &self.context, self.pass),
         );
         self.needed |= !messages.is_empty();
-        if self.frame_due() {
+        if self.session.granted_surface().is_some() && self.frame_due() {
             self.requested_at = Some(self.now());
             messages.push(Message::DrawFrame);
         }
@@ -1222,15 +1228,7 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
 }
 
 fn session(context: &egui::Context) -> HostSession {
-    HostSession::new(
-        HOST_NAME,
-        vec![
-            Capability::Lifecycle,
-            Capability::Input,
-            Capability::Surface,
-        ],
-        theme(context),
-    )
+    HostSession::new(HOST_NAME, Some(SURFACE), theme(context))
 }
 
 fn theme(context: &egui::Context) -> Theme {

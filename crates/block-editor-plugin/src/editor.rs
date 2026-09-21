@@ -160,9 +160,10 @@ impl ChildState {
             available: status.available,
             hovered: status.hovered,
             active: status.active,
-            intrinsic_size: (status.intrinsic_width > 0.0 && status.intrinsic_height > 0.0)
-                .then(|| Vec2::new(status.intrinsic_width, status.intrinsic_height)),
-            aspect_ratio: (status.aspect_ratio > 0.0).then_some(status.aspect_ratio),
+            intrinsic_size: status
+                .intrinsic
+                .map(|size| Vec2::new(size.width, size.height)),
+            aspect_ratio: status.aspect_ratio,
             interaction: Some(status.interaction),
             capabilities: status.capabilities,
             resize: status.resize,

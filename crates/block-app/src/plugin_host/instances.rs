@@ -5,7 +5,7 @@ use block_plugin_api::{
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FetchResult,
     FilePick, FrameReport, FrameSpec, HostReply, HostRequest, ImeArea, Message, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, TunnelMessage, ViewChange,
+    ScreenSet, Size, TunnelMessage, ViewChange,
 };
 use eframe::egui;
 use std::{
@@ -948,8 +948,9 @@ impl Instances {
                 clip: child_clip,
                 layer: child.layer,
                 mode,
-                intrinsic: (child.intrinsic_width > 0.0 && child.intrinsic_height > 0.0)
-                    .then(|| egui::vec2(child.intrinsic_width, child.intrinsic_height)),
+                intrinsic: child
+                    .intrinsic
+                    .map(|size| egui::vec2(size.width, size.height)),
                 rotation: child.rotation,
                 opacity: child.opacity,
             });
@@ -1033,9 +1034,11 @@ impl Instances {
                 region,
                 child: status.child,
                 available: status.available,
-                intrinsic_width: status.intrinsic.map_or(0.0, |size| size.x),
-                intrinsic_height: status.intrinsic.map_or(0.0, |size| size.y),
-                aspect_ratio: status.aspect_ratio.unwrap_or_default(),
+                intrinsic: status.intrinsic.map(|size| Size {
+                    width: size.x,
+                    height: size.y,
+                }),
+                aspect_ratio: status.aspect_ratio,
                 hovered: status.hovered,
                 active: status.active,
                 interaction: status.interaction,
@@ -1843,21 +1846,17 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                let changed = entry.aspect_ratio != Some(ratio);
-                entry.aspect_ratio = Some(ratio);
+                let changed = entry.aspect_ratio != ratio;
+                entry.aspect_ratio = ratio;
                 changed
             }
-            EditorMessage::IntrinsicSize {
-                instance,
-                width,
-                height,
-            } => {
+            EditorMessage::IntrinsicSize { instance, size } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                let intrinsic = egui::vec2(width, height);
-                let changed = entry.intrinsic != Some(intrinsic);
-                entry.intrinsic = Some(intrinsic);
+                let intrinsic = size.map(|size| egui::vec2(size.width, size.height));
+                let changed = entry.intrinsic != intrinsic;
+                entry.intrinsic = intrinsic;
                 changed
             }
             EditorMessage::Performance {

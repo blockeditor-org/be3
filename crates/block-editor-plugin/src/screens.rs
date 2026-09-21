@@ -1,7 +1,8 @@
 use block_client::{BlockClient, TunnelCarrier};
 use block_plugin_api::{
-    BlockTypeDescriptor, ChildStatus, EditorBand, EditorInstanceId, EditorMessage, EditorRegion,
-    Message, ScreenId, ScreenLayout, ScreenRequest, TunnelMessage,
+    BlockTypeDescriptor, ChildStatus, DEFAULT_SURFACE_SIDE, EditorBand, EditorInstanceId,
+    EditorMessage, EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec,
+    TunnelMessage,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry};
 use eframe::egui;
@@ -27,6 +28,7 @@ pub(crate) struct Screens {
     block_types: Rc<BlockCatalog>,
     client: Option<Client>,
     theme: egui::Theme,
+    surface: Option<SurfaceSpec>,
 }
 
 impl Screens {
@@ -53,6 +55,7 @@ impl Screens {
             block_types: Rc::new(BlockCatalog::default()),
             client: None,
             theme: egui::Theme::Dark,
+            surface: None,
         }
     }
 
@@ -98,13 +101,20 @@ impl Screens {
         &self.layout
     }
 
+    pub(crate) fn surface(&self) -> Option<SurfaceSpec> {
+        self.surface
+    }
+
     pub(crate) fn set_generation(&mut self, generation: u64) {
         self.layout.generation = generation;
     }
 
     pub(crate) fn receive(&mut self, message: &Message) -> bool {
         match message {
-            Message::HelloAccepted(accepted) => self.set_theme(accepted.theme),
+            Message::HelloAccepted(accepted) => {
+                self.surface = accepted.surface;
+                self.set_theme(accepted.theme);
+            }
             Message::Theme(theme) => self.set_theme(*theme),
             Message::Editor(EditorMessage::Open {
                 instance,
@@ -463,7 +473,10 @@ impl Screens {
 
     fn relayout(&mut self) {
         let generation = self.layout.generation;
-        self.layout = ScreenLayout::packed(&self.requests);
+        let max_side = self
+            .surface
+            .map_or(DEFAULT_SURFACE_SIDE, |surface| surface.max_side);
+        self.layout = ScreenLayout::packed(&self.requests, max_side);
         self.layout.generation = generation;
         let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::new();
         for placement in &self.layout.screens {

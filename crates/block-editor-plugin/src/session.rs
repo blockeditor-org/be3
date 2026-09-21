@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Capability, Direction, EditorInstanceId, EditorMessage, ErrorCode, Hello, Message,
-    PROTOCOL_VERSION, PluginIdentity, ProtocolError, ScreenId,
+    Direction, EditorInstanceId, EditorMessage, ErrorCode, Hello, Message, PROTOCOL_VERSION,
+    PluginIdentity, ProtocolError, ScreenId, SurfaceSpec, SurfaceSupport,
 };
 use std::collections::HashSet;
 
@@ -17,6 +17,7 @@ pub struct ClientSession {
     screens: HashSet<ScreenId>,
     plugin: PluginIdentity,
     instances: HashSet<EditorInstanceId>,
+    surface: Option<SurfaceSpec>,
 }
 
 impl Default for ClientSession {
@@ -36,6 +37,7 @@ impl ClientSession {
                 version: version.into(),
             },
             instances: HashSet::new(),
+            surface: None,
         }
     }
 
@@ -43,15 +45,18 @@ impl ClientSession {
         self.state
     }
 
+    pub fn surface(&self) -> Option<SurfaceSpec> {
+        self.surface
+    }
+
     pub fn hello(&self) -> Message {
-        #[allow(unused_mut)]
-        let mut capabilities = vec![Capability::Lifecycle, Capability::Input];
-        #[cfg(target_arch = "wasm32")]
-        capabilities.push(Capability::Surface);
         Message::Hello(Hello {
             version: PROTOCOL_VERSION,
             plugin: self.plugin.clone(),
-            capabilities,
+            surface: match cfg!(target_arch = "wasm32") {
+                true => SurfaceSupport::Texture,
+                false => SurfaceSupport::None,
+            },
         })
     }
 
@@ -87,6 +92,7 @@ impl ClientSession {
                         accepted.version
                     ));
                 }
+                self.surface = accepted.surface;
                 self.state = State::Running;
                 Ok(Vec::new())
             }
@@ -96,6 +102,9 @@ impl ClientSession {
                 name(&message)
             )),
             (State::Running, Message::Screens(set)) => {
+                if self.surface.is_none() {
+                    return Err("the host sent screens to a plugin it gave no surface".into());
+                }
                 if let Some(request) = set
                     .screens
                     .iter()
@@ -128,6 +137,10 @@ impl ClientSession {
                 }
             }
             (State::Running, Message::Editor(editor)) => self.editor(editor),
+            (State::Running, Message::DrawFrame) => match self.surface.is_some() {
+                true => Ok(Vec::new()),
+                false => Err("the host asked a plugin it gave no surface to draw a frame".into()),
+            },
             (State::Running, Message::Shutdown) => {
                 self.state = State::Closed;
                 Ok(vec![Message::ShutdownAcknowledged])
