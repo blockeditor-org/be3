@@ -216,6 +216,7 @@ impl EntityPaint {
                 CanvasTextAlign::Right => TextAlign::End,
             },
             line_spacing: text_style.line_height.max(0.5),
+            ..TextLayout::DEFAULT
         };
         let galley = painter.layout_text(shown, FontId::proportional(font_size), layout);
         let size = galley.size();

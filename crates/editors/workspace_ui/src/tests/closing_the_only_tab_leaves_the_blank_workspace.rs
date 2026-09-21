@@ -2,15 +2,20 @@ use super::*;
 
 #[test]
 fn closing_the_only_tab_leaves_the_blank_workspace() {
-    let (mut editor, host, opened) = editor();
+    let (mut fixture, opened) = editor();
 
-    host.show_block(opened, FileTree::TYPE_ID, None, None);
-    editor.step();
-    assert_eq!(editor.app().open_blocks(), vec![opened]);
+    show(&mut fixture, opened, None, None);
+    assert_eq!(fixture.shown(), vec![opened]);
 
-    editor.app().close_active();
-    editor.step();
+    fixture.close_active_tab();
 
-    assert!(editor.app().open_blocks().is_empty());
-    assert_eq!(host.focused_block().block_id, None);
+    assert!(
+        fixture.shown().is_empty(),
+        "closing the last tab leaves no block on show"
+    );
+    assert_eq!(fixture.focused(), None);
+    assert!(
+        fixture.says("No file open"),
+        "closing the last tab leaves the blank workspace"
+    );
 }

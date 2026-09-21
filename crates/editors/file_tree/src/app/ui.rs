@@ -209,53 +209,54 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </Toolbar>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                >
-                    <List spacing=ROW_SPACING>
+                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                    <List spacing=0.0>
                         <Show condition={failed}>
-                            <Caption content={reason} color={theme.danger.clone()} />
+                            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                                <Caption content={reason} color={theme.danger.clone()} />
+                            </Frame>
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&scroll_ref}>
-                            <Tree
-                                @node_ref={&tree_ref}
-                                keys={keys}
-                                item={item}
-                                selected={selected}
-                                reveal={reveal}
-                                spacing=2.0
-                                expand_on_select=false
-                                row_test_id={move |key: RowKey| row_test_id(&key)}
-                                outline={outline}
-                                on_select={open}
-                                on_expand={expand}
-                                on_drag_start={start}
-                            >
-                                {move |face: TreeRowFace<RowKey>| {
-                                    let row = tree.row(face.key.clone());
-                                    view! {
-                                        <TreeRow
-                                            editor={editor.clone()}
-                                            tree={Rc::clone(&tree)}
-                                            picker={picker.clone()}
-                                            row={row}
-                                            face={face}
-                                        />
-                                    }
-                                }}
-                            </Tree>
+                            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                                <Tree
+                                    @node_ref={&tree_ref}
+                                    keys={keys}
+                                    item={item}
+                                    selected={selected}
+                                    reveal={reveal}
+                                    spacing=2.0
+                                    expand_on_select=false
+                                    row_test_id={move |key: RowKey| row_test_id(&key)}
+                                    outline={outline}
+                                    on_select={open}
+                                    on_expand={expand}
+                                    on_drag_start={start}
+                                >
+                                    {move |face: TreeRowFace<RowKey>| {
+                                        let row = tree.row(face.key.clone());
+                                        view! {
+                                            <TreeRow
+                                                editor={editor.clone()}
+                                                tree={Rc::clone(&tree)}
+                                                picker={picker.clone()}
+                                                row={row}
+                                                face={face}
+                                            />
+                                        }
+                                    }}
+                                </Tree>
+                            </Frame>
                         </Scroll>
                         <Floating anchor={scroll_ref} edge={edge} open={adrift}>
-                            <Button
-                                glyph={stray_glyph}
-                                label={stray_label}
-                                variant=ButtonVariant::Secondary
-                                @test_id={"file-tree.stray"}
-                                on_click={reveal_stray}
-                            />
+                            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                                <Button
+                                    glyph={stray_glyph}
+                                    label={stray_label}
+                                    variant=ButtonVariant::Secondary
+                                    @test_id={"file-tree.stray"}
+                                    on_click={reveal_stray}
+                                />
+                            </Frame>
                         </Floating>
                     </List>
                 </Frame>

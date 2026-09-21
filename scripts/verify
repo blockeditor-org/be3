@@ -140,6 +140,21 @@ if $lint; then
 fi
 
 if $tests; then
+    # The merge queue in .github/merge-queue is the one part of this repository
+    # that is not Rust, so nothing else in this script compiles it and cargo
+    # nextest does not run it. It decides whether a pull request merges, so it
+    # is worth the second it costs here.
+    #
+    # Node is not otherwise needed to build or test anything in this project,
+    # and asking every contributor to install one for this would be a poor
+    # trade. CI runs these in a job of their own where Node is always present,
+    # so a local checkout without it loses nothing but the early warning.
+    if command -v node > /dev/null 2>&1; then
+        t 'merge queue tests' node --test --test-reporter=dot '.github/merge-queue/*.test.js'
+    else
+        echo 'Skipping the merge queue tests: node is not installed.'
+    fi
+
     if $check; then
         t 'cargo nextest run' cargo nextest run --profile ci "${native[@]}"
     else

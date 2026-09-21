@@ -7,8 +7,8 @@ use crate::node::NodeId;
 use crate::reactive::{
     Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
 };
-use crate::styled::text::IconSized;
-use crate::styled::theme::{FONT_BODY, ICON_SIZE, ThemeStore, use_theme};
+use crate::styled::text::Icon;
+use crate::styled::theme::{FONT_BODY, ThemeStore, use_theme};
 use crate::unstyled;
 
 const ICON_SPACING: f32 = 6.0;
@@ -66,7 +66,7 @@ fn LinkFace(
     let icon_color = color.clone();
     let label_color = color;
     let size = create_memo(move || font_size.get());
-    let icon_size = create_memo(clone!(size -> move || size.get() * ICON_SIZE / FONT_BODY));
+    let icon_size = size.clone();
     view! {
         <Frame
             outline={theme.accent.clone()}
@@ -77,7 +77,7 @@ fn LinkFace(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                 <Show condition={has_glyph}>
-                    <IconSized glyph={glyph_text} font_size={icon_size} color={icon_color} />
+                    <Icon glyph={glyph_text} text_size={icon_size} color={icon_color} />
                 </Show>
                 <Text
                     string={label}
