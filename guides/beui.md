@@ -265,6 +265,9 @@ children adds `align=Align::Center`; a one-line alias per combination is what
 `Row`, `Column` and `CenteredRow` were, and reading the props beats remembering
 which names exist. `Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node.
+Its `width`, `max_width`, `height` and `aspect_ratio` each take an optional
+measurement, so a signal behind one can hand it back to nothing and leave that
+axis measuring intrinsically again.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal
@@ -300,7 +303,13 @@ what a toolbar reaches for where `Select` would imply the choice sticks;
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
-progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout. A control that can be turned off -
+progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout.
+`Separator` is the rule between them: it runs `Direction::Horizontal` unless the
+tag says otherwise, takes a line's thickness across its `direction` and the
+space its list gives it along it, so a divider in a row is
+`<Separator direction=Direction::Vertical />` and neither needs an `@sizing`.
+A `length` pins the long axis for a row that centres its children rather than
+stretching them. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen

@@ -22,7 +22,6 @@ const SHELL_SPACING: f32 = 10.0;
 const PANEL_PADDING: f32 = 14.0;
 const ROW_SPACING: f32 = 4.0;
 const TOOLBAR_SPACING: f32 = 8.0;
-const SEPARATOR_HEIGHT: f32 = 1.0;
 const NEXT_TAB: u64 = 100;
 
 #[derive(Clone, PartialEq)]
@@ -196,7 +195,7 @@ fn DockShell() -> NodeId {
         >
             <List spacing=SHELL_SPACING>
                 <DockToolbar set_papers={set_papers} set_state={set_state.clone()} />
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <DockArea
                     @sizing=ItemSize::Percent(100.0)
                     state={state}
