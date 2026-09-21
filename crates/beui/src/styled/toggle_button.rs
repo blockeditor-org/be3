@@ -7,8 +7,8 @@ use crate::node::NodeId;
 use crate::reactive::{
     Align, Callback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
 };
-use crate::styled::text::IconSized;
-use crate::styled::theme::{FONT_BODY, ICON_SIZE, RADIUS, ThemeStore, use_theme};
+use crate::styled::text::Icon;
+use crate::styled::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::styled::tooltip::Tooltip;
 use crate::unstyled;
 use crate::unstyled::{Toggle, ToggleHandle};
@@ -111,7 +111,7 @@ fn ToggleButtonFace(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>
-                        <IconSized glyph={glyph_text} font_size=ICON_SIZE color={icon_color} />
+                        <Icon glyph={glyph_text} color={icon_color} />
                     </Show>
                     <Show condition={named}>
                         <Text string={label_text} font_size=FONT_BODY color={text_color} />
