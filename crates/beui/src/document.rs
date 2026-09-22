@@ -82,6 +82,7 @@ pub struct Document {
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
+    clips: NodeMap<Rect>,
 }
 
 struct SizeWatcher {
@@ -208,6 +209,7 @@ impl Document {
             changes: FlashLog::default(),
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
+            clips: NodeMap::default(),
         }
     }
 
@@ -642,7 +644,7 @@ impl Document {
             if let Some(node) = self.rects.get(&id)
                 && self.paints(id)
             {
-                self.damage.add(*node);
+                self.damage.add(node.intersect(self.clip(id)));
             }
             self.damage.add(self.paint_cache.borrow().bounds(id));
         }
@@ -973,9 +975,10 @@ impl Document {
     }
 
     fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>, dropped: &mut Vec<NodeId>) {
+        let clip = self.clips.remove(&id).unwrap_or(Rect::EVERYTHING);
         if let Some(rect) = out.remove(&id) {
             if self.paints(id) {
-                self.damage.add(rect);
+                self.damage.add(rect.intersect(clip));
             }
             self.damage.add(self.paint_cache.borrow().bounds(id));
         }
@@ -1046,30 +1049,48 @@ impl Document {
         }
     }
 
-    pub(crate) fn reusable_placement(&self, id: NodeId, rect: Rect, out: &NodeMap<Rect>) -> bool {
+    pub(crate) fn reusable_placement(
+        &self,
+        id: NodeId,
+        rect: Rect,
+        clip: Rect,
+        out: &NodeMap<Rect>,
+    ) -> bool {
         self.delivering
             && !self.arena.unplaced(id)
             && out.get(&id) == Some(&rect)
+            && self.clips.get(&id) == Some(&clip)
             && self.placed_children.contains_key(&id)
     }
 
-    pub(crate) fn record_placement(&mut self, id: NodeId, rect: Rect, out: &mut NodeMap<Rect>) {
+    pub(crate) fn record_placement(
+        &mut self,
+        id: NodeId,
+        rect: Rect,
+        clip: Rect,
+        out: &mut NodeMap<Rect>,
+    ) {
         let previous = out.insert(id, rect);
         if !self.delivering {
             return;
         }
         self.arena.clear_unplaced(id);
         self.placed_pass.insert(id, self.layout_pass);
-        if previous == Some(rect) {
+        let previous_clip = self.clips.insert(id, clip).unwrap_or(Rect::EVERYTHING);
+        if previous == Some(rect) && previous_clip == clip {
             return;
         }
         if self.paints(id) {
-            self.damage.add(rect);
+            self.damage.add(rect.intersect(clip));
             if let Some(previous) = previous {
-                self.damage.add(previous);
+                self.damage.add(previous.intersect(previous_clip));
             }
         }
         self.damage.add(self.paint_cache.borrow().bounds(id));
+    }
+
+    fn clip(&self, id: NodeId) -> Rect {
+        self.clips.get(&id).copied().unwrap_or(Rect::EVERYTHING)
     }
 
     fn paints(&self, id: NodeId) -> bool {

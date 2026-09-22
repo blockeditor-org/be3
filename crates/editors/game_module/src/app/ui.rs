@@ -1,16 +1,14 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_client::blocks::game_module::{GameModule, GameModuleOperation};
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo,
-    create_signal, view,
+    Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, Paragraph, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, TextAlign};
-use block_editor_plugin::{Creation, Editor, FilePicker, Sidebar};
+use block_editor_plugin::{Editor, FileChooser, Sidebar};
 use game_host::Game;
 
 use super::{filter, imported};
@@ -97,33 +95,26 @@ pub fn ModuleView(editor: Editor) -> NodeId {
 #[component]
 fn ModulePanel(editor: Editor) -> NodeId {
     let module = editor.block::<GameModule>();
-    let picker = Rc::new(RefCell::new(FilePicker::default()));
-    let (error, set_error) = create_signal(None::<String>);
-    let (picking, set_picking) = create_signal(false);
+    let chooser = FileChooser::new(filter(), imported);
+    let polled = Rc::clone(&chooser);
     let host = editor.host().clone();
-    let polled = Rc::clone(&picker);
-    editor.each_frame(clone!(module -> move || {
-        let picked = polled.borrow_mut().poll(&host).map(|file| file.and_then(imported));
-        set_picking.set(polled.borrow().is_open());
-        match picked {
-            Some(Ok(module_block)) => {
-                module.operate(GameModuleOperation::Replace {
-                    module: module_block,
-                });
-                set_error.set(None);
-            }
-            Some(Err(reason)) => set_error.set(Some(reason)),
-            None => {}
+    editor.each_frame(move || {
+        polled.poll(&host);
+        if let Some(replacement) = polled.take() {
+            module.operate(GameModuleOperation::Replace {
+                module: replacement,
+            });
         }
-    }));
+    });
 
     let read_only = editor.read_only();
-    let blocked =
-        create_memo(clone!(picking read_only -> move || picking.get() || read_only.get()));
+    let busy = chooser.busy();
+    let blocked = create_memo(clone!(busy read_only -> move || busy.get() || read_only.get()));
+    let error = chooser.error();
     let failed = create_memo(clone!(error -> move || error.get().is_some()));
     let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
     let opened = editor.host().clone();
-    let replace = move || picker.borrow_mut().open(&opened, filter());
+    let replace = move || chooser.open(&opened);
     let theme = use_theme();
     view! {
         <List spacing=SPACING>
@@ -139,81 +130,5 @@ fn ModulePanel(editor: Editor) -> NodeId {
                 <Caption content={reason} color={theme.danger.clone()} />
             </Show>
         </List>
-    }
-}
-
-#[component]
-pub fn ModuleCreation(creation: Creation) -> NodeId {
-    let picker = Rc::new(RefCell::new(FilePicker::default()));
-    let chosen = Rc::new(RefCell::new(None::<GameModule>));
-    let (name, set_name) = create_signal(None::<String>);
-    let (error, set_error) = create_signal(None::<String>);
-    let (picking, set_picking) = create_signal(false);
-    creation.set_ready(false);
-
-    let host = creation.host().clone();
-    let polled = Rc::clone(&picker);
-    let filled = Rc::clone(&chosen);
-    let ready = creation.clone();
-    creation.each_frame(move || {
-        let picked = polled
-            .borrow_mut()
-            .poll(&host)
-            .map(|file| file.and_then(imported));
-        set_picking.set(polled.borrow().is_open());
-        match picked {
-            Some(Ok(module)) => {
-                set_name.set(Some(module.source_name().to_owned()));
-                *filled.borrow_mut() = Some(module);
-                set_error.set(None);
-                ready.set_ready(true);
-            }
-            Some(Err(reason)) => {
-                *filled.borrow_mut() = None;
-                set_name.set(None);
-                set_error.set(Some(reason));
-                ready.set_ready(false);
-            }
-            None => {}
-        }
-    });
-
-    let client = creation.client().clone();
-    let made = Rc::clone(&chosen);
-    creation.on_create(move || {
-        let module = made.borrow_mut().take().ok_or("no file was chosen")?;
-        Ok(client.create_block(module).id())
-    });
-
-    let opened = creation.host().clone();
-    let choose = move || picker.borrow_mut().open(&opened, filter());
-    let label = create_memo(clone!(name -> move || {
-        name.get().unwrap_or_else(|| "No file chosen".to_owned())
-    }));
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
-    let theme = use_theme();
-    view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
-            <List spacing=SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Button
-                        label="Choose file..."
-                        variant=ButtonVariant::Secondary
-                        disabled={picking}
-                        @test_id={"game-module.choose"}
-                        on_click={choose}
-                    />
-                    <Caption @sizing=ItemSize::Percent(100.0) content={label} />
-                </List>
-                <Show condition={failed}>
-                    <Caption
-                        content={reason}
-                        color={theme.danger.clone()}
-                        @test_id={"game-module.error"}
-                    />
-                </Show>
-            </List>
-        </Frame>
     }
 }
