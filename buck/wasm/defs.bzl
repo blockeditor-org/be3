@@ -1,3 +1,5 @@
+load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
+
 # A WebAssembly module, named from a target that is not built for WebAssembly.
 #
 # The app never loads a game or a plugin as anything but a wasm module, and the
@@ -78,7 +80,7 @@ _plugin_exports = [
 # and asking for it on the host is a configuration error rather than a link
 # failure. The module is named from the manifest's entry_point, which is what
 # the app resolves against the directory it found the manifest in.
-def editor(name, module, deps, visibility = ["PUBLIC"]):
+def editor(name, module, deps, test_deps = [], visibility = ["PUBLIC"]):
     native.rust_library(
         name = name + "_wasm",
         crate = name,
@@ -103,3 +105,78 @@ def editor(name, module, deps, visibility = ["PUBLIC"]):
         module = module,
         visibility = visibility,
     )
+    native.rust_binary(
+        name = "test_module",
+        crate = name,
+        crate_root = "src/lib.rs",
+        deps = deps + test_deps,
+        edition = "2024",
+        env = {
+            "CARGO_CRATE_NAME": name,
+            "CARGO_MANIFEST_DIR": "crates/editors/" + name,
+            "CARGO_PKG_NAME": name,
+            "CARGO_PKG_VERSION": "0.1.0",
+        },
+        rustc_flags = _plugin_exports + ["--test"],
+        srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+    )
+    wasi_test(
+        name = "test",
+        manifest = "Cargo.toml",
+        module = ":test_module",
+        runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    )
+
+# An editor's tests, which are a wasm guest like the editor itself.
+#
+# A plugin paints with the FreeType and HarfBuzz it was compiled against, so
+# running its tests natively paints with whatever those libraries happen to be
+# on the machine and the accepted paintings never settle. Compiled to wasm they
+# are the versions the plugin ships with. So the test binary is a module, built
+# for wasi with --test the way cargo builds one, and the thing buck2 runs is the
+# host: plugin-test-runner hands the module to wasmtime with a plugin's imports
+# linked and opens a graphics device only if a test asks the gpu abi for one.
+#
+# CARGO_MANIFEST_DIR is what a plugin's tests find their accepted paintings
+# through: the guest inherits the runner's environment, walks up from there to
+# the workspace and reads snapshots/ under it. The runner preopens that same
+# workspace for the guest, so the path has to be the real one rather than the
+# staged copy a rustc action sees, which is why it is taken from the crate's
+# Cargo.toml, which is a file in the repository rather than an output.
+#
+# Under cargo this is CARGO_TARGET_WASM32_WASIP1_THREADS_RUNNER; here the runner
+# is an ordinary dependency, so it is built for whatever the test itself is
+# built for, and the module is a dependency in wasi's configuration, which is
+# what the transition below does. An exec_dep would put the runner in the
+# execution platform's configuration instead and build wasmtime a second time
+# for it.
+def _wasi_test_impl(ctx: AnalysisContext) -> list[Provider]:
+    module = ctx.attrs.module[DefaultInfo].default_outputs[0]
+    command = cmd_args(ctx.attrs.runner[RunInfo], module)
+    env = dict(ctx.attrs.env)
+    if ctx.attrs.manifest:
+        env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
+    return inject_test_run_info(
+        ctx,
+        ExternalRunnerTestInfo(
+            command = [command],
+            env = env,
+            labels = ctx.attrs.labels,
+            run_from_project_root = True,
+            type = "rust",
+            use_project_relative_paths = False,
+        ),
+    ) + [DefaultInfo(default_output = module)]
+
+wasi_test = rule(
+    attrs = {
+        "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
+        "labels": attrs.list(attrs.string(), default = []),
+        "manifest": attrs.option(attrs.source(), default = None),
+        "module": attrs.transition_dep(cfg = wasi_transition),
+        "runner": attrs.dep(providers = [RunInfo]),
+        "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
+    },
+    impl = _wasi_test_impl,
+)

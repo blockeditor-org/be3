@@ -6737,8 +6737,7 @@ name = "test-third-party"
 version = "0.1.0"
 dependencies = [
  "naga",
- "wasmi",
- "wasmtime",
+ "wat",
 ]
 
 [[package]]

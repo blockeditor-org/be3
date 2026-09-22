@@ -12,4 +12,7 @@ editor(
         "//third-party/rust:uuid",
     ],
     module = "infinite_canvas",
+    test_deps = [
+        "//crates/block-ui-test:block-ui-test",
+    ],
 )

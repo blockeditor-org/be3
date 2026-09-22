@@ -1,3 +1,5 @@
+load("@root//buck/wasm:defs.bzl", "wasi_test")
+
 rust_library(
     name = "block-editor-plugin",
     crate = "block_editor_plugin",
@@ -47,4 +49,49 @@ rust_library(
     },
     srcs = glob(["src/**/*.rs", "src/**/*.wgsl"]),
     visibility = ["PUBLIC"],
+)
+
+# The guest half of the plugin framework, which is the half that exists on wasm:
+# its tests are behind cfg(target_arch = "wasm32"), so a native run never
+# compiles them. naga is what they validate a plugin's shaders with.
+rust_binary(
+    name = "test_module",
+    crate = "block_editor_plugin",
+    crate_root = "src/lib.rs",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block:block",
+        "//crates/block-client:block-client",
+        "//crates/block-gpu-abi:block-gpu-abi",
+        "//crates/block-gpu-guest:block-gpu-guest",
+        "//crates/block-plugin-api:block-plugin-api",
+        "//crates/block-reactive:block-reactive",
+        "//crates/block-ui:block-ui",
+        "//crates/wasi-threads:wasi-threads",
+        "//third-party/rust:eframe",
+        "//third-party/rust:egui_material_icons",
+        "//third-party/rust:futures-util",
+        "//third-party/rust:naga",
+        "//third-party/rust:serde",
+        "//third-party/rust:serde_json",
+        "//third-party/rust:uuid",
+        "//third-party/rust:wgpu",
+    ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_editor_plugin",
+        "CARGO_MANIFEST_DIR": "crates/block-editor-plugin",
+        "CARGO_PKG_NAME": "block-editor-plugin",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    rustc_flags = ["--test"],
+    srcs = glob(["src/**/*.rs", "src/**/*.wgsl"]),
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+)
+
+wasi_test(
+    name = "test",
+    manifest = "Cargo.toml",
+    module = ":test_module",
+    runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )

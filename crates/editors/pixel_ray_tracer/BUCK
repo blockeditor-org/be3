@@ -9,4 +9,7 @@ editor(
         "//third-party/rust:uuid",
     ],
     module = "pixel_ray_tracer",
+    test_deps = [
+        "//crates/block-ui-test:block-ui-test",
+    ],
 )

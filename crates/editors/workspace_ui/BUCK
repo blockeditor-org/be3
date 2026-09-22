@@ -11,4 +11,7 @@ editor(
         "//third-party/rust:uuid",
     ],
     module = "workspace_ui",
+    test_deps = [
+        "//crates/block-ui-test:block-ui-test",
+    ],
 )

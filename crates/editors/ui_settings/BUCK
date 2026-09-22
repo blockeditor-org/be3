@@ -9,4 +9,7 @@ editor(
         "//third-party/rust:uuid",
     ],
     module = "ui_settings",
+    test_deps = [
+        "//crates/block-ui-test:block-ui-test",
+    ],
 )

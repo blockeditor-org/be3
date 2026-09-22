@@ -24700,10 +24700,13 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "std",
-        "wat",
-    ],
+    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["wat"],
+            deps = ["//third-party/rust:wat"],
+        ),
+    },
     visibility = [],
     deps = [
         ":spin-0.9",
@@ -24711,7 +24714,6 @@ cargo.rust_library(
         ":wasmi_core-1",
         ":wasmi_ir-1",
         ":wasmparser-0.239",
-        ":wat-1",
     ],
 )
 
@@ -25118,7 +25120,7 @@ cargo.rust_library(
         ":wasmparser-0.254",
         ":wasmtime-48-helpers",
         ":wasmtime-environ-48",
-        ":wat-1",
+        "//third-party/rust:wat",
     ],
 )
 
@@ -26228,6 +26230,17 @@ cargo.rust_library(
         ":unicode-width-0.2",
         ":wasm-encoder-0.257",
     ],
+)
+
+cargo_alias(
+    name = "wat",
+    actual = ":wat-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
+    visibility = ["PUBLIC"],
 )
 
 http_archive(

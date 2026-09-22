@@ -18,6 +18,10 @@ touch a `BUCK` file needs nothing from this guide.
   `text-editor-core`, the games' api and host, and the tools.
 - The three game modules, as WebAssembly, and the native tests that drive them
   through the host.
+- All thirty-three editors, as the wasm plugins the app loads, and their tests,
+  compiled to wasm and run through the same host `block-app` runs a plugin in.
+
+`./scripts/buck test //crates/... --exclude cargo-only` is 68 test targets.
 
 ## Running it
 
@@ -333,6 +337,32 @@ Things worth knowing when you do:
 - Anything the crate reads at compile time that is not Rust - a `.wgsl` shader,
   a font, an `examples/` file a test includes - has to be in `srcs`.
 
+## The plugins
+
+Every editor is one `editor()` call in `crates/editors/<name>/BUCK`, and the
+macro in `buck/wasm/defs.bzl` makes three targets out of it:
+
+- `<name>_wasm`, the guest, a cdylib for `wasm32-wasip1-threads`. There is no
+  native build of an editor, so it is compatible with `wasm32` alone.
+- `module`, that cdylib under the name the manifest's `entry_point` gives it.
+- `test`, which is the editor's tests compiled to wasm and run through
+  `plugin-test-runner`, the same host `block-app` runs a plugin in.
+
+A plugin paints with the FreeType and HarfBuzz it was compiled against, so its
+tests only mean anything as a wasm guest: run natively they paint with whatever
+those libraries happen to be on the machine and the accepted paintings never
+settle. Under cargo that is `CARGO_TARGET_WASM32_WASIP1_THREADS_RUNNER`; here
+the module is a `transition_dep` in wasi's configuration and the runner is an
+ordinary dependency, so it is built for the host beside it. The accepted
+paintings are read from `snapshots/` through `CARGO_MANIFEST_DIR`, which
+`wasi_test` takes from the crate's `Cargo.toml` so that the path is the one in
+the repository rather than the staged copy a rustc action compiles against.
+buck2 never sets `UPDATE_SNAPSHOTS`, so a changed painting fails here and is
+accepted with `./scripts/verify` as before.
+
+`block-editor-plugin` has a `test` of the same shape: it is the guest half of
+the plugin framework, and its tests are behind `cfg(target_arch = "wasm32")`.
+
 ## What is not covered yet
 
 The gaps, roughly in the order they are worth closing:
@@ -342,14 +372,6 @@ The gaps, roughly in the order they are worth closing:
   `./scripts/buckify` and fixing what the new platforms' build scripts need; the
   first-party `BUCK` files would then need `select()` where the dependency sets
   differ.
-- **The plugins build but their tests do not run.** All 33 editors compile to
-  `wasm32-wasip1-threads` and come out as modules under the names their
-  manifests give them (`./scripts/buck build //crates/editors/...`). What is
-  missing is the run: a plugin's tests are compiled to wasm too and executed by
-  `plugin-test-runner` through wasmtime, and buck2 has no rule for a test whose
-  binary is a wasm module handed to a host. `block-editor-plugin` has no test
-  target for the same reason - its tests are behind `cfg(target_arch =
-  "wasm32")`.
 - **Nothing stages the plugins.** `scripts/internal/common.sh` copies each
   manifest beside the modules as `<id>.plugin.json` and writes a `plugins.json`
   index for the browser and Android. There is no buck2 rule for that yet, and

@@ -1,3 +1,11 @@
+# The same as wasmi's: block-wasm-host's tests hand the host modules written as
+# text, and under cargo the dev-dependency that asks for wat turns it on for the
+# library too. wasmtime is host-only, so there is no platform to exclude.
+features = ["wat"]
+# The feature is an optional dependency, and a feature named in a fixup does
+# not pull one in: reindeer resolved the graph before reading this.
+extra_deps = ["//third-party/rust:wat"]
+
 # One C file, for the signal handler trampolines the runtime needs.
 buildscript.run = true
 
