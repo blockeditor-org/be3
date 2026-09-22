@@ -1033,15 +1033,12 @@ write_buck_tools() {
     local directory="$repository/buck/tools"
     mkdir -p "$directory"
 
-    local python
-    python="$(buck_python)" || return 1
-    local python_version series
-    python_version="$("$python" --version 2>&1)"
-    # python3.13, not python3.13.12: the series is what is installed under a
-    # name, and the whole version is what the wrapper is keyed on.
-    series="$(echo "$python_version" | sed -n 's/^Python \([0-9]*\.[0-9]*\).*/\1/p')"
-    write_buck_tool "$directory/python3" \
-        "$(buck_versioned_command python3 "python$series")" "$python_version"
+    # buck/tools/python3 is checked in rather than written here: it is the one
+    # wrapper whose bytes have to be the same on every machine, and the file
+    # itself says why. What is still this script's job is refusing to run when
+    # the Python it will find is too old, because the failure otherwise arrives
+    # as a TypeError from inside an unrelated C compile.
+    buck_python > /dev/null || return 1
 
     local compiler
     compiler="$(command -v clang || command -v cc)"

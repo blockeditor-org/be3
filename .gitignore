@@ -12,3 +12,4 @@ shelley.db*
 /.buckconfig.local
 /buck/tools/*
 !/buck/tools/BUCK
+!/buck/tools/python3

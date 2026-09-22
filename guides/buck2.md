@@ -85,10 +85,11 @@ what cargo's `target/` costs for the same workspace. `buck2 clean` empties it.
 ## Why buck/tools exists
 
 Two machines share a cache entry when they agree on an action, and an action is
-its command line. Everything a toolchain gives buck2 as a plain string ends up
-in that command line, so a toolchain that names `/usr/bin/clang` makes every
-action that uses it machine-specific, and the cache useless across machines. The
-prelude's Python is worse: it is in the command line of every action there is.
+its command line plus the files it reads. Everything a toolchain gives buck2 as
+a plain string ends up in that command line, so a toolchain that names
+`/usr/bin/clang` makes every action using it machine-specific, and the cache
+useless across machines. The prelude's Python is worse: it is in the command
+line of every action there is.
 
 So the host tools reach buck2 as files instead. `./scripts/buck` writes a
 one-line wrapper per tool into `buck/tools`, and `buck/toolchains/BUCK` hands
@@ -103,16 +104,60 @@ Each wrapper names the version of the tool it runs:
 exec clang-18 "$@"
 ```
 
-That line is the other half. It makes the wrapper's bytes depend on the compiler
-rather than only on the machine, so two machines with the same compiler share a
-cache entry and two machines with different compilers do not. Without it a build
-would happily take an artifact compiled by something else and never say so.
+That line is the other half. buck2 keys an action on the bytes of every file it
+reads, so the version makes a cache entry belong to a compiler rather than to a
+machine: two machines on the same compiler share it, and two on different
+compilers do not. Without it a build would take an artifact compiled by
+something else and never say so. What it costs when they differ, measured by
+editing a version line and rebuilding:
 
-This is not a hermetic toolchain: the compiler still comes off the machine. A
-genuinely hermetic one would download clang and rustc as build artifacts, and
-that is a real option for rustc. It is a poor fit for the C side, because the
-same toolchain links the system ALSA, GTK and WebKitGTK this project needs, and
-a bundled libc is exactly what makes that hard.
+| | cache hits |
+|---|---|
+| same tools | 96% |
+| a different clang | 89% |
+| a different rustc | 54% |
+
+`buck/tools/python3` is the exception, and the only wrapper checked in. It has
+no version and resolves the interpreter itself at run time, so its bytes are
+the same on every machine. That is deliberate: this Python decides nothing
+about what an artifact contains. It runs the prelude's own helpers -
+`rustc_action`, `buildscript_run`, `from_any_dir`, `dep_file_processor` - which
+start the real compiler and shuffle paths and diagnostics around it. Keying on
+it would only mean Ubuntu 24.04, which has 3.12, sharing nothing with a machine
+that has 3.13. A checkout running 3.12 against a cache filled by one running
+3.13 gets the same 94% it would have got from an identical machine.
+
+What the Python version does decide is whether the helpers run at all: one of
+them needs `Path.relative_to(walk_up=True)`, which arrived in 3.12.
+`./scripts/buck` refuses to run without one, because the alternative is a
+`TypeError` from inside an unrelated C compile.
+
+## Is this hermetic, and does it need a build server?
+
+No, and no.
+
+A hermetic toolchain means the compilers are downloaded and content-addressed,
+so every machine has the same ones. That needs downloads, not a server, and for
+rustc it is already effectively true: `rust-toolchain.toml` pins the version and
+rustup gives every checkout the same one, which is why the rustc wrapper says
+the same thing everywhere without anything being downloaded.
+
+A hermetic *build* is a bigger claim: that the whole input root is declared. It
+is not, and downloading clang would not make it so. The C compiles read
+`/usr/include`, and the links resolve `-lasound` and the system libc, none of
+which buck2 sees. Two machines would compute the same action digest from
+different inputs - which is worse than not sharing, because it is sharing that
+is wrong. Completing the input root is what remote execution buys, by running
+each action in a declared container image.
+
+That is not worth a build server here. The C toolchain touches about a tenth of
+the graph, the C compiles inside it never hit the cache anyway, and uploads are
+CI's alone, so a machine whose C output would differ never poisons anything -
+it just compiles those actions itself, which is under a minute. If heterogeneous
+machines ever do become the problem, developing in the image CI uses is the
+cheap answer and gets the same soundness for none of the operational surface.
+Remote execution is the answer to a different question: making *misses* fast by
+fanning them out.
 
 ## How the build is laid out
 
@@ -220,8 +265,9 @@ The gaps, roughly in the order they are worth closing:
   keys dep-file-tracked compiles; turning on the remote dep file cache does not
   change it.
 - **No remote execution.** The cache answers with results; nothing runs on
-  another machine. That is a separate switch (`remote_enabled` in
-  `buck/platforms/BUCK`) and needs workers, not just storage.
+  another machine, so a miss is as slow as it ever was. That is a separate
+  switch (`remote_enabled` in `buck/platforms/BUCK`) and needs workers rather
+  than storage; the section above says when it would be worth it.
 
 ## Where the tools come from
 
