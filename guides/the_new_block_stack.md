@@ -208,9 +208,22 @@ polling either.
 broadcasts; a follower applies its own edit immediately, rebases it against
 operations that arrive in between, and reconciles against the owner's echo. It
 keeps `confirmed` (server-ordered) and `visible` (`confirmed` plus pending),
-which is the same shape the old client used. `seal` writes a commit and
-heartbeats `clean_at`. `reconcile` runs the resume decision and merges when it
-has to.
+which is the same shape the old client used. `seal` writes a commit, heartbeats
+`clean_at`, and tells the followers with `SessionMessage::Sealed` which commit
+now holds which sequence number. `reconcile` runs the resume decision and merges
+when it has to.
+
+A follower's `head` is only right because of `Sealed`, and ownership depends on
+it being right. A follower that takes over carries on from the head the last
+owner sealed: it keeps the old sequence numbering so the other followers keep
+applying what it accepts, it accepts the operations it had pending as its own,
+and it owes a seal for whatever the old owner accepted after its last one.
+Get the head wrong and the new owner's first save is refused, and the resume
+decision reads its unsaved work as something to fast-forward over. `reconcile`
+now merges unsaved work into anything it fast-forwards or merges onto, and when
+it changes the owner's content outside the operation stream, the next `Sealed`
+tells the followers to reload the head. Only an owner ever seals or reconciles
+in the app's worker: a follower's edits are the owner's to save.
 
 ## Adding a content type
 

@@ -10,6 +10,7 @@ use crate::platform;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
+mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_unmigrated_block_type_has_no_content_in_the_new_stack;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
@@ -79,14 +80,34 @@ impl Harness {
     }
 
     pub(crate) fn connect(&self) {
-        start(Config {
+        start(self.config(self.directory.join("objects")));
+    }
+
+    fn config(&self, data_dir: PathBuf) -> Config {
+        Config {
             server_url: self.url.clone(),
             token: self.token.clone(),
             account: self.account,
             workspace: self.workspace,
-            data_dir: self.directory.join("objects"),
+            data_dir,
             context: eframe::egui::Context::default(),
-        });
+        }
+    }
+
+    async fn outside_peer(&self) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+        let config = self.config(self.directory.join("outside"));
+        let peer = be_client::Peer::connect(
+            be_client::PeerConfig::new(
+                config.socket_url(),
+                be_store::ContentKey::from_bytes(config.content_key()),
+                be_client::Credentials::Adopted,
+            )
+            .workspace(Some(self.workspace)),
+            be_store::MemoryStore::new(),
+        )
+        .await
+        .expect("a second peer joins the workspace");
+        std::sync::Arc::new(peer)
     }
 }
 

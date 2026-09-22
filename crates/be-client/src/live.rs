@@ -5,7 +5,10 @@ use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, ServerMessage, SessionState};
 use be_session::{Follower, Resume, Sequencer, SessionMessage, SessionOp, resume};
 use be_store::ObjectStore;
-use tokio::sync::broadcast::{Receiver, error::TryRecvError};
+use tokio::sync::broadcast::{
+    Receiver,
+    error::{RecvError, TryRecvError},
+};
 use uuid::Uuid;
 
 use crate::{ClientError, Peer, Saved};
@@ -24,6 +27,8 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     confirmed: C,
     visible: C,
     base: Option<CommitId>,
+    sealed: u64,
+    reload: bool,
     events: Receiver<ServerMessage>,
 }
 
@@ -50,6 +55,8 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             visible: confirmed.clone(),
             confirmed,
             base: head,
+            sealed: 0,
+            reload: false,
             events,
         };
         if let Role::Follower(follower) = &live.role {
@@ -126,27 +133,47 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 Err(TryRecvError::Empty | TryRecvError::Closed) => break,
                 Err(TryRecvError::Lagged(_)) => continue,
             };
-            match event {
-                ServerMessage::SessionChanged { block, state } if block == self.block => {
-                    self.adopt(state);
-                    handled += 1;
-                }
-                ServerMessage::Relayed {
-                    block,
-                    from,
-                    payload,
-                } if block == self.block => {
-                    let plain = self.peer.unseal(&payload)?;
-                    let Ok(message) = be_protocol::decode::<SessionMessage>(&plain) else {
-                        continue;
-                    };
-                    self.receive(from, message).await?;
-                    handled += 1;
-                }
-                _ => {}
-            }
+            handled += self.handle(event).await?;
         }
         Ok(handled)
+    }
+
+    pub async fn wait(&mut self) -> Result<usize, ClientError> {
+        let event = loop {
+            match self.events.recv().await {
+                Ok(event) => break event,
+                Err(RecvError::Lagged(_)) => {}
+                Err(RecvError::Closed) => {
+                    return Err(ClientError::Disconnected(
+                        "the connection closed while waiting on the session".into(),
+                    ));
+                }
+            }
+        };
+        let handled = self.handle(event).await?;
+        Ok(handled + self.poll().await?)
+    }
+
+    async fn handle(&mut self, event: ServerMessage) -> Result<usize, ClientError> {
+        match event {
+            ServerMessage::SessionChanged { block, state } if block == self.block => {
+                self.adopt(state).await?;
+                Ok(1)
+            }
+            ServerMessage::Relayed {
+                block,
+                from,
+                payload,
+            } if block == self.block => {
+                let plain = self.peer.unseal(&payload)?;
+                let Ok(message) = be_protocol::decode::<SessionMessage>(&plain) else {
+                    return Ok(0);
+                };
+                self.receive(from, message).await?;
+                Ok(1)
+            }
+            _ => Ok(0),
+        }
     }
 
     async fn receive(
@@ -185,6 +212,9 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 let Role::Owner(sequencer) = &self.role else {
                     return Ok(());
                 };
+                if sequencer.inherited() > 0 {
+                    self.reload = true;
+                }
                 let message = SessionMessage::Snapshot {
                     head: sequencer.head(),
                     sequence: sequencer.sequence(),
@@ -200,15 +230,17 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 let Role::Follower(_) = &self.role else {
                     return Ok(());
                 };
+                let sealed = sequence.saturating_sub(ops.len() as u64);
                 if head != self.base
                     && let Some(head) = head
                 {
                     self.confirmed = self.peer.open_commit::<C>(head).await?;
                     self.base = Some(head);
                     if let Role::Follower(follower) = &mut self.role {
-                        follower.set_applied(sequence.saturating_sub(ops.len() as u64));
+                        follower.set_applied(sealed);
                     }
                 }
+                self.sealed = sealed;
                 for op in &ops {
                     self.apply_accepted(op);
                 }
@@ -224,7 +256,43 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
                 Ok(())
             }
+            SessionMessage::Sealed {
+                head,
+                sequence,
+                reload,
+            } => {
+                let Role::Follower(follower) = &self.role else {
+                    return Ok(());
+                };
+                if !reload && follower.applied() != sequence {
+                    let catchup = follower.catchup();
+                    let owner = self.state.owner;
+                    return self.send(owner, &catchup).await;
+                }
+                if reload {
+                    self.confirmed = self.peer.open_commit::<C>(head).await?;
+                    if let Role::Follower(follower) = &mut self.role {
+                        follower.set_applied(sequence);
+                    }
+                    self.rebuild_visible();
+                }
+                self.base = Some(head);
+                self.sealed = sequence;
+                Ok(())
+            }
         }
+    }
+
+    fn rebuild_visible(&mut self) {
+        let mut visible = self.confirmed.clone();
+        if let Role::Follower(follower) = &self.role {
+            for payload in follower.payloads() {
+                if let Ok(pending) = C::decode_operation(&payload) {
+                    visible.apply(&pending);
+                }
+            }
+        }
+        self.visible = visible;
     }
 
     fn apply_accepted(&mut self, op: &SessionOp) {
@@ -251,22 +319,47 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                     .map(|rebased| C::encode_operation(&rebased))
             });
         }
-        let mut visible = self.confirmed.clone();
-        for payload in follower.payloads() {
-            if let Ok(pending) = C::decode_operation(&payload) {
-                visible.apply(&pending);
-            }
-        }
-        self.visible = visible;
+        self.rebuild_visible();
     }
 
-    fn adopt(&mut self, state: SessionState) {
-        let became_owner = state.is_owner(self.client) && !self.is_owner();
+    async fn adopt(&mut self, state: SessionState) -> Result<(), ClientError> {
+        let owner_changed = state.owner != self.state.owner;
         self.state = state;
-        if became_owner {
-            self.role = Role::Owner(Sequencer::new(self.base));
-            self.confirmed = self.visible.clone();
+        let Role::Follower(follower) = &mut self.role else {
+            return Ok(());
+        };
+        if !owner_changed {
+            return Ok(());
         }
+        if !self.state.is_owner(self.client) {
+            let applied = follower.applied();
+            let resubmit = follower.resynchronize(applied);
+            let owner = self.state.owner;
+            for message in resubmit {
+                self.send(owner, &message).await?;
+            }
+            return Ok(());
+        }
+        let applied = follower.applied();
+        let pending = follower.take_pending();
+        let mut sequencer =
+            Sequencer::continuing(self.base, applied, applied.saturating_sub(self.sealed));
+        let mut accepted = Vec::new();
+        for (id, payload) in pending {
+            let Ok(operation) = C::decode_operation(&payload) else {
+                continue;
+            };
+            if let Some(op) = sequencer.accept(id, payload) {
+                self.confirmed.apply(&operation);
+                accepted.push(op);
+            }
+        }
+        self.role = Role::Owner(sequencer);
+        self.visible = self.confirmed.clone();
+        for op in accepted {
+            self.broadcast(&SessionMessage::Accepted { op }).await?;
+        }
+        Ok(())
     }
 
     pub async fn claim(&mut self) -> Result<bool, ClientError> {
@@ -275,26 +368,47 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             .claim_ownership(self.block, self.state.generation)
             .await?;
         let granted = state.is_owner(self.client);
-        self.adopt(state);
+        self.adopt(state).await?;
         Ok(granted)
     }
 
     pub async fn seal(&mut self) -> Result<Saved, ClientError> {
-        let Role::Owner(sequencer) = &mut self.role else {
+        if !self.is_owner() {
             return Ok(Saved::Rejected { head: self.base });
-        };
+        }
         let saved = self
             .peer
             .save(self.block, &self.confirmed, self.base)
             .await?;
         if let Some(head) = saved.published() {
-            sequencer.sealed(head);
-            self.base = Some(head);
-            self.peer
-                .heartbeat(self.block, self.state.generation, Some(head))
-                .await?;
+            self.settle_at(head).await?;
         }
         Ok(saved)
+    }
+
+    async fn settle_at(&mut self, head: CommitId) -> Result<(), ClientError> {
+        self.base = Some(head);
+        let Role::Owner(sequencer) = &mut self.role else {
+            return Ok(());
+        };
+        sequencer.sealed(head);
+        let sequence = sequencer.sequence();
+        self.sealed = sequence;
+        let reload = std::mem::take(&mut self.reload);
+        self.broadcast(&SessionMessage::Sealed {
+            head,
+            sequence,
+            reload,
+        })
+        .await?;
+        self.peer
+            .heartbeat(self.block, self.state.generation, Some(head))
+            .await?;
+        Ok(())
+    }
+
+    fn has_unsealed_work(&self) -> bool {
+        matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
     }
 
     async fn broadcast(&self, message: &SessionMessage) -> Result<(), ClientError> {
@@ -320,47 +434,80 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
         if let Some(local) = self.base {
             self.peer.fetch_history(local).await?;
         }
+        let unsealed = self.has_unsealed_work();
         match resume(self.peer.commits(), self.base, remote)? {
             Resume::Empty | Resume::UpToDate | Resume::Publish { .. } => Ok(MergeResult::Clean(())),
-            Resume::FastForward { to } => {
+            Resume::FastForward { to } if !unsealed => {
                 self.confirmed = self.peer.open_commit::<C>(to).await?;
                 self.visible = self.confirmed.clone();
-                self.base = Some(to);
+                self.reload = true;
+                self.settle_at(to).await?;
                 Ok(MergeResult::Clean(()))
             }
+            Resume::FastForward { to } => {
+                let ancestor = self.open_or_default(self.base).await?;
+                let theirs = self.peer.open_commit::<C>(to).await?;
+                let merged = C::merge3(&ancestor, &self.confirmed, &theirs);
+                let (value, outcome) = split(merged);
+                let saved = self.peer.save(self.block, &value, Some(to)).await?;
+                self.take_merged(value, saved.published()).await?;
+                Ok(outcome)
+            }
             Resume::Merge { base, ours, theirs } => {
-                let ancestor = match base {
-                    Some(base) => self.peer.open_commit::<C>(base).await?,
-                    None => C::default(),
+                let ancestor = self.open_or_default(base).await?;
+                let ours_content = match unsealed {
+                    true => self.confirmed.clone(),
+                    false => self.peer.open_commit::<C>(ours).await?,
                 };
-                let ours_content = self.peer.open_commit::<C>(ours).await?;
                 let theirs_content = self.peer.open_commit::<C>(theirs).await?;
                 let merged = C::merge3(&ancestor, &ours_content, &theirs_content);
-                let conflicts = match &merged {
-                    MergeResult::Clean(_) => 0,
-                    MergeResult::Conflicted { conflicts, .. } => *conflicts,
-                };
-                let value = match merged {
-                    MergeResult::Clean(value) | MergeResult::Conflicted { value, .. } => value,
-                };
+                let (value, outcome) = split(merged);
                 let saved = self
                     .peer
                     .save_merge(self.block, &value, Some(theirs), vec![ours])
                     .await?;
-                if let Some(head) = saved.published() {
-                    self.base = Some(head);
-                }
-                self.confirmed = value;
-                self.visible = self.confirmed.clone();
-                Ok(if conflicts == 0 {
-                    MergeResult::Clean(())
-                } else {
-                    MergeResult::Conflicted {
-                        value: (),
-                        conflicts,
-                    }
-                })
+                self.take_merged(value, saved.published()).await?;
+                Ok(outcome)
             }
         }
+    }
+
+    async fn open_or_default(&self, commit: Option<CommitId>) -> Result<C, ClientError> {
+        match commit {
+            Some(commit) => self.peer.open_commit::<C>(commit).await,
+            None => Ok(C::default()),
+        }
+    }
+
+    async fn take_merged(
+        &mut self,
+        value: C,
+        published: Option<CommitId>,
+    ) -> Result<(), ClientError> {
+        self.confirmed = value;
+        self.visible = self.confirmed.clone();
+        self.reload = true;
+        match published {
+            Some(head) => self.settle_at(head).await,
+            None => {
+                if let Role::Owner(sequencer) = &mut self.role {
+                    sequencer.carry_unsealed();
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+fn split<C>(merged: MergeResult<C>) -> (C, MergeResult<()>) {
+    match merged {
+        MergeResult::Clean(value) => (value, MergeResult::Clean(())),
+        MergeResult::Conflicted { value, conflicts } => (
+            value,
+            MergeResult::Conflicted {
+                value: (),
+                conflicts,
+            },
+        ),
     }
 }

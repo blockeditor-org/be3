@@ -50,6 +50,8 @@ pub(super) trait Session {
 
     fn is_clean(&self) -> bool;
 
+    fn owes_seal(&self) -> bool;
+
     fn edit<'a>(&'a mut self, operation: &'a [u8]) -> LocalBoxFuture<'a, Result<(), ClientError>>;
 
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
@@ -88,6 +90,10 @@ where
         Live::is_clean(self)
     }
 
+    fn owes_seal(&self) -> bool {
+        self.is_owner() && !Live::is_clean(self)
+    }
+
     fn edit<'a>(&'a mut self, operation: &'a [u8]) -> LocalBoxFuture<'a, Result<(), ClientError>> {
         Box::pin(async move {
             match C::decode_operation(operation) {
@@ -103,7 +109,7 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move {
-            if Live::is_clean(self) {
+            if !self.owes_seal() {
                 return Ok(());
             }
             if matches!(Live::seal(self).await?, Saved::Rejected { .. }) {
@@ -228,7 +234,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         if sealed {
             unsealed_since = None;
         }
-        unsealed_since = match sessions.values().any(|session| !session.is_clean()) {
+        unsealed_since = match sessions.values().any(|session| session.owes_seal()) {
             true => unsealed_since.or_else(|| Some(Instant::now())),
             false => None,
         };

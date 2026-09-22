@@ -35,6 +35,11 @@ pub enum SessionMessage {
         sequence: u64,
         ops: Vec<SessionOp>,
     },
+    Sealed {
+        head: CommitId,
+        sequence: u64,
+        reload: bool,
+    },
 }
 
 #[derive(Clone, Debug, Default)]
@@ -43,15 +48,21 @@ pub struct Sequencer {
     head: Option<CommitId>,
     log: VecDeque<SessionOp>,
     accepted: HashSet<OpId>,
+    inherited: u64,
 }
 
 impl Sequencer {
     pub fn new(head: Option<CommitId>) -> Self {
+        Self::continuing(head, 0, 0)
+    }
+
+    pub fn continuing(head: Option<CommitId>, sequence: u64, unsealed: u64) -> Self {
         Self {
-            sequence: 0,
+            sequence,
             head,
             log: VecDeque::new(),
             accepted: HashSet::new(),
+            inherited: unsealed,
         }
     }
 
@@ -96,14 +107,23 @@ impl Sequencer {
     pub fn sealed(&mut self, head: CommitId) {
         self.head = Some(head);
         self.log.clear();
+        self.inherited = 0;
+    }
+
+    pub fn inherited(&self) -> u64 {
+        self.inherited
+    }
+
+    pub fn carry_unsealed(&mut self) {
+        self.inherited += 1;
     }
 
     pub fn pending_operations(&self) -> usize {
-        self.log.len()
+        self.log.len() + self.inherited as usize
     }
 
     pub fn is_clean(&self) -> bool {
-        self.log.is_empty()
+        self.log.is_empty() && self.inherited == 0
     }
 }
 
@@ -167,6 +187,10 @@ impl Follower {
             }
         }
         self.pending = kept;
+    }
+
+    pub fn take_pending(&mut self) -> Vec<(OpId, Vec<u8>)> {
+        self.pending.drain(..).collect()
     }
 
     pub fn payloads(&self) -> Vec<Vec<u8>> {
