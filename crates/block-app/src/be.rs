@@ -70,9 +70,41 @@ pub(crate) struct Status {
     pub(crate) error: Option<String>,
 }
 
+struct Migrated {
+    block_type: Uuid,
+    content_type: Uuid,
+    join: worker::Join,
+}
+
+const fn migrated<B, C>() -> Migrated
+where
+    B: Block,
+    C: be_block::LiveEdit + be_block::Merge + Clone + Default,
+{
+    Migrated {
+        block_type: B::TYPE_ID,
+        content_type: C::CONTENT_TYPE,
+        join: worker::join::<C>,
+    }
+}
+
+const MIGRATED: &[Migrated] = &[
+    migrated::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(),
+    migrated::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
+];
+
 pub(crate) fn content_type_for(block_type: Uuid) -> Option<Uuid> {
-    (block_type == block_client::blocks::counter::Counter::TYPE_ID)
-        .then_some(<be_block::CounterContent as be_block::BlockContent>::CONTENT_TYPE)
+    MIGRATED
+        .iter()
+        .find(|migrated| migrated.block_type == block_type)
+        .map(|migrated| migrated.content_type)
+}
+
+fn join_for(content_type: Uuid) -> Option<worker::Join> {
+    MIGRATED
+        .iter()
+        .find(|migrated| migrated.content_type == content_type)
+        .map(|migrated| migrated.join)
 }
 
 struct Stack {
