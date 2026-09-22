@@ -1,15 +1,15 @@
 use beui::icons::ICON_GRID_VIEW;
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
-    Selector, Show, Spacer, Text, WriteSignal, build, clone, create_memo, create_selector,
-    create_signal, view,
+    Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
+    create_selector, create_signal, view,
 };
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
     Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
     Separator, Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree,
-    TreeRowFace, VirtualList, use_theme,
+    TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
@@ -441,19 +441,17 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                         />
                     </List>
                     <Separator />
-                    <VirtualList
-                        @sizing=ItemSize::Percent(100.0)
-                        count=ROW_COUNT
-                        item_size={row_height}
-                    >
-                        {move |index: usize| {
-                            let rows = item_rows.clone();
-                            let compact = rows.compact.get();
-                            view! {
-                                <ScrollRow index rows compact />
-                            }
-                        }}
-                    </VirtualList>
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
+                        <VirtualList count=ROW_COUNT item_size={row_height}>
+                            {move |index: usize| {
+                                let rows = item_rows.clone();
+                                let compact = rows.compact.get();
+                                view! {
+                                    <ScrollRow index rows compact />
+                                }
+                            }}
+                        </VirtualList>
+                    </Scroll>
                 </List>
             </Card>
         </List>
@@ -713,16 +711,17 @@ fn StripControls() -> NodeId {
                 content="A horizontal list scrolls with Shift+scroll, a sideways trackpad swipe, \
                  a touch drag, or the arrow keys once something in it has focus."
             />
-            <VirtualList
-                @sizing=ItemSize::Fixed(STRIP_HEIGHT)
-                direction=Direction::Horizontal
-                count=STRIP_COUNT
-                item_size=STRIP_ITEM_WIDTH
-            >
-                {move |index: usize| view! {
-                    <StripCard index />
-                }}
-            </VirtualList>
+            <Scroll @sizing=ItemSize::Fixed(STRIP_HEIGHT) direction=Direction::Horizontal>
+                <VirtualList
+                    direction=Direction::Horizontal
+                    count=STRIP_COUNT
+                    item_size=STRIP_ITEM_WIDTH
+                >
+                    {move |index: usize| view! {
+                        <StripCard index />
+                    }}
+                </VirtualList>
+            </Scroll>
         </List>
     }
 }

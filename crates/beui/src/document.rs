@@ -58,6 +58,8 @@ pub struct Document {
     interact_pool: Vec<Vec<NodeId>>,
     placed_pass: NodeMap<u64>,
     layout_pass: u64,
+    scroll_hosts: Vec<NodeId>,
+    scroll_shifts: NodeMap<f32>,
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
     paint_cache: RefCell<PaintCache>,
@@ -182,6 +184,8 @@ impl Document {
             interact_pool: Vec::new(),
             placed_pass: NodeMap::default(),
             layout_pass: 0,
+            scroll_hosts: Vec::new(),
+            scroll_shifts: NodeMap::default(),
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
@@ -468,6 +472,7 @@ impl Document {
         self.measurements.remove(&id);
         self.component_states.remove(&id);
         self.placed_children.remove(&id);
+        self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             if self.test_ids.get(&test_id) == Some(&id) {
@@ -978,6 +983,47 @@ impl Document {
 
     pub(crate) fn put_back_interact_pool(&mut self, pool: Vec<Vec<NodeId>>) {
         self.interact_pool = pool;
+    }
+
+    pub(crate) fn laying_out(&self) -> Option<NodeId> {
+        self.layout_parent
+    }
+
+    pub(crate) fn delivering(&self) -> bool {
+        self.delivering
+    }
+
+    pub(crate) fn invalidate_measurement(&mut self, id: NodeId) {
+        self.arena.invalidate_node(id);
+    }
+
+    pub(crate) fn enter_scroll_host(&mut self, id: NodeId) {
+        self.scroll_hosts.push(id);
+    }
+
+    pub(crate) fn leave_scroll_host(&mut self) {
+        self.scroll_hosts.pop();
+    }
+
+    pub(crate) fn record_scroll_shift(&mut self, shift: f32) {
+        let Some(&host) = self.scroll_hosts.last() else {
+            return;
+        };
+        *self.scroll_shifts.get_or_default(host) += shift;
+    }
+
+    pub(crate) fn take_scroll_shift(&mut self, id: NodeId) -> f32 {
+        self.scroll_shifts.remove(&id).unwrap_or(0.0)
+    }
+
+    pub(crate) fn placing_len(&self) -> usize {
+        self.placing.len()
+    }
+
+    pub(crate) fn rewind_placing(&mut self, len: usize) {
+        if self.delivering {
+            self.placing.truncate(len);
+        }
     }
 
     pub(crate) fn note_placed(&mut self, id: NodeId) {

@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, build, create_memo, create_signal, view};
+use crate::reactive::{
+    ItemSize, List, NodeRef, Offset, VirtualList, build, create_memo, create_signal, view,
+};
 use crate::styled::Switch;
 
 #[test]
@@ -11,9 +13,10 @@ fn flipping_a_switch_can_replace_the_items_of_a_scroll() {
 
 fn check_compact_rows(inset: f32) {
     let built = Rc::new(RefCell::new(Vec::new()));
-    let (switch, scroll) = (NodeRef::new(), NodeRef::new());
+    let (switch, scroll, list) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (switch, scroll, sink) = (switch.clone(), scroll.clone(), built.clone());
+        let (switch, scroll, list) = (switch.clone(), scroll.clone(), list.clone());
+        let sink = built.clone();
         move || {
             let (compact, set_compact) = create_signal(false);
             let item_height = create_memo(move || {
@@ -31,27 +34,28 @@ fn check_compact_rows(inset: f32) {
                         on=false
                         on_change={move |on: bool| set_compact.set(on)}
                     />
-                    <VirtualOffset
-                        @sizing=ItemSize::Percent(100.0)
-                        @node_ref=&scroll
-                        count=VIRTUAL_ITEM_COUNT
-                        item_size={item_height}
-                    >
-                        {move |index: usize| {
-                            sink.borrow_mut().push(index);
-                            let height = row_height.get() / 2.0;
-                            view! {
-                                <Frame padding_horizontal=0.0 padding_vertical={height}>
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }}
-                    </VirtualOffset>
+                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            count=VIRTUAL_ITEM_COUNT
+                            item_size={item_height}
+                        >
+                            {move |index: usize| {
+                                sink.borrow_mut().push(index);
+                                let height = row_height.get() / 2.0;
+                                view! {
+                                    <Frame padding_horizontal=0.0 padding_vertical={height}>
+                                        <Spacer />
+                                    </Frame>
+                                }
+                            }}
+                        </VirtualList>
+                    </Offset>
                 </List>
             }
         }
     });
-    let (switch, scroll) = (switch.get(), scroll.get());
+    let (switch, scroll, list) = (switch.get(), scroll.get(), list.get());
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
@@ -60,18 +64,20 @@ fn check_compact_rows(inset: f32) {
         .document
         .set_scroll_offset(scroll, index as f32 * VIRTUAL_ITEM_HEIGHT + inset);
     harness.frame(Vec::new());
-    let top = harness.rect(harness.document.children(scroll)[0]).top();
+    let top = harness.rect(harness.document.children(list)[0]).top();
     built.borrow_mut().clear();
 
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
 
-    assert!(styled::switch_on(harness.document(), switch));
     let skipped = (inset / (VIRTUAL_ITEM_HEIGHT / 2.0)) as usize;
+    let remainder = inset - skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
+    let settled = top + skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
+    assert!(styled::switch_on(harness.document(), switch));
     assert_eq!(built.borrow().first(), Some(&(index + skipped)));
     assert_eq!(
-        harness.rect(harness.document.children(scroll)[0]).top(),
-        top + skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0
+        harness.rect(harness.document.children(list)[0]).top(),
+        settled
     );
     assert_eq!(
         harness.document.scroll_offset(scroll),
@@ -82,13 +88,13 @@ fn check_compact_rows(inset: f32) {
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
 
-    assert_eq!(built.borrow().first(), Some(&index));
+    assert_eq!(built.borrow().first(), Some(&(index + skipped)));
     assert_eq!(
-        harness.rect(harness.document.children(scroll)[0]).top(),
-        top
+        harness.rect(harness.document.children(list)[0]).top(),
+        settled
     );
     assert_eq!(
         harness.document.scroll_offset(scroll),
-        index as f32 * VIRTUAL_ITEM_HEIGHT + inset
+        (index + skipped) as f32 * VIRTUAL_ITEM_HEIGHT + remainder
     );
 }

@@ -372,7 +372,7 @@ plain `T` or a signal of one and lifts it into `Some`, as well as an
 and `width={maybe_width}` are both that same prop.
 
 The base elements and the structural primitives that insert and remove nodes for
-a living — `show`, `dynamic`, `keyed`, `for_each`, `virtual_list` — are the only code that
+a living — `show`, `dynamic`, `keyed`, `for_each`, `VirtualList` — are the only code that
 touches `Document` directly. Everything above them, unstyled and styled
 components and the code that uses them, says what it wants through props on
 those tags.
@@ -710,7 +710,7 @@ time one of its inputs changes.
 
 Effects created outside any component body — directly in `build`'s closure, for
 instance — belong to the document's root scope and live as long as the document.
-`show`, `dynamic`, `keyed`, `for_each`, and `virtual_list` open a scope per child they
+`show`, `dynamic`, `keyed`, `for_each`, and `VirtualList` open a scope per child they
 build, registered against that child's node, so dropping a row or scrolling one
 out of view disposes exactly that row's effects. Any other code that builds a subtree
 it will later remove on its own must do the same, with `in_new_scope`; building
@@ -727,7 +727,7 @@ immediately after, before the frame's paint check, so a signal write from a
 click handler is visible in the same frame.
 
 `settle` runs a closure and then flushes the effects it queued even when an
-outer batch is still open. `virtual_list` builds each row inside one, because it
+outer batch is still open. `VirtualList` builds each row inside one, because it
 measures the row immediately afterwards and the row's own props are applied by
 effects; without it a row would measure as empty and the list would build every
 item in the collection on its first frame.

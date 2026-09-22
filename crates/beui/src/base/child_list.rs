@@ -97,17 +97,6 @@ impl<T> ChildList<T> {
         });
     }
 
-    pub(crate) fn take_all(&mut self) -> Vec<T> {
-        let slots = std::mem::take(&mut self.slots);
-        slots
-            .into_iter()
-            .flat_map(|slot| match slot.items {
-                SlotItems::One(item) => vec![item],
-                SlotItems::Many(items) => items,
-            })
-            .collect()
-    }
-
     pub(crate) fn open(&mut self) -> SlotId {
         let id = self.take_id();
         self.slots.push(Slot {
