@@ -16,7 +16,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list count={count} item_size={item_size}>
                             {move |_: usize| {
-                                let padding = padding.get();
+                                let padding = padding.clone();
                                 view! {
                                     <Frame padding_horizontal=0.0 padding_vertical={padding}>
                                         <Spacer />

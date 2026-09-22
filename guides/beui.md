@@ -374,8 +374,14 @@ what fits in the box it is given, which is how one sized by a `Stack` builds a
 screenful in one layout and a hundred pixels' worth in the next.
 
 The rows are keyed by index, so scrolling reuses the rows that stay in view and
-disposes the effects of the ones that leave. Changing `count` or `item_size`
-rebuilds them.
+disposes the effects of the ones that leave. The item builder runs once per
+index for as long as that row stays in view: changing `count` or `item_size`
+keeps every row it already built, so appending to a long list builds only the
+new row, and a shrinking `count` removes just the rows past the end. A row
+therefore follows its data the way any component does, by binding signals
+rather than reading them once while it is built. Changing `item_size` also
+forgets the sizes the list measured, on the assumption that the rows changed
+size with it; the rows in view are measured again as they are laid out.
 
 `unstyled::Scroll` is the same arrangement without the appearance: it owns the
 base offset, the input that drives it, the position it reports, and the list

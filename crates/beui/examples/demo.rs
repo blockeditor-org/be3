@@ -152,8 +152,9 @@ impl Rows {
 }
 
 #[component]
-fn ScrollRow(index: usize, rows: Rows, compact: bool) -> NodeId {
+fn ScrollRow(index: usize, rows: Rows) -> NodeId {
     let selected = rows.selection.memo(Some(index));
+    let compact = rows.compact.clone();
     let select_rows = rows.clone();
     view! {
         <unstyled::Button
@@ -171,16 +172,18 @@ fn ScrollRowFace(
     handle: unstyled::ButtonHandle,
     selected: Memo<bool>,
     timings: ReadSignal<bool>,
-    compact: bool,
+    compact: ReadSignal<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
         hovered, focused, ..
     } = handle;
-    let vertical = if compact {
-        COMPACT_ROW_PADDING_VERTICAL
-    } else {
-        ROW_PADDING_VERTICAL
-    };
+    let vertical = create_memo(move || {
+        if compact.get() {
+            COMPACT_ROW_PADDING_VERTICAL
+        } else {
+            ROW_PADDING_VERTICAL
+        }
+    });
     let theme = use_theme();
     let value_color = create_memo(clone!(selected theme -> move || {
         let theme = theme.get();
@@ -445,9 +448,8 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                         <VirtualList count=ROW_COUNT item_size={row_height}>
                             {move |index: usize| {
                                 let rows = item_rows.clone();
-                                let compact = rows.compact.get();
                                 view! {
-                                    <ScrollRow index rows compact />
+                                    <ScrollRow index rows />
                                 }
                             }}
                         </VirtualList>

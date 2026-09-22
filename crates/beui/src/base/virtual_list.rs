@@ -8,8 +8,7 @@ use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{
-    KeyedItems, Prop, RenderFn, ScopeContext, create_effect, create_signal, owner_scope, settle,
-    with_document,
+    KeyedItems, Prop, RenderFn, ScopeContext, create_effect, owner_scope, settle, with_document,
 };
 use beui_macros::component;
 
@@ -89,6 +88,16 @@ impl Metrics {
         let at = self.entries.partition_point(|(held, _)| *held < index);
         let measured = self.measured_before(at);
         (index - at) as f32 * self.estimated + measured
+    }
+
+    fn set_count(&mut self, count: usize) {
+        let kept = self.entries.partition_point(|(held, _)| *held < count);
+        for (_, length) in self.entries.drain(kept..) {
+            self.measured -= length;
+        }
+        self.prefix.truncate(kept + 1);
+        self.valid = self.valid.min(kept);
+        self.count = count;
     }
 
     fn total(&self) -> f32 {
@@ -422,24 +431,43 @@ impl Document {
         node.origin = None;
     }
 
-    pub(crate) fn set_virtual_list_items(
+    pub(crate) fn set_virtual_list_builder(
         &mut self,
         list: NodeId,
-        count: usize,
-        item_size: f32,
         build: impl Fn(usize) -> NodeId + 'static,
     ) {
         let node = self.arena.get_mut_as::<VirtualListNode>(list);
         let placed = std::mem::take(&mut node.placed);
-        node.metrics = Metrics::new(count, item_size);
         node.rows = Rc::new(KeyedItems::new(build));
         node.owner = owner_scope();
-        if node.origin.is_some_and(|(index, _)| index >= count) {
-            node.origin = None;
-        }
         for row in placed {
             self.remove_node(row.node);
         }
+    }
+
+    pub(crate) fn set_virtual_list_count(&mut self, list: NodeId, count: usize) {
+        if self.arena.get_as::<VirtualListNode>(list).metrics.count == count {
+            return;
+        }
+        let node = self.arena.get_mut_as::<VirtualListNode>(list);
+        node.metrics.set_count(count);
+        if node.origin.is_some_and(|(index, _)| index >= count) {
+            node.origin = None;
+        }
+        node.placed.retain(|row| row.index < count);
+        let kept: Vec<usize> = node.placed.iter().map(|row| row.index).collect();
+        for row in node.rows.clone().retain(&kept) {
+            self.remove_node(row);
+        }
+    }
+
+    pub(crate) fn set_virtual_list_item_size(&mut self, list: NodeId, item_size: f32) {
+        let item_size = item_size.max(0.0);
+        if self.arena.get_as::<VirtualListNode>(list).metrics.estimated == item_size {
+            return;
+        }
+        let node = self.arena.get_mut_as::<VirtualListNode>(list);
+        node.metrics = Metrics::new(node.metrics.count, item_size);
     }
 }
 
@@ -452,19 +480,17 @@ pub fn VirtualList(
 ) -> NodeId {
     let list = with_document(|document| document.create_virtual_list());
     let item = item.expect("a virtual list requires an `item` builder");
+    with_document(|document| {
+        document.set_virtual_list_builder(list, move |index| item.call(index));
+    });
     create_effect(move || {
         with_document(|document| document.set_virtual_list_direction(list, direction.get()))
     });
-    let (count_read, set_count) = create_signal(0);
-    let (size_read, set_size) = create_signal(0.0);
-    create_effect(move || set_count.set(count.get()));
-    create_effect(move || set_size.set(item_size.get()));
     create_effect(move || {
-        let (count, item_size) = (count_read.get(), size_read.get());
-        let item = item.clone();
-        with_document(|document| {
-            document.set_virtual_list_items(list, count, item_size, move |index| item.call(index));
-        });
+        with_document(|document| document.set_virtual_list_count(list, count.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_virtual_list_item_size(list, item_size.get()))
     });
     list
 }

@@ -26,7 +26,10 @@ fn check_compact_rows(inset: f32) {
                     VIRTUAL_ITEM_HEIGHT
                 }
             });
-            let row_height = item_height.clone();
+            let padding = create_memo({
+                let item_height = item_height.clone();
+                move || item_height.get() / 2.0
+            });
             view! {
                 <List spacing=0.0>
                     <Switch
@@ -42,9 +45,9 @@ fn check_compact_rows(inset: f32) {
                         >
                             {move |index: usize| {
                                 sink.borrow_mut().push(index);
-                                let height = row_height.get() / 2.0;
+                                let padding = padding.clone();
                                 view! {
-                                    <Frame padding_horizontal=0.0 padding_vertical={height}>
+                                    <Frame padding_horizontal=0.0 padding_vertical={padding}>
                                         <Spacer />
                                     </Frame>
                                 }
@@ -64,7 +67,8 @@ fn check_compact_rows(inset: f32) {
         .document
         .set_scroll_offset(scroll, index as f32 * VIRTUAL_ITEM_HEIGHT + inset);
     harness.frame(Vec::new());
-    let top = harness.rect(harness.document.children(list)[0]).top();
+    let rows = harness.document.children(list);
+    let top = harness.rect(rows[0]).top();
     built.borrow_mut().clear();
 
     harness.click(harness.center(switch));
@@ -73,8 +77,15 @@ fn check_compact_rows(inset: f32) {
     let skipped = (inset / (VIRTUAL_ITEM_HEIGHT / 2.0)) as usize;
     let remainder = inset - skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
     let settled = top + skipped as f32 * VIRTUAL_ITEM_HEIGHT / 2.0;
+    let kept = rows[skipped];
     assert!(styled::switch_on(harness.document(), switch));
-    assert_eq!(built.borrow().first(), Some(&(index + skipped)));
+    assert_eq!(harness.document.children(list)[0], kept);
+    assert!(
+        built
+            .borrow()
+            .iter()
+            .all(|&built| built >= index + rows.len())
+    );
     assert_eq!(
         harness.rect(harness.document.children(list)[0]).top(),
         settled
@@ -88,7 +99,8 @@ fn check_compact_rows(inset: f32) {
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
 
-    assert_eq!(built.borrow().first(), Some(&(index + skipped)));
+    assert_eq!(harness.document.children(list)[0], kept);
+    assert!(built.borrow().is_empty());
     assert_eq!(
         harness.rect(harness.document.children(list)[0]).top(),
         settled
