@@ -792,6 +792,23 @@ pub struct FileFilter {
     pub mime_types: Vec<String>,
 }
 
+impl FileFilter {
+    pub fn new(
+        name: &str,
+        default_file_name: &str,
+        extensions: &[&str],
+        mime_types: &[&str],
+    ) -> Self {
+        let owned = |values: &[&str]| values.iter().map(|value| (*value).to_owned()).collect();
+        Self {
+            name: name.to_owned(),
+            default_file_name: default_file_name.to_owned(),
+            extensions: owned(extensions),
+            mime_types: owned(mime_types),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CursorIcon {
     #[default]
