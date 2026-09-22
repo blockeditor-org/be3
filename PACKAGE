@@ -1,0 +1,24 @@
+load("@prelude//rust:cargo_package.bzl", "set_reindeer_platforms")
+
+# Which reindeer platform a configuration is, which is how the generated rules
+# in third-party/rust/BUCK pick a feature set. This is the prelude's own map
+# with one addition: wasi-guest, the plugins, which is the same triple as wasi
+# and differs only by the constraint buck/constraints says why exists.
+set_reindeer_platforms(select({
+    "DEFAULT": None,
+    "prelude//os:linux": select({
+        "DEFAULT": None,
+        "prelude//cpu:x86_64": "linux-x86_64",
+    }),
+    "prelude//os:none": select({
+        "DEFAULT": None,
+        "prelude//cpu:wasm32": "wasm32",
+    }),
+    "prelude//os:wasi": select({
+        "DEFAULT": None,
+        "prelude//cpu:wasm32": select({
+            "DEFAULT": "wasi",
+            "root//buck/constraints:guest": "wasi-guest",
+        }),
+    }),
+}))

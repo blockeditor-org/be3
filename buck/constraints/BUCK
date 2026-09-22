@@ -1,0 +1,25 @@
+# What a wasm build is for.
+#
+# block-app's web bundle and a plugin are the same target triple, and the
+# difference between them is not visible in any cfg: both are
+# wasm32-wasip1-threads. What differs is wgpu. The app draws to the page and
+# links a real browser backend; a plugin is a guest and reaches the host's
+# device through the gpu abi, with only wgpu's custom backend and no
+# fragile-send-sync-non-atomic-wasm, because the custom backend's handles are
+# trait objects that are neither Send nor Sync.
+#
+# cargo keeps the two apart by resolving features once per call, and it makes
+# two calls. reindeer resolves once per platform, so the platforms are what has
+# to differ - hence a constraint that says which of the two a configuration is,
+# a wasi_guest platform beside wasi that carries it, and a reindeer platform of
+# the same name. guides/buck2.md has the whole story.
+constraint_setting(
+    name = "wasm_role",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "guest",
+    constraint_setting = ":wasm_role",
+    visibility = ["PUBLIC"],
+)

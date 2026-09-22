@@ -36,6 +36,18 @@ platform(
     visibility = ["PUBLIC"],
 )
 
+# The same triple as above, and what tells the two apart. A plugin is built for
+# this one; block-app's web bundle is built for the one above.
+platform(
+    name = "wasi_guest",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[wasm32]",
+        "prelude//os/constraints:os[wasi]",
+        "root//buck/constraints:guest",
+    ],
+    visibility = ["PUBLIC"],
+)
+
 platform(
     name = "wasm32",
     constraint_values = [

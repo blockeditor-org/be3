@@ -1,11 +1,11 @@
-# On wasm this is the plugin's renderer, and the plugin holds the host's device
-# through wgpu's custom backend, whose handles are trait objects with no Send or
-# Sync. fragile-send-sync-non-atomic-wasm is what would make egui-wgpu store
-# them in a concurrent TypeMap and ask for both, so it comes off here, the way
-# eframe's wgpu_no_default_features takes it off under cargo. default and
-# macos-window-resize-jitter-fix are the app's; they arrive because reindeer
+# The plugin's renderer. The plugin holds the host's device through wgpu's
+# custom backend, whose handles are trait objects with no Send or Sync;
+# fragile-send-sync-non-atomic-wasm is what would make egui-wgpu store them in a
+# concurrent TypeMap and ask for both, so it comes off here, the way eframe's
+# wgpu_no_default_features takes it off under cargo. default and
+# macos-window-resize-jitter-fix are block-app's, and arrive because reindeer
 # resolves one feature set per platform across the whole workspace.
-['cfg(target_family = "wasm")']
+['cfg(plugin_guest)']
 omit_features = [
   "default",
   "fragile-send-sync-non-atomic-wasm",

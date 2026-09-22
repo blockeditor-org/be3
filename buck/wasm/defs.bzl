@@ -23,12 +23,14 @@ wasm32_transition = transition(
     refs = {"wasm32": "root//buck/platforms:wasm32"},
 )
 
+# The guest's wasi, not the app's: the same triple with the constraint that
+# tells reindeer which wgpu to resolve. buck/constraints/BUCK says why.
 def _wasi_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return refs.wasi[PlatformInfo]
+    return refs.wasi_guest[PlatformInfo]
 
 wasi_transition = transition(
     impl = _wasi_transition_impl,
-    refs = {"wasi": "root//buck/platforms:wasi"},
+    refs = {"wasi_guest": "root//buck/platforms:wasi_guest"},
 )
 
 # rustc calls a cdylib a shared library whatever it is compiling for, so on

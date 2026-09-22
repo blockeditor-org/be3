@@ -20,6 +20,17 @@ execution-platform = true
 target = "wasm32-wasip1-threads"
 execution-platform = false
 
+# The plugins, again. The same triple as above, because it is the same triple:
+# what tells them apart is the plugin_guest cfg, which nothing but this file and
+# the fixups keyed on it know about. Cargo resolves both the same way; the
+# fixups are what then give wgpu and egui-wgpu the guest's feature set rather
+# than the app's. buck/constraints/BUCK says why that is necessary, and the root
+# PACKAGE file is what maps a buck2 configuration onto this name.
+[platform.wasi-guest]
+target = "wasm32-wasip1-threads"
+execution-platform = false
+plugin_guest = ["true"]
+
 # The games, and the browser's half of the plugin protocol.
 [platform.wasm32]
 target = "wasm32-unknown-unknown"

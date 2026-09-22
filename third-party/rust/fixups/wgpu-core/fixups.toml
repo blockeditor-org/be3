@@ -3,5 +3,7 @@ buildscript.run = true
 # wgpu's noop feature turns on wgpu-core's. Cargo propagates that from the
 # dev-dependency that asks for it; Buck builds one wgpu-core for everything and
 # reindeer resolved its features without the dev-dependencies, so it is named
-# here the same way wgpu's own is.
+# here the same way wgpu's own is - and not on wasm, where no test asks for it
+# and neither build of the app does.
+['cfg(not(target_family = "wasm"))']
 features = ["noop"]

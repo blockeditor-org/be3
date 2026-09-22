@@ -5,24 +5,22 @@ buildscript.run = true
 ['cfg(not(target_family = "wasm"))']
 features = ["noop"]
 
-# On wasm this is a guest: it reaches the host's device through the gpu abi and
-# carries no backend of its own. The features left below are the ones
-# block-editor-plugin asks for; the rest are the app's, and they arrive here
-# because reindeer resolves one feature set per platform across the whole
-# workspace. Under cargo the plugins get a cargo call of their own for exactly
-# this reason - scripts/internal/common.sh says so where it makes it.
+# The two wasm builds, which are the same triple and want different wgpu.
 #
-# fragile-send-sync-non-atomic-wasm goes with them. wasm32-wasip1-threads has
-# no "atomics" in its cfg, so that feature would turn wgpu's send_sync on while
-# the custom backend keeps its handles behind trait objects that are neither
-# Send nor Sync; the guest does not want it and cargo's plugin build does not
-# ask for it either.
-#
-# This is provisional. It is right while the only thing buck2 builds for wasm is
-# a guest, and it will not survive the web build of the app arriving, which
-# wants the other set on the same platform. That needs a second third-party
-# tree rather than a fixup; guides/buck2.md says so.
-['cfg(target_family = "wasm")']
+# block-app's web bundle draws to the page and links a real browser backend. It
+# cannot have custom as well: the custom backend keeps its handles behind trait
+# objects that are neither Send nor Sync, and with fragile-send-sync-non-atomic-
+# wasm on - which is what the app has, on a target whose cfg carries no
+# "atomics" - wgpu asserts that they are both.
+['cfg(all(target_family = "wasm", not(plugin_guest)))']
+omit_features = ["custom"]
+
+# A plugin is a guest: it reaches the host's device through the gpu abi and
+# carries no backend of its own, which is the set eframe's
+# wgpu_no_default_features leaves it under cargo. Everything omitted here is the
+# app's, and reaches this platform because reindeer resolves one feature set per
+# platform across the whole workspace.
+['cfg(plugin_guest)']
 omit_features = [
   "default",
   "dx12",
@@ -30,6 +28,7 @@ omit_features = [
   "gles",
   "metal",
   "noop",
+  "parking_lot",
   "vulkan",
   "webgl",
   "webgpu",
