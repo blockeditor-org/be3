@@ -2,13 +2,22 @@ rust_library(
     name = "block-plugin-api",
     crate = "block_plugin_api",
     crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:bincode",
-        "//third-party/rust:libc",
-        "//third-party/rust:serde",
-        "//third-party/rust:serde_json",
-        "//third-party/rust:uuid",
-    ],
+    deps = select({
+        # No libc on a guest.
+        "DEFAULT": [
+            "//third-party/rust:bincode",
+            "//third-party/rust:libc",
+            "//third-party/rust:serde",
+            "//third-party/rust:serde_json",
+            "//third-party/rust:uuid",
+        ],
+        "prelude//cpu:wasm32": [
+            "//third-party/rust:bincode",
+            "//third-party/rust:serde",
+            "//third-party/rust:serde_json",
+            "//third-party/rust:uuid",
+        ],
+    }),
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "block_plugin_api",

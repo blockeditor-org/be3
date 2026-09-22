@@ -12,6 +12,12 @@ features = ["noop"]
 # workspace. Under cargo the plugins get a cargo call of their own for exactly
 # this reason - scripts/internal/common.sh says so where it makes it.
 #
+# fragile-send-sync-non-atomic-wasm goes with them. wasm32-wasip1-threads has
+# no "atomics" in its cfg, so that feature would turn wgpu's send_sync on while
+# the custom backend keeps its handles behind trait objects that are neither
+# Send nor Sync; the guest does not want it and cargo's plugin build does not
+# ask for it either.
+#
 # This is provisional. It is right while the only thing buck2 builds for wasm is
 # a guest, and it will not survive the web build of the app arriving, which
 # wants the other set on the same platform. That needs a second third-party

@@ -5983,15 +5983,13 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "3",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "capture",
-        "default",
-        "fragile-send-sync-non-atomic-wasm",
-        "macos-window-resize-jitter-fix",
-    ],
+    features = ["capture"],
     platform = {
         "linux-x86_64": dict(
             features = [
+                "default",
+                "fragile-send-sync-non-atomic-wasm",
+                "macos-window-resize-jitter-fix",
                 "wayland",
                 "winit",
                 "x11",
@@ -13838,18 +13836,8 @@ cargo.rust_library(
         "os-ext",
         "os-poll",
     ],
-    platform = {
-        "linux-x86_64": dict(
-            deps = [":libc-0.2"],
-        ),
-        "wasi": dict(
-            deps = [
-                ":libc-0.2",
-                ":wasi-0.11",
-            ],
-        ),
-    },
     visibility = [],
+    deps = [":libc-0.2"],
 )
 
 http_archive(
@@ -21795,36 +21783,35 @@ cargo.rust_library(
     },
     features = [
         "bytes",
-        "default",
-        "fs",
-        "io-std",
         "io-util",
-        "libc",
         "macros",
-        "mio",
-        "net",
         "rt",
-        "rt-multi-thread",
-        "socket2",
         "sync",
         "time",
         "tokio-macros",
     ],
     platform = {
         "linux-x86_64": dict(
+            features = [
+                "default",
+                "fs",
+                "io-std",
+                "libc",
+                "mio",
+                "net",
+                "rt-multi-thread",
+                "socket2",
+            ],
             deps = [
                 ":libc-0.2",
+                ":mio-1",
                 ":socket2-0.6",
             ],
-        ),
-        "wasi": dict(
-            deps = [":libc-0.2"],
         ),
     },
     visibility = [],
     deps = [
         ":bytes-1",
-        ":mio-1",
         ":pin-project-lite-0.2",
         ":tokio-macros-2",
     ],
@@ -24201,10 +24188,6 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "1",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "default",
-        "std",
-    ],
     visibility = [],
 )
 

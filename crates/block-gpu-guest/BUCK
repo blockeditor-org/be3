@@ -2,11 +2,20 @@ rust_library(
     name = "block-gpu-guest",
     crate = "block_gpu_guest",
     crate_root = "src/lib.rs",
-    deps = [
-        "//crates/block-gpu-abi:block-gpu-abi",
-        "//third-party/rust:serde",
-        "//third-party/rust:wgpu",
-    ],
+    deps = select({
+        # web-sys is how the browser half reaches its canvas.
+        "DEFAULT": [
+            "//crates/block-gpu-abi:block-gpu-abi",
+            "//third-party/rust:serde",
+            "//third-party/rust:wgpu",
+        ],
+        "prelude//cpu:wasm32": [
+            "//crates/block-gpu-abi:block-gpu-abi",
+            "//third-party/rust:serde",
+            "//third-party/rust:web-sys",
+            "//third-party/rust:wgpu",
+        ],
+    }),
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "block_gpu_guest",
