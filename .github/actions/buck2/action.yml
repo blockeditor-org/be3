@@ -1,0 +1,49 @@
+name: Install buck2 and reindeer
+description: >-
+  Restores the pinned buck2 and reindeer a previous run built, and builds
+  whichever of them is missing.
+
+# Neither tool is downloadable as a checked binary: buck2 publishes release
+# assets with no hash beside them, and reindeer publishes nothing at all, so
+# scripts/internal/install-buck2.sh and install-reindeer.sh build both from the
+# commits scripts/internal/common.sh pins. buck2 is around fifteen minutes of
+# that, which is far too much to pay every run, so the two binaries are cached
+# under a key that is the pins themselves: a cache entry can only ever be the
+# tool the repository asked for, and moving a pin misses rather than serves a
+# stale one.
+#
+# The binaries are cached, not cargo's registry. What a build of buck2 leaves in
+# the registry is worth nothing to a run that restores the binary, and the two
+# entries together would be most of the ten gigabytes this repository gets.
+runs:
+  using: composite
+  steps:
+    # Both pins come out of common.sh rather than being repeated here, for the
+    # same reason the ghostty-vt action reads its commit out of the build
+    # script: two copies of a version are one copy and a bug.
+    - id: pin
+      shell: bash
+      run: |
+        buck2="$(sed -n "s/^buck2_revision='\(.*\)'$/\1/p" scripts/internal/common.sh)"
+        reindeer="$(sed -n "s/^reindeer_revision='\(.*\)'$/\1/p" scripts/internal/common.sh)"
+        if [ -z "$buck2" ] || [ -z "$reindeer" ]; then
+          echo 'scripts/internal/common.sh pins no buck2 or reindeer revision' >&2
+          exit 1
+        fi
+        echo "key=buck2-$RUNNER_OS-$buck2-$reindeer" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/bin/buck2
+          ~/.cargo/bin/reindeer
+        key: ${{ steps.pin.outputs.key }}
+
+    # The install scripts return immediately when the tool is already on PATH,
+    # so a restore makes these two no-ops rather than something to skip with a
+    # condition that could disagree with them.
+    - shell: bash
+      run: |
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        ./scripts/internal/install-buck2.sh
+        ./scripts/internal/install-reindeer.sh

@@ -243,6 +243,50 @@ jobs:
       - uses: ./.github/actions/sccache-report
         if: always()
 
+  buck:
+    name: buck2
+    runs-on: ubuntu-24.04
+    steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The same headers the cargo jobs need, because buck2 builds the same
+      # crates: the build scripts that ask pkg-config for GTK, WebKitGTK and
+      # ALSA still run. clang is named as well because buck2's prelude hands a
+      # third-party build script a C compiler resolved by path, and several of
+      # them compile C: sqlite, zstd, freetype, harfbuzz, tree-sitter and ring.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            clang llvm libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            pkg-config libvulkan1 mesa-vulkan-drivers
+
+      - uses: ./.github/actions/rust-toolchain
+
+      - uses: ./.github/actions/buck2
+
+      # third-party/rust/BUCK is generated from the workspace's Cargo.toml and
+      # checked in, so this is what says the two still agree. A pull request
+      # that changed a dependency and did not run ./scripts/buckify fails here
+      # rather than in whichever job first tried to build the crate.
+      - name: Check the generated third-party rules are current
+        run: |
+          ./scripts/buckify
+          git diff --exit-code third-party/rust/BUCK
+
+      - run: ./scripts/buck build //crates/...
+
+      # Three test targets are labelled cargo-only: what they read at runtime -
+      # the editor manifests in the source tree, and the wasm modules the plugin
+      # and game builds produce - is not something buck2 puts in front of them
+      # yet. The cargo jobs above run all three. guides/buck2.md has the list.
+      - run: ./scripts/buck test //crates/... --exclude cargo-only
+
   web:
     name: web bundle
     runs-on: ubuntu-24.04
@@ -631,7 +675,7 @@ jobs:
   ci-ok:
     name: 'CI OK'
     if: always()
-    needs: [workflows, lint, test, plugin-tests, web, plugins, android, native, merge-queue-tests]
+    needs: [workflows, lint, test, plugin-tests, buck, web, plugins, android, native, merge-queue-tests]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to have passed

@@ -8,6 +8,7 @@ Guides:
 - guides/adding_a_plugin_editor.md
 - guides/beui.md
 - guides/beui_keyboard.md
+- guides/buck2.md
 - guides/pan_and_zoom.md
 - guides/reactive.md
 - guides/testing_a_gui.md
@@ -21,6 +22,7 @@ Do not:
 - Do not create routines. Do not subscribe to PRs. Do not set check-in timers.
 
 Verification:
+- `./scripts/buck`: buck2, which builds the native half of the workspace beside cargo. It is not part of `./scripts/verify`; see guides/buck2.md for what it covers and for `./scripts/buckify`, which regenerates `third-party/rust/BUCK` after a Cargo.toml change.
 - `./scripts/check`: Use this for fast compile feedback. It prepares non-Cargo prerequisites and checks the complete workspace with the feature unification the project expects. Prefer this over `cargo build` or `cargo check` directly.
 - `./scripts/verify`: This is the primary full check and is required before committing. Run it after coherent changes and use a 10 minute timeout in the tool call arguments so it is less likely to convert itself to a background task.
   - Run it in the foreground. This VM is suspended between turns, so a verify run sent to the background silently stalls and starts over. If a whole run does not fit in one tool call, run its three parts one after another instead: `./scripts/verify --lint`, `./scripts/verify --tests`, `./scripts/verify --plugin-tests`. Together they are the same run.

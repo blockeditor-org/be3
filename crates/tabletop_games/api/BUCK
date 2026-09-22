@@ -1,0 +1,42 @@
+rust_library(
+    name = "game-api",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "game_api",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "game_api",
+        "CARGO_MANIFEST_DIR": "crates/tabletop_games/api",
+        "CARGO_PKG_NAME": "game-api",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third-party/rust:bincode",
+        "//third-party/rust:rand",
+        "//third-party/rust:rand_chacha",
+        "//third-party/rust:serde",
+        "//third-party/rust:uuid",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "game_api",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "game_api",
+        "CARGO_MANIFEST_DIR": "crates/tabletop_games/api",
+        "CARGO_PKG_NAME": "game-api",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    deps = [
+        "//third-party/rust:bincode",
+        "//third-party/rust:rand",
+        "//third-party/rust:rand_chacha",
+        "//third-party/rust:serde",
+        "//third-party/rust:uuid",
+    ],
+)

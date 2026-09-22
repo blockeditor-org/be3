@@ -8,3 +8,5 @@ shelley.db*
 /android/app/src/main/jniLibs/
 /android/app/src/main/assets/
 /.zig-cache/
+/buck-out
+/.buckconfig.local

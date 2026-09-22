@@ -1,0 +1,44 @@
+rust_library(
+    name = "block-e2e",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "block_e2e",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_e2e",
+        "CARGO_MANIFEST_DIR": "crates/block-e2e",
+        "CARGO_PKG_NAME": "block-e2e",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/block-client:block-client",
+        "//crates/block-server:block-server",
+        "//crates/block:block",
+        "//third-party/rust:serde",
+        "//third-party/rust:tokio",
+        "//third-party/rust:uuid",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "block_e2e",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_e2e",
+        "CARGO_MANIFEST_DIR": "crates/block-e2e",
+        "CARGO_PKG_NAME": "block-e2e",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    deps = [
+        "//crates/block-client:block-client",
+        "//crates/block-server:block-server",
+        "//crates/block:block",
+        "//third-party/rust:serde",
+        "//third-party/rust:tokio",
+        "//third-party/rust:uuid",
+    ],
+)

@@ -2,7 +2,7 @@ use chacha20poly1305::{
     ChaCha20Poly1305, Key, Nonce,
     aead::{Aead, KeyInit},
 };
-use rand::RngCore;
+use rand::TryRngCore;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -21,7 +21,9 @@ pub struct ContentKey([u8; 32]);
 impl ContentKey {
     pub fn random() -> Self {
         let mut bytes = [0u8; 32];
-        rand::rngs::OsRng.fill_bytes(&mut bytes);
+        rand::rngs::OsRng
+            .try_fill_bytes(&mut bytes)
+            .expect("the operating system has entropy");
         Self(bytes)
     }
 

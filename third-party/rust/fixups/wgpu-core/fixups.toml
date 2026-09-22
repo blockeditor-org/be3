@@ -1,0 +1,7 @@
+buildscript.run = true
+
+# wgpu's noop feature turns on wgpu-core's. Cargo propagates that from the
+# dev-dependency that asks for it; Buck builds one wgpu-core for everything and
+# reindeer resolved its features without the dev-dependencies, so it is named
+# here the same way wgpu's own is.
+features = ["noop"]

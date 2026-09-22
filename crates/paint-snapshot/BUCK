@@ -1,0 +1,44 @@
+rust_library(
+    name = "paint-snapshot",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "paint_snapshot",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "paint_snapshot",
+        "CARGO_MANIFEST_DIR": "crates/paint-snapshot",
+        "CARGO_PKG_NAME": "paint-snapshot",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third-party/rust:bincode",
+        "//third-party/rust:egui",
+        "//third-party/rust:flate2",
+        "//third-party/rust:image",
+        "//third-party/rust:serde",
+        "//third-party/rust:sha2",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "paint_snapshot",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "paint_snapshot",
+        "CARGO_MANIFEST_DIR": "crates/paint-snapshot",
+        "CARGO_PKG_NAME": "paint-snapshot",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    deps = [
+        "//third-party/rust:bincode",
+        "//third-party/rust:egui",
+        "//third-party/rust:flate2",
+        "//third-party/rust:image",
+        "//third-party/rust:serde",
+        "//third-party/rust:sha2",
+    ],
+)

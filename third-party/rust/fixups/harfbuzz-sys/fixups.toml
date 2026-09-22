@@ -1,0 +1,14 @@
+# With no pkg-config to find a system harfbuzz, the build script compiles the
+# amalgamation the crate vendors. Buck does not link what a build script builds,
+# so the same one file is compiled here.
+buildscript.run = true
+
+[[cxx_library]]
+name = "harfbuzz"
+srcs = ["harfbuzz/src/harfbuzz.cc"]
+headers = ["harfbuzz/src/**/*.h", "harfbuzz/src/**/*.hh", "harfbuzz/src/**/*.cc"]
+include_paths = ["harfbuzz/src"]
+compiler_flags = ["-std=c++11", "-w", "-DHAVE_PTHREAD=1"]
+# harfbuzz is C++, and what links it is a Rust binary, which brings no C++
+# runtime of its own.
+deps = ["//third-party/system:stdc++"]

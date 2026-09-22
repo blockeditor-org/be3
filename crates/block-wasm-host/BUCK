@@ -1,0 +1,66 @@
+rust_library(
+    name = "block-wasm-host",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "block_wasm_host",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_wasm_host",
+        "CARGO_MANIFEST_DIR": "crates/block-wasm-host",
+        "CARGO_PKG_NAME": "block-wasm-host",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/block-gpu-abi:block-gpu-abi",
+        "//crates/block-gpu-host:block-gpu-host",
+        "//third-party/rust:wasmtime",
+        "//third-party/rust:wasmtime-wasi",
+        "//third-party/rust:wgpu",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "block_wasm_host",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_wasm_host",
+        "CARGO_MANIFEST_DIR": "crates/block-wasm-host",
+        "CARGO_PKG_NAME": "block-wasm-host",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    labels = ["cargo-only"],
+    deps = [
+        "//crates/block-gpu-abi:block-gpu-abi",
+        "//crates/block-gpu-host:block-gpu-host",
+        "//crates/block-plugin-api:block-plugin-api",
+        "//third-party/rust:wasmtime",
+        "//third-party/rust:wasmtime-wasi",
+        "//third-party/rust:wgpu",
+    ],
+)
+
+rust_binary(
+    name = "precompile",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/bin/precompile.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_wasm_host",
+        "CARGO_MANIFEST_DIR": "crates/block-wasm-host",
+        "CARGO_PKG_NAME": "block-wasm-host",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/block-gpu-abi:block-gpu-abi",
+        "//crates/block-gpu-host:block-gpu-host",
+        "//crates/block-wasm-host:block-wasm-host",
+        "//third-party/rust:wasmtime",
+        "//third-party/rust:wasmtime-wasi",
+        "//third-party/rust:wgpu",
+    ],
+)

@@ -1,0 +1,5 @@
+# Cargo builds one wgpu for the crate and its tests together, so a feature a
+# dev-dependency asks for is on in both. Buck builds one target per rule and
+# does not unify, so the feature the tests need is named here.
+buildscript.run = true
+features = ["noop"]

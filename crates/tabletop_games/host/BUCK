@@ -1,0 +1,41 @@
+rust_library(
+    name = "game-host",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "game_host",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "game_host",
+        "CARGO_MANIFEST_DIR": "crates/tabletop_games/host",
+        "CARGO_PKG_NAME": "game-host",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/tabletop_games/api:game-api",
+        "//third-party/rust:bincode",
+        "//third-party/rust:uuid",
+        "//third-party/rust:wasmi",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "game_host",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "game_host",
+        "CARGO_MANIFEST_DIR": "crates/tabletop_games/host",
+        "CARGO_PKG_NAME": "game-host",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    labels = ["cargo-only"],
+    deps = [
+        "//crates/tabletop_games/api:game-api",
+        "//third-party/rust:bincode",
+        "//third-party/rust:uuid",
+        "//third-party/rust:wasmi",
+    ],
+)

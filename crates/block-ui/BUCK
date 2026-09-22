@@ -1,0 +1,42 @@
+rust_library(
+    name = "block-ui",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "block_ui",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_ui",
+        "CARGO_MANIFEST_DIR": "crates/block-ui",
+        "CARGO_PKG_NAME": "block-ui",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/block-client:block-client",
+        "//crates/block:block",
+        "//third-party/rust:egui",
+        "//third-party/rust:egui_material_icons",
+        "//third-party/rust:uuid",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "block_ui",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_ui",
+        "CARGO_MANIFEST_DIR": "crates/block-ui",
+        "CARGO_PKG_NAME": "block-ui",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    deps = [
+        "//crates/block-client:block-client",
+        "//crates/block:block",
+        "//third-party/rust:egui",
+        "//third-party/rust:egui_material_icons",
+        "//third-party/rust:uuid",
+    ],
+)

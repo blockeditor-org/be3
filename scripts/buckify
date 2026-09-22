@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+#
+# Regenerates third-party/rust/BUCK from the workspace's Cargo.toml.
+#
+# reindeer reads the same manifests and the same Cargo.lock cargo does and
+# writes one Buck rule per crate, so cargo stays the single place a dependency
+# is declared. Run this after changing any Cargo.toml or Cargo.lock; a build
+# against a stale file fails with a target that does not exist.
+#
+# The generated file is checked in, because a build should not need reindeer
+# installed and because the diff is what says what a dependency change did.
+#
+# What it does not generate is the BUCK file beside each crate in crates/.
+# Those are written by hand: guides/buck2.md says what goes in one.
+#
+# Usage:
+#   ./scripts/buckify
+
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
+cd "$repository"
+
+if [[ $# -ne 0 ]]; then
+    echo 'Usage: ./scripts/buckify' >&2
+    exit 1
+fi
+
+assert_command reindeer 'Run ./scripts/internal/install-reindeer.sh.'
+time_script 'Buckifying'
+
+step 'Generating third-party/rust/BUCK'
+reindeer buckify
+end_step

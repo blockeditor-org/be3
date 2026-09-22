@@ -1,0 +1,52 @@
+rust_library(
+    name = "fix-rust-source",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "fix_rust_source",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "fix_rust_source",
+        "CARGO_MANIFEST_DIR": "crates/fix-rust-source",
+        "CARGO_PKG_NAME": "fix-rust-source",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third-party/rust:ra_ap_syntax",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "fix_rust_source",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "fix_rust_source",
+        "CARGO_MANIFEST_DIR": "crates/fix-rust-source",
+        "CARGO_PKG_NAME": "fix-rust-source",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    deps = [
+        "//third-party/rust:ra_ap_syntax",
+    ],
+)
+
+rust_binary(
+    name = "fix-rust-source-bin",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/main.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "fix_rust_source",
+        "CARGO_MANIFEST_DIR": "crates/fix-rust-source",
+        "CARGO_PKG_NAME": "fix-rust-source",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/fix-rust-source:fix-rust-source",
+        "//third-party/rust:ra_ap_syntax",
+    ],
+)

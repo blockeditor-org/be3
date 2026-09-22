@@ -1,0 +1,34 @@
+rust_library(
+    name = "reactive",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "reactive",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "reactive",
+        "CARGO_MANIFEST_DIR": "crates/reactive",
+        "CARGO_PKG_NAME": "reactive",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/reactive_macros:reactive_macros",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "reactive",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "reactive",
+        "CARGO_MANIFEST_DIR": "crates/reactive",
+        "CARGO_PKG_NAME": "reactive",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    deps = [
+        "//crates/reactive_macros:reactive_macros",
+    ],
+)

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#
+# buck2, with this machine's toolchain written down first.
+#
+# Two of the tools buck2's prelude reaches for are resolved by absolute path
+# rather than looked up on PATH: a third-party build script's C compiler is
+# exec'd directly, and the helpers the prelude runs need a Python of at least
+# 3.12 for Path.relative_to(walk_up=True). Neither is something the checked-in
+# .buckconfig can name, because the answer is different on every machine, so
+# this resolves them and writes .buckconfig.local, which git ignores.
+#
+# The file is only rewritten when what it should say has changed: buck2 treats
+# it as an input, and touching it invalidates the graph.
+#
+# Everything after the script name is handed to buck2 unchanged.
+#
+# Usage:
+#   ./scripts/buck build //crates/...
+#   ./scripts/buck test //crates/... --exclude cargo-only
+
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
+cd "$repository"
+
+assert_command buck2 'Run ./scripts/internal/install-buck2.sh.'
+write_buck_config_local
+exec buck2 "$@"

@@ -1,0 +1,40 @@
+# What buck2 builds here, and what it needs told to do it. guides/buck2.md is
+# the prose; this is the part buck2 reads.
+
+[cells]
+root = .
+prelude = prelude
+toolchains = buck/toolchains
+none = none
+
+[cell_aliases]
+config = prelude
+ovr_config = prelude
+fbcode = none
+fbsource = none
+buck = none
+
+# The prelude comes out of the buck2 binary rather than out of a submodule, so
+# there is no second thing to check out and no prelude version to keep in step
+# with the binary: the commit scripts/internal/common.sh pins pins both.
+[external_cells]
+prelude = bundled
+
+[parser]
+target_platform_detector_spec = target:root//...->prelude//platforms:default
+
+# The two host tools buck2 cannot find for itself.
+#
+# The prelude's helpers need a Python of at least 3.12, and the C compiler it
+# hands a third-party build script is exec'd by path rather than looked up on
+# PATH. The names below are what a machine that has both would resolve anyway;
+# ./scripts/buck works out this machine's answers and writes them to
+# .buckconfig.local, which git ignores.
+[python]
+interpreter = python3
+
+[cxx]
+archiver = ar
+compiler = clang
+cxx_compiler = clang++
+linker = clang++

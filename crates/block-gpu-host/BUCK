@@ -1,0 +1,36 @@
+rust_library(
+    name = "block-gpu-host",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "block_gpu_host",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_gpu_host",
+        "CARGO_MANIFEST_DIR": "crates/block-gpu-host",
+        "CARGO_PKG_NAME": "block-gpu-host",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//crates/block-gpu-abi:block-gpu-abi",
+        "//third-party/rust:wgpu",
+    ],
+)
+
+rust_test(
+    name = "test",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "block_gpu_host",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_gpu_host",
+        "CARGO_MANIFEST_DIR": "crates/block-gpu-host",
+        "CARGO_PKG_NAME": "block-gpu-host",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    deps = [
+        "//crates/block-gpu-abi:block-gpu-abi",
+        "//third-party/rust:wgpu",
+    ],
+)

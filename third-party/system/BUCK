@@ -1,0 +1,10 @@
+# Libraries this machine provides, named so that a third-party crate that needs
+# one can depend on it rather than on a flag somewhere in the toolchain.
+
+# harfbuzz and the embedded browser are C++; a Rust binary linking them brings
+# no C++ runtime of its own.
+prebuilt_cxx_library(
+    name = "stdc++",
+    exported_linker_flags = ["-lstdc++"],
+    visibility = ["PUBLIC"],
+)

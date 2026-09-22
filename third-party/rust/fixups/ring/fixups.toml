@@ -1,0 +1,41 @@
+# ring ships its assembly pregenerated per platform and its C beside it, and
+# the build script picks the set for the target. The archive that produces is
+# not something Buck links, so the same set is named here. Only the x86_64 ELF
+# one is written, because that is the only platform reindeer.toml configures.
+buildscript.run = true
+
+[['cfg(all(target_arch = "x86_64", target_os = "linux"))'.cxx_library]]
+name = "ring-core"
+srcs = [
+  "crypto/crypto.c",
+  "crypto/cpu_intel.c",
+  "crypto/curve25519/curve25519.c",
+  "crypto/curve25519/curve25519_64_adx.c",
+  "crypto/fipsmodule/aes/aes_nohw.c",
+  "crypto/fipsmodule/bn/montgomery.c",
+  "crypto/fipsmodule/bn/montgomery_inv.c",
+  "crypto/fipsmodule/ec/ecp_nistz.c",
+  "crypto/fipsmodule/ec/gfp_p256.c",
+  "crypto/fipsmodule/ec/gfp_p384.c",
+  "crypto/fipsmodule/ec/p256.c",
+  "crypto/fipsmodule/ec/p256-nistz.c",
+  "crypto/limbs/limbs.c",
+  "crypto/mem.c",
+  "crypto/poly1305/poly1305.c",
+  "pregenerated/aes-gcm-avx2-x86_64-elf.S",
+  "pregenerated/aesni-gcm-x86_64-elf.S",
+  "pregenerated/aesni-x86_64-elf.S",
+  "pregenerated/chacha-x86_64-elf.S",
+  "pregenerated/chacha20_poly1305_x86_64-elf.S",
+  "pregenerated/ghash-x86_64-elf.S",
+  "pregenerated/p256-x86_64-asm-elf.S",
+  "pregenerated/sha256-x86_64-elf.S",
+  "pregenerated/sha512-x86_64-elf.S",
+  "pregenerated/vpaes-x86_64-elf.S",
+  "pregenerated/x86_64-mont-elf.S",
+  "pregenerated/x86_64-mont5-elf.S",
+  "third_party/fiat/asm/*.S",
+]
+headers = ["crypto/**/*.h", "crypto/**/*.inl", "include/**/*.h", "third_party/**/*.h", "pregenerated/**/*.h"]
+include_paths = ["include", "pregenerated"]
+compiler_flags = ["-w", "-std=c1x", "-fvisibility=hidden", "-DNDEBUG"]
