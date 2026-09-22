@@ -5,6 +5,7 @@ use crate::{
     counter::{CounterContent, CounterOp},
     image::{ImageContent, ImageHeader},
     text::{TextContent, TextLanguage, TextOp},
+    ui_settings::{UiSettingsContent, UiSettingsOp},
 };
 
 mod a_browser_tab_is_named_after_its_page_and_refuses_a_bad_index;
@@ -21,6 +22,7 @@ mod text_operations_rebase_onto_concurrent_edits;
 mod two_checklists_conflict_only_where_both_changed_one_field;
 mod two_checklists_merge_every_item_either_side_added;
 mod two_counters_merge_by_keeping_both_sides_of_the_count;
+mod ui_settings_keep_the_zoom_in_bounds;
 
 fn header(name: &str) -> ImageHeader {
     ImageHeader {

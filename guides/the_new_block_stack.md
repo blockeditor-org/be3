@@ -2,8 +2,9 @@
 
 The `be-*` crates are a replacement for `block`, `block-server` and
 `block-client`. They live beside the old stack rather than inside it: the old
-stack still runs the application, and three editors - the counter, the
-checklist and the browser tab - keep their content in the new one. Work on them
+stack still runs the application, and four editors - the counter, the
+checklist, the browser tab and the UI settings - keep their content in the new
+one. Work on them
 by migrating one thing at a time, not by rewriting the app around them.
 
 If you are changing an existing editor or block type today, you want
@@ -305,6 +306,17 @@ An empty automatic name is how a name is taken away, because the old server has
 no way to delete a property. This is a bridge, not the design: it shows the old
 server every name, exactly as the old stack already does, and it goes away with
 the old stack, when names move into an index the server cannot read.
+
+Duplicating a block is the old stack's `BlockHandleAccess::duplicate`, which
+copies an empty block for a migrated type, so the app follows it with
+`be::duplicate`: the worker copies what the source's session shows, or its head
+when it is not open, into the copy's id before anything opens the copy.
+
+The app can read a migrated block itself, not only through an editor: the zoom
+in `sync_ui_settings` comes from the UI settings block's content. `be::hold`
+opens a block for the app and keeps it open when the last editor showing it
+closes, because `be::close` leaves a held block alone. Nothing releases a held
+block before the stack stops, which is when the workspace changes.
 
 Four things are worth copying. A migrated editor's block type keeps its old
 entry in `block_types!` with no state in it, rather than disappearing: the graph

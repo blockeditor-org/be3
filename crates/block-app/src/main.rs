@@ -164,7 +164,7 @@ struct BlockApp {
     file_tree: RootSetting<FileTree>,
     workspace_ui: RootSetting<WorkspaceUi>,
     shell: Option<Uuid>,
-    ui_settings: Option<BlockHandle<UiSettings>>,
+    ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: EditorRegistry,
     editors: HashMap<Uuid, PluginEditor>,
@@ -1621,6 +1621,7 @@ impl BlockApp {
                     self.pending_copies.push(copy);
                     continue;
                 };
+                be::duplicate(copy.source, copy_id, block_type);
                 copy.stage = CopyStage::Replace {
                     copy_id,
                     block_type,
@@ -2342,9 +2343,16 @@ impl BlockApp {
                 context.set_zoom_factor(1.0);
                 return;
             };
-            self.ui_settings = Some(self.client.get_block::<UiSettings>(id));
+            self.ui_settings = Some(id);
         }
-        if let Some(settings) = self.ui_settings.as_ref().and_then(BlockHandle::read) {
+        let Some(id) = self.ui_settings else {
+            return;
+        };
+        be::hold(id, UiSettings::TYPE_ID);
+        let settings = be::content(id).and_then(|content| {
+            <be_block::UiSettingsContent as be_block::BlockContent>::decode(&content.bytes).ok()
+        });
+        if let Some(settings) = settings {
             context.set_zoom_factor(settings.zoom());
         }
     }
