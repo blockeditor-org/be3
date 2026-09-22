@@ -1,16 +1,7 @@
 rust_library(
     name = "block-ui-test",
-    srcs = glob(["src/**/*.rs"]),
     crate = "block_ui_test",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_ui_test",
-        "CARGO_MANIFEST_DIR": "crates/block-ui-test",
-        "CARGO_PKG_NAME": "block-ui-test",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    visibility = ["PUBLIC"],
     deps = [
         "//crates/beui:beui",
         "//crates/block-editor-plugin:block-editor-plugin",
@@ -19,13 +10,6 @@ rust_library(
         "//third-party/rust:egui_kittest",
         "//third-party/rust:uuid",
     ],
-)
-
-rust_test(
-    name = "test",
-    srcs = glob(["src/**/*.rs"]),
-    crate = "block_ui_test",
-    crate_root = "src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "block_ui_test",
@@ -33,6 +17,14 @@ rust_test(
         "CARGO_PKG_NAME": "block-ui-test",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "test",
+    crate = "block_ui_test",
+    crate_root = "src/lib.rs",
     deps = [
         "//crates/beui:beui",
         "//crates/block-client:block-client",
@@ -42,4 +34,12 @@ rust_test(
         "//third-party/rust:egui_kittest",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_ui_test",
+        "CARGO_MANIFEST_DIR": "crates/block-ui-test",
+        "CARGO_PKG_NAME": "block-ui-test",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
 )

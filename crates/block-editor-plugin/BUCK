@@ -1,23 +1,14 @@
 rust_library(
     name = "block-editor-plugin",
-    srcs = glob(["src/**/*.rs", "src/**/*.wgsl"]),
     crate = "block_editor_plugin",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_editor_plugin",
-        "CARGO_MANIFEST_DIR": "crates/block-editor-plugin",
-        "CARGO_PKG_NAME": "block-editor-plugin",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    visibility = ["PUBLIC"],
     deps = [
         "//crates/beui:beui",
+        "//crates/block:block",
         "//crates/block-client:block-client",
         "//crates/block-plugin-api:block-plugin-api",
         "//crates/block-reactive:block-reactive",
         "//crates/block-ui:block-ui",
-        "//crates/block:block",
         "//third-party/rust:eframe",
         "//third-party/rust:egui_material_icons",
         "//third-party/rust:futures-util",
@@ -25,4 +16,13 @@ rust_library(
         "//third-party/rust:serde_json",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_editor_plugin",
+        "CARGO_MANIFEST_DIR": "crates/block-editor-plugin",
+        "CARGO_PKG_NAME": "block-editor-plugin",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs", "src/**/*.wgsl"]),
+    visibility = ["PUBLIC"],
 )

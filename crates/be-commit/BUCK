@@ -1,8 +1,13 @@
 rust_library(
     name = "be-commit",
-    srcs = glob(["src/**/*.rs"]),
     crate = "be_commit",
     crate_root = "src/lib.rs",
+    deps = [
+        "//crates/be-store:be-store",
+        "//third-party/rust:serde",
+        "//third-party/rust:similar",
+        "//third-party/rust:uuid",
+    ],
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "be_commit",
@@ -10,20 +15,20 @@ rust_library(
         "CARGO_PKG_NAME": "be-commit",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
     visibility = ["PUBLIC"],
-    deps = [
-        "//crates/be-store:be-store",
-        "//third-party/rust:serde",
-        "//third-party/rust:similar",
-        "//third-party/rust:uuid",
-    ],
 )
 
 rust_test(
     name = "test",
-    srcs = glob(["src/**/*.rs"]),
     crate = "be_commit",
     crate_root = "src/lib.rs",
+    deps = [
+        "//crates/be-store:be-store",
+        "//third-party/rust:serde",
+        "//third-party/rust:similar",
+        "//third-party/rust:uuid",
+    ],
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "be_commit",
@@ -31,10 +36,5 @@ rust_test(
         "CARGO_PKG_NAME": "be-commit",
         "CARGO_PKG_VERSION": "0.1.0",
     },
-    deps = [
-        "//crates/be-store:be-store",
-        "//third-party/rust:serde",
-        "//third-party/rust:similar",
-        "//third-party/rust:uuid",
-    ],
+    srcs = glob(["src/**/*.rs"]),
 )

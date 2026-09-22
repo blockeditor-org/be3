@@ -1,8 +1,11 @@
-
 rust_binary(
     name = "plugin-test-runner-bin",
-    srcs = glob(["src/**/*.rs"]),
     crate_root = "src/main.rs",
+    deps = [
+        "//crates/block-wasm-host:block-wasm-host",
+        "//third-party/rust:pollster",
+        "//third-party/rust:wgpu",
+    ],
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "plugin_test_runner",
@@ -10,10 +13,6 @@ rust_binary(
         "CARGO_PKG_NAME": "plugin-test-runner",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
     visibility = ["PUBLIC"],
-    deps = [
-        "//crates/block-wasm-host:block-wasm-host",
-        "//third-party/rust:pollster",
-        "//third-party/rust:wgpu",
-    ],
 )

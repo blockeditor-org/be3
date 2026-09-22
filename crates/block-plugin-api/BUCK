@@ -1,16 +1,7 @@
 rust_library(
     name = "block-plugin-api",
-    srcs = glob(["src/**/*.rs"]),
     crate = "block_plugin_api",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_plugin_api",
-        "CARGO_MANIFEST_DIR": "crates/block-plugin-api",
-        "CARGO_PKG_NAME": "block-plugin-api",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    visibility = ["PUBLIC"],
     deps = [
         "//third-party/rust:bincode",
         "//third-party/rust:libc",
@@ -18,13 +9,28 @@ rust_library(
         "//third-party/rust:serde_json",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_plugin_api",
+        "CARGO_MANIFEST_DIR": "crates/block-plugin-api",
+        "CARGO_PKG_NAME": "block-plugin-api",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
 )
 
 rust_test(
     name = "test",
-    srcs = glob(["src/**/*.rs"]),
     crate = "block_plugin_api",
     crate_root = "src/lib.rs",
+    deps = [
+        "//third-party/rust:bincode",
+        "//third-party/rust:libc",
+        "//third-party/rust:serde",
+        "//third-party/rust:serde_json",
+        "//third-party/rust:uuid",
+    ],
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "block_plugin_api",
@@ -33,11 +39,5 @@ rust_test(
         "CARGO_PKG_VERSION": "0.1.0",
     },
     labels = ["cargo-only"],
-    deps = [
-        "//third-party/rust:bincode",
-        "//third-party/rust:libc",
-        "//third-party/rust:serde",
-        "//third-party/rust:serde_json",
-        "//third-party/rust:uuid",
-    ],
+    srcs = glob(["src/**/*.rs"]),
 )

@@ -114,6 +114,21 @@ if $lint; then
         t 'crates/fix-rust-source' cargo run --quiet -p fix-rust-source
     fi
 
+    # The BUCK files, formatted the way the Rust is.
+    #
+    # Nothing here needs buck2 itself, only the formatter, and a checkout
+    # without one says so rather than failing: the BUCK files are a small part
+    # of a build cargo does not use yet.
+    if command -v starlark_fmt > /dev/null 2>&1; then
+        if $check; then
+            t 'starlark_fmt' check_starlark_formatting
+        else
+            t 'starlark_fmt' starlark_fmt --config buck/starlark_fmt.json fmt $(starlark_files)
+        fi
+    else
+        echo 'Skipping starlark_fmt: it is not installed (scripts/internal/install-starlark-fmt.sh).'
+    fi
+
     # Tests and examples are linted too, so a warning cannot hide in them. The
     # plugins are in, because linting them natively is the only lint they get
     # from this run. What is out is --all-features: the one workspace feature it

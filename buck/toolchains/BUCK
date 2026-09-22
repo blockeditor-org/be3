@@ -1,40 +1,54 @@
 load("@prelude//tests:test_toolchain.bzl", "noop_test_toolchain")
-load("@prelude//toolchains:cxx.bzl", "system_cxx_toolchain")
+load("@prelude//toolchains:cxx.bzl", "cxx_tools_info_toolchain")
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
-load("@prelude//toolchains:python.bzl", "system_python_bootstrap_toolchain")
+load("@prelude//toolchains:python.bzl", "python_bootstrap_toolchain")
 load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
-load("@prelude//toolchains:rust.bzl", "system_rust_toolchain")
+load(":defs.bzl", "host_cxx_tools", "pinned_rust_toolchain", "script")
 
-# The C compiler a third-party build script reaches is exec'd by path rather
-# than looked up on PATH, so these are absolute; ./scripts/buck resolves them
-# for this machine and writes them to .buckconfig.local.
-system_cxx_toolchain(
+# The Python the prelude's own helpers run on, as a file rather than as a name:
+# a toolchain named by a string puts that string in the command line of every
+# action that uses it, and this one is in all of them. defs.bzl says why that
+# matters. ./scripts/buck writes the wrapper.
+script(
+    name = "python3",
+    src = "root//buck/tools:python3",
+)
+
+host_cxx_tools(
+    name = "cxx_tools",
+    archiver = "root//buck/tools:ar",
+    compiler = "root//buck/tools:cc",
+    cxx_compiler = "root//buck/tools:cxx",
+)
+
+cxx_tools_info_toolchain(
     name = "cxx",
-    archiver = read_root_config("cxx", "archiver", "ar"),
-    compiler = read_root_config("cxx", "compiler", "clang"),
-    compiler_type = "clang",
-    cxx_compiler = read_root_config("cxx", "cxx_compiler", "clang++"),
-    linker = read_root_config("cxx", "linker", "clang++"),
+    cxx_tools_info = ":cxx_tools",
     visibility = ["PUBLIC"],
 )
-system_genrule_toolchain(name = "genrule", visibility = ["PUBLIC"])
-# The prelude runs its own build tooling through this interpreter, and one of
-# those tools uses Path.relative_to(walk_up=True), which arrived in 3.12. A
-# machine whose python3 is older says so as a TypeError from inside a C
-# compile, so ./scripts/buck resolves a new enough one and writes it here.
-system_python_bootstrap_toolchain(
-    name = "python_bootstrap",
-    interpreter = read_root_config("python", "interpreter", "python3"),
-    visibility = ["PUBLIC"],
-)
-system_rust_toolchain(
+
+pinned_rust_toolchain(
     name = "rust",
+    clippy_driver = "root//buck/tools:clippy-driver",
+    compiler = "root//buck/tools:rustc",
     default_edition = "2024",
     # Cargo's dev profile, so a build script that asks cc-rs or libm what it is
     # compiling for gets an answer. The prelude only sets OPT_LEVEL for a build
     # script when it can read an opt level off these flags.
     rustc_flags = ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
+    rustc_target_triple = "x86_64-unknown-linux-gnu",
+    rustdoc = "root//buck/tools:rustdoc",
     visibility = ["PUBLIC"],
 )
+
+python_bootstrap_toolchain(
+    name = "python_bootstrap",
+    interpreter = ":python3",
+    visibility = ["PUBLIC"],
+)
+
+system_genrule_toolchain(name = "genrule", visibility = ["PUBLIC"])
+
 noop_test_toolchain(name = "test", visibility = ["PUBLIC"])
+
 remote_test_execution_toolchain(name = "remote_test_execution", visibility = ["PUBLIC"])

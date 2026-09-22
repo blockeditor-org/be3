@@ -10,3 +10,5 @@ shelley.db*
 /.zig-cache/
 /buck-out
 /.buckconfig.local
+/buck/tools/*
+!/buck/tools/BUCK

@@ -31,11 +31,11 @@ assert_command cargo 'Install Rust from https://rustup.rs.'
 assert_command rustup 'Install Rust from https://rustup.rs.'
 time_script 'Installing reindeer'
 
-step "Installing the $buck2_toolchain toolchain reindeer is built with"
-rustup toolchain install "$buck2_toolchain" --profile minimal
+step "Installing the $reindeer_toolchain toolchain reindeer is built with"
+rustup toolchain install "$reindeer_toolchain" --profile minimal
 
 step "Building reindeer from $reindeer_revision"
-cargo "+$buck2_toolchain" install \
+cargo "+$reindeer_toolchain" install \
     --git https://github.com/facebookincubator/reindeer.git \
     --rev "$reindeer_revision" \
     --locked \

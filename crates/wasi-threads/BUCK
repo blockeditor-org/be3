@@ -1,6 +1,5 @@
 rust_library(
     name = "wasi-threads",
-    srcs = glob(["src/**/*.rs"]),
     crate = "wasi_threads",
     crate_root = "src/lib.rs",
     edition = "2024",
@@ -10,12 +9,12 @@ rust_library(
         "CARGO_PKG_NAME": "wasi-threads",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
     visibility = ["PUBLIC"],
 )
 
 rust_test(
     name = "test",
-    srcs = glob(["src/**/*.rs"]),
     crate = "wasi_threads",
     crate_root = "src/lib.rs",
     edition = "2024",
@@ -25,4 +24,5 @@ rust_test(
         "CARGO_PKG_NAME": "wasi-threads",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
 )

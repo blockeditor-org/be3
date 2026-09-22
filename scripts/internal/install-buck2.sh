@@ -2,18 +2,15 @@
 #
 # Puts the pinned buck2 in cargo's bin directory.
 #
-# It is built from the commit common.sh pins rather than downloaded, because
-# buck2 ships its binaries as GitHub release assets and there is no hash
-# published beside them to pin the bytes against; everything else this
-# repository downloads is checked against one. Building from a commit is the
-# same on every machine, and the commit pins the prelude too, since a buck2
-# binary carries the build rules it was built with.
+# The release upstream publishes is a zstd-compressed bare binary rather than an
+# archive, so this decompresses it straight to where it is going, the way
+# install-nextest.sh untars one binary out of a tarball. The version and the
+# hash it is checked against are both common.sh's.
 #
-# It is not cheap: a cold build is around fifteen minutes. CI keeps its cargo
-# directory between runs, so it pays that once per pin rather than once a run.
-#
-# A buck2 already on PATH is left alone, whatever version it is, the same way
-# install-nextest.sh leaves a cargo-nextest alone.
+# A buck2 already on PATH is left exactly as it is, whatever version it is: the
+# machine chose it, and replacing it is not this script's business. A version
+# other than the pinned one will read the same BUCK files with a different
+# prelude, which is worth knowing about, so it says which one it found.
 #
 # Usage:
 #   install-buck2.sh
@@ -32,20 +29,26 @@ if command -v buck2 > /dev/null 2>&1; then
     exit 0
 fi
 
-assert_command cargo 'Install Rust from https://rustup.rs.'
-assert_command rustup 'Install Rust from https://rustup.rs.'
-time_script 'Installing buck2'
+assert_command zstd 'Install zstd (apt install zstd, brew install zstd).'
 
-step "Installing the $buck2_toolchain toolchain buck2 is built with"
-rustup toolchain install "$buck2_toolchain" --profile minimal \
-    --component llvm-tools-preview --component rust-src
+triple="$(buck2_triple)"
+case "$triple" in
+    x86_64-*) sha256="$buck2_sha256_x86_64" ;;
+    aarch64-*) sha256="$buck2_sha256_aarch64" ;;
+esac
 
-step "Building buck2 from $buck2_revision"
-cargo "+$buck2_toolchain" install \
-    --git https://github.com/facebook/buck2.git \
-    --rev "$buck2_revision" \
-    --locked \
-    buck2
-end_step
+release="buck2-$triple.zst"
+url="https://github.com/facebook/buck2/releases/download/$buck2_version/$release"
+mirror="$download_mirror/$buck2_version/$release"
+tools="$repository/target/tools"
+archive="$tools/$release"
+bin_directory="${CARGO_HOME:-$HOME/.cargo}/bin"
 
-echo "Installed $(buck2 --version)"
+echo "Downloading buck2 $buck2_version from $url..."
+mkdir -p "$tools" "$bin_directory"
+download_verified "$url" "$archive" "$sha256" "$mirror"
+zstd --decompress --force --quiet "$archive" -o "$bin_directory/buck2"
+chmod +x "$bin_directory/buck2"
+rm "$archive"
+
+echo "Installed $("$bin_directory/buck2" --version) at $bin_directory/buck2"

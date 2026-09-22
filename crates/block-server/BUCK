@@ -1,16 +1,7 @@
 rust_library(
     name = "block-server",
-    srcs = glob(["src/**/*.rs"]),
     crate = "block_server",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_server",
-        "CARGO_MANIFEST_DIR": "crates/block-server",
-        "CARGO_PKG_NAME": "block-server",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    visibility = ["PUBLIC"],
     deps = [
         "//crates/block:block",
         "//third-party/rust:argon2",
@@ -27,13 +18,6 @@ rust_library(
         "//third-party/rust:tokio-tungstenite",
         "//third-party/rust:uuid",
     ],
-)
-
-rust_test(
-    name = "test",
-    srcs = glob(["src/**/*.rs"]),
-    crate = "block_server",
-    crate_root = "src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "block_server",
@@ -41,6 +25,14 @@ rust_test(
         "CARGO_PKG_NAME": "block-server",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "test",
+    crate = "block_server",
+    crate_root = "src/lib.rs",
     deps = [
         "//crates/block:block",
         "//third-party/rust:argon2",
@@ -58,12 +50,6 @@ rust_test(
         "//third-party/rust:ureq",
         "//third-party/rust:uuid",
     ],
-)
-
-rust_binary(
-    name = "block-server-bin",
-    srcs = glob(["src/**/*.rs"]),
-    crate_root = "src/main.rs",
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "block_server",
@@ -71,10 +57,15 @@ rust_binary(
         "CARGO_PKG_NAME": "block-server",
         "CARGO_PKG_VERSION": "0.1.0",
     },
-    visibility = ["PUBLIC"],
+    srcs = glob(["src/**/*.rs"]),
+)
+
+rust_binary(
+    name = "block-server-bin",
+    crate_root = "src/main.rs",
     deps = [
-        "//crates/block-server:block-server",
         "//crates/block:block",
+        "//crates/block-server:block-server",
         "//third-party/rust:argon2",
         "//third-party/rust:futures-util",
         "//third-party/rust:httparse",
@@ -89,4 +80,13 @@ rust_binary(
         "//third-party/rust:tokio-tungstenite",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_server",
+        "CARGO_MANIFEST_DIR": "crates/block-server",
+        "CARGO_PKG_NAME": "block-server",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
 )

@@ -1,0 +1,21 @@
+load(":defs.bzl", "execution_platform", "host_configuration")
+
+# Whether to talk to the shared cache at all, and whether to write to it.
+#
+# Both are off unless ./scripts/buck turned them on in .buckconfig.local, which
+# it does when the credential for the cache is in the environment. A checkout
+# without one builds locally and says nothing about it, rather than failing
+# every action against a server it cannot authenticate to.
+#
+# Reads are for everyone; writes are CI's. A cache anyone can write to is a
+# cache anyone can use to hand every machine that reads it a compiler output of
+# their choosing, and those get executed.
+execution_platform(
+    name = "default",
+    allow_cache_uploads = read_root_config("be3", "cache_uploads", "false") == "true",
+    cpu_configuration = host_configuration.cpu,
+    os_configuration = host_configuration.os,
+    remote_cache_enabled = read_root_config("be3", "remote_cache", "false") == "true",
+    use_windows_path_separators = host_info().os.is_windows,
+    visibility = ["PUBLIC"],
+)

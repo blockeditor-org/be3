@@ -1,16 +1,7 @@
 rust_library(
     name = "text-editor-core",
-    srcs = glob(["src/**/*.rs"]),
     crate = "text_editor_core",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "text_editor_core",
-        "CARGO_MANIFEST_DIR": "crates/text-editor-core",
-        "CARGO_PKG_NAME": "text-editor-core",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    visibility = ["PUBLIC"],
     deps = [
         "//third-party/rust:serde",
         "//third-party/rust:similar",
@@ -21,13 +12,6 @@ rust_library(
         "//third-party/rust:unicode-segmentation",
         "//third-party/rust:uuid",
     ],
-)
-
-rust_test(
-    name = "test",
-    srcs = glob(["src/**/*.rs"]),
-    crate = "text_editor_core",
-    crate_root = "src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "text_editor_core",
@@ -35,6 +19,14 @@ rust_test(
         "CARGO_PKG_NAME": "text-editor-core",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "test",
+    crate = "text_editor_core",
+    crate_root = "src/lib.rs",
     deps = [
         "//third-party/rust:serde",
         "//third-party/rust:serde_json",
@@ -46,4 +38,12 @@ rust_test(
         "//third-party/rust:unicode-segmentation",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "text_editor_core",
+        "CARGO_MANIFEST_DIR": "crates/text-editor-core",
+        "CARGO_PKG_NAME": "text-editor-core",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
 )

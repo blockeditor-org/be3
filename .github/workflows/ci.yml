@@ -42,6 +42,10 @@ env:
   # first run and every cold runner live on. The Actions caches beside it are
   # the cheaper half of the same idea: see .github/actions/cargo-cache.
   BUNNY_SCCACHE_PASSWORD: ${{ secrets.BUNNY_SCCACHE_PASSWORD }}
+  # The shared buck2 build cache, which works the same way: a run that has the
+  # secret fills it, and a pull request from a fork sees an empty value and
+  # builds everything locally. guides/buck2.md says what it holds.
+  BLOCKS_CACHE_AUTH: ${{ secrets.BLOCKS_CACHE_AUTH }}
 
 # ./scripts/verify is one command locally and three jobs here. Its three parts
 # need nothing from one another, and run together they were the longest thing in
@@ -120,6 +124,13 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
+
+      # ./scripts/verify formats the BUCK files as well as the Rust. Only the
+      # formatter is needed for that, not buck2 itself.
+      - name: Install starlark_fmt
+        run: |
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          ./scripts/internal/install-starlark-fmt.sh
 
       - run: ./scripts/verify --check --lint
 
@@ -269,6 +280,8 @@ jobs:
       - uses: ./.github/actions/rust-toolchain
 
       - uses: ./.github/actions/buck2
+        with:
+          reindeer: 'true'
 
       # third-party/rust/BUCK is generated from the workspace's Cargo.toml and
       # checked in, so this is what says the two still agree. A pull request
@@ -279,13 +292,20 @@ jobs:
           ./scripts/buckify
           git diff --exit-code third-party/rust/BUCK
 
+      # This is the job that fills the cache. Every other reader of it - a
+      # developer's first build, the next run of this job - is answered out of
+      # what this one wrote.
       - run: ./scripts/buck build //crates/...
+        env:
+          BLOCKS_CACHE_UPLOAD: '1'
 
       # Three test targets are labelled cargo-only: what they read at runtime -
       # the editor manifests in the source tree, and the wasm modules the plugin
       # and game builds produce - is not something buck2 puts in front of them
       # yet. The cargo jobs above run all three. guides/buck2.md has the list.
       - run: ./scripts/buck test //crates/... --exclude cargo-only
+        env:
+          BLOCKS_CACHE_UPLOAD: '1'
 
   web:
     name: web bundle

@@ -23,18 +23,31 @@ prelude = bundled
 [parser]
 target_platform_detector_spec = target:root//...->prelude//platforms:default
 
-# The two host tools buck2 cannot find for itself.
-#
-# The prelude's helpers need a Python of at least 3.12, and the C compiler it
-# hands a third-party build script is exec'd by path rather than looked up on
-# PATH. The names below are what a machine that has both would resolve anyway;
-# ./scripts/buck works out this machine's answers and writes them to
-# .buckconfig.local, which git ignores.
-[python]
-interpreter = python3
+# Where actions run. The prelude's default platform runs everything locally and
+# consults no cache; this one is the same platform with the shared cache wired
+# in. buck/platforms/BUCK says how it is turned on.
+[build]
+execution_platforms = root//buck/platforms:default
 
-[cxx]
-archiver = ar
-compiler = clang
-cxx_compiler = clang++
-linker = clang++
+[buck2]
+# The digest the shared cache speaks. buck2 defaults to SHA1, and this is not
+# something to leave to a default: it is the key space every cached action
+# lives in, so a machine that disagrees shares nothing with the others. It is
+# set here rather than beside the cache credential so that it is the same
+# whether or not a checkout has one.
+digest_algorithms = SHA256
+
+# Remember which artifacts are already on disk across daemon restarts, and skip
+# writing a file whose content is already there. Both are what the deferred
+# materializer wants: with the cache on, most of what a build "produces" is a
+# digest buck2 never downloads, and this is what stops it downloading one twice.
+defer_write_actions = true
+sqlite_materializer_state = true
+
+# Whether an action that ran locally may be written to the cache. It is a
+# per-action setting the rules in the prelude never pass, so without this
+# default nothing is ever uploaded, however the executor is configured. What
+# decides whether uploads actually happen is allow_cache_uploads on the
+# execution platform, which is off unless ./scripts/buck was given the write
+# credential; this only says the rules do not object.
+default_allow_cache_upload = true

@@ -1,16 +1,7 @@
 rust_library(
     name = "game-api",
-    srcs = glob(["src/**/*.rs"]),
     crate = "game_api",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "game_api",
-        "CARGO_MANIFEST_DIR": "crates/tabletop_games/api",
-        "CARGO_PKG_NAME": "game-api",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    visibility = ["PUBLIC"],
     deps = [
         "//third-party/rust:bincode",
         "//third-party/rust:rand",
@@ -18,20 +9,21 @@ rust_library(
         "//third-party/rust:serde",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "game_api",
+        "CARGO_MANIFEST_DIR": "crates/tabletop_games/api",
+        "CARGO_PKG_NAME": "game-api",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
 )
 
 rust_test(
     name = "test",
-    srcs = glob(["src/**/*.rs"]),
     crate = "game_api",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "game_api",
-        "CARGO_MANIFEST_DIR": "crates/tabletop_games/api",
-        "CARGO_PKG_NAME": "game-api",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
     deps = [
         "//third-party/rust:bincode",
         "//third-party/rust:rand",
@@ -39,4 +31,12 @@ rust_test(
         "//third-party/rust:serde",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "game_api",
+        "CARGO_MANIFEST_DIR": "crates/tabletop_games/api",
+        "CARGO_PKG_NAME": "game-api",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
 )

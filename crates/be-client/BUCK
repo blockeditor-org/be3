@@ -1,16 +1,7 @@
 rust_library(
     name = "be-client",
-    srcs = glob(["src/**/*.rs"]),
     crate = "be_client",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "be_client",
-        "CARGO_MANIFEST_DIR": "crates/be-client",
-        "CARGO_PKG_NAME": "be-client",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    visibility = ["PUBLIC"],
     deps = [
         "//crates/be-block:be-block",
         "//crates/be-commit:be-commit",
@@ -24,13 +15,6 @@ rust_library(
         "//third-party/rust:tokio-tungstenite",
         "//third-party/rust:uuid",
     ],
-)
-
-rust_test(
-    name = "test",
-    srcs = glob(["src/**/*.rs"]),
-    crate = "be_client",
-    crate_root = "src/lib.rs",
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "be_client",
@@ -38,6 +22,14 @@ rust_test(
         "CARGO_PKG_NAME": "be-client",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "test",
+    crate = "be_client",
+    crate_root = "src/lib.rs",
     deps = [
         "//crates/be-block:be-block",
         "//crates/be-commit:be-commit",
@@ -52,4 +44,12 @@ rust_test(
         "//third-party/rust:tokio-tungstenite",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "be_client",
+        "CARGO_MANIFEST_DIR": "crates/be-client",
+        "CARGO_PKG_NAME": "be-client",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
 )

@@ -1,6 +1,5 @@
 rust_library(
     name = "cvl2",
-    srcs = glob(["src/**/*.rs"]),
     crate = "cvl2",
     crate_root = "src/lib.rs",
     edition = "2024",
@@ -10,12 +9,12 @@ rust_library(
         "CARGO_PKG_NAME": "cvl2",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
     visibility = ["PUBLIC"],
 )
 
 rust_test(
     name = "test",
-    srcs = glob(["src/**/*.rs"]),
     crate = "cvl2",
     crate_root = "src/lib.rs",
     edition = "2024",
@@ -25,12 +24,15 @@ rust_test(
         "CARGO_PKG_NAME": "cvl2",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
 )
 
 rust_binary(
     name = "cvl2-bin",
-    srcs = glob(["src/**/*.rs"]),
     crate_root = "src/main.rs",
+    deps = [
+        "//crates/cvl2:cvl2",
+    ],
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "cvl2",
@@ -38,8 +40,6 @@ rust_binary(
         "CARGO_PKG_NAME": "cvl2",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
     visibility = ["PUBLIC"],
-    deps = [
-        "//crates/cvl2:cvl2",
-    ],
 )

@@ -1,8 +1,11 @@
 rust_library(
     name = "block",
-    srcs = glob(["src/**/*.rs"]),
     crate = "block",
     crate_root = "src/lib.rs",
+    deps = [
+        "//third-party/rust:serde",
+        "//third-party/rust:uuid",
+    ],
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "block",
@@ -10,18 +13,18 @@ rust_library(
         "CARGO_PKG_NAME": "block",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    srcs = glob(["src/**/*.rs"]),
     visibility = ["PUBLIC"],
-    deps = [
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
 )
 
 rust_test(
     name = "test",
-    srcs = glob(["src/**/*.rs"]),
     crate = "block",
     crate_root = "src/lib.rs",
+    deps = [
+        "//third-party/rust:serde",
+        "//third-party/rust:uuid",
+    ],
     edition = "2024",
     env = {
         "CARGO_CRATE_NAME": "block",
@@ -29,8 +32,5 @@ rust_test(
         "CARGO_PKG_NAME": "block",
         "CARGO_PKG_VERSION": "0.1.0",
     },
-    deps = [
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
+    srcs = glob(["src/**/*.rs"]),
 )

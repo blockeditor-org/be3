@@ -1,19 +1,7 @@
 rust_library(
     name = "block-client",
-    srcs = glob(["src/**/*.rs"]),
     crate = "block_client",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_client",
-        "CARGO_MANIFEST_DIR": "crates/block-client",
-        "CARGO_PKG_NAME": "block-client",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    features = [
-        "hosted",
-    ],
-    visibility = ["PUBLIC"],
     deps = [
         "//crates/block:block",
         "//crates/logicgame:logicgame",
@@ -33,26 +21,27 @@ rust_library(
         "//third-party/rust:ureq",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_client",
+        "CARGO_MANIFEST_DIR": "crates/block-client",
+        "CARGO_PKG_NAME": "block-client",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    features = [
+        "hosted",
+    ],
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
 )
 
 rust_test(
     name = "test",
-    srcs = glob(["src/**/*.rs"]),
     crate = "block_client",
     crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_client",
-        "CARGO_MANIFEST_DIR": "crates/block-client",
-        "CARGO_PKG_NAME": "block-client",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    features = [
-        "hosted",
-    ],
     deps = [
-        "//crates/block-server:block-server",
         "//crates/block:block",
+        "//crates/block-server:block-server",
         "//crates/logicgame:logicgame",
         "//crates/tabletop_games/api:game-api",
         "//third-party/rust:base64",
@@ -70,4 +59,15 @@ rust_test(
         "//third-party/rust:ureq",
         "//third-party/rust:uuid",
     ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "block_client",
+        "CARGO_MANIFEST_DIR": "crates/block-client",
+        "CARGO_PKG_NAME": "block-client",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    features = [
+        "hosted",
+    ],
+    srcs = glob(["src/**/*.rs"]),
 )
