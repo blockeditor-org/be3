@@ -1,0 +1,13 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "image_block",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//third-party/rust:image",
+        "//third-party/rust:uuid",
+    ],
+    module = "image_block",
+)

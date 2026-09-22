@@ -1,0 +1,13 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "game_module",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//crates/tabletop_games/host:game-host",
+        "//third-party/rust:uuid",
+    ],
+    module = "game_module",
+)

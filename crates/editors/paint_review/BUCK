@@ -1,0 +1,15 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "paint_review",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block:block",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//crates/paint-snapshot:paint-snapshot",
+        "//third-party/rust:serde_json",
+        "//third-party/rust:uuid",
+    ],
+    module = "paint_review",
+)

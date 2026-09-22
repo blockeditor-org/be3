@@ -1,0 +1,14 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "compiled_logic",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block:block",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//crates/logicgame:logicgame",
+        "//third-party/rust:uuid",
+    ],
+    module = "compiled_logic",
+)

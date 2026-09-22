@@ -1,0 +1,13 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "calendar",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//crates/block-ui:block-ui",
+        "//third-party/rust:uuid",
+    ],
+    module = "calendar",
+)

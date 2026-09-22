@@ -1,0 +1,15 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "text_block",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block:block",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//crates/text-editor-core:text-editor-core",
+        "//third-party/rust:serde",
+        "//third-party/rust:uuid",
+    ],
+    module = "text_block",
+)

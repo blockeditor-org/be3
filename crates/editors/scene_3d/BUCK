@@ -1,0 +1,14 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "scene_3d",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//third-party/rust:bytemuck",
+        "//third-party/rust:uuid",
+        "//third-party/rust:wgpu",
+    ],
+    module = "scene_3d",
+)

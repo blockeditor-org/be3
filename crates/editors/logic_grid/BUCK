@@ -1,0 +1,16 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "logic_grid",
+    deps = [
+        "//crates/block:block",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//crates/logicgame:logicgame",
+        "//third-party/rust:bytemuck",
+        "//third-party/rust:serde",
+        "//third-party/rust:serde_json",
+        "//third-party/rust:uuid",
+    ],
+    module = "logic_grid",
+)

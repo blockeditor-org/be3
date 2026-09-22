@@ -1063,10 +1063,12 @@ check_starlark_formatting() {
 # bytes are not.
 buck_tool_wrapper() {
     local command="$1" version="$2"
+    shift 2
+    local flags="$*"
     cat << EOF
 #!/bin/sh
 # $version
-exec $command "\$@"
+exec $command${flags:+ $flags} "\$@"
 EOF
 }
 
@@ -1137,8 +1139,16 @@ write_buck_tools() {
         return 1
     }
     wasm_clang_version="$("$wasm_clang" --version 2>&1 | head -1)"
-    write_buck_tool "$directory/wasm-cc" "$wasm_clang" "$wasm_clang_version"
-    write_buck_tool "$directory/wasm-cxx" "${wasm_clang/clang/clang++}" "$wasm_clang_version"
+    # --target belongs to the wrapper rather than to the toolchain's c_flags
+    # because an assembly source never sees those: the prelude's cxx toolchain
+    # has flags for C and for C++ and none for .S, so zstd's hand-written
+    # amd64 assembly would otherwise be handed to a compiler aimed at the host
+    # and come back an ELF object in the middle of a wasm link. Aimed at wasm
+    # it preprocesses to nothing, which is what it is on any target but x86-64.
+    write_buck_tool "$directory/wasm-cc" "$wasm_clang" "$wasm_clang_version" \
+        "--target=$wasm_rust_target"
+    write_buck_tool "$directory/wasm-cxx" "${wasm_clang/clang/clang++}" "$wasm_clang_version" \
+        "--target=$wasm_rust_target"
 
     assert_command rustc 'Install Rust from https://rustup.rs.'
     local rust_version
@@ -1206,7 +1216,8 @@ EOF
 
 write_buck_tool() {
     local path="$1" command="$2" version="$3" wanted
-    wanted="$(buck_tool_wrapper "$command" "$version")"
+    shift 3
+    wanted="$(buck_tool_wrapper "$command" "$version" "$@")"
     if [[ -f "$path" && "$(cat "$path")" == "$wanted" ]]; then
         return 0
     fi

@@ -1,0 +1,12 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "ui_settings",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//third-party/rust:uuid",
+    ],
+    module = "ui_settings",
+)

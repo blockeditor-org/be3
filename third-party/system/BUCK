@@ -3,8 +3,22 @@
 
 # harfbuzz and the embedded browser are C++; a Rust binary linking them brings
 # no C++ runtime of its own.
+#
+# On wasm there is no machine to take one from, so it comes out of the same WASI
+# sysroot the C was compiled against - the noeh variant, because the wasm build
+# compiles with -fno-exceptions. libsetjmp is beside it and is what FreeType's
+# setjmp lowering resolves against; the cargo build adds both through RUSTFLAGS
+# in scripts/internal/common.sh.
 prebuilt_cxx_library(
     name = "stdc++",
-    exported_linker_flags = ["-lstdc++"],
+    exported_linker_flags = select({
+        "DEFAULT": ["-lstdc++"],
+        "prelude//os:wasi": [
+            "-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
+            "-lc++",
+            "-lc++abi",
+            "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
+        ],
+    }),
     visibility = ["PUBLIC"],
 )

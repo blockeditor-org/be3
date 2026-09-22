@@ -1,0 +1,13 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "checklist",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//crates/block-reactive:block-reactive",
+        "//third-party/rust:uuid",
+    ],
+    module = "checklist",
+)

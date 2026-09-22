@@ -1,0 +1,15 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "infinite_canvas",
+    deps = [
+        "//crates/beui:beui",
+        "//crates/block:block",
+        "//crates/block-client:block-client",
+        "//crates/block-editor-plugin:block-editor-plugin",
+        "//third-party/rust:serde",
+        "//third-party/rust:serde_json",
+        "//third-party/rust:uuid",
+    ],
+    module = "infinite_canvas",
+)
