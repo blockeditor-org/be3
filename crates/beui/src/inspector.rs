@@ -632,7 +632,7 @@ fn flashes(painter: &Painter, target: &Document, scale: f32) {
         );
     }
     for (rect, at) in target.damage_flashes() {
-        overlay::flash(
+        overlay::flash_outline(
             painter,
             rect.scaled(scale),
             flash::REPAINT,
