@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_client::blocks::web_browser_tab::{HistoryItem, WebBrowserTab, WebBrowserTabOperation};
+use block_editor_plugin::be_block::{BrowserTabContent, BrowserTabOp, HistoryItem};
 use block_editor_plugin::beui::reactive::{
     Memo, ReadSignal, WriteSignal, create_memo, create_signal,
 };
-use block_editor_plugin::{BlockProjection, Editor, WebViewEvent};
+use block_editor_plugin::{ContentProjection, Editor, WebViewEvent};
 
 #[derive(Default)]
 struct Navigation {
@@ -18,7 +18,7 @@ struct Navigation {
 
 pub(crate) struct Session {
     editor: Editor,
-    tab: Rc<BlockProjection<WebBrowserTab>>,
+    tab: Rc<ContentProjection<BrowserTabContent>>,
     navigation: RefCell<Navigation>,
     address: ReadSignal<String>,
     set_address: WriteSignal<String>,
@@ -32,7 +32,7 @@ impl Session {
         let (error, set_error) = create_signal(None::<String>);
         let session = Rc::new(Self {
             editor: editor.clone(),
-            tab: editor.block::<WebBrowserTab>(),
+            tab: editor.block_content::<BrowserTabContent>(),
             navigation: RefCell::default(),
             address,
             set_address,
@@ -70,7 +70,7 @@ impl Session {
     }
 
     pub(crate) fn go(&self, index: usize) {
-        self.tab.operate(WebBrowserTabOperation::History(index));
+        self.tab.operate(BrowserTabOp::History(index));
     }
 
     pub(crate) fn reload(&self) {
@@ -107,15 +107,12 @@ impl Session {
         if navigation.opened {
             return;
         }
-        let Some(url) = self
+        let Some((index, url)) = self
             .tab
-            .handle()
-            .read()
-            .map(|tab| tab.current().url.clone())
+            .read(|tab| (tab.index(), tab.current().url.clone()))
         else {
             return;
         };
-        let index = self.tab.handle().read().map(|tab| tab.index()).unwrap_or(0);
         navigation.opened = true;
         navigation.current = Some(url.clone());
         navigation.programmatic = Some(url.clone());
@@ -143,11 +140,11 @@ impl Session {
 
     fn push_item(&self, url: String) {
         self.tab
-            .operate(WebBrowserTabOperation::Push(self.item_with_url(url)));
+            .operate(BrowserTabOp::Push(self.item_with_url(url)));
     }
 
     fn push(&self, url: String) {
-        self.tab.operate(WebBrowserTabOperation::Push(HistoryItem {
+        self.tab.operate(BrowserTabOp::Push(HistoryItem {
             url,
             title: String::new(),
         }));
@@ -155,7 +152,7 @@ impl Session {
 
     fn replace(&self, url: String) {
         self.tab
-            .operate(WebBrowserTabOperation::Replace(self.item_with_url(url)));
+            .operate(BrowserTabOp::Replace(self.item_with_url(url)));
     }
 
     fn navigation_started(&self, url: String) {
@@ -189,60 +186,48 @@ impl Session {
         navigation.natural = None;
         drop(navigation);
         self.set_address.set(url.clone());
-        let current = self
-            .tab
-            .handle()
-            .read()
-            .map(|tab| tab.current().url.clone());
+        let current = self.tab.read(|tab| tab.current().url.clone());
         if current.as_deref().is_some_and(|current| current != url) {
             self.replace(url);
         }
     }
 
     fn title_changed(&self, title: String) {
-        let Some(tab) = self.tab.handle().read() else {
+        let Some(shown) = self.tab.read(|tab| tab.current().url.clone()) else {
             return;
         };
-        let url = self
-            .navigation
-            .borrow()
-            .current
-            .clone()
-            .unwrap_or_else(|| tab.current().url.clone());
-        drop(tab);
+        let url = self.navigation.borrow().current.clone().unwrap_or(shown);
         self.tab
-            .operate(WebBrowserTabOperation::Replace(HistoryItem { url, title }));
+            .operate(BrowserTabOp::Replace(HistoryItem { url, title }));
     }
 
     fn item_with_url(&self, url: String) -> HistoryItem {
         let title = self
             .tab
-            .handle()
-            .read()
-            .map(|tab| tab.current().title.clone())
+            .read(|tab| tab.current().title.clone())
             .unwrap_or_default();
         HistoryItem { url, title }
     }
 
     fn traverse_history(&self, delta: isize) {
-        let Some(tab) = self.tab.handle().read() else {
+        let Some((index, length)) = self.tab.read(|tab| (tab.index(), tab.history().len())) else {
             return;
         };
-        let Some(index) = tab.index().checked_add_signed(delta) else {
+        let Some(index) = index.checked_add_signed(delta) else {
             return;
         };
-        if index < tab.history().len() {
-            drop(tab);
+        if index < length {
             self.go(index);
         }
     }
 
     fn synchronize(&self) {
-        let Some(tab) = self.tab.handle().read() else {
+        let Some(selected) = self
+            .tab
+            .read(|tab| (tab.index(), tab.current().url.clone()))
+        else {
             return;
         };
-        let selected = (tab.index(), tab.current().url.clone());
-        drop(tab);
         let mut navigation = self.navigation.borrow_mut();
         if navigation.synchronized.as_ref() == Some(&selected) {
             return;
