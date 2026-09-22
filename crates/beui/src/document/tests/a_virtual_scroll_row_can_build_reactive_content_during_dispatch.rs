@@ -12,7 +12,7 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
                     <Offset @sizing=ItemSize::Percent(100.0)>
                         <VirtualList
                             @node_ref=&list
-                            count=VIRTUAL_ITEM_COUNT
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >
                             {|index: usize| view! {

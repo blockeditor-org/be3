@@ -16,7 +16,7 @@ fn scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent() {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList @node_ref=&list count=ROWS item_size=ESTIMATE>
+                        <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
                             {move |_: usize| {
                                 view! {
                                     <Frame height=ACTUAL>

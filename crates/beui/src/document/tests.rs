@@ -64,12 +64,14 @@ mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
+mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
 mod a_viewport_fills_the_space_it_is_given;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
+mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
@@ -87,6 +89,7 @@ mod an_icon_is_as_tall_as_the_text_it_sits_with;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
+mod appending_to_a_virtual_list_keeps_the_rows_it_built;
 mod arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_option;
 mod arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing_the_search_text;
 mod arrow_keys_move_a_visible_highlight_through_an_open_context_menu;
@@ -133,6 +136,7 @@ mod dragging_a_tab_over_a_window_bar_marks_where_it_lands;
 mod dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar;
 mod dragging_a_tab_within_a_window_bar_reorders_it;
 mod dragging_a_window_by_its_bar_moves_it;
+mod dragging_again_during_overscroll_continues_from_the_band;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
@@ -149,6 +153,7 @@ mod evicting_a_virtual_scroll_row_disposes_its_effects;
 mod finding_a_node_by_its_test_id;
 mod flashing_changed_elements_outlines_the_node_that_changed;
 mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
+mod flashing_repaints_paints_no_fill;
 mod flicking_across_the_screen_reader_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
@@ -159,6 +164,8 @@ mod hovering_a_link_underlines_it_without_moving_anything;
 mod hovering_a_menu_item_with_children_opens_its_submenu_without_a_click;
 mod hovering_a_row_highlights_the_node_it_lists;
 mod hovering_a_select_option_moves_the_keyboard_highlight;
+mod inserting_above_a_virtual_list_view_keeps_the_rows_in_place;
+mod inserting_into_a_virtual_list_view_builds_only_the_new_row;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod opening_a_menu_damages_only_where_it_appears;
@@ -180,6 +187,7 @@ mod removing_a_keyed_node_drops_the_test_ids_it_registered;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
 mod removing_a_node_stops_the_effects_that_were_built_for_it;
 mod removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint;
+mod removing_from_a_virtual_list_view_disposes_only_that_row;
 mod required_props_can_be_written_in_any_order_and_as_children;
 mod resizing_a_virtual_scroll_reuses_visible_items;
 mod resizing_an_element_damages_where_it_was_and_where_it_moved_to;
@@ -763,7 +771,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> VirtualScroll {
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            count=VIRTUAL_ITEM_COUNT
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >
                             {move |index: usize| {
@@ -787,6 +795,46 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> VirtualScroll {
         document,
         scroll: scroll.get(),
         list: list.get(),
+    }
+}
+
+pub(crate) struct KeyedVirtualScroll {
+    pub(crate) document: Document,
+    pub(crate) scroll: NodeId,
+    pub(crate) list: NodeId,
+    pub(crate) set_keys: crate::reactive::WriteSignal<Vec<usize>>,
+}
+
+pub(crate) fn keyed_virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> KeyedVirtualScroll {
+    let (keys, set_keys) = create_signal(indices(VIRTUAL_ITEM_COUNT));
+    let (scroll, list) = (NodeRef::new(), NodeRef::new());
+    let sink = built.clone();
+    let document = build({
+        let (scroll, list) = (scroll.clone(), list.clone());
+        move || {
+            view! {
+                <List spacing=0.0>
+                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                        <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
+                            {move |key: usize| {
+                                sink.borrow_mut().push(key);
+                                view! {
+                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                        <Spacer />
+                                    </Frame>
+                                }
+                            }}
+                        </VirtualList>
+                    </Offset>
+                </List>
+            }
+        }
+    });
+    KeyedVirtualScroll {
+        document,
+        scroll: scroll.get(),
+        list: list.get(),
+        set_keys,
     }
 }
 
