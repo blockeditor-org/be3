@@ -2,9 +2,9 @@
 
 The `be-*` crates are a replacement for `block`, `block-server` and
 `block-client`. They live beside the old stack rather than inside it: the old
-stack still runs the application, and two editors - the counter and the
-checklist - keep their content in the new one. Work on them by migrating one thing at a time, not by
-rewriting the app around them.
+stack still runs the application, and three editors - the counter, the
+checklist and the browser tab - keep their content in the new one. Work on them
+by migrating one thing at a time, not by rewriting the app around them.
 
 If you are changing an existing editor or block type today, you want
 `guides/adding_a_block.md` and the `block` crate. This guide is for work on the
@@ -292,7 +292,19 @@ Migrating another self-contained editor is now four steps: a content type in
 `editor.block_content::<C>()` instead of `editor.block::<B>()`, and the old block
 type emptied the way `Counter` and `Checklist` are. The checklist is the example
 to follow for a list of items: `ContentProjection::project_keyed` keeps a row
-from being rebuilt when another row changes.
+from being rebuilt when another row changes. The browser tab is the example for
+an editor that reads its content outside a projection: `ContentProjection::read`
+answers `None` until the host has sent the content once.
+
+A migrated block is still named in the old stack, because that is where the file
+tree, the block picker and search look. `BlockContent::name` is the name, and
+the host carries it across: whenever an editable instance is sent a new revision,
+`Instance::name_from_content` writes it as the block's automatic name through
+`BlockHandle::set_implicit_name`, which never touches a name someone set by hand.
+An empty automatic name is how a name is taken away, because the old server has
+no way to delete a property. This is a bridge, not the design: it shows the old
+server every name, exactly as the old stack already does, and it goes away with
+the old stack, when names move into an index the server cannot read.
 
 Four things are worth copying. A migrated editor's block type keeps its old
 entry in `block_types!` with no state in it, rather than disappearing: the graph
@@ -342,7 +354,8 @@ the old client - and it is what the key wrapping below replaces.
 ## What is not built yet
 
 - A migrated block's content is not in the old workspace index, so nothing but
-  the editor can read it: no preview, no search, no name.
+  the editor can read it: no preview and no search. Only its name is carried
+  across, and only while an editor has it open.
 - The browser peer keeps its objects in memory, so a reload refetches everything
   and a tab that closes leaves whatever a session held since its last autosave
   behind: `flush()` cannot wait there. An `ObjectStore` over IndexedDB is what

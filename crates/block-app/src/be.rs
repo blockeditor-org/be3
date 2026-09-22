@@ -74,6 +74,7 @@ struct Migrated {
     block_type: Uuid,
     content_type: Uuid,
     join: worker::Join,
+    name: fn(&[u8]) -> Option<String>,
 }
 
 const fn migrated<B, C>() -> Migrated
@@ -85,12 +86,18 @@ where
         block_type: B::TYPE_ID,
         content_type: C::CONTENT_TYPE,
         join: worker::join::<C>,
+        name: content_name::<C>,
     }
+}
+
+fn content_name<C: be_block::BlockContent>(bytes: &[u8]) -> Option<String> {
+    C::decode(bytes).ok()?.name()
 }
 
 const MIGRATED: &[Migrated] = &[
     migrated::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(),
     migrated::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
+    migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
 ];
 
 pub(crate) fn content_type_for(block_type: Uuid) -> Option<Uuid> {
@@ -98,6 +105,13 @@ pub(crate) fn content_type_for(block_type: Uuid) -> Option<Uuid> {
         .iter()
         .find(|migrated| migrated.block_type == block_type)
         .map(|migrated| migrated.content_type)
+}
+
+pub(crate) fn name_of(content: &Content) -> Option<String> {
+    let migrated = MIGRATED
+        .iter()
+        .find(|migrated| migrated.content_type == content.content_type)?;
+    (migrated.name)(&content.bytes)
 }
 
 fn join_for(content_type: Uuid) -> Option<worker::Join> {

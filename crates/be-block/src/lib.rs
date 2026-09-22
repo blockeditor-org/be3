@@ -4,12 +4,14 @@ use be_commit::MergeResult;
 use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
+pub mod browser_tab;
 pub mod checklist;
 pub mod counter;
 pub mod image;
 pub mod streamed;
 pub mod text;
 
+pub use browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem};
 pub use checklist::{ChecklistContent, ChecklistItem, ChecklistOp};
 pub use counter::{CounterContent, CounterOp};
 pub use image::{ImageContent, ImageHeader};

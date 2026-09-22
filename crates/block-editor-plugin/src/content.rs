@@ -41,6 +41,11 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         C::CONTENT_TYPE
     }
 
+    pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
+        self.adopt();
+        (self.seen.get() > 0).then(|| read(&self.visible.borrow()))
+    }
+
     pub fn project<T>(&self, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
     where
         T: Clone + PartialEq + 'static,

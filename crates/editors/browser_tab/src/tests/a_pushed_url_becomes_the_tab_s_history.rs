@@ -2,18 +2,14 @@ use super::*;
 
 #[test]
 fn a_pushed_url_becomes_the_tab_s_history() {
-    let Fixture {
-        mut editor,
-        host,
-        block,
-        ..
-    } = editor();
+    let mut tab = Harness::new();
 
-    host.push_web_view_event(WebViewEvent::Push("https://example.com/next".into()));
-    editor.run();
+    tab.host
+        .push_web_view_event(WebViewEvent::Push("https://example.com/next".into()));
+    tab.run();
 
     assert_eq!(
-        urls(&block),
+        tab.urls(),
         ["https://example.com/", "https://example.com/next"]
     );
 }

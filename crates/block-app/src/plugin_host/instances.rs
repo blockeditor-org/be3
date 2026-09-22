@@ -1,4 +1,4 @@
-use block_client::{BlockClient, Tunnel, blocks::audio::Audio};
+use block_client::{BlockClient, BlockHandleAccess, Tunnel, blocks::audio::Audio};
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
@@ -95,6 +95,8 @@ struct ContentLink {
     opened: bool,
     applied: u64,
     sent: Option<(u64, u64)>,
+    named: Option<u64>,
+    old_block: Option<Box<dyn BlockHandleAccess>>,
 }
 
 pub(super) type OpenRequest = (Uuid, Uuid, Option<Uuid>);
@@ -178,6 +180,8 @@ impl Instance {
                         opened: false,
                         applied: 0,
                         sent: None,
+                        named: None,
+                        old_block: None,
                     })
                 }
                 InstanceRole::Creation | InstanceRole::Artifact(_) => None,
@@ -207,6 +211,34 @@ impl Instance {
             bytes: content.bytes,
             applied: link.applied,
         }))
+    }
+}
+
+impl Instance {
+    fn name_from_content(&mut self, client: &BlockClient) {
+        let Some(block) = self.role.block() else {
+            return;
+        };
+        let Some(link) = self.content.as_mut() else {
+            return;
+        };
+        let Some(content) = crate::be::content(block.id) else {
+            return;
+        };
+        if link.named == Some(content.revision)
+            || client.block_access(block.id) != block::BlockAccess::Edit
+        {
+            return;
+        }
+        if link.old_block.is_none() {
+            link.old_block = block_client::blocks::open(client, block.id, block.block_type);
+        }
+        let Some(old_block) = &link.old_block else {
+            return;
+        };
+        if old_block.set_implicit_name(crate::be::name_of(&content)) {
+            link.named = Some(content.revision);
+        }
     }
 }
 
@@ -754,6 +786,7 @@ impl Instances {
             if let Some(message) = entry.content_message(instance) {
                 opened.push(message);
             }
+            entry.name_from_content(client);
             if entry.reported_focus.as_ref() != Some(&focus) {
                 entry.reported_focus = Some(focus.clone());
                 let (block_id, block_type) = match focus.block {

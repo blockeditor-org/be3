@@ -1,16 +1,20 @@
 use super::*;
 use crate::{
+    browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem},
     checklist::{ChecklistContent, ChecklistOp},
     counter::{CounterContent, CounterOp},
     image::{ImageContent, ImageHeader},
     text::{TextContent, TextLanguage, TextOp},
 };
 
+mod a_browser_tab_is_named_after_its_page_and_refuses_a_bad_index;
+mod a_browser_tab_push_discards_forward_history;
 mod a_checklist_ignores_a_second_add_of_one_item;
 mod a_checklist_round_trips_through_its_bytes;
 mod a_counter_reset_wins_over_the_adds_before_it;
 mod a_counter_round_trips_through_its_bytes;
 mod an_image_merges_only_when_one_side_changed_it;
+mod browser_tabs_navigated_on_both_sides_conflict;
 mod streamed_content_separates_its_header_from_its_payload;
 mod text_merges_line_by_line_and_marks_real_conflicts;
 mod text_operations_rebase_onto_concurrent_edits;

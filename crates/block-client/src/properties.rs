@@ -15,7 +15,34 @@ pub struct BlockName {
 
 pub fn read_name(properties: &BTreeMap<Uuid, Vec<u8>>) -> Option<BlockName> {
     let bytes = properties.get(&NAME)?;
-    serde_json::from_slice(bytes).ok()
+    serde_json::from_slice::<BlockName>(bytes)
+        .ok()
+        .filter(|name| !name.value.is_empty())
+}
+
+pub fn implicit_name_update(
+    properties: &BTreeMap<Uuid, Vec<u8>>,
+    implicit_name: Option<String>,
+) -> Option<Vec<u8>> {
+    let current = read_name(properties);
+    if current.as_ref().is_some_and(|name| name.manual) {
+        return None;
+    }
+    let mut value = implicit_name.unwrap_or_default();
+    if value.len() > MAX_NAME_BYTES {
+        let mut end = MAX_NAME_BYTES;
+        while !value.is_char_boundary(end) {
+            end -= 1;
+        }
+        value.truncate(end);
+    }
+    let unchanged = current.map_or(value.is_empty(), |name| name.value == value);
+    (!unchanged).then(|| {
+        encode_name(&BlockName {
+            manual: false,
+            value,
+        })
+    })
 }
 
 pub fn encode_name(name: &BlockName) -> Vec<u8> {
