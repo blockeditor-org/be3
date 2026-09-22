@@ -1,12 +1,13 @@
 use std::time::Duration;
 
-use be_block::{BlockContent, CounterContent, CounterOp, LiveEdit};
+use be_block::{BlockContent, ChecklistContent, ChecklistOp, CounterContent, CounterOp, LiveEdit};
 use block_client::ManagementClient;
 use uuid::Uuid;
 
 use super::*;
 use crate::platform;
 
+mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod an_idle_peer_never_wakes_its_worker;

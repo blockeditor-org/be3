@@ -4,11 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_block::{BlockContent, CounterContent, LiveEdit};
+use be_block::{LiveEdit, Merge};
 use be_client::{ClientError, Credentials, Live, Peer, PeerConfig, Saved};
 use be_graph::BlockParent;
 use be_store::ContentKey;
-use futures_util::future::{Either, select};
+use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
 
@@ -33,77 +33,85 @@ pub(crate) struct Shared {
     pub(crate) error: Option<String>,
 }
 
-enum Session {
-    Counter(Live<Store, CounterContent>),
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) type Store = be_store::FileStore;
+#[cfg(target_arch = "wasm32")]
+pub(super) type Store = be_store::MemoryStore;
+
+pub(super) type Join = for<'a> fn(
+    &'a Arc<Peer<Store>>,
+    Uuid,
+) -> LocalBoxFuture<'a, Result<Box<dyn Session>, ClientError>>;
+
+pub(super) trait Session {
+    fn content_type(&self) -> Uuid;
+
+    fn bytes(&self) -> Vec<u8>;
+
+    fn is_clean(&self) -> bool;
+
+    fn edit<'a>(&'a mut self, operation: &'a [u8]) -> LocalBoxFuture<'a, Result<(), ClientError>>;
+
+    fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
+    fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-type Store = be_store::FileStore;
-#[cfg(target_arch = "wasm32")]
-type Store = be_store::MemoryStore;
-
-impl Session {
-    async fn join(
-        peer: &Arc<Peer<Store>>,
-        block: Uuid,
-        content_type: Uuid,
-    ) -> Result<Option<Self>, ClientError> {
-        if content_type != CounterContent::CONTENT_TYPE {
-            return Ok(None);
-        }
-        peer.ensure::<CounterContent>(block, BlockParent::Root)
-            .await?;
-        let mut live = Live::join(Arc::clone(peer), block).await?;
+pub(super) fn join<C>(
+    peer: &Arc<Peer<Store>>,
+    block: Uuid,
+) -> LocalBoxFuture<'_, Result<Box<dyn Session>, ClientError>>
+where
+    C: LiveEdit + Merge + Clone + Default,
+{
+    Box::pin(async move {
+        peer.ensure::<C>(block, BlockParent::Root).await?;
+        let mut live = Live::<Store, C>::join(Arc::clone(peer), block).await?;
         live.reconcile().await?;
-        Ok(Some(Self::Counter(live)))
-    }
+        Ok(Box::new(live) as Box<dyn Session>)
+    })
+}
 
+impl<C> Session for Live<Store, C>
+where
+    C: LiveEdit + Merge + Clone + Default,
+{
     fn content_type(&self) -> Uuid {
-        match self {
-            Self::Counter(_) => CounterContent::CONTENT_TYPE,
-        }
+        C::CONTENT_TYPE
     }
 
     fn bytes(&self) -> Vec<u8> {
-        match self {
-            Self::Counter(live) => live.content().encode(),
-        }
+        self.content().encode()
     }
 
     fn is_clean(&self) -> bool {
-        match self {
-            Self::Counter(live) => live.is_clean(),
-        }
+        Live::is_clean(self)
     }
 
-    async fn edit(&mut self, operation: &[u8]) -> Result<(), ClientError> {
-        match self {
-            Self::Counter(live) => match CounterContent::decode_operation(operation) {
-                Ok(operation) => live.edit(operation).await,
+    fn edit<'a>(&'a mut self, operation: &'a [u8]) -> LocalBoxFuture<'a, Result<(), ClientError>> {
+        Box::pin(async move {
+            match C::decode_operation(operation) {
+                Ok(operation) => Live::edit(self, operation).await,
                 Err(_) => Ok(()),
-            },
-        }
-    }
-
-    async fn poll(&mut self) -> Result<(), ClientError> {
-        match self {
-            Self::Counter(live) => live.poll().await.map(|_| ()),
-        }
-    }
-
-    async fn seal(&mut self) -> Result<(), ClientError> {
-        if self.is_clean() {
-            return Ok(());
-        }
-        match self {
-            Self::Counter(live) => {
-                if matches!(live.seal().await?, Saved::Rejected { .. }) {
-                    live.reconcile().await?;
-                    live.seal().await?;
-                }
-                Ok(())
             }
-        }
+        })
+    }
+
+    fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { Live::poll(self).await.map(|_| ()) })
+    }
+
+    fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move {
+            if Live::is_clean(self) {
+                return Ok(());
+            }
+            if matches!(Live::seal(self).await?, Saved::Rejected { .. }) {
+                self.reconcile().await?;
+                Live::seal(self).await?;
+            }
+            Ok(())
+        })
     }
 }
 
@@ -175,7 +183,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     context.request_repaint();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
-    let mut sessions: HashMap<Uuid, Session> = HashMap::new();
+    let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
     for (block, content_type) in open.clone() {
         rejoin(&peer, &mut sessions, shared, block, content_type).await;
     }
@@ -262,23 +270,25 @@ async fn wait(
 
 async fn rejoin(
     peer: &Arc<Peer<Store>>,
-    sessions: &mut HashMap<Uuid, Session>,
+    sessions: &mut HashMap<Uuid, Box<dyn Session>>,
     shared: &Arc<Mutex<Shared>>,
     block: Uuid,
     content_type: Uuid,
 ) {
-    match Session::join(peer, block, content_type).await {
-        Ok(Some(session)) => {
+    let Some(join) = super::join_for(content_type) else {
+        return;
+    };
+    match join(peer, block).await {
+        Ok(session) => {
             sessions.insert(block, session);
         }
-        Ok(None) => {}
         Err(error) => record(shared, error),
     }
 }
 
 async fn apply(
     peer: &Arc<Peer<Store>>,
-    sessions: &mut HashMap<Uuid, Session>,
+    sessions: &mut HashMap<Uuid, Box<dyn Session>>,
     shared: &Arc<Mutex<Shared>>,
     open: &mut HashMap<Uuid, Uuid>,
     command: Command,
@@ -322,7 +332,7 @@ async fn apply(
     }
 }
 
-async fn seal_all(sessions: &mut HashMap<Uuid, Session>, shared: &Arc<Mutex<Shared>>) {
+async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) {
     for session in sessions.values_mut() {
         if let Err(error) = session.seal().await {
             record(shared, error);
@@ -330,7 +340,7 @@ async fn seal_all(sessions: &mut HashMap<Uuid, Session>, shared: &Arc<Mutex<Shar
     }
 }
 
-fn publish(sessions: &HashMap<Uuid, Session>, shared: &Arc<Mutex<Shared>>) -> bool {
+fn publish(sessions: &HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let mut held = shared.lock().unwrap();
     held.unsealed = sessions
         .values()

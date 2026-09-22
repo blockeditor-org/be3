@@ -1,8 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::checklist::{
-    Checklist as ChecklistBlock, ChecklistItem, ChecklistOperation,
-};
+use block_editor_plugin::be_block::{ChecklistContent, ChecklistItem, ChecklistOp};
 use block_editor_plugin::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, KeyedStore, List, Show, WriteSignal, clone,
     component, create_memo, create_selector, create_signal, view,
@@ -12,14 +10,14 @@ use block_editor_plugin::beui::styled::{
     ToggleButton, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, TextAlign};
-use block_editor_plugin::{BlockProjection, Editor};
+use block_editor_plugin::{ContentProjection, Editor};
 use uuid::Uuid;
 
 const PAGE_PADDING: f32 = 24.0;
 const SECTION_SPACING: f32 = 18.0;
 
 type Items = KeyedStore<Uuid, ChecklistItem>;
-type List = Rc<BlockProjection<ChecklistBlock>>;
+type List = Rc<ContentProjection<ChecklistContent>>;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 enum Filter {
@@ -40,7 +38,7 @@ impl Filter {
 
 #[component]
 pub fn Checklist(editor: Editor) -> NodeId {
-    let checklist: List = editor.block::<ChecklistBlock>();
+    let checklist: List = editor.block_content::<ChecklistContent>();
     let items: Items = checklist.project_keyed(|checklist, items| {
         items.reconcile(checklist.items().iter().map(|item| (item.id, item)));
     });
@@ -51,7 +49,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
             .map(|item| (item.id, item.done))
             .collect::<Vec<_>>()
     });
-    let done_count = checklist.project(ChecklistBlock::done_count);
+    let done_count = checklist.project(ChecklistContent::done_count);
     let total = checklist.project(|checklist| checklist.items().len());
 
     let (draft, set_draft) = create_signal(String::new());
@@ -164,7 +162,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 disabled={clear_disabled}
                                 @test_id={"checklist.clear-done"}
                                 on_click={move || {
-                                    clear_checklist.operate(ChecklistOperation::ClearDone);
+                                    clear_checklist.operate(ChecklistOp::ClearDone);
                                 }}
                             />
                         </List>
@@ -192,7 +190,7 @@ fn add_item(checklist: &List, set_draft: &WriteSignal<String>, value: String) {
     if text.is_empty() {
         return;
     }
-    checklist.operate(ChecklistOperation::add(text));
+    checklist.operate(ChecklistOp::add(text));
     set_draft.set(String::new());
 }
 
@@ -217,14 +215,14 @@ fn ChecklistRow(checklist: List, items: Items, id: Uuid) -> NodeId {
                     checked={done}
                     @test_id={format!("checklist.item.{id}.done")}
                     on_change={move |done| {
-                        toggle.operate(ChecklistOperation::SetDone { id, done });
+                        toggle.operate(ChecklistOp::SetDone { id, done });
                     }}
                 />
                 <Button
                     label="Remove"
                     variant=ButtonVariant::Secondary
                     @test_id={format!("checklist.item.{id}.remove")}
-                    on_click={move || checklist.operate(ChecklistOperation::Remove { id })}
+                    on_click={move || checklist.operate(ChecklistOp::Remove { id })}
                 />
             </List>
         </Frame>

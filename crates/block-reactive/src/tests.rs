@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use block_client::BlockClient;
-use block_client::blocks::checklist::{Checklist, ChecklistOperation};
+use block_client::blocks::calendar::{Calendar, CalendarEvent, CalendarOperation};
 use block_client::blocks::ui_settings::{UiSettings, UiSettingsOperation};
 use reactive::{Scope, create_effect};
 use uuid::Uuid;

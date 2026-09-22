@@ -1,11 +1,12 @@
 use std::{
     cell::{Cell, RefCell},
     collections::VecDeque,
+    hash::Hash,
     rc::Rc,
 };
 
 use be_block::LiveEdit;
-use beui::reactive::{ReadSignal, batch, create_signal};
+use beui::reactive::{KeyedStore, ReadSignal, batch, create_signal};
 
 use crate::EditorHost;
 
@@ -49,6 +50,23 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             .borrow_mut()
             .push(Rc::new(move |content| write.set(project(content))));
         read
+    }
+
+    pub fn project_keyed<K, V>(
+        &self,
+        project: impl Fn(&C, &KeyedStore<K, V>) + 'static,
+    ) -> KeyedStore<K, V>
+    where
+        K: Clone + Eq + Hash + 'static,
+        V: Clone + PartialEq + 'static,
+    {
+        let store: KeyedStore<K, V> = KeyedStore::new();
+        project(&self.visible.borrow(), &store);
+        let target = store.clone();
+        self.projections
+            .borrow_mut()
+            .push(Rc::new(move |content| project(content, &target)));
+        store
     }
 
     pub fn operate(&self, operation: C::Op) {
