@@ -90,6 +90,11 @@ impl Momentum {
         self.velocity = 0.0;
     }
 
+    fn grab(&mut self, position: &ScrollPosition) {
+        self.drag = Some(position.offset + unband(self.overscroll, position.viewport));
+        self.velocity = 0.0;
+    }
+
     fn drag(&mut self, position: &mut ScrollPosition, delta: f32) {
         let raw = self.drag.unwrap_or(position.offset) - delta;
         self.drag = Some(raw);
@@ -149,6 +154,15 @@ fn rubber_band(distance: f32, viewport: f32) -> f32 {
     magnitude.copysign(distance)
 }
 
+fn unband(overscroll: f32, viewport: f32) -> f32 {
+    if overscroll == 0.0 {
+        return 0.0;
+    }
+    let dimension = viewport.max(1.0);
+    let stretch = (overscroll.abs() / dimension).min(0.99);
+    (dimension * stretch / (RUBBER_BAND_FACTOR * (1.0 - stretch))).copysign(overscroll)
+}
+
 #[derive(Clone)]
 struct Motion {
     node: NodeId,
@@ -192,9 +206,8 @@ impl Motion {
         };
         let mut momentum = self.momentum.borrow_mut();
         momentum.dragging = !gesture.ended && !gesture.cancelled;
-        if gesture.started {
-            momentum.drag = Some(position.offset);
-            momentum.velocity = 0.0;
+        if momentum.drag.is_none() {
+            momentum.grab(&position);
         }
         let dragged = self.axis().main(gesture.delta);
         if dragged != 0.0 {
@@ -206,6 +219,9 @@ impl Motion {
             momentum.release(0.0);
         }
         self.publish(&momentum, position.offset);
+        if momentum.moving() {
+            with_document(|document| document.request_repaint_after(Duration::ZERO));
+        }
     }
 
     fn scroll_to(&self, offset: f32) {
