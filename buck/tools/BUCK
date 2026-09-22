@@ -45,3 +45,9 @@ export_file(
     src = "rustdoc",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "wasm-ld",
+    src = "wasm-ld",
+    visibility = ["PUBLIC"],
+)

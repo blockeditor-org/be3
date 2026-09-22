@@ -3,18 +3,40 @@ third_party_dir = "third-party/rust"
 vendor = false
 cargo_env = true
 
+# The platforms the third-party rules are resolved for. The names are not free:
+# prelude//rust:cargo_package.bzl maps a buck2 configuration to one of these
+# strings, so "wasi" is os:wasi + cpu:wasm32 and "wasm32" is os:none + the same
+# cpu. buck/platforms/BUCK defines the two target platforms that land on them.
+#
+# execution-platform says which of them a build script or a proc macro runs on.
+# Only the host does; without saying so, a feature a build script turns on
+# would be turned on for the wasm targets as well.
 [platform.linux-x86_64]
 target = "x86_64-unknown-linux-gnu"
 execution-platform = true
+
+# The plugins. WASI with threads, which is what the plugin host runs.
+[platform.wasi]
+target = "wasm32-wasip1-threads"
+execution-platform = false
+
+# The games, and the browser's half of the plugin protocol.
+[platform.wasm32]
+target = "wasm32-unknown-unknown"
+execution-platform = false
 
 [buck]
 file_name = "BUCK"
 rust_library = "cargo.rust_library"
 rust_binary = "cargo.rust_binary"
 buildscript_genrule = "buildscript_run"
+# With more than one platform an alias has to say which of them it exists on,
+# which the prelude's own alias does and buck2's builtin one does not.
+alias_with_platforms = "cargo_alias"
 buckfile_imports = """
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
+load("@prelude//rust:cargo_package.bzl", cargo_alias = "alias")
 """
 generated_file_header = """
 ##

@@ -7,6 +7,7 @@
 
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
+load("@prelude//rust:cargo_package.bzl", cargo_alias = "alias")
 
 http_archive(
     name = "ab_glyph-0.2.32.crate",
@@ -90,9 +91,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "accesskit",
     actual = ":accesskit-0.24",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -304,9 +310,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "accesskit_winit",
     actual = ":accesskit_winit-0.33",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -351,10 +362,14 @@ cargo.rust_library(
     named_deps = {
         "rwh_06": ":raw-window-handle-0.6",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":accesskit_unix-0.22"],
+        ),
+    },
     visibility = [],
     deps = [
         ":accesskit-0.24",
-        ":accesskit_unix-0.22",
         ":winit-0.30",
     ],
 )
@@ -503,18 +518,24 @@ cargo.rust_library(
         "OUT_DIR": "$(location :ahash-0.8-build-script-run[out_dir])",
     },
     features = [
-        "default",
-        "getrandom",
         "no-rng",
-        "runtime-rng",
         "serde",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "default",
+                "getrandom",
+                "runtime-rng",
+            ],
+            deps = [":getrandom-0.3"],
+        ),
+    },
     rustc_flags = ["@$(location :ahash-0.8-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
         ":cfg-if-1",
-        ":getrandom-0.3",
         ":once_cell-1",
         ":serde-1",
         ":zerocopy-0.8",
@@ -545,13 +566,19 @@ cargo.rust_binary(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "default",
-        "getrandom",
         "no-rng",
-        "runtime-rng",
         "serde",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "default",
+                "getrandom",
+                "runtime-rng",
+            ],
+        ),
+    },
     visibility = [],
     deps = [":version_check-0.9"],
 )
@@ -573,13 +600,19 @@ buildscript_run(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "default",
-        "getrandom",
         "no-rng",
-        "runtime-rng",
         "serde",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "default",
+                "getrandom",
+                "runtime-rng",
+            ],
+        ),
+    },
     version = "0.8.12",
 )
 
@@ -928,10 +961,12 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
         "OUT_DIR": "$(location :anyhow-1-build-script-run[out_dir])",
     },
-    features = [
-        "default",
-        "std",
-    ],
+    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["default"],
+        ),
+    },
     rustc_flags = ["@$(location :anyhow-1-build-script-run[rustc_flags])"],
     visibility = [],
 )
@@ -959,10 +994,12 @@ cargo.rust_binary(
         "CARGO_PKG_VERSION_PATCH": "104",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "default",
-        "std",
-    ],
+    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["default"],
+        ),
+    },
     visibility = [],
 )
 
@@ -982,10 +1019,12 @@ buildscript_run(
         "CARGO_PKG_VERSION_PATCH": "104",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "default",
-        "std",
-    ],
+    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["default"],
+        ),
+    },
     version = "1.0.104",
 )
 
@@ -1023,9 +1062,10 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "arboard",
     actual = ":arboard-3",
+    platforms = ["linux-x86_64"],
     visibility = ["PUBLIC"],
 )
 
@@ -1077,9 +1117,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "argon2",
     actual = ":argon2-0.5",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -1120,11 +1165,15 @@ cargo.rust_library(
         "password-hash",
         "rand",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":cpufeatures-0.2"],
+        ),
+    },
     visibility = [],
     deps = [
         ":base64ct-1",
         ":blake2-0.10",
-        ":cpufeatures-0.2",
         ":password-hash-0.5",
     ],
 )
@@ -1194,10 +1243,14 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "6",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "default",
-        "std",
-    ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "default",
+                "std",
+            ],
+        ),
+    },
     visibility = [],
 )
 
@@ -2144,9 +2197,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "base64",
     actual = ":base64-0.22",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -2224,9 +2282,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "bincode",
     actual = ":bincode-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -2559,9 +2622,14 @@ cargo.rust_library(
     deps = [":allocator-api2-0.2"],
 )
 
-alias(
+cargo_alias(
     name = "bytemuck",
     actual = ":bytemuck-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -2597,12 +2665,16 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "aarch64_simd",
         "bytemuck_derive",
         "derive",
         "extern_crate_alloc",
         "min_const_generics",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["aarch64_simd"],
+        ),
+    },
     visibility = [],
     deps = [":bytemuck_derive-1"],
 )
@@ -3057,6 +3129,11 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
         "OUT_DIR": "$(location :cap-primitives-4-build-script-run[out_dir])",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":rustix-linux-procfs-0.1"],
+        ),
+    },
     rustc_flags = ["@$(location :cap-primitives-4-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
@@ -3067,7 +3144,6 @@ cargo.rust_library(
         ":ipnet-2",
         ":maybe-owned-0.3",
         ":rustix-1",
-        ":rustix-linux-procfs-0.1",
     ],
 )
 
@@ -3381,11 +3457,15 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = ["zeroize"],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":cpufeatures-0.2"],
+        ),
+    },
     visibility = [],
     deps = [
         ":cfg-if-1",
         ":cipher-0.4",
-        ":cpufeatures-0.2",
     ],
 )
 
@@ -3421,17 +3501,26 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = ["rng"],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":cpufeatures-0.3"],
+        ),
+    },
     visibility = [],
     deps = [
         ":cfg-if-1",
-        ":cpufeatures-0.3",
         ":rand_core-0.10",
     ],
 )
 
-alias(
+cargo_alias(
     name = "chacha20poly1305",
     actual = ":chacha20poly1305-0.10",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -5419,8 +5508,12 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     visibility = [],
-    deps = [":libc-0.2"],
 )
 
 http_archive(
@@ -5688,9 +5781,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "eframe",
     actual = ":eframe-0.34",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -5730,36 +5828,71 @@ cargo.rust_library(
         "persistence",
         "ron",
         "serde",
-        "wayland",
         "wgpu",
         "wgpu_no_default_features",
-        "x11",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "wayland",
+                "x11",
+            ],
+            deps = [
+                ":egui-winit-0.34",
+                ":home-0.5",
+                ":pollster-0.4",
+                ":winit-0.30",
+            ],
+        ),
+        "wasi": dict(
+            deps = [
+                ":bytemuck-1",
+                ":js-sys-0.3",
+                ":percent-encoding-2",
+                ":wasm-bindgen-0.2",
+                ":wasm-bindgen-futures-0.4",
+                ":web-sys-0.3",
+                ":wgpu-29",
+            ],
+        ),
+        "wasm32": dict(
+            deps = [
+                ":bytemuck-1",
+                ":js-sys-0.3",
+                ":percent-encoding-2",
+                ":wasm-bindgen-0.2",
+                ":wasm-bindgen-futures-0.4",
+                ":web-sys-0.3",
+                ":wgpu-29",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":ahash-0.8",
         ":document-features-0.2",
         ":egui-0.34",
         ":egui-wgpu-0.34",
-        ":egui-winit-0.34",
-        ":home-0.5",
         ":image-0.25",
         ":log-0.4",
         ":parking_lot-0.12",
-        ":pollster-0.4",
         ":profiling-1",
         ":raw-window-handle-0.6",
         ":ron-0.12",
         ":serde-1",
         ":static_assertions-1",
         ":web-time-1",
-        ":winit-0.30",
     ],
 )
 
-alias(
+cargo_alias(
     name = "egui",
     actual = ":egui-0.34",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -5855,10 +5988,17 @@ cargo.rust_library(
         "default",
         "fragile-send-sync-non-atomic-wasm",
         "macos-window-resize-jitter-fix",
-        "wayland",
-        "winit",
-        "x11",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "wayland",
+                "winit",
+                "x11",
+            ],
+            deps = [":winit-0.30"],
+        ),
+    },
     visibility = [],
     deps = [
         ":ahash-0.8",
@@ -5872,7 +6012,6 @@ cargo.rust_library(
         ":type-map-0.5",
         ":web-time-1",
         ":wgpu-29",
-        ":winit-0.30",
     ],
 )
 
@@ -5934,9 +6073,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "egui_kittest",
     actual = ":egui_kittest-0.34",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -5980,9 +6124,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "egui_material_icons",
     actual = ":egui_material_icons-0.6",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -6029,9 +6178,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "eips",
     actual = ":eips-0.2",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -6418,9 +6572,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "epaint_default_fonts",
     actual = ":epaint_default_fonts-0.34",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -6523,12 +6682,17 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "14",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "default",
-        "std",
-    ],
+    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["default"],
+            deps = [":libc-0.2"],
+        ),
+        "wasi": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     visibility = [],
-    deps = [":libc-0.2"],
 )
 
 http_archive(
@@ -6987,9 +7151,14 @@ cargo.rust_library(
     deps = [":integral_constant-0.1"],
 )
 
-alias(
+cargo_alias(
     name = "flate2",
     actual = ":flate2-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -7221,9 +7390,14 @@ cargo.rust_library(
     deps = [":percent-encoding-2"],
 )
 
-alias(
+cargo_alias(
     name = "freetype",
     actual = ":freetype-0.7",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -8458,9 +8632,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "futures-channel",
     actual = ":futures-channel-0.3",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -8542,9 +8721,13 @@ cargo.rust_library(
     },
     features = [
         "alloc",
-        "default",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["default"],
+        ),
+    },
     visibility = [],
 )
 
@@ -8579,10 +8762,12 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "33",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "default",
-        "std",
-    ],
+    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["default"],
+        ),
+    },
     visibility = [],
 )
 
@@ -8752,9 +8937,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "futures-util",
     actual = ":futures-util-0.3",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -8971,12 +9161,18 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "17",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["std"],
+            deps = [":libc-0.2"],
+        ),
+        "wasi": dict(
+            features = ["std"],
+            deps = [":wasi-0.11"],
+        ),
+    },
     visibility = [],
-    deps = [
-        ":cfg-if-1",
-        ":libc-0.2",
-    ],
+    deps = [":cfg-if-1"],
 )
 
 http_archive(
@@ -9012,12 +9208,14 @@ cargo.rust_library(
         "OUT_DIR": "$(location :getrandom-0.3-build-script-run[out_dir])",
     },
     features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     rustc_flags = ["@$(location :getrandom-0.3-build-script-run[rustc_flags])"],
     visibility = [],
-    deps = [
-        ":cfg-if-1",
-        ":libc-0.2",
-    ],
+    deps = [":cfg-if-1"],
 )
 
 cargo.rust_binary(
@@ -9103,11 +9301,15 @@ cargo.rust_library(
         "std",
         "sys_rng",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     rustc_flags = ["@$(location :getrandom-0.4-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
         ":cfg-if-1",
-        ":libc-0.2",
         ":rand_core-0.10",
     ],
 )
@@ -9284,6 +9486,24 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_MINOR": "17",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
+    },
+    platform = {
+        "wasi": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":slotmap-1",
+                ":wasm-bindgen-0.2",
+                ":web-sys-0.3",
+            ],
+        ),
+        "wasm32": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":slotmap-1",
+                ":wasm-bindgen-0.2",
+                ":web-sys-0.3",
+            ],
+        ),
     },
     visibility = [],
 )
@@ -9751,12 +9971,14 @@ cargo.rust_library(
         "cc",
         "pkg-config",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":freetype-0.7"],
+        ),
+    },
     rustc_flags = ["@$(location :harfbuzz-sys-0.5-build-script-run[rustc_flags])"],
     visibility = [],
-    deps = [
-        ":freetype-0.7",
-        ":harfbuzz-sys-0.5-harfbuzz",
-    ],
+    deps = [":harfbuzz-sys-0.5-harfbuzz"],
 )
 
 cargo.rust_binary(
@@ -10090,9 +10312,14 @@ cxx_library(
     deps = ["//third-party/system:stdc++"],
 )
 
-alias(
+cargo_alias(
     name = "harfbuzz_rs",
     actual = ":harfbuzz_rs-2",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -10410,12 +10637,16 @@ cargo.rust_library(
         "cas",
         "serde",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":spin-0.9"],
+        ),
+    },
     rustc_flags = ["@$(location :heapless-0.7-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
         ":hash32-0.2",
         ":serde-1",
-        ":spin-0.9",
         ":stable_deref_trait-1",
     ],
 )
@@ -10693,9 +10924,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "httparse",
     actual = ":httparse-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -11319,9 +11555,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "image",
     actual = ":image-0.25",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -11552,9 +11793,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "indexmap",
     actual = ":indexmap-2",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -12142,9 +12388,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "js-sys",
     actual = ":js-sys-0.3",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -12535,9 +12786,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "libc",
     actual = ":libc-0.2",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -12575,9 +12831,13 @@ cargo.rust_library(
     },
     features = [
         "default",
-        "extra_traits",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["extra_traits"],
+        ),
+    },
     rustc_flags = ["@$(location :libc-0.2-build-script-run[rustc_flags])"],
     visibility = [],
 )
@@ -12607,9 +12867,13 @@ cargo.rust_binary(
     },
     features = [
         "default",
-        "extra_traits",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["extra_traits"],
+        ),
+    },
     visibility = [],
 )
 
@@ -12631,9 +12895,13 @@ buildscript_run(
     },
     features = [
         "default",
-        "extra_traits",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["extra_traits"],
+        ),
+    },
     version = "0.2.186",
 )
 
@@ -13584,8 +13852,18 @@ cargo.rust_library(
         "os-ext",
         "os-poll",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "wasi": dict(
+            deps = [
+                ":libc-0.2",
+                ":wasi-0.11",
+            ],
+        ),
+    },
     visibility = [],
-    deps = [":libc-0.2"],
 )
 
 http_archive(
@@ -13677,11 +13955,18 @@ cargo.rust_library(
     features = [
         "default",
         "glsl-out",
-        "hlsl-out",
-        "spv-out",
         "wgsl-in",
         "wgsl-out",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "hlsl-out",
+                "spv-out",
+            ],
+            deps = [":spirv-0.4"],
+        ),
+    },
     rustc_flags = ["@$(location :naga-29-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
@@ -13699,7 +13984,6 @@ cargo.rust_library(
         ":num-traits-0.2",
         ":once_cell-1",
         ":rustc-hash-1",
-        ":spirv-0.4",
         ":thiserror-2",
         ":unicode-ident-1",
     ],
@@ -13731,11 +14015,17 @@ cargo.rust_binary(
     features = [
         "default",
         "glsl-out",
-        "hlsl-out",
-        "spv-out",
         "wgsl-in",
         "wgsl-out",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "hlsl-out",
+                "spv-out",
+            ],
+        ),
+    },
     visibility = [],
     deps = [":cfg_aliases-0.2"],
 )
@@ -13759,11 +14049,17 @@ buildscript_run(
     features = [
         "default",
         "glsl-out",
-        "hlsl-out",
-        "spv-out",
         "wgsl-in",
         "wgsl-out",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "hlsl-out",
+                "spv-out",
+            ],
+        ),
+    },
     version = "29.0.3",
 )
 
@@ -14328,9 +14624,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "parking_lot",
     actual = ":parking_lot-0.12",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -14405,11 +14706,15 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
         "OUT_DIR": "$(location :parking_lot_core-0.9-build-script-run[out_dir])",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     rustc_flags = ["@$(location :parking_lot_core-0.9-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
         ":cfg-if-1",
-        ":libc-0.2",
         ":smallvec-1",
     ],
 )
@@ -14503,9 +14808,10 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "pdfium-render",
     actual = ":pdfium-render-0.9",
+    platforms = ["linux-x86_64"],
     visibility = ["PUBLIC"],
 )
 
@@ -14865,6 +15171,81 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "pin-project-1.1.13.crate",
+    sha256 = "2466b2336ed02bcdca6b294417127b90ec92038d1d5c4fbeac971a922e0e0924",
+    strip_prefix = "pin-project-1.1.13",
+    urls = ["https://static.crates.io/crates/pin-project/1.1.13/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "pin-project-1",
+    srcs = [":pin-project-1.1.13.crate"],
+    crate = "pin_project",
+    crate_root = "pin-project-1.1.13.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "pin_project",
+        "CARGO_CRATE_NAME": "pin_project",
+        "CARGO_MANIFEST_DIR": "pin-project-1.1.13.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "A crate for safe and ergonomic pin-projection.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "pin-project",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/taiki-e/pin-project",
+        "CARGO_PKG_RUST_VERSION": "1.71",
+        "CARGO_PKG_VERSION": "1.1.13",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "13",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":pin-project-internal-1"],
+)
+
+http_archive(
+    name = "pin-project-internal-1.1.13.crate",
+    sha256 = "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b",
+    strip_prefix = "pin-project-internal-1.1.13",
+    urls = ["https://static.crates.io/crates/pin-project-internal/1.1.13/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "pin-project-internal-1",
+    srcs = [":pin-project-internal-1.1.13.crate"],
+    crate = "pin_project_internal",
+    crate_root = "pin-project-internal-1.1.13.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "pin_project_internal",
+        "CARGO_CRATE_NAME": "pin_project_internal",
+        "CARGO_MANIFEST_DIR": "pin-project-internal-1.1.13.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Implementation detail of the `pin-project` crate.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "pin-project-internal",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/taiki-e/pin-project",
+        "CARGO_PKG_RUST_VERSION": "1.71",
+        "CARGO_PKG_VERSION": "1.1.13",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "13",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":proc-macro2-1",
+        ":quote-1",
+        ":syn-2",
+    ],
+)
+
+http_archive(
     name = "pin-project-lite-0.2.17.crate",
     sha256 = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd",
     strip_prefix = "pin-project-lite-0.2.17",
@@ -15089,9 +15470,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "pollster",
     actual = ":pollster-0.4",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -15160,9 +15546,13 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":cpufeatures-0.2"],
+        ),
+    },
     visibility = [],
     deps = [
-        ":cpufeatures-0.2",
         ":opaque-debug-0.3",
         ":universal-hash-0.5",
     ],
@@ -15204,9 +15594,14 @@ cargo.rust_library(
     deps = [":arrayvec-0.7"],
 )
 
-alias(
+cargo_alias(
     name = "postcard",
     actual = ":postcard-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -15483,9 +15878,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "proc-macro2",
     actual = ":proc-macro2-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -15810,9 +16210,14 @@ cargo.rust_library(
     deps = [":memchr-2"],
 )
 
-alias(
+cargo_alias(
     name = "quote",
     actual = ":quote-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -16059,20 +16464,29 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "351",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     visibility = [],
     deps = [
         ":crossbeam-channel-0.5",
         ":crossbeam-utils-0.8",
         ":itertools-0.15",
         ":jod-thread-1",
-        ":libc-0.2",
         ":tracing-0.1",
     ],
 )
 
-alias(
+cargo_alias(
     name = "ra_ap_syntax",
     actual = ":ra_ap_syntax-0.0.351",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -16158,26 +16572,47 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "6",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "alloc",
-        "default",
-        "getrandom",
-        "libc",
-        "rand_chacha",
-        "std",
-        "std_rng",
-    ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "alloc",
+                "default",
+                "getrandom",
+                "libc",
+                "rand_chacha",
+                "std",
+                "std_rng",
+            ],
+            deps = [
+                ":libc-0.2",
+                ":rand_chacha-0.3",
+            ],
+        ),
+        "wasi": dict(
+            features = [
+                "alloc",
+                "default",
+                "getrandom",
+                "libc",
+                "rand_chacha",
+                "std",
+                "std_rng",
+            ],
+            deps = [":rand_chacha-0.3"],
+        ),
+    },
     visibility = [],
-    deps = [
-        ":libc-0.2",
-        ":rand_chacha-0.3",
-        ":rand_core-0.6",
-    ],
+    deps = [":rand_core-0.6"],
 )
 
-alias(
+cargo_alias(
     name = "rand",
     actual = ":rand-0.9",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -16212,20 +16647,33 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "4",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "alloc",
-        "default",
-        "os_rng",
-        "small_rng",
-        "std",
-        "std_rng",
-        "thread_rng",
-    ],
+    features = ["alloc"],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "default",
+                "os_rng",
+                "small_rng",
+                "std",
+                "std_rng",
+                "thread_rng",
+            ],
+            deps = [":rand_chacha-0.9"],
+        ),
+        "wasi": dict(
+            features = [
+                "default",
+                "os_rng",
+                "small_rng",
+                "std",
+                "std_rng",
+                "thread_rng",
+            ],
+            deps = [":rand_chacha-0.9"],
+        ),
+    },
     visibility = [],
-    deps = [
-        ":rand_chacha-0.9",
-        ":rand_core-0.9",
-    ],
+    deps = [":rand_core-0.9"],
 )
 
 http_archive(
@@ -16259,19 +16707,36 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "alloc",
-        "std",
-        "std_rng",
-        "sys_rng",
-        "thread_rng",
-    ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "alloc",
+                "std",
+                "std_rng",
+                "sys_rng",
+                "thread_rng",
+            ],
+            deps = [
+                ":chacha20-0.10",
+                ":getrandom-0.4",
+            ],
+        ),
+        "wasi": dict(
+            features = [
+                "alloc",
+                "std",
+                "std_rng",
+                "sys_rng",
+                "thread_rng",
+            ],
+            deps = [
+                ":chacha20-0.10",
+                ":getrandom-0.4",
+            ],
+        ),
+    },
     visibility = [],
-    deps = [
-        ":chacha20-0.10",
-        ":getrandom-0.4",
-        ":rand_core-0.10",
-    ],
+    deps = [":rand_core-0.10"],
 )
 
 http_archive(
@@ -16313,9 +16778,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "rand_chacha",
     actual = ":rand_chacha-0.9",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -16392,11 +16862,21 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "4",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "alloc",
-        "getrandom",
-        "std",
-    ],
+    features = ["getrandom"],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "alloc",
+                "std",
+            ],
+        ),
+        "wasi": dict(
+            features = [
+                "alloc",
+                "std",
+            ],
+        ),
+    },
     visibility = [],
     deps = [":getrandom-0.2"],
 )
@@ -16432,12 +16912,18 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "5",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "os_rng",
-        "std",
-    ],
+    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["os_rng"],
+            deps = [":getrandom-0.3"],
+        ),
+        "wasi": dict(
+            features = ["os_rng"],
+            deps = [":getrandom-0.3"],
+        ),
+    },
     visibility = [],
-    deps = [":getrandom-0.3"],
 )
 
 http_archive(
@@ -16925,9 +17411,10 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "rfd",
     actual = ":rfd-0.15",
+    platforms = ["linux-x86_64"],
     visibility = ["PUBLIC"],
 )
 
@@ -17320,9 +17807,10 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "rodio",
     actual = ":rodio-0.20",
+    platforms = ["linux-x86_64"],
     visibility = ["PUBLIC"],
 )
 
@@ -17467,9 +17955,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "rpassword",
     actual = ":rpassword-7",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -17504,11 +17997,13 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "4",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     visibility = [],
-    deps = [
-        ":libc-0.2",
-        ":rtoolbox-0.0.5",
-    ],
+    deps = [":rtoolbox-0.0.5"],
 )
 
 http_archive(
@@ -17542,13 +18037,22 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "5",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     visibility = [],
-    deps = [":libc-0.2"],
 )
 
-alias(
+cargo_alias(
     name = "rusqlite",
     actual = ":rusqlite-0.32",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -17905,25 +18409,41 @@ cargo.rust_library(
     features = [
         "alloc",
         "default",
-        "event",
         "fs",
-        "mm",
-        "net",
-        "param",
-        "pipe",
         "process",
-        "shm",
         "std",
-        "system",
         "termios",
         "time",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "event",
+                "mm",
+                "net",
+                "param",
+                "pipe",
+                "shm",
+                "system",
+            ],
+            deps = [":linux-raw-sys-0.12"],
+        ),
+        "wasi": dict(
+            named_deps = {
+                "libc_errno": ":errno-0.3",
+            },
+            deps = [":libc-0.2"],
+        ),
+        "wasm32": dict(
+            named_deps = {
+                "libc_errno": ":errno-0.3",
+            },
+            deps = [":libc-0.2"],
+        ),
+    },
     rustc_flags = ["@$(location :rustix-1-build-script-run[rustc_flags])"],
     visibility = [],
-    deps = [
-        ":bitflags-2",
-        ":linux-raw-sys-0.12",
-    ],
+    deps = [":bitflags-2"],
 )
 
 cargo.rust_binary(
@@ -17952,19 +18472,25 @@ cargo.rust_binary(
     features = [
         "alloc",
         "default",
-        "event",
         "fs",
-        "mm",
-        "net",
-        "param",
-        "pipe",
         "process",
-        "shm",
         "std",
-        "system",
         "termios",
         "time",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "event",
+                "mm",
+                "net",
+                "param",
+                "pipe",
+                "shm",
+                "system",
+            ],
+        ),
+    },
     visibility = [],
 )
 
@@ -17987,19 +18513,25 @@ buildscript_run(
     features = [
         "alloc",
         "default",
-        "event",
         "fs",
-        "mm",
-        "net",
-        "param",
-        "pipe",
         "process",
-        "shm",
         "std",
-        "system",
         "termios",
         "time",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "event",
+                "mm",
+                "net",
+                "param",
+                "pipe",
+                "shm",
+                "system",
+            ],
+        ),
+    },
     version = "1.1.4",
 )
 
@@ -18504,20 +19036,29 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "28",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "default",
-        "serde",
-        "std",
-    ],
+    features = ["serde"],
     named_deps = {
         "serde": ":serde_core-1",
+    },
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "default",
+                "std",
+            ],
+        ),
     },
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "serde",
     actual = ":serde-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -18770,9 +19311,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "serde_json",
     actual = ":serde_json-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -18810,14 +19356,20 @@ cargo.rust_library(
     },
     features = [
         "default",
-        "indexmap",
-        "preserve_order",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "indexmap",
+                "preserve_order",
+            ],
+            deps = [":indexmap-2"],
+        ),
+    },
     rustc_flags = ["@$(location :serde_json-1-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
-        ":indexmap-2",
         ":itoa-1",
         ":memchr-2",
         ":serde_core-1",
@@ -18850,10 +19402,16 @@ cargo.rust_binary(
     },
     features = [
         "default",
-        "indexmap",
-        "preserve_order",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "indexmap",
+                "preserve_order",
+            ],
+        ),
+    },
     visibility = [],
 )
 
@@ -18875,10 +19433,16 @@ buildscript_run(
     },
     features = [
         "default",
-        "indexmap",
-        "preserve_order",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "indexmap",
+                "preserve_order",
+            ],
+        ),
+    },
     version = "1.0.150",
 )
 
@@ -18997,17 +19561,26 @@ cargo.rust_library(
         "default",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":cpufeatures-0.2"],
+        ),
+    },
     visibility = [],
     deps = [
         ":cfg-if-1",
-        ":cpufeatures-0.2",
         ":digest-0.10",
     ],
 )
 
-alias(
+cargo_alias(
     name = "sha2",
     actual = ":sha2-0.10",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -19046,10 +19619,14 @@ cargo.rust_library(
         "default",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":cpufeatures-0.2"],
+        ),
+    },
     visibility = [],
     deps = [
         ":cfg-if-1",
-        ":cpufeatures-0.2",
         ":digest-0.10",
     ],
 )
@@ -19169,9 +19746,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "similar",
     actual = ":similar-3",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -19425,11 +20007,107 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "12",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    features = ["std"],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["default"],
+        ),
+    },
+    visibility = [],
+)
+
+http_archive(
+    name = "slotmap-1.1.1.crate",
+    sha256 = "bdd58c3c93c3d278ca835519292445cb4b0d4dc59ccfdf7ceadaab3f8aeb4038",
+    strip_prefix = "slotmap-1.1.1",
+    urls = ["https://static.crates.io/crates/slotmap/1.1.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "slotmap-1",
+    srcs = [":slotmap-1.1.1.crate"],
+    crate = "slotmap",
+    crate_root = "slotmap-1.1.1.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "slotmap",
+        "CARGO_CRATE_NAME": "slotmap",
+        "CARGO_MANIFEST_DIR": "slotmap-1.1.1.crate",
+        "CARGO_PKG_AUTHORS": "Orson Peters <orsonpeters@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Slotmap data structure",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "slotmap",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/orlp/slotmap",
+        "CARGO_PKG_RUST_VERSION": "1.58.0",
+        "CARGO_PKG_VERSION": "1.1.1",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :slotmap-1-build-script-run[out_dir])",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    rustc_flags = ["@$(location :slotmap-1-build-script-run[rustc_flags])"],
+    visibility = [],
+)
+
+cargo.rust_binary(
+    name = "slotmap-1-build-script-build",
+    srcs = [":slotmap-1.1.1.crate"],
+    crate = "build_script_build",
+    crate_root = "slotmap-1.1.1.crate/build.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "slotmap-1.1.1.crate",
+        "CARGO_PKG_AUTHORS": "Orson Peters <orsonpeters@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Slotmap data structure",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "slotmap",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/orlp/slotmap",
+        "CARGO_PKG_RUST_VERSION": "1.58.0",
+        "CARGO_PKG_VERSION": "1.1.1",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
     features = [
         "default",
         "std",
     ],
     visibility = [],
+    deps = [":version_check-0.9"],
+)
+
+buildscript_run(
+    name = "slotmap-1-build-script-run",
+    package_name = "slotmap",
+    buildscript_rule = ":slotmap-1-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "Orson Peters <orsonpeters@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Slotmap data structure",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/orlp/slotmap",
+        "CARGO_PKG_RUST_VERSION": "1.58.0",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    version = "1.1.1",
 )
 
 http_archive(
@@ -19888,19 +20566,25 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "barrier",
-        "default",
-        "lazy",
-        "lock_api",
-        "lock_api_crate",
         "mutex",
-        "once",
         "rwlock",
         "spin_mutex",
         "std",
     ],
-    named_deps = {
-        "lock_api_crate": ":lock_api-0.4",
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "barrier",
+                "default",
+                "lazy",
+                "lock_api",
+                "lock_api_crate",
+                "once",
+            ],
+            named_deps = {
+                "lock_api_crate": ":lock_api-0.4",
+            },
+        ),
     },
     visibility = [],
 )
@@ -20281,9 +20965,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "syn",
     actual = ":syn-2",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -20322,15 +21011,21 @@ cargo.rust_library(
         "clone-impls",
         "default",
         "derive",
-        "extra-traits",
-        "fold",
         "full",
         "parsing",
         "printing",
         "proc-macro",
-        "visit",
-        "visit-mut",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "extra-traits",
+                "fold",
+                "visit",
+                "visit-mut",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":proc-macro2-1",
@@ -21170,9 +21865,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "tokio",
     actual = ":tokio-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -21224,13 +21924,22 @@ cargo.rust_library(
         "time",
         "tokio-macros",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            deps = [
+                ":libc-0.2",
+                ":socket2-0.6",
+            ],
+        ),
+        "wasi": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     visibility = [],
     deps = [
         ":bytes-1",
-        ":libc-0.2",
         ":mio-1",
         ":pin-project-lite-0.2",
-        ":socket2-0.6",
         ":tokio-macros-2",
     ],
 )
@@ -21313,9 +22022,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "tokio-tungstenite",
     actual = ":tokio-tungstenite-0.23",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -21351,27 +22065,35 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "__rustls-tls",
         "connect",
         "default",
         "handshake",
-        "rustls",
-        "rustls-pki-types",
-        "rustls-tls-webpki-roots",
         "stream",
-        "tokio-rustls",
-        "webpki-roots",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "__rustls-tls",
+                "rustls",
+                "rustls-pki-types",
+                "rustls-tls-webpki-roots",
+                "tokio-rustls",
+                "webpki-roots",
+            ],
+            deps = [
+                ":rustls-0.23",
+                ":rustls-pki-types-1",
+                ":tokio-rustls-0.26",
+                ":webpki-roots-0.26",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":futures-util-0.3",
         ":log-0.4",
-        ":rustls-0.23",
-        ":rustls-pki-types-1",
         ":tokio-1",
-        ":tokio-rustls-0.26",
         ":tungstenite-0.23",
-        ":webpki-roots-0.26",
     ],
 )
 
@@ -21542,10 +22264,16 @@ cargo.rust_library(
     },
     features = [
         "alloc",
-        "default",
         "serde",
-        "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "default",
+                "std",
+            ],
+        ),
+    },
     visibility = [],
     deps = [":serde_core-1"],
 )
@@ -21624,9 +22352,13 @@ cargo.rust_library(
     },
     features = [
         "alloc",
-        "default",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["default"],
+        ),
+    },
     visibility = [],
     deps = [":winnow-1"],
 )
@@ -21702,14 +22434,20 @@ cargo.rust_library(
     },
     features = [
         "attributes",
-        "default",
-        "log",
         "std",
         "tracing-attributes",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "default",
+                "log",
+            ],
+            deps = [":log-0.4"],
+        ),
+    },
     visibility = [],
     deps = [
-        ":log-0.4",
         ":pin-project-lite-0.2",
         ":tracing-attributes-0.1",
         ":tracing-core-0.1",
@@ -21795,9 +22533,14 @@ cargo.rust_library(
     deps = [":once_cell-1"],
 )
 
-alias(
+cargo_alias(
     name = "tree-sitter",
     actual = ":tree-sitter-0.26",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -22098,9 +22841,14 @@ buildscript_run(
     version = "0.1.7",
 )
 
-alias(
+cargo_alias(
     name = "tree-sitter-md",
     actual = ":tree-sitter-md-0.5",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -22230,9 +22978,14 @@ cxx_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "tree-sitter-rust",
     actual = ":tree-sitter-rust-0.24",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -22348,9 +23101,14 @@ cxx_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "tree-sitter-zig",
     actual = ":tree-sitter-zig-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -22571,15 +23329,25 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "__rustls-tls",
         "data-encoding",
         "handshake",
         "http",
         "httparse",
-        "rustls",
-        "rustls-pki-types",
         "sha1",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "__rustls-tls",
+                "rustls",
+                "rustls-pki-types",
+            ],
+            deps = [
+                ":rustls-0.23",
+                ":rustls-pki-types-1",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":byteorder-1",
@@ -22589,8 +23357,6 @@ cargo.rust_library(
         ":httparse-1",
         ":log-0.4",
         ":rand-0.8",
-        ":rustls-0.23",
-        ":rustls-pki-types-1",
         ":sha1-0.10",
         ":thiserror-1",
         ":utf-8-0.7",
@@ -22816,9 +23582,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "unicode-script",
     actual = ":unicode-script-0.5",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -22856,9 +23627,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "unicode-segmentation",
     actual = ":unicode-segmentation-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -23006,9 +23782,10 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "ureq",
     actual = ":ureq-2",
+    platforms = ["linux-x86_64"],
     visibility = ["PUBLIC"],
 )
 
@@ -23094,16 +23871,22 @@ cargo.rust_library(
     },
     features = [
         "default",
-        "serde",
         "std",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["serde"],
+            deps = [
+                ":serde-1",
+                ":serde_derive-1",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":form_urlencoded-1",
         ":idna-1",
         ":percent-encoding-2",
-        ":serde-1",
-        ":serde_derive-1",
     ],
 )
 
@@ -23244,9 +24027,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "uuid",
     actual = ":uuid-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -23283,16 +24071,27 @@ cargo.rust_library(
     },
     features = [
         "default",
-        "rng",
         "serde",
         "std",
-        "v4",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "rng",
+                "v4",
+            ],
+            deps = [":getrandom-0.4"],
+        ),
+        "wasi": dict(
+            features = [
+                "rng",
+                "v4",
+            ],
+            deps = [":getrandom-0.4"],
+        ),
+    },
     visibility = [],
-    deps = [
-        ":getrandom-0.4",
-        ":serde_core-1",
-    ],
+    deps = [":serde_core-1"],
 )
 
 http_archive(
@@ -23485,9 +24284,52 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+http_archive(
+    name = "wasi-0.11.1+wasi-snapshot-preview1.crate",
+    sha256 = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b",
+    strip_prefix = "wasi-0.11.1+wasi-snapshot-preview1",
+    urls = ["https://static.crates.io/crates/wasi/0.11.1+wasi-snapshot-preview1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "wasi-0.11",
+    srcs = [":wasi-0.11.1+wasi-snapshot-preview1.crate"],
+    crate = "wasi",
+    crate_root = "wasi-0.11.1+wasi-snapshot-preview1.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "wasi",
+        "CARGO_CRATE_NAME": "wasi",
+        "CARGO_MANIFEST_DIR": "wasi-0.11.1+wasi-snapshot-preview1.crate",
+        "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Experimental WASI API bindings for Rust",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "wasi",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasi",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.11.1+wasi-snapshot-preview1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "11",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
+cargo_alias(
     name = "wasm-bindgen",
     actual = ":wasm-bindgen-0.2",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -23593,9 +24435,14 @@ buildscript_run(
     version = "0.2.122",
 )
 
-alias(
+cargo_alias(
     name = "wasm-bindgen-futures",
     actual = ":wasm-bindgen-futures-0.4",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -23839,13 +24686,15 @@ cargo.rust_library(
         "component-model",
         "default",
         "std",
-        "wasmparser",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["wasmparser"],
+            deps = [":wasmparser-0.254"],
+        ),
+    },
     visibility = [],
-    deps = [
-        ":leb128fmt-0.1",
-        ":wasmparser-0.254",
-    ],
+    deps = [":leb128fmt-0.1"],
 )
 
 http_archive(
@@ -23888,9 +24737,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "wasmi",
     actual = ":wasmi-1",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -24173,17 +25027,23 @@ cargo.rust_library(
     features = [
         "component-model",
         "features",
-        "hash-collections",
         "serde",
         "simd",
         "std",
         "validate",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["hash-collections"],
+            deps = [
+                ":hashbrown-0.17",
+                ":indexmap-2",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":bitflags-2",
-        ":hashbrown-0.17",
-        ":indexmap-2",
         ":semver-1",
         ":serde-1",
     ],
@@ -24233,9 +25093,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "wasmtime",
     actual = ":wasmtime-48",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -24297,6 +25162,14 @@ cargo.rust_library(
         "wasmtime_unwinder": ":wasmtime-internal-unwinder-48",
         "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [
+                ":memfd-0.6",
+                ":rustix-1",
+            ],
+        ),
+    },
     rustc_flags = ["@$(location :wasmtime-48-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
@@ -24306,13 +25179,11 @@ cargo.rust_library(
         ":encoding_rs-0.8",
         ":libc-0.2",
         ":log-0.4",
-        ":memfd-0.6",
         ":object-0.39",
         ":once_cell-1",
         ":postcard-1",
         ":pulley-interpreter-48",
         ":rayon-1",
-        ":rustix-1",
         ":semver-1",
         ":serde-1",
         ":serde_derive-1",
@@ -24948,13 +25819,17 @@ cargo.rust_library(
     named_deps = {
         "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [
+                ":libc-0.2",
+                ":rustix-1",
+            ],
+        ),
+    },
     rustc_flags = ["@$(location :wasmtime-internal-fiber-48-build-script-run[rustc_flags])"],
     visibility = [],
-    deps = [
-        ":libc-0.2",
-        ":rustix-1",
-        ":wasmtime-environ-48",
-    ],
+    deps = [":wasmtime-environ-48"],
 )
 
 cargo.rust_binary(
@@ -25042,8 +25917,12 @@ cargo.rust_library(
     named_deps = {
         "wasmtime_core": ":wasmtime-internal-core-48",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     visibility = [],
-    deps = [":libc-0.2"],
 )
 
 http_archive(
@@ -25228,9 +26107,14 @@ cargo.rust_library(
     ],
 )
 
-alias(
+cargo_alias(
     name = "wasmtime-wasi",
     actual = ":wasmtime-wasi-48",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -25272,6 +26156,11 @@ cargo.rust_library(
     named_deps = {
         "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4",
     },
+    platform = {
+        "linux-x86_64": dict(
+            deps = [":rustix-1"],
+        ),
+    },
     visibility = [],
     deps = [
         ":async-trait-0.1",
@@ -25280,7 +26169,6 @@ cargo.rust_library(
         ":cap-primitives-4",
         ":futures-0.3",
         ":rand-0.10",
-        ":rustix-1",
         ":thiserror-2",
         ":tokio-1",
         ":tracing-0.1",
@@ -26005,9 +26893,14 @@ buildscript_run(
     version = "0.31.11",
 )
 
-alias(
+cargo_alias(
     name = "web-sys",
     actual = ":web-sys-0.3",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -26048,6 +26941,286 @@ cargo.rust_library(
         "default",
         "std",
     ],
+    platform = {
+        "wasi": dict(
+            features = [
+                "AbortController",
+                "AbortSignal",
+                "AddEventListenerOptions",
+                "AngleInstancedArrays",
+                "BinaryType",
+                "Blob",
+                "BlobPropertyBag",
+                "Clipboard",
+                "ClipboardEvent",
+                "ClipboardItem",
+                "CloseEvent",
+                "CompositionEvent",
+                "CssStyleDeclaration",
+                "DataTransfer",
+                "DataTransferItem",
+                "DataTransferItemList",
+                "Document",
+                "DocumentFragment",
+                "DomException",
+                "DomRect",
+                "DomRectReadOnly",
+                "DragEvent",
+                "Element",
+                "Event",
+                "EventListener",
+                "ExtBlendMinmax",
+                "ExtColorBufferFloat",
+                "ExtColorBufferHalfFloat",
+                "ExtDisjointTimerQuery",
+                "ExtFragDepth",
+                "ExtSRgb",
+                "ExtShaderTextureLod",
+                "ExtTextureFilterAnisotropic",
+                "File",
+                "FileList",
+                "FocusEvent",
+                "Headers",
+                "HtmlAudioElement",
+                "HtmlCanvasElement",
+                "HtmlElement",
+                "HtmlImageElement",
+                "HtmlInputElement",
+                "HtmlMediaElement",
+                "HtmlVideoElement",
+                "ImageBitmap",
+                "ImageBitmapOptions",
+                "ImageBitmapRenderingContext",
+                "ImageData",
+                "InputEvent",
+                "IntersectionObserver",
+                "IntersectionObserverEntry",
+                "KeyboardEvent",
+                "Location",
+                "MediaQueryList",
+                "MediaQueryListEvent",
+                "MessageChannel",
+                "MessageEvent",
+                "MessagePort",
+                "MouseEvent",
+                "Navigator",
+                "Node",
+                "NodeList",
+                "OesElementIndexUint",
+                "OesStandardDerivatives",
+                "OesTextureFloat",
+                "OesTextureFloatLinear",
+                "OesTextureHalfFloat",
+                "OesTextureHalfFloatLinear",
+                "OesVertexArrayObject",
+                "OrientationLockType",
+                "OrientationType",
+                "OvrMultiview2",
+                "PageTransitionEvent",
+                "Performance",
+                "PermissionState",
+                "PermissionStatus",
+                "Permissions",
+                "PointerEvent",
+                "PremultiplyAlpha",
+                "Request",
+                "RequestInit",
+                "ResizeObserver",
+                "ResizeObserverBoxOptions",
+                "ResizeObserverEntry",
+                "ResizeObserverOptions",
+                "ResizeObserverSize",
+                "Response",
+                "Screen",
+                "ScreenOrientation",
+                "ShadowRoot",
+                "Storage",
+                "Touch",
+                "TouchEvent",
+                "TouchList",
+                "UiEvent",
+                "Url",
+                "VideoFrame",
+                "VisibilityState",
+                "WebGl2RenderingContext",
+                "WebGlActiveInfo",
+                "WebGlBuffer",
+                "WebGlFramebuffer",
+                "WebGlProgram",
+                "WebGlQuery",
+                "WebGlRenderbuffer",
+                "WebGlRenderingContext",
+                "WebGlSampler",
+                "WebGlShader",
+                "WebGlShaderPrecisionFormat",
+                "WebGlSync",
+                "WebGlTexture",
+                "WebGlTransformFeedback",
+                "WebGlUniformLocation",
+                "WebGlVertexArrayObject",
+                "WebSocket",
+                "WebglColorBufferFloat",
+                "WebglCompressedTextureAstc",
+                "WebglCompressedTextureEtc",
+                "WebglCompressedTextureEtc1",
+                "WebglCompressedTexturePvrtc",
+                "WebglCompressedTextureS3tc",
+                "WebglCompressedTextureS3tcSrgb",
+                "WebglDebugRendererInfo",
+                "WebglDebugShaders",
+                "WebglDepthTexture",
+                "WebglDrawBuffers",
+                "WebglLoseContext",
+                "WheelEvent",
+                "Window",
+                "Worker",
+                "WorkerGlobalScope",
+                "WorkerNavigator",
+                "WorkerOptions",
+                "WorkerType",
+                "console",
+            ],
+        ),
+        "wasm32": dict(
+            features = [
+                "AbortController",
+                "AbortSignal",
+                "AddEventListenerOptions",
+                "AngleInstancedArrays",
+                "BinaryType",
+                "Blob",
+                "BlobPropertyBag",
+                "Clipboard",
+                "ClipboardEvent",
+                "ClipboardItem",
+                "CloseEvent",
+                "CompositionEvent",
+                "CssStyleDeclaration",
+                "DataTransfer",
+                "DataTransferItem",
+                "DataTransferItemList",
+                "Document",
+                "DocumentFragment",
+                "DomException",
+                "DomRect",
+                "DomRectReadOnly",
+                "DragEvent",
+                "Element",
+                "Event",
+                "EventListener",
+                "ExtBlendMinmax",
+                "ExtColorBufferFloat",
+                "ExtColorBufferHalfFloat",
+                "ExtDisjointTimerQuery",
+                "ExtFragDepth",
+                "ExtSRgb",
+                "ExtShaderTextureLod",
+                "ExtTextureFilterAnisotropic",
+                "File",
+                "FileList",
+                "FocusEvent",
+                "Headers",
+                "HtmlAudioElement",
+                "HtmlCanvasElement",
+                "HtmlElement",
+                "HtmlImageElement",
+                "HtmlInputElement",
+                "HtmlMediaElement",
+                "HtmlVideoElement",
+                "ImageBitmap",
+                "ImageBitmapOptions",
+                "ImageBitmapRenderingContext",
+                "ImageData",
+                "InputEvent",
+                "IntersectionObserver",
+                "IntersectionObserverEntry",
+                "KeyboardEvent",
+                "Location",
+                "MediaQueryList",
+                "MediaQueryListEvent",
+                "MessageChannel",
+                "MessageEvent",
+                "MessagePort",
+                "MouseEvent",
+                "Navigator",
+                "Node",
+                "NodeList",
+                "OesElementIndexUint",
+                "OesStandardDerivatives",
+                "OesTextureFloat",
+                "OesTextureFloatLinear",
+                "OesTextureHalfFloat",
+                "OesTextureHalfFloatLinear",
+                "OesVertexArrayObject",
+                "OrientationLockType",
+                "OrientationType",
+                "OvrMultiview2",
+                "PageTransitionEvent",
+                "Performance",
+                "PermissionState",
+                "PermissionStatus",
+                "Permissions",
+                "PointerEvent",
+                "PremultiplyAlpha",
+                "Request",
+                "RequestInit",
+                "ResizeObserver",
+                "ResizeObserverBoxOptions",
+                "ResizeObserverEntry",
+                "ResizeObserverOptions",
+                "ResizeObserverSize",
+                "Response",
+                "Screen",
+                "ScreenOrientation",
+                "ShadowRoot",
+                "Storage",
+                "Touch",
+                "TouchEvent",
+                "TouchList",
+                "UiEvent",
+                "Url",
+                "VideoFrame",
+                "VisibilityState",
+                "WebGl2RenderingContext",
+                "WebGlActiveInfo",
+                "WebGlBuffer",
+                "WebGlFramebuffer",
+                "WebGlProgram",
+                "WebGlQuery",
+                "WebGlRenderbuffer",
+                "WebGlRenderingContext",
+                "WebGlSampler",
+                "WebGlShader",
+                "WebGlShaderPrecisionFormat",
+                "WebGlSync",
+                "WebGlTexture",
+                "WebGlTransformFeedback",
+                "WebGlUniformLocation",
+                "WebGlVertexArrayObject",
+                "WebSocket",
+                "WebglColorBufferFloat",
+                "WebglCompressedTextureAstc",
+                "WebglCompressedTextureEtc",
+                "WebglCompressedTextureEtc1",
+                "WebglCompressedTexturePvrtc",
+                "WebglCompressedTextureS3tc",
+                "WebglCompressedTextureS3tcSrgb",
+                "WebglDebugRendererInfo",
+                "WebglDebugShaders",
+                "WebglDepthTexture",
+                "WebglDrawBuffers",
+                "WebglLoseContext",
+                "WheelEvent",
+                "Window",
+                "Worker",
+                "WorkerGlobalScope",
+                "WorkerNavigator",
+                "WorkerOptions",
+                "WorkerType",
+                "console",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":js-sys-0.3",
@@ -26085,6 +27258,14 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_MINOR": "1",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
+    },
+    platform = {
+        "wasm32": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":wasm-bindgen-0.2",
+            ],
+        ),
     },
     visibility = [],
 )
@@ -26240,9 +27421,14 @@ cargo.rust_library(
     visibility = [],
 )
 
-alias(
+cargo_alias(
     name = "wgpu",
     actual = ":wgpu-29",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -26295,6 +27481,24 @@ cargo.rust_library(
         "wgpu-core",
         "wgsl",
     ],
+    platform = {
+        "wasi": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":wasm-bindgen-0.2",
+                ":wasm-bindgen-futures-0.4",
+                ":web-sys-0.3",
+            ],
+        ),
+        "wasm32": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":wasm-bindgen-0.2",
+                ":wasm-bindgen-futures-0.4",
+                ":web-sys-0.3",
+            ],
+        ),
+    },
     rustc_flags = ["@$(location :wgpu-29-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
@@ -26435,14 +27639,29 @@ cargo.rust_library(
         "gles",
         "metal",
         "noop",
-        "portable-atomic",
-        "renderdoc",
         "std",
         "vulkan",
         "webgl",
-        "wgpu-core-deps-windows-linux-android",
         "wgsl",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "portable-atomic",
+                "renderdoc",
+                "wgpu-core-deps-windows-linux-android",
+            ],
+            deps = [":wgpu-core-deps-windows-linux-android-29"],
+        ),
+        "wasi": dict(
+            features = ["wgpu-core-deps-wasm"],
+            deps = [":wgpu-core-deps-wasm-29"],
+        ),
+        "wasm32": dict(
+            features = ["wgpu-core-deps-wasm"],
+            deps = [":wgpu-core-deps-wasm-29"],
+        ),
+    },
     rustc_flags = ["@$(location :wgpu-core-29-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
@@ -26463,7 +27682,6 @@ cargo.rust_library(
         ":rustc-hash-1",
         ":smallvec-1",
         ":thiserror-2",
-        ":wgpu-core-deps-windows-linux-android-29",
         ":wgpu-hal-29",
         ":wgpu-naga-bridge-29",
         ":wgpu-types-29",
@@ -26500,14 +27718,26 @@ cargo.rust_binary(
         "gles",
         "metal",
         "noop",
-        "portable-atomic",
-        "renderdoc",
         "std",
         "vulkan",
         "webgl",
-        "wgpu-core-deps-windows-linux-android",
         "wgsl",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "portable-atomic",
+                "renderdoc",
+                "wgpu-core-deps-windows-linux-android",
+            ],
+        ),
+        "wasi": dict(
+            features = ["wgpu-core-deps-wasm"],
+        ),
+        "wasm32": dict(
+            features = ["wgpu-core-deps-wasm"],
+        ),
+    },
     visibility = [],
     deps = [":cfg_aliases-0.2"],
 )
@@ -26535,15 +27765,63 @@ buildscript_run(
         "gles",
         "metal",
         "noop",
-        "portable-atomic",
-        "renderdoc",
         "std",
         "vulkan",
         "webgl",
-        "wgpu-core-deps-windows-linux-android",
         "wgsl",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "portable-atomic",
+                "renderdoc",
+                "wgpu-core-deps-windows-linux-android",
+            ],
+        ),
+        "wasi": dict(
+            features = ["wgpu-core-deps-wasm"],
+        ),
+        "wasm32": dict(
+            features = ["wgpu-core-deps-wasm"],
+        ),
+    },
     version = "29.0.3",
+)
+
+http_archive(
+    name = "wgpu-core-deps-wasm-29.0.3.crate",
+    sha256 = "0c2f2fb042f36920771deb0b966543c5751b18f3d327760ffc90f74e20b2dcd4",
+    strip_prefix = "wgpu-core-deps-wasm-29.0.3",
+    urls = ["https://static.crates.io/crates/wgpu-core-deps-wasm/29.0.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "wgpu-core-deps-wasm-29",
+    srcs = [":wgpu-core-deps-wasm-29.0.3.crate"],
+    crate = "wgpu_core_deps_wasm",
+    crate_root = "wgpu-core-deps-wasm-29.0.3.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "wgpu_core_deps_wasm",
+        "CARGO_CRATE_NAME": "wgpu_core_deps_wasm",
+        "CARGO_MANIFEST_DIR": "wgpu-core-deps-wasm-29.0.3.crate",
+        "CARGO_PKG_AUTHORS": "gfx-rs developers",
+        "CARGO_PKG_DESCRIPTION": "Feature unification helper crate for the WebAssembly platform",
+        "CARGO_PKG_HOMEPAGE": "https://wgpu.rs/",
+        "CARGO_PKG_NAME": "wgpu-core-deps-wasm",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gfx-rs/wgpu",
+        "CARGO_PKG_RUST_VERSION": "1.76",
+        "CARGO_PKG_VERSION": "29.0.3",
+        "CARGO_PKG_VERSION_MAJOR": "29",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["webgl"],
+    visibility = [],
+    deps = [":wgpu-hal-29"],
 )
 
 http_archive(
@@ -26620,38 +27898,60 @@ cargo.rust_library(
         "OUT_DIR": "$(location :wgpu-hal-29-build-script-run[out_dir])",
     },
     features = [
-        "dx12",
         "fragile-send-sync-non-atomic-wasm",
         "gles",
-        "portable-atomic",
-        "renderdoc",
-        "vulkan",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "dx12",
+                "portable-atomic",
+                "renderdoc",
+                "vulkan",
+            ],
+            deps = [
+                ":ash-0.38",
+                ":gpu-allocator-0.28",
+                ":gpu-descriptor-0.3",
+                ":khronos-egl-6",
+                ":libc-0.2",
+                ":libloading-0.8",
+                ":ordered-float-5",
+                ":renderdoc-sys-1",
+                ":smallvec-1",
+                ":wayland-sys-0.31",
+            ],
+        ),
+        "wasi": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":wasm-bindgen-0.2",
+                ":web-sys-0.3",
+            ],
+        ),
+        "wasm32": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":wasm-bindgen-0.2",
+                ":web-sys-0.3",
+            ],
+        ),
+    },
     rustc_flags = ["@$(location :wgpu-hal-29-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
         ":arrayvec-0.7",
-        ":ash-0.38",
         ":bitflags-2",
         ":bytemuck-1",
         ":cfg-if-1",
         ":glow-0.17",
-        ":gpu-allocator-0.28",
-        ":gpu-descriptor-0.3",
         ":hashbrown-0.16",
-        ":khronos-egl-6",
-        ":libc-0.2",
-        ":libloading-0.8",
         ":log-0.4",
         ":naga-29",
-        ":ordered-float-5",
         ":parking_lot-0.12",
         ":profiling-1",
         ":raw-window-handle-0.6",
-        ":renderdoc-sys-1",
-        ":smallvec-1",
         ":thiserror-2",
-        ":wayland-sys-0.31",
         ":wgpu-naga-bridge-29",
         ":wgpu-types-29",
     ],
@@ -26681,13 +27981,19 @@ cargo.rust_binary(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "dx12",
         "fragile-send-sync-non-atomic-wasm",
         "gles",
-        "portable-atomic",
-        "renderdoc",
-        "vulkan",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "dx12",
+                "portable-atomic",
+                "renderdoc",
+                "vulkan",
+            ],
+        ),
+    },
     visibility = [],
     deps = [":cfg_aliases-0.2"],
 )
@@ -26709,13 +28015,19 @@ buildscript_run(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "dx12",
         "fragile-send-sync-non-atomic-wasm",
         "gles",
-        "portable-atomic",
-        "renderdoc",
-        "vulkan",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "dx12",
+                "portable-atomic",
+                "renderdoc",
+                "vulkan",
+            ],
+        ),
+    },
     version = "29.0.3",
 )
 
@@ -26793,6 +28105,20 @@ cargo.rust_library(
         "std",
         "web",
     ],
+    platform = {
+        "wasi": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":web-sys-0.3",
+            ],
+        ),
+        "wasm32": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":web-sys-0.3",
+            ],
+        ),
+    },
     visibility = [],
     deps = [
         ":bitflags-2",
@@ -26975,9 +28301,14 @@ buildscript_run(
     version = "48.0.1",
 )
 
-alias(
+cargo_alias(
     name = "winit",
     actual = ":winit-0.30",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
     visibility = ["PUBLIC"],
 )
 
@@ -27035,31 +28366,59 @@ cargo.rust_library(
     ],
     named_deps = {
         "rwh_06": ":raw-window-handle-0.6",
-        "sctk": ":smithay-client-toolkit-0.19",
+    },
+    platform = {
+        "linux-x86_64": dict(
+            named_deps = {
+                "sctk": ":smithay-client-toolkit-0.19",
+            },
+            deps = [
+                ":ahash-0.8",
+                ":bytemuck-1",
+                ":calloop-0.13",
+                ":libc-0.2",
+                ":memmap2-0.9",
+                ":percent-encoding-2",
+                ":rustix-0.38",
+                ":sctk-adwaita-0.10",
+                ":wayland-backend-0.3",
+                ":wayland-client-0.31",
+                ":wayland-protocols-0.32",
+                ":wayland-protocols-plasma-0.3",
+                ":x11-dl-2",
+                ":x11rb-0.13",
+                ":xkbcommon-dl-0.4",
+            ],
+        ),
+        "wasi": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":pin-project-1",
+                ":wasm-bindgen-0.2",
+                ":wasm-bindgen-futures-0.4",
+                ":web-sys-0.3",
+                ":web-time-1",
+            ],
+        ),
+        "wasm32": dict(
+            deps = [
+                ":js-sys-0.3",
+                ":pin-project-1",
+                ":wasm-bindgen-0.2",
+                ":wasm-bindgen-futures-0.4",
+                ":web-sys-0.3",
+                ":web-time-1",
+            ],
+        ),
     },
     rustc_flags = ["@$(location :winit-0.30-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
-        ":ahash-0.8",
         ":bitflags-2",
-        ":bytemuck-1",
-        ":calloop-0.13",
         ":cursor-icon-1",
         ":dpi-0.1",
-        ":libc-0.2",
-        ":memmap2-0.9",
-        ":percent-encoding-2",
-        ":rustix-0.38",
-        ":sctk-adwaita-0.10",
         ":smol_str-0.2",
         ":tracing-0.1",
-        ":wayland-backend-0.3",
-        ":wayland-client-0.31",
-        ":wayland-protocols-0.32",
-        ":wayland-protocols-plasma-0.3",
-        ":x11-dl-2",
-        ":x11rb-0.13",
-        ":xkbcommon-dl-0.4",
     ],
 )
 
@@ -27214,14 +28573,18 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "3",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "alloc",
-        "ascii",
-        "binary",
-        "default",
-        "parser",
-        "std",
-    ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "alloc",
+                "ascii",
+                "binary",
+                "default",
+                "parser",
+                "std",
+            ],
+        ),
+    },
     visibility = [],
 )
 
@@ -28303,10 +29666,14 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "alloc",
-        "default",
-    ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "alloc",
+                "default",
+            ],
+        ),
+    },
     visibility = [],
 )
 

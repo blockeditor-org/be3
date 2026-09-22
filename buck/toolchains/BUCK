@@ -3,7 +3,7 @@ load("@prelude//toolchains:cxx.bzl", "cxx_tools_info_toolchain")
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "python_bootstrap_toolchain")
 load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
-load(":defs.bzl", "host_cxx_tools", "pinned_rust_toolchain", "script")
+load(":defs.bzl", "host_cxx_tools", "pinned_rust_toolchain", "script", "wasm_cxx_tools")
 
 # The Python the prelude's own helpers run on, as a file rather than as a name:
 # a toolchain named by a string puts that string in the command line of every
@@ -21,9 +21,33 @@ host_cxx_tools(
     cxx_compiler = "root//buck/tools:cxx",
 )
 
+wasm_cxx_tools(
+    name = "wasm_cxx_tools",
+    archiver = "root//buck/tools:ar",
+    compiler = "root//buck/tools:cc",
+    cxx_compiler = "root//buck/tools:cxx",
+    linker = "root//buck/tools:wasm-ld",
+)
+
 cxx_tools_info_toolchain(
-    name = "cxx",
+    name = "host_cxx",
     cxx_tools_info = ":cxx_tools",
+    visibility = ["PUBLIC"],
+)
+
+cxx_tools_info_toolchain(
+    name = "wasm_cxx",
+    cxx_tools_info = ":wasm_cxx_tools",
+    visibility = ["PUBLIC"],
+)
+
+# Which of the two a target gets is decided by what it is being built for.
+toolchain_alias(
+    name = "cxx",
+    actual = select({
+        "DEFAULT": ":host_cxx",
+        "prelude//cpu:wasm32": ":wasm_cxx",
+    }),
     visibility = ["PUBLIC"],
 )
 
@@ -32,11 +56,21 @@ pinned_rust_toolchain(
     clippy_driver = "root//buck/tools:clippy-driver",
     compiler = "root//buck/tools:rustc",
     default_edition = "2024",
-    # Cargo's dev profile, so a build script that asks cc-rs or libm what it is
-    # compiling for gets an answer. The prelude only sets OPT_LEVEL for a build
-    # script when it can read an opt level off these flags.
-    rustc_flags = ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
-    rustc_target_triple = "x86_64-unknown-linux-gnu",
+    # Cargo's dev profile on the host, and Cargo.toml's plugin profile on wasm:
+    # a plugin is compiled once and loaded on every platform, and cranelift is
+    # an order of magnitude slower at an unoptimised one.
+    #
+    # The opt level is also what makes the prelude tell a build script what
+    # OPT_LEVEL it is building for, which cc-rs and libm both ask.
+    rustc_flags = select({
+        "DEFAULT": ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
+        "prelude//cpu:wasm32": ["-Copt-level=2", "-Cdebuginfo=0", "-Cstrip=debuginfo"],
+    }),
+    rustc_target_triple = select({
+        "DEFAULT": "x86_64-unknown-linux-gnu",
+        "prelude//os:none": "wasm32-unknown-unknown",
+        "prelude//os:wasi": "wasm32-wasip1-threads",
+    }),
     rustdoc = "root//buck/tools:rustdoc",
     visibility = ["PUBLIC"],
 )

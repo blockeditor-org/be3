@@ -55,6 +55,41 @@ host_cxx_tools = rule(
     impl = _host_cxx_tools_impl,
 )
 
+# The same, for WebAssembly.
+#
+# What differs is the linker. rustc emits lld's own flags for a wasm link -
+# -flavor wasm, --export, --no-entry - and hands them to whatever the cxx
+# toolchain calls a linker, which for the host is a clang driver that has never
+# heard of them. rust-lld is the linker rustc would have used itself, and it
+# ships in the same toolchain, so the two always agree on them.
+def _wasm_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
+    return [
+        DefaultInfo(),
+        CxxToolsInfo(
+            archiver = ctx.attrs.archiver,
+            archiver_type = "gnu",
+            asm_compiler = ctx.attrs.compiler,
+            asm_compiler_type = "clang",
+            compiler = ctx.attrs.compiler,
+            compiler_type = "clang",
+            cvtres_compiler = None,
+            cxx_compiler = ctx.attrs.cxx_compiler,
+            linker = ctx.attrs.linker,
+            linker_type = LinkerType("wasm"),
+            rc_compiler = None,
+        ),
+    ]
+
+wasm_cxx_tools = rule(
+    attrs = {
+        "archiver": attrs.source(),
+        "compiler": attrs.source(),
+        "cxx_compiler": attrs.source(),
+        "linker": attrs.source(),
+    },
+    impl = _wasm_cxx_tools_impl,
+)
+
 # prelude//toolchains:rust.bzl's system_rust_toolchain, with the three tools it
 # names as strings taken as files instead, for the reason above. rustc is the
 # one that matters: without it, an action that compiles Rust says nothing about

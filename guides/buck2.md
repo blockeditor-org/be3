@@ -16,6 +16,8 @@ touch a `BUCK` file needs nothing from this guide.
 - Thirty-three first-party crates and their unit tests, which is the native half
   of the workspace: the `be-*` stack, `block*`, `beui`, `reactive`,
   `text-editor-core`, the games' api and host, and the tools.
+- The three game modules, as WebAssembly, and the native tests that drive them
+  through the host.
 
 ## Running it
 
@@ -159,6 +161,55 @@ cheap answer and gets the same soundness for none of the operational surface.
 Remote execution is the answer to a different question: making *misses* fast by
 fanning them out.
 
+## WebAssembly
+
+The games build for `wasm32-unknown-unknown` and the plugins will build for
+`wasm32-wasip1-threads`. Both are target platforms in `buck/platforms/BUCK`,
+and asking for one is:
+
+```
+./scripts/buck build //crates/tabletop_games/rules/tic_tac_toe:tic_tac_toe_wasm \
+    --target-platforms=//buck/platforms:wasm32
+```
+
+Three things make that work, and all three are worth knowing about before
+adding the plugins to it.
+
+**The toolchain switches on what is being built for.** `buck/toolchains/BUCK`
+selects the target triple and the rustc flags off the target platform, so wasm
+gets Cargo.toml's plugin profile rather than its dev one. The C toolchain
+switches too: rustc emits lld's own flags for a wasm link and hands them to
+whatever the cxx toolchain calls a linker, which for the host is a clang driver
+that has never heard of them, so wasm gets `rust-lld` from the same rustc
+instead. The wrapper for it drops `-fuse-ld=lld` on the way through, because
+`prelude//os_lookup` has no case for WebAssembly and falls back to linux - its
+own FIXME says so - and a linux link is what the prelude thinks it is building.
+
+**reindeer resolves the third-party crates once per platform**, and
+`reindeer.toml` names all three. The platform names are not free: the prelude
+maps a buck2 configuration to one of them, so `wasi` is `os:wasi` + `cpu:wasm32`
+and `wasm32` is `os:none` with the same cpu.
+
+What that costs is feature fixups. reindeer resolves one feature set per
+platform across the whole workspace, so a feature one crate wants natively
+arrives everywhere: `uuid`'s `v4` and `rand`'s `os_rng` both reached
+`wasm32-unknown-unknown`, where there is no operating system to ask for entropy
+and the crates say so with a `compile_error`. The fixups under
+`third-party/rust/fixups` take them back off for that platform. Expect more of
+these when the plugins arrive.
+
+**A native target can depend on a wasm one.** `buck/wasm/defs.bzl` has a rule
+that transitions its dependency to a wasm platform, so a test that is built for
+the host can name a module that is not:
+
+```
+env = {"GAME_WASM": "$(location :module)"}
+```
+
+That replaces the build script under cargo, which shells out to a second cargo
+build for wasm32 and prints the path it wrote to. The plugin tests will want the
+same rule.
+
 ## How the build is laid out
 
 - `.buckconfig` names the cells, the execution platform and the three cache
@@ -242,11 +293,14 @@ The gaps, roughly in the order they are worth closing:
   `./scripts/buckify` and fixing what the new platforms' build scripts need; the
   first-party `BUCK` files would then need `select()` where the dependency sets
   differ.
-- **No wasm.** The plugins, the editors, the games and the web bundle are all
-  wasm, and none of them has a `BUCK` file. This is the largest remaining piece:
-  it needs a wasm toolchain in `buck/toolchains`, the WASI sysroot as a buck
-  dependency rather than something a script downloads into `target/`, and a rule
-  for the wasm-bindgen step.
+- **The plugins are not built yet.** The wasm toolchain is in place and the
+  games go through it, but the 33 editors target `wasm32-wasip1-threads` and
+  their C dependencies - freetype, harfbuzz - have to be compiled against the
+  WASI sysroot, which is still something a script downloads into `target/`
+  rather than an `http_archive`. That, a `cxx_toolchain` pointed at it, and the
+  plugin test runner are what is left of this piece.
+- **No web bundle.** It is the same wasm build with wasm-bindgen after it, and
+  the JS shims in `scripts/internal/web` beside it.
 - **`block-app` is not built.** It has a build script that shells out to git,
   it links libghostty-vt, which Zig builds, and it is the one crate that pulls
   in the whole GTK and WebKitGTK tree.

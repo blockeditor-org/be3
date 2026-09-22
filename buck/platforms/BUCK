@@ -19,3 +19,28 @@ execution_platform(
     use_windows_path_separators = host_info().os.is_windows,
     visibility = ["PUBLIC"],
 )
+
+# Target platforms for WebAssembly, so that a plugin or a game can be asked for
+# with --target-platforms. They are target platforms only: nothing executes
+# here, and the execution platform above is still what runs the compiler.
+#
+# The constraints are the ones prelude//rust:cargo_package.bzl maps to
+# reindeer's platform names, so this pair is reindeer's "wasi" and the pair
+# below is its "wasm32". reindeer.toml has to agree with both.
+platform(
+    name = "wasi",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[wasm32]",
+        "prelude//os/constraints:os[wasi]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "wasm32",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[wasm32]",
+        "prelude//os/constraints:os[none]",
+    ],
+    visibility = ["PUBLIC"],
+)

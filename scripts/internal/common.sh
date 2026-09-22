@@ -1075,8 +1075,64 @@ write_buck_tools() {
     local rust_version
     rust_version="$(rustc --version)"
     write_buck_tool "$directory/rustc" rustc "$rust_version"
+    # The linker rustc uses for WebAssembly, which is not on PATH: it lives in
+    # the toolchain's own sysroot, and the host linker does not understand the
+    # flags rustc emits for a wasm link. It is keyed on the rustc version
+    # because it ships with it.
+    # The linker for WebAssembly, which is rustc's own: it ships inside the
+    # toolchain's sysroot rather than on PATH, and the host linker does not
+    # understand the flags rustc emits for a wasm link. The wrapper points at a
+    # symlink beside it rather than at wherever rustup put it, so that it says
+    # the same thing on every machine; buck2 runs an action from the repository
+    # root, which is what the path is relative to. The symlink is not something
+    # buck2 reads, so the version line is what decides which linker a cache
+    # entry belongs to - which is right, since it ships with the rustc that
+    # emits the flags for it.
+    ln -sfn \
+        "$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin/rust-lld" \
+        "$directory/wasm-ld.real"
+    write_buck_wasm_linker "$directory/wasm-ld" "$rust_version"
     write_buck_tool "$directory/rustdoc" rustdoc "$rust_version"
     write_buck_tool "$directory/clippy-driver" clippy-driver "$rust_version"
+}
+
+# The wasm linker, which needs more than a line because the flags it is handed
+# are not the ones it takes.
+#
+# prelude//os_lookup has no case for WebAssembly and falls back to linux - its
+# own FIXME says so - so a wasm link arrives with -fuse-ld=lld on it, which
+# belongs to a compiler driver rather than to a linker. rustc adds -flavor wasm
+# for lld's generic driver, and that part is right; this passes it through and
+# drops the other.
+#
+# The loop is the POSIX way to rewrite "$@" without losing an argument that
+# contains a space: take one off the front, decide, and put the ones that
+# survive back on the end.
+write_buck_wasm_linker() {
+    local path="$1" version="$2" wanted
+    wanted="$(
+        cat << EOF
+#!/bin/sh
+# $version
+count=\$#
+index=0
+while [ "\$index" -lt "\$count" ]; do
+    argument="\$1"
+    shift
+    index=\$((index + 1))
+    case "\$argument" in
+        -fuse-ld=*) continue ;;
+    esac
+    set -- "\$@" "\$argument"
+done
+exec ./buck/tools/wasm-ld.real "\$@"
+EOF
+    )"
+    if [[ -f "$path" && "$(cat "$path")" == "$wanted" ]]; then
+        return 0
+    fi
+    echo "$wanted" > "$path"
+    chmod +x "$path"
 }
 
 write_buck_tool() {
