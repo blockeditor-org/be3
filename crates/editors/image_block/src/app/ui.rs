@@ -7,13 +7,10 @@ use block_editor_plugin::beui::reactive::{
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_plugin::beui::{ImageFit, NodeId, Pos2, Rect, Vec2};
-use block_editor_plugin::{Creation, Editor, Sidebar, fit_content};
+use block_editor_plugin::{Editor, FileChooser, Sidebar, fit_content};
 
-use super::chooser::Chooser;
 use super::picture::watch;
-
-const PADDING: f32 = 14.0;
-const SPACING: f32 = 10.0;
+use super::{filter, imported};
 
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {
@@ -23,7 +20,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let failed = create_memo(clone!(shown -> move || shown.get().error.is_some()));
     let reason = create_memo(clone!(shown -> move || shown.get().error.unwrap_or_default()));
 
-    let chooser = Chooser::new();
+    let chooser = FileChooser::new(filter(), imported);
     let polled = Rc::clone(&chooser);
     let host = editor.host().clone();
     let operating = Rc::clone(&block);
@@ -115,54 +112,5 @@ pub fn ImagePreview(editor: Editor) -> NodeId {
     let image = create_memo(move || shown.get().image);
     view! {
         <Picture image={image} fit=ImageFit::Contain />
-    }
-}
-
-#[component]
-pub fn ImageCreation(creation: Creation) -> NodeId {
-    let chooser = Chooser::new();
-    let polled = Rc::clone(&chooser);
-    let host = creation.host().clone();
-    creation.each_frame(move || {
-        polled.poll(&host);
-        host.set_creation_ready(polled.peek());
-    });
-    let client = creation.client().clone();
-    let made = Rc::clone(&chooser);
-    creation.on_create(move || {
-        let image = made.take().ok_or("no file was chosen")?;
-        Ok(client.create_block(image).id())
-    });
-
-    let busy = chooser.busy();
-    let chosen = chooser.name();
-    let name = create_memo(clone!(chosen -> move || {
-        chosen.get().unwrap_or_else(|| "No file chosen".to_owned())
-    }));
-    let failure = chooser.error();
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
-    let opening = creation.host().clone();
-    let choose = clone!(chooser -> move || chooser.open(&opening));
-    let theme = use_theme();
-    view! {
-        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-            <List spacing=SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Button
-                        label="Choose file…"
-                        variant=ButtonVariant::Primary
-                        disabled={busy}
-                        @test_id={"image.choose"}
-                        on_click={choose}
-                    />
-                    <Caption content={name} />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-                <Show condition={failed}>
-                    <Caption content={reason} color={theme.danger.clone()} />
-                </Show>
-            </List>
-        </Frame>
     }
 }
