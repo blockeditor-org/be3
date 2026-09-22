@@ -59,6 +59,13 @@ pub(crate) fn flash(painter: &Painter, rect: Rect, color: Color32, remaining: f3
         return;
     }
     painter.rect_filled(rect, 0.0, faded(color, remaining * FLASH_FILL));
+    flash_outline(painter, rect, color, remaining);
+}
+
+pub(crate) fn flash_outline(painter: &Painter, rect: Rect, color: Color32, remaining: f32) {
+    if !rect.is_positive() {
+        return;
+    }
     painter.rect_stroke(
         rect,
         0.0,
