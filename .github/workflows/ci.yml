@@ -84,8 +84,14 @@ jobs:
       # persist-credentials: false, because none of these jobs push, and a
       # checkout that keeps the token leaves it readable in .git/config to
       # every build script, test and dependency the job goes on to run.
+      #
+      # A pull request is checked out at its head rather than at the merge
+      # GitHub makes of it, because what this job fixes is pushed back to that
+      # head and has to apply there. The merge queue only merges a head that
+      # already contains main, so nothing is tested here that main has not seen.
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       # block-app links GTK and WebKitGTK for the file picker and the embedded
@@ -121,7 +127,9 @@ jobs:
         with:
           version: 0.16.0
 
-      - run: ./scripts/verify --check --lint
+      - uses: ./.github/actions/verify
+        with:
+          part: lint
 
       - uses: ./.github/actions/sccache-report
         if: always()
@@ -133,8 +141,14 @@ jobs:
       # persist-credentials: false, because none of these jobs push, and a
       # checkout that keeps the token leaves it readable in .git/config to
       # every build script, test and dependency the job goes on to run.
+      #
+      # A pull request is checked out at its head rather than at the merge
+      # GitHub makes of it, because what this job fixes is pushed back to that
+      # head and has to apply there. The merge queue only merges a head that
+      # already contains main, so nothing is tested here that main has not seen.
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       # block-app links GTK and WebKitGTK for the file picker and the embedded
@@ -174,7 +188,9 @@ jobs:
         with:
           version: 0.16.0
 
-      - run: ./scripts/verify --check --tests
+      - uses: ./.github/actions/verify
+        with:
+          part: tests
 
       - uses: ./.github/actions/sccache-report
         if: always()
@@ -186,8 +202,14 @@ jobs:
       # persist-credentials: false, because none of these jobs push, and a
       # checkout that keeps the token leaves it readable in .git/config to
       # every build script, test and dependency the job goes on to run.
+      #
+      # A pull request is checked out at its head rather than at the merge
+      # GitHub makes of it, because what this job fixes is pushed back to that
+      # head and has to apply there. The merge queue only merges a head that
+      # already contains main, so nothing is tested here that main has not seen.
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       # The test runner is a native binary built out of the workspace, so this
@@ -238,7 +260,9 @@ jobs:
         with:
           version: 0.16.0
 
-      - run: ./scripts/verify --check --plugin-tests
+      - uses: ./.github/actions/verify
+        with:
+          part: plugin-tests
 
       - uses: ./.github/actions/sccache-report
         if: always()
@@ -591,6 +615,110 @@ jobs:
           name: block-${{ matrix.name }}
           path: dist
           retention-days: 14
+
+  # A pull request's verification fixes what it can and accepts what the tests
+  # paint, and each part that changed anything uploads the change as a patch
+  # and fails. This puts those patches together and pushes them to the pull
+  # request's branch as one commit, and the CI run that commit starts is the
+  # one that can pass.
+  #
+  # It is the one job here that writes to the repository, so it is the one job
+  # that runs nothing from the pull request: it applies patches, which are data
+  # to git, and pushes. The jobs that made them ran the pull request's code
+  # with no credentials at all.
+  #
+  # The push is made as the merge queue's app rather than with GITHUB_TOKEN,
+  # because a push made with GITHUB_TOKEN starts no workflow, and a fixed head
+  # nobody runs CI on is a pull request that can never pass. A fork's branch is
+  # not this repository's to push to, and a fork's run has no secrets to push
+  # with, so there the failure and its patches are the whole of the answer.
+  #
+  # Not in the gate below. Whether the pull request passes was decided by the
+  # parts that failed; this only decides whether its author has to push the
+  # fix themselves.
+  autofix:
+    name: push autofixes
+    if: >-
+      !cancelled() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(needs.*.result, 'failure')
+    needs: [lint, test, plugin-tests]
+    runs-on: ubuntu-24.04
+    steps:
+      # A part that failed without changing anything uploaded nothing, so
+      # finding no patch here is the ordinary way for this job to have nothing
+      # to do.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: autofix-*
+          path: ${{ runner.temp }}/autofix
+          merge-multiple: true
+
+      - name: Look for patches
+        id: patches
+        run: |
+          shopt -s nullglob
+          patches=("$RUNNER_TEMP"/autofix/*.patch)
+          if [ ${#patches[@]} -eq 0 ]; then
+            echo 'Nothing to push: no part of verification changed the checkout.'
+            echo 'found=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'found=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/create-github-app-token@v3
+        if: steps.patches.outputs.found == 'true'
+        id: app-token
+        with:
+          app-id: ${{ secrets.MERGE_QUEUE_APP_ID }}
+          private-key: ${{ secrets.MERGE_QUEUE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      # The same head the parts checked out, so that every patch applies to the
+      # tree it was made from. The token is kept out of .git/config and handed
+      # to the one command that needs it.
+      - uses: actions/checkout@v7
+        if: steps.patches.outputs.found == 'true'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      # The parts ran apart from one another, so two of them could in principle
+      # have changed the same lines. They do not in practice, since the lint
+      # pass writes sources and the test runs write paintings, and a patch that
+      # will not apply stops the push rather than being pushed half-applied.
+      #
+      # A head that is already this job's own commit and still needed fixing
+      # is a fix that does not settle, and pushing again would only start the
+      # same run again, so that is where it stops and a person looks.
+      #
+      # The push is to the branch by name and never forced. If the author
+      # pushed while this ran, their commit wins, and the run their push
+      # started has fixes of its own to make.
+      - name: Push the fixes to the pull request
+        if: steps.patches.outputs.found == 'true'
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          author="$APP_SLUG[bot]"
+          if [ "$(git log -1 --format=%an)" = "$author" ]; then
+            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/verify and commit what it changes."
+            exit 1
+          fi
+
+          git config user.name "$author"
+          git config user.email "$author@users.noreply.github.com"
+          for patch in "$RUNNER_TEMP"/autofix/*.patch; do
+            git apply --index "$patch"
+          done
+          git commit --quiet --message 'style: apply the fixes from ./scripts/verify'
+          git show --stat HEAD
+
+          git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
 
   # The merge queue's decision logic is JavaScript rather than Rust, so
   # ./scripts/verify's three parts do not compile it and cargo nextest does not

@@ -103,7 +103,7 @@ the tree is built.
 
 A host sends `Event::Focus(false)` when its window or editor region loses focus. Text and paste arrive through `Event::Text`. Copy and cut return text in `FrameOutput::copied_text`; the host writes this to its clipboard. Both the desktop runner and the block editor integration handle these outputs. Clipboard access for other custom hosts belongs to their platform integration.
 
-Keyboard regression tests run without a window. Run `cargo test -p beui --lib --no-default-features` for the control and document tests, and `./scripts/verify` for the required workspace verification.
+Keyboard regression tests run without a window. `cargo test -p beui --lib --no-default-features` runs the control and document tests, and `./scripts/verify` runs the whole workspace's.
 
 ## Touch behavior
 

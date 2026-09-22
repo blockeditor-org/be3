@@ -17,6 +17,11 @@
 # question asked of it afterwards is where the time went. Every step says what
 # it is doing and what it cost either way.
 #
+# --ci is the loud half of --check without the read-only half: every tool
+# writes its fixes and the tests accept what they paint, but the output is the
+# one CI keeps. A pull request's run is this, so that what the fixes changed can
+# be pushed back to its branch rather than left for its author to go and find.
+#
 # The work splits into three parts that need nothing from one another: the lint
 # pass, the native test run, and the plugin tests that run in wasm. Naming one
 # or more of them runs only those, which is how CI gets them onto three runners
@@ -30,17 +35,23 @@
 #   ./scripts/verify --check --lint
 #   ./scripts/verify --check --tests
 #   ./scripts/verify --check --plugin-tests
+#   ./scripts/verify --ci --lint
 
 set -uo pipefail
 
 check=false
+ci=false
 lint=false
 tests=false
 plugin_tests=false
 selected=false
 for argument in "$@"; do
     case "$argument" in
-        --check) check=true ;;
+        --check)
+            check=true
+            ci=true
+            ;;
+        --ci) ci=true ;;
         --full) export BE3_FULL=1 ;;
         --lint)
             lint=true
@@ -56,7 +67,7 @@ for argument in "$@"; do
             ;;
         *)
             echo "Unknown argument: $argument" >&2
-            echo 'Usage: ./scripts/verify [--check] [--full] [--lint] [--tests] [--plugin-tests]' >&2
+            echo 'Usage: ./scripts/verify [--check] [--ci] [--full] [--lint] [--tests] [--plugin-tests]' >&2
             exit 1
             ;;
     esac
@@ -78,6 +89,15 @@ native_selection
 native=("${selection[@]}")
 
 failed=false
+
+quiet=(--quiet)
+nextest_quiet=(--cargo-quiet --show-progress=none)
+nextest_profile=()
+if $ci; then
+    quiet=()
+    nextest_quiet=()
+    nextest_profile=(--profile ci)
+fi
 
 # block-app links libghostty-vt, the terminal emulator behind the debug
 # terminal window. It is Zig rather than Rust, so nothing cargo does builds it,
@@ -111,7 +131,7 @@ if $lint; then
     if $check; then
         t 'crates/fix-rust-source' cargo run -p fix-rust-source -- --check
     else
-        t 'crates/fix-rust-source' cargo run --quiet -p fix-rust-source
+        t 'crates/fix-rust-source' cargo run "${quiet[@]}" -p fix-rust-source
     fi
 
     # Tests and examples are linted too, so a warning cannot hide in them. The
@@ -128,13 +148,13 @@ if $lint; then
     else
         # Fix mode forces every target to be checked even when nothing changed,
         # so only pay for it when the cacheable check finds something it can fix.
-        if ! run_step 'cargo clippy' cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings; then
+        if ! run_step 'cargo clippy' cargo clippy "${quiet[@]}" "${clippy_targets[@]}" -- -D warnings; then
             # The tree is expected to be mid-change; fixing only a pristine
             # checkout would make the script useless during development.
-            t 'applying clippy fixes' cargo clippy --quiet --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
+            t 'applying clippy fixes' cargo clippy "${quiet[@]}" --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
             # cargo clippy --fix caps lints while applying suggestions, so run
             # clippy again to make any warnings that remain fail verification.
-            t 'cargo clippy' cargo clippy --quiet "${clippy_targets[@]}" -- -D warnings
+            t 'cargo clippy' cargo clippy "${quiet[@]}" "${clippy_targets[@]}" -- -D warnings
         fi
     fi
 fi
@@ -160,7 +180,7 @@ if $tests; then
     else
         # A changed painting is not a failure to fix here: the accepted files
         # are rewritten, and it is the diff a person reviews.
-        t 'cargo nextest run' env UPDATE_SNAPSHOTS=1 cargo nextest run --cargo-quiet --show-progress=none "${native[@]}"
+        t 'cargo nextest run' env UPDATE_SNAPSHOTS=1 cargo nextest run "${nextest_profile[@]}" "${nextest_quiet[@]}" "${native[@]}"
     fi
 fi
 
@@ -177,7 +197,7 @@ if $plugin_tests; then
     if $check; then
         t 'plugin tests' "$internal/test-plugins.sh" --check "${alone[@]}" --profile ci
     else
-        t 'plugin tests' "$internal/test-plugins.sh" "${alone[@]}" --cargo-quiet --show-progress=none
+        t 'plugin tests' "$internal/test-plugins.sh" "${alone[@]}" "${nextest_profile[@]}" "${nextest_quiet[@]}"
     fi
 fi
 

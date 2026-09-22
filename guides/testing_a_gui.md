@@ -114,9 +114,10 @@ frames that say something: every frame is compared, so a frame nobody looks at i
 way for the test to fail.
 
 - ./scripts/verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
-  a new or changed painting is written into snapshots/ rather than failing the run. Commit
-  those files with the change that caused them. CI runs ./scripts/verify --check, which sets
-  nothing, so a painting that was never committed fails there.
+  a new or changed painting is written into snapshots/ rather than failing the run. On a pull
+  request CI does the same, and when that writes a painting it fails the run and pushes the
+  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/verify --check, which sets nothing,
+  so a painting that was never committed fails there.
 - A changed painting is for a person to review, not for you. They review it in a Paint
   review block, which reads the folder from the repository's dev branch, so a painting is
   reviewed once it has been pushed rather than from the machine that made it. Approving is
@@ -155,7 +156,7 @@ directory's name, a uuid, the time.
 
 5. Running them
 
-Run ./scripts/verify. It prepares the non-Cargo prerequisites, builds the complete workspace,
+./scripts/verify runs them. It prepares the non-Cargo prerequisites, builds the complete workspace,
 and then runs every plugin's tests through scripts/internal/test-plugins.sh. Do not build or
 test an editor package for the host by itself: block-app turns on the windowing features
 eframe needs, and Cargo only unifies those across a whole-workspace build. The workspace run

@@ -1289,9 +1289,9 @@ From the workspace root, use:
 ./scripts/verify
 ```
 
-`./scripts/check` is the fast complete-workspace compile check. Always finish a
-coherent change with `./scripts/verify`; it runs the workspace tests, lints,
-formatting, project structure checks, snapshot updates, and the formatter for
+`./scripts/check` is the fast complete-workspace compile check. `./scripts/verify`
+is the full check, and CI runs it on a pull request and pushes whatever it changes to
+the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
 failure. Run `./scripts/run --smoke` as well when a change can affect native
