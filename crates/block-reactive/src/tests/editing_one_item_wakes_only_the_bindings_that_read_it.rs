@@ -3,23 +3,25 @@ use super::*;
 #[test]
 fn editing_one_item_wakes_only_the_bindings_that_read_it() {
     let client = client();
-    let block = client.create_block(Checklist::default());
-    for text in ["write", "review", "ship"] {
-        block.operate(ChecklistOperation::add(text));
+    let block = client.create_block(Calendar::default());
+    for title in ["write", "review", "ship"] {
+        block.operate(CalendarOperation::AddEvent {
+            event: CalendarEvent::new(title.to_owned(), 0, 60),
+        });
     }
     let ids: Vec<Uuid> = block
         .read()
         .unwrap()
-        .items()
+        .events()
         .iter()
-        .map(|item| item.id)
+        .map(|event| event.id)
         .collect();
 
     let source = BlockSource::new(block.clone(), || {});
-    let items = source.project_keyed(|checklist, items| {
-        items.reconcile(checklist.items().iter().map(|item| (item.id, item)));
+    let items = source.project_keyed(|calendar, items| {
+        items.reconcile(calendar.events().iter().map(|event| (event.id, event)));
     });
-    let done = source.project(Checklist::done_count);
+    let done = source.project(|calendar: &Calendar| calendar.events().len());
 
     let scope = Scope::new();
     let runs: Vec<Rc<Cell<usize>>> = ids.iter().map(|_| Rc::new(Cell::new(0))).collect();
@@ -44,10 +46,9 @@ fn editing_one_item_wakes_only_the_bindings_that_read_it() {
     }
     done_runs.set(0);
 
-    block.operate(ChecklistOperation::SetText {
-        id: ids[1],
-        text: "review again".to_owned(),
-    });
+    let mut renamed = block.read().unwrap().event(ids[1]).unwrap().clone();
+    renamed.title = "review again".to_owned();
+    block.operate(CalendarOperation::UpdateEvent { event: renamed });
     source.pump();
 
     assert_eq!(

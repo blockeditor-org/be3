@@ -9,6 +9,10 @@ fn an_unmigrated_block_type_has_no_content_in_the_new_stack() {
         Some(CounterContent::CONTENT_TYPE)
     );
     assert_eq!(
+        content_type_for(block_client::blocks::checklist::Checklist::TYPE_ID),
+        Some(ChecklistContent::CONTENT_TYPE)
+    );
+    assert_eq!(
         content_type_for(block_client::blocks::text::TextDocument::TYPE_ID),
         None
     );

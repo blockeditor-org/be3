@@ -2,27 +2,25 @@ use super::*;
 
 #[test]
 fn filtering_to_open_hides_the_items_that_are_done() {
-    let (mut editor, block) = editor(&[("buy milk", false), ("call the vet", false)]);
-    let second = id(&block, 1);
+    let mut checklist = Harness::new(&[("buy milk", false), ("call the vet", false)]);
+    let second = checklist.id(1);
 
-    editor.click(&format!("checklist.item.{second}.done"));
-    editor.run();
-    editor.click("checklist.filter.open");
-    editor.run();
+    checklist.click(&format!("checklist.item.{second}.done"));
+    checklist.click("checklist.filter.open");
 
     assert_eq!(
-        items(&block),
+        checklist.items(),
         [
             ("buy milk".to_owned(), false),
             ("call the vet".to_owned(), true)
         ]
     );
     assert_eq!(
-        editor
+        checklist
             .document()
             .find_test_id(&format!("checklist.item.{second}.done")),
         None,
         "the filtered out item must not leave its test id behind"
     );
-    editor.snapshot("filtering_to_open_hides_the_items_that_are_done");
+    checklist.snapshot("filtering_to_open_hides_the_items_that_are_done");
 }

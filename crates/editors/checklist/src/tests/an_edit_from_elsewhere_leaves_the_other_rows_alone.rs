@@ -1,36 +1,34 @@
 use super::*;
 
 #[test]
-fn editing_one_item_leaves_the_other_rows_alone() {
-    let (mut editor, block) = editor(&[("buy milk", false), ("call the vet", false)]);
-    let (first, second) = (id(&block, 0), id(&block, 1));
-    editor.run();
+fn an_edit_from_elsewhere_leaves_the_other_rows_alone() {
+    let mut checklist = Harness::new(&[("buy milk", false), ("call the vet", false)]);
+    let (first, second) = (checklist.id(0), checklist.id(1));
 
-    let rows = |editor: &mut BeuiTest<ChecklistApp>| {
+    let rows = |checklist: &mut Harness| {
         [first, second].map(|item| {
-            editor
+            checklist
                 .document()
                 .find_test_id(&format!("checklist.item.{item}.done"))
                 .expect("a checklist row was never drawn")
         })
     };
-    let before = rows(&mut editor);
+    let before = rows(&mut checklist);
 
-    block.operate(ChecklistOperation::SetText {
+    checklist.arrive(ChecklistOp::SetText {
         id: second,
         text: "call the vet back".to_owned(),
     });
-    editor.run();
 
     assert_eq!(
-        items(&block),
+        checklist.items(),
         [
             ("buy milk".to_owned(), false),
             ("call the vet back".to_owned(), false)
         ]
     );
     assert_eq!(
-        rows(&mut editor),
+        rows(&mut checklist),
         before,
         "editing one item must not rebuild any row"
     );
