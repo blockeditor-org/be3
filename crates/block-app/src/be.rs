@@ -19,7 +19,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use worker::Shared;
+pub(crate) use worker::{History, Shared};
 
 use worker::Command;
 
@@ -92,11 +92,26 @@ where
     }
 }
 
+const fn migrated_with_history<B, C>() -> Migrated
+where
+    B: Block,
+    C: be_block::Undo + be_block::Merge + Clone + Default,
+{
+    Migrated {
+        block_type: B::TYPE_ID,
+        content_type: C::CONTENT_TYPE,
+        join: worker::join_with_history::<C>,
+        copy: worker::copy::<C>,
+        name: content_name::<C>,
+    }
+}
+
 fn content_name<C: be_block::BlockContent>(bytes: &[u8]) -> Option<String> {
     C::decode(bytes).ok()?.name()
 }
 
 const MIGRATED: &[Migrated] = &[
+    migrated_with_history::<block_client::blocks::calendar::Calendar, be_block::CalendarContent>(),
     migrated::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(),
     migrated::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
@@ -223,6 +238,20 @@ pub(crate) fn hold(block: Uuid, block_type: Uuid) {
 
 pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
     send(Command::Operate(block, operation));
+}
+
+pub(crate) fn history(block: Uuid) -> History {
+    with_shared(|shared| shared.histories.get(&block).copied())
+        .flatten()
+        .unwrap_or_default()
+}
+
+pub(crate) fn undo(block: Uuid) {
+    send(Command::History { block, redo: false });
+}
+
+pub(crate) fn redo(block: Uuid) {
+    send(Command::History { block, redo: true });
 }
 
 pub(crate) fn duplicate(from: Uuid, to: Uuid, block_type: Uuid) {

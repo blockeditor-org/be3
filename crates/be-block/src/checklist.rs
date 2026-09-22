@@ -1,10 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
-
-use be_commit::{MergeResult, merge_slices};
+use be_commit::MergeResult;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockContent, ContentError, LiveEdit, Merge};
+use crate::{
+    BlockContent, ContentError, LiveEdit, Merge,
+    keyed::{merge_keyed, pick},
+};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ChecklistContent {
@@ -95,112 +96,23 @@ impl LiveEdit for ChecklistContent {
 
 impl Merge for ChecklistContent {
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
-        let base_items = by_id(base);
-        let ours_items = by_id(ours);
-        let theirs_items = by_id(theirs);
-        let mut conflicts = 0;
-        let mut kept = BTreeMap::new();
-        let ids: BTreeSet<Uuid> = base_items
-            .keys()
-            .chain(ours_items.keys())
-            .chain(theirs_items.keys())
-            .copied()
-            .collect();
-        for id in ids {
-            let resolved = merge_item(
-                base_items.get(&id).copied(),
-                ours_items.get(&id).copied(),
-                theirs_items.get(&id).copied(),
-                &mut conflicts,
-            );
-            if let Some(item) = resolved {
-                kept.insert(id, item);
-            }
-        }
-
-        let order = merge_order(base, ours, theirs);
-        let mut items = Vec::with_capacity(kept.len());
-        for id in order {
-            if let Some(item) = kept.remove(&id) {
-                items.push(item);
-            }
-        }
-        items.extend(kept.into_values());
-
-        let merged = Self { items };
-        match conflicts {
-            0 => MergeResult::Clean(merged),
-            conflicts => MergeResult::Conflicted {
-                value: merged,
+        let merged = merge_keyed(
+            &base.items,
+            &ours.items,
+            &theirs.items,
+            |item| item.id,
+            |base, ours, theirs, conflicts| ChecklistItem {
+                id: base.id,
+                text: pick(&base.text, &ours.text, &theirs.text, conflicts),
+                done: pick(&base.done, &ours.done, &theirs.done, conflicts),
+            },
+        );
+        match merged {
+            MergeResult::Clean(items) => MergeResult::Clean(Self { items }),
+            MergeResult::Conflicted { value, conflicts } => MergeResult::Conflicted {
+                value: Self { items: value },
                 conflicts,
             },
         }
-    }
-}
-
-fn by_id(checklist: &ChecklistContent) -> BTreeMap<Uuid, &ChecklistItem> {
-    checklist.items.iter().map(|item| (item.id, item)).collect()
-}
-
-fn ids(checklist: &ChecklistContent) -> Vec<Uuid> {
-    checklist.items.iter().map(|item| item.id).collect()
-}
-
-fn merge_order(
-    base: &ChecklistContent,
-    ours: &ChecklistContent,
-    theirs: &ChecklistContent,
-) -> Vec<Uuid> {
-    let outcome = merge_slices(&ids(base), &ids(ours), &ids(theirs));
-    let mut order = outcome.merged;
-    for conflict in outcome.conflicts.iter().rev() {
-        let after_ours = conflict.at + conflict.ours.len();
-        let only_theirs = conflict
-            .theirs
-            .iter()
-            .filter(|id| !conflict.ours.contains(id))
-            .copied();
-        order.splice(after_ours..after_ours, only_theirs);
-    }
-    order
-}
-
-fn merge_item(
-    base: Option<&ChecklistItem>,
-    ours: Option<&ChecklistItem>,
-    theirs: Option<&ChecklistItem>,
-    conflicts: &mut usize,
-) -> Option<ChecklistItem> {
-    if ours == base {
-        return theirs.cloned();
-    }
-    if theirs == base || theirs == ours {
-        return ours.cloned();
-    }
-    match (base, ours, theirs) {
-        (Some(base), Some(ours), Some(theirs)) => Some(ChecklistItem {
-            id: base.id,
-            text: pick(&base.text, &ours.text, &theirs.text, conflicts).clone(),
-            done: *pick(&base.done, &ours.done, &theirs.done, conflicts),
-        }),
-        (_, Some(ours), _) => {
-            *conflicts += 1;
-            Some(ours.clone())
-        }
-        (_, None, theirs) => {
-            *conflicts += 1;
-            theirs.cloned()
-        }
-    }
-}
-
-fn pick<'a, T: PartialEq>(base: &'a T, ours: &'a T, theirs: &'a T, conflicts: &mut usize) -> &'a T {
-    if ours == base {
-        theirs
-    } else if theirs == base || theirs == ours {
-        ours
-    } else {
-        *conflicts += 1;
-        ours
     }
 }

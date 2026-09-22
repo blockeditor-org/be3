@@ -1996,6 +1996,9 @@ impl BlockApp {
                 let name = self.block_label(id).name;
                 self.rename = Some(RenameState { id, name });
             }
+            BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
+            BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
+            BlockCommand::Undo | BlockCommand::Redo => {}
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }

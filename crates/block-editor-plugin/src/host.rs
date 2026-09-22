@@ -56,6 +56,12 @@ pub struct ShowRequest {
     pub from: Option<Uuid>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BlockHistory {
+    pub can_undo: bool,
+    pub can_redo: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArtifactState {
     pub block_id: Uuid,
@@ -532,6 +538,10 @@ pub struct EditorHost {
     watched_artifacts: Rc<RefCell<Vec<Uuid>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_artifacts: Rc<RefCell<Option<Vec<Uuid>>>>,
+    histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
+    watched_history: Rc<RefCell<Vec<Uuid>>>,
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
@@ -664,6 +674,48 @@ impl EditorHost {
         Some(blocks)
     }
 
+    pub fn watch_history(&self, blocks: impl IntoIterator<Item = Uuid>) {
+        let mut blocks: Vec<Uuid> = blocks.into_iter().collect();
+        blocks.sort();
+        blocks.dedup();
+        *self.watched_history.borrow_mut() = blocks;
+    }
+
+    pub fn history(&self, block_id: Uuid) -> BlockHistory {
+        self.histories
+            .borrow()
+            .get(&block_id)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_history_watch(&self) -> Option<Vec<Uuid>> {
+        let blocks = self.watched_history.borrow().clone();
+        let mut reported = self.reported_history.borrow_mut();
+        if reported.as_ref() == Some(&blocks) {
+            return None;
+        }
+        *reported = Some(blocks.clone());
+        Some(blocks)
+    }
+
+    pub fn set_histories(&self, states: impl IntoIterator<Item = (Uuid, BlockHistory)>) {
+        *self.histories.borrow_mut() = states.into_iter().collect();
+    }
+
+    pub fn undo(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Undo));
+    }
+
+    pub fn redo(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Redo));
+    }
+
     pub fn set_artifacts(&self, states: Vec<ArtifactState>) {
         *self.artifacts.borrow_mut() = states
             .into_iter()
@@ -783,8 +835,7 @@ impl EditorHost {
         ));
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
+    pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
         std::mem::take(&mut self.block_commands.borrow_mut())
     }
 

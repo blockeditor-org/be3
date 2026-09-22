@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::calendar::{Calendar, CalendarEvent, CalendarOperation};
+use block_editor_plugin::be_block::{CalendarContent, CalendarEvent, CalendarOp};
 use block_editor_plugin::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
@@ -28,7 +28,7 @@ const FORM_WIDTH: f32 = 420.0;
 
 #[component]
 pub fn CalendarEditor(editor: Editor) -> NodeId {
-    let calendar = editor.block::<Calendar>();
+    let calendar = editor.block_content::<CalendarContent>();
     let events = calendar.project(|calendar| {
         let mut events = calendar.events().to_vec();
         events.sort_by_key(|event| event.start);
@@ -72,7 +72,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let operate = {
         let calendar = Rc::clone(&calendar);
         let editable = editable.clone();
-        move |operation: CalendarOperation| {
+        move |operation: CalendarOp| {
             if editable.get_untracked() {
                 calendar.operate(operation);
             }
@@ -208,7 +208,7 @@ fn EventDialog(
     form: block_editor_plugin::beui::reactive::ReadSignal<Option<EventForm>>,
     set_form: WriteSignal<Option<EventForm>>,
     read_only: block_editor_plugin::beui::reactive::Memo<bool>,
-    on_operate: block_editor_plugin::beui::reactive::Callback<CalendarOperation>,
+    on_operate: block_editor_plugin::beui::reactive::Callback<CalendarOp>,
 ) -> NodeId {
     let open = create_memo(clone!(form -> move || form.get().is_some()));
     let title = create_memo(clone!(form -> move || {
@@ -267,15 +267,15 @@ fn EventDialog(
         };
         let event = shown.event();
         let operation = match shown.editing_id.is_some() {
-            true => CalendarOperation::UpdateEvent { event },
-            false => CalendarOperation::AddEvent { event },
+            true => CalendarOp::UpdateEvent { event },
+            false => CalendarOp::AddEvent { event },
         };
         on_operate.call(operation);
         set_form.set(None);
     });
     let delete = clone!(form set_form on_operate -> move || {
         if let Some(id) = form.get_untracked().and_then(|form| form.editing_id) {
-            on_operate.call(CalendarOperation::RemoveEvent { id });
+            on_operate.call(CalendarOp::RemoveEvent { id });
         }
         set_form.set(None);
     });

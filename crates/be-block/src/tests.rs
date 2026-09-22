@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
     browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem},
+    calendar::{CalendarContent, CalendarEvent, CalendarOp, CalendarStep},
     checklist::{ChecklistContent, ChecklistOp},
     counter::{CounterContent, CounterOp},
     image::{ImageContent, ImageHeader},
@@ -10,12 +11,15 @@ use crate::{
 
 mod a_browser_tab_is_named_after_its_page_and_refuses_a_bad_index;
 mod a_browser_tab_push_discards_forward_history;
+mod a_burst_of_edits_to_one_event_undoes_as_one_step;
+mod a_calendar_undo_keeps_what_someone_else_changed_since;
 mod a_checklist_ignores_a_second_add_of_one_item;
 mod a_checklist_round_trips_through_its_bytes;
 mod a_counter_reset_wins_over_the_adds_before_it;
 mod a_counter_round_trips_through_its_bytes;
 mod an_image_merges_only_when_one_side_changed_it;
 mod browser_tabs_navigated_on_both_sides_conflict;
+mod calendars_merge_each_event_field_by_field;
 mod streamed_content_separates_its_header_from_its_payload;
 mod text_merges_line_by_line_and_marks_real_conflicts;
 mod text_operations_rebase_onto_concurrent_edits;
@@ -67,4 +71,16 @@ fn texts(checklist: &ChecklistContent) -> Vec<(&str, bool)> {
         .iter()
         .map(|item| (item.text.as_str(), item.done))
         .collect()
+}
+
+fn meeting() -> CalendarEvent {
+    CalendarEvent::new("Standup".to_owned(), 540, 555)
+}
+
+fn scheduled(event: &CalendarEvent) -> CalendarContent {
+    let mut calendar = CalendarContent::default();
+    calendar.apply(&CalendarOp::AddEvent {
+        event: event.clone(),
+    });
+    calendar
 }

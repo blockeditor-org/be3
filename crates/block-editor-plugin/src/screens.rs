@@ -258,6 +258,11 @@ impl Screens {
                     );
                 }
             }
+            Message::Editor(EditorMessage::HistoryStates { instance, states }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.set_histories(states);
+                }
+            }
             Message::Editor(EditorMessage::ArtifactStates { instance, states }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_artifacts(

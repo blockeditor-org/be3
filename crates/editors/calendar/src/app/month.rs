@@ -1,4 +1,4 @@
-use block_client::blocks::calendar::CalendarEvent;
+use block_editor_plugin::be_block::CalendarEvent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::TextAlign;
 use block_editor_plugin::beui::reactive::{

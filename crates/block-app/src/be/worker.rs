@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_block::{BlockContent, LiveEdit, Merge};
+use be_block::{BlockContent, LiveEdit, Merge, Undo};
 use be_client::{ClientError, Credentials, Live, Peer, PeerConfig, Saved};
 use be_graph::BlockParent;
 use be_store::ContentKey;
@@ -16,6 +16,8 @@ use super::{Config, Content, platform};
 
 const SEAL_INTERVAL: Duration = Duration::from_millis(750);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
+const EDIT_BURST: Duration = Duration::from_millis(750);
+const HISTORY_STEPS: usize = 200;
 
 pub(super) enum Command {
     Open(Uuid, Uuid),
@@ -27,11 +29,16 @@ pub(super) enum Command {
         content_type: Uuid,
     },
     Flush(std::sync::mpsc::Sender<()>),
+    History {
+        block: Uuid,
+        redo: bool,
+    },
 }
 
 #[derive(Default)]
 pub(crate) struct Shared {
     pub(crate) blocks: HashMap<Uuid, Content>,
+    pub(crate) histories: HashMap<Uuid, History>,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
     pub(crate) connected: bool,
@@ -89,6 +96,146 @@ pub(super) trait Session {
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
+    fn history(&self) -> History {
+        History::default()
+    }
+
+    fn step_history(&mut self, redo: bool) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        let _ = redo;
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct History {
+    pub(crate) can_undo: bool,
+    pub(crate) can_redo: bool,
+}
+
+pub(super) fn join_with_history<C>(
+    peer: &Arc<Peer<Store>>,
+    block: Uuid,
+) -> LocalBoxFuture<'_, Result<Box<dyn Session>, ClientError>>
+where
+    C: Undo + Merge + Clone + Default,
+{
+    Box::pin(async move {
+        peer.ensure::<C>(block, BlockParent::Root).await?;
+        let mut live = Live::<Store, C>::join(Arc::clone(peer), block).await?;
+        live.reconcile().await?;
+        Ok(Box::new(WithHistory {
+            live,
+            undo: Vec::new(),
+            redo: Vec::new(),
+        }) as Box<dyn Session>)
+    })
+}
+
+struct WithHistory<C: Undo> {
+    live: Live<Store, C>,
+    undo: Vec<(C::Step, Instant)>,
+    redo: Vec<C::Step>,
+}
+
+impl<C> Session for WithHistory<C>
+where
+    C: Undo + Merge + Clone + Default,
+{
+    fn content_type(&self) -> Uuid {
+        C::CONTENT_TYPE
+    }
+
+    fn bytes(&self) -> Vec<u8> {
+        Session::bytes(&self.live)
+    }
+
+    fn is_clean(&self) -> bool {
+        Session::is_clean(&self.live)
+    }
+
+    fn owes_seal(&self) -> bool {
+        Session::owes_seal(&self.live)
+    }
+
+    fn edit<'a>(&'a mut self, operation: &'a [u8]) -> LocalBoxFuture<'a, Result<(), ClientError>> {
+        Box::pin(async move {
+            let Ok(operation) = C::decode_operation(operation) else {
+                return Ok(());
+            };
+            if let Some(step) = self.live.content().step(&operation) {
+                self.record(step);
+            }
+            self.live.edit(operation).await
+        })
+    }
+
+    fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Session::poll(&mut self.live)
+    }
+
+    fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Session::seal(&mut self.live)
+    }
+
+    fn history(&self) -> History {
+        History {
+            can_undo: !self.undo.is_empty(),
+            can_redo: !self.redo.is_empty(),
+        }
+    }
+
+    fn step_history(&mut self, redo: bool) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move {
+            let (step, operations) = match redo {
+                false => {
+                    let Some((step, _)) = self.undo.pop() else {
+                        return Ok(());
+                    };
+                    let operations = self.live.content().revert(&step);
+                    (step, operations)
+                }
+                true => {
+                    let Some(step) = self.redo.pop() else {
+                        return Ok(());
+                    };
+                    let operations = self.live.content().reapply(&step);
+                    (step, operations)
+                }
+            };
+            match redo {
+                false => self.redo.push(step),
+                true => self.undo.push((step, Instant::now())),
+            }
+            for operation in operations {
+                self.live.edit(operation).await?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl<C: Undo> WithHistory<C> {
+    fn record(&mut self, step: C::Step) {
+        self.redo.clear();
+        let now = Instant::now();
+        let step = match self.undo.last_mut() {
+            Some((previous, at)) if now.duration_since(*at) <= EDIT_BURST => {
+                match C::absorb(previous, step) {
+                    Ok(()) => {
+                        *at = now;
+                        return;
+                    }
+                    Err(step) => step,
+                }
+            }
+            _ => step,
+        };
+        self.undo.push((step, now));
+        if self.undo.len() > HISTORY_STEPS {
+            self.undo.remove(0);
+        }
+    }
 }
 
 pub(super) fn join<C>(
@@ -349,7 +496,9 @@ async fn apply(
                 record(shared, error);
             }
             let _ = peer.leave_session(block).await;
-            shared.lock().unwrap().blocks.remove(&block);
+            let mut held = shared.lock().unwrap();
+            held.blocks.remove(&block);
+            held.histories.remove(&block);
             true
         }
         Command::Operate(block, operation) => {
@@ -371,6 +520,15 @@ async fn apply(
             };
             let shown = sessions.get(&from).map(|session| session.bytes());
             if let Err(error) = copy(peer, from, to, shown).await {
+                record(shared, error);
+            }
+            false
+        }
+        Command::History { block, redo } => {
+            let Some(session) = sessions.get_mut(&block) else {
+                return false;
+            };
+            if let Err(error) = session.step_history(redo).await {
                 record(shared, error);
             }
             false
@@ -400,6 +558,11 @@ fn publish(sessions: &HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared
         .count();
     let mut changed = false;
     for (block, session) in sessions {
+        let history = session.history();
+        if held.histories.get(block) != Some(&history) {
+            held.histories.insert(*block, history);
+            changed = true;
+        }
         let bytes = session.bytes();
         match held.blocks.get_mut(block) {
             Some(content) if content.bytes == bytes => {}

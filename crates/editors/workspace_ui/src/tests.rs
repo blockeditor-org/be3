@@ -17,6 +17,7 @@ mod a_shown_block_is_reported_as_focused;
 mod a_tab_walks_back_and_forward_through_its_history;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;
+mod undo_on_a_migrated_block_asks_the_host;
 
 const SETTLE_FRAMES: usize = 8;
 

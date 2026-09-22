@@ -2,7 +2,8 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use block_client::BlockClient;
-use block_client::blocks::calendar::{Calendar, CalendarEvent, CalendarOperation};
+use block_client::block_ref::BlockRef;
+use block_client::blocks::presentation::{Presentation, PresentationOperation, PresentationSlide};
 use reactive::{Scope, create_effect};
 use uuid::Uuid;
 
@@ -16,8 +17,12 @@ fn client() -> BlockClient {
     BlockClient::new(Uuid::new_v4(), Uuid::new_v4())
 }
 
-fn add_event(title: &str) -> CalendarOperation {
-    CalendarOperation::AddEvent {
-        event: CalendarEvent::new(title.to_owned(), 0, 60),
+fn add_slide(index: usize) -> PresentationOperation {
+    PresentationOperation::Insert {
+        slide: PresentationSlide {
+            id: Uuid::new_v4(),
+            block_id: BlockRef::Direct(Uuid::new_v4()),
+        },
+        index,
     }
 }

@@ -35,10 +35,10 @@ mod wasm;
 
 pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioStatus, BlockFilter, BlockPick, ChildId, ChildLayer,
-    ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorBand, EditorCapabilities,
-    EditorInstanceId, EditorRegion, FetchResult, HostReply, HostRequest, InteractionMode, Occluder,
-    ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
+    AccessLevel, ArtifactAction, AudioStatus, BlockCommand, BlockFilter, BlockPick, ChildId,
+    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorBand,
+    EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, HostReply, HostRequest,
+    InteractionMode, Occluder, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_ui;
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
@@ -50,10 +50,10 @@ pub use editor::{
 };
 pub use file_chooser::{FileChooser, file_creation};
 pub use host::{
-    Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
-    ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, HostContent,
-    ImagePaster, OpenRequest, PastedImage, PerformanceMeasurementGuard, PerformanceReporter,
-    PickedBlock, PickedFile, ShowRequest, Task, Waker,
+    Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
+    BlockSource, ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
+    HostContent, ImagePaster, OpenRequest, PastedImage, PerformanceMeasurementGuard,
+    PerformanceReporter, PickedBlock, PickedFile, ShowRequest, Task, Waker,
 };
 pub use related::RelatedBlock;
 

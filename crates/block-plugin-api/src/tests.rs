@@ -94,6 +94,7 @@ mod focus_messages_round_trip;
 mod frame_round_trips;
 mod frame_screens_and_reports_round_trip;
 mod grabbing_the_cursor_round_trips;
+mod history_messages_round_trip;
 mod ime_messages_round_trip;
 mod manifest_validation;
 mod multiplexed_messages_round_trip;

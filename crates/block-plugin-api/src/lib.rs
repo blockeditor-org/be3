@@ -664,6 +664,14 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         states: Vec<ArtifactState>,
     },
+    WatchHistory {
+        instance: EditorInstanceId,
+        blocks: Vec<[u8; 16]>,
+    },
+    HistoryStates {
+        instance: EditorInstanceId,
+        states: Vec<HistoryState>,
+    },
     Cursor {
         instance: EditorInstanceId,
         region: EditorRegion,
@@ -763,6 +771,8 @@ impl EditorMessage {
             | Self::ArtifactRegenerated { instance, .. }
             | Self::WatchArtifacts { instance, .. }
             | Self::ArtifactStates { instance, .. }
+            | Self::WatchHistory { instance, .. }
+            | Self::HistoryStates { instance, .. }
             | Self::Cursor { instance, .. }
             | Self::Ime { instance, .. }
             | Self::Presence { instance, .. }
@@ -881,10 +891,19 @@ pub struct ArtifactState {
     pub regenerating: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HistoryState {
+    pub block_id: [u8; 16],
+    pub can_undo: bool,
+    pub can_redo: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockCommand {
     Share,
     Rename,
+    Undo,
+    Redo,
     Artifact {
         action: ArtifactAction,
     },
@@ -1117,6 +1136,7 @@ impl EditorMessage {
             | Self::ArtifactSettings { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactStates { .. }
+            | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
             | Self::ChildView { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
@@ -1138,6 +1158,7 @@ impl EditorMessage {
             | Self::ArtifactEdited { .. }
             | Self::ArtifactRegenerated { .. }
             | Self::WatchArtifacts { .. }
+            | Self::WatchHistory { .. }
             | Self::Cursor { .. }
             | Self::Ime { .. }
             | Self::ChildReplaced { .. }
@@ -1746,7 +1767,9 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::Focused { via, .. } | EditorMessage::FocusChanged { via, .. } => {
             collection(via.len())
         }
-        EditorMessage::WatchArtifacts { blocks, .. } => collection(blocks.len()),
+        EditorMessage::WatchArtifacts { blocks, .. }
+        | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
+        EditorMessage::HistoryStates { states, .. } => collection(states.len()),
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
             for state in states {

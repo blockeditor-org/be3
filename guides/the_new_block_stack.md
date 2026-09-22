@@ -2,10 +2,10 @@
 
 The `be-*` crates are a replacement for `block`, `block-server` and
 `block-client`. They live beside the old stack rather than inside it: the old
-stack still runs the application, and four editors - the counter, the
-checklist, the browser tab and the UI settings - keep their content in the new
-one. Work on them
-by migrating one thing at a time, not by rewriting the app around them.
+stack still runs the application, and five editors - the counter, the
+checklist, the browser tab, the UI settings and the calendar - keep their
+content in the new one. Work on them by migrating one thing at a time, not by
+rewriting the app around them.
 
 If you are changing an existing editor or block type today, you want
 `guides/adding_a_block.md` and the `block` crate. This guide is for work on the
@@ -170,6 +170,13 @@ trait LiveEdit: BlockContent {          // optional: what a session carries
 trait Merge: BlockContent {             // required for offline editing
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self>;
 }
+trait Undo: LiveEdit {                  // optional: client-local undo
+    type Step;
+    fn step(&self, operation: &Self::Op) -> Option<Self::Step>;
+    fn absorb(previous: &mut Self::Step, next: Self::Step) -> Result<(), Self::Step>;
+    fn revert(&self, step: &Self::Step) -> Vec<Self::Op>;
+    fn reapply(&self, step: &Self::Step) -> Vec<Self::Op>;
+}
 trait Streamed: BlockContent {          // optional: header plus payload
     type Header;
     fn header(&self) -> Self::Header;
@@ -180,7 +187,11 @@ trait Streamed: BlockContent {          // optional: header plus payload
 
 History and child manipulation are gone from the trait. Undo is client-local and
 against a sequencer it emits an inverse operation rather than rewinding state;
-children are graph operations.
+children are graph operations. `Undo::step` is taken from the state before an
+operation, and `revert` and `reapply` turn a step into operations against the
+state as it is *now*, so an undo leaves alone whatever someone else changed
+since: the calendar undoes a rename without moving an event another peer
+rescheduled.
 
 `Streamed` types encode as `[u32 header length][header][payload]`, which is what
 lets a reader take the header and then a byte range. `ImageContent` and
@@ -317,6 +328,19 @@ in `sync_ui_settings` comes from the UI settings block's content. `be::hold`
 opens a block for the app and keeps it open when the last editor showing it
 closes, because `be::close` leaves a held block alone. Nothing releases a held
 block before the stack stops, which is when the workspace changes.
+
+Undo lives in the app's peer, not in an editor, because it is the one place that
+sees every edit to a block from this device, whichever editor made it. A content
+type that implements `Undo` is registered with `migrated_with_history`, and its
+session keeps an undo and a redo stack: every operation an editor sends records
+a step, a step that arrives within 750 ms of the last one may be absorbed into
+it, and `be::undo` and `be::redo` turn a step into operations the session
+applies like any other edit. Plugins reach it without knowing about the new
+stack: a plugin asks with `BlockCommand::Undo` and `BlockCommand::Redo`, and
+watches whether either is possible with `EditorMessage::WatchHistory`, which the
+host answers with `HistoryStates` whenever they change. The workspace falls back
+to that whenever the old block's handle has no history of its own, which is
+true of every migrated block.
 
 Four things are worth copying. A migrated editor's block type keeps its old
 entry in `block_types!` with no state in it, rather than disappearing: the graph

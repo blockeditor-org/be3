@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use block_client::blocks::calendar::CalendarEvent;
+use block_editor_plugin::be_block::CalendarEvent;
 pub(crate) use block_ui::datetime::SECONDS_PER_DAY;
 use block_ui::datetime::{DateTimeFields, MONTH_NAMES, civil_from_days, days_from_civil};
 use uuid::Uuid;

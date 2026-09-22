@@ -66,6 +66,8 @@ struct Instance {
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     reported_artifacts: Vec<block_plugin_api::ArtifactState>,
+    history_watch: Vec<Uuid>,
+    reported_history: Option<Vec<block_plugin_api::HistoryState>>,
     drag_accepted: bool,
     intrinsic: Option<egui::Vec2>,
     aspect_ratio: Option<f32>,
@@ -152,6 +154,8 @@ impl Instance {
             focus_reports: Vec::new(),
             artifact_watch: None,
             reported_artifacts: Vec::new(),
+            history_watch: Vec::new(),
+            reported_history: None,
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
@@ -215,6 +219,32 @@ impl Instance {
 }
 
 impl Instance {
+    fn history_message(&mut self, instance: EditorInstanceId) -> Option<Message> {
+        if self.history_watch.is_empty() && self.reported_history.is_none() {
+            return None;
+        }
+        let states: Vec<_> = self
+            .history_watch
+            .iter()
+            .map(|block| {
+                let history = crate::be::history(*block);
+                block_plugin_api::HistoryState {
+                    block_id: block.into_bytes(),
+                    can_undo: history.can_undo,
+                    can_redo: history.can_redo,
+                }
+            })
+            .collect();
+        if self.reported_history.as_ref() == Some(&states) {
+            return None;
+        }
+        self.reported_history = Some(states.clone());
+        Some(Message::Editor(EditorMessage::HistoryStates {
+            instance,
+            states,
+        }))
+    }
+
     fn name_from_content(&mut self, client: &BlockClient) {
         let Some(block) = self.role.block() else {
             return;
@@ -787,6 +817,9 @@ impl Instances {
                 opened.push(message);
             }
             entry.name_from_content(client);
+            if let Some(message) = entry.history_message(instance) {
+                opened.push(message);
+            }
             if entry.reported_focus.as_ref() != Some(&focus) {
                 entry.reported_focus = Some(focus.clone());
                 let (block_id, block_type) = match focus.block {
@@ -1710,6 +1743,13 @@ impl Instances {
                         .map(|block_id| (Uuid::from_bytes(block_id), Uuid::from_bytes(block_type))),
                     via: via.into_iter().map(Uuid::from_bytes).collect(),
                 });
+                true
+            }
+            EditorMessage::WatchHistory { instance, blocks } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.history_watch = blocks.into_iter().map(Uuid::from_bytes).collect();
                 true
             }
             EditorMessage::WatchArtifacts { instance, blocks } => {
