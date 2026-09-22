@@ -1,5 +1,5 @@
-const SECONDS_PER_DAY: i64 = 86_400;
-const MONTH_NAMES: [&str; 12] = [
+pub const SECONDS_PER_DAY: i64 = 86_400;
+pub const MONTH_NAMES: [&str; 12] = [
     "January",
     "February",
     "March",
@@ -168,3 +168,6 @@ pub fn civil_from_days(days_since_epoch: i64) -> (i32, u8, u8) {
     year += i32::from(month <= 2);
     (year, month as u8, day as u8)
 }
+
+#[cfg(test)]
+mod tests;

@@ -14,8 +14,9 @@ use block_editor_plugin::beui::styled::{
     TextInput, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, Vec2};
+use block_editor_plugin::block_ui::datetime::format_datetime_utc;
 
-use super::{format_commit_time, short_author};
+use super::short_author;
 
 const PADDING: f32 = 20.0;
 const SECTION_SPACING: f32 = 16.0;
@@ -294,7 +295,7 @@ fn CommitEntry(row: Memo<Option<CommitRow>>) -> NodeId {
     let time = create_memo(clone!(row -> move || {
         row.with(|row| {
             row.as_ref()
-                .map_or_else(String::new, |row| format_commit_time(row.commit.time))
+                .map_or_else(String::new, |row| format_datetime_utc(row.commit.time))
         })
     }));
     let theme = use_theme();

@@ -3,11 +3,11 @@ use std::time::Duration;
 use block_client::blocks::audio::Audio;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile};
+use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, file_creation};
 
 mod ui;
 
-use ui::{AudioCreation, AudioView};
+use ui::AudioView;
 
 const INTRINSIC_SIZE: Vec2 = Vec2::new(320.0, 180.0);
 
@@ -21,9 +21,7 @@ impl block_editor_plugin::BeuiApp for AudioApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        view! {
-            <AudioCreation creation={creation} />
-        }
+        file_creation(&creation, "audio", filter(), decode)
     }
 
     fn intrinsic_size() -> Option<Vec2> {
@@ -41,15 +39,12 @@ fn format_duration(duration: Duration) -> String {
 }
 
 pub(crate) fn filter() -> FileFilter {
-    FileFilter {
-        name: "Audio".to_owned(),
-        default_file_name: "Audio".to_owned(),
-        extensions: ["mp3", "wav", "ogg", "oga", "flac", "m4a"]
-            .iter()
-            .map(|extension| (*extension).to_owned())
-            .collect(),
-        mime_types: vec!["audio/*".to_owned()],
-    }
+    FileFilter::new(
+        "Audio",
+        "Audio",
+        &["mp3", "wav", "ogg", "oga", "flac", "m4a"],
+        &["audio/*"],
+    )
 }
 
 pub(crate) fn guess_media_type(source_name: &str) -> &'static str {

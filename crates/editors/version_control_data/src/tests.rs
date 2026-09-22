@@ -6,10 +6,9 @@ use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::{VersionControlDataApp, format_commit_time, short_author};
+use crate::app::{VersionControlDataApp, short_author};
 
 mod creating_a_branch_points_it_at_the_selected_head;
-mod format_commit_time_formats_readable_utc_string;
 mod selecting_a_branch_shows_its_history;
 mod short_author_truncates_uuid_to_short_id_len;
 mod short_commit_id_truncates_to_short_id_len;

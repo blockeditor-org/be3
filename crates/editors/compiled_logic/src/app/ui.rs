@@ -12,8 +12,6 @@ use block_editor_plugin::{BlockLink, ChildTarget, Editor};
 use logicgame::grid::{ComponentPort, ConnectionDirection};
 use uuid::Uuid;
 
-use super::format_instruction;
-
 const PADDING: f32 = 20.0;
 const SECTION_SPACING: f32 = 16.0;
 const INTRINSIC_WIDTH: f32 = 640.0;
@@ -44,7 +42,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
             .instructions
             .iter()
             .enumerate()
-            .map(|(index, instruction)| format!("{index:>4}  {}", format_instruction(instruction)))
+            .map(|(index, instruction)| format!("{index:>4}  {instruction}"))
             .collect()
     });
     let no_calls = create_memo(clone!(calls -> move || calls.with(Vec::is_empty)));
