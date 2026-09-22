@@ -9,8 +9,7 @@ use block_editor_plugin::{
     block_ui::{EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT},
 };
 
-use crate::layout::EmbedLayout;
-
+use super::embeds::ResolvedEmbed;
 use super::state::{FocusedEmbed, Shared};
 
 const TITLE_SPACING: f32 = 6.0;
@@ -21,7 +20,7 @@ const TITLE_FONT_SIZE: f32 = 16.0;
 const UNAVAILABLE_FONT_SIZE: f32 = 13.0;
 
 #[component]
-pub(crate) fn LargeEmbed(state: Shared, embed: EmbedLayout) -> NodeId {
+pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
     let theme = use_theme();
     let key = FocusedEmbed {
         id: embed.id,

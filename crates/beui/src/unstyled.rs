@@ -15,6 +15,7 @@ mod scrollbar;
 mod select;
 mod slider;
 mod stack;
+mod text_area;
 mod text_input;
 mod toggle;
 mod tooltip;
@@ -48,6 +49,10 @@ pub use select::{
 };
 pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
 pub use stack::Stack;
+pub use text_area::{
+    RemoteTextCursor, SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState,
+    TextWidget,
+};
 #[cfg(test)]
 pub(crate) use text_input::text_input_handles;
 pub use text_input::{

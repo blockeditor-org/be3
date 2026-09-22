@@ -8,15 +8,17 @@ use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
     Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
-    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, TreeRowFace,
-    VirtualList, use_theme,
+    Separator, Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree,
+    TreeRowFace, VirtualList, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
-    SliderScale, TreeItem, narrower_than, shorter_than,
+    SliderScale, TextAreaState, TreeItem, narrower_than, shorter_than,
 };
 use beui::{Color32, Context, Direction, Document, ItemSize, NodeId, Rect, TextAlign, unstyled};
 use beui_macros::component;
+use std::sync::Arc;
+use text_editor_core::{EditorCommand, MarkdownCommand, TextBuffer, TextLanguage};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     beui::run("beui demo", DemoApp::new())
@@ -39,6 +41,10 @@ const TOOLBAR_RULE_LENGTH: f32 = 20.0;
 const ROW_COUNT: usize = 10_000;
 const CRAMPED_ROWS_HEIGHT: f32 = 320.0;
 const ROW_HEIGHT: f32 = 34.0;
+const CRAMPED_EDITOR_HEIGHT: f32 = 260.0;
+const EDITOR_SHARE: f32 = 40.0;
+const ROWS_SHARE: f32 = 60.0;
+const EDITOR_TEXT: &str = "# Notes\n\nA **multiline** editor with a gutter, wrapping and `markdown`\nstyling.\n\n- [x] click a checkbox\n- [ ] press Ctrl+F to find\n";
 const COMPACT_ROW_HEIGHT: f32 = 25.0;
 const TREE_NODES: [(&str, usize); 9] = [
     ("Project", 0),
@@ -396,10 +402,16 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
         }
     });
     let item_rows = rows.clone();
-    let rows_size = if cramped {
-        ItemSize::Fixed(CRAMPED_ROWS_HEIGHT)
+    let (editor_size, rows_size) = if cramped {
+        (
+            ItemSize::Fixed(CRAMPED_EDITOR_HEIGHT),
+            ItemSize::Fixed(CRAMPED_ROWS_HEIGHT),
+        )
     } else {
-        ItemSize::Percent(100.0)
+        (
+            ItemSize::Percent(EDITOR_SHARE),
+            ItemSize::Percent(ROWS_SHARE),
+        )
     };
 
     view! {
@@ -415,6 +427,7 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                     />
                 </List>
             </Card>
+            <EditorCard @sizing={editor_size} />
             <Controls rows={rows.clone()} />
             <CanvasCard @sizing=ItemSize::Fixed(STAGE_HEIGHT) />
             <Card @sizing={rows_size}>
@@ -444,6 +457,39 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                 </List>
             </Card>
         </List>
+    }
+}
+
+#[component]
+fn EditorCard() -> NodeId {
+    let document = Arc::new(TextBuffer::new(EDITOR_TEXT)) as Arc<dyn text_editor_core::Document>;
+    let state = TextAreaState::new(document);
+    state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
+    let bold = state.clone();
+    let italic = state.clone();
+    view! {
+        <Card>
+            <List spacing=12.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+                    <Heading @sizing=ItemSize::Percent(100.0) content="Editor" />
+                    <Button
+                        label="Bold"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            bold.execute(EditorCommand::Markdown(MarkdownCommand::Bold));
+                        }}
+                    />
+                    <Button
+                        label="Italic"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            italic.execute(EditorCommand::Markdown(MarkdownCommand::Italic));
+                        }}
+                    />
+                </List>
+                <TextArea @sizing=ItemSize::Percent(100.0) state={state} />
+            </List>
+        </Card>
     }
 }
 

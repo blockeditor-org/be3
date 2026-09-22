@@ -1,48 +1,47 @@
 use std::ops::Range;
 
-use beui::reactive::layout_text;
-use beui::{FontId, Galley, Pos2, Rect, TextLayout, Vec2};
+use crate::font::{FontId, Galley, TextLayout};
+use crate::geometry::{Pos2, Rect, Vec2};
+use crate::reactive::layout_text;
 use text_editor_core::{
     MarkdownTable, MarkdownTableAlignment, SynHlFontFamily, SynHlStyle, SynHlTextSize,
     SyntaxHighlight,
 };
-use uuid::Uuid;
 
 pub(crate) const BODY_SIZE: f32 = 12.0;
 pub(crate) const CODE_SIZE: f32 = 12.0;
 pub(crate) const CHECKBOX_WIDTH: f32 = 18.0;
-pub(crate) const INLINE_EMBED_HEIGHT: f32 = 24.0;
-pub(crate) const INLINE_EMBED_ICON_INSET: f32 = 13.0;
-pub(crate) const UNAVAILABLE_EMBED_SIZE: Vec2 = Vec2::new(320.0, 120.0);
+pub(crate) const INLINE_WIDGET_HEIGHT: f32 = 24.0;
+pub(crate) const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
 pub(crate) const DOCUMENT_PADDING: Vec2 = Vec2::new(24.0, 16.0);
 
 const WRAP_FALLBACK_REMAINING_WIDTH: f32 = 0.15;
 const LINE_PADDING_TOP: f32 = 3.0;
 const LINE_PADDING_BOTTOM: f32 = 4.0;
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ResolvedEmbed {
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TextWidget {
     pub range: Range<usize>,
-    pub id: Uuid,
-    pub block_type: Uuid,
     pub label: String,
     pub icon: Option<&'static str>,
-    pub automatic: bool,
-    pub large: bool,
-    pub available: bool,
-    pub frame_size: Option<Vec2>,
+    pub italic: bool,
+    pub broken: bool,
+    pub block_size: Option<Vec2>,
+}
+
+impl TextWidget {
+    pub(crate) fn block(&self) -> bool {
+        self.block_size.is_some()
+    }
 }
 
 #[derive(Clone)]
-pub(crate) struct EmbedLayout {
+pub(crate) struct WidgetLayout {
+    pub index: usize,
     pub range: Range<usize>,
-    pub id: Uuid,
-    pub block_type: Uuid,
-    pub label: String,
     pub icon: Option<&'static str>,
-    pub automatic: bool,
-    pub large: bool,
-    pub available: bool,
+    pub broken: bool,
+    pub block: bool,
     pub rect: Rect,
 }
 
@@ -82,7 +81,7 @@ pub(crate) struct DocumentLayout {
     pub size: Vec2,
     pub lines: Vec<LineLayout>,
     pub positions: Vec<Option<BytePosition>>,
-    pub embeds: Vec<EmbedLayout>,
+    pub widgets: Vec<WidgetLayout>,
 }
 
 pub(crate) fn style_size(style: SynHlStyle) -> f32 {
@@ -121,7 +120,7 @@ fn body_metrics() -> Option<(f32, f32)> {
 struct LineSource<'a> {
     bytes: &'a [u8],
     highlight: &'a SyntaxHighlight,
-    embeds: &'a [&'a ResolvedEmbed],
+    widgets: &'a [&'a TextWidget],
     checkboxes: &'a [&'a Range<usize>],
     end: usize,
     has_newline: bool,
@@ -132,9 +131,9 @@ impl LineSource<'_> {
     fn style_at(&self, index: usize) -> SynHlStyle {
         let mut style = self.highlight.style_at(index);
         if self
-            .embeds
+            .widgets
             .iter()
-            .any(|embed| embed.automatic && embed.range.contains(&index))
+            .any(|widget| widget.italic && widget.range.contains(&index))
         {
             style.italic = true;
         }
@@ -179,14 +178,18 @@ impl LineSource<'_> {
                 index = checkbox.end;
                 continue;
             }
-            if let Some(embed) = self.embeds.iter().find(|embed| embed.range.start == index) {
+            if let Some(widget) = self
+                .widgets
+                .iter()
+                .find(|widget| widget.range.start == index)
+            {
                 let style = self.style_at(index);
-                let label = match embed.icon {
-                    Some(_) => format!("   {} ", embed.label),
-                    None => format!(" {} ", embed.label),
+                let label = match widget.icon {
+                    Some(_) => format!("   {} ", widget.label),
+                    None => format!(" {} ", widget.label),
                 };
-                runs.push(self.text_run(style, &label, embed.range.clone())?);
-                index = embed.range.end;
+                runs.push(self.text_run(style, &label, widget.range.clone())?);
+                index = widget.range.end;
                 continue;
             }
             let style = self.style_at(index);
@@ -212,7 +215,7 @@ impl LineSource<'_> {
             text.push(character);
             while end < self.end {
                 if self.checkboxes.iter().any(|checkbox| checkbox.start == end)
-                    || self.embeds.iter().any(|embed| embed.range.start == end)
+                    || self.widgets.iter().any(|widget| widget.range.start == end)
                     || self.style_at(end) != style
                     || invisible_marker(self.bytes[end]).is_some()
                 {
@@ -343,9 +346,9 @@ fn choose_breakpoint(
                 && *x <= wrap_width
                 && utf8_boundary(source.bytes, *byte)
                 && !source
-                    .embeds
+                    .widgets
                     .iter()
-                    .any(|embed| embed.range.start < *byte && *byte < embed.range.end)
+                    .any(|widget| widget.range.start < *byte && *byte < widget.range.end)
                 && !source
                     .checkboxes
                     .iter()
@@ -408,14 +411,14 @@ fn line_metrics(runs: &[Run], body: (f32, f32)) -> (f32, f32) {
 pub(crate) fn layout_document(
     bytes: &[u8],
     highlight: &SyntaxHighlight,
-    embeds: &[ResolvedEmbed],
+    widgets: &[TextWidget],
     checkboxes: &[Range<usize>],
     hidden: &[Range<usize>],
     wrap_width: f32,
 ) -> Option<DocumentLayout> {
     let body = body_metrics()?;
     let mut lines: Vec<LineLayout> = Vec::new();
-    let mut embed_layouts = Vec::new();
+    let mut widget_layouts = Vec::new();
     let mut positions: Vec<Option<BytePosition>> = vec![None; bytes.len() + 1];
     let mut start = 0;
     let mut document_line = 0;
@@ -435,9 +438,14 @@ pub(crate) fn layout_document(
             document_line += 1;
             continue;
         }
-        let line_embeds = embeds
+        let line_widgets = widgets
             .iter()
-            .filter(|embed| embed.range.start >= start && embed.range.end <= end)
+            .enumerate()
+            .filter(|(_, widget)| widget.range.start >= start && widget.range.end <= end)
+            .collect::<Vec<_>>();
+        let line_sources = line_widgets
+            .iter()
+            .map(|(_, widget)| *widget)
             .collect::<Vec<_>>();
         let line_checkboxes = checkboxes
             .iter()
@@ -450,7 +458,7 @@ pub(crate) fn layout_document(
         let source = LineSource {
             bytes,
             highlight,
-            embeds: &line_embeds,
+            widgets: &line_sources,
             checkboxes: &line_checkboxes,
             end,
             has_newline: newline.is_some(),
@@ -489,9 +497,9 @@ pub(crate) fn layout_document(
             });
             y += height;
         }
-        for embed in &line_embeds {
+        for (index, widget) in &line_widgets {
             let (Some(left), Some(right)) =
-                (positions[embed.range.start], positions[embed.range.end])
+                (positions[widget.range.start], positions[widget.range.end])
             else {
                 continue;
             };
@@ -501,38 +509,33 @@ pub(crate) fn layout_document(
             if right.line != left.line {
                 continue;
             }
-            embed_layouts.push(EmbedLayout {
-                range: embed.range.clone(),
-                id: embed.id,
-                block_type: embed.block_type,
-                label: embed.label.clone(),
-                icon: embed.icon,
-                automatic: embed.automatic,
-                large: false,
-                available: embed.available,
+            widget_layouts.push(WidgetLayout {
+                index: *index,
+                range: widget.range.clone(),
+                icon: widget.icon,
+                broken: widget.broken,
+                block: false,
                 rect: Rect::from_min_max(
-                    Pos2::new(left.x, line.y + (line.height - INLINE_EMBED_HEIGHT) * 0.5),
+                    Pos2::new(left.x, line.y + (line.height - INLINE_WIDGET_HEIGHT) * 0.5),
                     Pos2::new(
                         right.x.max(left.x + 1.0),
-                        line.y + (line.height + INLINE_EMBED_HEIGHT) * 0.5,
+                        line.y + (line.height + INLINE_WIDGET_HEIGHT) * 0.5,
                     ),
                 ),
             });
         }
-        if let Some(embed) = line_embeds.iter().find(|embed| embed.large) {
-            let frame_size = embed.frame_size.unwrap_or(UNAVAILABLE_EMBED_SIZE);
-            embed_layouts.push(EmbedLayout {
-                range: embed.range.clone(),
-                id: embed.id,
-                block_type: embed.block_type,
-                label: embed.label.clone(),
-                icon: embed.icon,
-                automatic: embed.automatic,
-                large: true,
-                available: embed.available,
-                rect: Rect::from_min_size(Pos2::new(0.0, y), frame_size),
+        if let Some((index, widget)) = line_widgets.iter().find(|(_, widget)| widget.block())
+            && let Some(size) = widget.block_size
+        {
+            widget_layouts.push(WidgetLayout {
+                index: *index,
+                range: widget.range.clone(),
+                icon: widget.icon,
+                broken: widget.broken,
+                block: true,
+                rect: Rect::from_min_size(Pos2::new(0.0, y), size),
             });
-            y += frame_size.y;
+            y += size.y;
         }
 
         let Some(newline) = newline else {
@@ -546,13 +549,13 @@ pub(crate) fn layout_document(
     let width = lines
         .iter()
         .map(|line| line.width)
-        .chain(embed_layouts.iter().map(|embed| embed.rect.max.x))
+        .chain(widget_layouts.iter().map(|widget| widget.rect.max.x))
         .fold(0.0_f32, f32::max);
     Some(DocumentLayout {
         size: Vec2::new(width + DOCUMENT_PADDING.x, y + DOCUMENT_PADDING.y),
         lines,
         positions,
-        embeds: embed_layouts,
+        widgets: widget_layouts,
     })
 }
 
@@ -705,17 +708,17 @@ pub(crate) fn hit_test(layout: &DocumentLayout, point: Vec2) -> usize {
         .position(|line| point.y < line.y + line.height)
         .unwrap_or(layout.lines.len() - 1);
     let line_layout = &layout.lines[line];
-    let inline_embeds = layout
-        .embeds
+    let inline_widgets = layout
+        .widgets
         .iter()
-        .filter(|embed| !embed.large && embed.rect.center().y >= line_layout.y)
-        .filter(|embed| embed.rect.center().y < line_layout.y + line_layout.height)
+        .filter(|widget| !widget.block && widget.rect.center().y >= line_layout.y)
+        .filter(|widget| widget.rect.center().y < line_layout.y + line_layout.height)
         .collect::<Vec<_>>();
     (line_layout.start..=line_layout.end)
         .filter(|byte| {
-            !inline_embeds
+            !inline_widgets
                 .iter()
-                .any(|embed| *byte > embed.range.start && *byte < embed.range.end)
+                .any(|widget| *byte > widget.range.start && *byte < widget.range.end)
         })
         .filter_map(|byte| {
             layout
