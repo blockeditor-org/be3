@@ -270,12 +270,18 @@ jobs:
       # ALSA still run. clang is named as well because buck2's prelude hands a
       # third-party build script a C compiler resolved by path, and several of
       # them compile C: sqlite, zstd, freetype, harfbuzz, tree-sitter and ring.
+      #
+      # clang-20 is for the plugins. Their FreeType and HarfBuzz are compiled
+      # for wasm32-wasip1-threads, and the setjmp lowering that needs wants
+      # clang 19 or newer; 24.04 ships 18 as plain clang. scripts/setup installs
+      # the same pair. libvulkan1 and the mesa drivers are what lets a plugin
+      # test that paints through the gpu abi open a device.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            clang llvm libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
-            pkg-config libvulkan1 mesa-vulkan-drivers
+            clang llvm clang-20 llvm-20 libasound2-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev pkg-config libvulkan1 mesa-vulkan-drivers
 
       - uses: ./.github/actions/rust-toolchain
 
@@ -299,10 +305,14 @@ jobs:
         env:
           BLOCKS_CACHE_UPLOAD: '1'
 
-      # Three test targets are labelled cargo-only: what they read at runtime -
-      # the editor manifests in the source tree, and the wasm modules the plugin
-      # and game builds produce - is not something buck2 puts in front of them
-      # yet. The cargo jobs above run all three. guides/buck2.md has the list.
+      # One test target is labelled cargo-only: block-plugin-api walks
+      # crates/editors in the source tree, and buck2 compiles a crate against a
+      # staged copy of its own sources. The cargo jobs above run it.
+      #
+      # Everything else is here, the 33 editors included: a plugin's tests are
+      # compiled to wasm and run through the same host block-app runs a plugin
+      # in, which is what makes the paintings they compare the ones the app
+      # would show.
       - run: ./scripts/buck test //crates/... --exclude cargo-only
         env:
           BLOCKS_CACHE_UPLOAD: '1'
