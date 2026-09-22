@@ -61,9 +61,15 @@ pub(crate) fn scrollbar_style() -> ScrollbarStyle {
         let ScrollHandle {
             position,
             direction,
+            scroll_to,
         } = handle;
         view! {
-            <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position direction />
+            <Scrollbar
+                @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
+                position
+                direction
+                on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+            />
         }
     })
 }

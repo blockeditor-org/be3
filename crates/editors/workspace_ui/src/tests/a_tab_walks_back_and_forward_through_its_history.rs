@@ -2,25 +2,20 @@ use super::*;
 
 #[test]
 fn a_tab_walks_back_and_forward_through_its_history() {
-    let (mut editor, host, opened) = editor();
+    let (mut fixture, opened) = editor();
     let second = Uuid::new_v4();
 
-    host.show_block(opened, FileTree::TYPE_ID, None, None);
-    editor.step();
-    editor.app().navigate_active(second, FileTree::TYPE_ID);
-    editor.step();
-    assert_eq!(editor.app().open_blocks(), vec![second]);
-    assert_eq!(host.focused_block().block_id, Some(second));
+    show(&mut fixture, opened, None, None);
+    show(&mut fixture, second, None, Some(opened));
+    assert_eq!(fixture.focused(), Some(second));
 
-    editor.find("workspace.back").click();
-    editor.step();
-    editor.step();
-    assert_eq!(editor.app().open_blocks(), vec![opened]);
-    assert_eq!(host.focused_block().block_id, Some(opened));
+    fixture.test.click("workspace.back");
+    fixture.settle();
+    assert_eq!(fixture.shown(), vec![opened]);
+    assert_eq!(fixture.focused(), Some(opened));
 
-    editor.find("workspace.forward").click();
-    editor.step();
-    editor.step();
-    assert_eq!(editor.app().open_blocks(), vec![second]);
-    assert_eq!(host.focused_block().block_id, Some(second));
+    fixture.test.click("workspace.forward");
+    fixture.settle();
+    assert_eq!(fixture.shown(), vec![second]);
+    assert_eq!(fixture.focused(), Some(second));
 }

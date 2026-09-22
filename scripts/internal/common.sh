@@ -124,12 +124,33 @@ sha256_of() {
     fi
 }
 
+# Where this repository keeps its own copies of the archives it downloads. A
+# GitHub release asset is handed out through a redirect that intermittently
+# answers 504, and a run lost that way is a run lost to something the change
+# under test had no part in, so an archive that has cost us one is uploaded
+# here as well and tried when upstream will not answer. The bytes are checked
+# against the hash pinned beside the URL either way, which is what makes a
+# mirror only another route to the same file rather than a second thing to
+# trust.
+#
+# Filling one in is uploading the exact bytes of the upstream archive under the
+# name the caller asks for. The names are not derived from upstream's, because
+# upstream's are not always unique across releases, and a mirror still serving
+# the last release's file would fail the hash check rather than the download.
+download_mirror='https://lfs.pfg.pw/by-name/be3'
+
 # Everything this repository downloads goes through here, so that a pinned URL
 # is also a pinned set of bytes. A version in a URL only says what we asked
 # for; the hash is what says we got it. Without one, a moved release asset, a
 # compromised host or a proxy that rewrites a response is a toolchain nobody
 # looked at, running with whatever rights the build has - and a build fetches a
 # compiler, a compiler wrapper and a sysroot, all of which end up in what ships.
+#
+# Any further arguments are mirrors of the same archive, tried in turn when the
+# one before them cannot be downloaded at all. A file that arrives and fails
+# the hash check stops the build instead: at that point one of the sources is
+# serving something other than what is pinned, and moving on to the next would
+# bury that.
 #
 # A mismatch deletes the download before exiting, so a retry fetches afresh
 # instead of finding the rejected file already in place and extracting it.
@@ -138,27 +159,48 @@ sha256_of() {
 # redirected to on https, so a redirect cannot quietly downgrade the transport.
 download_verified() {
     local url="$1" destination="$2" expected="$3"
+    shift 3
     assert_command curl 'Install curl.'
-    rm -f "$destination"
-    curl --fail --location --proto '=https' --proto-redir '=https' \
-        --output "$destination" "$url"
+    local sources=("$url" "$@")
+    local source actual
+    for source in "${sources[@]}"; do
+        rm -f "$destination"
+        # --retry covers the answers a host gives when it is briefly unhappy,
+        # 504 among them, and leaves a 404 to fail at once, so a mirror nobody
+        # has filled in yet costs one request rather than five. curl waits
+        # between attempts on its own, doubling from a second. --speed-limit
+        # turns a transfer that has stalled into another of those attempts,
+        # which is what a 504 arriving after ten seconds of no bytes is.
+        if curl --fail --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout 30 --speed-limit 1024 --speed-time 60 \
+            --retry 4 --retry-connrefused \
+            --output "$destination" "$source"; then
+            actual="$(sha256_of "$destination")"
+            if [[ "$actual" == "$expected" ]]; then
+                return 0
+            fi
 
-    local actual
-    actual="$(sha256_of "$destination")"
-    if [[ "$actual" == "$expected" ]]; then
-        return 0
-    fi
+            rm -f "$destination"
+            echo '' >&2
+            echo "The download from $source is not the file this repository expects." >&2
+            echo "  sha256 is   $actual" >&2
+            echo "  sha256 want $expected" >&2
+            echo '' >&2
+            echo 'Nothing has been installed. If the release was legitimately replaced, check the' >&2
+            echo "new bytes against upstream's own provenance before recording the new hash here;" >&2
+            echo 'recomputing it from the same download only proves the download agrees with' >&2
+            echo 'itself.' >&2
+            exit 1
+        fi
+        echo "The download from $source did not complete." >&2
+    done
 
     rm -f "$destination"
     echo '' >&2
-    echo "The download from $url is not the file this repository expects." >&2
-    echo "  sha256 is   $actual" >&2
-    echo "  sha256 want $expected" >&2
-    echo '' >&2
-    echo 'Nothing has been installed. If the release was legitimately replaced, check the' >&2
-    echo "new bytes against upstream's own provenance before recording the new hash here;" >&2
-    echo 'recomputing it from the same download only proves the download agrees with' >&2
-    echo 'itself.' >&2
+    echo "Nothing could be downloaded for $destination. These were tried:" >&2
+    for source in "${sources[@]}"; do
+        echo "  $source" >&2
+    done
     exit 1
 }
 
@@ -249,6 +291,20 @@ load_plugins() {
         echo 'No plugin manifests were found under crates/editors' >&2
         exit 1
     fi
+}
+
+# Packages that are not plugins themselves but whose tests only exist on wasm,
+# so a native run never builds them and a break in them is invisible until
+# someone compiles a plugin. block-editor-plugin's editor session is the whole
+# guest half of the plugin framework and is behind `cfg(target_arch =
+# "wasm32")`, so its tests belong to the plugin run rather than the native one.
+guest_only_packages=(block-editor-plugin)
+
+# Everything internal/test-plugins.sh compiles to wasm and runs through the
+# plugin host: every plugin, and the guest-only packages beside them.
+load_wasm_tested() {
+    load_plugins
+    wasm_tested=("${plugins[@]}" "${guest_only_packages[@]}")
 }
 
 plugin_manifest() {
@@ -386,16 +442,36 @@ clang_major() {
     "$1" --version 2> /dev/null | sed -n 's/.*clang version \([0-9][0-9]*\).*/\1/p' | head -1
 }
 
-pick_wasm_clang() {
-    local candidate major newest=''
+# The newest clang on PATH that is new enough, or nothing. ./scripts/setup asks
+# so that it only installs a clang when the machine has none it could use, and
+# pick_wasm_clang below turns the same answer into the three tools the wasm
+# build runs.
+newest_wasm_clang() {
+    local candidate major
     for candidate in clang clang-22 clang-21 clang-20 clang-19; do
         major="$(clang_major "$candidate" || true)"
         [[ -n "$major" ]] || continue
         if [[ "$major" -ge "$wasm_clang_minimum" ]]; then
-            newest="$candidate"
-            break
+            echo "$candidate"
+            return 0
         fi
     done
+    return 1
+}
+
+# Whether a machine already has everything the wasm build compiles HarfBuzz
+# with, which is a clang new enough and the llvm-ar that goes with it. Only
+# ./scripts/setup asks, to decide whether there is a clang to install.
+wasm_clang_installed() {
+    local candidate
+    candidate="$(newest_wasm_clang)" || return 1
+    command -v "${candidate/clang/llvm-ar}" > /dev/null \
+        || command -v llvm-ar > /dev/null
+}
+
+pick_wasm_clang() {
+    local newest
+    newest="$(newest_wasm_clang || true)"
     if [[ -z "$newest" ]]; then
         echo "The wasm build needs clang $wasm_clang_minimum or newer, and none was found on PATH." >&2
         echo "Install one (apt-get install clang-20 llvm-20) and run this again." >&2
@@ -432,19 +508,23 @@ export_wasi_toolchain() {
         wasi_sysroot="$tools/wasi-sysroot"
         # The hash of the archive it came out of, so that a sysroot left by a
         # different pin is replaced rather than linked against. CI restores this
-        # directory from a cache whose key is written by hand (see "Cache the
-        # WASI sysroot" in ci.yml), so without this, bumping wasi_sdk_version
-        # and forgetting the key would quietly build against the old sysroot.
+        # directory from a cache keyed on the same hash (see
+        # .github/actions/wasi-sysroot), so a bumped wasi_sdk_version misses
+        # that cache instead of quietly building against the old sysroot.
         local stamp="$wasi_sysroot/.stamp"
         if ! wasi_sysroot_is_complete "$wasi_sysroot" \
             || [[ "$(cat "$stamp" 2> /dev/null)" != "$wasi_sysroot_sha256" ]]; then
             local archive="$tools/wasi-sysroot.tar.gz"
             local extracted="$tools/wasi-sysroot-$wasi_sdk_version.0+m"
             local url="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$wasi_sdk_version/wasi-sysroot-$wasi_sdk_version.0+m.tar.gz"
+            # This is the download that has 504'd on us, and the one every
+            # published plugin and the web bundle are linked against, so it is
+            # the first the mirror above carries.
+            local mirror="$download_mirror/wasi-sysroot-$wasi_sdk_version.0.tar.gz"
             step "Downloading the WASI sysroot from $url"
             mkdir -p "$tools"
             rm -rf "$wasi_sysroot" "$extracted"
-            download_verified "$url" "$archive" "$wasi_sysroot_sha256"
+            download_verified "$url" "$archive" "$wasi_sysroot_sha256" "$mirror"
             tar -xzf "$archive" -C "$tools"
             mv "$extracted" "$wasi_sysroot"
             rm "$archive"
@@ -591,6 +671,16 @@ precompile_plugin_wasm() {
     "$precompiler" --target "$triple" "${stale[@]}"
     end_step
 }
+
+# ./scripts/verify runs the tests through nextest, which is not a rustup
+# component. internal/install-nextest.sh fetches this release rather than
+# building it, because `cargo install cargo-nextest` spends around four minutes
+# compiling a test runner nothing in the workspace depends on, which was most of
+# what setting a machine up cost. The musl builds run on any glibc a machine
+# happens to have, which the gnu ones do not.
+nextest_version='0.9.145'
+nextest_sha256_x86_64='cd3c85194e8b28ad26676d287f41f0d6b4d456cef5bd94700def5dea8e328883'
+nextest_sha256_aarch64='103a8f68b20fb01ee5daf2eb4c037b54ace550a04a288ee35761c5e7b0351311'
 
 # sccache stands between cargo and rustc and answers a compilation from a shared
 # object store whenever some other machine has already compiled that crate with

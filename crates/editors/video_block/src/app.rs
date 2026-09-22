@@ -29,6 +29,7 @@ use timeline::Timeline;
 const DEFAULT_EDITOR_SIZE: Vec2 = Vec2::new(1000.0, 640.0);
 const EFFECTS_WIDTH: f32 = 268.0;
 const TIMELINE_SHARE: f32 = 42.0;
+const TOOL_SEPARATOR_LENGTH: f32 = 20.0;
 
 const FRAME_RATES: [VideoFrameRate; 7] = [
     VideoFrameRate::new(24, 1),
@@ -86,7 +87,7 @@ fn VideoEditor(editor: Editor) -> NodeId {
                 spacing=0.0
             >
                 <EffectsColumn state={effects} />
-                <Separator />
+                <Separator direction=Direction::Vertical />
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                     <Player @sizing=ItemSize::Percent(100.0) state={player} />
                     <Separator />
@@ -244,7 +245,7 @@ fn TimelineTools(state: Rc<VideoState>) -> NodeId {
                     @test_id={"video.delete"}
                     on_click={move || remove.remove_selected()}
                 />
-                <Separator />
+                <Separator direction=Direction::Vertical length=TOOL_SEPARATOR_LENGTH />
                 <IconButton
                     glyph={ICON_ZOOM_OUT.to_owned()}
                     label="Zoom the timeline out"

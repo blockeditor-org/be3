@@ -5,18 +5,18 @@ use super::*;
 #[test]
 fn clicking_the_chevron_opens_and_closes_its_own_row() {
     let mut fixture = editor();
-    let row = fixture.test.rect_of("file-tree.row.orphans");
+    let row = fixture.test.rect_of("file-tree.orphans.row");
     assert_eq!(
-        fixture.test.label("file-tree.chevron.orphans"),
+        fixture.test.label("file-tree.orphans.chevron"),
         format!("{ICON_KEYBOARD_ARROW_RIGHT} Expand"),
         "a closed row shows a chevron that says what it does"
     );
 
-    fixture.test.click("file-tree.chevron.orphans");
+    fixture.test.click("file-tree.orphans.chevron");
     fixture.settle();
 
     assert_eq!(
-        fixture.test.label("file-tree.chevron.orphans"),
+        fixture.test.label("file-tree.orphans.chevron"),
         format!("{ICON_KEYBOARD_ARROW_DOWN} Collapse"),
         "the chevron must expand the row it belongs to"
     );
@@ -25,16 +25,16 @@ fn clicking_the_chevron_opens_and_closes_its_own_row() {
         "expanding a row must not open anything"
     );
     assert_eq!(
-        fixture.test.rect_of("file-tree.row.orphans").height(),
+        fixture.test.rect_of("file-tree.orphans.row").height(),
         row.height(),
         "expanding must leave the row it was asked of the height it was"
     );
 
-    fixture.test.click("file-tree.chevron.orphans");
+    fixture.test.click("file-tree.orphans.chevron");
     fixture.settle();
 
     assert_eq!(
-        fixture.test.label("file-tree.chevron.orphans"),
+        fixture.test.label("file-tree.orphans.chevron"),
         format!("{ICON_KEYBOARD_ARROW_RIGHT} Expand"),
         "the chevron must collapse the row again"
     );

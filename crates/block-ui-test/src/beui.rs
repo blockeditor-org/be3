@@ -4,7 +4,7 @@ use beui::{
 };
 use block_editor_plugin::beui_frame::BeuiFrame;
 use block_editor_plugin::{
-    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorRegion,
+    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorRegion, Occluder,
 };
 use std::marker::PhantomData;
 
@@ -30,6 +30,7 @@ pub struct BeuiTest<A: BeuiApp> {
     recording: Option<snapshot::Snapshot>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
+    occluders: Vec<Occluder>,
     app: PhantomData<A>,
 }
 
@@ -104,6 +105,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             recording: None,
             viewport: None,
             children: Vec::new(),
+            occluders: Vec::new(),
             app: PhantomData,
         };
         editor.run();
@@ -133,6 +135,10 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn children(&self) -> &[ChildPlacement] {
         &self.children
+    }
+
+    pub fn occluders(&self) -> &[Occluder] {
+        &self.occluders
     }
 
     pub fn replace_child(&mut self, old: uuid::Uuid, new: uuid::Uuid) -> bool {
@@ -271,13 +277,14 @@ impl<A: BeuiApp> BeuiTest<A> {
                     .unwrap_or_else(|| artifacts.settings().get_untracked());
             }
         }
-        let (children, _) = self.editor_host().end_region(placement);
+        let (children, occluders) = self.editor_host().end_region(placement);
         let host = self.editor_host();
         host.grab_cursor(output.pointer_locked);
         if let Some(viewport) = &mut self.viewport {
             viewport.settle(&host, rect);
         }
         self.children = children;
+        self.occluders = occluders;
         if let Some(delay) = host.take_frame_request() {
             output.repaint_after = output.repaint_after.min(delay);
         }
