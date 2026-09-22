@@ -40,7 +40,7 @@ fn check_compact_rows(inset: f32) {
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            count=VIRTUAL_ITEM_COUNT
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size={item_height}
                         >
                             {move |index: usize| {

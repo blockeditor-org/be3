@@ -13,7 +13,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList @node_ref=&list count=100 item_size=20.0>
+                        <VirtualList @node_ref=&list keys={indices(100)} item_size=20.0>
                             {move |index: usize| {
                                 let shown = shown.clone();
                                 view! {

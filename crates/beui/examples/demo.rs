@@ -445,7 +445,10 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                     </List>
                     <Separator />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <VirtualList count=ROW_COUNT item_size={row_height}>
+                        <VirtualList
+                            keys={(0..ROW_COUNT).collect::<Vec<usize>>()}
+                            item_size={row_height}
+                        >
                             {move |index: usize| {
                                 let rows = item_rows.clone();
                                 view! {
@@ -716,7 +719,7 @@ fn StripControls() -> NodeId {
             <Scroll @sizing=ItemSize::Fixed(STRIP_HEIGHT) direction=Direction::Horizontal>
                 <VirtualList
                     direction=Direction::Horizontal
-                    count=STRIP_COUNT
+                    keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
                     item_size=STRIP_ITEM_WIDTH
                 >
                     {move |index: usize| view! {

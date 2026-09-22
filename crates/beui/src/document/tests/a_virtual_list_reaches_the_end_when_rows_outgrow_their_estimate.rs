@@ -17,7 +17,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList @node_ref=&list count=ROWS item_size=ESTIMATE>
+                        <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
                             {move |index: usize| {
                                 sink.borrow_mut().push(index);
                                 view! {

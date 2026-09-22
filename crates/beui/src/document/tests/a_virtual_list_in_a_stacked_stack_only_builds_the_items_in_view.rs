@@ -32,7 +32,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                     <VirtualList
                                         @sizing=ItemSize::Percent(100.0)
                                         @node_ref=&scroll
-                                        count=VIRTUAL_ITEM_COUNT
+                                        keys={indices(VIRTUAL_ITEM_COUNT)}
                                         item_size=VIRTUAL_ITEM_HEIGHT
                                     >
                                         {move |index: usize| {

@@ -63,6 +63,8 @@ pub(crate) trait Element: Any {
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect);
 
+    fn unplaced(&mut self, _doc: &mut Document) {}
+
     fn paints(&self) -> bool {
         true
     }

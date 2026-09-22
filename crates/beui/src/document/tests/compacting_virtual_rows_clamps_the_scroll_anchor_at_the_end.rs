@@ -3,7 +3,7 @@ use crate::reactive::create_memo;
 
 #[test]
 fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
-    let (count, set_count) = create_signal(VIRTUAL_ITEM_COUNT);
+    let (keys, set_keys) = create_signal(indices(VIRTUAL_ITEM_COUNT));
     let (item_size, set_item_size) = create_signal(VIRTUAL_ITEM_HEIGHT);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
@@ -14,7 +14,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList @node_ref=&list count={count} item_size={item_size}>
+                        <VirtualList @node_ref=&list keys={keys} item_size={item_size}>
                             {move |_: usize| {
                                 let padding = padding.clone();
                                 view! {
@@ -46,7 +46,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
     let children = harness.document.children(list);
     assert_eq!(harness.rect(*children.last().unwrap()).bottom(), VIEWPORT.y);
 
-    with_installed(harness.document_mut(), |_| set_count.set(0));
+    with_installed(harness.document_mut(), |_| set_keys.set(Vec::new()));
     harness.frame(Vec::new());
     assert!(harness.document.children(list).is_empty());
     assert_eq!(harness.document.scroll_offset(scroll), 0.0);
