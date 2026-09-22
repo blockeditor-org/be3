@@ -11,7 +11,10 @@ fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
             view! {
                 <List spacing=0.0>
                     <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList count=VIRTUAL_ITEM_COUNT item_size=VIRTUAL_ITEM_HEIGHT>
+                        <VirtualList
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >
                             {move |_: usize| {
                                 view! {
                                     <Frame

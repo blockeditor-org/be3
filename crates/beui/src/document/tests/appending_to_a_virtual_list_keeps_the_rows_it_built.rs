@@ -1,27 +1,21 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view};
-
-const ROWS: usize = 100;
-const ESTIMATE: f32 = 20.0;
-const ACTUAL: f32 = 40.0;
-const SETTLING_FRAMES: usize = 8;
 
 #[test]
-fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
+fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
     let built = Rc::new(RefCell::new(Vec::new()));
-    let sink = built.clone();
+    let (keys, set_keys) = create_signal(indices(VIRTUAL_ITEM_COUNT));
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
+        let (scroll, list, sink) = (scroll.clone(), list.clone(), built.clone());
         move || {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
+                        <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
                             {move |index: usize| {
                                 sink.borrow_mut().push(index);
                                 view! {
-                                    <Frame height=ACTUAL>
+                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
                                         <Spacer />
                                     </Frame>
                                 }
@@ -36,21 +30,19 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    assert_eq!(
-        harness.rect(harness.document.children(list)[1]).top(),
-        ACTUAL
-    );
+    let rows = harness.document.children(list);
 
-    for _ in 0..SETTLING_FRAMES {
-        harness.document.set_scroll_offset(scroll, f32::MAX);
-        harness.frame(Vec::new());
-    }
+    built.borrow_mut().clear();
+    with_installed(harness.document_mut(), |_| {
+        set_keys.set(indices(VIRTUAL_ITEM_COUNT + 1))
+    });
+    harness.frame(Vec::new());
+    assert!(built.borrow().is_empty());
+    assert_eq!(harness.document.children(list), rows);
 
-    assert_eq!(built.borrow().last(), Some(&(ROWS - 1)));
+    harness.document.set_scroll_offset(scroll, f32::MAX);
+    harness.frame(Vec::new());
+    assert_eq!(built.borrow().last(), Some(&VIRTUAL_ITEM_COUNT));
     let last = *harness.document.children(list).last().unwrap();
     assert_eq!(harness.rect(last).bottom(), VIEWPORT.y);
-    assert_eq!(
-        harness.document.scroll_offset(scroll),
-        harness.rect(list).height() - VIEWPORT.y
-    );
 }

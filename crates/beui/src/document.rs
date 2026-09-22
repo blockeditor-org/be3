@@ -936,11 +936,24 @@ impl Document {
     pub(crate) fn leave_layout(&mut self, id: NodeId, frame: LayoutFrame, out: &mut NodeMap<Rect>) {
         self.layout_parent = frame.parent;
         if self.delivering {
+            let mut dropped = Vec::new();
             for child in self.dropped_children(id, frame.base) {
-                self.drop_placement(child, out);
+                self.drop_placement(child, out, &mut dropped);
+            }
+            for node in dropped {
+                self.release_placement(node);
             }
         }
         self.placing.truncate(frame.base);
+    }
+
+    fn release_placement(&mut self, id: NodeId) {
+        if !self.arena.contains(id) {
+            return;
+        }
+        let mut element = self.arena.take(id);
+        element.unplaced(self);
+        self.arena.put_back(id, element);
     }
 
     fn dropped_children(&mut self, id: NodeId, base: usize) -> Vec<NodeId> {
@@ -961,7 +974,7 @@ impl Document {
         dropped
     }
 
-    fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>) {
+    fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>, dropped: &mut Vec<NodeId>) {
         let clip = self.clips.remove(&id).unwrap_or(Rect::EVERYTHING);
         if let Some(rect) = out.remove(&id) {
             if self.paints(id) {
@@ -969,14 +982,15 @@ impl Document {
             }
             self.damage.add(self.paint_cache.borrow().bounds(id));
         }
+        dropped.push(id);
         for child in self.placed_children.remove(&id).unwrap_or_default() {
-            self.drop_placement(child, out);
+            self.drop_placement(child, out, dropped);
         }
     }
 
     fn forget_placement(&mut self, id: NodeId) {
         let mut rects = std::mem::take(&mut self.rects);
-        self.drop_placement(id, Rc::make_mut(&mut rects));
+        self.drop_placement(id, Rc::make_mut(&mut rects), &mut Vec::new());
         self.rects = rects;
     }
 

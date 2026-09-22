@@ -20,7 +20,11 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                             <Spacer />
                         </Frame>
                         <List spacing=0.0>
-                            <VirtualList @node_ref=&list count=ROWS item_size=VIRTUAL_ITEM_HEIGHT>
+                            <VirtualList
+                                @node_ref=&list
+                                keys={indices(ROWS)}
+                                item_size=VIRTUAL_ITEM_HEIGHT
+                            >
                                 {move |index: usize| {
                                     sink.borrow_mut().push(index);
                                     view! {

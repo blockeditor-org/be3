@@ -1,4 +1,6 @@
 use std::any::Any;
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::rc::Rc;
 
 use crate::base::list::Direction;
@@ -8,18 +10,16 @@ use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{
-    KeyedItems, Prop, RenderFn, ScopeContext, create_effect, create_signal, owner_scope, settle,
-    with_document,
+    KeyedItems, Prop, RenderFn, ScopeContext, create_effect, owner_scope, settle, with_document,
 };
 use beui_macros::component;
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;
 
-type VirtualRows = KeyedItems<usize, NodeId>;
-
-struct Row {
+struct Row<K> {
     index: usize,
+    key: K,
     node: NodeId,
     position: f32,
     length: f32,
@@ -36,13 +36,17 @@ struct Metrics {
 
 impl Metrics {
     fn new(count: usize, estimated: f32) -> Self {
+        Self::measured(count, estimated, Vec::new())
+    }
+
+    fn measured(count: usize, estimated: f32, entries: Vec<(usize, f32)>) -> Self {
         Self {
             count,
             estimated: estimated.max(0.0),
-            entries: Vec::new(),
-            prefix: vec![0.0],
+            prefix: vec![0.0; entries.len() + 1],
             valid: 0,
-            measured: 0.0,
+            measured: entries.iter().map(|(_, length)| length).sum(),
+            entries,
         }
     }
 
@@ -111,27 +115,70 @@ impl Metrics {
     }
 }
 
-pub(crate) struct VirtualListNode {
+pub(crate) struct VirtualListNode<K> {
     pub(crate) direction: Direction,
+    keys: Vec<K>,
+    indices: HashMap<K, usize>,
+    sizes: HashMap<K, f32>,
     metrics: Metrics,
-    rows: Rc<VirtualRows>,
+    rows: Rc<KeyedItems<K, NodeId>>,
     owner: Option<ScopeContext>,
-    placed: Vec<Row>,
-    origin: Option<(usize, f32)>,
+    placed: Vec<Row<K>>,
+    origin: Option<(K, f32)>,
 }
 
-impl VirtualListNode {
-    fn new() -> Self {
+impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
+    fn new(build: impl Fn(K) -> NodeId + 'static) -> Self {
         Self {
             direction: Direction::Vertical,
+            keys: Vec::new(),
+            indices: HashMap::new(),
+            sizes: HashMap::new(),
             metrics: Metrics::new(0, 0.0),
-            rows: Rc::new(KeyedItems::new(|_| {
-                panic!("a virtual list has no item builder")
-            })),
-            owner: None,
+            rows: Rc::new(KeyedItems::new(build)),
+            owner: owner_scope(),
             placed: Vec::new(),
             origin: None,
         }
+    }
+
+    fn set_keys(&mut self, keys: Vec<K>) -> Vec<NodeId> {
+        let indices: HashMap<K, usize> = keys
+            .iter()
+            .enumerate()
+            .map(|(index, key)| (key.clone(), index))
+            .collect();
+        assert_eq!(
+            indices.len(),
+            keys.len(),
+            "a virtual list was given the same key twice"
+        );
+        self.sizes.retain(|key, _| indices.contains_key(key));
+        let mut entries: Vec<(usize, f32)> = self
+            .sizes
+            .iter()
+            .map(|(key, length)| (indices[key], *length))
+            .collect();
+        entries.sort_unstable_by_key(|(index, _)| *index);
+        self.metrics = Metrics::measured(keys.len(), self.metrics.estimated, entries);
+        self.origin = self.origin.take().and_then(|(key, position)| {
+            if indices.contains_key(&key) {
+                return Some((key, position));
+            }
+            let head = self.placed.first()?.position;
+            self.placed
+                .iter()
+                .find(|row| indices.contains_key(&row.key))
+                .map(|row| (row.key.clone(), position + row.position - head))
+        });
+        self.placed.retain(|row| indices.contains_key(&row.key));
+        for row in &mut self.placed {
+            row.index = indices[&row.key];
+        }
+        self.keys = keys;
+        self.indices = indices;
+        let kept: Vec<K> = self.placed.iter().map(|row| row.key.clone()).collect();
+        self.rows.retain(&kept)
     }
 
     fn window(&self, doc: &Document, painter: &Painter, start: f32, main: f32) -> (f32, f32) {
@@ -145,14 +192,14 @@ impl VirtualListNode {
         (first, last)
     }
 
-    fn build(&self, index: usize) -> NodeId {
-        if let Some(node) = self.rows.get(&index) {
+    fn build(&self, key: K) -> NodeId {
+        if let Some(node) = self.rows.get(&key) {
             return node;
         }
         let rows = self.rows.clone();
         match self.owner.as_ref().filter(|owner| owner.is_alive()) {
-            Some(owner) => settle(|| owner.run(|| rows.entry(index))),
-            None => settle(|| rows.entry(index)),
+            Some(owner) => settle(|| owner.run(|| rows.entry(key))),
+            None => settle(|| rows.entry(key)),
         }
     }
 
@@ -162,25 +209,27 @@ impl VirtualListNode {
         painter: &Painter,
         index: usize,
         cross: f32,
-    ) -> (NodeId, f32) {
-        let node = self.build(index);
+    ) -> (K, NodeId, f32) {
+        let key = self.keys[index].clone();
+        let node = self.build(key.clone());
         let offer = self.direction.axes(f32::INFINITY, cross);
         let length = self
             .direction
             .main(crate::layout::measure(doc, painter, node, offer));
         self.metrics.record(index, length);
-        (node, length)
+        self.sizes.insert(key.clone(), length);
+        (key, node, length)
     }
 
     fn anchor(&mut self, window: (f32, f32)) -> (usize, f32) {
         let (first, last) = window;
         let slack = (last - first) + ANCHOR_SLACK * self.metrics.estimated.max(1.0);
-        if let Some((index, position)) = self.origin
-            && index < self.metrics.count
-            && position >= first - slack
-            && position <= last + slack
+        if let Some((key, position)) = &self.origin
+            && let Some(&index) = self.indices.get(key)
+            && *position >= first - slack
+            && *position <= last + slack
         {
-            return (index, position);
+            return (index, *position);
         }
         let index = self.metrics.index_at(first);
         (index, self.metrics.position(index))
@@ -209,12 +258,13 @@ impl VirtualListNode {
                 true => Some(self.measured_row(doc, painter, at, cross)),
                 false => None,
             };
-            let length = row.map_or(estimate, |(_, length)| length);
-            if let Some((node, _)) = row
+            let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
+            if let Some((key, node, _)) = row
                 && cursor + length > first
             {
                 below.push(Row {
                     index: at,
+                    key,
                     node,
                     position: cursor,
                     length,
@@ -234,13 +284,14 @@ impl VirtualListNode {
                 true => Some(self.measured_row(doc, painter, at, cross)),
                 false => None,
             };
-            let length = row.map_or(estimate, |(_, length)| length);
+            let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
             cursor -= length;
-            if let Some((node, _)) = row
+            if let Some((key, node, _)) = row
                 && cursor < last
             {
                 above.push(Row {
                     index: at,
+                    key,
                     node,
                     position: cursor,
                     length,
@@ -260,7 +311,7 @@ impl VirtualListNode {
             Some(row) => {
                 let wanted = self.metrics.position(row.index);
                 let shift = wanted - row.position;
-                self.origin = Some((row.index, wanted));
+                self.origin = Some((row.key.clone(), wanted));
                 shift
             }
             None => {
@@ -272,7 +323,7 @@ impl VirtualListNode {
         shift
     }
 
-    fn edge_shift(&self, rows: &[Row], window: (f32, f32), main: f32) -> f32 {
+    fn edge_shift(&self, rows: &[Row<K>], window: (f32, f32), main: f32) -> f32 {
         let (Some(head), Some(tail)) = (rows.first(), rows.last()) else {
             return 0.0;
         };
@@ -286,8 +337,8 @@ impl VirtualListNode {
         0.0
     }
 
-    fn keep(&mut self, doc: &mut Document, rows: Vec<Row>) {
-        let kept: Vec<usize> = rows.iter().map(|row| row.index).collect();
+    fn keep(&mut self, doc: &mut Document, rows: Vec<Row<K>>) {
+        let kept: Vec<K> = rows.iter().map(|row| row.key.clone()).collect();
         self.placed = rows;
         for node in self.rows.retain(&kept) {
             doc.remove_node(node);
@@ -295,7 +346,7 @@ impl VirtualListNode {
     }
 }
 
-impl Element for VirtualListNode {
+impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (_, cross) = self.direction.main_and_cross(available);
         let offer = self.direction.axes(f32::INFINITY, cross);
@@ -350,6 +401,11 @@ impl Element for VirtualListNode {
         if shift != 0.0 {
             doc.record_scroll_shift(shift);
         }
+    }
+
+    fn unplaced(&mut self, doc: &mut Document) {
+        self.origin = None;
+        self.keep(doc, Vec::new());
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
@@ -409,62 +465,84 @@ impl Element for VirtualListNode {
 }
 
 impl Document {
-    pub(crate) fn create_virtual_list(&mut self) -> NodeId {
-        self.arena.insert(VirtualListNode::new())
+    pub(crate) fn create_virtual_list<K: Clone + Hash + Eq + 'static>(
+        &mut self,
+        build: impl Fn(K) -> NodeId + 'static,
+    ) -> NodeId {
+        self.arena.insert(VirtualListNode::new(build))
     }
 
-    pub(crate) fn set_virtual_list_direction(&mut self, list: NodeId, direction: Direction) {
-        if self.arena.get_as::<VirtualListNode>(list).direction == direction {
+    pub(crate) fn set_virtual_list_direction<K: Clone + Hash + Eq + 'static>(
+        &mut self,
+        list: NodeId,
+        direction: Direction,
+    ) {
+        if self.arena.get_as::<VirtualListNode<K>>(list).direction == direction {
             return;
         }
-        let node = self.arena.get_mut_as::<VirtualListNode>(list);
+        let node = self.arena.get_mut_as::<VirtualListNode<K>>(list);
         node.direction = direction;
         node.origin = None;
     }
 
-    pub(crate) fn set_virtual_list_items(
+    pub(crate) fn set_virtual_list_keys<K: Clone + Hash + Eq + 'static>(
         &mut self,
         list: NodeId,
-        count: usize,
-        item_size: f32,
-        build: impl Fn(usize) -> NodeId + 'static,
+        keys: Vec<K>,
     ) {
-        let node = self.arena.get_mut_as::<VirtualListNode>(list);
-        let placed = std::mem::take(&mut node.placed);
-        node.metrics = Metrics::new(count, item_size);
-        node.rows = Rc::new(KeyedItems::new(build));
-        node.owner = owner_scope();
-        if node.origin.is_some_and(|(index, _)| index >= count) {
-            node.origin = None;
+        if self.arena.get_as::<VirtualListNode<K>>(list).keys == keys {
+            return;
         }
-        for row in placed {
-            self.remove_node(row.node);
+        let evicted = self
+            .arena
+            .get_mut_as::<VirtualListNode<K>>(list)
+            .set_keys(keys);
+        for row in evicted {
+            self.remove_node(row);
         }
+    }
+
+    pub(crate) fn set_virtual_list_item_size<K: Clone + Hash + Eq + 'static>(
+        &mut self,
+        list: NodeId,
+        item_size: f32,
+    ) {
+        let item_size = item_size.max(0.0);
+        if self
+            .arena
+            .get_as::<VirtualListNode<K>>(list)
+            .metrics
+            .estimated
+            == item_size
+        {
+            return;
+        }
+        let node = self.arena.get_mut_as::<VirtualListNode<K>>(list);
+        node.sizes.clear();
+        node.metrics = Metrics::new(node.metrics.count, item_size);
     }
 }
 
 #[component]
-pub fn VirtualList(
-    count: Prop<usize>,
+pub fn VirtualList<K>(
+    keys: Prop<Vec<K>>,
     item_size: Prop<f32>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(children)] item: Option<RenderFn<usize>>,
-) -> NodeId {
-    let list = with_document(|document| document.create_virtual_list());
-    let item = item.expect("a virtual list requires an `item` builder");
+    #[prop(children)] item: RenderFn<K>,
+) -> NodeId
+where
+    K: Clone + Hash + Eq + 'static,
+{
+    let list = with_document(|document| document.create_virtual_list(move |key| item.call(key)));
     create_effect(move || {
-        with_document(|document| document.set_virtual_list_direction(list, direction.get()))
+        with_document(|document| document.set_virtual_list_direction::<K>(list, direction.get()))
     });
-    let (count_read, set_count) = create_signal(0);
-    let (size_read, set_size) = create_signal(0.0);
-    create_effect(move || set_count.set(count.get()));
-    create_effect(move || set_size.set(item_size.get()));
     create_effect(move || {
-        let (count, item_size) = (count_read.get(), size_read.get());
-        let item = item.clone();
-        with_document(|document| {
-            document.set_virtual_list_items(list, count, item_size, move |index| item.call(index));
-        });
+        let keys = keys.get();
+        with_document(|document| document.set_virtual_list_keys(list, keys));
+    });
+    create_effect(move || {
+        with_document(|document| document.set_virtual_list_item_size::<K>(list, item_size.get()))
     });
     list
 }

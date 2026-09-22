@@ -287,7 +287,7 @@ in its place (see [Draw with the gpu](#draw-with-the-gpu)).
 `Offset` keeps a run of items along a `direction` and lays them out from an
 offset; it answers no input at all, so nothing scrolls by putting one in a view
 (see [Scrolling](#scrolling)). `VirtualList` is an ordinary box that stands for
-`count` items of an estimated `item_size` and builds only the ones its slice of
+one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
 column of rows or a strip of cards; a horizontal one answers Shift+wheel, a
@@ -345,8 +345,9 @@ and `on_change` still reports the position for anything else that wants it.
 
 ### Long lists
 
-A `VirtualList` is a box like any other. It reports `count * item_size` as its
-own length and builds only the rows that its slice of the enclosing viewport
+A `VirtualList` is a box like any other. It takes `keys` the way `ForEach` does,
+reports one `item_size` per key as its own length, and builds only the rows that
+its slice of the enclosing viewport
 reaches, so it goes wherever a tall child would: directly under a `Scroll`,
 beside plain siblings in one, or nested a few containers deep inside one.
 
@@ -354,8 +355,8 @@ beside plain siblings in one, or nested a few containers deep inside one.
 view! {
     <Scroll @sizing=ItemSize::Percent(100.0)>
         <Header />
-        <VirtualList count={rows} item_size=ROW_HEIGHT>
-            {move |index: usize| view! { <Row index /> }}
+        <VirtualList keys={row_ids} item_size=ROW_HEIGHT>
+            {move |id: RowId| view! { <Row id /> }}
         </VirtualList>
         <Footer />
     </Scroll>
@@ -373,9 +374,27 @@ anything, so nothing on screen shifts. Outside a scroll a `VirtualList` builds
 what fits in the box it is given, which is how one sized by a `Stack` builds a
 screenful in one layout and a hundred pixels' worth in the next.
 
-The rows are keyed by index, so scrolling reuses the rows that stay in view and
-disposes the effects of the ones that leave. Changing `count` or `item_size`
-rebuilds them.
+Rows belong to their keys, not to their positions. Scrolling reuses the rows
+that stay in view and disposes the effects of the ones that leave, and the item
+builder runs once per key for as long as that row stays in view. Changing `keys`
+keeps every row whose key is still there: inserting a key anywhere builds only
+its row, and only if it lands in view; removing one disposes only its row; and
+the sizes the list measured move with their keys. A key inserted or removed
+above the view changes the length above what is shown, so the list moves the
+scroll's offset by that much and the rows on screen stay where they are. A
+list over data that is only ever addressed by position can pass
+`(0..count).collect()` as its keys, the way a `ForEach` over indices does.
+
+A row therefore follows its data the way any component does, by binding
+signals rather than reading them once while it is built. Changing `item_size`
+keeps the rows too, but forgets the sizes the list measured, on the assumption
+that the rows changed size with it; the rows in view are measured again as they
+are laid out.
+
+A list the layout stops reaching - scrolled out of view beside other content, or
+inside a scroll that collapsed - is told so through `Element::unplaced`, which
+the layout calls on every node it placed last pass and did not place this one.
+The list releases its rows there rather than holding a screenful it cannot see.
 
 `unstyled::Scroll` is the same arrangement without the appearance: it owns the
 base offset, the input that drives it, the position it reports, and the list
@@ -1223,6 +1242,14 @@ the element out of the arena for the duration so an effect woken mid-walk cannot
 alias it. Reach children through those two functions rather than calling another
 element's methods directly, or the node you descend into is never handed its
 constraint.
+
+`unplaced` is the other half of `layout`. The layout calls it on every node it
+placed last pass and did not place this one - a child its parent now skips, and
+everything under that child - so a node that keeps retained state for what is
+on screen can let it go. It runs in the same pass, after the dropped rects are
+gone, and it may remove the node's own children, which is how a `VirtualList`
+scrolled out of view releases its rows. A node that is laid out again gets
+`layout` as usual and rebuilds whatever it released.
 
 Measurements are memoised per available size and dropped whenever the arena
 changes, so measuring a child repeatedly within a pass is cheap, but a `measure`
