@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_block::{LiveEdit, Merge};
+use be_block::{BlockContent, LiveEdit, Merge};
 use be_client::{ClientError, Credentials, Live, Peer, PeerConfig, Saved};
 use be_graph::BlockParent;
 use be_store::ContentKey;
@@ -21,6 +21,11 @@ pub(super) enum Command {
     Open(Uuid, Uuid),
     Close(Uuid),
     Operate(Uuid, Vec<u8>),
+    Duplicate {
+        from: Uuid,
+        to: Uuid,
+        content_type: Uuid,
+    },
     Flush(std::sync::mpsc::Sender<()>),
 }
 
@@ -42,6 +47,33 @@ pub(super) type Join = for<'a> fn(
     &'a Arc<Peer<Store>>,
     Uuid,
 ) -> LocalBoxFuture<'a, Result<Box<dyn Session>, ClientError>>;
+
+pub(super) type Copy = for<'a> fn(
+    &'a Arc<Peer<Store>>,
+    Uuid,
+    Uuid,
+    Option<Vec<u8>>,
+) -> LocalBoxFuture<'a, Result<(), ClientError>>;
+
+pub(super) fn copy<C>(
+    peer: &Arc<Peer<Store>>,
+    from: Uuid,
+    to: Uuid,
+    shown: Option<Vec<u8>>,
+) -> LocalBoxFuture<'_, Result<(), ClientError>>
+where
+    C: BlockContent + Default,
+{
+    Box::pin(async move {
+        let content = match shown.and_then(|bytes| C::decode(&bytes).ok()) {
+            Some(content) => content,
+            None => peer.open::<C>(from).await?.unwrap_or_default(),
+        };
+        peer.ensure::<C>(to, BlockParent::Root).await?;
+        peer.save(to, &content, None).await?;
+        Ok(())
+    })
+}
 
 pub(super) trait Session {
     fn content_type(&self) -> Uuid;
@@ -325,6 +357,20 @@ async fn apply(
                 return false;
             };
             if let Err(error) = session.edit(&operation).await {
+                record(shared, error);
+            }
+            false
+        }
+        Command::Duplicate {
+            from,
+            to,
+            content_type,
+        } => {
+            let Some(copy) = super::copy_for(content_type) else {
+                return false;
+            };
+            let shown = sessions.get(&from).map(|session| session.bytes());
+            if let Err(error) = copy(peer, from, to, shown).await {
                 record(shared, error);
             }
             false

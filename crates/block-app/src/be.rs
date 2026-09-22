@@ -74,6 +74,7 @@ struct Migrated {
     block_type: Uuid,
     content_type: Uuid,
     join: worker::Join,
+    copy: worker::Copy,
     name: fn(&[u8]) -> Option<String>,
 }
 
@@ -86,6 +87,7 @@ where
         block_type: B::TYPE_ID,
         content_type: C::CONTENT_TYPE,
         join: worker::join::<C>,
+        copy: worker::copy::<C>,
         name: content_name::<C>,
     }
 }
@@ -97,6 +99,7 @@ fn content_name<C: be_block::BlockContent>(bytes: &[u8]) -> Option<String> {
 const MIGRATED: &[Migrated] = &[
     migrated::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(),
     migrated::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
+    migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
 ];
 
@@ -114,6 +117,13 @@ pub(crate) fn name_of(content: &Content) -> Option<String> {
     (migrated.name)(&content.bytes)
 }
 
+fn copy_for(content_type: Uuid) -> Option<worker::Copy> {
+    MIGRATED
+        .iter()
+        .find(|migrated| migrated.content_type == content_type)
+        .map(|migrated| migrated.copy)
+}
+
 fn join_for(content_type: Uuid) -> Option<worker::Join> {
     MIGRATED
         .iter()
@@ -125,6 +135,7 @@ struct Stack {
     account: Uuid,
     workspace: Uuid,
     commands: Option<UnboundedSender<Command>>,
+    held: std::collections::HashSet<Uuid>,
     shared: Arc<Mutex<Shared>>,
     #[cfg_attr(not(test), allow(dead_code))]
     changed: Arc<Condvar>,
@@ -155,6 +166,7 @@ pub(crate) fn start(config: Config) {
         account,
         workspace,
         commands: Some(commands),
+        held: std::collections::HashSet::new(),
         shared,
         changed,
         running,
@@ -185,11 +197,42 @@ pub(crate) fn open(block: Uuid, content_type: Uuid) {
 }
 
 pub(crate) fn close(block: Uuid) {
-    send(Command::Close(block));
+    let held = stack()
+        .lock()
+        .unwrap()
+        .as_ref()
+        .is_some_and(|stack| stack.held.contains(&block));
+    if !held {
+        send(Command::Close(block));
+    }
+}
+
+pub(crate) fn hold(block: Uuid, block_type: Uuid) {
+    let Some(content_type) = content_type_for(block_type) else {
+        return;
+    };
+    let fresh = stack()
+        .lock()
+        .unwrap()
+        .as_mut()
+        .is_some_and(|stack| stack.held.insert(block));
+    if fresh {
+        send(Command::Open(block, content_type));
+    }
 }
 
 pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
     send(Command::Operate(block, operation));
+}
+
+pub(crate) fn duplicate(from: Uuid, to: Uuid, block_type: Uuid) {
+    if let Some(content_type) = content_type_for(block_type) {
+        send(Command::Duplicate {
+            from,
+            to,
+            content_type,
+        });
+    }
 }
 
 pub(crate) fn content(block: Uuid) -> Option<Content> {

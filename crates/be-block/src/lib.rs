@@ -10,6 +10,7 @@ pub mod counter;
 pub mod image;
 pub mod streamed;
 pub mod text;
+pub mod ui_settings;
 
 pub use browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem};
 pub use checklist::{ChecklistContent, ChecklistItem, ChecklistOp};
@@ -19,6 +20,7 @@ pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use text::{TextContent, TextHeader, TextLanguage, TextOp};
+pub use ui_settings::{UiSettingsContent, UiSettingsOp};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {

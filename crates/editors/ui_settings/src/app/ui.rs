@@ -1,5 +1,5 @@
-use block_client::blocks::ui_settings::{UiSettings, UiSettingsOperation};
 use block_editor_plugin::Editor;
+use block_editor_plugin::be_block::{UiSettingsContent, UiSettingsOp};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
@@ -7,14 +7,12 @@ use block_editor_plugin::beui::reactive::{
 use block_editor_plugin::beui::styled::{Body, Caption, Slider, use_theme};
 
 const PADDING: f32 = 20.0;
-const MIN_ZOOM: f32 = 0.5;
-const MAX_ZOOM: f32 = 3.0;
 const VALUE_WIDTH: f32 = 56.0;
 
 #[component]
 pub fn UiSettingsView(editor: Editor) -> NodeId {
-    let settings = editor.block::<UiSettings>();
-    let zoom = settings.project(UiSettings::zoom);
+    let settings = editor.block_content::<UiSettingsContent>();
+    let zoom = settings.project(UiSettingsContent::zoom);
     let shown = create_memo(clone!(zoom -> move || format!("{:.2}x", zoom.get())));
     let theme = use_theme();
     view! {
@@ -25,11 +23,11 @@ pub fn UiSettingsView(editor: Editor) -> NodeId {
                     <Slider
                         @sizing=ItemSize::Percent(100.0)
                         value={zoom}
-                        min=MIN_ZOOM
-                        max=MAX_ZOOM
+                        min=block_editor_plugin::be_block::ui_settings::MIN_ZOOM
+                        max=block_editor_plugin::be_block::ui_settings::MAX_ZOOM
                         label="Zoom"
                         @test_id={"ui-settings.zoom"}
-                        on_change={move |zoom| settings.operate(UiSettingsOperation::SetZoom { zoom })}
+                        on_change={move |zoom| settings.operate(UiSettingsOp::SetZoom { zoom })}
                     />
                     <Body @sizing=ItemSize::Fixed(VALUE_WIDTH) content={shown} />
                 </List>

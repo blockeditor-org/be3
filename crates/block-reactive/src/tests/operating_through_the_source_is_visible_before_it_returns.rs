@@ -3,11 +3,11 @@ use super::*;
 #[test]
 fn operating_through_the_source_is_visible_before_it_returns() {
     let client = client();
-    let source = BlockSource::new(client.create_block(UiSettings::default()), || {});
-    let zoom = source.project(UiSettings::zoom);
+    let source = BlockSource::new(client.create_block(Calendar::default()), || {});
+    let events = source.project(|calendar: &Calendar| calendar.events().len());
 
-    source.operate(UiSettingsOperation::SetZoom { zoom: 1.5 });
-    assert_eq!(zoom.get_untracked(), 1.5);
-    source.operate(UiSettingsOperation::SetZoom { zoom: 0.75 });
-    assert_eq!(zoom.get_untracked(), 0.75);
+    source.operate(add_event("write"));
+    assert_eq!(events.get_untracked(), 1);
+    source.operate(add_event("review"));
+    assert_eq!(events.get_untracked(), 2);
 }
