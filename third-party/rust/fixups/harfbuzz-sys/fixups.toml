@@ -12,3 +12,10 @@ compiler_flags = ["-std=c++11", "-w", "-DHAVE_PTHREAD=1"]
 # harfbuzz is C++, and what links it is a Rust binary, which brings no C++
 # runtime of its own.
 deps = ["//third-party/system:stdc++"]
+
+# On wasm the [[cxx_library]] above is the only thing that compiles this, so the
+# build script has nothing left to do. Running it anyway would compile the same
+# C a second time, with cc-rs choosing its own flags for a target it names
+# differently, and fail.
+['cfg(target_family = "wasm")']
+buildscript.run = false

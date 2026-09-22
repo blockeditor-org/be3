@@ -2,4 +2,30 @@
 # dev-dependency asks for is on in both. Buck builds one target per rule and
 # does not unify, so the feature the tests need is named here.
 buildscript.run = true
+['cfg(not(target_family = "wasm"))']
 features = ["noop"]
+
+# On wasm this is a guest: it reaches the host's device through the gpu abi and
+# carries no backend of its own. The features left below are the ones
+# block-editor-plugin asks for; the rest are the app's, and they arrive here
+# because reindeer resolves one feature set per platform across the whole
+# workspace. Under cargo the plugins get a cargo call of their own for exactly
+# this reason - scripts/internal/common.sh says so where it makes it.
+#
+# This is provisional. It is right while the only thing buck2 builds for wasm is
+# a guest, and it will not survive the web build of the app arriving, which
+# wants the other set on the same platform. That needs a second third-party
+# tree rather than a fixup; guides/buck2.md says so.
+['cfg(target_family = "wasm")']
+omit_features = [
+  "default",
+  "dx12",
+  "fragile-send-sync-non-atomic-wasm",
+  "gles",
+  "metal",
+  "noop",
+  "vulkan",
+  "webgl",
+  "webgpu",
+  "wgpu-core",
+]

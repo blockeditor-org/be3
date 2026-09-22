@@ -51,3 +51,15 @@ export_file(
     src = "wasm-ld",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "wasm-cc",
+    src = "wasm-cc",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "wasm-cxx",
+    src = "wasm-cxx",
+    visibility = ["PUBLIC"],
+)

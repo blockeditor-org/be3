@@ -24,8 +24,8 @@ host_cxx_tools(
 wasm_cxx_tools(
     name = "wasm_cxx_tools",
     archiver = "root//buck/tools:ar",
-    compiler = "root//buck/tools:cc",
-    cxx_compiler = "root//buck/tools:cxx",
+    compiler = "root//buck/tools:wasm-cc",
+    cxx_compiler = "root//buck/tools:wasm-cxx",
     linker = "root//buck/tools:wasm-ld",
 )
 
@@ -35,8 +35,49 @@ cxx_tools_info_toolchain(
     visibility = ["PUBLIC"],
 )
 
+# Two of them, because only one of the wasm platforms has C in it. A plugin's
+# freetype and harfbuzz are compiled against the WASI sysroot; a game module is
+# pure Rust on a target that has no libc to compile against at all.
 cxx_tools_info_toolchain(
-    name = "wasm_cxx",
+    name = "wasi_cxx",
+    c_flags = [
+        "--target=wasm32-wasip1-threads",
+        "--sysroot=$(location root//third-party/wasi:sysroot)",
+        "-isystem",
+        "$(location root//third-party/wasi:sysroot)/include/c++/v1",
+        "-pthread",
+        "-mllvm",
+        "-wasm-enable-sjlj",
+        "-mllvm",
+        "-wasm-use-legacy-eh=false",
+        "-fno-exceptions",
+        "-fno-rtti",
+        "-DHB_NO_MT",
+        "-O2",
+        "-w",
+    ],
+    cxx_flags = [
+        "--target=wasm32-wasip1-threads",
+        "--sysroot=$(location root//third-party/wasi:sysroot)",
+        "-isystem",
+        "$(location root//third-party/wasi:sysroot)/include/c++/v1",
+        "-pthread",
+        "-mllvm",
+        "-wasm-enable-sjlj",
+        "-mllvm",
+        "-wasm-use-legacy-eh=false",
+        "-fno-exceptions",
+        "-fno-rtti",
+        "-DHB_NO_MT",
+        "-O2",
+        "-w",
+    ],
+    cxx_tools_info = ":wasm_cxx_tools",
+    visibility = ["PUBLIC"],
+)
+
+cxx_tools_info_toolchain(
+    name = "wasm32_cxx",
     cxx_tools_info = ":wasm_cxx_tools",
     visibility = ["PUBLIC"],
 )
@@ -46,7 +87,8 @@ toolchain_alias(
     name = "cxx",
     actual = select({
         "DEFAULT": ":host_cxx",
-        "prelude//cpu:wasm32": ":wasm_cxx",
+        "prelude//os:none": ":wasm32_cxx",
+        "prelude//os:wasi": ":wasi_cxx",
     }),
     visibility = ["PUBLIC"],
 )

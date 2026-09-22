@@ -1,0 +1,25 @@
+# The WASI sysroot: the libc, the C++ standard library and the start files that
+# a plugin's C dependencies are compiled and linked against for
+# wasm32-wasip1-threads.
+#
+# Rust needs none of it - rustc's own wasip1 standard library is self-contained,
+# and a pure-Rust module links without this. What needs it is the C: freetype
+# and harfbuzz are compiled to wasm the same way they are compiled natively, and
+# there they find the machine's headers.
+#
+# It is downloaded rather than vendored, like every crate in third-party/rust,
+# and checked against the same hash scripts/internal/common.sh pins for the
+# cargo build - so both builds are against the same bytes.
+http_archive(
+    name = "sysroot",
+    sha256 = "063bc1b56582b9923e08ac9b89e58789618d851763f01530b3ff20b9e5df0ca3",
+    strip_prefix = "wasi-sysroot-33.0+m",
+    # One url, because buck2's http_archive takes one. It is the mirror rather
+    # than upstream because upstream is a GitHub release asset, which is what
+    # has 504'd on this project before and is the reason the mirror exists; the
+    # bytes are the same either way, which the hash above is what says. Upstream
+    # is
+    # https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sysroot-33.0+m.tar.gz
+    urls = ["https://lfs.pfg.pw/by-name/be3/wasi-sysroot-33.0+m.tar.gz"],
+    visibility = ["PUBLIC"],
+)

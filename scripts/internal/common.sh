@@ -520,7 +520,10 @@ export_wasi_toolchain() {
             # This is the download that has 504'd on us, and the one every
             # published plugin and the web bundle are linked against, so it is
             # the first the mirror above carries.
-            local mirror="$download_mirror/wasi-sysroot-$wasi_sdk_version.0.tar.gz"
+            # Named exactly as upstream names it, "+m" and all, so that the
+            # hash pinned above is a hash of the same bytes either way rather
+            # than of a repackaging.
+            local mirror="$download_mirror/wasi-sysroot-$wasi_sdk_version.0+m.tar.gz"
             step "Downloading the WASI sysroot from $url"
             mkdir -p "$tools"
             rm -rf "$wasi_sysroot" "$extracted"
@@ -864,13 +867,26 @@ unwrap_rustc_for_wasm() {
 # from source. Nothing but ./scripts/buckify needs it: the file it writes is
 # checked in.
 buck2_version='2026-09-15'
-buck2_sha256_x86_64='1268fce33fb61273091dd5dd8c60b65de1521a3caa36b88983813e882b7ffd89'
-buck2_sha256_aarch64='e35027a8e3f702fd9f080074ac64ebc80e2a0fe8d669d46d85afc31b0ec4a463'
+
+# The releases mirrored for this version, by the triple upstream names them
+# after. Linux and macOS are what anyone develops on; Windows is here because
+# the release exists and mirroring it costs nothing, not because anything has
+# been built there.
+buck2_sha256_x86_64_unknown_linux_gnu='1268fce33fb61273091dd5dd8c60b65de1521a3caa36b88983813e882b7ffd89'
+buck2_sha256_aarch64_unknown_linux_gnu='e35027a8e3f702fd9f080074ac64ebc80e2a0fe8d669d46d85afc31b0ec4a463'
+buck2_sha256_x86_64_apple_darwin='af1e51f198ecccfc41b9d960a2c79bb16f01e238f7169a86989caed9440fba0d'
+buck2_sha256_aarch64_apple_darwin='aacdf7cabe34b9b5dc74866b8dcf7410cdbae3ad2dccef45b7ee9851cb781528'
+buck2_sha256_x86_64_pc_windows_msvc='1f0619b285ee3cbdc562a38b70f2636f73e8233b2f5156aef93e9e8a00079e2c'
+buck2_sha256_aarch64_pc_windows_msvc='58edb0718e3b89a3f875129cc72640f2f4cb80487ec42057eb88447519dff0cf'
 
 # The Starlark formatter from the same release, which ./scripts/verify runs over
 # the BUCK files the way it runs rustfmt over the Rust.
-starlark_fmt_sha256_x86_64='7235fa17c2d937da5c509a7576049239a1aca854369863075cebf9ff181033ca'
-starlark_fmt_sha256_aarch64='4b8c37092d8586c145b4429ad2b3f8a671c78084dc29186f7c2ed6827d8ef170'
+starlark_fmt_sha256_x86_64_unknown_linux_gnu='7235fa17c2d937da5c509a7576049239a1aca854369863075cebf9ff181033ca'
+starlark_fmt_sha256_aarch64_unknown_linux_gnu='4b8c37092d8586c145b4429ad2b3f8a671c78084dc29186f7c2ed6827d8ef170'
+starlark_fmt_sha256_x86_64_apple_darwin='3f891528bf55f25b69b2d4b7659084478e3d0a03c01b97c12f4c9eb3d6ba90a5'
+starlark_fmt_sha256_aarch64_apple_darwin='188446c453f654572268734d5bc784501b975a9410efa4b0f1f0e884aa4f09e2'
+starlark_fmt_sha256_x86_64_pc_windows_msvc='c9c4d71775c64ffa7989ea4fcbb63b0ac04128e62bd05b519e6bd32b9fcc52b3'
+starlark_fmt_sha256_aarch64_pc_windows_msvc='a16de34be943ba1772879a84d68469019b958f2086c55dd949f0973ad39cf2ec'
 
 reindeer_revision='3be7bd2e11d8fe949ae6db0bcbc46db8adab7264'
 
@@ -887,14 +903,54 @@ buck_cache_instance='buck2-cache'
 
 # The triple the buck2 release is named after, for this machine.
 buck2_triple() {
+    local architecture
     case "$(uname -m)" in
-        x86_64 | amd64) echo 'x86_64-unknown-linux-gnu' ;;
-        aarch64 | arm64) echo 'aarch64-unknown-linux-gnu' ;;
+        x86_64 | amd64) architecture='x86_64' ;;
+        aarch64 | arm64) architecture='aarch64' ;;
         *)
             echo "No buck2 release is mirrored for $(uname -m)." >&2
             return 1
             ;;
     esac
+
+    case "$(uname -s)" in
+        Linux) echo "$architecture-unknown-linux-gnu" ;;
+        Darwin) echo "$architecture-apple-darwin" ;;
+        MINGW* | MSYS* | CYGWIN*) echo "$architecture-pc-windows-msvc" ;;
+        *)
+            echo "No buck2 release is mirrored for $(uname -s)." >&2
+            return 1
+            ;;
+    esac
+}
+
+# Upstream names the Windows binaries .exe.zst and everything else .zst.
+buck2_release_suffix() {
+    case "$(uname -s)" in
+        MINGW* | MSYS* | CYGWIN*) echo '.exe.zst' ;;
+        *) echo '.zst' ;;
+    esac
+}
+
+# What the installed binary is called, which on Windows keeps the extension the
+# release was named with.
+buck2_binary_suffix() {
+    case "$(uname -s)" in
+        MINGW* | MSYS* | CYGWIN*) echo '.exe' ;;
+        *) echo '' ;;
+    esac
+}
+
+# The hash pinned above for a tool on this machine, looked up by the triple with
+# its dashes turned into the underscores a shell variable name can hold.
+buck2_release_sha256() {
+    local tool="$1" triple="$2" name
+    name="${tool}_sha256_${triple//-/_}"
+    if [[ -z "${!name:-}" ]]; then
+        echo "No $tool release is pinned here for $triple." >&2
+        return 1
+    fi
+    echo "${!name}"
 }
 
 # What .buckconfig.local has to say for buck2 to work on this machine.
@@ -1070,6 +1126,19 @@ write_buck_tools() {
     fi
     write_buck_tool "$directory/ar" "$(basename "$archiver")" \
         "$("$archiver" --version 2>&1 | head -1)"
+
+    # The C compiler the wasm build uses, which is not the host one: FreeType's
+    # setjmp lowering needs clang 19 or newer, and 24.04 ships 18 as plain
+    # clang. newest_wasm_clang is the same choice the cargo build makes.
+    local wasm_clang wasm_clang_version
+    wasm_clang="$(newest_wasm_clang)" || {
+        echo "The wasm build needs clang $wasm_clang_minimum or newer, and none was found." >&2
+        echo 'Install one (apt-get install clang-20 llvm-20) and run this again.' >&2
+        return 1
+    }
+    wasm_clang_version="$("$wasm_clang" --version 2>&1 | head -1)"
+    write_buck_tool "$directory/wasm-cc" "$wasm_clang" "$wasm_clang_version"
+    write_buck_tool "$directory/wasm-cxx" "${wasm_clang/clang/clang++}" "$wasm_clang_version"
 
     assert_command rustc 'Install Rust from https://rustup.rs.'
     local rust_version

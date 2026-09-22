@@ -51,3 +51,10 @@ srcs = [
 headers = ["freetype2/include/**/*.h", "freetype2/src/**/*.h", "freetype2/src/**/*.c"]
 include_paths = ["freetype2/include", "freetype2/src"]
 compiler_flags = ["-w", "-DFT2_BUILD_LIBRARY"]
+
+# On wasm the [[cxx_library]] above is the only thing that compiles this, so the
+# build script has nothing left to do. Running it anyway would compile the same
+# C a second time, with cc-rs choosing its own flags for a target it names
+# differently, and fail.
+['cfg(target_family = "wasm")']
+buildscript.run = false
