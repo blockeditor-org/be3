@@ -9646,17 +9646,13 @@ cargo.rust_library(
     features = [
         "alloc",
         "default",
+        "num-traits",
         "std",
     ],
-    platform = {
-        "linux-x86_64": dict(
-            features = ["num-traits"],
-            deps = [":num-traits-0.2"],
-        ),
-    },
     visibility = [],
     deps = [
         ":cfg-if-1",
+        ":num-traits-0.2",
         ":zerocopy-0.8",
     ],
 )
@@ -13894,6 +13890,17 @@ cargo.rust_library(
     ],
 )
 
+cargo_alias(
+    name = "naga",
+    actual = ":naga-29",
+    platforms = [
+        "linux-x86_64",
+        "wasi",
+        "wasm32",
+    ],
+    visibility = ["PUBLIC"],
+)
+
 http_archive(
     name = "naga-29.0.3.crate",
     sha256 = "0dd91265cc2454558f659b3b4b9640f0ddb8cc6521277f166b8a8c181c898079",
@@ -13928,12 +13935,19 @@ cargo.rust_library(
     },
     features = [
         "default",
-        "glsl-out",
-        "hlsl-out",
-        "spv-out",
         "wgsl-in",
-        "wgsl-out",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "glsl-out",
+                "hlsl-out",
+                "spv-out",
+                "wgsl-out",
+            ],
+            deps = [":spirv-0.4"],
+        ),
+    },
     rustc_flags = ["@$(location :naga-29-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
@@ -13951,7 +13965,6 @@ cargo.rust_library(
         ":num-traits-0.2",
         ":once_cell-1",
         ":rustc-hash-1",
-        ":spirv-0.4",
         ":thiserror-2",
         ":unicode-ident-1",
     ],
@@ -13982,12 +13995,18 @@ cargo.rust_binary(
     },
     features = [
         "default",
-        "glsl-out",
-        "hlsl-out",
-        "spv-out",
         "wgsl-in",
-        "wgsl-out",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "glsl-out",
+                "hlsl-out",
+                "spv-out",
+                "wgsl-out",
+            ],
+        ),
+    },
     visibility = [],
     deps = [":cfg_aliases-0.2"],
 )
@@ -14010,12 +14029,18 @@ buildscript_run(
     },
     features = [
         "default",
-        "glsl-out",
-        "hlsl-out",
-        "spv-out",
         "wgsl-in",
-        "wgsl-out",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "glsl-out",
+                "hlsl-out",
+                "spv-out",
+                "wgsl-out",
+            ],
+        ),
+    },
     version = "29.0.3",
 )
 
@@ -14130,16 +14155,12 @@ cargo.rust_library(
     },
     features = [
         "default",
+        "libm",
         "std",
     ],
-    platform = {
-        "linux-x86_64": dict(
-            features = ["libm"],
-            deps = [":libm-0.2"],
-        ),
-    },
     rustc_flags = ["@$(location :num-traits-0.2-build-script-run[rustc_flags])"],
     visibility = [],
+    deps = [":libm-0.2"],
 )
 
 cargo.rust_binary(
@@ -14167,13 +14188,9 @@ cargo.rust_binary(
     },
     features = [
         "default",
+        "libm",
         "std",
     ],
-    platform = {
-        "linux-x86_64": dict(
-            features = ["libm"],
-        ),
-    },
     visibility = [],
     deps = [":autocfg-1"],
 )
@@ -14196,13 +14213,9 @@ buildscript_run(
     },
     features = [
         "default",
+        "libm",
         "std",
     ],
-    platform = {
-        "linux-x86_64": dict(
-            features = ["libm"],
-        ),
-    },
     version = "0.2.19",
 )
 
@@ -24567,6 +24580,45 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "wasm-encoder-0.257.1.crate",
+    sha256 = "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085",
+    strip_prefix = "wasm-encoder-0.257.1",
+    urls = ["https://static.crates.io/crates/wasm-encoder/0.257.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "wasm-encoder-0.257",
+    srcs = [":wasm-encoder-0.257.1.crate"],
+    crate = "wasm_encoder",
+    crate_root = "wasm-encoder-0.257.1.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "wasm_encoder",
+        "CARGO_CRATE_NAME": "wasm_encoder",
+        "CARGO_MANIFEST_DIR": "wasm-encoder-0.257.1.crate",
+        "CARGO_PKG_AUTHORS": "Nick Fitzgerald <fitzgen@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "A low-level WebAssembly encoder.\n",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder",
+        "CARGO_PKG_NAME": "wasm-encoder",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder",
+        "CARGO_PKG_RUST_VERSION": "1.85.0",
+        "CARGO_PKG_VERSION": "0.257.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "257",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "component-model",
+        "std",
+    ],
+    visibility = [],
+    deps = [":leb128fmt-0.1"],
+)
+
+http_archive(
     name = "wasm-metadata-0.254.0.crate",
     sha256 = "b01df5f3b4ca7881e843f3bc0fb8a3905d79c68692250dcb8e33e698705ccdb6",
     strip_prefix = "wasm-metadata-0.254.0",
@@ -24648,7 +24700,10 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = ["std"],
+    features = [
+        "std",
+        "wat",
+    ],
     visibility = [],
     deps = [
         ":spin-0.9",
@@ -24656,6 +24711,7 @@ cargo.rust_library(
         ":wasmi_core-1",
         ":wasmi_ir-1",
         ":wasmparser-0.239",
+        ":wat-1",
     ],
 )
 
@@ -25019,6 +25075,7 @@ cargo.rust_library(
         "std",
         "threads",
         "wasmtime-jit-icache-coherence",
+        "wat",
     ],
     named_deps = {
         "wasmtime_cache": ":wasmtime-internal-cache-48",
@@ -25061,6 +25118,7 @@ cargo.rust_library(
         ":wasmparser-0.254",
         ":wasmtime-48-helpers",
         ":wasmtime-environ-48",
+        ":wat-1",
     ],
 )
 
@@ -25100,6 +25158,7 @@ cargo.rust_binary(
         "std",
         "threads",
         "wasmtime-jit-icache-coherence",
+        "wat",
     ],
     named_deps = {
         "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48",
@@ -25137,6 +25196,7 @@ buildscript_run(
         "std",
         "threads",
         "wasmtime-jit-icache-coherence",
+        "wat",
     ],
     version = "48.0.1",
 )
@@ -26123,6 +26183,90 @@ cargo.rust_library(
     },
     visibility = [],
     deps = [":leb128-0.2"],
+)
+
+http_archive(
+    name = "wast-257.0.1.crate",
+    sha256 = "3c416ee8044cf88c5280e3d87c322b009525eb25142cf7428f0a90ea88febc3b",
+    strip_prefix = "wast-257.0.1",
+    urls = ["https://static.crates.io/crates/wast/257.0.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "wast-257",
+    srcs = [":wast-257.0.1.crate"],
+    crate = "wast",
+    crate_root = "wast-257.0.1.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "wast",
+        "CARGO_CRATE_NAME": "wast",
+        "CARGO_MANIFEST_DIR": "wast-257.0.1.crate",
+        "CARGO_PKG_AUTHORS": "Alex Crichton <alex@alexcrichton.com>",
+        "CARGO_PKG_DESCRIPTION": "Customizable Rust parsers for the WebAssembly Text formats WAT and WAST\n",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wast",
+        "CARGO_PKG_NAME": "wast",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wast",
+        "CARGO_PKG_RUST_VERSION": "1.85.0",
+        "CARGO_PKG_VERSION": "257.0.1",
+        "CARGO_PKG_VERSION_MAJOR": "257",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "component-model",
+        "wasm-module",
+    ],
+    visibility = [],
+    deps = [
+        ":bumpalo-3",
+        ":leb128fmt-0.1",
+        ":memchr-2",
+        ":unicode-width-0.2",
+        ":wasm-encoder-0.257",
+    ],
+)
+
+http_archive(
+    name = "wat-1.257.1.crate",
+    sha256 = "672e5495f00c5fc6c6b502205bae4708aa4dd13d969754438743afe0a8af0f1d",
+    strip_prefix = "wat-1.257.1",
+    urls = ["https://static.crates.io/crates/wat/1.257.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "wat-1",
+    srcs = [":wat-1.257.1.crate"],
+    crate = "wat",
+    crate_root = "wat-1.257.1.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "wat",
+        "CARGO_CRATE_NAME": "wat",
+        "CARGO_MANIFEST_DIR": "wat-1.257.1.crate",
+        "CARGO_PKG_AUTHORS": "Alex Crichton <alex@alexcrichton.com>",
+        "CARGO_PKG_DESCRIPTION": "Rust parser for the WebAssembly Text format, WAT\n",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wat",
+        "CARGO_PKG_NAME": "wat",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wat",
+        "CARGO_PKG_RUST_VERSION": "1.85.0",
+        "CARGO_PKG_VERSION": "1.257.1",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "257",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "component-model",
+        "default",
+    ],
+    visibility = [],
+    deps = [":wast-257"],
 )
 
 http_archive(

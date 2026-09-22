@@ -342,26 +342,29 @@ The gaps, roughly in the order they are worth closing:
   `./scripts/buckify` and fixing what the new platforms' build scripts need; the
   first-party `BUCK` files would then need `select()` where the dependency sets
   differ.
-- **The plugins are not built yet**, but nothing unknown is left in the way.
-  `beui` compiles for `wasm32-wasip1-threads` with its C dependencies, which was
-  the question. What remains is per-crate: `block-client`, `block-ui`,
-  `block-reactive` and `block-editor-plugin` each need their dependencies and
-  features `select`ed on the platform, the way `beui` now does, because a guest
-  does not link `ureq` or a window. Then the 33 editors are one `BUCK` file
-  each, and the plugin test runner is the transition rule the games already use.
+- **The plugins build but their tests do not run.** All 33 editors compile to
+  `wasm32-wasip1-threads` and come out as modules under the names their
+  manifests give them (`./scripts/buck build //crates/editors/...`). What is
+  missing is the run: a plugin's tests are compiled to wasm too and executed by
+  `plugin-test-runner` through wasmtime, and buck2 has no rule for a test whose
+  binary is a wasm module handed to a host. `block-editor-plugin` has no test
+  target for the same reason - its tests are behind `cfg(target_arch =
+  "wasm32")`.
+- **Nothing stages the plugins.** `scripts/internal/common.sh` copies each
+  manifest beside the modules as `<id>.plugin.json` and writes a `plugins.json`
+  index for the browser and Android. There is no buck2 rule for that yet, and
+  nothing to consume one until `block-app` is built.
 - **No web bundle.** It is the same wasm build with wasm-bindgen after it, and
   the JS shims in `scripts/internal/web` beside it.
 - **`block-app` is not built.** It has a build script that shells out to git,
   it links libghostty-vt, which Zig builds, and it is the one crate that pulls
   in the whole GTK and WebKitGTK tree.
-- **Three test targets are labelled `cargo-only`** and skipped by the buck2 run:
+- **One test target is labelled `cargo-only`** and skipped by the buck2 run.
   `block-plugin-api` has one test that walks `crates/editors` in the source
-  tree, and `block-wasm-host` and the games' `game-host` load wasm modules that
-  the plugin and game builds produce. cargo runs all three.
-- **`block-editor-plugin` has no test target.** Its only dev-dependency is
-  `naga`, and reindeer names a third-party target after the ordinary
-  dependencies of a workspace member, so there is nothing for the test to depend
-  on. The crate's library builds; its tests stay with cargo.
+  tree; buck2 compiles a crate against a staged copy of its own sources, so
+  `CARGO_MANIFEST_DIR/../editors` is not there. Giving it the manifests means
+  naming all 33 editor packages somewhere, because they are packages of their
+  own and a `glob` cannot reach into them. cargo runs it.
 - **The lint pass is still cargo's.** Clippy works through buck2 (above) but
   cannot replace `cargo clippy` until every crate has a BUCK file. rustfmt and
   `fix-rust-source` have no buck2 story at all yet.
@@ -405,3 +408,11 @@ buck2 builds one target per rule and unifies nothing. Where that matters the
 feature is named in a fixup - `wgpu` and `wgpu-core` both carry `noop` for this
 reason. A test that fails under buck2 and passes under cargo with a missing
 method or a missing `cfg` is almost always this.
+
+The other difference is what reindeer will not look at. It walks a workspace
+member's ordinary dependencies and stops at `[dev-dependencies]`, so a crate
+nothing but a test uses gets no target at all, and neither does an optional
+dependency behind a feature only a test asks for. `crates/test-third-party`
+names those - `naga`, and `wat` through `wasmi` and `wasmtime` - and has no code
+and no dependents. The `[dev-dependencies]` line that wants one stays where it
+belongs, on the crate whose tests use it.

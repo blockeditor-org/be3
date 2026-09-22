@@ -6733,6 +6733,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-third-party"
+version = "0.1.0"
+dependencies = [
+ "naga",
+ "wasmi",
+ "wasmtime",
+]
+
+[[package]]
 name = "text-editor-core"
 version = "0.1.0"
 dependencies = [

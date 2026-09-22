@@ -39,7 +39,6 @@ rust_test(
         "CARGO_PKG_NAME": "block-wasm-host",
         "CARGO_PKG_VERSION": "0.1.0",
     },
-    labels = ["cargo-only"],
     srcs = glob(["src/**/*.rs"]),
 )
 

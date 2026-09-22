@@ -1,0 +1,29 @@
+# The third-party crates and features that only tests ask for, named where the
+# buck2 build can see them.
+#
+# reindeer generates third-party/rust/BUCK from this workspace, and it walks a
+# workspace member's ordinary dependencies only: a [dev-dependencies] line is
+# how cargo says "for my tests", and reindeer reads it as "not part of the
+# third-party tree". So a crate no non-test code depends on never gets a target,
+# and neither does an optional dependency behind a feature only a test turns on.
+#
+# Nothing depends on this crate and it has no code. Naming a crate here is what
+# puts it in the tree; the [dev-dependencies] line that asks for it stays where
+# it belongs, on the crate whose tests use it.
+[package]
+name = "test-third-party"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+# block-editor-plugin's tests validate the shaders a plugin ships.
+naga = { version = "29", features = ["wgsl-in"] }
+# game-host's and block-wasm-host's tests write their modules as text, which is
+# what wat parses. The feature carries the crate: it is an optional dependency,
+# so without something asking for the feature there is no target for it either.
+wasmi = { version = "1.1", default-features = false, features = ["std", "wat"] }
+wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "runtime", "std", "threads", "wat"] }
+
+[lints]
+workspace = true
