@@ -459,6 +459,17 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         editable: bool,
     },
+
+    Content {
+        instance: EditorInstanceId,
+        content_type: [u8; 16],
+        bytes: Vec<u8>,
+        applied: u64,
+    },
+    Operate {
+        instance: EditorInstanceId,
+        operation: Vec<u8>,
+    },
     ViewChanged {
         instance: EditorInstanceId,
         x: f32,
@@ -712,6 +723,8 @@ impl EditorMessage {
         match self {
             Self::Open { instance, .. }
             | Self::EditabilityChanged { instance, .. }
+            | Self::Content { instance, .. }
+            | Self::Operate { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -1070,6 +1083,7 @@ impl EditorMessage {
             | Self::Close { .. }
             | Self::Resized { .. }
             | Self::EditabilityChanged { .. }
+            | Self::Content { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1114,6 +1128,7 @@ impl EditorMessage {
             | Self::PasteText { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
+            | Self::Operate { .. }
             | Self::Performance { .. } => Direction::ToHost,
         }
     }

@@ -2,19 +2,19 @@ use super::*;
 
 #[test]
 fn resetting_puts_the_block_back_to_zero() {
-    let (mut editor, block) = editor();
+    let mut harness = Harness::new();
 
-    editor.click("counter.increment");
-    editor.run();
-    editor.click("counter.decrement");
-    editor.run();
-    editor.click("counter.decrement");
-    editor.run();
-    assert_eq!(block.read().unwrap().count(), -1);
+    harness.click("counter.increment");
+    harness.run();
+    harness.click("counter.decrement");
+    harness.run();
+    harness.click("counter.decrement");
+    harness.run();
+    assert_eq!(harness.count(), -1);
 
-    editor.click("counter.reset");
-    editor.run();
+    harness.click("counter.reset");
+    harness.run();
 
-    assert_eq!(block.read().unwrap().count(), 0);
-    assert_eq!(shown(&mut editor), "\"0\"");
+    assert_eq!(harness.count(), 0);
+    assert_eq!(harness.shown(), "\"0\"");
 }

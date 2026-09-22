@@ -19,7 +19,10 @@ impl BlockApp {
             .show(ctx, |ui| {
                 egui::ScrollArea::both()
                     .auto_shrink([false, false])
-                    .show(ui, |ui| show_snapshot(ui, &snapshot));
+                    .show(ui, |ui| {
+                        show_snapshot(ui, &snapshot);
+                        show_be_stack(ui, &crate::be::status());
+                    });
             });
         self.client_debug_open = open;
     }
@@ -210,6 +213,41 @@ fn show_entries(ui: &mut egui::Ui, title: &str, id: &'static str, entries: &[Cli
                         monospace(ui, &entry.details);
                         ui.end_row();
                     }
+                });
+        });
+}
+
+fn show_be_stack(ui: &mut egui::Ui, status: &crate::be::Status) {
+    ui.separator();
+    egui::CollapsingHeader::new("New Block Stack")
+        .default_open(true)
+        .show(ui, |ui| {
+            egui::Grid::new("be-debug-summary")
+                .num_columns(2)
+                .striped(true)
+                .show(ui, |ui| {
+                    field(ui, "Peer", if status.running { "Running" } else { "Off" });
+                    field(
+                        ui,
+                        "Connection",
+                        if status.connected {
+                            "Connected"
+                        } else {
+                            "Disconnected"
+                        },
+                    );
+                    field(ui, "Live blocks", status.blocks);
+                    field(ui, "Worker wake-ups", status.wakes);
+                    field(
+                        ui,
+                        "Changes",
+                        if status.unsealed == 0 {
+                            "Sealed".to_owned()
+                        } else {
+                            format!("{} block(s) unsealed", status.unsealed)
+                        },
+                    );
+                    field(ui, "Error", status.error.as_deref().unwrap_or("None"));
                 });
         });
 }

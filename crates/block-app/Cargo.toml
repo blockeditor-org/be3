@@ -51,6 +51,14 @@ web-view = ["dep:wry"]
 full = ["terminal", "web-view"]
 
 [dependencies]
+# The new block stack. The app is a peer of it on every platform: be-client's
+# socket and executor come from its own transport/, and the server it talks to
+# rides on the block server's port.
+be-block = { path = "../be-block" }
+be-client = { path = "../be-client" }
+be-graph = { path = "../be-graph" }
+be-protocol = { path = "../be-protocol" }
+be-store = { path = "../be-store" }
 block = { path = "../block" }
 block-client = { path = "../block-client" }
 block-plugin-api = { path = "../block-plugin-api" }
@@ -61,10 +69,14 @@ ghostty-vt = { path = "../ghostty-vt", optional = true }
 eframe = { version = "0.34.3", default-features = false, features = ["default_fonts", "persistence", "wgpu"] }
 egui_material_icons = "0.6.0"
 flate2 = "1"
+futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
 logicgame = { path = "../logicgame" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Only the synchronisation primitives are shared with the browser build; the
+# new block stack's worker gets its executor and its timer from be/ instead.
+tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 wasi-threads = { path = "../wasi-threads" }
 
@@ -76,7 +88,7 @@ wasi-threads = { path = "../wasi-threads" }
 block-wasm-host = { path = "../block-wasm-host" }
 block-server = { path = "../block-server" }
 rusqlite = { version = "0.32", features = ["bundled"] }
-tokio = { version = "1", features = ["net", "rt-multi-thread", "sync"] }
+tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 ureq = { version = "2", features = ["gzip"] }
 # rodio (via cpal) reaches ALSA/CoreAudio/WASAPI on desktop and Oboe on
 # Android. The web build talks to the Web Audio API through web-sys directly
@@ -93,6 +105,11 @@ eframe = { version = "0.34.3", default-features = false, features = ["wayland", 
 # instead, from platform/file_picker.rs.
 rfd = "0.15"
 wry = { version = "0.55.1", optional = true }
+
+# The plugin side of the protocol, for the tests that check the host only sends
+# a plugin's session messages it accepts. Nothing in the app links it.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+block-editor-plugin = { path = "../block-editor-plugin" }
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 libc = "0.2"

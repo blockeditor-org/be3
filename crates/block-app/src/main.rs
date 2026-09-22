@@ -1,4 +1,5 @@
 mod app_state;
+mod be;
 mod block_picker;
 mod debug;
 mod editors;
@@ -959,6 +960,7 @@ impl BlockApp {
     }
 
     fn open_workspace(&mut self, workspace: Workspace) {
+        be::stop();
         let client = Arc::new(BlockClient::new(self.account.id, workspace.id));
         client.connect(self.server_url.clone(), self.account.token.clone());
         self.block_types.clear();
@@ -1356,7 +1358,11 @@ impl BlockApp {
     }
 
     fn intercept_close(&mut self, ctx: &egui::Context) {
-        if !ctx.input(|input| input.viewport().close_requested()) || self.allow_close {
+        if !ctx.input(|input| input.viewport().close_requested()) {
+            return;
+        }
+        be::flush();
+        if self.allow_close {
             return;
         }
         if self.client.network_debug_snapshot().changes_saved {
@@ -2245,6 +2251,7 @@ impl BlockApp {
         performance::begin_frame(ui.ctx());
         plugin_host::poll(ui.ctx(), frame);
         if !self.signed_in {
+            be::stop();
             self.show_account_onboarding(ui);
             performance::end_frame();
             ui.ctx().request_repaint_after(Duration::from_millis(100));
@@ -2261,6 +2268,7 @@ impl BlockApp {
             self.switch_account(ui.ctx(), account);
         }
         if self.workspace.is_none() {
+            be::stop();
             self.show_workspace_onboarding(ui);
             self.show_reauth(ui.ctx());
             performance::end_frame();
@@ -2268,6 +2276,7 @@ impl BlockApp {
             return;
         }
         self.sync_ui_settings(ui.ctx());
+        self.sync_be_stack(ui.ctx());
         self.poll_workspace_request();
         self.show_reauth(ui.ctx());
         self.intercept_close(ui.ctx());
@@ -2297,6 +2306,24 @@ impl BlockApp {
         performance::show(ui.ctx());
         plugin_host::flush();
         performance::end_frame();
+    }
+
+    fn sync_be_stack(&mut self, context: &egui::Context) {
+        let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) else {
+            return;
+        };
+        if be::installed_for(self.account.id, workspace) {
+            return;
+        }
+        be::start(be::Config {
+            server_url: self.server_url.clone(),
+            token: self.account.token.clone(),
+            account: self.account.id,
+            workspace,
+            #[cfg(not(target_arch = "wasm32"))]
+            data_dir: self.data_dir.join("be-objects"),
+            context: context.clone(),
+        });
     }
 
     fn sync_ui_settings(&mut self, context: &egui::Context) {

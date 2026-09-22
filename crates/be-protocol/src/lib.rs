@@ -97,6 +97,9 @@ pub enum ClientMessage {
         request: u64,
         token: String,
     },
+    Adopt {
+        request: u64,
+    },
     ListWorkspaces {
         request: u64,
     },
@@ -230,6 +233,7 @@ impl ClientMessage {
             Self::Register { request, .. }
             | Self::Login { request, .. }
             | Self::Authenticate { request, .. }
+            | Self::Adopt { request }
             | Self::ListWorkspaces { request }
             | Self::CreateWorkspace { request, .. }
             | Self::OpenWorkspace { request, .. }

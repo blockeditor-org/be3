@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use block_client::BlockClient;
 use block_client::blocks::checklist::{Checklist, ChecklistOperation};
-use block_client::blocks::counter::{Counter, CounterOperation};
+use block_client::blocks::ui_settings::{UiSettings, UiSettingsOperation};
 use reactive::{Scope, create_effect};
 use uuid::Uuid;
 

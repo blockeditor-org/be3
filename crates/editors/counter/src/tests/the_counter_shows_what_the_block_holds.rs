@@ -1,26 +1,18 @@
 use super::*;
-use block_client::blocks::counter::CounterOperation;
 
 #[test]
 fn the_counter_shows_what_the_block_holds() {
-    let (mut editor, block) = editor();
+    let mut harness = Harness::new();
 
-    for _ in 0..3 {
-        block.operate(CounterOperation::Increment);
-    }
-    editor.run();
+    harness.set_count(3);
+    harness.run();
+    assert_eq!(harness.shown(), "\"3\"");
 
-    assert_eq!(shown(&mut editor), "\"3\"");
+    harness.set_count(2);
+    harness.run();
+    assert_eq!(harness.shown(), "\"2\"");
 
-    block.operate(CounterOperation::Decrement);
-    editor.run();
-    assert_eq!(shown(&mut editor), "\"2\"");
-
-    block.operate(CounterOperation::Reset);
-    editor.run();
-    assert_eq!(shown(&mut editor), "\"0\"");
-
-    block.operate(CounterOperation::Increment);
-    editor.run();
-    assert_eq!(shown(&mut editor), "\"1\"");
+    harness.set_count(0);
+    harness.run();
+    assert_eq!(harness.shown(), "\"0\"");
 }

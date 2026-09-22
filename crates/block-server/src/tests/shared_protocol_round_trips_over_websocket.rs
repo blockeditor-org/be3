@@ -17,14 +17,18 @@ async fn shared_protocol_round_trips_over_websocket() {
         .await
         .unwrap();
     let watch_hub = Arc::new(WatchHub::new());
+    let be = Arc::new(be_server::Hosted::open(root.join("be")).unwrap());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn({
         let store = Arc::clone(&store);
         let watch_hub = Arc::clone(&watch_hub);
+        let be = Arc::clone(&be);
         async move {
             let (stream, _) = listener.accept().await.unwrap();
-            handle_connection(stream, store, watch_hub).await.unwrap();
+            handle_connection(stream, store, watch_hub, be)
+                .await
+                .unwrap();
         }
     });
     let mut client = test_connect(format!("ws://{addr}"), &token, workspace.id).await;
