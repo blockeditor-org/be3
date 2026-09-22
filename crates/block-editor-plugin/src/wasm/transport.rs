@@ -32,7 +32,7 @@ pub(crate) fn start_beui<A: crate::BeuiApp>(
 
 fn started(runtime: Runtime) -> Result<(), String> {
     surface::initialize()?;
-    post(vec![runtime.hello()])?;
+    post(vec![runtime.hello()]);
     STARTED.with(|started| started.set(host::now()));
     PLUGIN.with(|plugin| *plugin.borrow_mut() = Some(runtime));
     Ok(())
@@ -52,11 +52,11 @@ pub(crate) fn step() -> Result<(), String> {
         };
         match runtime.step(batch, woken, phase) {
             Ok(step) => {
-                post(step.outbound)?;
+                post(step.outbound);
                 Ok(step.closed)
             }
             Err(error) => {
-                let _ = post(vec![protocol_error(error.clone())]);
+                post(vec![protocol_error(error.clone())]);
                 Err(error)
             }
         }
@@ -89,12 +89,13 @@ fn waker() -> Waker {
     })
 }
 
-fn post(messages: Vec<Message>) -> Result<(), String> {
+fn post(messages: Vec<Message>) {
     for message in messages {
-        let frame = encode_frame(&message).map_err(|error| error.to_string())?;
-        host::send(&frame);
+        match encode_frame(&message) {
+            Ok(frame) => host::send(&frame),
+            Err(error) => eprintln!("dropped a message the protocol refused to carry: {error}"),
+        }
     }
-    Ok(())
 }
 
 fn protocol_error(message: String) -> Message {

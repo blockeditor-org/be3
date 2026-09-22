@@ -3,11 +3,11 @@ use block_client::{
     presence::{UserActive, pick_free_color},
 };
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildId, ChildPlacement, ChildPlacements, ChildRect,
-    ChildStatus, CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage,
-    EditorRegion, FetchResult, FilePick, FrameChrome, FrameReport, FrameSpec, ImeArea, ImeInput,
-    InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize,
-    ScreenPlacement, ScreenRequest, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
+    ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
+    CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage, EditorRegion,
+    FrameChrome, FrameReport, FrameSpec, HostReply, ImeArea, ImeInput, InputEvent, Key,
+    MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize,
+    ScreenPlacement, ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
 };
 use block_ui::BlockCatalog;
 use eframe::egui;
@@ -511,10 +511,6 @@ impl EditorSession {
         self.host.set_block_types(catalog);
     }
 
-    pub(crate) fn set_pasted_image(&self, request: u64, image: block_plugin_api::ClipboardImage) {
-        self.host.set_pasted_image(request, image);
-    }
-
     pub(crate) fn set_audio(&self, status: block_plugin_api::AudioStatus) {
         self.host.set_audio(status);
     }
@@ -726,23 +722,21 @@ impl EditorSession {
         let intrinsic = self.app.intrinsic_size();
         if intrinsic != self.intrinsic {
             self.intrinsic = intrinsic;
-            if let Some(size) = intrinsic {
-                messages.push(Message::Editor(EditorMessage::IntrinsicSize {
-                    instance,
+            messages.push(Message::Editor(EditorMessage::IntrinsicSize {
+                instance,
+                size: intrinsic.map(|size| Size {
                     width: size.x,
                     height: size.y,
-                }));
-            }
+                }),
+            }));
         }
         let aspect_ratio = self.app.aspect_ratio();
         if aspect_ratio != self.aspect_ratio {
             self.aspect_ratio = aspect_ratio;
-            if let Some(ratio) = aspect_ratio {
-                messages.push(Message::Editor(EditorMessage::AspectRatio {
-                    instance,
-                    ratio,
-                }));
-            }
+            messages.push(Message::Editor(EditorMessage::AspectRatio {
+                instance,
+                ratio: aspect_ratio,
+            }));
         }
         if let Some(ready) = self.host.take_creation_ready() {
             messages.push(Message::Editor(EditorMessage::CreationReady {
@@ -801,24 +795,11 @@ impl EditorSession {
                 replaced,
             }));
         }
-        for (request_id, filter) in self.host.take_picks() {
-            messages.push(Message::Editor(EditorMessage::PickFile {
+        for (request_id, request) in self.host.take_requests() {
+            messages.push(Message::Editor(EditorMessage::Request {
                 instance,
                 request_id,
-                filter,
-            }));
-        }
-        for (request_id, filter) in self.host.take_block_picks() {
-            messages.push(Message::Editor(EditorMessage::PickBlock {
-                instance,
-                request_id,
-                filter,
-            }));
-        }
-        for request_id in self.host.take_pastes() {
-            messages.push(Message::Editor(EditorMessage::PasteImage {
-                instance,
-                request_id,
+                request,
             }));
         }
         for (block_id, command) in self.host.take_audio_commands() {
@@ -826,13 +807,6 @@ impl EditorSession {
                 instance,
                 block_id: block_id.into_bytes(),
                 command,
-            }));
-        }
-        for (request_id, url) in self.host.take_fetches() {
-            messages.push(Message::Editor(EditorMessage::Fetch {
-                instance,
-                request_id,
-                url,
             }));
         }
         for (region, rect) in self.host.take_web_view_placements() {
@@ -976,16 +950,8 @@ impl EditorSession {
         state.used = Some(egui::vec2(used.x.round(), used.y.round()));
     }
 
-    pub(crate) fn file_picked(&self, request_id: u64, pick: FilePick) {
-        self.host.set_pick(request_id, pick);
-    }
-
-    pub(crate) fn block_picked(&self, request_id: u64, pick: BlockPick) {
-        self.host.set_block_pick(request_id, pick);
-    }
-
-    pub(crate) fn fetched(&self, request_id: u64, result: FetchResult) {
-        self.host.set_fetched(request_id, result);
+    pub(crate) fn replied(&self, request_id: u64, reply: HostReply) {
+        self.host.set_reply(request_id, reply);
     }
 
     pub(crate) fn web_view_event(&self, event: WebViewEvent) {
@@ -1462,12 +1428,11 @@ impl EditorSession {
                 force: *force,
             }),
             InputEvent::Key {
-                logical,
+                key,
                 pressed,
                 repeat,
-                ..
             } => {
-                let Some(key) = beui_key(logical) else {
+                let Some(key) = beui_key(*key) else {
                     return;
                 };
                 state.events.push(beui::Event::Key {
@@ -1558,21 +1523,16 @@ impl EditorSession {
             }),
             InputEvent::Zoom { factor } => state.input.events.push(egui::Event::Zoom(*factor)),
             InputEvent::Key {
-                logical,
+                key,
                 pressed,
                 repeat,
-                ..
-            } => {
-                if let Some(key) = egui::Key::from_name(logical) {
-                    state.input.events.push(egui::Event::Key {
-                        key,
-                        physical_key: None,
-                        pressed: *pressed,
-                        repeat: *repeat,
-                        modifiers: state.input.modifiers,
-                    });
-                }
-            }
+            } => state.input.events.push(egui::Event::Key {
+                key: egui_key(*key),
+                physical_key: None,
+                pressed: *pressed,
+                repeat: *repeat,
+                modifiers: state.input.modifiers,
+            }),
             InputEvent::Text(text) => state.input.events.push(egui::Event::Text(text.clone())),
             InputEvent::Paste(text) => state.input.events.push(egui::Event::Paste(text.clone())),
             InputEvent::Modifiers(modifiers) => {
@@ -1654,53 +1614,53 @@ fn egui_touch_phase(phase: block_plugin_api::TouchPhase) -> egui::TouchPhase {
     }
 }
 
-fn beui_key(logical: &str) -> Option<beui::Key> {
-    let key = match logical {
-        "ArrowDown" => beui::Key::ArrowDown,
-        "ArrowLeft" => beui::Key::ArrowLeft,
-        "ArrowRight" => beui::Key::ArrowRight,
-        "ArrowUp" => beui::Key::ArrowUp,
-        "Backspace" => beui::Key::Backspace,
-        "Delete" => beui::Key::Delete,
-        "End" => beui::Key::End,
-        "Enter" => beui::Key::Enter,
-        "Escape" => beui::Key::Escape,
-        "Home" => beui::Key::Home,
-        "[" | "OpenBracket" => beui::Key::BracketLeft,
-        "]" | "CloseBracket" => beui::Key::BracketRight,
-        "-" | "Minus" => beui::Key::Minus,
-        "PageDown" => beui::Key::PageDown,
-        "PageUp" => beui::Key::PageUp,
-        "+" | "=" | "Plus" => beui::Key::Plus,
-        "Space" => beui::Key::Space,
-        "Tab" => beui::Key::Tab,
-        "0" => beui::Key::Zero,
-        "A" => beui::Key::A,
-        "B" => beui::Key::B,
-        "C" => beui::Key::C,
-        "D" => beui::Key::D,
-        "E" => beui::Key::E,
-        "F" => beui::Key::F,
-        "G" => beui::Key::G,
-        "H" => beui::Key::H,
-        "I" => beui::Key::I,
-        "J" => beui::Key::J,
-        "K" => beui::Key::K,
-        "L" => beui::Key::L,
-        "M" => beui::Key::M,
-        "N" => beui::Key::N,
-        "O" => beui::Key::O,
-        "P" => beui::Key::P,
-        "Q" => beui::Key::Q,
-        "R" => beui::Key::R,
-        "S" => beui::Key::S,
-        "T" => beui::Key::T,
-        "U" => beui::Key::U,
-        "V" => beui::Key::V,
-        "W" => beui::Key::W,
-        "X" => beui::Key::X,
-        "Y" => beui::Key::Y,
-        "Z" => beui::Key::Z,
+fn beui_key(key: Key) -> Option<beui::Key> {
+    let key = match key {
+        Key::ArrowDown => beui::Key::ArrowDown,
+        Key::ArrowLeft => beui::Key::ArrowLeft,
+        Key::ArrowRight => beui::Key::ArrowRight,
+        Key::ArrowUp => beui::Key::ArrowUp,
+        Key::Backspace => beui::Key::Backspace,
+        Key::Delete => beui::Key::Delete,
+        Key::End => beui::Key::End,
+        Key::Enter => beui::Key::Enter,
+        Key::Escape => beui::Key::Escape,
+        Key::Home => beui::Key::Home,
+        Key::OpenBracket => beui::Key::BracketLeft,
+        Key::CloseBracket => beui::Key::BracketRight,
+        Key::Minus => beui::Key::Minus,
+        Key::PageDown => beui::Key::PageDown,
+        Key::PageUp => beui::Key::PageUp,
+        Key::Plus | Key::Equals => beui::Key::Plus,
+        Key::Space => beui::Key::Space,
+        Key::Tab => beui::Key::Tab,
+        Key::Num0 => beui::Key::Zero,
+        Key::A => beui::Key::A,
+        Key::B => beui::Key::B,
+        Key::C => beui::Key::C,
+        Key::D => beui::Key::D,
+        Key::E => beui::Key::E,
+        Key::F => beui::Key::F,
+        Key::G => beui::Key::G,
+        Key::H => beui::Key::H,
+        Key::I => beui::Key::I,
+        Key::J => beui::Key::J,
+        Key::K => beui::Key::K,
+        Key::L => beui::Key::L,
+        Key::M => beui::Key::M,
+        Key::N => beui::Key::N,
+        Key::O => beui::Key::O,
+        Key::P => beui::Key::P,
+        Key::Q => beui::Key::Q,
+        Key::R => beui::Key::R,
+        Key::S => beui::Key::S,
+        Key::T => beui::Key::T,
+        Key::U => beui::Key::U,
+        Key::V => beui::Key::V,
+        Key::W => beui::Key::W,
+        Key::X => beui::Key::X,
+        Key::Y => beui::Key::Y,
+        Key::Z => beui::Key::Z,
         _ => return None,
     };
     Some(key)
@@ -1831,3 +1791,116 @@ fn wheel_unit(unit: WheelUnit) -> egui::MouseWheelUnit {
 
 #[cfg(test)]
 mod tests;
+
+fn egui_key(key: Key) -> egui::Key {
+    match key {
+        Key::ArrowDown => egui::Key::ArrowDown,
+        Key::ArrowLeft => egui::Key::ArrowLeft,
+        Key::ArrowRight => egui::Key::ArrowRight,
+        Key::ArrowUp => egui::Key::ArrowUp,
+        Key::Escape => egui::Key::Escape,
+        Key::Tab => egui::Key::Tab,
+        Key::Backspace => egui::Key::Backspace,
+        Key::Enter => egui::Key::Enter,
+        Key::Space => egui::Key::Space,
+        Key::Insert => egui::Key::Insert,
+        Key::Delete => egui::Key::Delete,
+        Key::Home => egui::Key::Home,
+        Key::End => egui::Key::End,
+        Key::PageUp => egui::Key::PageUp,
+        Key::PageDown => egui::Key::PageDown,
+        Key::Copy => egui::Key::Copy,
+        Key::Cut => egui::Key::Cut,
+        Key::Paste => egui::Key::Paste,
+        Key::Colon => egui::Key::Colon,
+        Key::Comma => egui::Key::Comma,
+        Key::Backslash => egui::Key::Backslash,
+        Key::Slash => egui::Key::Slash,
+        Key::Pipe => egui::Key::Pipe,
+        Key::Questionmark => egui::Key::Questionmark,
+        Key::Exclamationmark => egui::Key::Exclamationmark,
+        Key::OpenBracket => egui::Key::OpenBracket,
+        Key::CloseBracket => egui::Key::CloseBracket,
+        Key::OpenCurlyBracket => egui::Key::OpenCurlyBracket,
+        Key::CloseCurlyBracket => egui::Key::CloseCurlyBracket,
+        Key::Backtick => egui::Key::Backtick,
+        Key::Minus => egui::Key::Minus,
+        Key::Period => egui::Key::Period,
+        Key::Plus => egui::Key::Plus,
+        Key::Equals => egui::Key::Equals,
+        Key::Semicolon => egui::Key::Semicolon,
+        Key::Quote => egui::Key::Quote,
+        Key::Num0 => egui::Key::Num0,
+        Key::Num1 => egui::Key::Num1,
+        Key::Num2 => egui::Key::Num2,
+        Key::Num3 => egui::Key::Num3,
+        Key::Num4 => egui::Key::Num4,
+        Key::Num5 => egui::Key::Num5,
+        Key::Num6 => egui::Key::Num6,
+        Key::Num7 => egui::Key::Num7,
+        Key::Num8 => egui::Key::Num8,
+        Key::Num9 => egui::Key::Num9,
+        Key::A => egui::Key::A,
+        Key::B => egui::Key::B,
+        Key::C => egui::Key::C,
+        Key::D => egui::Key::D,
+        Key::E => egui::Key::E,
+        Key::F => egui::Key::F,
+        Key::G => egui::Key::G,
+        Key::H => egui::Key::H,
+        Key::I => egui::Key::I,
+        Key::J => egui::Key::J,
+        Key::K => egui::Key::K,
+        Key::L => egui::Key::L,
+        Key::M => egui::Key::M,
+        Key::N => egui::Key::N,
+        Key::O => egui::Key::O,
+        Key::P => egui::Key::P,
+        Key::Q => egui::Key::Q,
+        Key::R => egui::Key::R,
+        Key::S => egui::Key::S,
+        Key::T => egui::Key::T,
+        Key::U => egui::Key::U,
+        Key::V => egui::Key::V,
+        Key::W => egui::Key::W,
+        Key::X => egui::Key::X,
+        Key::Y => egui::Key::Y,
+        Key::Z => egui::Key::Z,
+        Key::F1 => egui::Key::F1,
+        Key::F2 => egui::Key::F2,
+        Key::F3 => egui::Key::F3,
+        Key::F4 => egui::Key::F4,
+        Key::F5 => egui::Key::F5,
+        Key::F6 => egui::Key::F6,
+        Key::F7 => egui::Key::F7,
+        Key::F8 => egui::Key::F8,
+        Key::F9 => egui::Key::F9,
+        Key::F10 => egui::Key::F10,
+        Key::F11 => egui::Key::F11,
+        Key::F12 => egui::Key::F12,
+        Key::F13 => egui::Key::F13,
+        Key::F14 => egui::Key::F14,
+        Key::F15 => egui::Key::F15,
+        Key::F16 => egui::Key::F16,
+        Key::F17 => egui::Key::F17,
+        Key::F18 => egui::Key::F18,
+        Key::F19 => egui::Key::F19,
+        Key::F20 => egui::Key::F20,
+        Key::F21 => egui::Key::F21,
+        Key::F22 => egui::Key::F22,
+        Key::F23 => egui::Key::F23,
+        Key::F24 => egui::Key::F24,
+        Key::F25 => egui::Key::F25,
+        Key::F26 => egui::Key::F26,
+        Key::F27 => egui::Key::F27,
+        Key::F28 => egui::Key::F28,
+        Key::F29 => egui::Key::F29,
+        Key::F30 => egui::Key::F30,
+        Key::F31 => egui::Key::F31,
+        Key::F32 => egui::Key::F32,
+        Key::F33 => egui::Key::F33,
+        Key::F34 => egui::Key::F34,
+        Key::F35 => egui::Key::F35,
+        Key::BrowserBack => egui::Key::BrowserBack,
+    }
+}

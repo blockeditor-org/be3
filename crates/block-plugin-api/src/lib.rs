@@ -7,13 +7,15 @@ mod session;
 pub use manifest::{ManifestDocument, manifest_from_json};
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 50;
+pub const PROTOCOL_VERSION: u16 = 51;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
+pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
+pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
-pub const MAX_SURFACE_SIDE: u32 = 8192;
+pub const DEFAULT_SURFACE_SIDE: u32 = 8192;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,7 +95,7 @@ impl ScreenPlacement {
 }
 
 impl ScreenLayout {
-    pub fn packed(screens: &[ScreenRequest]) -> Self {
+    pub fn packed(screens: &[ScreenRequest], max_side: u32) -> Self {
         let mut slots: Vec<&ScreenRequest> = screens
             .iter()
             .filter(|request| request.metrics.pixel_width > 0 && request.metrics.pixel_height > 0)
@@ -117,7 +119,7 @@ impl ScreenLayout {
             .sum();
         let shelf_width = widest
             .max((area as f64).sqrt().ceil() as u32)
-            .min(MAX_SURFACE_SIDE)
+            .min(max_side)
             .max(widest);
         let mut layout = Self::default();
         let mut x = 0;
@@ -183,6 +185,12 @@ pub enum ChildMode {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Size {
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ChildRect {
     pub x: f32,
     pub y: f32,
@@ -201,8 +209,7 @@ pub struct ChildPlacement {
     pub corner_radius: f32,
     pub layer: ChildLayer,
     pub mode: ChildMode,
-    pub intrinsic_width: f32,
-    pub intrinsic_height: f32,
+    pub intrinsic: Option<Size>,
     pub rotation: f32,
     pub opacity: f32,
 }
@@ -247,9 +254,8 @@ pub struct ChildStatus {
     pub region: EditorRegion,
     pub child: ChildId,
     pub available: bool,
-    pub intrinsic_width: f32,
-    pub intrinsic_height: f32,
-    pub aspect_ratio: f32,
+    pub intrinsic: Option<Size>,
+    pub aspect_ratio: Option<f32>,
     pub hovered: bool,
     pub active: bool,
     pub interaction: InteractionMode,
@@ -507,6 +513,13 @@ pub enum EditorMessage {
         via: Vec<[u8; 16]>,
     },
 
+    FocusChanged {
+        instance: EditorInstanceId,
+        block_id: Option<[u8; 16]>,
+        block_type: [u8; 16],
+        via: Vec<[u8; 16]>,
+    },
+
     DragBlock {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -550,34 +563,15 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         accepted: bool,
     },
-    PickFile {
+    Request {
         instance: EditorInstanceId,
         request_id: u64,
-        filter: FileFilter,
+        request: HostRequest,
     },
-    FilePicked {
+    Replied {
         instance: EditorInstanceId,
         request_id: u64,
-        pick: FilePick,
-    },
-    PickBlock {
-        instance: EditorInstanceId,
-        request_id: u64,
-        filter: BlockFilter,
-    },
-    BlockPicked {
-        instance: EditorInstanceId,
-        request_id: u64,
-        pick: BlockPick,
-    },
-    PasteImage {
-        instance: EditorInstanceId,
-        request_id: u64,
-    },
-    ImagePasted {
-        instance: EditorInstanceId,
-        request_id: u64,
-        image: ClipboardImage,
+        reply: HostReply,
     },
     PlayAudio {
         instance: EditorInstanceId,
@@ -587,16 +581,6 @@ pub enum EditorMessage {
     AudioStatus {
         instance: EditorInstanceId,
         status: AudioStatus,
-    },
-    Fetch {
-        instance: EditorInstanceId,
-        request_id: u64,
-        url: String,
-    },
-    Fetched {
-        instance: EditorInstanceId,
-        request_id: u64,
-        result: FetchResult,
     },
     GrabCursor {
         instance: EditorInstanceId,
@@ -709,27 +693,17 @@ pub enum EditorMessage {
     },
     AspectRatio {
         instance: EditorInstanceId,
-        ratio: f32,
+        ratio: Option<f32>,
     },
 
     IntrinsicSize {
         instance: EditorInstanceId,
-        width: f32,
-        height: f32,
+        size: Option<Size>,
     },
     Performance {
         instance: EditorInstanceId,
         group: String,
         measurements: Vec<PerformanceMeasurement>,
-    },
-    Acknowledged {
-        instance: EditorInstanceId,
-        request_id: u64,
-    },
-    Failure {
-        instance: EditorInstanceId,
-        request_id: Option<u64>,
-        message: String,
     },
 }
 
@@ -748,6 +722,7 @@ impl EditorMessage {
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
             | Self::Focused { instance, .. }
+            | Self::FocusChanged { instance, .. }
             | Self::DragBlock { instance, .. }
             | Self::BlockCommand { instance, .. }
             | Self::DragOver { instance, .. }
@@ -755,16 +730,10 @@ impl EditorMessage {
             | Self::FileDrop { instance, .. }
             | Self::FileDropLeft { instance, .. }
             | Self::DragAccepted { instance, .. }
-            | Self::PickFile { instance, .. }
-            | Self::FilePicked { instance, .. }
-            | Self::PickBlock { instance, .. }
-            | Self::BlockPicked { instance, .. }
-            | Self::PasteImage { instance, .. }
-            | Self::ImagePasted { instance, .. }
+            | Self::Request { instance, .. }
+            | Self::Replied { instance, .. }
             | Self::PlayAudio { instance, .. }
             | Self::AudioStatus { instance, .. }
-            | Self::Fetch { instance, .. }
-            | Self::Fetched { instance, .. }
             | Self::GrabCursor { instance, .. }
             | Self::WebView { instance, .. }
             | Self::WebViewCommand { instance, .. }
@@ -791,9 +760,7 @@ impl EditorMessage {
             | Self::PasteText { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
-            | Self::Performance { instance, .. }
-            | Self::Acknowledged { instance, .. }
-            | Self::Failure { instance, .. } => *instance,
+            | Self::Performance { instance, .. } => *instance,
         }
     }
 }
@@ -916,6 +883,22 @@ pub enum BlockCommand {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HostRequest {
+    PickFile(FileFilter),
+    PickBlock(BlockFilter),
+    PasteImage,
+    Fetch(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HostReply {
+    FilePicked(FilePick),
+    BlockPicked(BlockPick),
+    ImagePasted(ClipboardImage),
+    Fetched(FetchResult),
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockFilter {
     pub name: String,
@@ -1009,6 +992,7 @@ pub enum Message {
     Hello(Hello),
     HelloAccepted(HelloAccepted),
     HelloRejected(ProtocolError),
+    Theme(Theme),
     Screens(ScreenSet),
     Layout(ScreenLayout),
     RegionSizes(Vec<RegionSize>),
@@ -1018,8 +1002,6 @@ pub enum Message {
     FrameNeeded,
     FrameReady(FrameReady),
     Acknowledged { request_id: u64 },
-    Ping { nonce: u64 },
-    Pong { nonce: u64 },
     Error(ProtocolError),
     Shutdown,
     ShutdownAcknowledged,
@@ -1038,8 +1020,6 @@ impl Message {
                 | Self::HelloAccepted(_)
                 | Self::HelloRejected(_)
                 | Self::Acknowledged { .. }
-                | Self::Ping { .. }
-                | Self::Pong { .. }
                 | Self::Error(_)
                 | Self::Shutdown
                 | Self::ShutdownAcknowledged
@@ -1047,20 +1027,116 @@ impl Message {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Direction {
+    ToPlugin,
+    ToHost,
+    Either,
+}
+
+impl Message {
+    pub fn direction(&self) -> Direction {
+        match self {
+            Self::HelloAccepted(_)
+            | Self::HelloRejected(_)
+            | Self::Theme(_)
+            | Self::Screens(_)
+            | Self::Input(_)
+            | Self::DrawFrame
+            | Self::Shutdown
+            | Self::BlockTypes(_)
+            | Self::ChildStatuses(_) => Direction::ToPlugin,
+            Self::Hello(_)
+            | Self::Acknowledged { .. }
+            | Self::ShutdownAcknowledged
+            | Self::Layout(_)
+            | Self::RegionSizes(_)
+            | Self::Frames(_)
+            | Self::FrameNeeded
+            | Self::FrameReady(_)
+            | Self::Children(_) => Direction::ToHost,
+            Self::Error(_) | Self::Client(_) => Direction::Either,
+            Self::Editor(editor) => editor.direction(),
+        }
+    }
+}
+
+impl EditorMessage {
+    pub fn direction(&self) -> Direction {
+        match self {
+            Self::Open { .. }
+            | Self::OpenCreation { .. }
+            | Self::OpenArtifact { .. }
+            | Self::Close { .. }
+            | Self::Resized { .. }
+            | Self::EditabilityChanged { .. }
+            | Self::ViewChanged { .. }
+            | Self::PresentingChanged { .. }
+            | Self::Presence { .. }
+            | Self::FocusChanged { .. }
+            | Self::ShowBlock { .. }
+            | Self::DragOver { .. }
+            | Self::DragLeft { .. }
+            | Self::FileDrop { .. }
+            | Self::FileDropLeft { .. }
+            | Self::Replied { .. }
+            | Self::AudioStatus { .. }
+            | Self::WebViewEvent { .. }
+            | Self::CommitCreation { .. }
+            | Self::ArtifactSettings { .. }
+            | Self::RegenerateArtifact { .. }
+            | Self::ArtifactStates { .. }
+            | Self::ReplaceChild { .. }
+            | Self::ChildView { .. } => Direction::ToPlugin,
+            Self::OpenBlock { .. }
+            | Self::Focused { .. }
+            | Self::DragBlock { .. }
+            | Self::BlockCommand { .. }
+            | Self::DragAccepted { .. }
+            | Self::Request { .. }
+            | Self::PlayAudio { .. }
+            | Self::ChangeView { .. }
+            | Self::Present { .. }
+            | Self::LeaveFrame { .. }
+            | Self::GrabCursor { .. }
+            | Self::WebView { .. }
+            | Self::WebViewCommand { .. }
+            | Self::CreationReady { .. }
+            | Self::CreationBlock { .. }
+            | Self::ArtifactDescribed { .. }
+            | Self::ArtifactEdited { .. }
+            | Self::ArtifactRegenerated { .. }
+            | Self::WatchArtifacts { .. }
+            | Self::Cursor { .. }
+            | Self::Ime { .. }
+            | Self::ChildReplaced { .. }
+            | Self::CopyText { .. }
+            | Self::PasteText { .. }
+            | Self::AspectRatio { .. }
+            | Self::IntrinsicSize { .. }
+            | Self::Performance { .. } => Direction::ToHost,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hello {
-    pub minimum_version: u16,
-    pub maximum_version: u16,
+    pub version: u16,
     pub plugin: PluginIdentity,
-    pub capabilities: Vec<Capability>,
+    pub surface: SurfaceSupport,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelloAccepted {
     pub version: u16,
     pub host_name: String,
-    pub capabilities: Vec<Capability>,
-    pub dark_theme: bool,
+    pub surface: Option<SurfaceSpec>,
+    pub theme: Theme,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Theme {
+    pub dark: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1070,11 +1146,24 @@ pub struct PluginIdentity {
     pub version: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Capability {
-    Input,
-    Lifecycle,
-    Surface,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SurfaceSupport {
+    None,
+    Texture,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SurfaceSpec {
+    pub format: SurfaceFormat,
+    pub max_side: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SurfaceFormat {
+    Rgba8Unorm,
+    Rgba8UnormSrgb,
+    Bgra8Unorm,
+    Bgra8UnormSrgb,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -1141,8 +1230,7 @@ pub enum InputEvent {
         force: Option<f32>,
     },
     Key {
-        physical: PhysicalKey,
-        logical: String,
+        key: Key,
         pressed: bool,
         repeat: bool,
     },
@@ -1192,10 +1280,229 @@ pub enum WheelUnit {
     Pages,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PhysicalKey {
-    Code(u32),
-    Unidentified,
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Key {
+    ArrowDown,
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
+    Escape,
+    Tab,
+    Backspace,
+    Enter,
+    Space,
+    Insert,
+    Delete,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    Copy,
+    Cut,
+    Paste,
+    Colon,
+    Comma,
+    Backslash,
+    Slash,
+    Pipe,
+    Questionmark,
+    Exclamationmark,
+    OpenBracket,
+    CloseBracket,
+    OpenCurlyBracket,
+    CloseCurlyBracket,
+    Backtick,
+    Minus,
+    Period,
+    Plus,
+    Equals,
+    Semicolon,
+    Quote,
+    Num0,
+    Num1,
+    Num2,
+    Num3,
+    Num4,
+    Num5,
+    Num6,
+    Num7,
+    Num8,
+    Num9,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    F13,
+    F14,
+    F15,
+    F16,
+    F17,
+    F18,
+    F19,
+    F20,
+    F21,
+    F22,
+    F23,
+    F24,
+    F25,
+    F26,
+    F27,
+    F28,
+    F29,
+    F30,
+    F31,
+    F32,
+    F33,
+    F34,
+    F35,
+    BrowserBack,
+}
+
+impl Key {
+    pub const ALL: [Self; 108] = [
+        Self::ArrowDown,
+        Self::ArrowLeft,
+        Self::ArrowRight,
+        Self::ArrowUp,
+        Self::Escape,
+        Self::Tab,
+        Self::Backspace,
+        Self::Enter,
+        Self::Space,
+        Self::Insert,
+        Self::Delete,
+        Self::Home,
+        Self::End,
+        Self::PageUp,
+        Self::PageDown,
+        Self::Copy,
+        Self::Cut,
+        Self::Paste,
+        Self::Colon,
+        Self::Comma,
+        Self::Backslash,
+        Self::Slash,
+        Self::Pipe,
+        Self::Questionmark,
+        Self::Exclamationmark,
+        Self::OpenBracket,
+        Self::CloseBracket,
+        Self::OpenCurlyBracket,
+        Self::CloseCurlyBracket,
+        Self::Backtick,
+        Self::Minus,
+        Self::Period,
+        Self::Plus,
+        Self::Equals,
+        Self::Semicolon,
+        Self::Quote,
+        Self::Num0,
+        Self::Num1,
+        Self::Num2,
+        Self::Num3,
+        Self::Num4,
+        Self::Num5,
+        Self::Num6,
+        Self::Num7,
+        Self::Num8,
+        Self::Num9,
+        Self::A,
+        Self::B,
+        Self::C,
+        Self::D,
+        Self::E,
+        Self::F,
+        Self::G,
+        Self::H,
+        Self::I,
+        Self::J,
+        Self::K,
+        Self::L,
+        Self::M,
+        Self::N,
+        Self::O,
+        Self::P,
+        Self::Q,
+        Self::R,
+        Self::S,
+        Self::T,
+        Self::U,
+        Self::V,
+        Self::W,
+        Self::X,
+        Self::Y,
+        Self::Z,
+        Self::F1,
+        Self::F2,
+        Self::F3,
+        Self::F4,
+        Self::F5,
+        Self::F6,
+        Self::F7,
+        Self::F8,
+        Self::F9,
+        Self::F10,
+        Self::F11,
+        Self::F12,
+        Self::F13,
+        Self::F14,
+        Self::F15,
+        Self::F16,
+        Self::F17,
+        Self::F18,
+        Self::F19,
+        Self::F20,
+        Self::F21,
+        Self::F22,
+        Self::F23,
+        Self::F24,
+        Self::F25,
+        Self::F26,
+        Self::F27,
+        Self::F28,
+        Self::F29,
+        Self::F30,
+        Self::F31,
+        Self::F32,
+        Self::F33,
+        Self::F34,
+        Self::F35,
+        Self::BrowserBack,
+    ];
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1222,10 +1529,8 @@ pub struct ProtocolError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     UnsupportedVersion,
-    UnsupportedCapability,
     InvalidMessage,
     InvalidState,
-    Timeout,
     Internal,
 }
 
@@ -1279,23 +1584,20 @@ pub fn decode_frame(frame: &[u8]) -> Result<Message, DecodeError> {
 fn validate(message: &Message) -> Result<(), DecodeError> {
     match message {
         Message::Hello(value) => {
-            strings([&value.plugin.id, &value.plugin.name, &value.plugin.version])?;
-            collection(value.capabilities.len())
+            strings([&value.plugin.id, &value.plugin.name, &value.plugin.version])
         }
-        Message::HelloAccepted(value) => {
-            string(&value.host_name)?;
-            collection(value.capabilities.len())
-        }
+        Message::HelloAccepted(value) => string(&value.host_name),
         Message::HelloRejected(value) | Message::Error(value) => string(&value.message),
         Message::Input(value) => {
             collection(value.events.len())?;
             for event in &value.events {
-                if let InputEvent::Key { logical, .. }
-                | InputEvent::Text(logical)
-                | InputEvent::Paste(logical)
-                | InputEvent::Ime(ImeInput::Preedit(logical) | ImeInput::Commit(logical)) = event
-                {
-                    string(logical)?;
+                match event {
+                    InputEvent::Text(value)
+                    | InputEvent::Paste(value)
+                    | InputEvent::Ime(ImeInput::Preedit(value) | ImeInput::Commit(value)) => {
+                        text(value)?
+                    }
+                    _ => {}
                 }
             }
             Ok(())
@@ -1329,6 +1631,9 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             }
             Ok(())
         }
+        Message::Client(
+            TunnelMessage::Request { payload } | TunnelMessage::Response { payload },
+        ) => text(payload),
         Message::Children(value) => validate_children(value),
         Message::ChildStatuses(value) => {
             collection(value.len())?;
@@ -1364,14 +1669,8 @@ fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
 
 fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
-        EditorMessage::Failure { message, .. } => string(message),
-        EditorMessage::PickFile { filter, .. } => {
-            string(&filter.name)?;
-            string(&filter.default_file_name)?;
-            collection(filter.extensions.len())?;
-            collection(filter.mime_types.len())?;
-            strings(filter.extensions.iter().chain(&filter.mime_types))
-        }
+        EditorMessage::Request { request, .. } => validate_request(request),
+        EditorMessage::Replied { reply, .. } => validate_reply(reply),
         EditorMessage::Performance {
             group,
             measurements,
@@ -1402,32 +1701,19 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         | EditorMessage::RegenerateArtifact { data, .. } => descriptor(data),
         EditorMessage::FileDrop { files, .. } => {
             collection(files.len())?;
-            strings(files.iter().map(|file| &file.name))
+            for file in files {
+                string(&file.name)?;
+                blob(&file.data)?;
+            }
+            Ok(())
         }
-        EditorMessage::ImagePasted { image, .. } => match image {
-            ClipboardImage::Pasted { name, .. } => string(name),
-            ClipboardImage::Failed(message) => string(message),
-            ClipboardImage::Empty => Ok(()),
-        },
         EditorMessage::AudioStatus { status, .. } => match &status.error {
             Some(message) => string(message),
             None => Ok(()),
         },
-        EditorMessage::FilePicked { pick, .. } => match pick {
-            FilePick::Chosen { name, .. } => string(name),
-            FilePick::Failed(message) => string(message),
-            FilePick::Cancelled => Ok(()),
-        },
-        EditorMessage::PickBlock { filter, .. } => {
-            string(&filter.name)?;
-            collection(filter.block_types.len())?;
-            collection(filter.excluded.len())
+        EditorMessage::Focused { via, .. } | EditorMessage::FocusChanged { via, .. } => {
+            collection(via.len())
         }
-        EditorMessage::BlockPicked { pick, .. } => match pick {
-            BlockPick::Failed(message) => string(message),
-            BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
-        },
-        EditorMessage::Focused { via, .. } => collection(via.len()),
         EditorMessage::WatchArtifacts { blocks, .. } => collection(blocks.len()),
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
@@ -1439,12 +1725,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        EditorMessage::CopyText { text, .. } => string(text),
-        EditorMessage::Fetch { url, .. } => string(url),
-        EditorMessage::Fetched { result, .. } => match result {
-            FetchResult::Failed(message) => string(message),
-            FetchResult::Body(_) => Ok(()),
-        },
+        EditorMessage::CopyText { text: value, .. } => text(value),
         EditorMessage::WebViewCommand { command, .. } => match command {
             WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
             WebViewCommand::Reload | WebViewCommand::FocusApp | WebViewCommand::Close => Ok(()),
@@ -1461,6 +1742,44 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             WebViewEvent::History(_) => Ok(()),
         },
         _ => Ok(()),
+    }
+}
+
+fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
+    match request {
+        HostRequest::PickFile(filter) => {
+            string(&filter.name)?;
+            string(&filter.default_file_name)?;
+            collection(filter.extensions.len())?;
+            collection(filter.mime_types.len())?;
+            strings(filter.extensions.iter().chain(&filter.mime_types))
+        }
+        HostRequest::PickBlock(filter) => {
+            string(&filter.name)?;
+            collection(filter.block_types.len())?;
+            collection(filter.excluded.len())
+        }
+        HostRequest::PasteImage => Ok(()),
+        HostRequest::Fetch(url) => string(url),
+    }
+}
+
+fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
+    match reply {
+        HostReply::FilePicked(FilePick::Chosen { name, data }) => {
+            string(name).and_then(|()| blob(data))
+        }
+        HostReply::ImagePasted(ClipboardImage::Pasted { name, data }) => {
+            string(name).and_then(|()| blob(data))
+        }
+        HostReply::Fetched(FetchResult::Body(body)) => blob(body),
+        HostReply::FilePicked(FilePick::Failed(message))
+        | HostReply::BlockPicked(BlockPick::Failed(message))
+        | HostReply::ImagePasted(ClipboardImage::Failed(message))
+        | HostReply::Fetched(FetchResult::Failed(message)) => string(message),
+        HostReply::FilePicked(FilePick::Cancelled)
+        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
+        | HostReply::ImagePasted(ClipboardImage::Empty) => Ok(()),
     }
 }
 
@@ -1483,6 +1802,22 @@ fn collection(length: usize) -> Result<(), DecodeError> {
 fn string(value: &str) -> Result<(), DecodeError> {
     if value.len() > MAX_STRING_BYTES {
         Err(DecodeError::LimitExceeded("string"))
+    } else {
+        Ok(())
+    }
+}
+
+fn text(value: &str) -> Result<(), DecodeError> {
+    if value.len() > MAX_TEXT_BYTES {
+        Err(DecodeError::LimitExceeded("text"))
+    } else {
+        Ok(())
+    }
+}
+
+fn blob(value: &[u8]) -> Result<(), DecodeError> {
+    if value.len() > MAX_BLOB_BYTES {
+        Err(DecodeError::LimitExceeded("blob"))
     } else {
         Ok(())
     }

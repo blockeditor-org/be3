@@ -1,6 +1,7 @@
 use crate::{
-    Capability, DecodeError, ErrorCode, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES,
-    Message, PROTOCOL_VERSION, ProtocolError, REQUEST_TIMEOUT_MILLISECONDS, decode_frame,
+    DecodeError, ErrorCode, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES, Message,
+    PROTOCOL_VERSION, ProtocolError, REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport,
+    Theme, decode_frame,
 };
 use std::collections::{HashMap, VecDeque};
 
@@ -34,24 +35,22 @@ pub enum QueueError {
 pub struct HostSession {
     state: SessionState,
     host_name: String,
-    dark_theme: bool,
-    capabilities: Vec<Capability>,
+    theme: Theme,
+    surface: Option<SurfaceSpec>,
+    granted: Option<SurfaceSpec>,
     queue: VecDeque<Message>,
     requests: HashMap<u64, u64>,
     lifecycle_deadline: Option<u64>,
 }
 
 impl HostSession {
-    pub fn new(
-        host_name: impl Into<String>,
-        capabilities: Vec<Capability>,
-        dark_theme: bool,
-    ) -> Self {
+    pub fn new(host_name: impl Into<String>, surface: Option<SurfaceSpec>, theme: Theme) -> Self {
         Self {
             state: SessionState::Idle,
             host_name: host_name.into(),
-            dark_theme,
-            capabilities,
+            theme,
+            surface,
+            granted: None,
             queue: VecDeque::new(),
             requests: HashMap::new(),
             lifecycle_deadline: None,
@@ -60,6 +59,10 @@ impl HostSession {
 
     pub fn state(&self) -> &SessionState {
         &self.state
+    }
+
+    pub fn granted_surface(&self) -> Option<SurfaceSpec> {
+        self.granted
     }
 
     pub fn queued_message_count(&self) -> usize {
@@ -73,6 +76,7 @@ impl HostSession {
     pub fn start(&mut self, now_milliseconds: u64) {
         self.queue.clear();
         self.requests.clear();
+        self.granted = None;
         self.state = SessionState::Starting;
         self.lifecycle_deadline = Some(now_milliseconds + REQUEST_TIMEOUT_MILLISECONDS);
     }
@@ -87,9 +91,7 @@ impl HostSession {
     pub fn receive(&mut self, message: Message, now_milliseconds: u64) {
         match (&self.state, message) {
             (SessionState::Starting, Message::Hello(hello)) => {
-                if hello.minimum_version > PROTOCOL_VERSION
-                    || hello.maximum_version < PROTOCOL_VERSION
-                {
+                if hello.version != PROTOCOL_VERSION {
                     let error = ProtocolError {
                         request_id: None,
                         code: ErrorCode::UnsupportedVersion,
@@ -101,11 +103,16 @@ impl HostSession {
                     ));
                     return;
                 }
+                let granted = match hello.surface {
+                    SurfaceSupport::Texture => self.surface,
+                    SurfaceSupport::None => None,
+                };
+                self.granted = granted;
                 self.queue.push_back(Message::HelloAccepted(HelloAccepted {
                     version: PROTOCOL_VERSION,
                     host_name: self.host_name.clone(),
-                    capabilities: self.capabilities.clone(),
-                    dark_theme: self.dark_theme,
+                    surface: granted,
+                    theme: self.theme,
                 }));
                 self.state = SessionState::Running;
                 self.lifecycle_deadline = None;

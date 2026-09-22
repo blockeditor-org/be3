@@ -7,7 +7,7 @@ fn packed_layout_keeps_each_region() {
         region_screen(EditorRegion::ArtifactSettings, 2, 7, 200, 300, 1.0),
         region_screen(EditorRegion::Frame, 3, 7, 400, 300, 1.0),
     ];
-    let layout = ScreenLayout::packed(&screens);
+    let layout = ScreenLayout::packed(&screens, DEFAULT_SURFACE_SIDE);
     assert_eq!(layout.width, 400);
     assert_eq!(layout.height, 630);
     for placement in &layout.screens {

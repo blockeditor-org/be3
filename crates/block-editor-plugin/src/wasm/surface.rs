@@ -1,6 +1,6 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
-use block_plugin_api::{FrameReady, Message, ScreenLayout};
+use block_plugin_api::{FrameReady, Message, ScreenLayout, SurfaceFormat, SurfaceSpec};
 use eframe::egui_wgpu::wgpu;
 
 use crate::{panes::Panes, screens::Screens};
@@ -9,6 +9,11 @@ const SCREENS_SURFACE: u32 = 0;
 
 thread_local! {
     static GPU: RefCell<Option<Gpu>> = const { RefCell::new(None) };
+    static FORMAT: Cell<wgpu::TextureFormat> = const { Cell::new(wgpu::TextureFormat::Rgba8Unorm) };
+}
+
+pub(crate) fn negotiated_format() -> wgpu::TextureFormat {
+    FORMAT.with(Cell::get)
 }
 
 #[derive(Clone)]
@@ -33,22 +38,29 @@ pub(crate) struct Surface {
     panes: Panes,
     layout: ScreenLayout,
     generation: u64,
+    spec: SurfaceSpec,
 }
 
 impl Surface {
-    pub(crate) fn new(layout: ScreenLayout, generation: u64) -> Result<Self, String> {
+    pub(crate) fn new(
+        layout: ScreenLayout,
+        generation: u64,
+        spec: SurfaceSpec,
+    ) -> Result<Self, String> {
         let gpu = gpu()?;
-        configure(&layout);
+        FORMAT.with(|current| current.set(format(spec.format)));
+        configure(&layout, spec);
         Ok(Self {
-            panes: Panes::new(FORMAT),
+            panes: Panes::new(format(spec.format)),
             gpu,
             layout,
             generation,
+            spec,
         })
     }
 
     pub(crate) fn resize(mut self, layout: ScreenLayout, generation: u64) -> Result<Self, String> {
-        configure(&layout);
+        configure(&layout, self.spec);
         self.layout = layout;
         self.generation = generation;
         Ok(self)
@@ -84,11 +96,23 @@ impl Surface {
     }
 }
 
-fn configure(layout: &ScreenLayout) {
+fn configure(layout: &ScreenLayout, spec: SurfaceSpec) {
     if layout.is_empty() {
         return;
     }
-    block_gpu_guest::configure_surface(SCREENS_SURFACE, layout.width, layout.height, FORMAT);
+    block_gpu_guest::configure_surface(
+        SCREENS_SURFACE,
+        layout.width,
+        layout.height,
+        format(spec.format),
+    );
 }
 
-pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+pub(crate) fn format(format: SurfaceFormat) -> wgpu::TextureFormat {
+    match format {
+        SurfaceFormat::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
+        SurfaceFormat::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
+        SurfaceFormat::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
+        SurfaceFormat::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
+    }
+}

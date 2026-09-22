@@ -1,15 +1,31 @@
 use super::*;
+use std::collections::HashSet;
 
 fn hello() -> Message {
     Message::Hello(Hello {
-        minimum_version: PROTOCOL_VERSION,
-        maximum_version: PROTOCOL_VERSION,
+        version: PROTOCOL_VERSION,
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),
             version: "1.0".into(),
         },
-        capabilities: vec![Capability::Input, Capability::Surface],
+        surface: SurfaceSupport::Texture,
+    })
+}
+
+fn request(instance: u64, request_id: u64, request: HostRequest) -> Message {
+    Message::Editor(EditorMessage::Request {
+        instance: EditorInstanceId(instance),
+        request_id,
+        request,
+    })
+}
+
+fn reply(instance: u64, request_id: u64, reply: HostReply) -> Message {
+    Message::Editor(EditorMessage::Replied {
+        instance: EditorInstanceId(instance),
+        request_id,
+        reply,
     })
 }
 
@@ -69,6 +85,7 @@ mod creation_messages_round_trip;
 mod cursor_round_trips;
 mod drag_messages_round_trip;
 mod every_editor_manifest_parses;
+mod every_key_round_trips;
 mod fetch_messages_round_trip;
 mod file_drop_messages_round_trip;
 mod file_pick_messages_round_trip;
@@ -97,6 +114,7 @@ mod rejects_unordered_occluders;
 mod replacing_a_child_round_trips;
 mod resize_messages_round_trip;
 mod show_block_request_round_trips;
+mod theme_messages_round_trip;
 mod touch_input_round_trips;
 mod view_messages_round_trip;
 mod web_view_messages_round_trip;

@@ -1,7 +1,8 @@
 use block_client::{BlockClient, TunnelCarrier};
 use block_plugin_api::{
-    BlockTypeDescriptor, ChildStatus, EditorBand, EditorInstanceId, EditorMessage, EditorRegion,
-    Message, ScreenId, ScreenLayout, ScreenRequest, TunnelMessage,
+    BlockTypeDescriptor, ChildStatus, DEFAULT_SURFACE_SIDE, EditorBand, EditorInstanceId,
+    EditorMessage, EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec,
+    TunnelMessage,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry};
 use eframe::egui;
@@ -27,6 +28,7 @@ pub(crate) struct Screens {
     block_types: Rc<BlockCatalog>,
     client: Option<Client>,
     theme: egui::Theme,
+    surface: Option<SurfaceSpec>,
 }
 
 impl Screens {
@@ -53,6 +55,7 @@ impl Screens {
             block_types: Rc::new(BlockCatalog::default()),
             client: None,
             theme: egui::Theme::Dark,
+            surface: None,
         }
     }
 
@@ -83,12 +86,23 @@ impl Screens {
         self.theme
     }
 
+    fn set_theme(&mut self, theme: block_plugin_api::Theme) {
+        self.theme = match theme.dark {
+            true => egui::Theme::Dark,
+            false => egui::Theme::Light,
+        };
+    }
+
     pub(crate) fn waker(&self) -> Waker {
         self.waker.clone()
     }
 
     pub(crate) fn layout(&self) -> &ScreenLayout {
         &self.layout
+    }
+
+    pub(crate) fn surface(&self) -> Option<SurfaceSpec> {
+        self.surface
     }
 
     pub(crate) fn set_generation(&mut self, generation: u64) {
@@ -98,11 +112,10 @@ impl Screens {
     pub(crate) fn receive(&mut self, message: &Message) -> bool {
         match message {
             Message::HelloAccepted(accepted) => {
-                self.theme = match accepted.dark_theme {
-                    true => egui::Theme::Dark,
-                    false => egui::Theme::Light,
-                };
+                self.surface = accepted.surface;
+                self.set_theme(accepted.theme);
             }
+            Message::Theme(theme) => self.set_theme(*theme),
             Message::Editor(EditorMessage::Open {
                 instance,
                 block_id,
@@ -179,15 +192,6 @@ impl Screens {
                     session.resized(egui::vec2(*width, *height));
                 }
             }
-            Message::Editor(EditorMessage::ImagePasted {
-                instance,
-                request_id,
-                image,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_pasted_image(*request_id, image.clone());
-                }
-            }
             Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_audio(status.clone());
@@ -213,7 +217,7 @@ impl Screens {
                     session.set_editable(*editable);
                 }
             }
-            Message::Editor(EditorMessage::Focused {
+            Message::Editor(EditorMessage::FocusChanged {
                 instance,
                 block_id,
                 block_type,
@@ -371,31 +375,13 @@ impl Screens {
                     )));
                 }
             }
-            Message::Editor(EditorMessage::FilePicked {
+            Message::Editor(EditorMessage::Replied {
                 instance,
                 request_id,
-                pick,
+                reply,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.file_picked(*request_id, pick.clone());
-                }
-            }
-            Message::Editor(EditorMessage::BlockPicked {
-                instance,
-                request_id,
-                pick,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.block_picked(*request_id, pick.clone());
-                }
-            }
-            Message::Editor(EditorMessage::Fetched {
-                instance,
-                request_id,
-                result,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.fetched(*request_id, result.clone());
+                    session.replied(*request_id, reply.clone());
                 }
             }
             Message::Editor(EditorMessage::WebViewEvent { instance, event }) => {
@@ -487,7 +473,10 @@ impl Screens {
 
     fn relayout(&mut self) {
         let generation = self.layout.generation;
-        self.layout = ScreenLayout::packed(&self.requests);
+        let max_side = self
+            .surface
+            .map_or(DEFAULT_SURFACE_SIDE, |surface| surface.max_side);
+        self.layout = ScreenLayout::packed(&self.requests, max_side);
         self.layout.generation = generation;
         let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::new();
         for placement in &self.layout.screens {

@@ -87,7 +87,12 @@ fn report(stage: &str, plugin: &mut Plugin) -> Report {
         match decode_frame(frame) {
             Ok(message) => {
                 report.drawn |= matches!(message, Message::FrameReady(_));
-                if let Message::Editor(EditorMessage::Fetch { request_id, .. }) = &message {
+                if let Message::Editor(EditorMessage::Request {
+                    request_id,
+                    request: block_plugin_api::HostRequest::Fetch(_),
+                    ..
+                }) = &message
+                {
                     report.fetches.push(*request_id);
                 }
                 println!("  {message:?}");
@@ -99,10 +104,12 @@ fn report(stage: &str, plugin: &mut Plugin) -> Report {
 }
 
 fn fetched(request_id: u64) -> Message {
-    Message::Editor(EditorMessage::Fetched {
+    Message::Editor(EditorMessage::Replied {
         instance: EditorInstanceId(1),
         request_id,
-        result: FetchResult::Failed("instantiate does not reach the network".to_owned()),
+        reply: block_plugin_api::HostReply::Fetched(FetchResult::Failed(
+            "instantiate does not reach the network".to_owned(),
+        )),
     })
 }
 
@@ -127,8 +134,11 @@ fn hello_accepted() -> Message {
     Message::HelloAccepted(HelloAccepted {
         version: PROTOCOL_VERSION,
         host_name: "instantiate".to_owned(),
-        capabilities: Vec::new(),
-        dark_theme: true,
+        surface: Some(block_plugin_api::SurfaceSpec {
+            format: block_plugin_api::SurfaceFormat::Rgba8Unorm,
+            max_side: block_plugin_api::DEFAULT_SURFACE_SIDE,
+        }),
+        theme: block_plugin_api::Theme { dark: true },
     })
 }
 
