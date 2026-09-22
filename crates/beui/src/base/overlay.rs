@@ -164,6 +164,7 @@ impl Element for OverlayNode {
         let Some(content) = self.content else {
             return;
         };
+        let painter = &painter.ctx().painter();
         let viewport = doc.viewport_rect();
         crate::layout::layout(doc, painter, self.scrim, viewport, out);
         let content_size = crate::layout::measure(doc, painter, content, viewport.size());

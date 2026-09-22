@@ -3,25 +3,23 @@ use std::rc::Rc;
 use block_client::blocks::pdf::{Pdf, PdfOperation};
 use block_editor_plugin::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_plugin::beui::reactive::{
-    Align, Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List,
-    Memo, NodeRef, Picture, Show, Spacer, clone, component, create_memo, view,
+    Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo,
+    NodeRef, Picture, Show, Spacer, clone, component, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Body, Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_plugin::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
-use block_editor_plugin::{Creation, Editor, Sidebar, Toolbar};
+use block_editor_plugin::{Editor, FileChooser, Sidebar, Toolbar};
 
-use super::chooser::Chooser;
 use super::pages::{Pages, Shown, Viewport};
+use super::{filter, imported};
 
-const SPACING: f32 = 10.0;
-const PADDING: f32 = 14.0;
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 
 #[component]
 pub fn PdfEditor(editor: Editor) -> NodeId {
     let block = editor.block::<Pdf>();
     let pages = Pages::new();
-    let chooser = Chooser::new();
+    let chooser = FileChooser::new(filter(), imported);
     let shown = pages.shown();
     let performance = editor
         .host()
@@ -230,55 +228,6 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     view! {
         <Frame @node_ref={&content}>
             <PageCanvas shown={shown} />
-        </Frame>
-    }
-}
-
-#[component]
-pub fn PdfCreation(creation: Creation) -> NodeId {
-    let chooser = Chooser::new();
-    let polled = Rc::clone(&chooser);
-    let host = creation.host().clone();
-    creation.each_frame(move || {
-        polled.poll(&host);
-        host.set_creation_ready(polled.peek());
-    });
-    let client = creation.client().clone();
-    let made = Rc::clone(&chooser);
-    creation.on_create(move || {
-        let pdf = made.take().ok_or("no file was chosen")?;
-        Ok(client.create_block(pdf).id())
-    });
-
-    let busy = chooser.busy();
-    let chosen = chooser.name();
-    let name = create_memo(clone!(chosen -> move || {
-        chosen.get().unwrap_or_else(|| "No file chosen".to_owned())
-    }));
-    let failure = chooser.error();
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
-    let opening = creation.host().clone();
-    let choose = clone!(chooser -> move || chooser.open(&opening));
-    let theme = use_theme();
-    view! {
-        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-            <List spacing=SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Button
-                        label="Choose file…"
-                        variant=ButtonVariant::Primary
-                        disabled={busy}
-                        @test_id={"pdf.choose"}
-                        on_click={choose}
-                    />
-                    <Caption content={name} />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-                <Show condition={failed}>
-                    <Caption content={reason} color={theme.danger.clone()} />
-                </Show>
-            </List>
         </Frame>
     }
 }

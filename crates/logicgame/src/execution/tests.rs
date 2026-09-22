@@ -126,6 +126,7 @@ mod explicit_uuid_ports_compile_to_dense_memory_bindings;
 mod graph_generates_in_dependency_order;
 mod inputs_and_outputs_compile_to_dense_memory_bindings;
 mod instructions_can_execute_one_at_a_time;
+mod instructions_have_compact_display_names;
 mod nested_subcomponent_storage_is_owned_by_the_root_vm;
 mod not_reads_and_writes_memory;
 mod not_with_unconnected_input_reads_zero;

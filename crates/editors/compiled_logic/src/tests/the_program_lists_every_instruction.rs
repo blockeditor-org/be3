@@ -8,7 +8,7 @@ fn the_program_lists_every_instruction() {
     assert_eq!(
         instructions
             .iter()
-            .map(format_instruction)
+            .map(Instruction::to_string)
             .collect::<Vec<_>>(),
         vec!["NOT m0 -> m1", "SAVE m1 -> s0"]
     );
