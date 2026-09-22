@@ -103,6 +103,24 @@ pinned_rust_toolchain(
     compiler = "root//buck/tools:rustc",
     default_edition = "2024",
     deny_lints = ["warnings"],
+    # This project builds on a stable rustc, and cargo builds it on that same
+    # one. Left on, the prelude passes RUSTC_BOOTSTRAP=1 to every compile so it
+    # can use -Z flags for pipelined builds - and rustc then behaves like a
+    # nightly, which is not a difference that stays inside the build system.
+    # cfg(target_feature) reports unstable target features under it, so on
+    # wasm32-wasip1-threads a crate asking not(target_feature = "atomics") gets
+    # the opposite answer from the one cargo gives it. wgpu-types is such a
+    # crate: that cfg is what decides whether its handles are Send and Sync,
+    # and it decided differently from the build script that had already emitted
+    # --cfg=send_sync from the same question. A build script probing for
+    # #![feature] would go the same way.
+    #
+    # What this costs is one layer of pipelining: a dependent that has to
+    # generate code waits for the rlib rather than for a -Zno-codegen hollow
+    # one. Nothing else here used the unstable paths - no doctests, no expand
+    # or profiling subtargets, and the cwd is still remapped, by the action
+    # wrapper rather than by -Zremap-cwd-prefix.
+    nightly_features = False,
     # Cargo's dev profile on the host, and Cargo.toml's plugin profile on wasm:
     # a plugin is compiled once and loaded on every platform, and cranelift is
     # an order of magnitude slower at an unoptimised one.

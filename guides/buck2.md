@@ -257,6 +257,32 @@ That replaces the build script under cargo, which shells out to a second cargo
 build for wasm32 and prints the path it wrote to. The plugin tests will want the
 same rule.
 
+## The compiler is a stable one, and the build says so
+
+`nightly_features = False` in `buck/toolchains/BUCK`, which is not the prelude's
+default. Left on, the rules pass `RUSTC_BOOTSTRAP=1` to every compile so they
+can use `-Z` flags - `-Zno-codegen` for pipelined builds, `-Zremap-cwd-prefix`
+for paths. That variable does not only unlock flags. It makes a stable rustc
+behave like a nightly one everywhere the difference is observable, and the one
+that matters here is `cfg(target_feature)`: a nightly reports unstable target
+features and a stable one does not.
+
+`wasm32-wasip1-threads` has `atomics`, and `atomics` is unstable to name. So
+under `RUSTC_BOOTSTRAP=1` a crate asking `not(target_feature = "atomics")` got
+the opposite answer from the one cargo gives it, while the build script that
+asked the same question through `CARGO_CFG_TARGET_FEATURE` still got cargo's.
+`wgpu-types` is such a crate - that cfg is what decides whether its handles are
+`Send` and `Sync` - and `wgpu-core` asserted the answer the build script had
+given it. The symptom was `dyn DynInstance` not being `Sync` in a build whose
+features matched cargo's exactly. A build script probing for `#![feature(...)]`
+would go the same way, and silently.
+
+What it costs is one layer of pipelining: a dependent that has to generate code
+waits for the rlib rather than for a `-Zno-codegen` hollow one. The unstable
+paths this project never used go with it - doctests, the `[expand]`,
+`[doc-coverage]` and profiling subtargets - and the cwd is still remapped, by
+the action wrapper rather than by `-Zremap-cwd-prefix`.
+
 ## Clippy
 
 The rust toolchain carries `clippy_driver`, so every rust target has a
@@ -396,13 +422,10 @@ The gaps, roughly in the order they are worth closing:
   manifest beside the modules as `<id>.plugin.json` and writes a `plugins.json`
   index for the browser and Android. There is no buck2 rule for that yet, and
   nothing to consume one until `block-app` is built.
-- **No web bundle.** The configuration it needs exists - `buck/platforms:wasi`
-  is the app's wasm, with the app's `wgpu` - but nothing builds on it yet.
-  `//third-party/rust:wgpu` for that platform still fails in `wgpu-core`, which
-  asks that `dyn DynInstance` be `Send + Sync` and does not get it although
-  `wgpu-types` carries `fragile-send-sync-non-atomic-wasm` and `wgpu-hal`
-  compiles; that is the next thing to chase. After it come `block-app` itself,
-  wasm-bindgen, and the JS shims in `scripts/internal/web`.
+- **No web bundle.** The third-party half of it is there: `wgpu`, `wgpu-core`,
+  `wgpu-hal` and `eframe` all build for `buck/platforms:wasi`, with the app's
+  feature set. What is left is `block-app` itself, wasm-bindgen after it, and
+  the JS shims in `scripts/internal/web`.
 - **`block-app` is not built.** It has a build script that shells out to git,
   it links libghostty-vt, which Zig builds, and it is the one crate that pulls
   in the whole GTK and WebKitGTK tree.
