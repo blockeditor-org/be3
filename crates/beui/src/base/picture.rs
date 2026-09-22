@@ -6,7 +6,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::image::{Image, ImageFit};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{Prop, create_effect, with_document};
 
@@ -70,18 +70,6 @@ impl Element for PictureNode {
             self.radius,
             self.smooth,
         );
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        _children: &mut Vec<NodeId>,
-    ) {
     }
 
     fn children(&self) -> Vec<NodeId> {

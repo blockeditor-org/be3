@@ -10,7 +10,7 @@ use block_editor_plugin::beui::styled::{Body, Button, ButtonVariant, Caption, He
 use block_editor_plugin::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
 use block_editor_plugin::{Creation, Editor, Sidebar, Toolbar};
 
-use super::chooser::Chooser;
+use super::chooser::chooser;
 use super::pages::{Pages, Shown, Viewport};
 
 const SPACING: f32 = 10.0;
@@ -21,7 +21,7 @@ const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 pub fn PdfEditor(editor: Editor) -> NodeId {
     let block = editor.block::<Pdf>();
     let pages = Pages::new();
-    let chooser = Chooser::new();
+    let chooser = chooser();
     let shown = pages.shown();
     let performance = editor
         .host()
@@ -236,7 +236,7 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
 
 #[component]
 pub fn PdfCreation(creation: Creation) -> NodeId {
-    let chooser = Chooser::new();
+    let chooser = chooser();
     let polled = Rc::clone(&chooser);
     let host = creation.host().clone();
     creation.each_frame(move || {

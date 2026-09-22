@@ -9,7 +9,7 @@ use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading,
 use block_editor_plugin::beui::{ImageFit, NodeId, Pos2, Rect, Vec2};
 use block_editor_plugin::{Creation, Editor, Sidebar, fit_content};
 
-use super::chooser::Chooser;
+use super::chooser::chooser;
 use super::picture::watch;
 
 const PADDING: f32 = 14.0;
@@ -23,7 +23,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let failed = create_memo(clone!(shown -> move || shown.get().error.is_some()));
     let reason = create_memo(clone!(shown -> move || shown.get().error.unwrap_or_default()));
 
-    let chooser = Chooser::new();
+    let chooser = chooser();
     let polled = Rc::clone(&chooser);
     let host = editor.host().clone();
     let operating = Rc::clone(&block);
@@ -120,7 +120,7 @@ pub fn ImagePreview(editor: Editor) -> NodeId {
 
 #[component]
 pub fn ImageCreation(creation: Creation) -> NodeId {
-    let chooser = Chooser::new();
+    let chooser = chooser();
     let polled = Rc::clone(&chooser);
     let host = creation.host().clone();
     creation.each_frame(move || {

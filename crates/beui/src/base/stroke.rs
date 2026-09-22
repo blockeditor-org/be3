@@ -5,7 +5,7 @@ use beui_macros::component;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{Prop, create_effect, with_document};
 
@@ -42,18 +42,6 @@ impl Element for StrokeNode {
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, rect: Rect) {
         let origin = rect.min.to_vec2();
         painter.line(self.from + origin, self.to + origin, self.width, self.color);
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        _children: &mut Vec<NodeId>,
-    ) {
     }
 
     fn children(&self) -> Vec<NodeId> {

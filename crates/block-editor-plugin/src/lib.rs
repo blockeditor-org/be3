@@ -18,6 +18,7 @@ mod datetime;
 mod editor;
 #[cfg(target_arch = "wasm32")]
 mod editor_session;
+mod file_chooser;
 mod host;
 #[cfg(target_arch = "wasm32")]
 mod panes;
@@ -47,6 +48,7 @@ pub use datetime::DateTimeRow;
 pub use editor::{
     Artifacts, BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor, fit_content,
 };
+pub use file_chooser::FileChooser;
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockPicker, BlockSource,
     ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, HostContent,

@@ -2,10 +2,10 @@ use std::any::Any;
 
 use beui_macros::component;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList};
+use crate::base::child_list::{ChildHost, ChildList};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{
     Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
@@ -101,19 +101,6 @@ impl Element for CanvasNode {
         }
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().map(ChildItem::node));
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
     }
@@ -165,19 +152,6 @@ impl Element for CanvasItemNode {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {

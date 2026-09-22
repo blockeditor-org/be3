@@ -8,17 +8,21 @@ use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
 use block::{BlockParent, BlockReferenceList, ClientId};
 use block_client::{
-    BlockClient, BlockHandle, ReferenceList, block_ref::BlockRef, blocks::image::Image,
-    blocks::text::TextDocument, presence::PresenceColor, presence::UserActive,
+    BlockClient, BlockHandle, ReferenceList,
+    blocks::image::Image,
+    blocks::text::TextDocument,
+    presence::PresenceColor,
+    presence::UserActive,
+    references::{ReferenceClassificationQueue, ReferenceResolutionCache},
 };
-use block_editor_plugin::{ChildState, Editor, EditorHost, ImagePaster, Task};
+use block_editor_plugin::{ChildState, Editor, EditorHost, ImagePaster};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
 use crate::document::{BlockDocument, inside_block_url};
 use crate::presence::TextCursor;
 
-use super::embeds::{EmbedReferenceCache, PendingEmbed, ResolvedEmbed, resolve_embeds};
+use super::embeds::{ResolvedEmbed, resolve_embeds};
 
 pub(crate) const DIRECT_EDITOR_WIDTH: f32 = 600.0;
 
@@ -37,8 +41,8 @@ pub(crate) struct State {
     pub text: TextAreaState,
     pub dependencies: ReferenceList,
     pub paster: RefCell<ImagePaster>,
-    pub references: RefCell<EmbedReferenceCache>,
-    pub pending_embeds: RefCell<Vec<PendingEmbed>>,
+    pub references: RefCell<ReferenceResolutionCache>,
+    pub pending_embeds: RefCell<ReferenceClassificationQueue<(String, bool)>>,
     pub embed_sizes: RefCell<HashMap<Uuid, Vec2>>,
     pub embed_children: RefCell<HashMap<FocusedEmbed, ChildState>>,
     pub published_cursor: Cell<Option<TextCursor>>,
@@ -88,8 +92,8 @@ impl State {
             text,
             dependencies,
             paster: RefCell::new(ImagePaster::default()),
-            references: RefCell::new(EmbedReferenceCache::default()),
-            pending_embeds: RefCell::new(Vec::new()),
+            references: RefCell::new(ReferenceResolutionCache::default()),
+            pending_embeds: RefCell::new(ReferenceClassificationQueue::default()),
             embed_sizes: RefCell::new(HashMap::new()),
             embed_children: RefCell::new(HashMap::new()),
             published_cursor: Cell::new(None),
@@ -150,22 +154,13 @@ impl State {
     }
 
     pub fn insert_image_embed(&self, id: Uuid, source_name: &str) {
-        let client = Arc::clone(&self.client);
-        let referencing_id = self.block.id();
-        let task: Task<BlockRef> = self.host().spawn(async move {
-            client
-                .classify_reference(
-                    referencing_id,
-                    id,
-                    &block_client::blocks::version_control_worktree::VersionControlWorktreeMembership,
-                )
-                .await
-        });
-        self.pending_embeds.borrow_mut().push(PendingEmbed {
-            task,
-            source_name: source_name.to_owned(),
-            markdown: self.text.language() == TextLanguage::Markdown,
-        });
+        let markdown = self.text.language() == TextLanguage::Markdown;
+        self.pending_embeds.borrow_mut().push(
+            &self.client,
+            self.block.id(),
+            id,
+            (source_name.to_owned(), markdown),
+        );
     }
 
     pub fn presence_colors(&self) -> HashMap<ClientId, PresenceColor> {

@@ -73,14 +73,16 @@ pub(crate) trait Element: Any {
 
     fn interact(
         &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        input: &InteractInput,
-        id: NodeId,
-        rect: Rect,
-        focus_target: &mut Option<NodeId>,
+        _doc: &mut Document,
+        _painter: &Painter,
+        _input: &InteractInput,
+        _id: NodeId,
+        _rect: Rect,
+        _focus_target: &mut Option<NodeId>,
         children: &mut Vec<NodeId>,
-    );
+    ) {
+        children.extend(self.children());
+    }
 
     fn children(&self) -> Vec<NodeId>;
 

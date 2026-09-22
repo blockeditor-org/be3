@@ -1,17 +1,10 @@
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::Arc;
 
 use beui::Vec2;
 use beui::unstyled::TextWidget;
-use block_client::{
-    BlockClient, block_ref::BlockRef, block_ref_url,
-    blocks::version_control_worktree::VersionControlWorktreeMembership, parse_block_urls,
-};
-use block_editor_plugin::{
-    EditorHost, Task,
-    block_ui::{self, BlockLabel},
-};
+use block_client::{block_ref::BlockRef, block_ref_url, parse_block_urls};
+use block_editor_plugin::block_ui::{self, BlockLabel};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
@@ -54,80 +47,9 @@ pub(crate) struct ParsedEmbed {
     pub large: bool,
 }
 
-pub(crate) struct PendingEmbed {
-    pub task: Task<BlockRef>,
-    pub source_name: String,
-    pub markdown: bool,
-}
-
-#[derive(Default)]
-pub(crate) struct EmbedReferenceCache {
-    resolved: HashMap<BlockRef, Option<Uuid>>,
-    pending: Vec<(BlockRef, Task<Option<Uuid>>)>,
-}
-
-impl EmbedReferenceCache {
-    fn poll(&mut self) {
-        let mut finished = Vec::new();
-        self.pending.retain_mut(|(reference, task)| {
-            if !task.finished() {
-                task.poll();
-            }
-            if !task.finished() {
-                return true;
-            }
-            finished.push((*reference, task.take().flatten()));
-            false
-        });
-        for (reference, resolved) in finished {
-            self.resolved.insert(reference, resolved);
-        }
-    }
-
-    fn resolve(
-        &mut self,
-        host: &EditorHost,
-        client: &Arc<BlockClient>,
-        referencing_id: Uuid,
-        reference: BlockRef,
-    ) -> Option<Uuid> {
-        if let Some(id) = reference.as_direct() {
-            return Some(id);
-        }
-        if let Some(resolved) = self.resolved.get(&reference) {
-            return *resolved;
-        }
-        if !self
-            .pending
-            .iter()
-            .any(|(pending, _)| *pending == reference)
-        {
-            let client = Arc::clone(client);
-            let task = host.spawn(async move {
-                client
-                    .resolve_reference(
-                        referencing_id,
-                        &reference,
-                        &VersionControlWorktreeMembership,
-                    )
-                    .await
-            });
-            self.pending.push((reference, task));
-        }
-        None
-    }
-}
-
 pub(crate) fn poll_pending_embeds(state: &State) {
-    let mut finished = Vec::new();
-    state.pending_embeds.borrow_mut().retain_mut(|pending| {
-        let Some(reference) = pending.task.take() else {
-            return !pending.task.finished();
-        };
-        finished.push((reference, pending.source_name.clone(), pending.markdown));
-        false
-    });
-    for (reference, source_name, markdown) in finished {
+    let finished = state.pending_embeds.borrow_mut().poll();
+    for (reference, (source_name, markdown)) in finished {
         let directive =
             image_embed_directive(state.workspace_id, &reference, &source_name, markdown);
         state
@@ -163,7 +85,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
             let id = state
                 .references
                 .borrow_mut()
-                .resolve(&host, &state.client, block_id, embed.reference)
+                .resolve(&state.client, block_id, embed.reference)
                 .unwrap_or(Uuid::nil());
             (id != block_id).then_some((embed, id))
         })

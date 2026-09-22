@@ -6,7 +6,7 @@ use crate::pixel_grid::PixelGrid;
 
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, NodeId, NodeMap};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -290,19 +290,6 @@ impl Element for ListNode {
         for item in self.items.iter() {
             crate::paint::paint(doc, painter, rects, item.child);
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().map(ChildItem::node));
     }
 
     fn children(&self) -> Vec<NodeId> {
