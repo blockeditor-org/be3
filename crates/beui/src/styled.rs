@@ -47,7 +47,7 @@ pub use menu_button::MenuButton;
 pub use number_input::{NumberDrag, NumberInput, number_input_field};
 pub use progress::Progress;
 pub use responsive_tabs::{ResponsiveTabs, responsive_tabs_selected};
-pub use scroll::{Scroll, VirtualList};
+pub use scroll::Scroll;
 pub use scrollbar::Scrollbar;
 pub use select::{Select, select_open, select_selected};
 pub use shortcut::Shortcut;

@@ -41,7 +41,7 @@ pub use menu_button::{MenuButton, MenuButtonHandle};
 pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, pan_zoom_view};
 pub use pointer_lock::{PointerLock, PointerLockHandle};
 pub use pressable::Pressable;
-pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, VirtualList, scroll_animating};
+pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, scroll_animating};
 pub use scrollbar::{Scrollbar, ScrollbarHandle, thumb_length, thumb_start};
 pub use select::{
     Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,

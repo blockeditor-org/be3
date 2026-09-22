@@ -12,8 +12,8 @@ use crate::input::{DragGesture, Key, KeyPress, ScrollGesture};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Children, ClickCatcher, Focusable, Frame, List, ListChild, Memo, Offset, Prop,
-    ReadSignal, Render, RenderFn, VirtualOffset, clone, component_accessibility, create_memo,
-    create_signal, each_frame, set_component_state, untrack, with_document,
+    ReadSignal, Render, RenderFn, clone, component_accessibility, create_memo, create_signal,
+    each_frame, set_component_state, untrack, with_document,
 };
 
 const INERTIA_FRICTION: f32 = 4.5;
@@ -367,39 +367,6 @@ pub fn Scroll(
                     >
                         {children}
                     </Offset>
-                }
-            }}
-        </Scrolling>
-    }
-}
-
-#[component]
-pub fn VirtualList(
-    count: Prop<usize>,
-    item_size: Prop<f32>,
-    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
-    on_change: Callback<ScrollPosition>,
-    #[prop(children)] item: RenderFn<usize>,
-) -> NodeId {
-    let content_direction = direction.clone();
-    view! {
-        <Scrolling
-            direction
-            focus_color
-            scrollbar
-            on_change={move |position: ScrollPosition| on_change.call(position)}
-        >
-            {move |report: Callback<ScrollPosition>| {
-                view! {
-                    <VirtualOffset
-                        count
-                        item_size
-                        direction={content_direction}
-                        item={item}
-                        on_change={move |position: ScrollPosition| report.call(position)}
-                    />
                 }
             }}
         </Scrolling>

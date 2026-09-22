@@ -1,33 +1,34 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Text, VirtualOffset, build, view};
+use crate::reactive::{ItemSize, List, NodeRef, Offset, Text, VirtualList, build, view};
 
 #[test]
 fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
-    let scroll = NodeRef::new();
+    let list = NodeRef::new();
     let document = build({
-        let scroll = scroll.clone();
+        let list = list.clone();
         move || {
             view! {
                 <List spacing=0.0>
-                    <VirtualOffset
-                        @sizing=ItemSize::Percent(100.0)
-                        @node_ref=&scroll
-                        count=VIRTUAL_ITEM_COUNT
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >
-                        {|index: usize| view! {
-                            <Text string={format!("Row {index}")} />
-                        }}
-                    </VirtualOffset>
+                    <Offset @sizing=ItemSize::Percent(100.0)>
+                        <VirtualList
+                            @node_ref=&list
+                            count=VIRTUAL_ITEM_COUNT
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >
+                            {|index: usize| view! {
+                                <Text string={format!("Row {index}")} />
+                            }}
+                        </VirtualList>
+                    </Offset>
                 </List>
             }
         }
     });
-    let scroll = scroll.get();
+    let list = list.get();
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let first_row = harness.document.children(scroll)[0];
+    let first_row = harness.document.children(list)[0];
     assert_eq!(text_of(harness.document(), first_row), "Row 0");
 }

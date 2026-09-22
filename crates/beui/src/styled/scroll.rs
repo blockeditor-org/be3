@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use crate::base::{Direction, ItemSize, ScrollPosition};
 use crate::color::Color32;
 use crate::node::NodeId;
-use crate::reactive::{Callback, Children, Memo, Prop, RenderFn, create_memo};
+use crate::reactive::{Callback, Children, Memo, Prop, create_memo};
 use crate::styled::Scrollbar;
 use crate::styled::theme::{SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
 use crate::unstyled;
@@ -30,29 +30,6 @@ pub fn Scroll(
         >
             {children}
         </unstyled::Scroll>
-    }
-}
-
-#[component]
-pub fn VirtualList(
-    count: Prop<usize>,
-    item_size: Prop<f32>,
-    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(default = None)] focus_color: Prop<Option<Color32>>,
-    on_change: Callback<ScrollPosition>,
-    #[prop(children)] item: RenderFn<usize>,
-) -> NodeId {
-    let focus = focus_ring(focus_color);
-    view! {
-        <unstyled::VirtualList
-            count
-            item_size
-            direction
-            focus_color={focus}
-            scrollbar={scrollbar_style()}
-            item={item}
-            on_change={move |reported: ScrollPosition| on_change.call(reported)}
-        />
     }
 }
 
