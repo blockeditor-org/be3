@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Condvar, Mutex},
     time::{Duration, Instant},
 };
 
@@ -25,12 +25,12 @@ pub(super) enum Command {
 }
 
 #[derive(Default)]
-pub(super) struct Shared {
-    pub(super) blocks: HashMap<Uuid, Content>,
-    pub(super) wakes: u64,
-    pub(super) unsealed: usize,
-    pub(super) connected: bool,
-    pub(super) error: Option<String>,
+pub(crate) struct Shared {
+    pub(crate) blocks: HashMap<Uuid, Content>,
+    pub(crate) wakes: u64,
+    pub(crate) unsealed: usize,
+    pub(crate) connected: bool,
+    pub(crate) error: Option<String>,
 }
 
 enum Session {
@@ -112,6 +112,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     make_store: S,
     mut commands: UnboundedReceiver<Command>,
     shared: Arc<Mutex<Shared>>,
+    changed: Arc<Condvar>,
 ) {
     let context = config.context.clone();
     let mut open: HashMap<Uuid, Uuid> = HashMap::new();
@@ -121,14 +122,17 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             &make_store,
             &mut commands,
             &shared,
+            &changed,
             &mut open,
             &context,
         )
         .await
         {
+            changed.notify_all();
             return;
         }
         shared.lock().unwrap().connected = false;
+        changed.notify_all();
         context.request_repaint();
         platform::sleep(RECONNECT_DELAY).await;
     }
@@ -144,6 +148,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     make_store: &S,
     commands: &mut UnboundedReceiver<Command>,
     shared: &Arc<Mutex<Shared>>,
+    changed: &Arc<Condvar>,
     open: &mut HashMap<Uuid, Uuid>,
     context: &eframe::egui::Context,
 ) -> Outcome {
@@ -166,6 +171,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         held.connected = true;
         held.error = None;
     }
+    changed.notify_all();
     context.request_repaint();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
@@ -174,6 +180,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         rejoin(&peer, &mut sessions, shared, block, content_type).await;
     }
     publish(&sessions, shared);
+    changed.notify_all();
     context.request_repaint();
     let mut unsealed_since: Option<Instant> = None;
     loop {
@@ -217,7 +224,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             true => unsealed_since.or_else(|| Some(Instant::now())),
             false => None,
         };
-        if publish(&sessions, shared) {
+        let moved = publish(&sessions, shared);
+        changed.notify_all();
+        if moved {
             context.request_repaint();
         }
     }

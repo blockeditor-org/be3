@@ -11,7 +11,12 @@ fn an_idle_peer_never_wakes_its_worker() {
     flush();
     let settled = status().wakes;
 
-    std::thread::sleep(Duration::from_secs(2));
+    let woke = wait_for(QUIET, |shared| {
+        (shared.wakes != settled).then_some(shared.wakes)
+    });
 
-    assert_eq!(status().wakes, settled);
+    assert_eq!(
+        woke, None,
+        "the worker woke {woke:?} times without being asked"
+    );
 }

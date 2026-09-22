@@ -13,11 +13,11 @@ fn a_peer_rejoins_what_was_open_when_the_server_comes_back() {
     flush();
 
     harness.stop_server();
-    wait_until("noticed the server was gone", || !status().connected);
+    wait_until("noticed the server was gone", |shared| !shared.connected);
     assert_eq!(count_of(block), Some(4));
 
     harness.start_server(&address);
-    wait_until("connected again", || status().connected);
+    wait_until("connected again", |shared| shared.connected);
     add(block, 1);
 
     wait_for_count(block, 5);

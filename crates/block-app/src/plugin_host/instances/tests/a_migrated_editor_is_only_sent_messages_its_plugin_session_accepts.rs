@@ -1,6 +1,6 @@
 use super::*;
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use block::Block;
 use block_editor_plugin::session::{ClientSession, State};
@@ -26,16 +26,30 @@ fn a_migrated_editor_is_only_sent_messages_its_plugin_session_accepts() {
         theme: Theme { dark: true },
     }));
 
-    let mut content = false;
-    let deadline = Instant::now() + Duration::from_secs(20);
-    while Instant::now() < deadline && !content {
-        for message in instances.next_screens(PASS).opened {
-            content |= matches!(message, Message::Editor(EditorMessage::Content { .. }));
-            session.receive(message);
-        }
-        std::thread::sleep(Duration::from_millis(20));
+    let opened = instances.next_screens(PASS).opened;
+    assert!(
+        opened
+            .iter()
+            .any(|message| matches!(message, Message::Editor(EditorMessage::Open { .. })))
+    );
+    for message in opened {
+        session.receive(message);
     }
+    crate::be::wait_for(Duration::from_secs(20), |shared| {
+        shared.blocks.contains_key(&block).then_some(())
+    })
+    .expect("the new stack never held the block's content");
 
-    assert!(content, "the host never sent the block's content");
+    let carried = instances.next_screens(PASS).opened;
+
+    assert!(
+        carried
+            .iter()
+            .any(|message| matches!(message, Message::Editor(EditorMessage::Content { .. }))),
+        "the host never sent the block's content"
+    );
+    for message in carried {
+        session.receive(message);
+    }
     assert_eq!(session.state(), State::Running);
 }

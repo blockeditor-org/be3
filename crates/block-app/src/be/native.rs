@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -28,6 +28,7 @@ pub(super) fn spawn(
     config: Config,
     commands: UnboundedReceiver<Command>,
     shared: Arc<Mutex<Shared>>,
+    changed: Arc<Condvar>,
 ) -> Running {
     let worker = thread::Builder::new()
         .name("block-app-be".into())
@@ -48,7 +49,7 @@ pub(super) fn spawn(
                 FileStore::open(&directory)
                     .map_err(|error| format!("the local object store cannot open: {error}"))
             };
-            runtime.block_on(serve(config, store, commands, shared));
+            runtime.block_on(serve(config, store, commands, shared, changed));
         })
         .ok();
     Running(worker)

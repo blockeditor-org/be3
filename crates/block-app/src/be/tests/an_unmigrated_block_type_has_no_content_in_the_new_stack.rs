@@ -15,10 +15,12 @@ fn an_unmigrated_block_type_has_no_content_in_the_new_stack() {
 
     let harness = Harness::start();
     harness.connect();
+    wait_until("connected", |shared| shared.connected);
     let block = Uuid::new_v4();
+    let asked = status().wakes;
 
     open(block, Uuid::from_u128(0xdead_beef));
-    std::thread::sleep(Duration::from_millis(200));
 
+    wait_until("took the open", |shared| shared.wakes > asked);
     assert!(content(block).is_none());
 }

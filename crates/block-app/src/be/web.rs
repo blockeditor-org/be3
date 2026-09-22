@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
 
@@ -21,8 +21,15 @@ pub(super) fn spawn(
     config: Config,
     commands: UnboundedReceiver<Command>,
     shared: Arc<Mutex<Shared>>,
+    changed: Arc<Condvar>,
 ) -> Running {
-    wasm_bindgen_futures::spawn_local(serve(config, || Ok(MemoryStore::new()), commands, shared));
+    wasm_bindgen_futures::spawn_local(serve(
+        config,
+        || Ok(MemoryStore::new()),
+        commands,
+        shared,
+        changed,
+    ));
     Running
 }
 

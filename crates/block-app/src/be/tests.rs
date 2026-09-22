@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use be_block::{BlockContent, CounterContent, CounterOp, LiveEdit};
 use block_client::ManagementClient;
@@ -15,6 +15,7 @@ mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod two_peers_of_one_workspace_share_a_counter;
 
 const PATIENCE: Duration = Duration::from_secs(20);
+const QUIET: Duration = Duration::from_secs(2);
 
 pub(crate) struct Harness {
     directory: PathBuf,
@@ -103,30 +104,33 @@ fn count_of(block: Uuid) -> Option<i64> {
         .map(|counter| counter.count())
 }
 
+fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
+    let held = shared.blocks.get(&block)?;
+    (held.content_type == CounterContent::CONTENT_TYPE)
+        .then(|| CounterContent::decode(&held.bytes).ok())
+        .flatten()
+        .map(|counter| counter.count())
+}
+
 fn wait_for_count(block: Uuid, expected: i64) {
-    let deadline = Instant::now() + PATIENCE;
-    while Instant::now() < deadline {
-        if count_of(block) == Some(expected) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    panic!(
+    let reached = wait_for(PATIENCE, |shared| {
+        (counted(shared, block) == Some(expected)).then_some(())
+    });
+    assert!(
+        reached.is_some(),
         "the new stack never reported {expected} for {block}: it holds {:?}, and the stack says {:?}",
         count_of(block),
         status().error
     );
 }
 
-fn wait_until(what: &str, ready: impl Fn() -> bool) {
-    let deadline = Instant::now() + PATIENCE;
-    while Instant::now() < deadline {
-        if ready() {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    panic!("the new stack never {what}: it says {:?}", status().error);
+fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
+    let reached = wait_for(PATIENCE, |shared| ready(shared).then_some(()));
+    assert!(
+        reached.is_some(),
+        "the new stack never {what}: it says {:?}",
+        status().error
+    );
 }
 
 fn add(block: Uuid, by: i64) {

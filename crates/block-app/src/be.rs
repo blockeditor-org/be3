@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
@@ -19,7 +19,9 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-use worker::{Command, Shared};
+pub(crate) use worker::Shared;
+
+use worker::Command;
 
 pub(crate) struct Config {
     pub(crate) server_url: String,
@@ -78,6 +80,8 @@ struct Stack {
     workspace: Uuid,
     commands: Option<UnboundedSender<Command>>,
     shared: Arc<Mutex<Shared>>,
+    #[cfg_attr(not(test), allow(dead_code))]
+    changed: Arc<Condvar>,
     running: platform::Running,
 }
 
@@ -97,14 +101,16 @@ pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
     let shared = Arc::new(Mutex::new(Shared::default()));
+    let changed = Arc::new(Condvar::new());
     let account = config.account;
     let workspace = config.workspace;
-    let running = platform::spawn(config, receiver, Arc::clone(&shared));
+    let running = platform::spawn(config, receiver, Arc::clone(&shared), Arc::clone(&changed));
     *stack().lock().unwrap() = Some(Stack {
         account,
         workspace,
         commands: Some(commands),
         shared,
+        changed,
         running,
     });
 }
@@ -164,6 +170,30 @@ fn send(command: Command) {
         .and_then(|stack| stack.commands.as_ref())
     {
         let _ = commands.send(command);
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) fn wait_for<T>(
+    timeout: std::time::Duration,
+    read: impl Fn(&Shared) -> Option<T>,
+) -> Option<T> {
+    let (shared, changed) = stack()
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))?;
+    let deadline = std::time::Instant::now() + timeout;
+    let mut held = shared.lock().unwrap();
+    loop {
+        if let Some(value) = read(&held) {
+            return Some(value);
+        }
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            return None;
+        }
+        held = changed.wait_timeout(held, remaining).unwrap().0;
     }
 }
 
