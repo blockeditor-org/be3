@@ -8,9 +8,8 @@ use logicgame::execution::{Instruction, UnlinkedComponent};
 use logicgame::grid::{ComponentPort, ComponentSide, ConnectionDirection, Scale, Size};
 use uuid::Uuid;
 
-use crate::app::{CompiledLogicApp, format_instruction};
+use crate::app::CompiledLogicApp;
 
-mod instructions_have_compact_display_names;
 mod the_program_lists_every_instruction;
 mod the_source_link_names_the_grid_it_was_compiled_from;
 

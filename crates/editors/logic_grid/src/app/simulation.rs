@@ -193,11 +193,8 @@ impl LogicGridEditor {
                                 let response = ui.horizontal(|ui| {
                                     let response = ui.selectable_label(
                                         next,
-                                        egui::RichText::new(format!(
-                                            "{index:03}  {}",
-                                            format_instruction(instruction)
-                                        ))
-                                        .monospace(),
+                                        egui::RichText::new(format!("{index:03}  {instruction}"))
+                                            .monospace(),
                                     );
                                     if let Instruction::Call { component, .. } = instruction {
                                         if let Some(component) =
@@ -555,32 +552,6 @@ pub(super) fn apply_input_values(vm: &mut Vm, values: &[u64]) {
     for (&address, value) in vm.input_addresses().to_vec().iter().zip(values) {
         if address < vm.root_component.memory_size {
             vm.root_memory_mut()[address] |= *value;
-        }
-    }
-}
-
-pub(super) fn format_instruction(instruction: &Instruction) -> String {
-    match instruction {
-        Instruction::Call {
-            component,
-            instance,
-            subgraph,
-            inputs,
-            outputs,
-            ..
-        } => format!("CALL c{component} i{instance} g{subgraph} {inputs:?} -> {outputs:?}"),
-        Instruction::Not { input, output } => format!("NOT m{input} -> m{output}"),
-        Instruction::CopyBits {
-            input,
-            output,
-            shift,
-            mask,
-        } => format!("BITS m{input} shift {shift} mask {mask:#x} -> m{output}"),
-        Instruction::ReadStorage { storage, output } => {
-            format!("READ s{storage} -> m{output}")
-        }
-        Instruction::SaveStorage { storage, input } => {
-            format!("SAVE m{input} -> s{storage}")
         }
     }
 }
