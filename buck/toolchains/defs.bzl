@@ -101,7 +101,7 @@ def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
         RustToolchainInfo(
             allow_lints = ctx.attrs.allow_lints,
             clippy_driver = RunInfo(args = cmd_args(ctx.attrs.clippy_driver)),
-            clippy_toml = None,
+            clippy_toml = ctx.attrs.clippy_toml,
             compiler = RunInfo(args = cmd_args(ctx.attrs.compiler)),
             default_edition = ctx.attrs.default_edition,
             deny_lints = ctx.attrs.deny_lints,
@@ -123,6 +123,7 @@ pinned_rust_toolchain = rule(
     attrs = {
         "allow_lints": attrs.list(attrs.string(), default = []),
         "clippy_driver": attrs.source(),
+        "clippy_toml": attrs.source(),
         "compiler": attrs.source(),
         "default_edition": attrs.option(attrs.string(), default = None),
         "deny_lints": attrs.list(attrs.string(), default = []),

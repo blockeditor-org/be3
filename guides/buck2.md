@@ -210,6 +210,32 @@ That replaces the build script under cargo, which shells out to a second cargo
 build for wasm32 and prints the path it wrote to. The plugin tests will want the
 same rule.
 
+## Clippy
+
+The rust toolchain carries `clippy_driver`, so every rust target has a
+`clippy.txt` subtarget:
+
+```
+./scripts/buck build '//crates/reactive:reactive[clippy.txt]'
+```
+
+The lint levels are on the toolchain in `buck/toolchains/BUCK` -
+`deny_lints = ["warnings"]` and the one allow that Cargo.toml's
+`[workspace.lints]` sets - and `clippy.toml` at the root is clippy's own
+configuration, which is a separate thing and is empty. It exists because clippy
+under buck2 is handed a configuration directory rather than left to search for
+one, and a directory without a `clippy.toml` in it is an error rather than a
+default.
+
+One thing to know before building anything on this: **the subtarget writes the
+diagnostics to a file and the build still succeeds**. A lint gate has to build
+the subtarget for every target and then check that each output is empty; a
+green `buck2 build` says nothing about whether clippy was happy.
+
+`./scripts/verify` still lints with cargo, and should keep doing so until buck2
+covers the whole workspace. Switching now would quietly stop linting the 33
+editors and `block-app`, which have no BUCK files yet.
+
 ## How the build is laid out
 
 - `.buckconfig` names the cells, the execution platform and the three cache
@@ -312,7 +338,9 @@ The gaps, roughly in the order they are worth closing:
   `naga`, and reindeer names a third-party target after the ordinary
   dependencies of a workspace member, so there is nothing for the test to depend
   on. The crate's library builds; its tests stay with cargo.
-- **No clippy or rustfmt through buck2.** The lint pass is cargo's.
+- **The lint pass is still cargo's.** Clippy works through buck2 (above) but
+  cannot replace `cargo clippy` until every crate has a BUCK file. rustfmt and
+  `fix-rust-source` have no buck2 story at all yet.
 - **C compiles are never served from the cache.** They are the 4% the numbers
   above leave on the table - about twenty seconds of zstd, sqlite and freetype
   on a fresh checkout. Everything else hits. The cause is somewhere in how buck2

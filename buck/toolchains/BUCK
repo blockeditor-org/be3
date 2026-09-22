@@ -53,9 +53,14 @@ toolchain_alias(
 
 pinned_rust_toolchain(
     name = "rust",
+    # What cargo reads out of Cargo.toml's [workspace.lints]. A warning fails
+    # the build here the way `cargo clippy -- -D warnings` fails it there.
+    allow_lints = ["clippy::too_many_arguments"],
     clippy_driver = "root//buck/tools:clippy-driver",
+    clippy_toml = "root//:clippy.toml",
     compiler = "root//buck/tools:rustc",
     default_edition = "2024",
+    deny_lints = ["warnings"],
     # Cargo's dev profile on the host, and Cargo.toml's plugin profile on wasm:
     # a plugin is compiled once and loaded on every platform, and cranelift is
     # an order of magnitude slower at an unoptimised one.

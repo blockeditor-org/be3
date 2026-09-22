@@ -54,8 +54,9 @@ fi
 # The compiler cargo drives, and what the -sys crates locate libraries with.
 packages=(build-essential pkg-config)
 # Fetching anything at all, and, on a full build, unpacking the Zig release
-# build-ghostty-vt.sh wants, which is .tar.xz.
-packages+=(curl git tar xz-utils)
+# build-ghostty-vt.sh wants, which is .tar.xz. zstd is what the buck2 release
+# is compressed with.
+packages+=(curl git tar xz-utils zstd)
 # The web build, and every plugin's tests, compile HarfBuzz for
 # wasm32-wasip1-threads with clang and archive it with llvm-ar, neither of
 # which comes from rustup. The build scripts take the newest clang on PATH, so
@@ -199,6 +200,17 @@ rustup component add rustfmt clippy
 step 'Installing cargo-nextest'
 "$internal/install-nextest.sh"
 
+# buck2 builds the half of the workspace it has BUCK files for, and answers most
+# of it out of the shared cache rather than compiling it; guides/buck2.md says
+# what it covers. Both of these are downloads of a pinned release, so they cost
+# seconds. reindeer is not installed here: it builds from source, takes minutes,
+# and only ./scripts/buckify needs it - which is only after a Cargo.toml change.
+step 'Installing buck2'
+"$internal/install-buck2.sh"
+
+step 'Installing starlark_fmt'
+"$internal/install-starlark-fmt.sh"
+
 # The one prerequisite that is not a package, and the only one a full build
 # alone has: block-app links this, and cargo builds none of it. The script
 # fetches a Zig toolchain and a Ghostty checkout the first time, which is half a
@@ -236,6 +248,10 @@ end_step
 echo ''
 echo 'Setup finished. Check the workspace compiles with ./scripts/check, and run'
 echo './scripts/verify before committing.'
+echo ''
+echo 'buck2 is installed too. Set BLOCKS_CACHE_AUTH to read the shared build cache,'
+echo 'and see guides/buck2.md; a first ./scripts/buck test //crates/... is under a'
+echo 'minute with it and about ten without.'
 if ! full_build; then
     echo ''
     echo 'This set the machine up for a default build, which leaves out the debug'
