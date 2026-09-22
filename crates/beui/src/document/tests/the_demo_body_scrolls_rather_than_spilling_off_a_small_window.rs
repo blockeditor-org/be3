@@ -26,7 +26,7 @@ fn the_demo_body_scrolls_rather_than_spilling_off_a_small_window() {
         }
         harness.frame(Vec::new());
         let root = harness.document.root().expect("the demo built a root");
-        let bottom = lowest_edge(harness.document(), root);
+        let bottom = lowest_edge(harness.document(), root, f32::INFINITY);
         assert!(
             bottom <= window.y,
             "the demo reaches {bottom} in a {window:?} window"
@@ -34,12 +34,18 @@ fn the_demo_body_scrolls_rather_than_spilling_off_a_small_window() {
     }
 }
 
-fn lowest_edge(document: &Document, id: NodeId) -> f32 {
-    let own = document.node_rect(id).map_or(0.0, |rect| rect.bottom());
+fn lowest_edge(document: &Document, id: NodeId, clip: f32) -> f32 {
+    let rect = document.node_rect(id);
+    let own = rect.map_or(0.0, |rect| rect.bottom().min(clip));
+    let scrolls = document.first_offset_within(id) == Some(id);
+    let clip = match rect.filter(|_| scrolls) {
+        Some(rect) => rect.bottom().min(clip),
+        None => clip,
+    };
     document
         .children(id)
         .into_iter()
         .fold(own, |lowest, child| {
-            lowest.max(lowest_edge(document, child))
+            lowest.max(lowest_edge(document, child, clip))
         })
 }

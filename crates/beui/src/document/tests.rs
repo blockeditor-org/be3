@@ -46,6 +46,7 @@ mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
+mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
@@ -68,6 +69,7 @@ mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
 mod a_viewport_fills_the_space_it_is_given;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
+mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
@@ -190,6 +192,7 @@ mod scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone;
 mod scrolling_a_pan_zoom_pans_it;
 mod scrolling_a_virtual_scroll_replaces_the_items_in_view;
 mod scrolling_a_virtual_scroll_reuses_overlapping_items;
+mod scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
@@ -264,8 +267,8 @@ use crate::input::{TouchId, TouchPhase};
 use crate::base::list::{Direction, ItemSize};
 use crate::inspector::Inspector;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, Func, List, NodeRef, Spacer, Text,
-    VirtualOffset, build, create_signal, with_document,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, Func, List, NodeRef, Offset, Spacer, Text,
+    VirtualList, build, create_signal, with_document,
 };
 use crate::styled;
 use crate::unstyled;
@@ -742,37 +745,48 @@ pub(crate) fn PanZoomStage(
     }
 }
 
-pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> (Document, NodeId) {
-    let scroll = NodeRef::new();
+pub(crate) struct VirtualScroll {
+    pub(crate) document: Document,
+    pub(crate) scroll: NodeId,
+    pub(crate) list: NodeId,
+}
+
+pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> VirtualScroll {
+    let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let sink = built.clone();
     let document = build({
-        let scroll = scroll.clone();
+        let (scroll, list) = (scroll.clone(), list.clone());
         move || {
             view! {
                 <List spacing=0.0>
-                    <VirtualOffset
-                        @sizing=ItemSize::Percent(100.0)
-                        @node_ref=&scroll
-                        count=VIRTUAL_ITEM_COUNT
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >
-                        {move |index: usize| {
-                            sink.borrow_mut().push(index);
-                            view! {
-                                <Frame
-                                    padding_horizontal=0.0
-                                    padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
-                                >
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }}
-                    </VirtualOffset>
+                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                        <VirtualList
+                            @node_ref=&list
+                            count=VIRTUAL_ITEM_COUNT
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >
+                            {move |index: usize| {
+                                sink.borrow_mut().push(index);
+                                view! {
+                                    <Frame
+                                        padding_horizontal=0.0
+                                        padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
+                                    >
+                                        <Spacer />
+                                    </Frame>
+                                }
+                            }}
+                        </VirtualList>
+                    </Offset>
                 </List>
             }
         }
     });
-    (document, scroll.get())
+    VirtualScroll {
+        document,
+        scroll: scroll.get(),
+        list: list.get(),
+    }
 }
 
 pub(crate) struct HelloColumn {

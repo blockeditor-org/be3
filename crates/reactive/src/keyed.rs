@@ -161,6 +161,50 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         }
     }
 
+    pub fn get(&self, key: &K) -> Option<V> {
+        self.entries
+            .borrow()
+            .get(key)
+            .map(|(value, _)| value.clone())
+    }
+
+    pub fn entry(&self, key: K) -> V {
+        if let Some(value) = self.get(&key) {
+            return value;
+        }
+        let scope = Scope::detached();
+        let built = scope.context().run(|| (self.build)(key.clone()));
+        self.entries
+            .borrow_mut()
+            .insert(key, (built.clone(), scope));
+        built
+    }
+
+    pub fn retain(&self, keys: &[K]) -> Vec<V> {
+        let kept: HashSet<&K> = keys.iter().collect();
+        let dropped: Vec<K> = self
+            .entries
+            .borrow()
+            .keys()
+            .filter(|key| !kept.contains(key))
+            .cloned()
+            .collect();
+        drop(kept);
+        let mut removed = Vec::with_capacity(dropped.len());
+        let mut scopes = Vec::with_capacity(dropped.len());
+        {
+            let mut entries = self.entries.borrow_mut();
+            for key in dropped {
+                if let Some((value, scope)) = entries.remove(&key) {
+                    removed.push(value);
+                    scopes.push(scope);
+                }
+            }
+        }
+        drop(scopes);
+        removed
+    }
+
     pub fn map(&self, keys: Vec<K>) -> Mapping<K, V> {
         let mut entries = self.entries.borrow_mut();
         let mut next = HashMap::with_capacity(keys.len());
