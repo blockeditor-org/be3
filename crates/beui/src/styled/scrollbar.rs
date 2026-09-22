@@ -4,24 +4,50 @@ use crate::color::Color32;
 
 use crate::base::{Direction, ScrollPosition};
 use crate::node::NodeId;
-use crate::reactive::{Frame, ItemSize, List, Prop, Spacer, clone, create_memo};
+use crate::reactive::{Callback, Frame, ItemSize, List, Prop, Spacer, clone, create_memo};
 use crate::styled::theme::{ThemeStore, use_theme};
+use crate::unstyled;
+use crate::unstyled::{ScrollbarHandle, thumb_length, thumb_start};
 
 const RADIUS: u8 = 3;
-const MINIMUM_THUMB: f32 = 0.08;
 
 #[component]
 pub fn Scrollbar(
     position: Prop<ScrollPosition>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    on_scroll_to: Callback<f32>,
 ) -> NodeId {
-    let position = create_memo(move || position.get());
+    view! {
+        <unstyled::Scrollbar
+            position
+            direction
+            on_scroll_to={move |offset: f32| on_scroll_to.call(offset)}
+        >
+            {move |handle: ScrollbarHandle| {
+                view! {
+                    <ScrollbarTrack handle />
+                }
+            }}
+        </unstyled::Scrollbar>
+    }
+}
+
+#[component]
+fn ScrollbarTrack(handle: ScrollbarHandle) -> NodeId {
+    let ScrollbarHandle {
+        position,
+        direction,
+        hovered,
+        dragging,
+    } = handle;
     let theme = use_theme();
 
     let before = create_memo(clone!(position -> move || before_percent(position.get())));
     let thumb = create_memo(clone!(position -> move || thumb_percent(position.get())));
     let after = create_memo(clone!(position -> move || after_percent(position.get())));
-    let color = create_memo(clone!(theme position -> move || thumb_color(&theme, position.get())));
+    let color = create_memo(clone!(theme position -> move || {
+        thumb_color(&theme, position.get(), hovered.get(), dragging.get())
+    }));
     let track = create_memo(clone!(theme -> move || track_color(&theme, position.get())));
 
     view! {
@@ -35,41 +61,32 @@ pub fn Scrollbar(
     }
 }
 
-fn visible_fraction(position: ScrollPosition) -> f32 {
-    if position.content > 0.0 {
-        (position.viewport / position.content).clamp(MINIMUM_THUMB, 1.0)
-    } else {
-        1.0
-    }
-}
-
-fn progress_fraction(position: ScrollPosition) -> f32 {
-    if position.max_offset() > 0.0 {
-        position.offset / position.max_offset()
-    } else {
-        0.0
-    }
-}
-
 fn before_percent(position: ScrollPosition) -> ItemSize {
-    let rest = 100.0 - visible_fraction(position) * 100.0;
-    ItemSize::Percent(rest * progress_fraction(position))
+    ItemSize::Percent(thumb_start(position) * 100.0)
 }
 
 fn thumb_percent(position: ScrollPosition) -> ItemSize {
-    ItemSize::Percent(visible_fraction(position) * 100.0)
+    ItemSize::Percent(thumb_length(position) * 100.0)
 }
 
 fn after_percent(position: ScrollPosition) -> ItemSize {
-    let rest = 100.0 - visible_fraction(position) * 100.0;
-    ItemSize::Percent(rest * (1.0 - progress_fraction(position)))
+    let rest = 1.0 - thumb_start(position) - thumb_length(position);
+    ItemSize::Percent(rest.max(0.0) * 100.0)
 }
 
-fn thumb_color(theme: &ThemeStore, position: ScrollPosition) -> Color32 {
-    if position.max_offset() > 0.0 {
-        theme.scroll_thumb.get()
-    } else {
-        Color32::TRANSPARENT
+fn thumb_color(
+    theme: &ThemeStore,
+    position: ScrollPosition,
+    hovered: bool,
+    dragging: bool,
+) -> Color32 {
+    if position.max_offset() <= 0.0 {
+        return Color32::TRANSPARENT;
+    }
+    match (dragging, hovered) {
+        (true, _) => theme.scroll_thumb_active.get(),
+        (false, true) => theme.scroll_thumb_hover.get(),
+        (false, false) => theme.scroll_thumb.get(),
     }
 }
 

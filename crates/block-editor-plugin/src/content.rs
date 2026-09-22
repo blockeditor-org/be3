@@ -76,7 +76,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
     }
 
     fn adopt(&self) {
-        let Some(content) = self.host.content() else {
+        let Some(content) = self.host.block_content() else {
             return;
         };
         if content.revision == self.seen.get() || content.content_type != C::CONTENT_TYPE {

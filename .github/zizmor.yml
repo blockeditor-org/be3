@@ -23,3 +23,20 @@ rules:
   self-repository:
     ignore:
       - ci.yml
+
+  # pull_request_target and workflow_run are what merge-queue.yml is built on,
+  # and both earn this finding for the same good reason: they run in the base
+  # repository, with its secrets, on an event a pull request author controls.
+  # The usual way that goes wrong is a workflow that then checks out the pull
+  # request and runs something from it - a build, a test, an install script -
+  # at which point the author has written code that runs next to the secrets.
+  #
+  # That workflow never reads a pull request as code. It checks out the default
+  # branch by name, installs nothing, builds nothing, and runs one script from
+  # the branch it checked out. What it takes from the event is a number, a
+  # login and a comment body, and all three are treated as data. There is no
+  # other way to build a queue on these events, because the whole point of them
+  # is to notice what a pull request did.
+  dangerous-triggers:
+    ignore:
+      - merge-queue.yml

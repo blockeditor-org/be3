@@ -2,17 +2,23 @@ use super::*;
 
 #[test]
 fn a_shown_block_is_reported_as_focused() {
-    let (mut editor, host, opened) = editor();
+    let (mut fixture, opened) = editor();
     let second = Uuid::new_v4();
 
-    host.show_block(opened, FileTree::TYPE_ID, None, None);
-    editor.step();
-    assert_eq!(host.focused_block().block_id, Some(opened));
-    assert_eq!(host.focused_block().block_type, FileTree::TYPE_ID);
+    show(&mut fixture, opened, None, None);
+    assert_eq!(fixture.focused(), Some(opened));
+    assert_eq!(
+        fixture.host.focused_block().block_type,
+        <FileTree as Block>::TYPE_ID
+    );
 
-    host.show_block(second, FileTree::TYPE_ID, Some(opened), None);
-    editor.step();
-    assert_eq!(editor.app().open_blocks(), vec![opened, second]);
-    assert_eq!(host.focused_block().block_id, Some(second));
-    assert_eq!(host.focused_block().via, vec![opened]);
+    show(&mut fixture, second, Some(opened), None);
+
+    assert_eq!(
+        fixture.shown(),
+        vec![second],
+        "the tab that was opened second is the one on show"
+    );
+    assert_eq!(fixture.focused(), Some(second));
+    assert_eq!(fixture.host.focused_block().via, vec![opened]);
 }

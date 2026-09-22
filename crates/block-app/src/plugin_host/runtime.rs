@@ -6,9 +6,10 @@ use std::{
 };
 
 use block_plugin_api::{
-    ArtifactDescription, BlockCommand, BlockPick, Capability, EditorInstanceId, EditorMessage,
-    EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, ScreenId,
-    ScreenLayout, ScreenRequest, SessionState, ViewChange,
+    ArtifactDescription, BlockCommand, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId,
+    EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest,
+    ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec, Theme,
+    ViewChange,
 };
 use eframe::egui;
 use uuid::Uuid;
@@ -30,6 +31,10 @@ const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
 const UNIT: egui::Rect = egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0));
 const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
+const SURFACE: SurfaceSpec = SurfaceSpec {
+    format: SurfaceFormat::Rgba8Unorm,
+    max_side: DEFAULT_SURFACE_SIDE,
+};
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::new());
@@ -127,6 +132,7 @@ pub(super) struct Runtime {
     next_slot: u32,
     paint_at: Option<f64>,
     requested_at: Option<f64>,
+    theme: Theme,
 }
 
 impl Runtime {
@@ -155,6 +161,7 @@ impl Runtime {
             next_slot: 0,
             paint_at: None,
             requested_at: None,
+            theme: theme(context),
         }
     }
 
@@ -176,6 +183,7 @@ impl Runtime {
         self.needed = false;
         self.paint_at = None;
         self.requested_at = None;
+        self.theme = theme(&self.context);
         self.instances.reopen();
         self.backend.start(plugin, &self.context);
     }
@@ -188,9 +196,16 @@ impl Runtime {
         let previous = self.pass;
         self.pass = pass;
         self.next_slot = 0;
+        let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(previous);
-        let mut messages = next.opened;
-        if self.sent != next.screens {
+        let mut messages = Vec::new();
+        let theme = theme(&self.context);
+        if self.theme != theme {
+            self.theme = theme;
+            messages.push(Message::Theme(theme));
+        }
+        messages.extend(next.opened);
+        if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
             messages.push(self.instances.screen_set(next.screens));
         }
@@ -224,7 +239,7 @@ impl Runtime {
                 .drive_web_views(frame, &self.context, self.pass),
         );
         self.needed |= !messages.is_empty();
-        if self.frame_due() {
+        if self.session.granted_surface().is_some() && self.frame_due() {
             self.requested_at = Some(self.now());
             messages.push(Message::DrawFrame);
         }
@@ -1213,15 +1228,13 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
 }
 
 fn session(context: &egui::Context) -> HostSession {
-    HostSession::new(
-        HOST_NAME,
-        vec![
-            Capability::Lifecycle,
-            Capability::Input,
-            Capability::Surface,
-        ],
-        context.global_style().visuals.dark_mode,
-    )
+    HostSession::new(HOST_NAME, Some(SURFACE), theme(context))
+}
+
+fn theme(context: &egui::Context) -> Theme {
+    Theme {
+        dark: context.global_style().visuals.dark_mode,
+    }
 }
 
 fn milliseconds(context: &egui::Context) -> u64 {

@@ -8,14 +8,12 @@ use uuid::Uuid;
 
 use crate::app::TextApp;
 use crate::app::embeds::{image_embed_directive, parse_embeds};
-use crate::app::state::parse_markdown_checkboxes;
 
 mod classifies_markdown_image;
 mod foreign_workspace_url_is_not_an_embed;
 mod image_embed_directive_uses_markdown_image;
 mod image_embed_directive_uses_plain_url;
 mod markdown_is_painted_with_its_styles;
-mod parses_markdown_checkboxes;
 mod replacing_a_referenced_block_rewrites_its_url;
 mod switching_to_hex_view_shows_the_bytes;
 mod the_intrinsic_size_follows_the_width_it_was_given;

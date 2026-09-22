@@ -3,10 +3,12 @@ use crate::color::Color32;
 use beui_macros::{component, view};
 
 use crate::base::TextAlign;
+use crate::font::line_height;
 use crate::node::NodeId;
-use crate::reactive::{IntoProp, Prop, Text, create_memo};
+use crate::reactive::{IntoProp, Prop, Text, clone, create_memo};
 use crate::styled::theme::{
-    FONT_BODY, FONT_DISPLAY, FONT_HEADING, FONT_SMALL, FONT_TITLE, ICON_SIZE, use_theme,
+    FONT_BODY, FONT_DISPLAY, FONT_HEADING, FONT_SMALL, FONT_TITLE, icon_glyph_size, icon_text_size,
+    use_theme,
 };
 
 fn text_color() -> Prop<Color32> {
@@ -29,16 +31,37 @@ pub fn Code(
 }
 
 #[component]
-pub fn Icon(glyph: Prop<String>, #[prop(default = text_color())] color: Prop<Color32>) -> NodeId {
+pub fn Icon(
+    glyph: Prop<String>,
+    #[prop(default = FONT_BODY)] text_size: Prop<f32>,
+    #[prop(default = text_color())] color: Prop<Color32>,
+) -> NodeId {
+    let font_size = create_memo(clone!(text_size -> move || icon_glyph_size(text_size.get())));
+    let line = create_memo(move || line_height(text_size.get()));
     view! {
-        <IconSized glyph font_size=ICON_SIZE color />
+        <IconGlyph glyph font_size line_height={line} color />
     }
 }
 
 #[component]
 pub fn IconSized(glyph: Prop<String>, font_size: Prop<f32>, color: Prop<Color32>) -> NodeId {
+    let line = create_memo(clone!(font_size -> move || {
+        line_height(icon_text_size(font_size.get()))
+    }));
     view! {
-        <Text string={glyph} font_size color align=TextAlign::Center icon=true />
+        <IconGlyph glyph font_size line_height={line} color />
+    }
+}
+
+#[component]
+fn IconGlyph(
+    glyph: Prop<String>,
+    font_size: Prop<f32>,
+    line_height: Prop<f32>,
+    color: Prop<Color32>,
+) -> NodeId {
+    view! {
+        <Text string={glyph} font_size line_height color align=TextAlign::Center icon=true />
     }
 }
 

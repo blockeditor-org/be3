@@ -3,11 +3,16 @@ use super::*;
 #[test]
 fn queue_saturation_preserves_ordered_input() {
     let mut session = running_session();
-    for index in 0..MAX_QUEUED_MESSAGES {
+    let keys: Vec<_> = crate::Key::ALL
+        .iter()
+        .copied()
+        .cycle()
+        .take(MAX_QUEUED_MESSAGES)
+        .collect();
+    for key in &keys {
         session
             .enqueue(input(InputEvent::Key {
-                physical: crate::PhysicalKey::Code(index as u32),
-                logical: index.to_string(),
+                key: *key,
                 pressed: true,
                 repeat: false,
             }))
@@ -17,13 +22,13 @@ fn queue_saturation_preserves_ordered_input() {
         session.enqueue(input(InputEvent::Text("overflow".into()))),
         Err(QueueError::Full)
     );
-    for index in 0..MAX_QUEUED_MESSAGES {
+    for expected in keys {
         let Message::Input(batch) = session.next_outbound().unwrap() else {
             panic!()
         };
-        let InputEvent::Key { logical, .. } = &batch.events[0] else {
+        let InputEvent::Key { key, .. } = &batch.events[0] else {
             panic!()
         };
-        assert_eq!(logical, &index.to_string());
+        assert_eq!(*key, expected);
     }
 }

@@ -1,20 +1,29 @@
 use super::*;
-use crate::{Hello, Modifiers, PluginIdentity, PointerButton, WheelUnit, encode_frame};
+use crate::{
+    DEFAULT_SURFACE_SIDE, Hello, HelloAccepted, Modifiers, PluginIdentity, PointerButton,
+    SurfaceFormat, SurfaceSpec, SurfaceSupport, Theme, WheelUnit, encode_frame,
+};
 
 fn session() -> HostSession {
-    HostSession::new("BE3", vec![Capability::Input, Capability::Lifecycle], true)
+    HostSession::new(
+        "BE3",
+        Some(SurfaceSpec {
+            format: SurfaceFormat::Rgba8Unorm,
+            max_side: DEFAULT_SURFACE_SIDE,
+        }),
+        Theme { dark: true },
+    )
 }
 
 fn hello() -> Message {
     Message::Hello(Hello {
-        minimum_version: PROTOCOL_VERSION,
-        maximum_version: PROTOCOL_VERSION,
+        version: PROTOCOL_VERSION,
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),
             version: "1".into(),
         },
-        capabilities: vec![Capability::Input],
+        surface: SurfaceSupport::Texture,
     })
 }
 
@@ -40,6 +49,7 @@ fn input(event: InputEvent) -> Message {
     })
 }
 
+mod a_plugin_that_draws_nothing_is_granted_no_surface;
 mod a_superseded_request_is_forgotten;
 mod coalesced_zoom_gestures_multiply;
 mod disconnect_fails_the_session;

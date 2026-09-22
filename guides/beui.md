@@ -227,9 +227,9 @@ need:
 
 `Drawing` is the one base node that paints rather than arranges: it takes a
 `Draw`, a callback handed the `Painter` and the rectangle the node was laid out
-at. It is for content whose shape is computed rather than arranged - the text
-editor lays a syntax-highlighted document out itself, byte by byte, and paints
-the result as four layers. Build the callback in a memo over the page it draws,
+at. It is for content whose shape is computed rather than arranged -
+`unstyled::TextArea` lays a syntax-highlighted document out itself, byte by
+byte, and paints the result as four layers. Build the callback in a memo over the page it draws,
 so the closure is replaced only when that page changes, and cull to
 `painter.clip_rect()` inside it, so a document far taller than the viewport
 costs the screenful it shows. Reach for it only when there genuinely is no
@@ -265,6 +265,9 @@ children adds `align=Align::Center`; a one-line alias per combination is what
 `Row`, `Column` and `CenteredRow` were, and reading the props beats remembering
 which names exist. `Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node.
+Its `width`, `max_width`, `height` and `aspect_ratio` each take an optional
+measurement, so a signal behind one can hand it back to nothing and leave that
+axis measuring intrinsically again.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal
@@ -290,17 +293,29 @@ sideways trackpad swipe, a touch drag and the left and right arrows.
 A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
-`Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `Disclosure`,
-`Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`, `PanZoom`,
-`PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `VirtualList`, and
-`Stack`. `MenuButton` is the button that opens a menu under itself, which is
+`Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
+`Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`,
+`PanZoom`, `PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
+`VirtualList`, and `Stack`. `TextArea` is the multiline one: it owns a
+`text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
+document out with a gutter, wrapping, collapsible sections and markdown
+checkboxes, and reserves room for the inline and block `TextWidget`s the caller
+names - which is how a block editor puts an embedded block inside the text and
+drives the same document from a toolbar of its own. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
-cards, checkboxes, switches, choices, text and number inputs, menus, tabs, trees,
-progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout. A control that can be turned off -
+cards, checkboxes, switches, choices, text and number inputs, a multiline text
+editor with its find and replace bar, menus, tabs, trees,
+progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout.
+`Separator` is the rule between them: it runs `Direction::Horizontal` unless the
+tag says otherwise, takes a line's thickness across its `direction` and the
+space its list gives it along it, so a divider in a row is
+`<Separator direction=Direction::Vertical />` and neither needs an `@sizing`.
+A `length` pins the long axis for a row that centres its children rather than
+stretching them. A control that can be turned off -
 `Button`, `IconButton`, `Link`, `Checkbox`, `Select`, `TextInput`,
 `NumberInput` - takes a `disabled` prop: it stops answering the pointer and the
 keyboard, leaves the tab order, publishes itself as disabled to a screen
@@ -331,16 +346,32 @@ base offset, the input that drives it, the position it reports, and the list
 that puts the bar on the scroll's cross axis, and it takes a `ScrollbarStyle`
 saying what to put there.
 That is the seam the styled layer fills, with a spacing and a builder that is
-handed a `ScrollHandle` of the live `position` and `direction`:
+handed a `ScrollHandle` of the live `position`, the `direction`, and a
+`scroll_to` that drives the offset the way the wheel and the arrow keys do:
 
 ```rust
 ScrollbarStyle::new(SCROLLBAR_SPACING, |handle: ScrollHandle| {
-    let ScrollHandle { position, direction } = handle;
+    let ScrollHandle { position, direction, scroll_to } = handle;
     view! {
-        <Scrollbar @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH) position direction />
+        <Scrollbar
+            @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
+            position
+            direction
+            on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+        />
     }
 })
 ```
+
+The bar answers the pointer itself. `unstyled::Scrollbar` owns that: it takes
+the position, the direction and an `on_scroll_to`, hit-tests the press against
+the thumb it would paint, drags the thumb with the pointer, pages by a viewport
+towards a press on the track either side of it, and hands its content a
+`ScrollbarHandle` of `hovered` and `dragging` so the styled bar can paint those
+states. `thumb_start` and `thumb_length` are the same fractions both layers
+work in, so what is painted and what is pressed cannot drift apart. A press on
+the bar rests whatever momentum a fling left, so the content stops where it is
+put.
 
 Without one the scroll shows no bar, which is what the unstyled layer does on
 its own. A control that scrolls something of its own takes a `ScrollbarStyle`
@@ -463,6 +494,19 @@ face that draws a chevron of its own outside the name wants pressing the
 chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong.
+
+`styled::Tree` is the face that split was made for, and the one app code
+reaches for. It draws the indent, a chevron that is a button of its own -
+tooltipped, labelled for a screen reader, and outside the row's highlight, so
+pressing it expands the row without opening it - and the highlighted row
+beside them, and hands its content builder a `TreeRowFace` carrying the row's
+`key`, `item`, `selected`, `focused` and `hovered`. It owns the drag gesture
+too: a press that travels further than a few pixels reports `on_drag_start`
+and the click it would otherwise have become is dropped, so a row can be
+dragged out without selecting what it left behind. `row_test_id` names each
+row for tests, as `<id>.row` and `<id>.chevron`, and `outline` gives a single
+row an outline of its own, which is how a drop target says whether it will
+take what is over it.
 
 ### Docking and windows
 

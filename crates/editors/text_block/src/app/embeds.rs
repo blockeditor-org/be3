@@ -3,6 +3,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use beui::Vec2;
+use beui::unstyled::TextWidget;
 use block_client::{
     BlockClient, block_ref::BlockRef, block_ref_url,
     blocks::version_control_worktree::VersionControlWorktreeMembership, parse_block_urls,
@@ -14,9 +15,37 @@ use block_editor_plugin::{
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
-use crate::layout::ResolvedEmbed;
-
 use super::state::State;
+
+pub(crate) const UNAVAILABLE_EMBED_SIZE: Vec2 = Vec2::new(320.0, 120.0);
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ResolvedEmbed {
+    pub range: Range<usize>,
+    pub id: Uuid,
+    pub block_type: Uuid,
+    pub label: String,
+    pub icon: Option<&'static str>,
+    pub automatic: bool,
+    pub large: bool,
+    pub available: bool,
+    pub frame_size: Option<Vec2>,
+}
+
+impl ResolvedEmbed {
+    pub fn widget(&self) -> TextWidget {
+        TextWidget {
+            range: self.range.clone(),
+            label: self.label.clone(),
+            icon: self.icon,
+            italic: self.automatic,
+            broken: !self.available,
+            block_size: self
+                .large
+                .then(|| self.frame_size.unwrap_or(UNAVAILABLE_EMBED_SIZE)),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ParsedEmbed {
@@ -101,20 +130,17 @@ pub(crate) fn poll_pending_embeds(state: &State) {
     for (reference, source_name, markdown) in finished {
         let directive =
             image_embed_directive(state.workspace_id, &reference, &source_name, markdown);
-        state.execute(EditorCommand::InsertText(directive.as_bytes()));
-        state.reveal_cursor.set(true);
+        state
+            .text
+            .execute(EditorCommand::InsertText(directive.as_bytes()));
+        state.text.reveal_cursor();
     }
 }
 
 pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
     state.references.borrow_mut().poll();
-    let snapshot = state.snapshot.borrow();
-    let parsed = parse_embeds(
-        &snapshot.bytes,
-        state.workspace_id,
-        snapshot.language == TextLanguage::Markdown,
-    );
-    drop(snapshot);
+    let markdown = state.text.language() == TextLanguage::Markdown;
+    let parsed = parse_embeds(&state.text.bytes(), state.workspace_id, markdown);
     let references = state.dependencies.read();
     let referenced = references
         .iter()

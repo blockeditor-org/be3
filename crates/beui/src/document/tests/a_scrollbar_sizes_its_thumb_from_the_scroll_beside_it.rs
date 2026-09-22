@@ -58,7 +58,8 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
 }
 
 fn thumb_height(harness: &Harness, bar: NodeId) -> f32 {
-    let list = harness.document().children(bar)[0];
+    let track = harness.document().children(bar)[0];
+    let list = harness.document().children(track)[0];
     let thumb = harness.document().children(list)[1];
     harness.rect(thumb).height()
 }

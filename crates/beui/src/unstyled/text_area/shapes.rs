@@ -1,16 +1,19 @@
 use std::ops::Range;
 
-use std::rc::Rc;
-
-use beui::reactive::{Draw, layout_text};
-use beui::{Color32, FontId, Galley, Painter, Pos2, Rect, TextLayout, Vec2};
 use text_editor_core::{CollapsibleSection, SynHlColorScope};
 
-use crate::layout::{
-    BytePosition, DocumentLayout, INLINE_EMBED_ICON_INSET, LineLayout, Run, style_size,
-};
-use crate::palette;
+use crate::color::Color32;
+use crate::font::{FontId, TextLayout};
+use crate::geometry::{Pos2, Rect, Vec2};
+use crate::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
+use crate::page::{Page, PageShape};
+use crate::reactive::layout_text;
 
+use super::RemoteTextCursor;
+use super::colors::TextAreaColors;
+use super::layout::{
+    BytePosition, DocumentLayout, INLINE_WIDGET_ICON_INSET, LineLayout, Run, style_size,
+};
 use super::state::{MarkdownCheckbox, Snapshot};
 
 pub(crate) const PADDING: Vec2 = Vec2::new(12.0, 8.0);
@@ -27,87 +30,9 @@ const CARET_WIDTH: f32 = 2.0;
 const EMPTY_BYTE_WIDTH: f32 = 8.0;
 const CHECKBOX_RADIUS: f32 = 3.0;
 const CHECKBOX_OUTLINE: f32 = 1.5;
-const INLINE_EMBED_RADIUS: f32 = 5.0;
+const INLINE_WIDGET_RADIUS: f32 = 5.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
 const REMOTE_FLAG: Vec2 = Vec2::new(6.0, 4.0);
-
-#[derive(Clone)]
-pub(crate) enum Shape {
-    Rect {
-        rect: Rect,
-        corner_radius: f32,
-        color: Color32,
-    },
-    Outline {
-        rect: Rect,
-        corner_radius: f32,
-        width: f32,
-        color: Color32,
-    },
-    Text {
-        origin: Pos2,
-        galley: Galley,
-        color: Color32,
-    },
-}
-
-impl Shape {
-    fn bounds(&self) -> Rect {
-        match self {
-            Self::Rect { rect, .. } | Self::Outline { rect, .. } => *rect,
-            Self::Text { origin, galley, .. } => Rect::from_min_size(*origin, galley.size()),
-        }
-    }
-
-    fn paint(&self, painter: &Painter, offset: Vec2) {
-        match self {
-            Self::Rect {
-                rect,
-                corner_radius,
-                color,
-            } => painter.rect_filled(rect.translate(offset), *corner_radius, *color),
-            Self::Outline {
-                rect,
-                corner_radius,
-                width,
-                color,
-            } => painter.rect_stroke(rect.translate(offset), *corner_radius, *width, *color),
-            Self::Text {
-                origin,
-                galley,
-                color,
-            } => painter.galley(*origin + offset, galley.clone(), *color),
-        }
-    }
-}
-
-#[derive(Clone, Default)]
-pub(crate) struct Page(Rc<Vec<Shape>>);
-
-impl Page {
-    pub fn new(shapes: Vec<Shape>) -> Self {
-        Self(Rc::new(shapes))
-    }
-
-    pub fn draw(&self) -> Draw {
-        let page = self.clone();
-        Rc::new(move |painter: &Painter, rect: Rect| {
-            let offset = rect.min.to_vec2();
-            let clip = painter.clip_rect();
-            for shape in page.0.iter() {
-                if shape.bounds().translate(offset).intersects(clip) {
-                    shape.paint(painter, offset);
-                }
-            }
-        })
-    }
-}
-
-impl PartialEq for Page {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SelectionHandle {
@@ -145,19 +70,19 @@ pub(crate) fn origin(gutter_width: f32) -> Vec2 {
     Vec2::new(gutter_width + PADDING.x, PADDING.y)
 }
 
-fn text(origin: Pos2, string: &str, font: FontId, color: Color32) -> Option<Shape> {
+fn text(origin: Pos2, string: &str, font: FontId, color: Color32) -> Option<PageShape> {
     let galley = layout_text(string, font, TextLayout::DEFAULT)?;
-    Some(Shape::Text {
+    Some(PageShape::Text {
         origin,
         galley,
         color,
     })
 }
 
-fn centered(rect: Rect, string: &str, font: FontId, color: Color32) -> Option<Shape> {
+fn centered(rect: Rect, string: &str, font: FontId, color: Color32) -> Option<PageShape> {
     let galley = layout_text(string, font, TextLayout::DEFAULT)?;
     let size = galley.size();
-    Some(Shape::Text {
+    Some(PageShape::Text {
         origin: Pos2::new(
             rect.center().x - size.x / 2.0,
             rect.center().y - size.y / 2.0,
@@ -223,9 +148,9 @@ fn selection_rects(layout: &DocumentLayout, range: &Range<usize>, origin: Vec2) 
     let mut rects = Vec::new();
     for byte in range.clone() {
         if layout
-            .embeds
+            .widgets
             .iter()
-            .any(|embed| !embed.large && embed.range.contains(&byte))
+            .any(|widget| !widget.block && widget.range.contains(&byte))
         {
             continue;
         }
@@ -320,7 +245,7 @@ pub(crate) fn touch_handle_center(anchor: Vec2, handle: SelectionHandle) -> Vec2
     }
 }
 
-fn touch_handle_shapes(anchor: Vec2, handle: SelectionHandle, color: Color32) -> [Shape; 2] {
+fn touch_handle_shapes(anchor: Vec2, handle: SelectionHandle, color: Color32) -> [PageShape; 2] {
     let center = touch_handle_center(anchor, handle);
     let round = Rect::from_min_size(
         Pos2::new(
@@ -340,12 +265,12 @@ fn touch_handle_shapes(anchor: Vec2, handle: SelectionHandle, color: Color32) ->
         ),
     };
     [
-        Shape::Rect {
+        PageShape::Rect {
             rect: round,
             corner_radius: TOUCH_HANDLE_RADIUS,
             color,
         },
-        Shape::Rect {
+        PageShape::Rect {
             rect: corner,
             corner_radius: 0.0,
             color,
@@ -356,25 +281,26 @@ fn touch_handle_shapes(anchor: Vec2, handle: SelectionHandle, color: Color32) ->
 pub(crate) fn background(
     layout: &DocumentLayout,
     snapshot: &Snapshot,
+    colors: &TextAreaColors,
     size: Vec2,
     gutter_width: f32,
     origin: Vec2,
 ) -> Page {
     let mut shapes = vec![
-        Shape::Rect {
+        PageShape::Rect {
             rect: Rect::from_min_size(Pos2::ZERO, size),
             corner_radius: 0.0,
-            color: palette::SURFACE,
+            color: colors.surface,
         },
-        Shape::Rect {
+        PageShape::Rect {
             rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(gutter_width, size.y)),
             corner_radius: 0.0,
-            color: palette::GUTTER,
+            color: colors.gutter,
         },
-        Shape::Rect {
+        PageShape::Rect {
             rect: Rect::from_min_size(Pos2::new(gutter_width - 1.0, 0.0), Vec2::new(1.0, size.y)),
             corner_radius: 0.0,
-            color: palette::GUTTER_BORDER,
+            color: colors.gutter_border,
         },
     ];
 
@@ -390,13 +316,13 @@ pub(crate) fn background(
             .map(|line| line.y + line.height)
             .reduce(f32::max)
             .unwrap_or(top);
-        shapes.push(Shape::Rect {
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_max(
                 Pos2::new(0.0, origin.y + top),
                 Pos2::new(size.x, origin.y + bottom),
             ),
             corner_radius: 0.0,
-            color: palette::REVEALED_BACKGROUND,
+            color: colors.revealed_background,
         });
     }
 
@@ -410,46 +336,46 @@ pub(crate) fn background(
                 TextLayout::DEFAULT,
             ) {
                 let size = galley.size();
-                shapes.push(Shape::Text {
+                shapes.push(PageShape::Text {
                     origin: Pos2::new(
                         number_x - size.x,
                         origin.y + line.y + (line.height - size.y) / 2.0,
                     ),
                     galley,
-                    color: palette::GUTTER_TEXT,
+                    color: colors.gutter_text,
                 });
             }
         }
         if let Some(section) = line_section(line, &snapshot.sections) {
             let glyph = if section.collapsed || section.revealed {
-                beui::icons::ICON_KEYBOARD_ARROW_RIGHT
+                ICON_KEYBOARD_ARROW_RIGHT
             } else {
-                beui::icons::ICON_KEYBOARD_ARROW_DOWN
+                ICON_KEYBOARD_ARROW_DOWN
             };
             shapes.extend(centered(
                 gutter_arrow_rect(origin, line),
                 glyph,
                 FontId::icons(GUTTER_ARROW_SIZE),
-                palette::GUTTER_ARROW,
+                colors.gutter_arrow,
             ));
         }
     }
 
-    for embed in layout.embeds.iter().filter(|embed| !embed.large) {
-        let rect = embed.rect.translate(origin);
-        shapes.push(Shape::Rect {
+    for widget in layout.widgets.iter().filter(|widget| !widget.block) {
+        let rect = widget.rect.translate(origin);
+        shapes.push(PageShape::Rect {
             rect,
-            corner_radius: INLINE_EMBED_RADIUS,
-            color: match embed.available {
-                true => palette::INLINE_EMBED,
-                false => palette::BROKEN_EMBED,
+            corner_radius: INLINE_WIDGET_RADIUS,
+            color: match widget.broken {
+                true => colors.broken_widget,
+                false => colors.widget,
             },
         });
-        if let Some(icon) = embed.icon {
+        if let Some(icon) = widget.icon {
             shapes.extend(centered(
                 Rect::from_min_size(
                     Pos2::new(rect.min.x, rect.min.y),
-                    Vec2::new(INLINE_EMBED_ICON_INSET * 2.0, rect.height()),
+                    Vec2::new(INLINE_WIDGET_ICON_INSET * 2.0, rect.height()),
                 ),
                 icon,
                 FontId::icons(16.0),
@@ -484,7 +410,7 @@ pub(crate) fn background(
                     line: left.line,
                     x: line.width,
                 });
-            shapes.push(Shape::Rect {
+            shapes.push(PageShape::Rect {
                 rect: Rect::from_min_max(
                     Pos2::new(origin.x + left.x - 3.0, origin.y + line.y + 1.0),
                     Pos2::new(
@@ -493,7 +419,7 @@ pub(crate) fn background(
                     ),
                 ),
                 corner_radius: 3.0,
-                color: palette::CODE_BACKGROUND,
+                color: colors.code_background,
             });
         }
     }
@@ -504,33 +430,39 @@ pub(crate) fn background(
 pub(crate) fn selection(
     layout: &DocumentLayout,
     ranges: &[Range<usize>],
+    colors: &TextAreaColors,
     origin: Vec2,
-    color: Color32,
 ) -> Page {
     let mut shapes = Vec::new();
     for range in ranges {
         for rect in selection_rects(layout, range, origin) {
-            shapes.push(Shape::Rect {
+            shapes.push(PageShape::Rect {
                 rect,
                 corner_radius: 0.0,
-                color,
+                color: colors.selection,
             });
         }
     }
     Page::new(shapes)
 }
 
-fn run_shapes(line: &LineLayout, run: &Run, origin: Vec2, shapes: &mut Vec<Shape>) {
+fn run_shapes(
+    line: &LineLayout,
+    run: &Run,
+    colors: &TextAreaColors,
+    origin: Vec2,
+    shapes: &mut Vec<PageShape>,
+) {
     let Some(galley) = &run.galley else {
         return;
     };
     let color = match run.invisible {
-        true => palette::syntax(SynHlColorScope::Invisible),
-        false => palette::syntax(run.style.color),
+        true => colors.syntax.scope(SynHlColorScope::Invisible),
+        false => colors.syntax.scope(run.style.color),
     };
     let top = origin.y + line.y + line.baseline - galley.baseline();
     let left = origin.x + run.x;
-    shapes.push(Shape::Text {
+    shapes.push(PageShape::Text {
         origin: Pos2::new(left, top),
         galley: galley.clone(),
         color,
@@ -540,7 +472,7 @@ fn run_shapes(line: &LineLayout, run: &Run, origin: Vec2, shapes: &mut Vec<Shape
     let thickness = (font_size / 16.0).max(1.0);
     if run.style.underline {
         let y = baseline + (font_size * 0.12).max(1.0);
-        shapes.push(Shape::Rect {
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_size(Pos2::new(left, y), Vec2::new(run.width, thickness)),
             corner_radius: 0.0,
             color,
@@ -548,7 +480,7 @@ fn run_shapes(line: &LineLayout, run: &Run, origin: Vec2, shapes: &mut Vec<Shape
     }
     if run.style.strikethrough {
         let y = baseline - font_size * 0.32;
-        shapes.push(Shape::Rect {
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_size(Pos2::new(left, y), Vec2::new(run.width, thickness)),
             corner_radius: 0.0,
             color,
@@ -556,14 +488,19 @@ fn run_shapes(line: &LineLayout, run: &Run, origin: Vec2, shapes: &mut Vec<Shape
     }
 }
 
-pub(crate) fn content(layout: &DocumentLayout, snapshot: &Snapshot, origin: Vec2) -> Page {
+pub(crate) fn content(
+    layout: &DocumentLayout,
+    snapshot: &Snapshot,
+    colors: &TextAreaColors,
+    origin: Vec2,
+) -> Page {
     let mut shapes = Vec::new();
     for line in &layout.lines {
         for run in &line.runs {
             if run.invisible && !run.show_when_trailing {
                 continue;
             }
-            run_shapes(line, run, origin, &mut shapes);
+            run_shapes(line, run, colors, origin, &mut shapes);
         }
     }
 
@@ -573,22 +510,22 @@ pub(crate) fn content(layout: &DocumentLayout, snapshot: &Snapshot, origin: Vec2
         };
         let rect = rect.translate(origin);
         if checkbox.checked {
-            shapes.push(Shape::Rect {
+            shapes.push(PageShape::Rect {
                 rect,
                 corner_radius: CHECKBOX_RADIUS,
-                color: palette::INLINE_EMBED,
+                color: colors.widget,
             });
         }
-        shapes.push(Shape::Outline {
+        shapes.push(PageShape::Outline {
             rect,
             corner_radius: CHECKBOX_RADIUS,
             width: CHECKBOX_OUTLINE,
-            color: palette::GUTTER_ARROW,
+            color: colors.gutter_arrow,
         });
         if checkbox.checked {
             shapes.extend(centered(
                 rect,
-                beui::icons::ICON_CHECK,
+                ICON_CHECK,
                 FontId::icons(14.0),
                 Color32::WHITE,
             ));
@@ -610,7 +547,7 @@ pub(crate) fn content(layout: &DocumentLayout, snapshot: &Snapshot, origin: Vec2
             ),
             "...",
             FontId::monospace(GUTTER_TEXT_SIZE),
-            palette::GUTTER_ARROW,
+            colors.gutter_arrow,
         ));
     }
 
@@ -619,12 +556,12 @@ pub(crate) fn content(layout: &DocumentLayout, snapshot: &Snapshot, origin: Vec2
 
 pub(crate) struct Overlay<'a> {
     pub layout: &'a DocumentLayout,
+    pub colors: &'a TextAreaColors,
     pub origin: Vec2,
     pub focused: bool,
     pub selection: &'a [Range<usize>],
     pub carets: &'a [usize],
-    pub caret_color: Color32,
-    pub remote: &'a [(Range<usize>, usize, Color32)],
+    pub remote: &'a [RemoteTextCursor],
     pub touch_handles: Option<Range<usize>>,
     pub drop_caret: Option<usize>,
 }
@@ -632,11 +569,11 @@ pub(crate) struct Overlay<'a> {
 pub(crate) fn overlay(state: Overlay<'_>) -> Page {
     let Overlay {
         layout,
+        colors,
         origin,
         focused,
         selection,
         carets,
-        caret_color,
         remote,
         touch_handles,
         drop_caret,
@@ -654,49 +591,50 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
             {
                 continue;
             }
-            run_shapes(line, run, origin, &mut shapes);
+            run_shapes(line, run, colors, origin, &mut shapes);
         }
     }
 
-    for (range, focus, color) in remote {
+    for cursor in remote {
+        let color = cursor.color;
         let fill = Color32::from_rgba_unmultiplied(
             color.to_array()[0],
             color.to_array()[1],
             color.to_array()[2],
             REMOTE_SELECTION_ALPHA,
         );
-        for rect in selection_rects(layout, range, origin) {
-            shapes.push(Shape::Rect {
+        for rect in selection_rects(layout, &cursor.selection, origin) {
+            shapes.push(PageShape::Rect {
                 rect,
                 corner_radius: 0.0,
                 color: fill,
             });
         }
-        let Some(rect) = caret_rect(layout, *focus, origin) else {
+        let Some(rect) = caret_rect(layout, cursor.caret, origin) else {
             continue;
         };
-        shapes.push(Shape::Rect {
+        shapes.push(PageShape::Rect {
             rect,
             corner_radius: 0.0,
-            color: *color,
+            color,
         });
-        shapes.push(Shape::Rect {
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_size(
                 Pos2::new(rect.min.x, rect.min.y - REMOTE_FLAG.y),
                 REMOTE_FLAG,
             ),
             corner_radius: 0.0,
-            color: *color,
+            color,
         });
     }
 
     if focused {
         for caret in carets {
             if let Some(rect) = caret_rect(layout, *caret, origin) {
-                shapes.push(Shape::Rect {
+                shapes.push(PageShape::Rect {
                     rect,
                     corner_radius: 0.0,
-                    color: caret_color,
+                    color: colors.caret,
                 });
             }
         }
@@ -710,17 +648,17 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
             let Some(anchor) = touch_handle_anchor(layout, byte) else {
                 continue;
             };
-            shapes.extend(touch_handle_shapes(anchor + origin, handle, caret_color));
+            shapes.extend(touch_handle_shapes(anchor + origin, handle, colors.caret));
         }
     }
 
     if let Some(byte) = drop_caret
         && let Some(rect) = caret_rect(layout, byte, origin)
     {
-        shapes.push(Shape::Rect {
+        shapes.push(PageShape::Rect {
             rect,
             corner_radius: 0.0,
-            color: caret_color,
+            color: colors.caret,
         });
     }
 

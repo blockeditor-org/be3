@@ -60,7 +60,7 @@ impl Harness {
     }
 
     fn publish(&mut self) {
-        self.host.set_content(
+        self.host.set_block_content(
             CounterContent::CONTENT_TYPE,
             self.content.encode(),
             self.applied,

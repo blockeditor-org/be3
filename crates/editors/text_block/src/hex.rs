@@ -7,14 +7,14 @@ use beui::reactive::{
     view, with_document,
 };
 use beui::unstyled::Scroll;
+use beui::unstyled::TextAreaColors;
 use beui::{
-    Color32, CursorIcon, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextLayout, Vec2,
+    Color32, CursorIcon, FontId, Key, KeyPress, NodeId, Page, PageShape, PointerPress, Pos2, Rect,
+    TextLayout, Vec2,
 };
 use text_editor_core::{CursorLeftRightStop, EditorCommand, LRDirection};
 
-use crate::app::shapes::{Page, Shape};
 use crate::app::state::Shared;
-use crate::palette;
 
 const BYTES_PER_ROW: usize = 16;
 const GROUP_SIZE: usize = 8;
@@ -22,6 +22,7 @@ const TEXT_SIZE: f32 = 13.0;
 const ROW_HEIGHT: f32 = TEXT_SIZE * 1.6;
 const PADDING: Vec2 = Vec2::new(12.0, 8.0);
 const PAGE_ROWS: usize = 16;
+const COLORS: TextAreaColors = TextAreaColors::DEFAULT;
 
 pub(crate) fn intrinsic_size(len: usize, width: f32) -> Vec2 {
     let rows = len.div_ceil(BYTES_PER_ROW).max(1);
@@ -91,11 +92,11 @@ fn nearest_column(centers: &[f32; BYTES_PER_ROW], center_offset: f32, x: f32) ->
 }
 
 fn document_len(state: &Shared) -> usize {
-    state.snapshot.borrow().bytes.len()
+    state.text.bytes().len()
 }
 
 fn cursor_range(state: &Shared) -> Range<usize> {
-    let core = state.core.borrow();
+    let core = state.text.core();
     core.cursor_positions()
         .first()
         .copied()
@@ -112,10 +113,12 @@ fn select_byte(state: &Shared, index: usize) {
         false => index,
     };
     let (anchor, focus) = {
-        let core = state.core.borrow();
+        let core = state.text.core();
         (core.position(index), core.position(focus_index))
     };
-    state.execute(EditorCommand::SetSelection { anchor, focus });
+    state
+        .text
+        .execute(EditorCommand::SetSelection { anchor, focus });
 }
 
 fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
@@ -123,7 +126,7 @@ fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
     let anchor_byte = anchor_byte.min(len);
     let target_byte = target_byte.min(len);
     let (anchor, focus) = {
-        let core = state.core.borrow();
+        let core = state.text.core();
         match target_byte >= anchor_byte {
             true => (
                 core.position(anchor_byte),
@@ -135,7 +138,9 @@ fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
             ),
         }
     };
-    state.execute(EditorCommand::SetSelection { anchor, focus });
+    state
+        .text
+        .execute(EditorCommand::SetSelection { anchor, focus });
 }
 
 fn commit_byte(state: &Shared, byte_index: usize, byte: u8) {
@@ -146,14 +151,16 @@ fn commit_byte(state: &Shared, byte_index: usize, byte: u8) {
         false => byte_index.min(len),
     };
     let (anchor, focus) = {
-        let core = state.core.borrow();
+        let core = state.text.core();
         (
             core.position(byte_index.min(len)),
             core.position(overwrite_end),
         )
     };
-    state.execute(EditorCommand::SetSelection { anchor, focus });
-    state.execute(EditorCommand::InsertText(&[byte]));
+    state
+        .text
+        .execute(EditorCommand::SetSelection { anchor, focus });
+    state.text.execute(EditorCommand::InsertText(&[byte]));
     let next = byte_index + 1;
     state.hex_selection_anchor.set(Some(next));
     if !insert {
@@ -179,7 +186,7 @@ pub(crate) fn type_text(state: &Shared, text: &str) {
 
 fn delete(state: &Shared, direction: LRDirection) {
     state.hex_pending_nibble.set(None);
-    state.execute(EditorCommand::Delete {
+    state.text.execute(EditorCommand::Delete {
         direction,
         stop: CursorLeftRightStop::Byte,
     });
@@ -195,14 +202,12 @@ fn copy(state: &Shared, cut: bool) {
     if range.is_empty() {
         return;
     }
-    let bytes = {
-        let snapshot = state.snapshot.borrow();
-        snapshot
-            .bytes
-            .get(range.clone())
-            .map(<[u8]>::to_vec)
-            .unwrap_or_default()
-    };
+    let bytes = state
+        .text
+        .bytes()
+        .get(range.clone())
+        .map(<[u8]>::to_vec)
+        .unwrap_or_default();
     if bytes.is_empty() {
         return;
     }
@@ -259,18 +264,18 @@ fn key(state: &Shared, press: KeyPress) -> bool {
         Key::Delete => delete(state, LRDirection::Right),
         Key::A if modifiers.ctrl => {
             state.hex_pending_nibble.set(None);
-            state.execute(EditorCommand::SelectAll);
+            state.text.execute(EditorCommand::SelectAll);
         }
         Key::Z if modifiers.ctrl => {
             state.hex_pending_nibble.set(None);
-            state.execute(match modifiers.shift {
+            state.text.execute(match modifiers.shift {
                 true => EditorCommand::Redo,
                 false => EditorCommand::Undo,
             });
         }
         Key::Y if modifiers.ctrl => {
             state.hex_pending_nibble.set(None);
-            state.execute(EditorCommand::Redo);
+            state.text.execute(EditorCommand::Redo);
         }
         _ => return navigate(state, press),
     }
@@ -278,26 +283,25 @@ fn key(state: &Shared, press: KeyPress) -> bool {
 }
 
 fn page(state: &Shared, geometry: &HexGeometry, size: Vec2) -> Page {
-    let snapshot = state.snapshot.borrow();
-    let bytes = &snapshot.bytes;
+    let bytes = state.text.bytes();
     let len = bytes.len();
     let rows = len.div_ceil(BYTES_PER_ROW).max(1);
     let selected = cursor_range(state);
     let focus = {
-        let core = state.core.borrow();
+        let core = state.text.core();
         core.cursor_positions()
             .first()
             .copied()
             .and_then(|cursor| core.position_index(cursor.pos.focus))
     };
     let font = FontId::monospace(TEXT_SIZE);
-    let mut shapes = vec![Shape::Rect {
+    let mut shapes = vec![PageShape::Rect {
         rect: Rect::from_min_size(Pos2::ZERO, size),
         corner_radius: 0.0,
-        color: palette::SURFACE,
+        color: COLORS.surface,
     }];
     let push_text = |origin: Pos2, string: &str, color: Color32| {
-        layout_text(string, font, TextLayout::DEFAULT).map(|galley| Shape::Text {
+        layout_text(string, font, TextLayout::DEFAULT).map(|galley| PageShape::Text {
             origin,
             galley,
             color,
@@ -310,28 +314,28 @@ fn page(state: &Shared, geometry: &HexGeometry, size: Vec2) -> Page {
         shapes.extend(push_text(
             Pos2::new(PADDING.x, y),
             &format!("{row_start:08x}"),
-            palette::GUTTER_TEXT,
+            COLORS.gutter_text,
         ));
         for (col, byte) in bytes[row_start..row_end].iter().enumerate() {
             let index = row_start + col;
             let hex_pos = Pos2::new(PADDING.x + geometry.hex_x[col], y);
             let ascii_pos = Pos2::new(PADDING.x + geometry.ascii_x[col], y);
             if selected.contains(&index) {
-                shapes.push(Shape::Rect {
+                shapes.push(PageShape::Rect {
                     rect: Rect::from_min_size(
                         hex_pos,
                         Vec2::new(geometry.char_width * 2.0, ROW_HEIGHT),
                     ),
                     corner_radius: 0.0,
-                    color: palette::INLINE_EMBED,
+                    color: COLORS.widget,
                 });
-                shapes.push(Shape::Rect {
+                shapes.push(PageShape::Rect {
                     rect: Rect::from_min_size(
                         ascii_pos,
                         Vec2::new(geometry.char_width, ROW_HEIGHT),
                     ),
                     corner_radius: 0.0,
-                    color: palette::INLINE_EMBED,
+                    color: COLORS.widget,
                 });
             }
             shapes.extend(push_text(hex_pos, &format!("{byte:02x}"), Color32::WHITE));
@@ -348,7 +352,7 @@ fn page(state: &Shared, geometry: &HexGeometry, size: Vec2) -> Page {
     {
         let row = focus / BYTES_PER_ROW;
         let col = focus % BYTES_PER_ROW;
-        shapes.push(Shape::Rect {
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_size(
                 Pos2::new(
                     PADDING.x + geometry.hex_x[col] - 1.0,
@@ -379,10 +383,10 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
             .max(1.0);
         HexGeometry::new(char_width)
     }));
-    let content = state.content.clone();
+    let content = state.text.content();
     let rows = create_memo(clone!(state content -> move || {
         content.get();
-        state.snapshot.borrow().bytes.len().div_ceil(BYTES_PER_ROW).max(1)
+        state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
     }));
     let content_size = create_memo(clone!(geometry rows size -> move || {
         let available = size.get();
@@ -395,7 +399,7 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
     let height = create_memo(clone!(content_size -> move || content_size.get().y));
     let drawn = create_memo(clone!(state content geometry content_size -> move || {
         content.get();
-        state.cursors.get();
+        state.text.cursors().get();
         page(&state, &geometry.get(), content_size.get())
     }));
     let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || drawn.get().draw()));
@@ -412,7 +416,7 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
     let key_state = state.clone();
     let text_state = state.clone();
     view! {
-        <Frame color={palette::SURFACE}>
+        <Frame color={COLORS.surface}>
             <Scroll focus_color={Color32::TRANSPARENT}>
                 <Focusable
                     on_key={move |press: KeyPress| key(&key_state, press)}

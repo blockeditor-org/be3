@@ -596,6 +596,36 @@ impl<T: Clone + PartialEq + 'static> IntoProp<T> for Memo<T> {
     }
 }
 
+impl<T: 'static> IntoProp<Option<T>> for T {
+    fn into_prop(self) -> Prop<Option<T>> {
+        Prop::Static(Some(self))
+    }
+}
+
+impl IntoProp<Option<String>> for &'static str {
+    fn into_prop(self) -> Prop<Option<String>> {
+        Prop::Static(Some(self.to_string()))
+    }
+}
+
+impl<T: 'static> IntoProp<Option<T>> for Prop<T> {
+    fn into_prop(self) -> Prop<Option<T>> {
+        self.map(Some)
+    }
+}
+
+impl<T: Clone + 'static> IntoProp<Option<T>> for ReadSignal<T> {
+    fn into_prop(self) -> Prop<Option<T>> {
+        Prop::Dynamic(Rc::new(move || Some(self.get())))
+    }
+}
+
+impl<T: Clone + PartialEq + 'static> IntoProp<Option<T>> for Memo<T> {
+    fn into_prop(self) -> Prop<Option<T>> {
+        Prop::Dynamic(Rc::new(move || Some(self.get())))
+    }
+}
+
 pub type Child = NodeId;
 
 #[diagnostic::on_unimplemented(
@@ -629,15 +659,15 @@ impl ChildValue for ListChild {
 }
 
 #[derive(Clone, Default)]
-pub struct ChildScope(Option<Rc<Scope>>);
+pub struct ChildScope(Vec<Rc<Scope>>);
 
 impl ChildScope {
     pub fn adopt(&mut self, scope: Scope) {
-        self.0 = Some(Rc::new(scope));
+        self.0.push(Rc::new(scope));
     }
 
     pub fn is_alive(&self) -> bool {
-        self.0.as_ref().is_some_and(|scope| !scope.is_disposed())
+        self.0.last().is_some_and(|scope| !scope.is_disposed())
     }
 }
 

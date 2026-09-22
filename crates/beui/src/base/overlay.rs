@@ -388,6 +388,16 @@ impl Document {
         self.arena.get_as::<OverlayNode>(overlay).content
     }
 
+    pub fn overlay_rects(&self) -> Vec<Rect> {
+        self.overlay_stack
+            .iter()
+            .chain(self.passive_overlays.iter())
+            .filter_map(|overlay| self.overlay_content(*overlay))
+            .filter_map(|content| self.node_rect(content))
+            .filter(|rect| rect.is_positive())
+            .collect()
+    }
+
     pub(crate) fn open_overlay(&mut self, overlay: NodeId) {
         if self.arena.get_as::<OverlayNode>(overlay).open {
             return;

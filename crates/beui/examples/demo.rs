@@ -4,19 +4,21 @@ use beui::reactive::{
     Selector, Show, Spacer, Text, WriteSignal, build, clone, create_memo, create_selector,
     create_signal, view,
 };
-use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS, SEPARATOR_HEIGHT};
+use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
     Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
-    Separator, Shortcut, Slider, Stack, Switch, TextInput, Title, ToggleButton, Tree, VirtualList,
-    use_theme,
+    Separator, Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree,
+    TreeRowFace, VirtualList, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
-    SliderScale, TreeItem, narrower_than, shorter_than,
+    SliderScale, TextAreaState, TreeItem, narrower_than, shorter_than,
 };
 use beui::{Color32, Context, Direction, Document, ItemSize, NodeId, Rect, TextAlign, unstyled};
 use beui_macros::component;
+use std::sync::Arc;
+use text_editor_core::{EditorCommand, MarkdownCommand, TextBuffer, TextLanguage};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     beui::run("beui demo", DemoApp::new())
@@ -35,9 +37,14 @@ const SHORT_HEIGHT: f32 = 900.0;
 const CARD_NARROW_WIDTH: f32 = 460.0;
 const TABS_NARROW_WIDTH: f32 = 380.0;
 const ICON_BUTTON_WIDTH: f32 = 44.0;
+const TOOLBAR_RULE_LENGTH: f32 = 20.0;
 const ROW_COUNT: usize = 10_000;
 const CRAMPED_ROWS_HEIGHT: f32 = 320.0;
 const ROW_HEIGHT: f32 = 34.0;
+const CRAMPED_EDITOR_HEIGHT: f32 = 260.0;
+const EDITOR_SHARE: f32 = 40.0;
+const ROWS_SHARE: f32 = 60.0;
+const EDITOR_TEXT: &str = "# Notes\n\nA **multiline** editor with a gutter, wrapping and `markdown`\nstyling.\n\n- [x] click a checkbox\n- [ ] press Ctrl+F to find\n";
 const COMPACT_ROW_HEIGHT: f32 = 25.0;
 const TREE_NODES: [(&str, usize); 9] = [
     ("Project", 0),
@@ -229,7 +236,7 @@ fn DemoShell(count: ReadSignal<i64>, set_count: WriteSignal<i64>) -> NodeId {
     view! {
         <List spacing=0.0>
             <DemoHeader @sizing={header_height} set_count />
-            <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+            <Separator />
             <DemoBody @sizing=ItemSize::Percent(100.0) count />
         </List>
     }
@@ -361,7 +368,7 @@ fn Sidebar() -> NodeId {
                          components compose them, and the styled components paint them."
                     />
                 </Accordion>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <Accordion title="Keyboard" open={keyboard_open}>
                     <List spacing=12.0>
                         <Shortcut keys="Tab" description="move focus to the next control" />
@@ -395,10 +402,16 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
         }
     });
     let item_rows = rows.clone();
-    let rows_size = if cramped {
-        ItemSize::Fixed(CRAMPED_ROWS_HEIGHT)
+    let (editor_size, rows_size) = if cramped {
+        (
+            ItemSize::Fixed(CRAMPED_EDITOR_HEIGHT),
+            ItemSize::Fixed(CRAMPED_ROWS_HEIGHT),
+        )
     } else {
-        ItemSize::Percent(100.0)
+        (
+            ItemSize::Percent(EDITOR_SHARE),
+            ItemSize::Percent(ROWS_SHARE),
+        )
     };
 
     view! {
@@ -414,6 +427,7 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                     />
                 </List>
             </Card>
+            <EditorCard @sizing={editor_size} />
             <Controls rows={rows.clone()} />
             <CanvasCard @sizing=ItemSize::Fixed(STAGE_HEIGHT) />
             <Card @sizing={rows_size}>
@@ -426,7 +440,7 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                             align=TextAlign::End
                         />
                     </List>
-                    <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                    <Separator />
                     <VirtualList
                         @sizing=ItemSize::Percent(100.0)
                         count=ROW_COUNT
@@ -447,6 +461,39 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
 }
 
 #[component]
+fn EditorCard() -> NodeId {
+    let document = Arc::new(TextBuffer::new(EDITOR_TEXT)) as Arc<dyn text_editor_core::Document>;
+    let state = TextAreaState::new(document);
+    state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
+    let bold = state.clone();
+    let italic = state.clone();
+    view! {
+        <Card>
+            <List spacing=12.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+                    <Heading @sizing=ItemSize::Percent(100.0) content="Editor" />
+                    <Button
+                        label="Bold"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            bold.execute(EditorCommand::Markdown(MarkdownCommand::Bold));
+                        }}
+                    />
+                    <Button
+                        label="Italic"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            italic.execute(EditorCommand::Markdown(MarkdownCommand::Italic));
+                        }}
+                    />
+                </List>
+                <TextArea @sizing=ItemSize::Percent(100.0) state={state} />
+            </List>
+        </Card>
+    }
+}
+
+#[component]
 fn CanvasCard() -> NodeId {
     let (stage_view, set_stage_view) = create_signal(STAGE_VIEW);
     let zoom_out = set_stage_view.clone();
@@ -462,6 +509,7 @@ fn CanvasCard() -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                     <Heading @sizing=ItemSize::Percent(100.0) content="Canvas" />
                     <Caption content={zoom_label} />
+                    <Separator direction=Direction::Vertical length=TOOLBAR_RULE_LENGTH />
                     <Button
                         @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
                         label="-"
@@ -480,7 +528,7 @@ fn CanvasCard() -> NodeId {
                         on_click={move || set_stage_view.set(STAGE_VIEW)}
                     />
                 </List>
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <Separator />
                 <CanvasStage
                     @sizing=ItemSize::Percent(100.0)
                     view={stage_view}
@@ -938,8 +986,8 @@ fn TreeControls() -> NodeId {
                     });
                 }}
             >
-                {move |row: usize| view! {
-                    <Body content={TREE_NODES[row].0} />
+                {move |row: TreeRowFace<usize>| view! {
+                    <Body content={TREE_NODES[row.key].0} />
                 }}
             </Tree>
             <Caption content={status_text} />

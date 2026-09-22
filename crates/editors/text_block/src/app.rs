@@ -2,27 +2,25 @@
 mod tests;
 
 pub(crate) mod embeds;
-mod find;
+mod import_error;
 mod large_embed;
-pub(crate) mod shapes;
 pub(crate) mod state;
 mod surface;
 mod toolbar;
 
+use beui::NodeId;
 use beui::reactive::{
     ItemSize, List, NodeRef, Show, clone, component, create_effect, create_memo, create_signal,
     view,
 };
-use beui::{NodeId, Vec2};
 use block_client::blocks::text::TextDocument;
 use block_editor_plugin::{Creation, Editor};
 use uuid::Uuid;
 
 use crate::hex::{self, HexView};
-use crate::layout::layout_document;
 
-use find::{FindBar, ImportError};
-use shapes::PADDING;
+use embeds::ResolvedEmbed;
+use import_error::ImportError;
 use state::{DIRECT_EDITOR_WIDTH, Shared, State};
 use surface::TextSurface;
 use toolbar::EditorToolbar;
@@ -71,7 +69,6 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     view! {
         <List @node_ref=&content spacing=0.0>
             <EditorToolbar state={state.clone()} />
-            <FindBar state={state.clone()} />
             <ImportError state={state.clone()} />
             <Show condition={text_shown} then={text_surface} />
             <Show condition={hex_shown} then={hex_surface} />
@@ -87,28 +84,24 @@ fn intrinsic_size(state: &Shared) {
             set_width.set(size.x.max(1.0));
         }
     });
-    let content = state.content.clone();
+    let content = state.text.content();
     let hex = state.hex_view.clone();
-    let measured = create_memo(clone!(state content hex width -> move || {
+    let embeds = state.embeds.clone();
+    let measured = create_memo(clone!(state content hex width embeds -> move || {
         content.get();
         let width = width.get();
-        let embeds = state.embeds.get();
-        let snapshot = state.snapshot.borrow();
-        if !snapshot.loaded {
+        if !state.text.loaded() {
             return None;
         }
         if hex.get() {
-            return Some(hex::intrinsic_size(snapshot.bytes.len(), width));
+            return Some(hex::intrinsic_size(state.text.bytes().len(), width));
         }
-        let document = layout_document(
-            &snapshot.bytes,
-            snapshot.highlight(),
-            &embeds,
-            &snapshot.checkbox_markers,
-            &snapshot.hidden,
-            (width - PADDING.x * 2.0).max(1.0),
-        )?;
-        Some(Vec2::new(width, document.size.y))
+        let widgets = embeds
+            .get()
+            .iter()
+            .map(ResolvedEmbed::widget)
+            .collect::<Vec<_>>();
+        state.text.measure(&widgets, width)
     }));
     let editor = state.editor.clone();
     create_effect(move || editor.set_intrinsic_size(measured.get()));

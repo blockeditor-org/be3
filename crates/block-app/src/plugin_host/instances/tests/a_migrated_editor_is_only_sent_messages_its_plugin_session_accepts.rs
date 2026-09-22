@@ -4,7 +4,9 @@ use std::time::{Duration, Instant};
 
 use block::Block;
 use block_editor_plugin::session::{ClientSession, State};
-use block_plugin_api::{Capability, HelloAccepted, PROTOCOL_VERSION};
+use block_plugin_api::{
+    DEFAULT_SURFACE_SIDE, HelloAccepted, PROTOCOL_VERSION, SurfaceFormat, SurfaceSpec, Theme,
+};
 
 #[test]
 fn a_migrated_editor_is_only_sent_messages_its_plugin_session_accepts() {
@@ -17,8 +19,11 @@ fn a_migrated_editor_is_only_sent_messages_its_plugin_session_accepts() {
     session.receive(Message::HelloAccepted(HelloAccepted {
         version: PROTOCOL_VERSION,
         host_name: "test host".into(),
-        capabilities: vec![Capability::Lifecycle, Capability::Input],
-        dark_theme: true,
+        surface: Some(SurfaceSpec {
+            format: SurfaceFormat::Rgba8Unorm,
+            max_side: DEFAULT_SURFACE_SIDE,
+        }),
+        theme: Theme { dark: true },
     }));
 
     let mut content = false;

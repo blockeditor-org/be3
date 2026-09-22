@@ -26,6 +26,8 @@ pub struct Theme {
     pub warning: Color32,
     pub success: Color32,
     pub scroll_thumb: Color32,
+    pub scroll_thumb_hover: Color32,
+    pub scroll_thumb_active: Color32,
     pub track: Color32,
     pub knob: Color32,
     pub control_outline: Option<Color32>,
@@ -50,6 +52,8 @@ impl Theme {
         warning: Color32::from_rgb(247, 190, 86),
         success: Color32::from_rgb(115, 209, 133),
         scroll_thumb: Color32::from_rgb(60, 71, 92),
+        scroll_thumb_hover: Color32::from_rgb(84, 98, 124),
+        scroll_thumb_active: Color32::from_rgb(110, 127, 158),
         track: Color32::from_rgb(48, 57, 73),
         knob: Color32::from_rgb(226, 232, 244),
         control_outline: None,
@@ -73,6 +77,8 @@ impl Theme {
         warning: Color32::from_gray(80),
         success: Color32::from_gray(80),
         scroll_thumb: Color32::BLACK,
+        scroll_thumb_hover: Color32::from_gray(64),
+        scroll_thumb_active: Color32::from_gray(100),
         track: Color32::from_gray(200),
         knob: Color32::WHITE,
         control_outline: Some(Color32::BLACK),
@@ -115,6 +121,14 @@ pub const FONT_TITLE: f32 = 21.0;
 pub const FONT_DISPLAY: f32 = 46.0;
 pub const ICON_SIZE: f32 = 18.0;
 
+pub fn icon_glyph_size(text_size: f32) -> f32 {
+    text_size * ICON_SIZE / FONT_BODY
+}
+
+pub fn icon_text_size(glyph_size: f32) -> f32 {
+    glyph_size * FONT_BODY / ICON_SIZE
+}
+
 pub const RADIUS: u8 = 6;
 pub const CARD_RADIUS: u8 = 10;
 pub const CHIP_RADIUS: u8 = 4;
@@ -122,6 +136,6 @@ pub const CHIP_RADIUS: u8 = 4;
 pub const NARROW_WIDTH: f32 = 720.0;
 
 pub const BORDER_WIDTH: f32 = 1.0;
-pub const SEPARATOR_HEIGHT: f32 = 1.0;
+pub const SEPARATOR_THICKNESS: f32 = 1.0;
 pub const SCROLLBAR_WIDTH: f32 = 6.0;
 pub const SCROLLBAR_SPACING: f32 = 4.0;

@@ -294,12 +294,29 @@ impl Document {
     }
 }
 
+fn bind_measurement(
+    frame: NodeId,
+    measurement: Prop<Option<f32>>,
+    set: fn(&mut Document, NodeId, Option<f32>),
+) {
+    match measurement {
+        Prop::Static(None) => {}
+        Prop::Static(value) => with_document(|document| set(document, frame, value)),
+        Prop::Dynamic(read) => {
+            create_effect(move || {
+                let value = read();
+                with_document(|document| set(document, frame, value));
+            });
+        }
+    }
+}
+
 #[component]
 pub fn Frame(
-    width: Option<Prop<f32>>,
-    max_width: Option<Prop<f32>>,
-    height: Option<Prop<f32>>,
-    aspect_ratio: Option<Prop<f32>>,
+    #[prop(default = None)] width: Prop<Option<f32>>,
+    #[prop(default = None)] max_width: Prop<Option<f32>>,
+    #[prop(default = None)] height: Prop<Option<f32>>,
+    #[prop(default = None)] aspect_ratio: Prop<Option<f32>>,
     #[prop(default = 0.0)] padding_horizontal: Prop<f32>,
     #[prop(default = 0.0)] padding_vertical: Prop<f32>,
     #[prop(default = Color32::TRANSPARENT)] color: Prop<Color32>,
@@ -318,28 +335,10 @@ pub fn Frame(
         }
         frame
     });
-    if let Some(width) = width {
-        create_effect(move || {
-            with_document(|document| document.set_frame_width(frame, Some(width.get())))
-        });
-    }
-    if let Some(max_width) = max_width {
-        create_effect(move || {
-            with_document(|document| document.set_frame_max_width(frame, Some(max_width.get())))
-        });
-    }
-    if let Some(height) = height {
-        create_effect(move || {
-            with_document(|document| document.set_frame_height(frame, Some(height.get())))
-        });
-    }
-    if let Some(aspect_ratio) = aspect_ratio {
-        create_effect(move || {
-            with_document(|document| {
-                document.set_frame_aspect_ratio(frame, Some(aspect_ratio.get()));
-            })
-        });
-    }
+    bind_measurement(frame, width, Document::set_frame_width);
+    bind_measurement(frame, max_width, Document::set_frame_max_width);
+    bind_measurement(frame, height, Document::set_frame_height);
+    bind_measurement(frame, aspect_ratio, Document::set_frame_aspect_ratio);
     create_effect(move || {
         with_document(|document| {
             document.set_frame_padding(frame, padding_horizontal.get(), padding_vertical.get());

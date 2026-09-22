@@ -22,6 +22,7 @@ mod interact;
 mod layout;
 mod mouse_simulation;
 mod node;
+mod page;
 mod paint;
 mod painter;
 mod performance;
@@ -47,6 +48,7 @@ pub use drawing::{Draw, DrawAt};
 pub use filter::{ColorVision, Filter, MAX_BLUR};
 pub use font::{
     FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT, TextLayout,
+    line_height,
 };
 pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 pub use image::{Image, ImageFit, ImageId};
@@ -55,6 +57,7 @@ pub use input::{
     ScrollGesture, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
 pub use node::{ClickHandler, Handler, NodeId};
+pub use page::{Page, PageShape};
 pub use painter::{Painter, Shape};
 pub use performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
 #[cfg(feature = "render")]

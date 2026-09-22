@@ -16,7 +16,6 @@ use block::BlockParent;
 use block_editor_plugin::{BlockFilter, Toolbar, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
-use super::find::open_find;
 use super::state::Shared;
 
 const TOOLBAR_SPACING: f32 = 6.0;
@@ -77,14 +76,14 @@ fn HexControls(state: Shared) -> NodeId {
 #[component]
 fn TextControls(state: Shared) -> NodeId {
     let theme = use_theme();
-    let content = state.content.clone();
+    let content = state.text.content();
     let language = create_memo(clone!(state content -> move || {
         content.get();
-        state.language()
+        state.text.language()
     }));
     let indentation = create_memo(clone!(state content -> move || {
         content.get();
-        state.indentation()
+        state.text.indentation()
     }));
     let language_index = create_memo(clone!(language -> move || {
         TextLanguage::ALL
@@ -134,7 +133,7 @@ fn TextControls(state: Shared) -> NodeId {
                             let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
                                 return;
                             };
-                            language_state.execute(EditorCommand::SetLanguage(*choice));
+                            language_state.text.execute(EditorCommand::SetLanguage(*choice));
                         }}
                     />
                 </Frame>
@@ -153,7 +152,7 @@ fn TextControls(state: Shared) -> NodeId {
                                 Some(1) => TextIndentation::Spaces { width: 2 },
                                 _ => TextIndentation::Tabs,
                             };
-                            indentation_state.execute(EditorCommand::SetIndentation(indentation));
+                            indentation_state.text.execute(EditorCommand::SetIndentation(indentation));
                         }}
                     />
                 </Frame>
@@ -168,7 +167,7 @@ fn TextControls(state: Shared) -> NodeId {
                                 @test_id={"text.indentation-width"}
                                 on_change={clone!(width_state -> move |value: f64| {
                                     let width = value.round().clamp(1.0, 8.0) as u8;
-                                    width_state.execute(EditorCommand::SetIndentation(
+                                    width_state.text.execute(EditorCommand::SetIndentation(
                                         TextIndentation::Spaces { width },
                                     ));
                                 })}
@@ -191,7 +190,7 @@ fn TextControls(state: Shared) -> NodeId {
                     glyph=ICON_FIND_REPLACE
                     label="Find and replace"
                     @test_id={"text.find-replace"}
-                    on_click={clone!(state -> move || open_find(&state, true))}
+                    on_click={clone!(state -> move || state.text.open_find(true))}
                 />
             </List>
         </Scroll>
@@ -248,7 +247,7 @@ fn MarkdownControls(state: Shared) -> NodeId {
                     let Some(index) = path.first() else {
                         return;
                     };
-                    heading_state.execute(EditorCommand::Markdown(MarkdownCommand::Heading(
+                    heading_state.text.execute(EditorCommand::Markdown(MarkdownCommand::Heading(
                         *index as u8 + 1,
                     )));
                 }}
@@ -306,7 +305,7 @@ fn MarkdownButton(
             glyph={glyph}
             label={label}
             @test_id={id}
-            on_click={move || state.execute(EditorCommand::Markdown(command))}
+            on_click={move || state.text.execute(EditorCommand::Markdown(command))}
         />
     }
 }

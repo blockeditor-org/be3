@@ -2,20 +2,17 @@ use super::*;
 
 #[test]
 fn pick_block_messages_round_trip() {
-    let request = Message::Editor(EditorMessage::PickBlock {
-        instance: EditorInstanceId(2),
-        request_id: 7,
-        filter: BlockFilter {
+    let asked = request(
+        2,
+        7,
+        HostRequest::PickBlock(BlockFilter {
             name: "Slide".into(),
             block_types: vec![[9; 16]],
             excluded: vec![[3; 16]],
             templates: true,
-        },
-    });
-    assert_eq!(
-        decode_frame(&encode_frame(&request).unwrap()).unwrap(),
-        request
+        }),
     );
+    assert_eq!(decode_frame(&encode_frame(&asked).unwrap()).unwrap(), asked);
 
     for pick in [
         BlockPick::Chosen {
@@ -26,27 +23,23 @@ fn pick_block_messages_round_trip() {
         BlockPick::Cancelled,
         BlockPick::Failed("the block could not be created".into()),
     ] {
-        let message = Message::Editor(EditorMessage::BlockPicked {
-            instance: EditorInstanceId(2),
-            request_id: 7,
-            pick,
-        });
+        let message = reply(2, 7, HostReply::BlockPicked(pick));
         assert_eq!(
             decode_frame(&encode_frame(&message).unwrap()).unwrap(),
             message
         );
     }
 
-    let oversized = Message::Editor(EditorMessage::PickBlock {
-        instance: EditorInstanceId(2),
-        request_id: 8,
-        filter: BlockFilter {
+    let oversized = request(
+        2,
+        8,
+        HostRequest::PickBlock(BlockFilter {
             name: "x".repeat(MAX_STRING_BYTES + 1),
             block_types: Vec::new(),
             excluded: Vec::new(),
             templates: false,
-        },
-    });
+        }),
+    );
     assert_eq!(
         encode_frame(&oversized),
         Err(DecodeError::LimitExceeded("string"))

@@ -12,8 +12,9 @@ use std::{
 use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
-    EditorBand, EditorCapabilities, EditorRegion, FetchResult, FilePick, InteractionMode, Occluder,
-    PerformanceMeasurement, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
+    EditorBand, EditorCapabilities, EditorRegion, FetchResult, FilePick, HostReply, HostRequest,
+    InteractionMode, Occluder, PerformanceMeasurement, ResizeMode, Size, ViewChange,
+    WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter};
 use block_ui::BlockCatalog;
@@ -340,8 +341,10 @@ impl ChildHandle {
 
     pub fn set_intrinsic_size(&self, size: egui::Vec2) {
         self.host.update_child(self.index, |placement| {
-            placement.intrinsic_width = size.x.max(0.0);
-            placement.intrinsic_height = size.y.max(0.0);
+            placement.intrinsic = Some(Size {
+                width: size.x.max(0.0),
+                height: size.y.max(0.0),
+            });
         });
     }
 
@@ -367,13 +370,14 @@ impl ChildHandle {
 
     pub fn intrinsic_size(&self) -> Option<egui::Vec2> {
         let status = self.status.as_ref()?;
-        (status.intrinsic_width > 0.0 && status.intrinsic_height > 0.0)
-            .then(|| egui::vec2(status.intrinsic_width, status.intrinsic_height))
+        status
+            .intrinsic
+            .map(|size| egui::vec2(size.width, size.height))
     }
 
     pub fn aspect_ratio(&self) -> Option<f32> {
         let status = self.status.as_ref()?;
-        (status.aspect_ratio > 0.0).then_some(status.aspect_ratio)
+        status.aspect_ratio
     }
 
     pub fn set_mode(&self, mode: ChildMode) {
@@ -534,9 +538,9 @@ pub struct EditorHost {
     drag: Rc<Cell<Option<BlockDrag>>>,
     files: Rc<RefCell<Option<FileDrop>>>,
     drag_accepted: Rc<Cell<Option<bool>>>,
-    picks: Rc<RefCell<Vec<(u64, FileFilter)>>>,
-    picked: Rc<RefCell<HashMap<u64, FilePick>>>,
-    next_pick: Rc<Cell<u64>>,
+    requests: Rc<RefCell<Vec<(u64, HostRequest)>>>,
+    replies: Rc<RefCell<HashMap<u64, HostReply>>>,
+    next_request: Rc<Cell<u64>>,
     editable: Rc<Cell<bool>>,
     client_id: Rc<Cell<Uuid>>,
     view: Rc<Cell<Option<View>>>,
@@ -547,17 +551,8 @@ pub struct EditorHost {
     region: Rc<Cell<Region>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
-    block_picks: Rc<RefCell<Vec<(u64, BlockFilter)>>>,
-    blocks_picked: Rc<RefCell<HashMap<u64, BlockPick>>>,
-    next_block_pick: Rc<Cell<u64>>,
     audio_commands: Rc<RefCell<Vec<(Uuid, AudioCommand)>>>,
     audio_status: Rc<RefCell<AudioStatus>>,
-    pastes: Rc<RefCell<Vec<u64>>>,
-    pasted: Rc<RefCell<HashMap<u64, ClipboardImage>>>,
-    next_paste: Rc<Cell<u64>>,
-    fetches: Rc<RefCell<Vec<(u64, String)>>>,
-    fetched: Rc<RefCell<HashMap<u64, FetchResult>>>,
-    next_fetch: Rc<Cell<u64>>,
     web_view_placements: Rc<RefCell<Vec<WebViewPlacement>>>,
     web_view_commands: Rc<RefCell<Vec<WebViewCommand>>>,
     web_view_events: Rc<RefCell<Vec<WebViewEvent>>>,
@@ -801,11 +796,11 @@ impl EditorHost {
         self.editable.get()
     }
 
-    pub fn content(&self) -> Option<HostContent> {
+    pub fn block_content(&self) -> Option<HostContent> {
         self.content.borrow().clone()
     }
 
-    pub fn set_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
+    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
         let mut held = self.content.borrow_mut();
         let revision = held.as_ref().map_or(1, |content| content.revision + 1);
         *held = Some(HostContent {
@@ -889,46 +884,44 @@ impl EditorHost {
         self.drag_accepted.set(Some(accepted));
     }
 
+    fn ask(&self, request: HostRequest) -> u64 {
+        let id = self.next_request.get() + 1;
+        self.next_request.set(id);
+        self.requests.borrow_mut().push((id, request));
+        id
+    }
+
     pub fn pick_file(&self, filter: FileFilter) -> u64 {
-        let request = self.next_pick.get() + 1;
-        self.next_pick.set(request);
-        self.picks.borrow_mut().push((request, filter));
-        request
+        self.ask(HostRequest::PickFile(filter))
     }
 
     pub fn take_pick(&self, request: u64) -> Option<FilePick> {
-        self.picked.borrow_mut().remove(&request)
+        match self.take_reply(request)? {
+            HostReply::FilePicked(pick) => Some(pick),
+            reply => self.mismatched(request, reply),
+        }
     }
 
     pub fn pick_block(&self, filter: BlockFilter) -> u64 {
-        let request = self.next_block_pick.get() + 1;
-        self.next_block_pick.set(request);
-        self.block_picks.borrow_mut().push((request, filter));
-        request
+        self.ask(HostRequest::PickBlock(filter))
     }
 
     pub fn take_block_pick(&self, request: u64) -> Option<BlockPick> {
-        self.blocks_picked.borrow_mut().remove(&request)
+        match self.take_reply(request)? {
+            HostReply::BlockPicked(pick) => Some(pick),
+            reply => self.mismatched(request, reply),
+        }
     }
 
     pub fn paste_image(&self) -> u64 {
-        let request = self.next_paste.get() + 1;
-        self.next_paste.set(request);
-        self.pastes.borrow_mut().push(request);
-        request
+        self.ask(HostRequest::PasteImage)
     }
 
     pub fn take_pasted_image(&self, request: u64) -> Option<ClipboardImage> {
-        self.pasted.borrow_mut().remove(&request)
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_pastes(&self) -> Vec<u64> {
-        std::mem::take(&mut self.pastes.borrow_mut())
-    }
-
-    pub fn set_pasted_image(&self, request: u64, image: ClipboardImage) {
-        self.pasted.borrow_mut().insert(request, image);
+        match self.take_reply(request)? {
+            HostReply::ImagePasted(image) => Some(image),
+            reply => self.mismatched(request, reply),
+        }
     }
 
     pub fn play_audio(&self, block_id: Uuid) {
@@ -957,22 +950,36 @@ impl EditorHost {
     }
 
     pub fn fetch(&self, url: impl Into<String>) -> u64 {
-        let request = self.next_fetch.get() + 1;
-        self.next_fetch.set(request);
-        self.fetches.borrow_mut().push((request, url.into()));
-        request
+        self.ask(HostRequest::Fetch(url.into()))
     }
 
     pub fn take_fetch(&self, request: u64) -> Option<FetchResult> {
-        self.fetched.borrow_mut().remove(&request)
+        match self.take_reply(request)? {
+            HostReply::Fetched(result) => Some(result),
+            reply => self.mismatched(request, reply),
+        }
     }
 
-    pub fn take_fetches(&self) -> Vec<(u64, String)> {
-        std::mem::take(&mut self.fetches.borrow_mut())
+    pub fn take_requests(&self) -> Vec<(u64, HostRequest)> {
+        std::mem::take(&mut self.requests.borrow_mut())
     }
 
-    pub fn set_fetched(&self, request: u64, result: FetchResult) {
-        self.fetched.borrow_mut().insert(request, result);
+    pub fn set_reply(&self, request: u64, reply: HostReply) {
+        self.replies.borrow_mut().insert(request, reply);
+    }
+
+    fn take_reply(&self, request: u64) -> Option<HostReply> {
+        self.replies.borrow_mut().remove(&request)
+    }
+
+    fn mismatched<T>(&self, request: u64, reply: HostReply) -> Option<T> {
+        eprintln!("the host answered request {request} with an unrelated {reply:?}");
+        None
+    }
+
+    pub fn forget_request(&self, request: u64) {
+        self.requests.borrow_mut().retain(|(id, _)| *id != request);
+        self.replies.borrow_mut().remove(&request);
     }
 
     pub fn place_web_view(&self, rect: Option<egui::Rect>) {
@@ -1150,12 +1157,19 @@ impl EditorHost {
             corner_radius: 0.0,
             layer,
             mode,
-            intrinsic_width: intrinsic.map_or(0.0, |size| size.x.max(0.0)),
-            intrinsic_height: intrinsic.map_or(0.0, |size| size.y.max(0.0)),
+            intrinsic: intrinsic.map(|size| Size {
+                width: size.x.max(0.0),
+                height: size.y.max(0.0),
+            }),
             rotation,
             opacity: opacity.clamp(0.0, 1.0),
         });
         child
+    }
+
+    pub fn occlude_beui(&self, rect: beui::Rect) {
+        let ratio = self.beui.get().ratio;
+        self.occlude(host_rect(rect, ratio));
     }
 
     pub fn child_status(&self, child: ChildId) -> Option<ChildStatus> {
@@ -1188,8 +1202,7 @@ impl EditorHost {
             corner_radius: 0.0,
             layer,
             mode: ChildMode::Passive,
-            intrinsic_width: 0.0,
-            intrinsic_height: 0.0,
+            intrinsic: None,
             rotation: 0.0,
             opacity: 1.0,
         });
@@ -1300,26 +1313,6 @@ impl EditorHost {
 
     pub fn take_drag_accepted(&self) -> Option<bool> {
         self.drag_accepted.take()
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_picks(&self) -> Vec<(u64, FileFilter)> {
-        std::mem::take(&mut self.picks.borrow_mut())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn set_pick(&self, request: u64, pick: FilePick) {
-        self.picked.borrow_mut().insert(request, pick);
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_block_picks(&self) -> Vec<(u64, BlockFilter)> {
-        std::mem::take(&mut self.block_picks.borrow_mut())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn set_block_pick(&self, request: u64, pick: BlockPick) {
-        self.blocks_picked.borrow_mut().insert(request, pick);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]

@@ -7,7 +7,7 @@ fn packed_layout_packs_screens_within_a_row() {
         screen(2, 2, 0, 0, 1.0),
         screen(3, 3, 100, 200, 1.0),
     ];
-    let layout = ScreenLayout::packed(&screens);
+    let layout = ScreenLayout::packed(&screens, DEFAULT_SURFACE_SIDE);
     assert_eq!(layout.width, 200);
     assert_eq!(layout.height, 200);
     assert_eq!(layout.screens.len(), 2);

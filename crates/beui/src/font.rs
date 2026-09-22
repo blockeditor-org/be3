@@ -62,11 +62,18 @@ impl FontId {
     }
 }
 
+const LINE_HEIGHT_RATIO: f32 = 1.15;
+
+pub fn line_height(font_size: f32) -> f32 {
+    (font_size * LINE_HEIGHT_RATIO).max(1.0)
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct TextLayout {
     pub wrap_width: f32,
     pub align: TextAlign,
     pub line_spacing: f32,
+    pub line_height: Option<f32>,
 }
 
 impl TextLayout {
@@ -74,6 +81,7 @@ impl TextLayout {
         wrap_width: f32::INFINITY,
         align: TextAlign::Start,
         line_spacing: 1.0,
+        line_height: None,
     };
 
     pub fn wrapped(wrap_width: f32) -> Self {
@@ -275,16 +283,19 @@ struct Shaping {
     wrap: u32,
     align: TextAlign,
     spacing: u32,
+    line: u32,
     bold: bool,
     italic: bool,
 }
 
 impl Shaping {
     fn of(font: FontId, layout: TextLayout, pixels_per_point: f32) -> Self {
+        let line = layout.line_height.unwrap_or_else(|| line_height(font.size));
         Self {
             wrap: (layout.wrap_width * pixels_per_point).max(0.0).to_bits(),
             align: layout.align,
             spacing: layout.line_spacing.max(0.1).to_bits(),
+            line: (line * pixels_per_point).round().max(1.0).to_bits(),
             bold: font.bold,
             italic: font.italic,
         }
@@ -296,6 +307,10 @@ impl Shaping {
 
     fn spacing(self) -> f32 {
         f32::from_bits(self.spacing)
+    }
+
+    fn line(self) -> f32 {
+        f32::from_bits(self.line)
     }
 }
 
@@ -549,8 +564,9 @@ impl Fonts {
         shape: Shaping,
         scale: f32,
     ) -> Galley {
-        let (ascent, natural) = self.metrics(family, pixel_size);
-        let line_height = natural * shape.spacing();
+        let (ascent, descent) = self.metrics(family, pixel_size);
+        let line_height = (shape.line() * shape.spacing()).round().max(1.0);
+        let baseline = ((line_height - (ascent - descent)) / 2.0).round() + ascent;
         let mut rows: Vec<Row> = Vec::new();
         let mut width = 0.0f32;
         let mut start = 0;
@@ -583,9 +599,8 @@ impl Fonts {
         let mut cursor = 0.0;
         for row in rows {
             let indent = TextLayout {
-                wrap_width: f32::INFINITY,
                 align: shape.align,
-                line_spacing: 1.0,
+                ..TextLayout::DEFAULT
             }
             .indent_of(width, row.advance);
             let mut pen = indent;
@@ -595,7 +610,7 @@ impl Fonts {
                 if cursors.last().is_none_or(|(previous, _)| *previous != at) {
                     cursors.push((at, pen / scale));
                 }
-                if let Some(glyph) = self.place(*glyph, shape, pixel_size, pen, cursor + ascent) {
+                if let Some(glyph) = self.place(*glyph, shape, pixel_size, pen, cursor + baseline) {
                     placed.push(glyph);
                 }
                 pen += glyph.x_advance;
@@ -613,7 +628,7 @@ impl Fonts {
             inner: Rc::new(GalleyData {
                 size: vec2(width.ceil() / scale, cursor.ceil() / scale),
                 line_height: line_height / scale,
-                baseline: ascent / scale,
+                baseline: baseline / scale,
                 pixel_bounds: pixel_bounds(&placed),
                 glyphs: placed,
                 lines,
@@ -695,7 +710,7 @@ impl Fonts {
     }
 
     fn metrics(&self, family: FontFamily, pixel_size: u32) -> (f32, f32) {
-        let fallback = (pixel_size as f32 * 0.8, pixel_size as f32 * 1.2);
+        let fallback = (pixel_size as f32 * 0.8, pixel_size as f32 * -0.2);
         let Some(&index) = self.family(family).first() else {
             return fallback;
         };
@@ -709,7 +724,10 @@ impl Fonts {
                 return fallback;
             }
             let metrics = (*size).metrics;
-            (metrics.ascender as f32 / 64.0, metrics.height as f32 / 64.0)
+            (
+                metrics.ascender as f32 / 64.0,
+                metrics.descender as f32 / 64.0,
+            )
         }
     }
 
