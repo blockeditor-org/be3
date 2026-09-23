@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{UiSettingsContent, UiSettingsOp};
+use be_block::{UiSettings as Settings, UiSettingsContent};
 use block::Block;
 use block_client::blocks::ui_settings::UiSettings;
 
@@ -8,7 +8,7 @@ fn zoom_of(shared: &Shared, block: Uuid) -> Option<f32> {
     let held = shared.blocks.get(&block)?;
     UiSettingsContent::decode(&held.bytes)
         .ok()
-        .map(|settings| settings.zoom())
+        .map(|settings| settings.root().zoom())
 }
 
 #[test]
@@ -26,7 +26,7 @@ fn a_held_block_stays_open_when_its_editors_close() {
 
     operate(
         block,
-        UiSettingsContent::encode_operation(&UiSettingsOp::SetZoom { zoom: 1.5 }),
+        UiSettingsContent::encode_operation(&Settings::set_zoom(1.5)),
     );
     wait_until("kept the held block live", |shared| {
         zoom_of(shared, block) == Some(1.5)

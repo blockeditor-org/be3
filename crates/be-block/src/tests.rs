@@ -1,21 +1,20 @@
 use super::*;
 use crate::{
-    browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem},
+    browser_tab::{BrowserTabContent, HistoryItem},
     calendar::{Calendar, CalendarContent, CalendarEvent},
     checklist::{Checklist, ChecklistContent},
     counter::{Counter, CounterContent},
     image::{ImageContent, ImageHeader},
     text::{TextContent, TextLanguage, TextOp},
-    ui_settings::{UiSettingsContent, UiSettingsOp},
+    ui_settings::{UiSettings, UiSettingsContent},
 };
 
-mod a_browser_tab_is_named_after_its_page_and_refuses_a_bad_index;
+mod a_browser_tab_is_named_after_its_page;
 mod a_browser_tab_push_discards_forward_history;
 mod a_calendar_undo_keeps_what_someone_else_changed_since;
 mod a_calendar_update_writes_only_the_fields_that_changed;
 mod a_counter_reset_undoes_back_to_its_count;
 mod an_image_merges_only_when_one_side_changed_it;
-mod browser_tabs_navigated_on_both_sides_conflict;
 mod calendars_merge_each_event_field_by_field;
 mod clearing_a_checklist_keeps_the_open_items;
 mod streamed_content_separates_its_header_from_its_payload;

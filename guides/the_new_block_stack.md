@@ -302,10 +302,14 @@ values, and every algorithm is written once against that table:
 
 `Document<R>` implements `BlockContent`, `LiveEdit`, `Merge` and `Undo` in
 `be-block` (`model.rs`), so a type built this way is registered with
-`migrated_with_history` and has undo from the start. The counter, the checklist
-and the calendar are built this way. The browser tab, the UI settings, text and
-images still implement the traits by hand, which remains possible for content
-that does not fit, such as a byte payload or a type that is better as a CRDT.
+`migrated_with_history` and has undo from the start. Every migrated editor's
+content is built this way: the counter, the checklist, the calendar, the browser
+tab and the UI settings. Text and images still implement the traits by hand,
+which remains possible for content that does not fit, such as a byte payload or
+a type that is better as a CRDT. The browser tab shows a register holding an
+`Option<ObjectId>`: its current page is an object in its history, not an index,
+so a push and a navigation made at the same time still agree on which page is
+current.
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
@@ -344,16 +348,27 @@ thread of its own with a `FileStore` under it, and `be/web.rs` runs it on the
 browser's own executor with a `MemoryStore`, because there is no file system to
 keep objects in there and every open fetches what it needs. The plugin never
 sees the content key or the connection: it is handed content and hands back
-operation bytes, through three messages on the plugin protocol.
+operation bytes, through four messages on the plugin protocol. Each names the
+block it is about, because an editor can work on more than its own block.
 
-- `EditorMessage::Content { content_type, bytes, applied }` - host to plugin, a
+- `EditorMessage::Content { block_id, content_type, bytes, applied }` - host to plugin, a
   snapshot. `applied` counts the operations *this instance* sent that the
   snapshot already contains, which is what lets a plugin tell its own
   unacknowledged edits from everyone else's.
-- `EditorMessage::ContentOperations { operations }` - host to plugin, every
+- `EditorMessage::ContentOperations { block_id, operations }` - host to plugin, every
   operation since the last thing the instance was sent, in order, each marked
   `mine` when this instance is the one that sent it.
-- `EditorMessage::Operate { operation }` - plugin to host.
+- `EditorMessage::Operate { block_id, operation }` - plugin to host.
+- `EditorMessage::WatchContent { blocks }` - plugin to host, the other blocks
+  (and their content types) the editor wants to follow.
+
+`editor.content_of::<C>(block)` is how an editor reads and edits another block:
+it registers the block with `WatchContent` and hands back the same
+`ContentProjection` an editor gets for its own block, keyed by that block. The
+host opens a watched block only if the account may view it and its content type
+is migrated, keeps a content link per block per instance beside the editor's own,
+takes an `Operate` for any of them only if the account may edit that block, and
+closes a watched block in the new stack when no instance holds it any more.
 
 Operations, not snapshots, are the normal case. `Live` journals how its visible
 content changed (`Journaled::Edited`, `Applied` or `Replaced`), the worker tags
@@ -474,6 +489,11 @@ the old client - and it is what the key wrapping below replaces.
 
 ## What is not built yet
 
+- A migrated block's references (`BlockContent::references`) are recorded per
+  commit in the new stack but not in the old graph, which the file tree, the
+  workspace panel's backrefs and `watch_references` still read. No migrated type
+  references another block yet; the database types will, and will need that
+  bridged the way names are.
 - A migrated block's content is not in the old workspace index, so nothing but
   the editor can read it: no preview and no search. Only its name is carried
   across, and only while an editor has it open.

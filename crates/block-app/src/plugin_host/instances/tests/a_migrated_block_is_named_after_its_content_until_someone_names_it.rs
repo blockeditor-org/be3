@@ -2,23 +2,22 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, BrowserTabContent, BrowserTabOp, HistoryItem, LiveEdit};
+use be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
 use block::Block;
 use block_client::blocks::web_browser_tab::WebBrowserTab;
 
 fn titled(block: Uuid, title: &str) {
-    crate::be::operate_from(
-        block,
-        0,
-        BrowserTabContent::encode_operation(&BrowserTabOp::Replace(HistoryItem {
-            url: "https://example.com/".into(),
-            title: title.into(),
-        })),
-    );
+    let shown = crate::be::content(block)
+        .and_then(|content| BrowserTabContent::decode(&content.bytes).ok())
+        .expect("the new stack holds the tab");
+    let edit = shown
+        .root()
+        .replace(&HistoryItem::new("https://example.com/", title));
+    crate::be::operate_from(block, 0, BrowserTabContent::encode_operation(&edit));
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
         let tab = BrowserTabContent::decode(&held.bytes).ok()?;
-        (tab.current().title == title).then_some(())
+        (tab.root().current().title == title).then_some(())
     })
     .expect("the new stack never took the title");
 }

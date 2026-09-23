@@ -45,6 +45,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     let own = CounterContent::encode_operation(&Counter::add(2));
     assert!(instances.editor_message(EditorMessage::Operate {
         instance: INSTANCE,
+        block_id: block.into_bytes(),
         operation: own.clone(),
     }));
     counted(block, 2);
@@ -52,6 +53,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         content_messages(&mut instances),
         [EditorMessage::ContentOperations {
             instance: INSTANCE,
+            block_id: block.into_bytes(),
             operations: vec![ContentOperation {
                 operation: own,
                 mine: true,
@@ -66,6 +68,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         content_messages(&mut instances),
         [EditorMessage::ContentOperations {
             instance: INSTANCE,
+            block_id: block.into_bytes(),
             operations: vec![ContentOperation {
                 operation: elsewhere,
                 mine: false,

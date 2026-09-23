@@ -96,6 +96,10 @@ impl<T> List<T> {
     pub fn last_id(&self) -> Option<ObjectId> {
         self.items.last().map(|item| item.id)
     }
+
+    pub fn get_index(&self, index: usize) -> Option<&Item<T>> {
+        self.items.get(index)
+    }
 }
 
 impl<T> Deref for List<T> {

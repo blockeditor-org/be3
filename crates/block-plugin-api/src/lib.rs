@@ -462,17 +462,24 @@ pub enum EditorMessage {
 
     Content {
         instance: EditorInstanceId,
+        block_id: [u8; 16],
         content_type: [u8; 16],
         bytes: Vec<u8>,
         applied: u64,
     },
     ContentOperations {
         instance: EditorInstanceId,
+        block_id: [u8; 16],
         operations: Vec<ContentOperation>,
     },
     Operate {
         instance: EditorInstanceId,
+        block_id: [u8; 16],
         operation: Vec<u8>,
+    },
+    WatchContent {
+        instance: EditorInstanceId,
+        blocks: Vec<WatchedContent>,
     },
     ViewChanged {
         instance: EditorInstanceId,
@@ -738,6 +745,7 @@ impl EditorMessage {
             | Self::Content { instance, .. }
             | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
+            | Self::WatchContent { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -894,6 +902,12 @@ pub struct ArtifactState {
     pub summary: String,
     pub error: Option<String>,
     pub regenerating: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WatchedContent {
+    pub block_id: [u8; 16],
+    pub content_type: [u8; 16],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1179,6 +1193,7 @@ impl EditorMessage {
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
+            | Self::WatchContent { .. }
             | Self::Performance { .. } => Direction::ToHost,
         }
     }
@@ -1784,6 +1799,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
         EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
+        EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
             for state in states {

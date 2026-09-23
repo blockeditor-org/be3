@@ -16,7 +16,7 @@ pub mod ui_settings;
 
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
-pub use browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem};
+pub use browser_tab::{BrowserTab, BrowserTabContent, HistoryItem};
 pub use calendar::{Calendar, CalendarContent, CalendarEvent};
 pub use checklist::{Checklist, ChecklistContent, ChecklistItem};
 pub use counter::{Counter, CounterContent};
@@ -26,7 +26,7 @@ pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use text::{TextContent, TextHeader, TextLanguage, TextOp};
-pub use ui_settings::{UiSettingsContent, UiSettingsOp};
+pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {

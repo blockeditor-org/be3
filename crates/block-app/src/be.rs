@@ -197,6 +197,12 @@ pub(crate) fn name_of(content: &Content) -> Option<String> {
     (migrated.name)(&content.bytes)
 }
 
+pub(crate) fn is_migrated(content_type: Uuid) -> bool {
+    MIGRATED
+        .iter()
+        .any(|migrated| migrated.content_type == content_type)
+}
+
 fn copy_for(content_type: Uuid) -> Option<worker::Copy> {
     MIGRATED
         .iter()
