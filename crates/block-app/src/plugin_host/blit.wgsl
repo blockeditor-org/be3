@@ -12,6 +12,9 @@ struct Region {
     corner_2: vec2<f32>,
     corner_3: vec2<f32>,
     opacity: f32,
+    padding_0: f32,
+    padding_1: f32,
+    padding_2: f32,
 };
 
 @group(1) @binding(0)

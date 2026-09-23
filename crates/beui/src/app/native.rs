@@ -246,7 +246,7 @@ impl Runner {
         let screen = vec2(physical.x / scale, physical.y / scale);
 
         let raw = RawInput {
-            events: std::mem::take(&mut self.events),
+            events: super::next_batch(&mut self.events),
         };
         let app = &mut self.app;
         let output = self.context.run(raw, |context| {
@@ -467,15 +467,18 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             return;
         }
-        let mut attributes = Window::default_attributes()
+        let attributes = Window::default_attributes()
             .with_title(self.options.title.clone())
             .with_visible(false)
             .with_inner_size(LogicalSize::new(self.options.size.x, self.options.size.y));
         #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
-        if let Some(app_id) = &self.options.app_id {
-            use winit::platform::wayland::WindowAttributesExtWayland;
-            attributes = WindowAttributesExtWayland::with_name(attributes, app_id, app_id);
-        }
+        let attributes = match &self.options.app_id {
+            Some(app_id) => {
+                use winit::platform::wayland::WindowAttributesExtWayland;
+                WindowAttributesExtWayland::with_name(attributes, app_id, app_id)
+            }
+            None => attributes,
+        };
         let window = match event_loop.create_window(attributes) {
             Ok(window) => Arc::new(window),
             Err(error) => return self.fail(event_loop, error),

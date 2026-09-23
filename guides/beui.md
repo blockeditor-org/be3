@@ -873,7 +873,54 @@ Beui has three feature levels:
   painting output. This is enough for headless logic tests.
 - `render` adds the wgpu renderer without creating a window. Embedded hosts use
   this level.
+### Windows and spinners
+
+`styled::Window` is a titled panel floating over the document, which the user
+can drag by its title bar and resize from its bottom-right corner. It is a floating overlay,
+so the document under it stays usable, unlike a `Dialog`. The caller owns
+whether it is `open`, and `on_close` reports the close button. `position` and
+`size` are only where it starts: the window keeps the user's moves and resizes
+after that.
+
+`styled::Spinner` is an indeterminate progress bar. It animates only while it is
+laid out: a spinner behind a `Show` that is false, or in a tab nobody is
+looking at, asks for no frames. It uses `node_placed`, which works for any
+component that should only work while it is on screen.
+
 - `window` adds the desktop runner and enables `render`; it is the default.
+- `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
+  and enables `render`.
+
+`beui::run_with` takes `RunOptions` (title, app id, starting size, and on
+Android the `AndroidApp`) where `beui::run` takes only a title. The rest of
+`App` is optional:
+
+- `setup(&Setup)` runs once, after the gpu exists and before the first frame.
+  `Setup` hands over the wgpu device, queue and surface format, for an app that
+  paints with the gpu itself through a `Viewport`, and a `Waker`. `Waker::wake`
+  can be called from any thread, and asks the runner for another frame: it is
+  how work finishing elsewhere is pushed to the ui instead of polled for.
+- `close_requested` is asked when the window is closed, and can refuse by
+  returning `false` (to ask about unsaved work first, then call
+  `Context::close_window`). `exiting` runs once on the way out.
+
+From inside a frame the app can also ask the window for things through the
+`Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,
+`set_zoom_factor`, `close_window`, and `retain_events` to take events away from
+the document before it sees them, which is how an app that hosts its own
+surfaces (block-app hosting plugins) keeps a key meant for a plugin away from
+the focused beui control.
+
+A runner hands the document its events in batches, one per frame. A press that
+follows typing waits for the next frame, so text typed before a click always
+reaches the field it was typed into, however many events arrive between two
+frames.
+
+The web runner draws into the canvas it is given with WebGPU, or WebGL where
+the browser has no WebGPU. It reads the keyboard through a hidden text area,
+so pasting and composition behave like any other input on the page. Like the
+desktop runner, it only asks the browser for a frame when an event arrived,
+something asked for a repaint, or a `Waker` was woken.
 
 ### The inspector
 

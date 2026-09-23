@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Rect, Vec2};
+use crate::input::{Event, TouchPhase};
 
 #[cfg(feature = "window")]
 mod clipboard;
@@ -79,3 +80,35 @@ impl RunOptions {
         }
     }
 }
+
+#[cfg_attr(not(any(feature = "window", feature = "web")), allow(dead_code))]
+pub(crate) fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
+    let typed = pending
+        .iter()
+        .position(|event| matches!(event, Event::Text(_) | Event::Key { .. } | Event::Ime(_)));
+    let press = typed.and_then(|start| {
+        pending[start..]
+            .iter()
+            .position(|event| {
+                matches!(
+                    event,
+                    Event::PointerButton { pressed: true, .. }
+                        | Event::Touch {
+                            phase: TouchPhase::Start,
+                            ..
+                        }
+                )
+            })
+            .map(|offset| start + offset)
+    });
+    match press {
+        Some(at) => {
+            let rest = pending.split_off(at);
+            std::mem::replace(pending, rest)
+        }
+        None => std::mem::take(pending),
+    }
+}
+
+#[cfg(test)]
+mod tests;
