@@ -95,8 +95,8 @@ struct Instance {
 struct ContentLink {
     content_type: Uuid,
     opened: bool,
-    applied: u64,
-    sent: Option<(u64, u64)>,
+    origin: u64,
+    sent: Option<u64>,
     named: Option<u64>,
     old_block: Option<Box<dyn BlockHandleAccess>>,
 }
@@ -182,7 +182,7 @@ impl Instance {
                     crate::be::content_type_for(block.block_type).map(|content_type| ContentLink {
                         content_type,
                         opened: false,
-                        applied: 0,
+                        origin: crate::be::next_origin(),
                         sent: None,
                         named: None,
                         old_block: None,
@@ -198,22 +198,32 @@ impl Instance {
     fn content_message(&mut self, instance: EditorInstanceId) -> Option<Message> {
         let block = self.role.block()?;
         let link = self.content.as_mut()?;
-        let Some(content) = crate::be::content(block.id) else {
+        if crate::be::content(block.id).is_none() {
             if !std::mem::replace(&mut link.opened, true) {
                 crate::be::open(block.id, link.content_type);
             }
             return None;
-        };
-        let state = (content.revision, link.applied);
-        if link.sent == Some(state) {
-            return None;
         }
-        link.sent = Some(state);
-        Some(Message::Editor(EditorMessage::Content {
-            instance,
-            content_type: content.content_type.into_bytes(),
-            bytes: content.bytes,
-            applied: link.applied,
+        let (revision, update) = crate::be::update_since(block.id, link.origin, link.sent)?;
+        link.sent = Some(revision);
+        Some(Message::Editor(match update {
+            crate::be::Update::Snapshot {
+                content_type,
+                bytes,
+                applied,
+            } => EditorMessage::Content {
+                instance,
+                content_type: content_type.into_bytes(),
+                bytes,
+                applied,
+            },
+            crate::be::Update::Operations(operations) => EditorMessage::ContentOperations {
+                instance,
+                operations: operations
+                    .into_iter()
+                    .map(|(operation, mine)| block_plugin_api::ContentOperation { operation, mine })
+                    .collect(),
+            },
         }))
     }
 }
@@ -1827,8 +1837,7 @@ impl Instances {
                 else {
                     return false;
                 };
-                link.applied += 1;
-                crate::be::operate(block.id, operation);
+                crate::be::operate_from(block.id, link.origin, operation);
                 true
             }
             EditorMessage::DragAccepted { instance, accepted } => {

@@ -5,7 +5,7 @@ use std::{
 };
 
 use be_block::{BlockContent, LiveEdit, Merge, Undo};
-use be_client::{ClientError, Credentials, Live, Peer, PeerConfig, Saved};
+use be_client::{ClientError, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
 use be_graph::BlockParent;
 use be_store::ContentKey;
 use futures_util::future::{Either, LocalBoxFuture, select};
@@ -22,7 +22,7 @@ const HISTORY_STEPS: usize = 200;
 pub(super) enum Command {
     Open(Uuid, Uuid),
     Close(Uuid),
-    Operate(Uuid, Vec<u8>),
+    Operate(Uuid, Option<u64>, Vec<u8>),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -91,7 +91,13 @@ pub(super) trait Session {
 
     fn owes_seal(&self) -> bool;
 
-    fn edit<'a>(&'a mut self, operation: &'a [u8]) -> LocalBoxFuture<'a, Result<(), ClientError>>;
+    fn edit<'a>(
+        &'a mut self,
+        operation: &'a [u8],
+        origin: Option<u64>,
+    ) -> LocalBoxFuture<'a, Result<(), ClientError>>;
+
+    fn take_log(&mut self) -> Vec<Logged>;
 
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
@@ -126,6 +132,7 @@ where
         live.reconcile().await?;
         Ok(Box::new(WithHistory {
             live,
+            log: Vec::new(),
             undo: Vec::new(),
             redo: Vec::new(),
         }) as Box<dyn Session>)
@@ -134,6 +141,7 @@ where
 
 struct WithHistory<C: Undo> {
     live: Live<Store, C>,
+    log: Vec<Logged>,
     undo: Vec<(C::Step, Instant)>,
     redo: Vec<C::Step>,
 }
@@ -147,18 +155,22 @@ where
     }
 
     fn bytes(&self) -> Vec<u8> {
-        Session::bytes(&self.live)
+        self.live.content().encode()
     }
 
     fn is_clean(&self) -> bool {
-        Session::is_clean(&self.live)
+        self.live.is_clean()
     }
 
     fn owes_seal(&self) -> bool {
-        Session::owes_seal(&self.live)
+        self.live.is_owner() && !self.live.is_clean()
     }
 
-    fn edit<'a>(&'a mut self, operation: &'a [u8]) -> LocalBoxFuture<'a, Result<(), ClientError>> {
+    fn edit<'a>(
+        &'a mut self,
+        operation: &'a [u8],
+        origin: Option<u64>,
+    ) -> LocalBoxFuture<'a, Result<(), ClientError>> {
         Box::pin(async move {
             let Ok(operation) = C::decode_operation(operation) else {
                 return Ok(());
@@ -166,16 +178,24 @@ where
             if let Some(step) = self.live.content().step(&operation) {
                 self.record(step);
             }
-            self.live.edit(operation).await
+            drain(&mut self.live, &mut self.log, None);
+            let edited = self.live.edit(operation).await;
+            drain(&mut self.live, &mut self.log, origin);
+            edited
         })
     }
 
+    fn take_log(&mut self) -> Vec<Logged> {
+        drain(&mut self.live, &mut self.log, None);
+        std::mem::take(&mut self.log)
+    }
+
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
-        Session::poll(&mut self.live)
+        Box::pin(async move { self.live.poll().await.map(|_| ()) })
     }
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
-        Session::seal(&mut self.live)
+        Box::pin(async move { seal(&mut self.live).await })
     }
 
     fn history(&self) -> History {
@@ -249,11 +269,19 @@ where
         peer.ensure::<C>(block, BlockParent::Root).await?;
         let mut live = Live::<Store, C>::join(Arc::clone(peer), block).await?;
         live.reconcile().await?;
-        Ok(Box::new(live) as Box<dyn Session>)
+        Ok(Box::new(Plain {
+            live,
+            log: Vec::new(),
+        }) as Box<dyn Session>)
     })
 }
 
-impl<C> Session for Live<Store, C>
+struct Plain<C: LiveEdit> {
+    live: Live<Store, C>,
+    log: Vec<Logged>,
+}
+
+impl<C> Session for Plain<C>
 where
     C: LiveEdit + Merge + Clone + Default,
 {
@@ -262,41 +290,85 @@ where
     }
 
     fn bytes(&self) -> Vec<u8> {
-        self.content().encode()
+        self.live.content().encode()
     }
 
     fn is_clean(&self) -> bool {
-        Live::is_clean(self)
+        self.live.is_clean()
     }
 
     fn owes_seal(&self) -> bool {
-        self.is_owner() && !Live::is_clean(self)
+        self.live.is_owner() && !self.live.is_clean()
     }
 
-    fn edit<'a>(&'a mut self, operation: &'a [u8]) -> LocalBoxFuture<'a, Result<(), ClientError>> {
+    fn edit<'a>(
+        &'a mut self,
+        operation: &'a [u8],
+        origin: Option<u64>,
+    ) -> LocalBoxFuture<'a, Result<(), ClientError>> {
         Box::pin(async move {
-            match C::decode_operation(operation) {
-                Ok(operation) => Live::edit(self, operation).await,
-                Err(_) => Ok(()),
-            }
+            let Ok(operation) = C::decode_operation(operation) else {
+                return Ok(());
+            };
+            drain(&mut self.live, &mut self.log, None);
+            let edited = self.live.edit(operation).await;
+            drain(&mut self.live, &mut self.log, origin);
+            edited
         })
+    }
+
+    fn take_log(&mut self) -> Vec<Logged> {
+        drain(&mut self.live, &mut self.log, None);
+        std::mem::take(&mut self.log)
     }
 
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
-        Box::pin(async move { Live::poll(self).await.map(|_| ()) })
+        Box::pin(async move { self.live.poll().await.map(|_| ()) })
     }
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
-        Box::pin(async move {
-            if !self.owes_seal() {
-                return Ok(());
+        Box::pin(async move { seal(&mut self.live).await })
+    }
+}
+
+async fn seal<C>(live: &mut Live<Store, C>) -> Result<(), ClientError>
+where
+    C: LiveEdit + Merge + Clone + Default,
+{
+    if !live.is_owner() || live.is_clean() {
+        return Ok(());
+    }
+    if matches!(live.seal().await?, Saved::Rejected { .. }) {
+        live.reconcile().await?;
+        live.seal().await?;
+    }
+    Ok(())
+}
+
+pub(crate) enum Logged {
+    Operation { bytes: Vec<u8>, origin: Option<u64> },
+    Replaced,
+}
+
+fn drain<C>(live: &mut Live<Store, C>, log: &mut Vec<Logged>, origin: Option<u64>)
+where
+    C: LiveEdit + Clone + Default,
+{
+    for entry in live.take_journal() {
+        match entry {
+            Journaled::Edited(operation) => log.push(Logged::Operation {
+                bytes: C::encode_operation(&operation),
+                origin,
+            }),
+            Journaled::Applied(operation) => log.push(Logged::Operation {
+                bytes: C::encode_operation(&operation),
+                origin: None,
+            }),
+            Journaled::Replaced => {
+                log.clear();
+                log.push(Logged::Replaced);
             }
-            if matches!(Live::seal(self).await?, Saved::Rejected { .. }) {
-                self.reconcile().await?;
-                Live::seal(self).await?;
-            }
-            Ok(())
-        })
+        }
     }
 }
 
@@ -372,7 +444,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     for (block, content_type) in open.clone() {
         rejoin(&peer, &mut sessions, shared, block, content_type).await;
     }
-    publish(&sessions, shared);
+    publish(&mut sessions, shared);
     changed.notify_all();
     context.request_repaint();
     let mut unsealed_since: Option<Instant> = None;
@@ -417,7 +489,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             true => unsealed_since.or_else(|| Some(Instant::now())),
             false => None,
         };
-        let moved = publish(&sessions, shared);
+        let moved = publish(&mut sessions, shared);
         changed.notify_all();
         if moved {
             context.request_repaint();
@@ -501,11 +573,11 @@ async fn apply(
             held.histories.remove(&block);
             true
         }
-        Command::Operate(block, operation) => {
+        Command::Operate(block, origin, operation) => {
             let Some(session) = sessions.get_mut(&block) else {
                 return false;
             };
-            if let Err(error) = session.edit(&operation).await {
+            if let Err(error) = session.edit(&operation, origin).await {
                 record(shared, error);
             }
             false
@@ -550,39 +622,36 @@ async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<M
     }
 }
 
-fn publish(sessions: &HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
+fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let mut held = shared.lock().unwrap();
     held.unsealed = sessions
         .values()
         .filter(|session| !session.is_clean())
         .count();
     let mut changed = false;
-    for (block, session) in sessions {
+    for (block, session) in sessions.iter_mut() {
         let history = session.history();
         if held.histories.get(block) != Some(&history) {
             held.histories.insert(*block, history);
             changed = true;
         }
-        let bytes = session.bytes();
-        match held.blocks.get_mut(block) {
-            Some(content) if content.bytes == bytes => {}
-            Some(content) => {
-                content.bytes = bytes;
-                content.revision += 1;
-                changed = true;
-            }
-            None => {
-                held.blocks.insert(
-                    *block,
-                    Content {
-                        content_type: session.content_type(),
-                        bytes,
-                        revision: 1,
-                    },
-                );
-                changed = true;
-            }
+        let log = session.take_log();
+        let Some(content) = held.blocks.get_mut(block) else {
+            held.blocks.insert(
+                *block,
+                Content::new(session.content_type(), session.bytes()),
+            );
+            changed = true;
+            continue;
+        };
+        if log.is_empty() {
+            continue;
         }
+        for entry in log {
+            content.record(entry);
+        }
+        content.bytes = session.bytes();
+        changed = true;
     }
     changed
 }

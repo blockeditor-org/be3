@@ -53,11 +53,76 @@ impl Config {
 
 const CONTENT_KEY_LABEL: &[u8] = b"be3.workspace.content-key.v1";
 
+const LOG_LIMIT: usize = 512;
+
 #[derive(Clone)]
 pub(crate) struct Content {
     pub(crate) content_type: Uuid,
     pub(crate) bytes: Vec<u8>,
     pub(crate) revision: u64,
+    log: std::collections::VecDeque<(Vec<u8>, Option<u64>)>,
+    taken: std::collections::HashMap<u64, u64>,
+}
+
+impl Content {
+    pub(crate) fn new(content_type: Uuid, bytes: Vec<u8>) -> Self {
+        Self {
+            content_type,
+            bytes,
+            revision: 1,
+            log: std::collections::VecDeque::new(),
+            taken: std::collections::HashMap::new(),
+        }
+    }
+
+    pub(crate) fn record(&mut self, entry: worker::Logged) {
+        self.revision += 1;
+        match entry {
+            worker::Logged::Operation { bytes, origin } => {
+                if let Some(origin) = origin {
+                    *self.taken.entry(origin).or_default() += 1;
+                }
+                self.log.push_back((bytes, origin));
+                if self.log.len() > LOG_LIMIT {
+                    self.log.pop_front();
+                }
+            }
+            worker::Logged::Replaced => self.log.clear(),
+        }
+    }
+
+    pub(crate) fn since(&self, origin: u64, sent: Option<u64>) -> Update {
+        let behind = sent.map(|sent| self.revision.saturating_sub(sent));
+        match behind {
+            Some(behind) if behind as usize <= self.log.len() => Update::Operations(
+                self.log
+                    .iter()
+                    .skip(self.log.len() - behind as usize)
+                    .map(|(bytes, from)| (bytes.clone(), *from == Some(origin)))
+                    .collect(),
+            ),
+            _ => Update::Snapshot {
+                content_type: self.content_type,
+                bytes: self.bytes.clone(),
+                applied: self.taken.get(&origin).copied().unwrap_or_default(),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Update {
+    Snapshot {
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        applied: u64,
+    },
+    Operations(Vec<(Vec<u8>, bool)>),
+}
+
+pub(crate) fn next_origin() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 #[derive(Default)]
@@ -237,8 +302,15 @@ pub(crate) fn hold(block: Uuid, block_type: Uuid) {
     }
 }
 
-pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
-    send(Command::Operate(block, operation));
+pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
+    send(Command::Operate(block, Some(origin), operation));
+}
+
+pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Option<(u64, Update)> {
+    with_shared(|shared| {
+        let content = shared.blocks.get(&block)?;
+        (sent != Some(content.revision)).then(|| (content.revision, content.since(origin, sent)))
+    })?
 }
 
 pub(crate) fn history(block: Uuid) -> History {

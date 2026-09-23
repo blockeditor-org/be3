@@ -20,6 +20,7 @@ mod an_offline_rewrite_conflicts_instead_of_interleaving;
 mod an_unsaved_edit_survives_a_publish_from_outside_the_session;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
 mod references_declared_by_content_reach_the_graph;
+mod the_journal_says_how_each_peer_saw_its_content_change;
 mod two_peers_converge_through_the_session_owner;
 
 struct Harness {

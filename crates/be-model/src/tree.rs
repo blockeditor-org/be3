@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{Anchor, Change, Malformed, Model, Object, ObjectId, Objects, Place, Value};
+use crate::{Anchor, Change, Malformed, Model, Object, ObjectId, Objects, Place, Touched, Value};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Tree {
@@ -176,6 +176,54 @@ impl Tree {
                     )
                 })
             }
+        }
+    }
+
+    pub(crate) fn touched(&self, change: &Change, out: &mut Vec<Touched>) {
+        match change {
+            Change::Set { object, field, .. }
+            | Change::SetIf { object, field, .. }
+            | Change::Add { object, field, .. } => {
+                out.push(Touched::Field(*object, *field));
+                self.touch_up(*object, out);
+            }
+            Change::Insert { place, objects, .. } => {
+                self.touch_place(*place, out);
+                out.extend(objects.iter().map(|(id, _)| Touched::Subtree(*id)));
+            }
+            Change::Remove { object } => {
+                if let Some(place) = self.objects.get(object).and_then(|held| held.parent) {
+                    self.touch_place(place, out);
+                }
+                out.extend(
+                    self.subtree(*object)
+                        .into_iter()
+                        .map(|(id, _)| Touched::Subtree(id)),
+                );
+            }
+            Change::Move { object, place, .. } => {
+                if let Some(from) = self.objects.get(object).and_then(|held| held.parent) {
+                    self.touch_place(from, out);
+                }
+                self.touch_place(*place, out);
+            }
+        }
+    }
+
+    fn touch_place(&self, place: Place, out: &mut Vec<Touched>) {
+        out.push(Touched::Field(place.object, place.field));
+        self.touch_up(place.object, out);
+    }
+
+    fn touch_up(&self, object: ObjectId, out: &mut Vec<Touched>) {
+        let mut cursor = Some(object);
+        while let Some(id) = cursor {
+            out.push(Touched::Subtree(id));
+            cursor = self
+                .objects
+                .get(&id)
+                .and_then(|held| held.parent)
+                .map(|parent| parent.object);
         }
     }
 

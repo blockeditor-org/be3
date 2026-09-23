@@ -1,5 +1,5 @@
 use be_commit::MergeResult;
-use be_model::{Document, Edit, Model, Step};
+use be_model::{Document, Edit, Model, Step, Touched};
 use uuid::Uuid;
 
 use crate::{BlockContent, ContentError, LiveEdit, Merge, Undo};
@@ -33,6 +33,10 @@ impl<R: Root> LiveEdit for Document<R> {
 
     fn apply(&mut self, operation: &Self::Op) {
         Document::apply(self, operation);
+    }
+
+    fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
+        Document::apply_touching(self, operation, touched);
     }
 }
 

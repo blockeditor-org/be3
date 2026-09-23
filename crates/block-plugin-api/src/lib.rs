@@ -466,6 +466,10 @@ pub enum EditorMessage {
         bytes: Vec<u8>,
         applied: u64,
     },
+    ContentOperations {
+        instance: EditorInstanceId,
+        operations: Vec<ContentOperation>,
+    },
     Operate {
         instance: EditorInstanceId,
         operation: Vec<u8>,
@@ -732,6 +736,7 @@ impl EditorMessage {
             Self::Open { instance, .. }
             | Self::EditabilityChanged { instance, .. }
             | Self::Content { instance, .. }
+            | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
@@ -889,6 +894,12 @@ pub struct ArtifactState {
     pub summary: String,
     pub error: Option<String>,
     pub regenerating: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContentOperation {
+    pub operation: Vec<u8>,
+    pub mine: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1120,6 +1131,7 @@ impl EditorMessage {
             | Self::Resized { .. }
             | Self::EditabilityChanged { .. }
             | Self::Content { .. }
+            | Self::ContentOperations { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1771,6 +1783,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::WatchArtifacts { blocks, .. }
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
+        EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
             for state in states {

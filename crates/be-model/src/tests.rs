@@ -1,9 +1,10 @@
-use crate::{Anchor, Change, Count, Document, Edit, List, Model, ObjectId};
+use crate::{Anchor, Change, Count, Document, Edit, List, Model, ObjectId, Touched};
 
 mod a_burst_of_sets_to_one_field_undoes_as_one_step;
 mod a_card_edited_after_a_move_is_edited_where_it_went;
 mod a_document_reads_back_what_it_was_built_from;
 mod a_node_cannot_move_inside_itself;
+mod an_edit_touches_its_field_and_what_holds_it;
 mod counts_merge_by_adding_both_sides;
 mod merging_a_move_on_one_side_with_an_edit_on_the_other_keeps_both;
 mod merging_restores_a_column_one_side_removed_while_the_other_filled_it;

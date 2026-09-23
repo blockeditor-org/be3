@@ -527,6 +527,10 @@ impl EditorSession {
         self.host.set_block_content(content_type, bytes, applied);
     }
 
+    pub(crate) fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
+        self.host.push_content_operations(operations);
+    }
+
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
         self.host.set_focused_block(focused);
     }

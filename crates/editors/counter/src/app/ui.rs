@@ -1,5 +1,5 @@
 use block_editor_plugin::Editor;
-use block_editor_plugin::be_block::{Counter as CounterModel, CounterContent};
+use block_editor_plugin::be_block::{Counter as CounterModel, CounterContent, ObjectId};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
@@ -12,8 +12,8 @@ const BUTTON_WIDTH: f32 = 44.0;
 #[component]
 pub fn Counter(editor: Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
-    let count = counter.project(|counter| counter.root().value());
-    let shown = create_memo(clone!(count -> move || count.get().to_string()));
+    let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
+    let shown = create_memo(clone!(count -> move || count.get().get().to_string()));
     let decrement = clone!(counter -> move || counter.operate(CounterModel::add(-1)));
     let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
     let reset = clone!(counter -> move || {

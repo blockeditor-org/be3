@@ -4,8 +4,8 @@ use block_editor_plugin::be_block::{
     Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
 };
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, KeyedStore, List, Show, WriteSignal, clone,
-    component, create_memo, create_selector, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, clone, component,
+    create_memo, create_selector, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, Scroll, TextInput,
@@ -17,7 +17,6 @@ use block_editor_plugin::{ContentProjection, Editor};
 const PAGE_PADDING: f32 = 24.0;
 const SECTION_SPACING: f32 = 18.0;
 
-type Items = KeyedStore<ObjectId, ChecklistItem>;
 type List = Rc<ContentProjection<ChecklistContent>>;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
@@ -40,10 +39,6 @@ impl Filter {
 #[component]
 pub fn Checklist(editor: Editor) -> NodeId {
     let checklist: List = editor.block_content::<ChecklistContent>();
-    let items: Items = checklist.project_keyed(|checklist, items| {
-        let root = checklist.root();
-        items.reconcile(root.items.iter().map(|item| (item.id, &item.value)));
-    });
     let flags = checklist.project(|checklist| {
         checklist
             .root()
@@ -53,7 +48,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
             .collect::<Vec<_>>()
     });
     let done_count = checklist.project(|checklist| checklist.root().done_count());
-    let total = checklist.project(|checklist| checklist.root().items.len());
+    let ids = checklist.ids(ObjectId::ROOT, ChecklistModel::ITEMS);
+    let total = create_memo(clone!(ids -> move || ids.with(Vec::len)));
 
     let (draft, set_draft) = create_signal(String::new());
     let (filter, set_filter) = create_signal(Filter::All);
@@ -91,9 +87,9 @@ pub fn Checklist(editor: Editor) -> NodeId {
     let clear_checklist = checklist.clone();
     let set_open_filter = set_filter.clone();
     let set_done_filter = set_filter.clone();
-    let rows = clone!(checklist items -> move |id: ObjectId| {
+    let rows = clone!(checklist -> move |id: ObjectId| {
         view! {
-            <ChecklistRow checklist={checklist.clone()} items={items.clone()} id />
+            <ChecklistRow checklist={checklist.clone()} id />
         }
     });
 
@@ -200,10 +196,14 @@ fn add_item(checklist: &List, set_draft: &WriteSignal<String>, value: String) {
 }
 
 #[component]
-fn ChecklistRow(checklist: List, items: Items, id: ObjectId) -> NodeId {
-    let item = items.get(&id);
-    let label = create_memo(clone!(item -> move || item.with(|item| item.text.clone())));
-    let done = create_memo(clone!(item -> move || item.with(|item| item.done)));
+fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
+    let item = checklist.object::<ChecklistItem>(id);
+    let label = create_memo(clone!(item -> move || {
+        item.with(|item| item.as_ref().map(|item| item.text.clone()).unwrap_or_default())
+    }));
+    let done = create_memo(clone!(item -> move || {
+        item.with(|item| item.as_ref().is_some_and(|item| item.done))
+    }));
     let toggle = checklist.clone();
     let theme = use_theme();
     view! {

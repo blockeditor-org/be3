@@ -15,7 +15,7 @@ pub mod text;
 pub mod ui_settings;
 
 pub use be_model;
-pub use be_model::{Edit, Item, ObjectId};
+pub use be_model::{Edit, Item, ObjectId, Touched};
 pub use browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem};
 pub use calendar::{Calendar, CalendarContent, CalendarEvent};
 pub use checklist::{Checklist, ChecklistContent, ChecklistItem};
@@ -65,6 +65,11 @@ pub trait LiveEdit: BlockContent {
     type Op: Clone + Serialize + DeserializeOwned + Send + Sync + 'static;
 
     fn apply(&mut self, operation: &Self::Op);
+
+    fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
+        self.apply(operation);
+        touched.push(Touched::Everything);
+    }
 
     fn rebase(operation: Self::Op, onto: &[Self::Op]) -> Option<Self::Op> {
         let _ = onto;

@@ -343,30 +343,55 @@ the loop never names a content type; `be/native.rs` runs it on a
 thread of its own with a `FileStore` under it, and `be/web.rs` runs it on the
 browser's own executor with a `MemoryStore`, because there is no file system to
 keep objects in there and every open fetches what it needs. The plugin never
-sees the content key or the connection: it is handed content bytes and hands
-back operation bytes, through two messages on the plugin protocol.
+sees the content key or the connection: it is handed content and hands back
+operation bytes, through three messages on the plugin protocol.
 
-- `EditorMessage::Content { content_type, bytes, applied }` - host to plugin.
-  `applied` counts the operations *this instance* sent that the stack has taken,
-  which is what lets a plugin tell its own unacknowledged edits from everyone
-  else's.
+- `EditorMessage::Content { content_type, bytes, applied }` - host to plugin, a
+  snapshot. `applied` counts the operations *this instance* sent that the
+  snapshot already contains, which is what lets a plugin tell its own
+  unacknowledged edits from everyone else's.
+- `EditorMessage::ContentOperations { operations }` - host to plugin, every
+  operation since the last thing the instance was sent, in order, each marked
+  `mine` when this instance is the one that sent it.
 - `EditorMessage::Operate { operation }` - plugin to host.
 
+Operations, not snapshots, are the normal case. `Live` journals how its visible
+content changed (`Journaled::Edited`, `Applied` or `Replaced`), the worker tags
+each edit with the origin the host gave the instance that sent it
+(`be::operate_from`), and each block's `Content` keeps the last few hundred
+operations beside its bytes. `be::update_since` sends an instance the operations
+it has not seen, and falls back to a snapshot only when it is further behind
+than the log reaches or the content was replaced outright: a join, a reconcile
+or a merge. The worker only re-encodes a block when its journal says it changed.
+
 On the plugin side that is `editor.block_content::<C>()`, the `ContentProjection`
-beside `BlockProjection`: `project` registers a reader, `operate` applies the
-operation to what the view sees and queues it for the host, and each echo
-replaces the confirmed state and replays whatever is still pending on top.
+beside `BlockProjection`, one per editor. `operate` applies an operation to what
+the view sees and queues it for the host. An operation that comes back `mine`
+only confirms what is already shown; one from anyone else is applied on top of
+it, unless an edit of this instance's is still in flight, in which case the
+visible state is rebuilt from the confirmed state and the pending edits.
+
+Applying an operation reports what it touched (`LiveEdit::apply_touching`), and
+a projection only runs when something it watches was touched. `project` watches
+everything; `project_on(key, ...)` watches one key. A hand-written content type
+reports `Touched::Everything`; a `be-model` document reports the field it
+changed and every object that contains it, so `ContentProjection<Document<R>>`
+can offer `field(object, FIELD)`, `ids(owner, LIST)` and `object::<T>(id)`,
+which run only for the field, the list or the object (and what is inside it)
+they name. The checklist's rows each watch their own item and its list watches
+only its order, so ticking one item runs one row. A watcher is dropped with the
+reactive scope that made it.
+
 `block_editor_plugin` re-exports `be_block`, so an editor names its content type
 without depending on the crate itself.
 
 Migrating another self-contained editor is now four steps: a content type in
-`be-block` with its merge, an entry in `MIGRATED`, the editor reading
-`editor.block_content::<C>()` instead of `editor.block::<B>()`, and the old block
-type emptied the way `Counter` and `Checklist` are. The checklist is the example
-to follow for a list of items: `ContentProjection::project_keyed` keeps a row
-from being rebuilt when another row changes. The browser tab is the example for
-an editor that reads its content outside a projection: `ContentProjection::read`
-answers `None` until the host has sent the content once.
+`be-block` (see Adding a content type), an entry in `MIGRATED`, the editor
+reading `editor.block_content::<C>()` instead of `editor.block::<B>()`, and the
+old block type emptied the way `Counter` and `Checklist` are. The browser tab is
+the example for an editor that reads its content outside a projection:
+`ContentProjection::read` answers `None` until the host has sent the content
+once.
 
 A migrated block is still named in the old stack, because that is where the file
 tree, the block picker and search look. `BlockContent::name` is the name, and

@@ -51,8 +51,8 @@ pub use editor::{
 pub use file_chooser::{FileChooser, file_creation};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
-    BlockSource, ChildHandle, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
-    HostContent, ImagePaster, OpenRequest, PastedImage, PerformanceMeasurementGuard,
+    BlockSource, ChildHandle, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker,
+    FocusedBlock, HostContent, ImagePaster, OpenRequest, PastedImage, PerformanceMeasurementGuard,
     PerformanceReporter, PickedBlock, PickedFile, ShowRequest, Task, Waker,
 };
 pub use related::RelatedBlock;

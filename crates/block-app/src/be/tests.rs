@@ -19,6 +19,12 @@ mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod two_peers_of_one_workspace_share_a_counter;
 mod undo_steps_back_through_what_this_peer_did;
 
+const TEST_ORIGIN: u64 = 0;
+
+fn operate(block: Uuid, operation: Vec<u8>) {
+    operate_from(block, TEST_ORIGIN, operation);
+}
+
 const PATIENCE: Duration = Duration::from_secs(20);
 const QUIET: Duration = Duration::from_secs(2);
 

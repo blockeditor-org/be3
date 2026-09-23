@@ -36,7 +36,12 @@ pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
     pub applied: u64,
-    pub revision: u64,
+}
+
+#[derive(Clone)]
+pub enum ContentUpdate {
+    Snapshot(HostContent),
+    Operations(Vec<(Vec<u8>, bool)>),
 }
 
 #[derive(Clone)]
@@ -574,7 +579,7 @@ pub struct EditorHost {
     hidden_bands: Rc<RefCell<HashSet<EditorBand>>>,
     beui: Rc<Cell<BeuiFrame>>,
     next_frame: Rc<Cell<Option<Duration>>>,
-    content: Rc<RefCell<Option<HostContent>>>,
+    content_updates: Rc<RefCell<Vec<ContentUpdate>>>,
     content_operations: Rc<RefCell<Vec<Vec<u8>>>>,
 }
 
@@ -847,19 +852,24 @@ impl EditorHost {
         self.editable.get()
     }
 
-    pub fn block_content(&self) -> Option<HostContent> {
-        self.content.borrow().clone()
+    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
+        self.content_updates
+            .borrow_mut()
+            .push(ContentUpdate::Snapshot(HostContent {
+                content_type,
+                bytes,
+                applied,
+            }));
     }
 
-    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        let mut held = self.content.borrow_mut();
-        let revision = held.as_ref().map_or(1, |content| content.revision + 1);
-        *held = Some(HostContent {
-            content_type,
-            bytes,
-            applied,
-            revision,
-        });
+    pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
+        self.content_updates
+            .borrow_mut()
+            .push(ContentUpdate::Operations(operations));
+    }
+
+    pub(crate) fn take_content_updates(&self) -> Vec<ContentUpdate> {
+        std::mem::take(&mut self.content_updates.borrow_mut())
     }
 
     pub fn operate_content(&self, operation: Vec<u8>) {

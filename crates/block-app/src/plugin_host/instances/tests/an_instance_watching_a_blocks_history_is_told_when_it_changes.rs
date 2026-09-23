@@ -37,8 +37,9 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     assert!(history_states(&mut instances).is_empty());
 
     crate::be::open(block, CalendarContent::CONTENT_TYPE);
-    crate::be::operate(
+    crate::be::operate_from(
         block,
+        0,
         CalendarContent::encode_operation(
             &Calendar::add(&CalendarEvent::new("Standup", 540, 555)).1,
         ),

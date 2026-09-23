@@ -55,6 +55,13 @@ pub enum Anchor {
     End,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Touched {
+    Everything,
+    Field(ObjectId, u16),
+    Subtree(ObjectId),
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Value {
     Register(Vec<u8>),
@@ -189,6 +196,35 @@ impl<R: Model> Document<R> {
     pub fn apply(&mut self, edit: &Edit) {
         for change in &edit.0 {
             self.tree.apply(change);
+        }
+    }
+
+    pub fn apply_touching(&mut self, edit: &Edit, touched: &mut Vec<Touched>) {
+        for change in &edit.0 {
+            self.tree.touched(change, touched);
+            self.tree.apply(change);
+        }
+    }
+
+    pub fn field<M, F: Field>(&self, object: ObjectId, field: FieldRef<M, F>) -> F {
+        let value = self
+            .tree
+            .object(object)
+            .and_then(|held| held.fields.get(usize::from(field.index())))
+            .filter(|value| std::mem::discriminant(*value) == std::mem::discriminant(&F::blank()))
+            .cloned()
+            .unwrap_or_else(F::blank);
+        F::read(&self.tree, &value)
+    }
+
+    pub fn ids<M, T>(&self, owner: ObjectId, field: FieldRef<M, List<T>>) -> Vec<ObjectId> {
+        match self
+            .tree
+            .object(owner)
+            .and_then(|held| held.fields.get(usize::from(field.index())))
+        {
+            Some(Value::List(ids)) => ids.clone(),
+            _ => Vec::new(),
         }
     }
 
