@@ -7,15 +7,15 @@ use block::{Block, BlockAccess, BlockParent, BlockReference};
 use block_client::blocks::file_tree::FileTree;
 use block_client::root_settings::RootSetting;
 use block_client::{BlockClient, BlockHandle, BlockHandleAccess};
+use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_memo, create_signal, on_shortcut, view,
+    component, create_memo, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Caption, DockArea, Heading, use_theme};
 use block_editor_plugin::beui::unstyled::{
     Container, DockState, LeafId, Side, TabId, narrower_than,
 };
-use block_editor_plugin::beui::{Key, KeyPress, NodeId};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
@@ -151,7 +151,6 @@ impl Workspace {
         self.refresh_titles();
         self.report_focus();
         self.watch_artifacts();
-        self.watch_history();
     }
 
     fn refresh_titles(&self) {
@@ -196,45 +195,6 @@ impl Workspace {
                 .collect::<Vec<_>>()
         });
         self.host().watch_artifacts(watched);
-    }
-
-    fn watch_history(&self) {
-        let watched = self
-            .tabs
-            .with_untracked(|tabs| tabs.values().map(|item| item.id).collect::<Vec<_>>());
-        self.host().watch_history(watched);
-    }
-
-    pub(crate) fn step_history(&self, item: TabItem, redo: bool) -> bool {
-        let handled = self.read_handle(item, |handle| {
-            let history = handle.history()?;
-            Some(match redo {
-                true if history.can_redo() => {
-                    history.redo();
-                    true
-                }
-                false if history.can_undo() => {
-                    history.undo();
-                    true
-                }
-                _ => false,
-            })
-        });
-        if let Some(Some(handled)) = handled {
-            return handled;
-        }
-        let history = self.host().history(item.id);
-        match redo {
-            true if history.can_redo => {
-                self.host().redo(item.id);
-                true
-            }
-            false if history.can_undo => {
-                self.host().undo(item.id);
-                true
-            }
-            _ => false,
-        }
     }
 
     fn via_chain(&self, id: Uuid) -> Vec<Uuid> {
@@ -418,19 +378,6 @@ impl Workspace {
         )
     }
 
-    pub(crate) fn history_command(&self, redo: bool) -> bool {
-        let Some(tab) = self.layout.with_untracked(DockState::focused_tab) else {
-            return false;
-        };
-        let Some(item) = self.tabs.with_untracked(|tabs| tabs.get(&tab).copied()) else {
-            return false;
-        };
-        if !self.access(item.id).can_edit() {
-            return false;
-        }
-        self.step_history(item, redo)
-    }
-
     pub(crate) fn open_picker(self: &Rc<Self>, parent: Uuid) {
         self.set_error.set(None);
         let picking = Rc::downgrade(self);
@@ -578,20 +525,6 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         let now = compact.get_untracked();
         if was_compact.replace(now) != now {
             workspace.set_compact(now);
-        }
-    });
-    let shortcuts = Rc::downgrade(&workspace);
-    on_shortcut(move |press: KeyPress| {
-        if !press.pressed || !press.modifiers.ctrl {
-            return false;
-        }
-        let Some(workspace) = shortcuts.upgrade() else {
-            return false;
-        };
-        match press.key {
-            Key::Z => workspace.history_command(press.modifiers.shift),
-            Key::Y => workspace.history_command(true),
-            _ => false,
         }
     });
     let surface = NodeRef::new();

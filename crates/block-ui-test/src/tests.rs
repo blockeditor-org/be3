@@ -15,6 +15,8 @@ use crate::BeuiTest;
 
 mod a_child_block_reports_its_placement_and_follows_its_status;
 mod clearing_the_name_gives_the_block_back_its_derived_name;
+mod ctrl_z_in_a_text_field_is_left_to_the_field;
+mod ctrl_z_undoes_the_block_through_the_top_bar;
 mod the_top_bar_offers_close_only_to_a_framed_child;
 mod the_top_bar_renames_its_block;
 mod undo_in_the_top_bar_asks_the_host_for_a_block_it_cannot_open;
@@ -99,4 +101,21 @@ fn shown_name(test: &BeuiTest<ChildApp>) -> String {
         .find_test_id("editor.name")
         .expect("the top bar has a name field");
     beui::styled::text_input_value(test.document(), input)
+}
+
+fn undoable_editor() -> (BeuiTest<ChildApp>, EditorHost, Uuid) {
+    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
+    let block = Uuid::new_v4();
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_histories([(
+        block,
+        block_editor_plugin::BlockHistory {
+            can_undo: true,
+            can_redo: false,
+        },
+    )]);
+    let test =
+        BeuiTest::<ChildApp>::new(Editor::new(host.clone(), client, block)).with_top_bar(false);
+    (test, host, block)
 }

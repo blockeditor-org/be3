@@ -5,10 +5,10 @@ use beui::NodeId;
 use beui::icons::{ICON_REDO, ICON_SHARE, ICON_UNDO};
 use beui::reactive::{
     ClickCallback, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_memo, create_signal, view,
+    component, create_memo, create_signal, focus_takes_text, on_shortcut, view,
 };
 use beui::styled::{Button, ButtonVariant, IconButton, TextInput};
-use beui::{Context, Document, Key};
+use beui::{Context, Document, Key, KeyPress};
 use block_client::BlockHandleAccess;
 use block_client::properties::{BlockName, MAX_NAME_BYTES, read_name};
 use block_ui::{BlockLabel, BlockTypes};
@@ -166,6 +166,31 @@ impl Watched {
         })
     }
 
+    fn shortcut(&self, press: KeyPress) -> bool {
+        if !press.pressed || !press.modifiers.ctrl || press.modifiers.alt || focus_takes_text() {
+            return false;
+        }
+        let redo = match press.key {
+            Key::Z => press.modifiers.shift,
+            Key::Y => true,
+            _ => return false,
+        };
+        let id = self.editor.block_id();
+        if !self.editor.host().editable() || !self.editor.client().block_access(id).can_edit() {
+            return false;
+        }
+        let (can_undo, can_redo) = self.history();
+        let possible = match redo {
+            true => can_redo,
+            false => can_undo,
+        };
+        if !possible {
+            return false;
+        }
+        self.step(redo);
+        true
+    }
+
     fn step(&self, redo: bool) {
         let handled = self.with_handle(|handle| {
             let history = handle.history()?;
@@ -237,6 +262,9 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
     });
     let reading = Rc::clone(&watched);
     let visible = shown.clone();
+    let shortcuts = Rc::clone(&watched);
+    let active = shown.clone();
+    on_shortcut(move |press: KeyPress| active.get_untracked() && shortcuts.shortcut(press));
     editor.each_frame(move || {
         if visible.get_untracked() {
             set_state.set(reading.read());
