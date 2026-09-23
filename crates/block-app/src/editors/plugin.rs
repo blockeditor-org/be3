@@ -775,24 +775,36 @@ impl PluginEditor {
     }
 
     pub(crate) fn add_child(&self, entry: BlockEntry) -> Option<bool> {
-        self.block.add_child(entry.id)
+        self.change_child(be_block::ChildChange::Add(entry.id))
     }
 
     pub(crate) fn delete_child(&self, entry: BlockEntry) -> Option<bool> {
-        self.block.delete_child(entry.id)
+        self.change_child(be_block::ChildChange::Delete(entry.id))
     }
 
     pub(crate) fn replace_child(&self, old: Uuid, new: BlockEntry) -> Option<bool> {
+        let replace = be_block::ChildChange::Replace { old, new: new.id };
         let Some(plugin) = &self.plugin else {
-            return self.block.replace_child(old, new.id);
+            return self.change_child(replace);
         };
         if !plugin.children.replace {
             return None;
         }
         match crate::plugin_host::replace_child(&plugin.identity.id, self.instance, old, new.id) {
             Some(true) => Some(true),
-            Some(false) => self.block.replace_child(old, new.id),
+            Some(false) => self.change_child(replace),
             None => None,
+        }
+    }
+
+    fn change_child(&self, change: be_block::ChildChange) -> Option<bool> {
+        if crate::be::content_type_for(self.block_type()).is_some() {
+            return crate::be::change_child(self.id(), self.block_type(), change);
+        }
+        match change {
+            be_block::ChildChange::Add(child) => self.block.add_child(child),
+            be_block::ChildChange::Delete(child) => self.block.delete_child(child),
+            be_block::ChildChange::Replace { old, new } => self.block.replace_child(old, new),
         }
     }
 

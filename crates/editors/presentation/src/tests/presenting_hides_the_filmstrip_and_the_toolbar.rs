@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn presenting_hides_the_filmstrip_and_the_toolbar() {
-    let (mut test, editor, _block) = editor(3);
+    let (mut test, editor) = editor(3);
     test.run();
     assert!(test.shown("presentation.add"));
     let editing = editor.content_rect();

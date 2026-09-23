@@ -142,6 +142,7 @@ struct Migrated {
     seed: worker::Seed,
     name: fn(&[u8]) -> Option<String>,
     references: fn(&[u8]) -> Vec<Uuid>,
+    child: fn(&[u8], be_block::ChildChange) -> Option<Vec<Vec<u8>>>,
 }
 
 const fn migrated<B, C>() -> Migrated
@@ -157,6 +158,7 @@ where
         seed: worker::seed::<C>,
         name: content_name::<C>,
         references: content_references::<C>,
+        child: child_operations::<C>,
     }
 }
 
@@ -173,11 +175,20 @@ where
         seed: worker::seed::<C>,
         name: content_name::<C>,
         references: content_references::<C>,
+        child: child_operations::<C>,
     }
 }
 
 fn content_name<C: be_block::BlockContent>(bytes: &[u8]) -> Option<String> {
     C::decode(bytes).ok()?.name()
+}
+
+fn child_operations<C: be_block::LiveEdit>(
+    bytes: &[u8],
+    change: be_block::ChildChange,
+) -> Option<Vec<Vec<u8>>> {
+    let operations = C::decode(bytes).ok()?.child_operations(change)?;
+    Some(operations.iter().map(C::encode_operation).collect())
 }
 
 fn content_references<C: be_block::BlockContent>(bytes: &[u8]) -> Vec<Uuid> {
@@ -199,6 +210,10 @@ const MIGRATED: &[Migrated] = &[
     migrated_with_history::<
         block_client::blocks::database_view::DatabaseView,
         be_block::DatabaseViewContent,
+    >(),
+    migrated_with_history::<
+        block_client::blocks::presentation::Presentation,
+        be_block::PresentationContent,
     >(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
@@ -347,6 +362,24 @@ pub(crate) fn hold(block: Uuid, block_type: Uuid) {
     if fresh {
         send(Command::Open(block, content_type));
     }
+}
+
+pub(crate) fn change_child(
+    block: Uuid,
+    block_type: Uuid,
+    change: be_block::ChildChange,
+) -> Option<bool> {
+    let migrated = MIGRATED
+        .iter()
+        .find(|migrated| migrated.block_type == block_type)?;
+    let Some(held) = content(block) else {
+        hold(block, block_type);
+        return None;
+    };
+    for operation in (migrated.child)(&held.bytes, change)? {
+        send(Command::Operate(block, None, operation));
+    }
+    Some(true)
 }
 
 pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {

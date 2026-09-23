@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn dragging_a_slide_onto_another_reorders_the_deck() {
-    let (mut test, _editor, block) = editor(3);
-    let ids = slide_ids(&block);
+    let (mut test, _editor) = editor(3);
+    let ids = slide_ids(&test);
     test.run();
 
     let from = test
@@ -15,5 +15,5 @@ fn dragging_a_slide_onto_another_reorders_the_deck() {
     test.drag(from, onto);
     test.run();
 
-    assert_eq!(slide_ids(&block), [ids[1], ids[2], ids[0]]);
+    assert_eq!(slide_ids(&test), [ids[1], ids[2], ids[0]]);
 }

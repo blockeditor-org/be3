@@ -4,7 +4,7 @@ use be_model::{Anchor, Change, Document, Edit, Item, List, Map, Model, ObjectId}
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockRef, Root};
+use crate::{BlockRef, ChildChange, Root};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct DatabaseColor {
@@ -106,6 +106,26 @@ impl Database {
 
 impl Root for Database {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6461_7461_6261_7365_2d63_6f6e_7465_6e74);
+
+    fn child_edit(&self, change: ChildChange) -> Option<Edit> {
+        let (old, new) = match change {
+            ChildChange::Add(_) => return None,
+            ChildChange::Delete(old) => (old, None),
+            ChildChange::Replace { old, new } => (old, Some(DatabaseValue::Block(BlockRef::Direct(new)))),
+        };
+        let old = DatabaseValue::Block(BlockRef::Direct(old));
+        Some(
+            self.rows
+                .iter()
+                .flat_map(|row| {
+                    row.values
+                        .iter()
+                        .filter(|(_, value)| **value == old)
+                        .map(|(field, _)| DatabaseRow::VALUES.put(row.id, field, new.as_ref()))
+                })
+                .collect(),
+        )
+    }
 
     fn references(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();

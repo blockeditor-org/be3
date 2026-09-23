@@ -135,3 +135,17 @@ impl<A: BeuiApp> ContentHarness<A> {
         }
     }
 }
+
+impl<A: BeuiApp> std::ops::Deref for ContentHarness<A> {
+    type Target = BeuiTest<A>;
+
+    fn deref(&self) -> &BeuiTest<A> {
+        &self.editor
+    }
+}
+
+impl<A: BeuiApp> std::ops::DerefMut for ContentHarness<A> {
+    fn deref_mut(&mut self) -> &mut BeuiTest<A> {
+        &mut self.editor
+    }
+}

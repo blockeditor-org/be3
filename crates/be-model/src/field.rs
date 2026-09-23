@@ -212,17 +212,18 @@ impl<M> FieldRef<M, Count> {
 impl<M, T: Model> FieldRef<M, List<T>> {
     pub fn insert(self, owner: ObjectId, anchor: Anchor, value: &T) -> (ObjectId, Change) {
         let id = ObjectId::new();
+        (id, self.insert_as(id, owner, anchor, value))
+    }
+
+    pub fn insert_as(self, id: ObjectId, owner: ObjectId, anchor: Anchor, value: &T) -> Change {
         let place = self.of(owner);
         let mut objects = Vec::new();
         value.write(id, Some(place), &mut objects);
-        (
-            id,
-            Change::Insert {
-                place,
-                anchor,
-                objects,
-            },
-        )
+        Change::Insert {
+            place,
+            anchor,
+            objects,
+        }
     }
 
     pub fn move_into(self, owner: ObjectId, anchor: Anchor, object: ObjectId) -> Change {

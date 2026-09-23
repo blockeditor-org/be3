@@ -14,6 +14,7 @@ pub mod database_schema;
 pub mod database_view;
 pub mod image;
 pub mod model;
+pub mod presentation;
 pub mod streamed;
 pub mod text;
 pub mod ui_settings;
@@ -30,6 +31,7 @@ pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
 pub use image::{ImageContent, ImageHeader};
 pub use model::Root;
+pub use presentation::{Presentation, PresentationContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
@@ -69,6 +71,13 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChildChange {
+    Add(Uuid),
+    Delete(Uuid),
+    Replace { old: Uuid, new: Uuid },
+}
+
 pub trait LiveEdit: BlockContent {
     type Op: Clone + Serialize + DeserializeOwned + Send + Sync + 'static;
 
@@ -77,6 +86,11 @@ pub trait LiveEdit: BlockContent {
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         self.apply(operation);
         touched.push(Touched::Everything);
+    }
+
+    fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
+        let _ = change;
+        None
     }
 
     fn rebase(operation: Self::Op, onto: &[Self::Op]) -> Option<Self::Op> {
