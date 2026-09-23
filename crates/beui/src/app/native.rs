@@ -705,6 +705,13 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let pressed = event.state == ElementState::Pressed;
+                #[cfg(target_os = "linux")]
+                if !event.repeat {
+                    use winit::platform::scancode::PhysicalKeyExtScancode;
+                    if let Some(code) = event.physical_key.to_scancode() {
+                        self.push(Event::PhysicalKey { code, pressed });
+                    }
+                }
                 if let PhysicalKey::Code(code) = event.physical_key {
                     if pressed
                         && code == KeyCode::KeyV

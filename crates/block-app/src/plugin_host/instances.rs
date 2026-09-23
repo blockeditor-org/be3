@@ -100,7 +100,7 @@ struct ContentLink {
     opened: bool,
     origin: u64,
     sent: Option<u64>,
-    bridged: Option<u64>,
+    bridged: Option<(u64, bool)>,
     old_block: Option<Box<dyn BlockHandleAccess>>,
 }
 
@@ -120,9 +120,7 @@ impl ContentLink {
         let Some(content) = crate::be::content(block) else {
             return;
         };
-        if self.bridged == Some(content.revision)
-            || client.block_access(block) != block::BlockAccess::Edit
-        {
+        if client.block_access(block) != block::BlockAccess::Edit {
             return;
         }
         if self.old_block.is_none() {
@@ -131,11 +129,15 @@ impl ContentLink {
         let Some(old_block) = &self.old_block else {
             return;
         };
+        let manual = old_block.block_name().is_some_and(|name| name.manual);
+        if self.bridged == Some((content.revision, manual)) {
+            return;
+        }
         let references = crate::be::references_of(&content).unwrap_or_default();
         if old_block.set_implicit_name(crate::be::name_of(&content))
             && old_block.set_references(references)
         {
-            self.bridged = Some(content.revision);
+            self.bridged = Some((content.revision, manual));
         }
     }
 
@@ -1166,6 +1168,7 @@ impl Instances {
                 frame_owner: matches!(mode, ChildMode::Active | ChildMode::Live)
                     && !screen.frame_revoked.contains(&child.child),
                 own_frame: child.own_frame,
+                top_bar: child.top_bar,
                 block_id: Uuid::from_bytes(child.block_id),
                 block_type: Uuid::from_bytes(child.block_type),
                 rect: child_rect,
@@ -2208,7 +2211,6 @@ impl Instances {
         block_id: Uuid,
         block_type: Uuid,
         via: Option<Uuid>,
-        from: Option<Uuid>,
     ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
@@ -2218,7 +2220,6 @@ impl Instances {
             block_id: block_id.into_bytes(),
             block_type: block_type.into_bytes(),
             via: via.map(Uuid::into_bytes),
-            from: from.map(Uuid::into_bytes),
         })]
     }
 

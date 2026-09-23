@@ -58,7 +58,6 @@ pub struct ShowRequest {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub via: Option<Uuid>,
-    pub from: Option<Uuid>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -430,6 +429,7 @@ pub struct EditorHost {
     replies: Rc<RefCell<HashMap<u64, HostReply>>>,
     next_request: Rc<Cell<u64>>,
     editable: Rc<Cell<bool>>,
+    block_type: Rc<Cell<Option<Uuid>>>,
     client_id: Rc<Cell<Uuid>>,
     view: Rc<Cell<Option<View>>>,
     view_changes: Rc<RefCell<Vec<ViewChange>>>,
@@ -507,18 +507,11 @@ impl EditorHost {
         std::mem::take(&mut self.shows.borrow_mut())
     }
 
-    pub fn show_block(
-        &self,
-        block_id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
-        from: Option<Uuid>,
-    ) {
+    pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.shows.borrow_mut().push(ShowRequest {
             block_id,
             block_type,
             via,
-            from,
         });
     }
 
@@ -734,6 +727,14 @@ impl EditorHost {
 
     pub fn editable(&self) -> bool {
         self.editable.get()
+    }
+
+    pub fn block_type(&self) -> Option<Uuid> {
+        self.block_type.get()
+    }
+
+    pub fn set_block_type(&self, block_type: Uuid) {
+        self.block_type.set(Some(block_type));
     }
 
     pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
@@ -1146,6 +1147,7 @@ impl EditorHost {
         mode: ChildMode,
         layer: ChildLayer,
         own_frame: bool,
+        top_bar: bool,
         rotation: f32,
         opacity: f32,
         intrinsic: Option<beui::Vec2>,
@@ -1163,6 +1165,7 @@ impl EditorHost {
             rect: child_rect(rect.translate(-state.origin)),
             clip: child_rect(clip.translate(-state.origin)),
             own_frame,
+            top_bar,
             corner_radius: 0.0,
             layer,
             mode,
