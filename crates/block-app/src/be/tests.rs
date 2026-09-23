@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use be_block::{BlockContent, ChecklistContent, ChecklistOp, CounterContent, CounterOp, LiveEdit};
+use be_block::{BlockContent, Checklist, ChecklistContent, Counter, CounterContent, LiveEdit};
 use block_client::ManagementClient;
 use uuid::Uuid;
 
@@ -126,7 +126,7 @@ fn count_of(block: Uuid) -> Option<i64> {
     (held.content_type == CounterContent::CONTENT_TYPE)
         .then(|| CounterContent::decode(&held.bytes).ok())
         .flatten()
-        .map(|counter| counter.count())
+        .map(|counter| counter.root().value())
 }
 
 fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
@@ -134,7 +134,7 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
     (held.content_type == CounterContent::CONTENT_TYPE)
         .then(|| CounterContent::decode(&held.bytes).ok())
         .flatten()
-        .map(|counter| counter.count())
+        .map(|counter| counter.root().value())
 }
 
 fn wait_for_count(block: Uuid, expected: i64) {
@@ -159,8 +159,5 @@ fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
 }
 
 fn add(block: Uuid, by: i64) {
-    operate(
-        block,
-        CounterContent::encode_operation(&CounterOp::Add { by }),
-    );
+    operate(block, CounterContent::encode_operation(&Counter::add(by)));
 }

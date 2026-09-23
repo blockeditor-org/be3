@@ -4,6 +4,8 @@ members = [
     "crates/be-client",
     "crates/be-commit",
     "crates/be-graph",
+    "crates/be-model",
+    "crates/be-model-derive",
     "crates/be-protocol",
     "crates/be-server",
     "crates/be-session",

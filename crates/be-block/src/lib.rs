@@ -9,16 +9,19 @@ pub mod calendar;
 pub mod checklist;
 pub mod counter;
 pub mod image;
-mod keyed;
+pub mod model;
 pub mod streamed;
 pub mod text;
 pub mod ui_settings;
 
+pub use be_model;
+pub use be_model::{Edit, Item, ObjectId};
 pub use browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem};
-pub use calendar::{CalendarContent, CalendarEvent, CalendarOp, CalendarStep};
-pub use checklist::{ChecklistContent, ChecklistItem, ChecklistOp};
-pub use counter::{CounterContent, CounterOp};
+pub use calendar::{Calendar, CalendarContent, CalendarEvent};
+pub use checklist::{Checklist, ChecklistContent, ChecklistItem};
+pub use counter::{Counter, CounterContent};
 pub use image::{ImageContent, ImageHeader};
+pub use model::Root;
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };

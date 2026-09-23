@@ -112,8 +112,9 @@ fn content_name<C: be_block::BlockContent>(bytes: &[u8]) -> Option<String> {
 
 const MIGRATED: &[Migrated] = &[
     migrated_with_history::<block_client::blocks::calendar::Calendar, be_block::CalendarContent>(),
-    migrated::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(),
-    migrated::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
+    migrated_with_history::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(
+    ),
+    migrated_with_history::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
 ];

@@ -1,4 +1,4 @@
-use block_editor_plugin::be_block::CalendarEvent;
+use block_editor_plugin::be_block::ObjectId;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::TextAlign;
 use block_editor_plugin::beui::reactive::{
@@ -8,7 +8,7 @@ use block_editor_plugin::beui::reactive::{
 use block_editor_plugin::beui::styled::{Body, Caption, ListRow, use_theme};
 use block_ui::datetime::{civil_from_days, days_from_civil};
 
-use super::model::{WEEKDAY_ABBR, events_on, today_days_since_epoch, weekday_from_days};
+use super::model::{Shown, WEEKDAY_ABBR, events_on, today_days_since_epoch, weekday_from_days};
 
 const CELL_HEIGHT: f32 = 92.0;
 const CELL_SPACING: f32 = 2.0;
@@ -18,9 +18,9 @@ const WEEKS: i64 = 6;
 #[component]
 pub(crate) fn MonthGrid(
     anchor: Memo<i64>,
-    events: Memo<Vec<CalendarEvent>>,
+    events: Memo<Vec<Shown>>,
     on_pick_day: Callback<i64>,
-    on_pick_event: Callback<CalendarEvent>,
+    on_pick_event: Callback<Shown>,
 ) -> NodeId {
     let weeks = create_memo(clone!(anchor -> move || {
         let (year, month, _) = civil_from_days(anchor.get());
@@ -65,9 +65,9 @@ pub(crate) fn MonthGrid(
 fn MonthWeek(
     start: i64,
     anchor: Memo<i64>,
-    events: Memo<Vec<CalendarEvent>>,
+    events: Memo<Vec<Shown>>,
     on_pick_day: Callback<i64>,
-    on_pick_event: Callback<CalendarEvent>,
+    on_pick_event: Callback<Shown>,
 ) -> NodeId {
     let days = create_memo(move || (0..7).map(|offset| start + offset).collect::<Vec<i64>>());
     view! {
@@ -94,9 +94,9 @@ fn MonthWeek(
 fn MonthCell(
     day: i64,
     anchor: Memo<i64>,
-    events: Memo<Vec<CalendarEvent>>,
+    events: Memo<Vec<Shown>>,
     on_pick_day: Callback<i64>,
-    on_pick_event: Callback<CalendarEvent>,
+    on_pick_event: Callback<Shown>,
 ) -> NodeId {
     let (_, _, day_number) = civil_from_days(day);
     let in_month = create_memo(clone!(anchor -> move || {
@@ -151,10 +151,10 @@ fn MonthCell(
                     <Caption content={day_number.to_string()} color={number_color} />
                 </ListRow>
                 <ForEach keys={shown}>
-                    {move |id: uuid::Uuid| {
+                    {move |id: ObjectId| {
                         let event = event_of(day_events.clone(), id);
                         let title = create_memo(clone!(event -> move || {
-                            event.get().map(|event| event.title).unwrap_or_default()
+                            event.get().map(|event| event.value.title).unwrap_or_default()
                         }));
                         let open = clone!(on_pick_event event -> move || {
                             if let Some(event) = event.get_untracked() {
@@ -197,7 +197,7 @@ fn weekday_names() -> Memo<Vec<&'static str>> {
     create_memo(|| WEEKDAY_ABBR.to_vec())
 }
 
-fn event_of(events: Memo<Vec<CalendarEvent>>, id: uuid::Uuid) -> Memo<Option<CalendarEvent>> {
+fn event_of(events: Memo<Vec<Shown>>, id: ObjectId) -> Memo<Option<Shown>> {
     create_memo(move || events.with(|events| events.iter().find(|event| event.id == id).cloned()))
 }
 

@@ -1,13 +1,14 @@
 use super::*;
 
-use be_block::{CalendarContent, CalendarEvent, CalendarOp};
+use be_block::{Calendar, CalendarContent, CalendarEvent, Edit};
 
 fn titles(shared: &Shared, block: Uuid) -> Option<Vec<String>> {
     let held = shared.blocks.get(&block)?;
     let calendar = CalendarContent::decode(&held.bytes).ok()?;
     Some(
         calendar
-            .events()
+            .root()
+            .events
             .iter()
             .map(|event| event.title.clone())
             .collect(),
@@ -21,8 +22,8 @@ fn reached(block: Uuid, expected: &[&str], history: History) {
     });
 }
 
-fn calendar(block: Uuid, operation: &CalendarOp) {
-    operate(block, CalendarContent::encode_operation(operation));
+fn calendar(block: Uuid, edit: &Edit) {
+    operate(block, CalendarContent::encode_operation(edit));
 }
 
 #[test]
@@ -31,22 +32,14 @@ fn undo_steps_back_through_what_this_peer_did() {
     harness.connect();
     let block = Uuid::new_v4();
     open(block, CalendarContent::CONTENT_TYPE);
-    let event = CalendarEvent::new("S".to_owned(), 540, 555);
+    let (event, add) = Calendar::add(&CalendarEvent::new("S", 540, 555));
 
+    calendar(block, &add);
     calendar(
         block,
-        &CalendarOp::AddEvent {
-            event: event.clone(),
-        },
-    );
-    calendar(
-        block,
-        &CalendarOp::UpdateEvent {
-            event: CalendarEvent {
-                title: "Standup".to_owned(),
-                ..event.clone()
-            },
-        },
+        &CalendarEvent::TITLE
+            .set(event, &"Standup".to_owned())
+            .into(),
     );
     let only_undo = History {
         can_undo: true,

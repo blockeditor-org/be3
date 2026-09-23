@@ -2,7 +2,7 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, CalendarContent, CalendarEvent, CalendarOp, LiveEdit};
+use be_block::{BlockContent, Calendar, CalendarContent, CalendarEvent, LiveEdit};
 use block_plugin_api::HistoryState;
 
 fn history_states(instances: &mut Instances) -> Vec<Vec<HistoryState>> {
@@ -39,9 +39,9 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     crate::be::open(block, CalendarContent::CONTENT_TYPE);
     crate::be::operate(
         block,
-        CalendarContent::encode_operation(&CalendarOp::AddEvent {
-            event: CalendarEvent::new("Standup".to_owned(), 540, 555),
-        }),
+        CalendarContent::encode_operation(
+            &Calendar::add(&CalendarEvent::new("Standup", 540, 555)).1,
+        ),
     );
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         shared

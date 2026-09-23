@@ -1,9 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use block_editor_plugin::be_block::CalendarEvent;
+use block_editor_plugin::be_block::{CalendarEvent, Item, ObjectId};
 pub(crate) use block_ui::datetime::SECONDS_PER_DAY;
 use block_ui::datetime::{DateTimeFields, MONTH_NAMES, civil_from_days, days_from_civil};
-use uuid::Uuid;
 
 pub(crate) const WEEKDAY_ABBR: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 pub(crate) const WEEKDAY_FULL: [&str; 7] = [
@@ -108,9 +107,17 @@ impl CalendarView {
     }
 }
 
+pub(crate) type Shown = Item<CalendarEvent>;
+
+#[derive(Clone)]
+pub(crate) enum FormAction {
+    Save(Option<ObjectId>, CalendarEvent),
+    Delete(ObjectId),
+}
+
 #[derive(Clone, PartialEq)]
 pub(crate) struct EventForm {
-    pub(crate) editing_id: Option<Uuid>,
+    pub(crate) editing_id: Option<ObjectId>,
     pub(crate) title: String,
     pub(crate) start: DateTimeFields,
     pub(crate) end: DateTimeFields,
@@ -127,7 +134,7 @@ impl EventForm {
         }
     }
 
-    pub(crate) fn edit(event: &CalendarEvent) -> Self {
+    pub(crate) fn edit(event: &Shown) -> Self {
         Self {
             editing_id: Some(event.id),
             title: event.title.clone(),
@@ -138,16 +145,11 @@ impl EventForm {
 
     pub(crate) fn event(&self) -> CalendarEvent {
         let start = self.start.to_unix();
-        CalendarEvent {
-            id: self.editing_id.unwrap_or_else(Uuid::new_v4),
-            title: self.title.trim().to_owned(),
-            start,
-            end: self.end.to_unix().max(start),
-        }
+        CalendarEvent::new(self.title.trim(), start, self.end.to_unix())
     }
 }
 
-pub(crate) fn assign_lanes(events: &[CalendarEvent]) -> (Vec<usize>, usize) {
+pub(crate) fn assign_lanes(events: &[Shown]) -> (Vec<usize>, usize) {
     let mut lane_ends: Vec<i64> = Vec::new();
     let mut lanes = Vec::with_capacity(events.len());
     for event in events {
@@ -165,7 +167,7 @@ pub(crate) fn assign_lanes(events: &[CalendarEvent]) -> (Vec<usize>, usize) {
     (lanes, lane_ends.len().max(1))
 }
 
-pub(crate) fn events_on(events: &[CalendarEvent], day: i64) -> Vec<CalendarEvent> {
+pub(crate) fn events_on(events: &[Shown], day: i64) -> Vec<Shown> {
     let start = day * SECONDS_PER_DAY;
     let end = start + SECONDS_PER_DAY;
     let mut day_events: Vec<_> = events

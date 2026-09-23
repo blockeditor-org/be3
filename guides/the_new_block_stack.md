@@ -60,6 +60,7 @@ be-commit    commit DAG, retention, merge         client + server
 be-session   ownership lease, sequencer, resume   client + server
 be-graph     parents, edges, access, refcounts    server
 be-protocol  the wire format                      client + server
+be-model     objects with ids, merge, undo, derive client
 be-block     content traits and content types     client
 be-client    a peer: local store, blocks, Live    client
 be-server    the always-online peer               server
@@ -239,17 +240,76 @@ in the app's worker: a follower's edits are the owner's to save.
 
 ## Adding a content type
 
-1. Implement `BlockContent` in `crates/be-block/src/`. Derive the edges from the
-   converged state in `references`; they are recorded per commit.
-2. Implement `Merge`. A keyed structure can usually use `be_commit::merge_map`;
-   text-shaped content can use `merge_lines`. The default for anything opaque is
-   a conflict, never a silent pick.
-3. Implement `LiveEdit` only if the type is edited live. `rebase` transforms an
-   operation against operations the sequencer already accepted; returning `None`
-   means the operation no longer means anything and is dropped.
-4. Implement `Streamed` if the payload is large or the header is useful alone.
-5. Test the transform and the merge in `crates/be-block/src/tests/`, and the
-   round trip through a real server in `crates/be-client/src/tests/`.
+Describe the content as structs and derive `be_model::Model`; do not write a
+merge, a rebase or an undo.
+
+```rust
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+pub struct Calendar {
+    pub events: List<CalendarEvent>,
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+pub struct CalendarEvent {
+    pub title: String,
+    pub start: i64,
+    pub end: i64,
+}
+
+impl Root for Calendar {
+    const CONTENT_TYPE: Uuid = ...;
+}
+
+pub type CalendarContent = Document<Calendar>;
+```
+
+A field is one of three things. A `Count` is a counter whose concurrent changes
+add up. A `List<T>` holds objects of a `Model` type `T`. Anything else that is
+`Serialize + DeserializeOwned + Clone + PartialEq + Default` is a register: it is
+set as a whole, and setting it on both sides of an offline merge is a conflict.
+`Root` names the content type and, optionally, the block's name.
+
+`be-model` stores a document as a table of objects with ids, not as a tree of
+values, and every algorithm is written once against that table:
+
+- **Identity.** Every object in a `List` has an `ObjectId` (the `id` of the
+  `Item` the list reads back as), and edits name the object, not a position.
+  An edit to an object that has since moved into another list still lands on
+  it, and a `move_into` carries an object and everything under it from one list
+  to another.
+- **Edits.** The derive gives each field a typed constant, `CalendarEvent::TITLE`,
+  that builds the changes an `Edit` is made of: `set` for a register, `add` for a
+  `Count`, `insert` and `move_into` for a `List`, and `Change::remove` for any
+  object. A content type usually wraps these in helpers the editor calls, like
+  `Calendar::update`, which only writes the fields that changed.
+- **Live editing.** Edits address objects by id and anchor inserts to a sibling,
+  so they mean the same thing whatever the sequencer put before them: there is
+  nothing to rebase.
+- **Offline merge.** `Document::merge` matches objects by id across the three
+  versions and merges each field on its own: registers take whichever side
+  changed, counts add both sides, lists merge their order the way `merge_slices`
+  merges lines, and an object that moved on one side and was edited on the other
+  keeps both. Deleting an object that the other side edited, or that the other
+  side put something into, keeps it and counts a conflict rather than losing the
+  edit.
+- **Undo.** `Document::step` records, for each change, the change that undoes it
+  and the one that redoes it, both taken against the state before the edit. A
+  register's undo is conditional (`Change::SetIf`): it only puts the old value
+  back if nobody has changed the field since, which is how undo leaves other
+  people's edits alone. A removed object is put back with everything under it,
+  after the sibling it followed. Consecutive sets of the same fields absorb into
+  one step.
+
+`Document<R>` implements `BlockContent`, `LiveEdit`, `Merge` and `Undo` in
+`be-block` (`model.rs`), so a type built this way is registered with
+`migrated_with_history` and has undo from the start. The counter, the checklist
+and the calendar are built this way. The browser tab, the UI settings, text and
+images still implement the traits by hand, which remains possible for content
+that does not fit, such as a byte payload or a type that is better as a CRDT.
+
+Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
+tested in `crates/be-model/src/tests/`, and the round trip through a real server
+in `crates/be-client/src/tests/`.
 
 ## Running it
 

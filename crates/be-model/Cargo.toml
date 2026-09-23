@@ -1,12 +1,13 @@
 [package]
-name = "be-block"
+name = "be-model"
+description = "Block content built from primitives that merge, rebase and undo themselves"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
 be-commit = { path = "../be-commit" }
-be-model = { path = "../be-model" }
+be-model-derive = { path = "../be-model-derive" }
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["serde", "v4"] }

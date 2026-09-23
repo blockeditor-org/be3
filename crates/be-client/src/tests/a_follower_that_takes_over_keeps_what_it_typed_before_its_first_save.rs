@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{CounterContent, CounterOp};
+use be_block::{Counter, CounterContent};
 
 #[tokio::test]
 async fn a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save() {
@@ -18,19 +18,19 @@ async fn a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save() 
         .await
         .unwrap();
 
-    on_phone.edit(CounterOp::Add { by: 1 }).await.unwrap();
+    on_phone.edit(Counter::add(1)).await.unwrap();
     until(
         &mut [&mut on_phone, &mut on_laptop],
         "shared the first add",
-        |sessions| sessions[1].content().count() == 1,
+        |sessions| sessions[1].content().root().value() == 1,
     )
     .await;
     on_phone.seal().await.unwrap().published().unwrap();
-    on_laptop.edit(CounterOp::Add { by: 10 }).await.unwrap();
+    on_laptop.edit(Counter::add(10)).await.unwrap();
     until(
         &mut [&mut on_phone, &mut on_laptop],
         "sequenced the laptop's add",
-        |sessions| sessions[0].content().count() == 11 && sessions[1].is_clean(),
+        |sessions| sessions[0].content().root().value() == 11 && sessions[1].is_clean(),
     )
     .await;
     let sealed = on_phone.seal().await.unwrap().published().unwrap();
@@ -46,7 +46,7 @@ async fn a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save() 
         |sessions| sessions[0].is_owner(),
     )
     .await;
-    on_laptop.edit(CounterOp::Add { by: 100 }).await.unwrap();
+    on_laptop.edit(Counter::add(100)).await.unwrap();
 
     let head = on_laptop
         .seal()
@@ -61,7 +61,8 @@ async fn a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save() 
             .await
             .unwrap()
             .unwrap()
-            .count(),
+            .root()
+            .value(),
         111
     );
 
