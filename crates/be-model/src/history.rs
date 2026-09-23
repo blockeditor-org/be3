@@ -17,37 +17,73 @@ impl Step {
 
     pub fn absorb(&mut self, next: Self) -> Result<(), Self> {
         let chained = self.redo.len() == next.redo.len()
-            && self.redo.iter().zip(&next.redo).all(|(done, following)| {
-                matches!(
-                    (done, following),
-                    (
-                        Change::SetIf { object, field, value, .. },
-                        Change::SetIf { object: next_object, field: next_field, expected, .. },
-                    ) if object == next_object && field == next_field && value == expected
-                )
-            });
+            && self
+                .redo
+                .iter()
+                .zip(&next.redo)
+                .all(|(done, following)| follows(done, following));
         if !chained {
             return Err(next);
         }
         for (undo, latest) in self.undo.iter_mut().zip(next.undo) {
-            if let (
-                Change::SetIf { expected, .. },
-                Change::SetIf {
-                    expected: after, ..
-                },
-            ) = (undo, latest)
-            {
-                *expected = after;
+            match (undo, latest) {
+                (Change::SetIf { expected, .. }, Change::SetIf { expected: after, .. }) => {
+                    *expected = after;
+                }
+                (Change::PutIf { expected, .. }, Change::PutIf { expected: after, .. }) => {
+                    *expected = after;
+                }
+                _ => {}
             }
         }
         for (redo, latest) in self.redo.iter_mut().zip(next.redo) {
-            if let (Change::SetIf { value, .. }, Change::SetIf { value: after, .. }) =
-                (redo, latest)
-            {
-                *value = after;
+            match (redo, latest) {
+                (Change::SetIf { value, .. }, Change::SetIf { value: after, .. }) => {
+                    *value = after;
+                }
+                (Change::PutIf { value, .. }, Change::PutIf { value: after, .. }) => {
+                    *value = after;
+                }
+                _ => {}
             }
         }
         Ok(())
+    }
+}
+
+fn follows(done: &Change, following: &Change) -> bool {
+    match (done, following) {
+        (
+            Change::SetIf {
+                object,
+                field,
+                value,
+                ..
+            },
+            Change::SetIf {
+                object: next_object,
+                field: next_field,
+                expected,
+                ..
+            },
+        ) => object == next_object && field == next_field && value == expected,
+        (
+            Change::PutIf {
+                object,
+                field,
+                key,
+                value,
+                ..
+            },
+            Change::PutIf {
+                object: next_object,
+                field: next_field,
+                key: next_key,
+                expected,
+                ..
+            },
+        ) => object == next_object && field == next_field && key == next_key && value == expected,
+        _ => false,
     }
 }
 

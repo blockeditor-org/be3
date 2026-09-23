@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Deref};
+use std::{collections::BTreeMap, marker::PhantomData, ops::Deref};
 
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -230,6 +230,76 @@ impl<M, T: Model> FieldRef<M, List<T>> {
             object,
             place: self.of(owner),
             anchor,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Map<K, V> {
+    entries: BTreeMap<K, V>,
+}
+
+impl<K, V> Default for Map<K, V> {
+    fn default() -> Self {
+        Self {
+            entries: BTreeMap::new(),
+        }
+    }
+}
+
+impl<K, V> Deref for Map<K, V> {
+    type Target = BTreeMap<K, V>;
+
+    fn deref(&self) -> &BTreeMap<K, V> {
+        &self.entries
+    }
+}
+
+impl<K: Ord, V> FromIterator<(K, V)> for Map<K, V> {
+    fn from_iter<I: IntoIterator<Item = (K, V)>>(entries: I) -> Self {
+        Self {
+            entries: entries.into_iter().collect(),
+        }
+    }
+}
+
+impl<K: Register + Ord, V: Register> Field for Map<K, V> {
+    fn blank() -> Value {
+        Value::Map(BTreeMap::new())
+    }
+
+    fn read(_tree: &Tree, value: &Value) -> Self {
+        let Value::Map(entries) = value else {
+            return Self::default();
+        };
+        entries
+            .iter()
+            .filter_map(|(key, value)| {
+                Some((
+                    postcard::from_bytes(key).ok()?,
+                    postcard::from_bytes(value).ok()?,
+                ))
+            })
+            .collect()
+    }
+
+    fn write(&self, _owner: ObjectId, _field: u16, _out: &mut Vec<(ObjectId, Object)>) -> Value {
+        Value::Map(
+            self.entries
+                .iter()
+                .map(|(key, value)| (encode(key), encode(value)))
+                .collect(),
+        )
+    }
+}
+
+impl<M, K: Register, V: Register> FieldRef<M, Map<K, V>> {
+    pub fn put(self, object: ObjectId, key: &K, value: Option<&V>) -> Change {
+        Change::Put {
+            object,
+            field: self.index,
+            key: encode(key),
+            value: value.map(encode),
         }
     }
 }
