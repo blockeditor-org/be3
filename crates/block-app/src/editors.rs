@@ -1,17 +1,18 @@
 pub(crate) mod plugin;
 
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
+use beui::{CursorIcon, Key, Pos2, Rect, Vec2, vec2};
 use block::BlockAccess;
 use block_client::{BlockClient, blocks};
 use block_plugin_api::PluginManifest;
-pub(super) use block_ui::{BlockLabel, paint_name};
-use block_ui::{BlockTypeEntry, BlockTypes};
-use eframe::egui;
-use egui_material_icons::{MaterialIcon, icons::ICON_LOCK};
 use uuid::Uuid;
+
+pub(crate) use crate::block_label::BlockLabel;
+use crate::host::{self, HostItem, Ui};
 
 pub(crate) use self::plugin::PluginEditor;
 
@@ -39,9 +40,8 @@ pub enum EditorAction {
     },
 }
 
-pub struct BlockRenderContext<'a> {
-    pub painter: &'a egui::Painter,
-    pub corners: [egui::Pos2; 4],
+pub struct BlockRenderContext {
+    pub corners: [Pos2; 4],
     pub opacity: f32,
 }
 
@@ -76,11 +76,8 @@ pub enum DirectEditorViewportInput {
 
 #[derive(Clone, Copy, Debug)]
 pub enum DirectEditorViewportCommand {
-    Pan(egui::Vec2),
-    Zoom {
-        factor: f32,
-        anchor: Option<egui::Pos2>,
-    },
+    Pan(Vec2),
+    Zoom { factor: f32, anchor: Option<Pos2> },
     Fit,
     AutoFit(Uuid),
     ResumeAutoFit,
@@ -88,7 +85,7 @@ pub enum DirectEditorViewportCommand {
 
 pub struct DirectEditorViewport {
     commands: Vec<DirectEditorViewportCommand>,
-    content_rect: Option<egui::Rect>,
+    content_rect: Option<Rect>,
     scale: f32,
     gestures_read: bool,
 }
@@ -103,11 +100,11 @@ impl DirectEditorViewport {
         }
     }
 
-    pub fn pan(&mut self, delta: egui::Vec2) {
+    pub fn pan(&mut self, delta: Vec2) {
         self.commands.push(DirectEditorViewportCommand::Pan(delta));
     }
 
-    pub fn change_zoom(&mut self, factor: f32, anchor: Option<egui::Pos2>) {
+    pub fn change_zoom(&mut self, factor: f32, anchor: Option<Pos2>) {
         self.commands
             .push(DirectEditorViewportCommand::Zoom { factor, anchor });
     }
@@ -130,11 +127,11 @@ impl DirectEditorViewport {
         self.commands.drain(..)
     }
 
-    pub fn content_rect(&self) -> Option<egui::Rect> {
+    pub fn content_rect(&self) -> Option<Rect> {
         self.content_rect
     }
 
-    pub fn replace_content_rect(&mut self, rect: Option<egui::Rect>) -> Option<egui::Rect> {
+    pub fn replace_content_rect(&mut self, rect: Option<Rect>) -> Option<Rect> {
         std::mem::replace(&mut self.content_rect, rect)
     }
 
@@ -164,13 +161,19 @@ pub fn editor_access_ceiling(client: &BlockClient, id: Uuid) -> BlockAccess {
     }
 }
 
-fn no_access_notice(ui: &mut egui::Ui) {
-    ui.centered_and_justified(|ui| {
-        ui.weak(format!("{} No access", ICON_LOCK.codepoint));
-    });
+fn no_access_notice(ui: &mut Ui, id: Uuid) {
+    let rect = ui.rect();
+    ui.item(
+        ("no-access", id),
+        rect,
+        HostItem::Notice {
+            text: "No access".to_owned(),
+            spinner: false,
+        },
+    );
 }
 
-fn rect_corners(rect: egui::Rect) -> [egui::Pos2; 4] {
+fn rect_corners(rect: Rect) -> [Pos2; 4] {
     [
         rect.left_top(),
         rect.right_top(),
@@ -180,43 +183,27 @@ fn rect_corners(rect: egui::Rect) -> [egui::Pos2; 4] {
 }
 
 fn paint_block_fallback(
-    painter: &egui::Painter,
-    rect: egui::Rect,
+    ui: &mut Ui,
+    key: impl Hash,
+    rect: Rect,
     block_id: Uuid,
     editors: &EditorAccess<'_>,
 ) {
-    painter.rect_filled(rect, 5.0, egui::Color32::from_gray(28));
-    painter.rect_stroke(
-        rect,
-        5.0,
-        egui::Stroke::new(1.0_f32, egui::Color32::from_gray(75)),
-        egui::StrokeKind::Inside,
-    );
     let label = editors
         .client
         .cached_block(block_id)
         .map(|cached| BlockLabel::for_cached(editors.registry(), &cached));
-    let center = rect.center();
-    if let Some(icon) = label.as_ref().and_then(|label| label.icon) {
-        painter.text(
-            center - egui::Vec2::new(0.0, 18.0),
-            egui::Align2::CENTER_CENTER,
-            icon.codepoint,
-            egui::FontId::new(28.0, icon.font_family()),
-            egui::Color32::LIGHT_GRAY,
-        );
-    }
-    let (name, automatic) = label.as_ref().map_or(("Loading…", false), |label| {
-        (label.name.as_str(), label.automatic)
+    let (name, automatic) = label.as_ref().map_or(("Loading…".to_owned(), false), |label| {
+        (label.name.clone(), label.automatic)
     });
-    paint_name(
-        painter,
-        center + egui::Vec2::new(0.0, 18.0),
-        egui::Align2::CENTER_CENTER,
-        name,
-        egui::FontId::proportional(16.0),
-        egui::Color32::LIGHT_GRAY,
-        automatic,
+    ui.item(
+        ("fallback", key),
+        rect,
+        HostItem::Fallback {
+            name,
+            automatic,
+            icon: label.and_then(|label| label.icon).map(str::to_owned),
+        },
     );
 }
 
@@ -231,40 +218,29 @@ pub struct EditorAccess<'a> {
 }
 
 pub fn embedded_editor_ui(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     editors: &mut EditorAccess<'_>,
     block_id: Uuid,
-    id_salt: impl Hash,
-    rect: egui::Rect,
-    clip_rect: egui::Rect,
+    rect: Rect,
+    clip_rect: Rect,
     viewport: &mut DirectEditorViewport,
 ) -> Option<EditorAction> {
     let input = editors.direct_editor_viewport_input(block_id);
     let previous = viewport.replace_content_rect(Some(rect));
     let previous_scale = viewport.replace_scale(embedded_scale(editors, block_id, rect));
-    let action = ui
-        .new_child(
-            egui::UiBuilder::new()
-                .id_salt(id_salt)
-                .max_rect(rect)
-                .layout(egui::Layout::top_down(egui::Align::Min)),
-        )
-        .scope(|ui| {
-            ui.set_clip_rect(clip_rect.intersect(ui.clip_rect()));
-            ui.set_max_size(rect.size());
-            ui.set_min_size(rect.size());
-            editors.embedded_direct_editor_ui(block_id, ui, viewport)
-        })
-        .inner;
+    let action = {
+        let mut child = ui.child(rect, clip_rect);
+        editors.embedded_direct_editor_ui(block_id, &mut child, viewport)
+    };
     viewport.replace_content_rect(previous);
     viewport.replace_scale(previous_scale);
     if input == DirectEditorViewportInput::Viewport && !viewport.gestures_read() {
-        viewport_gesture_input(ui.ctx(), rect.intersect(clip_rect), None, viewport);
+        viewport_gesture_input(rect.intersect(clip_rect), None, viewport);
     }
     action
 }
 
-fn embedded_scale(editors: &mut EditorAccess<'_>, block_id: Uuid, rect: egui::Rect) -> f32 {
+fn embedded_scale(editors: &mut EditorAccess<'_>, block_id: Uuid, rect: Rect) -> f32 {
     editors
         .direct_editor_intrinsic_size(block_id)
         .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
@@ -367,17 +343,15 @@ impl<'a> EditorAccess<'a> {
     fn with_editor_ui<T>(
         &mut self,
         id: Uuid,
-        ui: &mut egui::Ui,
-        callback: impl FnOnce(&mut PluginEditor, &mut Self, &mut egui::Ui) -> T,
+        ui: &mut Ui,
+        callback: impl FnOnce(&mut PluginEditor, &mut Self, &mut Ui) -> T,
     ) -> Option<T> {
         let access = self.access_for(id);
         if !access.can_view() {
-            no_access_notice(ui);
+            no_access_notice(ui, id);
             return None;
         }
-        block_ui::frame::read_only_scope(ui, !access.can_edit(), |ui| {
-            self.with_editor(id, |editor, editors| callback(editor, editors, ui))
-        })
+        self.with_editor(id, |editor, editors| callback(editor, editors, ui))
     }
 
     pub fn preview_aspect_ratio(&self, id: Uuid) -> Option<f32> {
@@ -386,11 +360,11 @@ impl<'a> EditorAccess<'a> {
             .and_then(|editor| editor.render_aspect_ratio())
     }
 
-    pub fn render(&mut self, id: Uuid, context: BlockRenderContext<'_>) -> bool {
+    pub fn render(&mut self, id: Uuid, ui: &mut Ui, context: BlockRenderContext) -> bool {
         if !self.access_for(id).can_view() {
             return false;
         }
-        self.with_editor(id, |editor, editors| editor.render(context, editors))
+        self.with_editor(id, |editor, editors| editor.render(ui, context, editors))
             .unwrap_or(false)
     }
 
@@ -419,11 +393,11 @@ impl<'a> EditorAccess<'a> {
             .unwrap_or(DirectEditorViewportInput::Background)
     }
 
-    pub fn direct_editor_intrinsic_size(&mut self, id: Uuid) -> Option<egui::Vec2> {
+    pub fn direct_editor_intrinsic_size(&mut self, id: Uuid) -> Option<Vec2> {
         self.with_editor(id, |editor, _| editor.direct_editor_intrinsic_size())?
     }
 
-    pub fn set_direct_editor_intrinsic_size(&mut self, id: Uuid, size: egui::Vec2) -> bool {
+    pub fn set_direct_editor_intrinsic_size(&mut self, id: Uuid, size: Vec2) -> bool {
         if !self.access_for(id).can_edit() {
             return false;
         }
@@ -436,7 +410,7 @@ impl<'a> EditorAccess<'a> {
     pub fn embedded_direct_editor_ui(
         &mut self,
         id: Uuid,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         viewport: &mut DirectEditorViewport,
     ) -> Option<EditorAction> {
         self.with_editor_ui(id, ui, |editor, editors, ui| {
@@ -455,8 +429,8 @@ impl<'a> EditorAccess<'a> {
         self.with_editor(id, |editor, _| editor.direct_editor_frame_child())?
     }
 
-    pub fn is_frame_child(&self, context: &egui::Context, id: Uuid) -> bool {
-        tab_frame(context).is_some_and(|tab| tab.stack.contains(&id))
+    pub fn is_frame_child(&self, id: Uuid) -> bool {
+        tab_frame().is_some_and(|tab| tab.stack.contains(&id))
     }
 
     pub fn clear_direct_editor_frame_child(&mut self, id: Uuid) {
@@ -468,21 +442,14 @@ impl<'a> EditorAccess<'a> {
     fn direct_editor_frame_ui(
         &mut self,
         id: Uuid,
-        ui: &mut egui::Ui,
-        id_salt: impl Hash,
+        ui: &mut Ui,
         slot: &FrameSlot,
         viewport: &mut DirectEditorViewport,
     ) -> Option<EditorAction> {
-        let mut child = ui.new_child(
-            egui::UiBuilder::new()
-                .id_salt(id_salt)
-                .max_rect(slot.frame)
-                .layout(egui::Layout::top_down(egui::Align::Min)),
-        );
-        child.set_clip_rect(slot.clip);
+        let mut child = ui.child(slot.frame, slot.clip);
         let access = self.access_for(id);
         if !access.can_view() {
-            no_access_notice(&mut child);
+            no_access_notice(&mut child, id);
             return None;
         }
         let (action, exit) = self
@@ -491,16 +458,10 @@ impl<'a> EditorAccess<'a> {
             })
             .unwrap_or((None, false));
         if exit {
-            request_frame_exit(ui.ctx());
+            request_frame_exit();
         }
         action
     }
-}
-
-#[derive(Clone, Copy)]
-pub struct SidebarDragPayload {
-    pub block_id: Uuid,
-    pub block_type: Uuid,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -510,55 +471,60 @@ pub enum SidebarDragSource {
     Block(Uuid),
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Chrome {
+    #[default]
+    Drawn,
+    None,
+}
+
 #[derive(Clone)]
 pub struct FrameSlot {
-    pub frame: egui::Rect,
-    pub clip: egui::Rect,
-    pub content: Option<egui::Rect>,
-    pub chrome: block_ui::frame::Chrome,
+    pub frame: Rect,
+    pub clip: Rect,
+    pub content: Option<Rect>,
+    pub chrome: Chrome,
     pub trail: Vec<String>,
 }
 
 #[derive(Clone)]
 struct TabFrame {
-    frame: egui::Rect,
-    clip: egui::Rect,
+    frame: Rect,
+    clip: Rect,
     stack: Vec<Uuid>,
     trail: Vec<String>,
 }
 
-fn tab_frame_id() -> egui::Id {
-    egui::Id::new("direct-editor-frame-stack")
+thread_local! {
+    static TAB_FRAME: RefCell<Option<TabFrame>> = const { RefCell::new(None) };
+    static FRAME_EXIT: Cell<bool> = const { Cell::new(false) };
+    static VIEWPORTS: RefCell<HashMap<Uuid, DirectEditorTabViewport>> = RefCell::new(HashMap::new());
 }
 
-fn tab_frame(context: &egui::Context) -> Option<TabFrame> {
-    context.data(|data| data.get_temp::<TabFrame>(tab_frame_id()))
+fn tab_frame() -> Option<TabFrame> {
+    TAB_FRAME.with(|frame| frame.borrow().clone())
 }
 
-fn frame_exit_id() -> egui::Id {
-    egui::Id::new("direct-editor-frame-exit")
+fn set_tab_frame(frame: Option<TabFrame>) {
+    TAB_FRAME.with(|slot| *slot.borrow_mut() = frame);
 }
 
-fn request_frame_exit(context: &egui::Context) {
-    context.data_mut(|data| data.insert_temp(frame_exit_id(), true));
-    context.request_repaint();
+fn request_frame_exit() {
+    FRAME_EXIT.with(|exit| exit.set(true));
+    host::request_repaint();
 }
 
-fn take_frame_exit(context: &egui::Context) -> bool {
-    context.data_mut(|data| {
-        let requested = data.get_temp::<bool>(frame_exit_id()).unwrap_or_default();
-        data.remove::<bool>(frame_exit_id());
-        requested
-    })
+fn take_frame_exit() -> bool {
+    FRAME_EXIT.with(|exit| exit.replace(false))
 }
 
 pub fn direct_editor_tab_ui(
     editor: &mut PluginEditor,
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     editors: &mut EditorAccess<'_>,
 ) -> Option<EditorAction> {
-    let frame = ui.available_rect_before_wrap();
-    let clip = frame.intersect(ui.clip_rect());
+    let frame = ui.rect();
+    let clip = frame.intersect(ui.clip());
     let mut stack = Vec::new();
     let mut trail = vec![editors.block_label(editor.id())];
     let mut child = editor.direct_editor_frame_child();
@@ -571,29 +537,24 @@ pub fn direct_editor_tab_ui(
         child = editors.direct_editor_frame_child(id);
     }
     let owner = stack.last().copied();
-    ui.ctx().data_mut(|data| {
-        data.insert_temp(
-            tab_frame_id(),
-            TabFrame {
-                frame,
-                clip,
-                stack: stack.clone(),
-                trail,
-            },
-        );
-    });
+    set_tab_frame(Some(TabFrame {
+        frame,
+        clip,
+        stack: stack.clone(),
+        trail,
+    }));
     let slot = FrameSlot {
         frame,
         clip,
         content: None,
         chrome: match owner {
-            Some(_) => block_ui::frame::Chrome::None,
-            None => block_ui::frame::Chrome::Drawn,
+            Some(_) => Chrome::None,
+            None => Chrome::Drawn,
         },
         trail: Vec::new(),
     };
     let (action, own_exit) = direct_editor_frame_ui(editor, ui, editors, &slot, None);
-    let exit = own_exit || take_frame_exit(ui.ctx());
+    let exit = own_exit || take_frame_exit();
     if exit {
         match stack.len() {
             0 | 1 => editor.clear_direct_editor_frame_child(),
@@ -602,18 +563,17 @@ pub fn direct_editor_tab_ui(
                 editors.clear_direct_editor_frame_child(parent);
             }
         }
-        ui.ctx().request_repaint();
+        host::request_repaint();
     }
     action
 }
 
 pub fn own_frame_child_ui(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     editors: &mut EditorAccess<'_>,
     block_id: Uuid,
-    id_salt: impl Hash,
-    frame: egui::Rect,
-    clip_rect: egui::Rect,
+    frame: Rect,
+    clip_rect: Rect,
     viewport: &mut DirectEditorViewport,
 ) -> Option<EditorAction> {
     let clip = frame.intersect(clip_rect);
@@ -629,31 +589,26 @@ pub fn own_frame_child_ui(
         child = editors.direct_editor_frame_child(id);
     }
     let owner = stack.last().copied();
-    let outer_frame = tab_frame(ui.ctx());
-    let outer_exit = take_frame_exit(ui.ctx());
-    ui.ctx().data_mut(|data| {
-        data.insert_temp(
-            tab_frame_id(),
-            TabFrame {
-                frame,
-                clip,
-                stack: stack.clone(),
-                trail,
-            },
-        );
-    });
+    let outer_frame = tab_frame();
+    let outer_exit = take_frame_exit();
+    set_tab_frame(Some(TabFrame {
+        frame,
+        clip,
+        stack: stack.clone(),
+        trail,
+    }));
     let slot = FrameSlot {
         frame,
         clip,
         content: None,
         chrome: match owner {
-            Some(_) => block_ui::frame::Chrome::None,
-            None => block_ui::frame::Chrome::Drawn,
+            Some(_) => Chrome::None,
+            None => Chrome::Drawn,
         },
         trail: Vec::new(),
     };
-    let action = editors.direct_editor_frame_ui(block_id, ui, id_salt, &slot, viewport);
-    if take_frame_exit(ui.ctx()) {
+    let action = editors.direct_editor_frame_ui(block_id, ui, &slot, viewport);
+    if take_frame_exit() {
         match stack.len() {
             0 => editors.clear_direct_editor_frame_child(block_id),
             depth => {
@@ -664,46 +619,38 @@ pub fn own_frame_child_ui(
                 editors.clear_direct_editor_frame_child(parent);
             }
         }
-        ui.ctx().request_repaint();
+        host::request_repaint();
     }
     if outer_exit {
-        request_frame_exit(ui.ctx());
+        request_frame_exit();
     }
-    ui.ctx().data_mut(|data| match outer_frame {
-        Some(frame) => {
-            data.insert_temp(tab_frame_id(), frame);
-        }
-        None => {
-            data.remove::<TabFrame>(tab_frame_id());
-        }
-    });
+    set_tab_frame(outer_frame);
     action
 }
 
 pub fn frame_child_ui(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     editors: &mut EditorAccess<'_>,
     block_id: Uuid,
-    id_salt: impl Hash,
-    content: egui::Rect,
-    clip_rect: egui::Rect,
+    content: Rect,
+    clip_rect: Rect,
     viewport: &mut DirectEditorViewport,
 ) -> Option<EditorAction> {
-    let tab = tab_frame(ui.ctx())?;
+    let tab = tab_frame()?;
     let depth = tab.stack.iter().position(|id| *id == block_id)?;
     let slot = FrameSlot {
         frame: tab.frame,
         clip: tab.clip,
         content: Some(content.intersect(clip_rect)),
         chrome: match depth + 1 == tab.stack.len() {
-            true => block_ui::frame::Chrome::Drawn,
-            false => block_ui::frame::Chrome::None,
+            true => Chrome::Drawn,
+            false => Chrome::None,
         },
         trail: tab.trail[..depth + 2].to_vec(),
     };
     let previous = viewport.replace_content_rect(Some(content));
     let previous_scale = viewport.replace_scale(embedded_scale(editors, block_id, content));
-    let action = editors.direct_editor_frame_ui(block_id, ui, id_salt, &slot, viewport);
+    let action = editors.direct_editor_frame_ui(block_id, ui, &slot, viewport);
     viewport.replace_content_rect(previous);
     viewport.replace_scale(previous_scale);
     action
@@ -711,29 +658,21 @@ pub fn frame_child_ui(
 
 pub(crate) fn direct_editor_frame_ui(
     editor: &mut PluginEditor,
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     editors: &mut EditorAccess<'_>,
     slot: &FrameSlot,
     outer: Option<&mut DirectEditorViewport>,
 ) -> (Option<EditorAction>, bool) {
     let id = editor.id();
     let read_only = !editors.access().can_edit();
-    let viewport_id = egui::Id::new(("direct-editor-tab-viewport", id));
-    let viewport_state = ui
-        .ctx()
-        .data_mut(|data| data.get_temp::<DirectEditorTabViewport>(viewport_id))
+    let viewport_state = VIEWPORTS
+        .with(|viewports| viewports.borrow().get(&id).copied())
         .unwrap_or_default();
     let owns_frame = editor.direct_editor_owns_frame();
-    let chrome = match owns_frame {
-        true => block_ui::frame::Chrome::None,
-        false => slot.chrome,
-    };
-    let drawn = chrome == block_ui::frame::Chrome::Drawn;
     let mut bands = DirectEditorTabBands {
         id,
         owns_frame,
         slot: slot.clone(),
-        viewport_id,
         capabilities: editor.direct_editor_capabilities(),
         read_only,
         viewport: DirectEditorViewport::new(),
@@ -744,28 +683,13 @@ pub(crate) fn direct_editor_frame_ui(
         exit: false,
         action: None,
     };
-    let mut host = ui.new_child(
-        egui::UiBuilder::new()
-            .id_salt(("direct-editor-frame", id))
-            .max_rect(slot.frame)
-            .layout(egui::Layout::top_down(egui::Align::Min)),
-    );
-    host.set_clip_rect(slot.clip);
-    let outcome = block_ui::frame::Frame::new(egui::Id::new(("direct-editor-tab", id)))
-        .chrome(chrome)
-        .toolbar(!owns_frame)
-        .read_only(read_only)
-        .content(match owns_frame {
-            true => None,
-            false => slot.content,
-        })
-        .trail(match drawn {
-            true => slot.trail.clone(),
-            false => Vec::new(),
-        })
-        .show(&mut host, &mut bands);
-    let exit = outcome.exit || bands.exit;
-    (bands.action, exit)
+    let band = match owns_frame {
+        true => slot.frame,
+        false => slot.content.map_or(slot.frame, |content| content.intersect(slot.frame)),
+    };
+    let mut host = ui.child(band, slot.clip);
+    bands.content_ui(&mut host);
+    (bands.action, bands.exit)
 }
 
 struct DirectEditorTabBands<'a, 'b> {
@@ -773,7 +697,6 @@ struct DirectEditorTabBands<'a, 'b> {
     owns_frame: bool,
     slot: FrameSlot,
     exit: bool,
-    viewport_id: egui::Id,
     capabilities: DirectEditorCapabilities,
     read_only: bool,
     viewport: DirectEditorViewport,
@@ -791,8 +714,7 @@ impl DirectEditorTabBands<'_, '_> {
             .is_some_and(|outer| outer.content_rect().is_some())
     }
 
-    fn draw(&mut self, ui: &mut egui::Ui) -> Option<EditorAction> {
-        let read_only = self.read_only;
+    fn draw(&mut self, ui: &mut Ui) -> Option<EditorAction> {
         let owns_frame = self.owns_frame;
         let slot = self.slot.clone();
         let placed = self.outer_is_placed();
@@ -805,35 +727,26 @@ impl DirectEditorTabBands<'_, '_> {
         };
         let editor = &mut *self.editor;
         let editors = &mut *self.editors;
-        let action = block_ui::frame::read_only_scope(ui, read_only, |ui| match owns_frame {
+        let action = match owns_frame {
             true => editor.direct_editor_frame_ui(ui, editors, &slot, viewport),
             false => editor.direct_editor_ui(ui, editors, viewport),
-        });
+        };
         if owns_frame {
             self.exit |= self.editor.take_direct_editor_frame_exit();
         }
         action
     }
 
-    fn child_content_ui(&mut self, ui: &mut egui::Ui) {
-        let band = ui.available_rect_before_wrap();
+    fn child_content_ui(&mut self, ui: &mut Ui) {
+        let band = ui.rect();
         let rect = match self.owns_frame {
             true => self.slot.frame,
             false => band,
         };
-        let action = ui
-            .new_child(
-                egui::UiBuilder::new()
-                    .id_salt(("direct-editor-frame-content", self.id))
-                    .max_rect(rect)
-                    .layout(egui::Layout::top_down(egui::Align::Min)),
-            )
-            .scope(|ui| {
-                ui.set_clip_rect(rect.intersect(ui.clip_rect()));
-                ui.set_min_size(rect.size());
-                self.draw(ui)
-            })
-            .inner;
+        let action = {
+            let mut child = ui.child(rect, rect);
+            self.draw(&mut child)
+        };
         self.record(action);
         let input = self.editor.direct_editor_viewport_input();
         let viewport = self
@@ -841,7 +754,7 @@ impl DirectEditorTabBands<'_, '_> {
             .as_deref_mut()
             .expect("child_content_ui is only reached once outer_is_placed()");
         if input == DirectEditorViewportInput::Viewport && !viewport.gestures_read() {
-            viewport_gesture_input(ui.ctx(), band.intersect(ui.clip_rect()), None, viewport);
+            viewport_gesture_input(band.intersect(ui.clip()), None, viewport);
         }
     }
 
@@ -850,52 +763,39 @@ impl DirectEditorTabBands<'_, '_> {
             self.action = action;
         }
     }
-}
 
-impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
-    fn content_ui(&mut self, ui: &mut egui::Ui) {
+    fn content_ui(&mut self, ui: &mut Ui) {
         if self.outer_is_placed() {
             self.child_content_ui(ui);
             return;
         }
         let id = self.id;
-        let band = ui.available_rect_before_wrap();
+        let band = ui.rect();
         let viewport_size = self
             .editor
             .direct_editor_viewport_rect(band)
             .size()
-            .max(egui::Vec2::splat(1.0));
+            .max(Vec2::splat(1.0));
         let intrinsic_size = self
             .editor
             .direct_editor_intrinsic_size()
             .unwrap_or_default();
-        let content_size = egui::vec2(
+        let content_size = vec2(
             viewport_size.x.max(intrinsic_size.x),
             viewport_size.y.max(intrinsic_size.y),
         );
         if !self.capabilities.supports_pan_and_zoom {
-            let action = match self.owns_frame {
-                true => self.draw(ui),
-                false => {
-                    egui::ScrollArea::both()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            ui.set_min_size(content_size);
-                            self.draw(ui)
-                        })
-                        .inner
-                }
-            };
+            let action = self.draw(ui);
             self.record(action);
             return;
         }
-        let (allocated, _) = ui.allocate_exact_size(band.size(), egui::Sense::hover());
+        let allocated = band;
         let viewport_rect = self.editor.direct_editor_viewport_rect(allocated);
         if let Some(previous_center) = self.viewport_state.center.replace(viewport_rect.center()) {
             self.viewport_state.pan += previous_center - viewport_rect.center();
         }
         let transformed_size = content_size * self.viewport_state.zoom;
-        let content_rect = egui::Rect::from_center_size(
+        let content_rect = Rect::from_center_size(
             viewport_rect.center() + self.viewport_state.pan,
             transformed_size,
         );
@@ -912,31 +812,21 @@ impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
             (false, true) => viewport_rect,
             (false, false) => content_rect,
         };
-        let action = ui
-            .new_child(
-                egui::UiBuilder::new()
-                    .id_salt(("direct-editor-tab-content", id))
-                    .max_rect(editor_rect)
-                    .layout(egui::Layout::top_down(egui::Align::Min)),
-            )
-            .scope(|ui| {
-                ui.set_clip_rect(editor_rect.intersect(ui.clip_rect()));
-                ui.set_min_size(editor_rect.size());
-                self.draw(ui)
-            })
-            .inner;
+        let action = {
+            let mut child = ui.child(editor_rect, editor_rect);
+            self.draw(&mut child)
+        };
         self.record(action);
 
         match viewport_input {
             DirectEditorViewportInput::Editor => {}
             DirectEditorViewportInput::Background => viewport_gesture_input(
-                ui.ctx(),
                 viewport_rect,
                 (!self.read_only).then_some(content_rect),
                 &mut self.viewport,
             ),
             DirectEditorViewportInput::Viewport => {
-                viewport_gesture_input(ui.ctx(), viewport_rect, None, &mut self.viewport)
+                viewport_gesture_input(viewport_rect, None, &mut self.viewport)
             }
         }
 
@@ -1006,68 +896,66 @@ impl block_ui::frame::FrameBands for DirectEditorTabBands<'_, '_> {
             }
         }
         let state = self.viewport_state;
-        ui.ctx()
-            .data_mut(|data| data.insert_temp(self.viewport_id, state));
+        VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(id, state));
     }
 }
 
 fn viewport_gesture_input(
-    context: &egui::Context,
-    viewport_rect: egui::Rect,
-    steered: Option<egui::Rect>,
+    viewport_rect: Rect,
+    steered: Option<Rect>,
     viewport: &mut DirectEditorViewport,
 ) {
-    if let Some(touch) = context.input(|input| input.multi_touch()) {
-        let center = touch.center_pos;
-        if viewport_rect.contains(center) && !steered.is_some_and(|rect| rect.contains(center)) {
-            if (touch.zoom_delta - 1.0).abs() > f32::EPSILON {
-                viewport.change_zoom(touch.zoom_delta, Some(center));
+    let outside = |position: Pos2| {
+        !viewport_rect.contains(position)
+            || steered.is_some_and(|rect| rect.contains(position))
+            || host::claimed(position)
+    };
+    if let Some(pinch) = host::input(|input| input.pinch) {
+        if !outside(pinch.center) {
+            if (pinch.zoom - 1.0).abs() > f32::EPSILON {
+                viewport.change_zoom(pinch.zoom, Some(pinch.center));
             }
-            if touch.translation_delta != egui::Vec2::ZERO {
-                viewport.pan(touch.translation_delta);
+            if pinch.pan != Vec2::ZERO {
+                viewport.pan(pinch.pan);
             }
         }
         return;
     }
-    let Some(pointer) = context.pointer_hover_pos().filter(|pointer| {
-        viewport_rect.contains(*pointer) && !steered.is_some_and(|rect| rect.contains(*pointer))
-    }) else {
+    let Some(pointer) = host::pointer().filter(|pointer| !outside(*pointer)) else {
         return;
     };
-    let (scroll, zoom_delta, command, panning, delta) = context.input(|input| {
+    let (scroll, zoom_delta, command, panning, delta) = host::input(|input| {
         (
-            input.smooth_scroll_delta,
-            input.zoom_delta(),
-            input.modifiers.command,
-            input.pointer.button_down(egui::PointerButton::Middle)
-                || (input.key_down(egui::Key::Space)
-                    && input.pointer.button_down(egui::PointerButton::Primary)),
-            input.pointer.delta(),
+            input.scroll,
+            input.zoom,
+            input.modifiers.ctrl,
+            input.middle_down || (host::key_down(Key::Space) && input.primary_down),
+            input.delta,
         )
     });
     if panning {
-        context.set_cursor_icon(egui::CursorIcon::Grabbing);
+        host::set_cursor(CursorIcon::Grabbing);
         viewport.pan(delta);
     }
     if (zoom_delta - 1.0).abs() > f32::EPSILON {
         viewport.change_zoom(zoom_delta, Some(pointer));
     } else if command && scroll.y != 0.0 {
         viewport.change_zoom((scroll.y * 0.002).exp(), Some(pointer));
-    } else if scroll != egui::Vec2::ZERO {
+    } else if scroll != Vec2::ZERO {
         viewport.pan(scroll);
     }
 }
 
 fn fit_direct_editor_viewport(
     viewport: &mut DirectEditorTabViewport,
-    viewport_size: egui::Vec2,
-    content_size: egui::Vec2,
+    viewport_size: Vec2,
+    content_size: Vec2,
 ) {
     viewport.zoom = (viewport_size.x / content_size.x)
         .min(viewport_size.y / content_size.y)
         .min(1.0)
         .clamp(DIRECT_EDITOR_MIN_ZOOM, DIRECT_EDITOR_MAX_ZOOM);
-    viewport.pan = egui::Vec2::ZERO;
+    viewport.pan = Vec2::ZERO;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1079,8 +967,8 @@ struct AutoFitState {
 #[derive(Clone, Copy, Debug)]
 struct DirectEditorTabViewport {
     zoom: f32,
-    pan: egui::Vec2,
-    center: Option<egui::Pos2>,
+    pan: Vec2,
+    center: Option<Pos2>,
     auto_fit: Option<AutoFitState>,
 }
 
@@ -1088,7 +976,7 @@ impl Default for DirectEditorTabViewport {
     fn default() -> Self {
         Self {
             zoom: 1.0,
-            pan: egui::Vec2::ZERO,
+            pan: Vec2::ZERO,
             center: None,
             auto_fit: None,
         }
@@ -1103,18 +991,18 @@ struct ArtifactProvider(Arc<PluginManifest>);
 pub(super) trait ArtifactSession {
     fn poll(
         &mut self,
-        ctx: &egui::Context,
         registry: &EditorRegistry,
         client: &Arc<BlockClient>,
         data: &[u8],
     ) -> ArtifactStatus;
     fn settings_ui(
         &mut self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         registry: &EditorRegistry,
         client: &Arc<BlockClient>,
         draft: &mut Vec<u8>,
     );
+    fn settings_height(&self) -> f32;
     fn summary(&self, draft: &[u8]) -> Option<String>;
     fn cancel_settings(&mut self);
     fn regenerate(&mut self, client: &Arc<BlockClient>, data: &[u8]);
@@ -1129,10 +1017,12 @@ pub(super) enum ArtifactStatus {
 }
 
 pub(super) trait PendingCreation {
-    fn ui(&mut self, ui: &mut egui::Ui, editors: &mut EditorAccess<'_>) -> CreationStep;
+    fn ui(&mut self, ui: &mut Ui, editors: &mut EditorAccess<'_>) -> CreationStep;
+    fn height(&self) -> Option<f32>;
     fn create(&mut self, client: &BlockClient) -> Result<Option<PluginEditor>, String>;
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum CreationStep {
     Options(bool),
     Working,
@@ -1143,7 +1033,7 @@ struct CreateBlock(CreateOptions);
 struct EditorRegistration {
     block_type: Uuid,
     display_name: &'static str,
-    icon: MaterialIcon,
+    icon: &'static str,
     create: Option<CreateBlock>,
     open: OpenEditor,
     can_add_child: bool,
@@ -1151,6 +1041,14 @@ struct EditorRegistration {
     can_replace_child: bool,
     default_important: bool,
     dynamic_artifact: Option<ArtifactProvider>,
+}
+
+pub(crate) struct BlockTypeEntry {
+    pub(crate) display_name: String,
+    pub(crate) icon: &'static str,
+    pub(crate) add: bool,
+    pub(crate) delete: bool,
+    pub(crate) replace: bool,
 }
 
 pub struct EditorRegistry {
@@ -1183,12 +1081,10 @@ impl EditorRegistry {
                     registration.block_type,
                     BlockTypeEntry {
                         display_name: registration.display_name.to_owned(),
-                        icon: Some(registration.icon),
-                        child_edits: block_ui::ChildEdits {
-                            add: registration.can_add_child,
-                            delete: registration.can_delete_child,
-                            replace: registration.can_replace_child,
-                        },
+                        icon: registration.icon,
+                        add: registration.can_add_child,
+                        delete: registration.can_delete_child,
+                        replace: registration.can_replace_child,
                     },
                 )
             })
@@ -1216,7 +1112,7 @@ impl EditorRegistry {
     fn register_plugin(&mut self, manifest: Arc<PluginManifest>) {
         let block_type = Uuid::from_bytes(manifest.block_type);
         let display_name: &'static str = Box::leak(manifest.display_name.clone().into_boxed_str());
-        let icon = MaterialIcon::new(Box::leak(manifest.icon.clone().into_boxed_str()));
+        let icon: &'static str = Box::leak(manifest.icon.clone().into_boxed_str());
         self.insert(EditorRegistration {
             block_type,
             display_name,
@@ -1260,28 +1156,10 @@ impl EditorRegistry {
             .map(|registration| registration.display_name)
     }
 
-    pub fn icon(&self, block_type: Uuid) -> Option<MaterialIcon> {
+    pub fn icon(&self, block_type: Uuid) -> Option<&'static str> {
         self.registrations
             .get(&block_type)
             .map(|registration| registration.icon)
-    }
-
-    pub fn can_add_child(&self, block_type: Uuid) -> bool {
-        self.registrations
-            .get(&block_type)
-            .is_some_and(|registration| registration.can_add_child)
-    }
-
-    pub fn can_delete_child(&self, block_type: Uuid) -> bool {
-        self.registrations
-            .get(&block_type)
-            .is_some_and(|registration| registration.can_delete_child)
-    }
-
-    pub fn can_replace_child(&self, block_type: Uuid) -> bool {
-        self.registrations
-            .get(&block_type)
-            .is_some_and(|registration| registration.can_replace_child)
     }
 
     pub(super) fn artifact_session(
@@ -1319,23 +1197,5 @@ impl EditorRegistry {
             || PluginEditor::unsupported(id, block_type),
             |registration| (registration.open)(client, id),
         )
-    }
-}
-
-impl BlockTypes for EditorRegistry {
-    fn display_name(&self, block_type: Uuid) -> Option<&str> {
-        Self::display_name(self, block_type)
-    }
-
-    fn icon(&self, block_type: Uuid) -> Option<MaterialIcon> {
-        Self::icon(self, block_type)
-    }
-
-    fn child_edits(&self, block_type: Uuid) -> block_ui::ChildEdits {
-        block_ui::ChildEdits {
-            add: self.can_add_child(block_type),
-            delete: self.can_delete_child(block_type),
-            replace: self.can_replace_child(block_type),
-        }
     }
 }

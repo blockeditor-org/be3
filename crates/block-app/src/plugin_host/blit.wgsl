@@ -14,7 +14,7 @@ struct Region {
     opacity: f32,
 };
 
-@group(0) @binding(2)
+@group(1) @binding(0)
 var<uniform> region: Region;
 
 @vertex

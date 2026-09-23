@@ -15,6 +15,15 @@ window = [
     "dep:winit",
     "wgpu/default",
 ]
+web = [
+    "render",
+    "dep:js-sys",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:web-sys",
+    "wgpu/webgpu",
+    "wgpu/webgl",
+]
 
 [dependencies]
 beui_macros = { path = "../beui_macros" }
@@ -30,6 +39,41 @@ text-editor-core = { path = "../text-editor-core" }
 unicode-script = "0.5"
 wgpu = { version = "29", default-features = false, optional = true }
 winit = { version = "0.30", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "AddEventListenerOptions",
+    "ClipboardEvent",
+    "CompositionEvent",
+    "CssStyleDeclaration",
+    "DataTransfer",
+    "Document",
+    "DomRect",
+    "DragEvent",
+    "Element",
+    "EventTarget",
+    "File",
+    "FileList",
+    "FocusEvent",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "InputEvent",
+    "KeyboardEvent",
+    "MouseEvent",
+    "Navigator",
+    "PointerEvent",
+    "ResizeObserver",
+    "ResizeObserverEntry",
+    "Touch",
+    "TouchEvent",
+    "TouchList",
+    "WheelEvent",
+    "Window",
+] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))'.dependencies]
 arboard = { version = "3.6", default-features = false, optional = true }

@@ -61,17 +61,16 @@ be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 block = { path = "../block" }
 block-client = { path = "../block-client" }
+beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
-block-ui = { path = "../block-ui" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 game-host = { path = "../tabletop_games/host" }
 ghostty-vt = { path = "../ghostty-vt", optional = true }
-eframe = { version = "0.34.3", default-features = false, features = ["default_fonts", "persistence", "wgpu"] }
-egui_material_icons = "0.6.0"
 flate2 = "1"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
 logicgame = { path = "../logicgame" }
+reactive = { path = "../reactive" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Only the synchronisation primitives are shared with the browser build; the
@@ -79,13 +78,17 @@ serde_json = "1"
 tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 wasi-threads = { path = "../wasi-threads" }
+wgpu = { version = "29", default-features = false }
 
 # Desktop and Android. The web build has no embedded server, no SQLite file to
 # put app state in, and no blocking HTTP client.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # The wasmtime plugin host, which runs every plugin on every platform but the
 # browser. The browser runs the same wasm in a worker of its own.
+beui = { path = "../beui", features = ["window"] }
 block-wasm-host = { path = "../block-wasm-host" }
+directories-next = "2"
+winit = "0.30"
 block-server = { path = "../block-server" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
@@ -100,7 +103,6 @@ rodio = "0.20"
 # and the browser sandbox has neither.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 arboard = "3.6"
-eframe = { version = "0.34.3", default-features = false, features = ["wayland", "x11"] }
 # The native file dialog. Android and the browser reach their own pickers
 # instead, from platform/file_picker.rs.
 rfd = "0.15"
@@ -123,6 +125,7 @@ ndk-context = "0.1"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+beui = { path = "../beui", default-features = false, features = ["web"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

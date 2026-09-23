@@ -1,10 +1,10 @@
 use std::cell::RefCell;
 
-use eframe::egui;
-use ghostty_vt::{Renderer, Rgb, Screen, Terminal};
+use beui::{Color32, Key, Modifiers};
+use ghostty_vt::{Renderer, Rgb, Terminal};
 
-const FONT_SIZE: f32 = 13.0;
-const PADDING: f32 = 6.0;
+use crate::ui::{TerminalInput, TerminalRow, TerminalSpan, TerminalView};
+
 const DEFAULT_COLS: u16 = 80;
 const DEFAULT_ROWS: u16 = 24;
 const MAX_SCROLLBACK: usize = 10_000;
@@ -12,7 +12,6 @@ const PROMPT: &str = "\x1b[32mblock\x1b[0m:\x1b[34m~\x1b[0m$ ";
 
 #[derive(Default)]
 struct TerminalDebugWindow {
-    open: bool,
     session: Option<Session>,
     error: Option<String>,
 }
@@ -21,47 +20,60 @@ thread_local! {
     static STATE: RefCell<TerminalDebugWindow> = RefCell::new(TerminalDebugWindow::default());
 }
 
-pub(crate) fn open() {
-    STATE.with(|state| state.borrow_mut().open = true);
-}
-
-pub(crate) fn show(ctx: &egui::Context) {
+pub(super) fn poll() {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
-        if !state.open {
-            return;
-        }
-
         if state.session.is_none() && state.error.is_none() {
             match Session::new() {
                 Ok(session) => state.session = Some(session),
                 Err(err) => state.error = Some(err),
             }
         }
+    });
+}
 
-        let mut open = state.open;
-        egui::Window::new("Terminal")
-            .open(&mut open)
-            .default_size([820.0, 520.0])
-            .resizable(true)
-            .show(ctx, |ui| {
-                if let Some(error) = state.error.clone() {
-                    ui.colored_label(ui.visuals().error_fg_color, &error);
-                    if ui.button("Retry").clicked() {
-                        state.error = None;
-                    }
-                    return;
-                }
-                if let Some(session) = &mut state.session {
-                    session.update(ui);
-                }
-            });
-        state.open = open;
-        if !open {
-            state.session = None;
+pub(super) fn close() {
+    STATE.with(|state| *state.borrow_mut() = TerminalDebugWindow::default());
+}
+
+pub(super) fn input(input: TerminalInput) {
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        if let TerminalInput::Retry = input {
             state.error = None;
+            return;
+        }
+        let Some(session) = &mut state.session else {
+            return;
+        };
+        match input {
+            TerminalInput::Text(text) => session.insert(&text.replace(['\r', '\n'], " ")),
+            TerminalInput::Key(key, modifiers) => session.key(key, modifiers),
+            TerminalInput::Scroll(rows) => session.terminal.scroll_by(rows),
+            TerminalInput::Resize {
+                cols,
+                rows,
+                cell_width,
+                cell_height,
+            } => session.resize(cols, rows, cell_width, cell_height),
+            TerminalInput::Retry => {}
         }
     });
+}
+
+pub(super) fn view() -> TerminalView {
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let error = state.error.clone();
+        let Some(session) = &mut state.session else {
+            return TerminalView {
+                rows: Vec::new(),
+                background: Color32::BLACK,
+                error,
+            };
+        };
+        session.view()
+    })
 }
 
 struct Session {
@@ -72,7 +84,6 @@ struct Session {
     recalled: Option<usize>,
     cols: u16,
     rows: u16,
-    cell_size: egui::Vec2,
 }
 
 impl Session {
@@ -89,10 +100,44 @@ impl Session {
             recalled: None,
             cols: DEFAULT_COLS,
             rows: DEFAULT_ROWS,
-            cell_size: egui::vec2(FONT_SIZE * 0.6, FONT_SIZE * 1.2),
         };
         session.banner();
         Ok(session)
+    }
+
+    fn resize(&mut self, cols: u16, rows: u16, cell_width: u32, cell_height: u32) {
+        let cols = cols.max(1);
+        let rows = rows.max(1);
+        if cols == self.cols && rows == self.rows {
+            return;
+        }
+        self.cols = cols;
+        self.rows = rows;
+        let _ = self.terminal.resize(cols, rows, cell_width, cell_height);
+    }
+
+    fn key(&mut self, key: Key, modifiers: Modifiers) {
+        match key {
+            Key::Enter => self.submit(),
+            Key::Backspace => self.backspace(),
+            Key::ArrowUp => self.recall(-1),
+            Key::ArrowDown => self.recall(1),
+            Key::C if modifiers.ctrl => {
+                self.write_line("^C");
+                self.line.clear();
+                self.recalled = None;
+                self.prompt();
+            }
+            Key::U if modifiers.ctrl => {
+                self.line.clear();
+                self.redraw_line();
+            }
+            Key::L if modifiers.ctrl => {
+                self.write("\x1b[2J\x1b[H");
+                self.redraw_line();
+            }
+            _ => {}
+        }
     }
 
     fn banner(&mut self) {
@@ -116,90 +161,6 @@ impl Session {
 
     fn prompt(&mut self) {
         self.write(PROMPT);
-    }
-
-    fn update(&mut self, ui: &mut egui::Ui) {
-        let font_id = egui::FontId::monospace(FONT_SIZE);
-        self.cell_size = ui
-            .painter()
-            .layout_no_wrap("M".to_owned(), font_id.clone(), egui::Color32::WHITE)
-            .size();
-
-        let available = ui.available_size();
-        let cols = ((available.x - 2.0 * PADDING) / self.cell_size.x)
-            .floor()
-            .max(1.0) as u16;
-        let rows = ((available.y - 2.0 * PADDING) / self.cell_size.y)
-            .floor()
-            .max(1.0) as u16;
-        if cols != self.cols || rows != self.rows {
-            self.cols = cols;
-            self.rows = rows;
-            let _ =
-                self.terminal
-                    .resize(cols, rows, self.cell_size.x as u32, self.cell_size.y as u32);
-        }
-
-        let size = egui::vec2(
-            self.cols as f32 * self.cell_size.x + 2.0 * PADDING,
-            self.rows as f32 * self.cell_size.y + 2.0 * PADDING,
-        );
-        let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
-        if response.clicked() {
-            response.request_focus();
-        }
-        if response.has_focus() {
-            self.handle_input(ui);
-        }
-        if response.hovered() {
-            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            let delta = (scroll / self.cell_size.y).round() as isize;
-            if delta != 0 {
-                self.terminal.scroll_by(-delta);
-            }
-        }
-
-        self.render(ui, rect, &font_id);
-    }
-
-    fn handle_input(&mut self, ui: &egui::Ui) {
-        for event in ui.ctx().input(|i| i.events.clone()) {
-            match event {
-                egui::Event::Text(text) => self.insert(&text),
-                egui::Event::Paste(text) => self.insert(&text.replace(['\r', '\n'], " ")),
-                egui::Event::Key {
-                    key,
-                    pressed: true,
-                    modifiers,
-                    ..
-                } => self.key(key, modifiers),
-                _ => {}
-            }
-        }
-    }
-
-    fn key(&mut self, key: egui::Key, modifiers: egui::Modifiers) {
-        match key {
-            egui::Key::Enter => self.submit(),
-            egui::Key::Backspace => self.backspace(),
-            egui::Key::ArrowUp => self.recall(-1),
-            egui::Key::ArrowDown => self.recall(1),
-            egui::Key::C if modifiers.ctrl => {
-                self.write_line("^C");
-                self.line.clear();
-                self.recalled = None;
-                self.prompt();
-            }
-            egui::Key::U if modifiers.ctrl => {
-                self.line.clear();
-                self.redraw_line();
-            }
-            egui::Key::L if modifiers.ctrl => {
-                self.write("\x1b[2J\x1b[H");
-                self.redraw_line();
-            }
-            _ => {}
-        }
     }
 
     fn insert(&mut self, text: &str) {
@@ -354,86 +315,61 @@ impl Session {
         );
     }
 
-    fn render(&mut self, ui: &mut egui::Ui, rect: egui::Rect, font_id: &egui::FontId) {
+    fn view(&mut self) -> TerminalView {
         let Ok(screen) = self.renderer.update(&mut self.terminal) else {
-            return;
+            return TerminalView {
+                rows: Vec::new(),
+                background: Color32::BLACK,
+                error: None,
+            };
         };
-        paint(ui, rect, font_id, self.cell_size, screen);
-    }
-}
-
-fn paint(
-    ui: &mut egui::Ui,
-    rect: egui::Rect,
-    font_id: &egui::FontId,
-    cell_size: egui::Vec2,
-    screen: &Screen,
-) {
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 0.0, color(screen.background));
-
-    let origin = rect.min + egui::vec2(PADDING, PADDING);
-    for (y, row) in screen.rows.iter().enumerate() {
-        for (x, cell) in row.cells.iter().enumerate() {
-            let position = origin + egui::vec2(x as f32 * cell_size.x, y as f32 * cell_size.y);
-            let cell_rect = egui::Rect::from_min_size(position, cell_size);
-            if let Some(background) = cell.background {
-                painter.rect_filled(cell_rect, 0.0, color(background));
-            }
-            if cell.text.is_empty() {
-                continue;
-            }
-            let text_color = color(cell.foreground);
-            painter.text(
-                position,
-                egui::Align2::LEFT_TOP,
-                &cell.text,
-                font_id.clone(),
-                text_color,
-            );
-            if cell.bold {
-                painter.text(
-                    position + egui::vec2(0.4, 0.0),
-                    egui::Align2::LEFT_TOP,
-                    &cell.text,
-                    font_id.clone(),
-                    text_color,
-                );
-            }
-            if cell.underline {
-                let y = cell_rect.bottom() - 1.0;
-                painter.line_segment(
-                    [
-                        egui::pos2(cell_rect.left(), y),
-                        egui::pos2(cell_rect.right(), y),
-                    ],
-                    egui::Stroke::new(1.0_f32, text_color),
-                );
-            }
-            if cell.strikethrough {
-                let y = cell_rect.center().y;
-                painter.line_segment(
-                    [
-                        egui::pos2(cell_rect.left(), y),
-                        egui::pos2(cell_rect.right(), y),
-                    ],
-                    egui::Stroke::new(1.0_f32, text_color),
-                );
-            }
+        let cursor = screen.cursor;
+        let rows = screen
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(y, row)| {
+                let mut spans: Vec<TerminalSpan> = Vec::new();
+                for (x, cell) in row.cells.iter().enumerate() {
+                    let at_cursor = cursor
+                        .is_some_and(|cursor| usize::from(cursor.x) == x && usize::from(cursor.y) == y);
+                    let background = match at_cursor {
+                        true => cursor.map(|cursor| half(color(cursor.color))),
+                        false => cell.background.map(color),
+                    };
+                    let text = match cell.text.is_empty() {
+                        true => " ".to_owned(),
+                        false => cell.text.clone(),
+                    };
+                    let span = TerminalSpan {
+                        text,
+                        color: color(cell.foreground),
+                        background,
+                        bold: cell.bold,
+                        italic: cell.italic,
+                        underline: cell.underline || cell.strikethrough,
+                    };
+                    match spans.last_mut() {
+                        Some(last) if last.same_style(&span) => last.text.push_str(&span.text),
+                        _ => spans.push(span),
+                    }
+                }
+                TerminalRow { spans }
+            })
+            .collect();
+        TerminalView {
+            rows,
+            background: color(screen.background),
+            error: None,
         }
     }
-
-    if let Some(cursor) = screen.cursor {
-        let position =
-            origin + egui::vec2(cursor.x as f32 * cell_size.x, cursor.y as f32 * cell_size.y);
-        painter.rect_filled(
-            egui::Rect::from_min_size(position, cell_size),
-            0.0,
-            color(cursor.color).gamma_multiply(0.5),
-        );
-    }
 }
 
-fn color(color: Rgb) -> egui::Color32 {
-    egui::Color32::from_rgb(color.r, color.g, color.b)
+fn color(color: Rgb) -> Color32 {
+    Color32::from_rgb(color.r, color.g, color.b)
+}
+
+fn half(color: Color32) -> Color32 {
+    let [red, green, blue, _] = color.to_array();
+    Color32::from_rgba_unmultiplied(red, green, blue, 128)
 }

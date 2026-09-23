@@ -1,4 +1,6 @@
-use std::sync::mpsc::Sender;
+use std::{cell::RefCell, sync::Arc, sync::mpsc::Sender};
+
+use beui::winit::window::Window;
 
 use block_plugin_api::WebViewEvent;
 use wry::{
@@ -30,16 +32,23 @@ const HISTORY_SCRIPT: &str = r#"
 })();
 "#;
 
+thread_local! {
+    static PARENT: RefCell<Option<Arc<Window>>> = const { RefCell::new(None) };
+}
+
+pub(crate) fn install(window: Arc<Window>) {
+    PARENT.with(|parent| *parent.borrow_mut() = Some(window));
+}
+
 pub(super) struct WebView {
     webview: wry::WebView,
 }
 
 impl WebView {
-    pub(super) fn new(
-        frame: &eframe::Frame,
-        url: &str,
-        events: &Sender<WebViewEvent>,
-    ) -> Result<Self, String> {
+    pub(super) fn new(url: &str, events: &Sender<WebViewEvent>) -> Result<Self, String> {
+        let Some(parent) = PARENT.with(|parent| parent.borrow().clone()) else {
+            return Err("The embedded browser has no window to live in.".to_owned());
+        };
         let navigation_events = events.clone();
         let page_events = events.clone();
         let ipc_events = events.clone();
@@ -75,7 +84,7 @@ impl WebView {
                 let _ = new_window_events.send(WebViewEvent::NewWindow(url));
                 NewWindowResponse::Deny
             })
-            .build_as_child(frame)
+            .build_as_child(&*parent)
             .map(|webview| Self { webview })
             .map_err(|error| error.to_string())
     }

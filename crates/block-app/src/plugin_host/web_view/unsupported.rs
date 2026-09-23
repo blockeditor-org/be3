@@ -8,7 +8,6 @@ pub(super) enum WebView {}
 
 impl WebView {
     pub(super) fn new(
-        _frame: &eframe::Frame,
         _url: &str,
         _events: &Sender<WebViewEvent>,
     ) -> Result<Self, String> {

@@ -1,32 +1,28 @@
 use super::*;
 use crate::plugin_host::EditorBlock;
+use beui::Pos2;
 use block_plugin_api::InputEvent;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: EditorRegion = EditorRegion::Frame;
 const PASS: u64 = 1;
-const SIZE: egui::Vec2 = egui::vec2(100.0, 100.0);
+const SIZE: Vec2 = vec2(100.0, 100.0);
+const TARGET: Target = Target {
+    instance: INSTANCE,
+    region: REGION,
+};
 
-fn placed() -> (Instances, egui::Context, egui::Id) {
+fn placed() -> Instances {
     placed_on(Uuid::nil(), Uuid::nil())
 }
 
-fn placed_on(block: Uuid, block_type: Uuid) -> (Instances, egui::Context, egui::Id) {
+fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
     placed_with(&client, block, block_type)
 }
 
-fn placed_with(
-    client: &Arc<BlockClient>,
-    block: Uuid,
-    block_type: Uuid,
-) -> (Instances, egui::Context, egui::Id) {
-    let context = egui::Context::default();
-    let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), SIZE);
-    let id = egui::Id::new("plugin screen");
-    let _ = context.run_ui(egui::RawInput::default(), |ui| {
-        ui.interact(rect, id, egui::Sense::click_and_drag());
-    });
+fn placed_with(client: &Arc<BlockClient>, block: Uuid, block_type: Uuid) -> Instances {
+    let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let mut instances = Instances::default();
     let block_types = Arc::new(Vec::new());
     let role = InstanceRole::Editor(EditorBlock {
@@ -36,14 +32,13 @@ fn placed_with(
     instances.report(
         INSTANCE,
         REGION,
-        &context,
         client,
         Uuid::nil(),
         role,
         &block_types,
         Some(block_plugin_api::FrameSpec::default()),
         SIZE,
-        egui::Rect::from_min_size(egui::Pos2::ZERO, SIZE),
+        Rect::from_min_size(Pos2::ZERO, SIZE),
         1.0,
         PASS,
     );
@@ -51,13 +46,14 @@ fn placed_with(
         INSTANCE,
         REGION,
         Placement {
-            id,
+            target: TARGET,
             rect,
             clip: rect,
             pass: PASS,
         },
     );
-    (instances, context, id)
+    host::register(TARGET, rect, rect, 0);
+    instances
 }
 
 mod a_frame_childs_chrome_is_withheld_from_the_editor_it_covers;

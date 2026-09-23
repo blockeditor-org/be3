@@ -1,10 +1,10 @@
-use eframe::egui;
+use beui::{Rect, pos2};
 
-pub(super) fn subtract(area: egui::Rect, holes: &[egui::Rect]) -> Vec<egui::Rect> {
+pub(super) fn subtract(area: Rect, holes: &[Rect]) -> Vec<Rect> {
     if !area.is_positive() {
         return Vec::new();
     }
-    let covering: Vec<egui::Rect> = holes
+    let covering: Vec<Rect> = holes
         .iter()
         .map(|hole| hole.intersect(area))
         .filter(|hole| hole.is_positive())
@@ -29,13 +29,13 @@ pub(super) fn subtract(area: egui::Rect, holes: &[egui::Rect]) -> Vec<egui::Rect
     };
     bounds(&mut columns, area.min.x, area.max.x);
     bounds(&mut rows, area.min.y, area.max.y);
-    let mut pieces: Vec<egui::Rect> = Vec::new();
+    let mut pieces: Vec<Rect> = Vec::new();
     for row in rows.windows(2) {
-        let mut open: Option<egui::Rect> = None;
+        let mut open: Option<Rect> = None;
         for column in columns.windows(2) {
-            let cell = egui::Rect::from_min_max(
-                egui::pos2(column[0], row[0]),
-                egui::pos2(column[1], row[1]),
+            let cell = Rect::from_min_max(
+                pos2(column[0], row[0]),
+                pos2(column[1], row[1]),
             );
             if !cell.is_positive() {
                 continue;
@@ -59,8 +59,8 @@ pub(super) fn subtract(area: egui::Rect, holes: &[egui::Rect]) -> Vec<egui::Rect
     merge_rows(pieces)
 }
 
-fn merge_rows(pieces: Vec<egui::Rect>) -> Vec<egui::Rect> {
-    let mut merged: Vec<egui::Rect> = Vec::new();
+fn merge_rows(pieces: Vec<Rect>) -> Vec<Rect> {
+    let mut merged: Vec<Rect> = Vec::new();
     for piece in pieces {
         let joined = merged.iter_mut().find(|other| {
             other.min.x == piece.min.x && other.max.x == piece.max.x && other.max.y == piece.min.y

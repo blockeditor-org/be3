@@ -76,6 +76,7 @@ pub struct Document {
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     sizes: NodeMap<Vec<SizeWatcher>>,
     placements: NodeMap<Vec<PlacementWatcher>>,
+    placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: NodeMap<Node>,
@@ -205,6 +206,7 @@ impl Document {
             node_scopes: HashMap::new(),
             sizes: NodeMap::default(),
             placements: NodeMap::default(),
+            placed: NodeMap::default(),
             component_states: HashMap::new(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
@@ -479,6 +481,7 @@ impl Document {
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
         self.placements.remove(&id);
+        self.placed.remove(&id);
         self.measurements.remove(&id);
         self.component_states.remove(&id);
         self.placed_children.remove(&id);
@@ -996,6 +999,9 @@ impl Document {
             self.damage.add(self.paint_cache.borrow().bounds(id));
         }
         dropped.push(id);
+        if self.delivering {
+            self.deliver_placed(id, false);
+        }
         for child in self.placed_children.remove(&id).unwrap_or_default() {
             self.drop_placement(child, out, dropped);
         }
@@ -1059,7 +1065,28 @@ impl Document {
     pub(crate) fn note_placed(&mut self, id: NodeId) {
         if self.delivering {
             self.placing.push(id);
+            self.deliver_placed(id, true);
         }
+    }
+
+    pub(crate) fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
+        if let Some((read, _)) = self.placed.get(&id) {
+            return read.clone();
+        }
+        let (read, write) = ::reactive::create_signal(self.rects.contains_key(&id));
+        self.placed.insert(id, (read.clone(), write));
+        read
+    }
+
+    fn deliver_placed(&mut self, id: NodeId, placed: bool) {
+        let Some((read, write)) = self.placed.get(&id) else {
+            return;
+        };
+        if read.get_untracked() == placed {
+            return;
+        }
+        let write = write.clone();
+        ::reactive::settle(|| write.set(placed));
     }
 
     pub(crate) fn reusable_placement(

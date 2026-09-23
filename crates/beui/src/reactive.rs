@@ -125,6 +125,10 @@ pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
     with_document(|document| document.watch_placement(node))
 }
 
+pub fn node_placed(node: NodeId) -> ReadSignal<bool> {
+    with_document(|document| document.watch_placed(node))
+}
+
 pub fn layout_text(
     text: &str,
     font: crate::font::FontId,

@@ -11,8 +11,10 @@ use block_plugin_api::{
     ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec, Theme,
     ViewChange,
 };
-use eframe::egui;
+use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use uuid::Uuid;
+
+use crate::host::{self, HostItem, Target, Ui};
 
 use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, EditorBlock,
@@ -21,15 +23,13 @@ use super::{
     backend::{Availability, Backend, Platform},
     input,
     instances::{Focus, FrameOverlay, Instances, OpenRequest, Placement},
-    presenter::{
-        self, MAX_SURFACES, PresenterCallback, PresenterState, PresenterStatus, Quad, Shared,
-    },
+    presenter::{self, Blit, MAX_SURFACES, PresenterState, PresenterStatus, Quad, Shared},
     preview_size,
 };
 
 const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
-const UNIT: egui::Rect = egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0));
+const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
 const SURFACE: SurfaceSpec = SurfaceSpec {
     format: SurfaceFormat::Rgba8Unorm,
@@ -59,28 +59,24 @@ impl Host {
         }
     }
 
-    fn runtime(
-        &mut self,
-        plugin: &PluginManifest,
-        context: &egui::Context,
-    ) -> Result<&mut Runtime, String> {
+    fn runtime(&mut self, plugin: &PluginManifest) -> Result<&mut Runtime, String> {
         if let Err(error) = &self.availability.0 {
             return Err(error.clone());
         }
-        let Some(surface) = self.surface_for(&plugin.identity.id, context) else {
+        let Some(surface) = self.surface_for(&plugin.identity.id) else {
             return Err(CROWDED.to_owned());
         };
         let focus = self.focus.clone();
         let runtime = self
             .runtimes
             .entry(plugin.identity.id.clone())
-            .or_insert_with(|| Runtime::new(plugin, surface, context));
+            .or_insert_with(|| Runtime::new(plugin, surface));
         runtime.instances.set_focus(focus);
-        runtime.begin_pass(context.cumulative_pass_nr());
+        runtime.begin_pass(host::pass());
         Ok(runtime)
     }
 
-    fn surface_for(&mut self, plugin_id: &str, context: &egui::Context) -> Option<u32> {
+    fn surface_for(&mut self, plugin_id: &str) -> Option<u32> {
         if let Some(runtime) = self.runtimes.get(plugin_id) {
             return Some(runtime.surface);
         }
@@ -98,24 +94,20 @@ impl Host {
             .filter(|(_, runtime)| runtime.instances.is_empty())
             .min_by_key(|(_, runtime)| runtime.pass)
             .map(|(id, _)| id.clone())?;
-        self.shutdown(context, &evicted)
+        self.shutdown(&evicted)
     }
 
-    fn shutdown(&mut self, context: &egui::Context, plugin_id: &str) -> Option<u32> {
+    fn shutdown(&mut self, plugin_id: &str) -> Option<u32> {
         let mut runtime = self.runtimes.remove(plugin_id)?;
         runtime.stop();
-        context
-            .debug_painter()
-            .add(eframe::egui_wgpu::Callback::new_paint_callback(
-                egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::ZERO),
-                PresenterCallback::release(runtime.surface, runtime.status.clone()),
-            ));
+        presenter::release(runtime.surface, &runtime.status);
+        host::request_repaint();
         Some(runtime.surface)
     }
 }
 
 pub(super) struct Runtime {
-    pub(super) context: egui::Context,
+    plugin: PluginManifest,
     pub(super) backend: Platform,
     session: HostSession,
     queued: Vec<Message>,
@@ -129,22 +121,21 @@ pub(super) struct Runtime {
     sent: Vec<ScreenRequest>,
     error: Option<String>,
     needed: bool,
-    next_slot: u32,
     paint_at: Option<f64>,
     requested_at: Option<f64>,
     theme: Theme,
 }
 
 impl Runtime {
-    fn new(plugin: &PluginManifest, surface: u32, context: &egui::Context) -> Self {
-        let mut backend = Platform::new(plugin, context);
-        backend.start(plugin, context);
+    fn new(plugin: &PluginManifest, surface: u32) -> Self {
+        let mut backend = Platform::new(plugin);
+        backend.start(plugin);
         let mut instances = Instances::default();
         instances.allow_network(plugin.network.clone());
-        let mut session = session(context);
-        session.start(milliseconds(context));
+        let mut session = session();
+        session.start(host::milliseconds());
         Self {
-            context: context.clone(),
+            plugin: plugin.clone(),
             backend,
             session,
             queued: Vec::new(),
@@ -158,10 +149,9 @@ impl Runtime {
             sent: Vec::new(),
             error: None,
             needed: false,
-            next_slot: 0,
             paint_at: None,
             requested_at: None,
-            theme: theme(context),
+            theme: theme(),
         }
     }
 
@@ -171,9 +161,10 @@ impl Runtime {
         self.backend.shutdown();
     }
 
-    fn restart(&mut self, plugin: &PluginManifest) {
+    fn restart(&mut self) {
+        let plugin = self.plugin.clone();
         self.stop();
-        self.session = session(&self.context);
+        self.session = session();
         self.session.start(self.milliseconds());
         self.queued.clear();
         self.error = None;
@@ -183,9 +174,9 @@ impl Runtime {
         self.needed = false;
         self.paint_at = None;
         self.requested_at = None;
-        self.theme = theme(&self.context);
+        self.theme = theme();
         self.instances.reopen();
-        self.backend.start(plugin, &self.context);
+        self.backend.start(&plugin);
     }
 
     fn begin_pass(&mut self, pass: u64) {
@@ -195,11 +186,10 @@ impl Runtime {
         }
         let previous = self.pass;
         self.pass = pass;
-        self.next_slot = 0;
         let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(previous);
         let mut messages = Vec::new();
-        let theme = theme(&self.context);
+        let theme = theme();
         if self.theme != theme {
             self.theme = theme;
             messages.push(Message::Theme(theme));
@@ -219,25 +209,20 @@ impl Runtime {
         self.needed |= !messages.is_empty();
         self.send(messages);
         if awaited {
-            self.context.request_repaint();
+            host::request_repaint();
         }
         self.pump();
     }
 
-    fn begin_frame(&mut self, frame: &eframe::Frame, pass: u64, overlay: &FrameOverlay) {
+    fn begin_frame(&mut self, pass: u64, overlay: &FrameOverlay) {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
         }
         let mut messages = match self.pass + 1 == pass {
-            true => self
-                .instances
-                .frame_input(&self.context, self.pass, overlay),
+            true => self.instances.frame_input(self.pass, overlay),
             false => Vec::new(),
         };
-        messages.extend(
-            self.instances
-                .drive_web_views(frame, &self.context, self.pass),
-        );
+        messages.extend(self.instances.drive_web_views(self.pass));
         self.needed |= !messages.is_empty();
         if self.session.granted_surface().is_some() && self.frame_due() {
             self.requested_at = Some(self.now());
@@ -255,11 +240,11 @@ impl Runtime {
     }
 
     fn now(&self) -> f64 {
-        self.context.input(|input| input.time)
+        host::now()
     }
 
     fn milliseconds(&self) -> u64 {
-        milliseconds(&self.context)
+        host::milliseconds()
     }
 
     fn detect_error(&mut self) {
@@ -336,7 +321,7 @@ impl Runtime {
         }
         self.send(answers);
         if changed {
-            self.context.request_repaint();
+            host::request_repaint();
         }
     }
 
@@ -345,7 +330,7 @@ impl Runtime {
         self.requested_at = None;
         self.paint_at = repaint_after_micros.map(|micros| {
             let delay = Duration::from_micros(micros);
-            self.context.request_repaint_after(delay);
+            host::request_repaint_after(delay);
             self.now() + delay.as_secs_f64()
         });
     }
@@ -392,28 +377,21 @@ impl Runtime {
 
     fn present(
         &mut self,
-        rect: egui::Rect,
         screen: ScreenId,
         quad: Quad,
-        source: egui::Rect,
+        source: Rect,
         drawn: Option<(u32, u32)>,
-    ) -> egui::epaint::PaintCallback {
+    ) -> Blit {
         self.presented = true;
-        let slot = self.next_slot;
-        self.next_slot = (self.next_slot + 1).min(presenter::MAX_REGIONS - 1);
-        eframe::egui_wgpu::Callback::new_paint_callback(
-            rect,
-            PresenterCallback::present(
-                self.surface,
-                self.status.clone(),
-                Arc::clone(&self.shared),
-                screen,
-                quad,
-                source,
-                slot,
-                drawn,
-            ),
-        )
+        Blit {
+            surface: self.surface,
+            status: self.status.clone(),
+            shared: Arc::clone(&self.shared),
+            screen,
+            quad,
+            source,
+            drawn,
+        }
     }
 
     fn flush(&mut self) {
@@ -436,8 +414,8 @@ impl Runtime {
     }
 }
 
-pub(crate) fn install(creation_context: &eframe::CreationContext<'_>) {
-    let availability = presenter::install(creation_context);
+pub(crate) fn install(setup: &beui::Setup) {
+    let availability = presenter::install(setup);
     HOST.with(|host| {
         host.borrow_mut().availability = availability;
     });
@@ -446,26 +424,26 @@ pub(crate) fn install(creation_context: &eframe::CreationContext<'_>) {
 fn plugin_loading_rect(
     layout: &ScreenLayout,
     screen: ScreenId,
-    rect: egui::Rect,
-) -> Option<egui::Rect> {
+    rect: Rect,
+) -> Option<Rect> {
     layout.placement(screen).is_none().then_some(rect)
 }
 
 pub(crate) struct HostFrame {
-    pub(crate) content: egui::Rect,
+    pub(crate) content: Rect,
 }
 
 pub(crate) struct EditorPresentation {
     plugin_id: String,
     instance: EditorInstanceId,
     region: EditorRegion,
-    pub(crate) id: Option<egui::Id>,
-    pub(crate) loading_rect: Option<egui::Rect>,
+    pub(crate) id: Option<Target>,
+    pub(crate) loading_rect: Option<Rect>,
     screen: Option<ScreenId>,
     quad: Option<Quad>,
-    clip: egui::Rect,
+    clip: Rect,
     drawn: Option<(u32, u32)>,
-    floating: Vec<egui::Rect>,
+    floating: Vec<Rect>,
     pub(crate) open: Option<OpenRequest>,
     pub(crate) drag: Option<(Uuid, Uuid)>,
     pub(crate) command: Option<(Uuid, BlockCommand)>,
@@ -482,7 +460,7 @@ impl EditorPresentation {
             loading_rect: None,
             screen: None,
             quad: None,
-            clip: egui::Rect::ZERO,
+            clip: Rect::ZERO,
             drawn: None,
             floating: Vec::new(),
             open: None,
@@ -492,7 +470,7 @@ impl EditorPresentation {
         }
     }
 
-    fn blit(&self, ui: &mut egui::Ui, rects: &[egui::Rect]) {
+    fn blit(&self, ui: &mut Ui, rects: &[Rect]) {
         let (Some(screen), Some(quad)) = (self.screen, self.quad) else {
             return;
         };
@@ -506,24 +484,22 @@ impl EditorPresentation {
                 if !piece.is_positive() {
                     continue;
                 }
-                let source = egui::Rect::from_min_max(
-                    egui::pos2(
+                let source = Rect::from_min_max(
+                    pos2(
                         (piece.min.x - base.min.x) / base.width(),
                         (piece.min.y - base.min.y) / base.height(),
                     ),
-                    egui::pos2(
+                    pos2(
                         (piece.max.x - base.min.x) / base.width(),
                         (piece.max.y - base.min.y) / base.height(),
                     ),
                 );
-                let callback =
-                    runtime.present(piece, screen, Quad::upright(piece), source, self.drawn);
-                ui.painter().with_clip_rect(self.clip).add(callback);
+                ui.blit(runtime.present(screen, Quad::upright(piece), source, self.drawn));
             }
         });
     }
 
-    pub(crate) fn present(&self, ui: &mut egui::Ui) {
+    pub(crate) fn present(&self, ui: &mut Ui) {
         let Some(quad) = self.quad else {
             return;
         };
@@ -534,7 +510,7 @@ impl EditorPresentation {
         self.blit(ui, &base);
     }
 
-    pub(crate) fn present_floating(&self, ui: &mut egui::Ui) {
+    pub(crate) fn present_floating(&self, ui: &mut Ui) {
         if self.floating.is_empty() {
             return;
         }
@@ -547,7 +523,7 @@ impl EditorPresentation {
     }
 }
 
-pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresentation {
+pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation {
     let EditorSlot {
         plugin,
         block_types,
@@ -560,51 +536,53 @@ pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresen
         size,
         view,
     } = slot;
+    let rect = Rect::from_min_size(ui.rect().min, size);
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let runtime = match host.runtime(plugin, ui.ctx()) {
+        let runtime = match host.runtime(plugin) {
             Ok(runtime) => runtime,
             Err(error) => {
-                ui.colored_label(egui::Color32::RED, error);
+                ui.item(
+                    ("plugin-error", instance.0, region),
+                    rect,
+                    HostItem::Error {
+                        text: error,
+                        restart: None,
+                    },
+                );
                 return EditorPresentation::empty(&plugin.identity.id, instance, region);
             }
         };
         if let Some(error) = runtime.error.clone() {
-            ui.colored_label(egui::Color32::RED, error);
-            if ui.button("Restart plugin").clicked() {
-                runtime.restart(plugin);
-            }
+            ui.item(
+                ("plugin-error", instance.0, region),
+                rect,
+                HostItem::Error {
+                    text: error,
+                    restart: Some(plugin.identity.id.clone()),
+                },
+            );
             return EditorPresentation::empty(&plugin.identity.id, instance, region);
         }
         let pass = runtime.pass;
-        let response = ui.allocate_response(size, egui::Sense::click_and_drag());
-        ui.memory_mut(|memory| {
-            memory.set_focus_lock_filter(
-                response.id,
-                egui::EventFilter {
-                    tab: true,
-                    horizontal_arrows: true,
-                    vertical_arrows: true,
-                    escape: false,
-                },
-            );
-        });
-        let cropped = Quad::upright(response.rect).crop_to(ui.clip_rect());
-        let visible = cropped.as_ref().map_or(egui::Rect::ZERO, |(_, source)| {
-            scale_rect(*source, response.rect.size())
-        });
+        let target = Target { instance, region };
+        let clip = ui.clip();
+        ui.register(target, rect);
+        let cropped = Quad::upright(rect).crop_to(clip);
+        let visible = cropped
+            .as_ref()
+            .map_or(Rect::ZERO, |(_, source)| scale_rect(*source, rect.size()));
         let screen = runtime.instances.report(
             instance,
             region,
-            ui.ctx(),
             &client,
             client_id,
             role,
             block_types,
             frame,
-            response.rect.size(),
+            rect.size(),
             visible,
-            ui.ctx().pixels_per_point(),
+            host::pixels_per_point(),
             pass,
         );
         if let Some(view) = view {
@@ -618,51 +596,47 @@ pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresen
             instance,
             region,
             cropped.as_ref().map(|(quad, _)| quad.rect),
-            ui.clip_rect(),
+            clip,
             drawn,
         );
-        let (children, holes) =
-            runtime
-                .instances
-                .host_children(instance, region, response.rect, ui.clip_rect());
+        let (children, holes) = runtime
+            .instances
+            .host_children(instance, region, rect, clip);
         runtime.instances.place(
             instance,
             region,
             Placement {
-                id: response.id,
-                rect: response.rect,
-                clip: ui.clip_rect(),
+                target,
+                rect,
+                clip,
                 pass,
             },
         );
-        let over_hole = ui
-            .ctx()
-            .pointer_latest_pos()
-            .is_some_and(|position| holes.contains(position));
-        let drag = input::block_drag(&response).filter(|_| !over_hole);
+        let over_hole = host::pointer().is_some_and(|position| holes.contains(position));
+        let drag = input::block_drag(rect.intersect(clip)).filter(|_| !over_hole);
         let hovering = drag.as_ref().is_some_and(|drag| !drag.dropped);
         let messages = runtime.instances.drag(instance, region, drag);
         runtime.send(messages);
-        let files = input::file_drop(&response).filter(|_| !over_hole);
+        let files = input::file_drop(rect.intersect(clip)).filter(|_| !over_hole);
         let messages = runtime.instances.file_drop(instance, region, files);
         runtime.send(messages);
         if hovering && runtime.instances.drag_accepted(instance) {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Alias);
-        } else if response.hovered()
+            host::set_cursor(beui::CursorIcon::Alias);
+        } else if host::hovered(target)
             && !over_hole
             && let Some(cursor) = runtime.instances.cursor(instance, region)
         {
-            ui.ctx().set_cursor_icon(cursor);
+            host::set_cursor(cursor);
         }
-        if let Some(ime) = runtime.instances.ime(instance, region, response.rect) {
-            ui.ctx().output_mut(|output| output.ime = Some(ime));
+        if let Some(ime) = runtime.instances.ime(instance, region, rect) {
+            host::set_ime(ime);
         }
         EditorPresentation {
             plugin_id: plugin.identity.id.clone(),
             instance,
             region,
-            id: Some(response.id),
-            loading_rect: plugin_loading_rect(&runtime.layout, screen, response.rect),
+            id: Some(target),
+            loading_rect: plugin_loading_rect(&runtime.layout, screen, rect),
             screen: Some(screen),
             quad: match held {
                 Some(held) => Some(Quad::upright(held.rect)),
@@ -670,7 +644,7 @@ pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresen
             },
             clip: match held {
                 Some(held) => held.clip,
-                None => ui.clip_rect(),
+                None => clip,
             },
             drawn: held.map(|held| held.drawn),
             floating: match held {
@@ -682,10 +656,10 @@ pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresen
                         report
                             .floating
                             .iter()
-                            .map(|rect| {
-                                egui::Rect::from_min_size(
-                                    egui::pos2(rect.x, rect.y) + response.rect.min.to_vec2(),
-                                    egui::vec2(rect.width, rect.height),
+                            .map(|floating| {
+                                Rect::from_min_size(
+                                    pos2(floating.x, floating.y) + rect.min.to_vec2(),
+                                    vec2(floating.width, floating.height),
                                 )
                             })
                             .collect()
@@ -753,14 +727,14 @@ pub(crate) fn block_picked(
     });
 }
 
-fn scale_rect(rect: egui::Rect, size: egui::Vec2) -> egui::Rect {
-    egui::Rect::from_min_max(
-        egui::pos2(rect.min.x * size.x, rect.min.y * size.y),
-        egui::pos2(rect.max.x * size.x, rect.max.y * size.y),
+fn scale_rect(rect: Rect, size: Vec2) -> Rect {
+    Rect::from_min_max(
+        pos2(rect.min.x * size.x, rect.min.y * size.y),
+        pos2(rect.max.x * size.x, rect.max.y * size.y),
     )
 }
 
-pub(crate) fn creation(context: &egui::Context, slot: CreationSlot<'_>) -> CreationState {
+pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
     let CreationSlot {
         plugin,
         block_types,
@@ -770,7 +744,7 @@ pub(crate) fn creation(context: &egui::Context, slot: CreationSlot<'_>) -> Creat
     } = slot;
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let runtime = match host.runtime(plugin, context) {
+        let runtime = match host.runtime(plugin) {
             Ok(runtime) => runtime,
             Err(error) => return CreationState::Failed(error),
         };
@@ -779,7 +753,7 @@ pub(crate) fn creation(context: &egui::Context, slot: CreationSlot<'_>) -> Creat
         }
         match runtime
             .instances
-            .report_creation(instance, context, &client, client_id, block_types)
+            .report_creation(instance, &client, client_id, block_types)
         {
             true => CreationState::Ready,
             false => CreationState::Starting,
@@ -787,7 +761,7 @@ pub(crate) fn creation(context: &egui::Context, slot: CreationSlot<'_>) -> Creat
     })
 }
 
-pub(crate) fn artifact(context: &egui::Context, slot: ArtifactSlot<'_>) -> ArtifactState {
+pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
     let ArtifactSlot {
         plugin,
         block_types,
@@ -800,7 +774,7 @@ pub(crate) fn artifact(context: &egui::Context, slot: ArtifactSlot<'_>) -> Artif
     } = slot;
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let runtime = match host.runtime(plugin, context) {
+        let runtime = match host.runtime(plugin) {
             Ok(runtime) => runtime,
             Err(error) => return ArtifactState::Failed(error),
         };
@@ -809,7 +783,6 @@ pub(crate) fn artifact(context: &egui::Context, slot: ArtifactSlot<'_>) -> Artif
         }
         let messages = runtime.instances.report_artifact(
             instance,
-            context,
             &client,
             client_id,
             block_types,
@@ -829,7 +802,7 @@ pub(crate) fn artifact(context: &egui::Context, slot: ArtifactSlot<'_>) -> Artif
     })
 }
 
-pub(crate) fn preview(painter: &egui::Painter, slot: PreviewSlot<'_>) -> PreviewPresentation {
+pub(crate) fn preview(ui: &mut Ui, slot: PreviewSlot<'_>) -> PreviewPresentation {
     let PreviewSlot {
         plugin,
         block_types,
@@ -841,32 +814,30 @@ pub(crate) fn preview(painter: &egui::Painter, slot: PreviewSlot<'_>) -> Preview
         corners,
         opacity,
     } = slot;
-    let context = painter.ctx().clone();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let Ok(runtime) = host.runtime(plugin, &context) else {
+        let Ok(runtime) = host.runtime(plugin) else {
             return PreviewPresentation::empty();
         };
         if runtime.error.is_some() {
             return PreviewPresentation::empty();
         }
-        let rect = egui::Rect::from_points(&corners);
-        let scale_factor = context.pixels_per_point();
+        let rect = Rect::from_points(&corners);
+        let scale_factor = host::pixels_per_point();
         let size = preview_size(rect.size(), scale_factor);
         let cropped = Quad {
             rect,
             corners,
             opacity,
         }
-        .crop_to(painter.clip_rect());
+        .crop_to(ui.clip());
         let visible = cropped
             .as_ref()
-            .map_or(egui::Rect::ZERO, |(_, source)| scale_rect(*source, size));
+            .map_or(Rect::ZERO, |(_, source)| scale_rect(*source, size));
         let pass = runtime.pass;
         let screen = runtime.instances.report(
             instance,
             EditorRegion::Preview,
-            &context,
             &client,
             client_id,
             InstanceRole::Editor(EditorBlock {
@@ -883,8 +854,8 @@ pub(crate) fn preview(painter: &egui::Painter, slot: PreviewSlot<'_>) -> Preview
         let (children, _) = runtime.instances.host_children(
             instance,
             EditorRegion::Preview,
-            egui::Rect::from_min_size(egui::Pos2::ZERO, size),
-            egui::Rect::EVERYTHING,
+            Rect::from_min_size(Pos2::ZERO, size),
+            Rect::EVERYTHING,
         );
         let Some((quad, _)) = cropped else {
             return PreviewPresentation {
@@ -895,13 +866,7 @@ pub(crate) fn preview(painter: &egui::Painter, slot: PreviewSlot<'_>) -> Preview
         };
         let placed = runtime.layout.placement(screen).is_some();
         if placed {
-            painter.add(runtime.present(
-                quad.rect.intersect(painter.clip_rect()),
-                screen,
-                quad,
-                UNIT,
-                None,
-            ));
+            ui.blit(runtime.present(screen, quad, UNIT, None));
         }
         PreviewPresentation {
             drawn: placed,
@@ -915,21 +880,28 @@ impl PreviewPresentation {
     fn empty() -> Self {
         Self {
             drawn: false,
-            size: egui::Vec2::ZERO,
+            size: Vec2::ZERO,
             children: Vec::new(),
         }
     }
 }
 
-pub(crate) fn poll(context: &egui::Context, frame: &eframe::Frame) {
-    let pass = context.cumulative_pass_nr();
+pub(crate) fn poll() {
+    let pass = host::pass();
+    for command in host::take_commands() {
+        match command {
+            host::HostCommand::RestartPlugin(plugin_id) => {
+                with(&plugin_id, Runtime::restart);
+            }
+        }
+    }
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let overlay = std::mem::take(&mut host.overlay);
         for runtime in host.runtimes.values_mut() {
             runtime.detect_error();
             runtime.pump();
-            runtime.begin_frame(frame, pass, &overlay);
+            runtime.begin_frame(pass, &overlay);
         }
         let grabbed = host
             .runtimes
@@ -937,12 +909,7 @@ pub(crate) fn poll(context: &egui::Context, frame: &eframe::Frame) {
             .any(|runtime| runtime.instances.grabbing());
         if host.grabbed != grabbed {
             host.grabbed = grabbed;
-            let grab = match grabbed {
-                true => egui::CursorGrab::Locked,
-                false => egui::CursorGrab::None,
-            };
-            context.send_viewport_cmd(egui::ViewportCommand::CursorGrab(grab));
-            context.send_viewport_cmd(egui::ViewportCommand::CursorVisible(!grabbed));
+            crate::host::set_grab(grabbed);
         }
     });
 }
@@ -1015,13 +982,13 @@ pub(crate) fn set_artifact_states(
     });
 }
 
-pub(crate) fn kill(context: &egui::Context, plugin_id: &str) {
+pub(crate) fn kill(plugin_id: &str) {
     HOST.with(|host| {
-        host.borrow_mut().shutdown(context, plugin_id);
+        host.borrow_mut().shutdown(plugin_id);
     });
 }
 
-pub(crate) fn close(_context: &egui::Context, plugin_id: &str, instance: EditorInstanceId) {
+pub(crate) fn close(plugin_id: &str, instance: EditorInstanceId) {
     with(plugin_id, |runtime| {
         let messages = runtime
             .instances
@@ -1061,7 +1028,7 @@ pub(crate) fn region_size(
     plugin_id: &str,
     instance: EditorInstanceId,
     region: EditorRegion,
-) -> Option<egui::Vec2> {
+) -> Option<Vec2> {
     with(plugin_id, |runtime| {
         runtime.instances.region_size(instance, region)
     })
@@ -1115,7 +1082,7 @@ pub(crate) fn hold(plugin_id: &str, instance: EditorInstanceId, region: EditorRe
     });
 }
 
-pub(crate) fn cover_frame(plugin_id: &str, instance: EditorInstanceId, frame: egui::Rect) {
+pub(crate) fn cover_frame(plugin_id: &str, instance: EditorInstanceId, frame: Rect) {
     let Some(rects) = frame_rects(plugin_id, instance).map(|rects| {
         super::pieces::subtract(frame, &[rects.content.translate(frame.min.to_vec2())])
     }) else {
@@ -1133,9 +1100,9 @@ pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option
     with(plugin_id, |runtime| {
         runtime.instances.frame_report(instance).map(|report| {
             let rect = |rect: &block_plugin_api::ChildRect| {
-                egui::Rect::from_min_size(
-                    egui::pos2(rect.x, rect.y),
-                    egui::vec2(rect.width, rect.height),
+                Rect::from_min_size(
+                    pos2(rect.x, rect.y),
+                    vec2(rect.width, rect.height),
                 )
             };
             HostFrame {
@@ -1151,14 +1118,13 @@ pub(crate) fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {
 }
 
 pub(crate) fn present(
-    context: &egui::Context,
     plugin_id: &str,
     instance: EditorInstanceId,
     presenting: bool,
 ) {
     with(plugin_id, |runtime| {
         if runtime.instances.set_presenting(instance, presenting) {
-            context.request_repaint();
+            host::request_repaint();
         }
     });
 }
@@ -1184,7 +1150,7 @@ pub(crate) fn replace_child(
     .flatten()
 }
 
-pub(crate) fn resized(plugin_id: &str, instance: EditorInstanceId, size: egui::Vec2) {
+pub(crate) fn resized(plugin_id: &str, instance: EditorInstanceId, size: Vec2) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.resized(instance, size);
         runtime.send(messages);
@@ -1205,7 +1171,7 @@ pub(crate) fn aspect_ratio(plugin_id: &str, instance: EditorInstanceId) -> Optio
     .flatten()
 }
 
-pub(crate) fn intrinsic_size(plugin_id: &str, instance: EditorInstanceId) -> Option<egui::Vec2> {
+pub(crate) fn intrinsic_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
     with(plugin_id, |runtime| {
         runtime.instances.intrinsic_size(instance)
     })
@@ -1238,18 +1204,14 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
     })
 }
 
-fn session(context: &egui::Context) -> HostSession {
-    HostSession::new(HOST_NAME, Some(SURFACE), theme(context))
+fn session() -> HostSession {
+    HostSession::new(HOST_NAME, Some(SURFACE), theme())
 }
 
-fn theme(context: &egui::Context) -> Theme {
+fn theme() -> Theme {
     Theme {
-        dark: context.global_style().visuals.dark_mode,
+        dark: host::dark(),
     }
-}
-
-fn milliseconds(context: &egui::Context) -> u64 {
-    (context.input(|input| input.time) * 1000.0).max(0.0) as u64
 }
 
 pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {

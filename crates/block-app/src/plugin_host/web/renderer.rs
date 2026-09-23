@@ -1,16 +1,15 @@
-use eframe::egui_wgpu::wgpu;
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 
-use super::super::presenter::{Regions, SurfacePresenter};
+use super::super::presenter::{BlitPipeline, SurfacePresenter};
 
 pub(crate) fn presenter(
-    render_state: &eframe::egui_wgpu::RenderState,
+    _device: &wgpu::Device,
+    _queue: &wgpu::Queue,
 ) -> Result<WebSurfacePresenter, String> {
-    Ok(WebSurfacePresenter::new(
-        &render_state.device,
-        render_state.target_format,
-    ))
+    Ok(WebSurfacePresenter {
+        targets: HashMap::new(),
+    })
 }
 
 pub(crate) struct WebFrame {
@@ -27,91 +26,14 @@ struct Target {
 }
 
 pub(crate) struct WebSurfacePresenter {
-    blit_pipeline: wgpu::RenderPipeline,
-    blit_bind_group_layout: wgpu::BindGroupLayout,
-    sampler: wgpu::Sampler,
-    copy_format: wgpu::TextureFormat,
     targets: HashMap<u32, Target>,
 }
 
 impl WebSurfacePresenter {
-    fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("../blit.wgsl"));
-
-        let blit_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("plugin demo blit bind group layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    Regions::layout_entry(),
-                ],
-            });
-        let blit_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("plugin demo blit pipeline layout"),
-            bind_group_layouts: &[Some(&blit_bind_group_layout)],
-            immediate_size: 0,
-        });
-        let blit_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("plugin demo blit pipeline"),
-            layout: Some(&blit_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("blit_vertex"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("blit_fragment"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: target_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("plugin demo blit sampler"),
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-
-        Self {
-            blit_pipeline,
-            blit_bind_group_layout,
-            sampler,
-            copy_format: copy_format(target_format),
-            targets: HashMap::new(),
-        }
-    }
-
     fn ensure_target(
         &mut self,
         device: &wgpu::Device,
-        regions: &Regions,
+        pipeline: &BlitPipeline,
         surface: u32,
         size: [u32; 2],
     ) {
@@ -132,31 +54,14 @@ impl WebSurfacePresenter {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: self.copy_format,
+            format: pipeline.copy_format(),
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("plugin demo blit bind group"),
-            layout: &self.blit_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: regions.binding(),
-                },
-            ],
-        });
+        let bind_group = pipeline.texture_group(device, &view);
         self.targets.insert(
             surface,
             Target {
@@ -205,20 +110,6 @@ impl WebSurfacePresenter {
         );
     }
 
-    fn blit(
-        &self,
-        render_pass: &mut wgpu::RenderPass<'static>,
-        regions: &Regions,
-        surface: u32,
-        slot: u32,
-    ) {
-        let Some(target) = self.targets.get(&surface) else {
-            return;
-        };
-        render_pass.set_pipeline(&self.blit_pipeline);
-        render_pass.set_bind_group(0, &target.bind_group, &[regions.offset(slot)]);
-        render_pass.draw(0..6, 0..1);
-    }
 }
 
 impl SurfacePresenter for WebSurfacePresenter {
@@ -227,12 +118,12 @@ impl SurfacePresenter for WebSurfacePresenter {
     fn replace(
         &mut self,
         device: &wgpu::Device,
-        regions: &Regions,
+        pipeline: &BlitPipeline,
         surface: u32,
         frame: &Self::Frame,
     ) -> Result<(), String> {
         if frame.size[0] > 0 && frame.size[1] > 0 {
-            self.ensure_target(device, regions, surface, frame.size);
+            self.ensure_target(device, pipeline, surface, frame.size);
         }
         Ok(())
     }
@@ -249,25 +140,12 @@ impl SurfacePresenter for WebSurfacePresenter {
         Ok(())
     }
 
-    fn paint(
-        &self,
-        render_pass: &mut wgpu::RenderPass<'static>,
-        regions: &Regions,
-        surface: u32,
-        slot: u32,
-    ) {
-        self.blit(render_pass, regions, surface, slot);
+    fn texture(&self, surface: u32) -> Option<&wgpu::BindGroup> {
+        self.targets.get(&surface).map(|target| &target.bind_group)
     }
 
     fn release(&mut self, surface: u32) {
         self.targets.remove(&surface);
-    }
-}
-
-fn copy_format(target_format: wgpu::TextureFormat) -> wgpu::TextureFormat {
-    match target_format.is_srgb() {
-        true => wgpu::TextureFormat::Rgba8UnormSrgb,
-        false => wgpu::TextureFormat::Rgba8Unorm,
     }
 }
 

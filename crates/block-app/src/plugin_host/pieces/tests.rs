@@ -1,17 +1,17 @@
 use super::*;
 
-fn rect(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> egui::Rect {
-    egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y))
+fn rect(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> beui::Rect {
+    beui::Rect::from_min_max(beui::pos2(min_x, min_y), beui::pos2(max_x, max_y))
 }
 
-fn area(pieces: &[egui::Rect]) -> f32 {
+fn area(pieces: &[beui::Rect]) -> f32 {
     pieces
         .iter()
         .map(|piece| piece.width() * piece.height())
         .sum()
 }
 
-fn disjoint(pieces: &[egui::Rect]) -> bool {
+fn disjoint(pieces: &[beui::Rect]) -> bool {
     pieces.iter().enumerate().all(|(index, piece)| {
         pieces[index + 1..]
             .iter()

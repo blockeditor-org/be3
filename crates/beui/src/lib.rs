@@ -1,7 +1,7 @@
 extern crate self as beui;
 
 mod accessibility;
-#[cfg(feature = "window")]
+#[cfg(any(feature = "window", feature = "web"))]
 mod app;
 mod base;
 mod color;
@@ -35,8 +35,14 @@ pub mod styled;
 pub mod unstyled;
 
 pub use accesskit;
+#[cfg(any(feature = "window", feature = "web"))]
+pub use app::{App, RunOptions, Setup, Waker};
 #[cfg(feature = "window")]
-pub use app::{App, run};
+pub use app::{run, run_with};
+#[cfg(feature = "web")]
+pub use app::run_web;
+#[cfg(feature = "window")]
+pub use winit;
 pub use base::{Align, Direction, ItemSize, ScrollPosition, TextAlign, focus_within};
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
@@ -53,7 +59,7 @@ pub use font::{
 pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 pub use image::{Image, ImageFit, ImageId};
 pub use input::{
-    CursorIcon, Event, InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,
     ScrollGesture, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
 pub use node::{ClickHandler, Handler, NodeId};

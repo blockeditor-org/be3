@@ -1,7 +1,7 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use block_plugin_api::{WebViewCommand, WebViewEvent};
-use eframe::egui;
+use beui::Rect;
 
 #[cfg(all(
     feature = "web-view",
@@ -28,6 +28,13 @@ use native::WebView;
     target_arch = "wasm32"
 ))]
 use unsupported::WebView;
+
+#[cfg(all(
+    feature = "web-view",
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
+pub(crate) use native::install;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct Bounds {
@@ -71,17 +78,15 @@ impl WebViewHost {
 
     pub(super) fn drive(
         &mut self,
-        frame: &eframe::Frame,
-        context: &egui::Context,
-        rect: Option<egui::Rect>,
+        rect: Option<Rect>,
         events: &mut Vec<WebViewEvent>,
     ) {
         for command in std::mem::take(&mut self.pending) {
-            self.apply(frame, command, events);
+            self.apply(command, events);
         }
-        match rect.filter(egui::Rect::is_positive) {
+        match rect.filter(Rect::is_positive) {
             Some(rect) => {
-                self.set_bounds(context, rect, events);
+                self.set_bounds(rect, events);
                 self.set_visible(true, events);
             }
             None => self.set_visible(false, events),
@@ -98,14 +103,9 @@ impl WebViewHost {
         }
     }
 
-    fn apply(
-        &mut self,
-        frame: &eframe::Frame,
-        command: WebViewCommand,
-        events: &mut Vec<WebViewEvent>,
-    ) {
+    fn apply(&mut self, command: WebViewCommand, events: &mut Vec<WebViewEvent>) {
         match command {
-            WebViewCommand::Open(url) => self.open(frame, &url, events),
+            WebViewCommand::Open(url) => self.open(&url, events),
             WebViewCommand::Load(url) => {
                 if let Some(view) = &self.view {
                     report(view.load_url(&url), events);
@@ -125,11 +125,11 @@ impl WebViewHost {
         }
     }
 
-    fn open(&mut self, frame: &eframe::Frame, url: &str, events: &mut Vec<WebViewEvent>) {
+    fn open(&mut self, url: &str, events: &mut Vec<WebViewEvent>) {
         if self.view.is_some() || self.failed {
             return;
         }
-        match WebView::new(frame, url, &self.sender) {
+        match WebView::new(url, &self.sender) {
             Ok(view) => {
                 self.view = Some(view);
                 self.address = Some(url.to_owned());
@@ -153,13 +153,8 @@ impl WebViewHost {
         while self.events.try_recv().is_ok() {}
     }
 
-    fn set_bounds(
-        &mut self,
-        context: &egui::Context,
-        rect: egui::Rect,
-        events: &mut Vec<WebViewEvent>,
-    ) {
-        let scale = context.pixels_per_point();
+    fn set_bounds(&mut self, rect: Rect, events: &mut Vec<WebViewEvent>) {
+        let scale = crate::host::pixels_per_point();
         let bounds = Bounds {
             x: (rect.min.x * scale).round() as i32,
             y: (rect.min.y * scale).round() as i32,

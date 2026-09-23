@@ -67,6 +67,38 @@ pub enum Key {
     X,
     Y,
     Z,
+    Insert,
+    Comma,
+    Period,
+    Slash,
+    Backslash,
+    Semicolon,
+    Quote,
+    BrowserBack,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    F13,
+    F14,
+    F15,
+    F16,
+    F17,
+    F18,
+    F19,
+    F20,
+    F21,
+    F22,
+    F23,
+    F24,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -143,6 +175,8 @@ pub enum PointerButton {
     Primary,
     Secondary,
     Middle,
+    Back,
+    Forward,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -194,6 +228,31 @@ pub enum Event {
         force: Option<f32>,
     },
     Zoom(f32),
+    Ime(ImeEvent),
+    FileHovered,
+    FileHoverCancelled,
+    FileDropped(DroppedFile),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum ImeEvent {
+    Enabled,
+    Preedit(String),
+    Commit(String),
+    Disabled,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DroppedFile {
+    pub name: String,
+    pub path: Option<std::path::PathBuf>,
+    pub bytes: Option<std::sync::Arc<[u8]>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ImeArea {
+    pub rect: crate::geometry::Rect,
+    pub cursor: crate::geometry::Rect,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -211,6 +270,11 @@ pub enum CursorIcon {
     ResizeNwSe,
     Text,
     Wait,
+    None,
+    Move,
+    Progress,
+    Help,
+    Alias,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -339,6 +403,7 @@ impl InputState {
                                 self.pointer.middle_released = true;
                             }
                         }
+                        PointerButton::Back | PointerButton::Forward => {}
                     }
                 }
                 Event::Scroll(delta) => self.scroll_delta = self.scroll_delta + *delta,
