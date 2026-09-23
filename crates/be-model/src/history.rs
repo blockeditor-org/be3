@@ -27,10 +27,20 @@ impl Step {
         }
         for (undo, latest) in self.undo.iter_mut().zip(next.undo) {
             match (undo, latest) {
-                (Change::SetIf { expected, .. }, Change::SetIf { expected: after, .. }) => {
+                (
+                    Change::SetIf { expected, .. },
+                    Change::SetIf {
+                        expected: after, ..
+                    },
+                ) => {
                     *expected = after;
                 }
-                (Change::PutIf { expected, .. }, Change::PutIf { expected: after, .. }) => {
+                (
+                    Change::PutIf { expected, .. },
+                    Change::PutIf {
+                        expected: after, ..
+                    },
+                ) => {
                     *expected = after;
                 }
                 _ => {}

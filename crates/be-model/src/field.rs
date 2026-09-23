@@ -263,7 +263,7 @@ impl<K: Ord, V> FromIterator<(K, V)> for Map<K, V> {
     }
 }
 
-impl<K: Register + Ord, V: Register> Field for Map<K, V> {
+impl<K: Serialize + DeserializeOwned + Ord, V: Serialize + DeserializeOwned> Field for Map<K, V> {
     fn blank() -> Value {
         Value::Map(BTreeMap::new())
     }
@@ -293,7 +293,7 @@ impl<K: Register + Ord, V: Register> Field for Map<K, V> {
     }
 }
 
-impl<M, K: Register, V: Register> FieldRef<M, Map<K, V>> {
+impl<M, K: Serialize, V: Serialize> FieldRef<M, Map<K, V>> {
     pub fn put(self, object: ObjectId, key: &K, value: Option<&V>) -> Change {
         Change::Put {
             object,

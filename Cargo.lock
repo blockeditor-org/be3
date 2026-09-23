@@ -920,6 +920,7 @@ name = "block-client"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "be-block",
  "block",
  "block-server",
  "chacha20poly1305",

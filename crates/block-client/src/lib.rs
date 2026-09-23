@@ -1575,6 +1575,10 @@ pub trait BlockHandleAccess {
         true
     }
 
+    fn set_references(&self, _references: Vec<Uuid>) -> bool {
+        true
+    }
+
     fn add_child(&self, _block_id: Uuid) -> Option<bool> {
         None
     }
@@ -1629,6 +1633,19 @@ impl<B: Block> BlockHandleAccess for BlockHandle<B> {
 
     fn set_implicit_name(&self, name: Option<String>) -> bool {
         BlockHandle::set_implicit_name(self, name)
+    }
+
+    fn set_references(&self, references: Vec<Uuid>) -> bool {
+        let Some(current) = self.read().map(|value| value.references()) else {
+            return false;
+        };
+        let references = normalized_references(references);
+        if normalized_references(current) != references
+            && let Some(operation) = B::bridged_references(references)
+        {
+            self.operate(operation);
+        }
+        true
     }
 
     fn add_child(&self, block_id: Uuid) -> Option<bool> {

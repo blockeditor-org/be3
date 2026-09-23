@@ -21,7 +21,11 @@ fn undo_of_map_entries_restores_only_what_nobody_changed_since() {
     let more_step = document.step(&more).expect("typing changes something");
     document.apply(&more);
     assert!(typed_step.absorb(more_step).is_ok());
-    document.apply(&Sheet::CELLS.put(ObjectId::ROOT, &1, Some(&"uno".to_owned())).into());
+    document.apply(
+        &Sheet::CELLS
+            .put(ObjectId::ROOT, &1, Some(&"uno".to_owned()))
+            .into(),
+    );
 
     document.apply(&typed_step.undo());
     document.apply(&cleared_step.undo());

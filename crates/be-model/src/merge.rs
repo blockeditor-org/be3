@@ -97,7 +97,11 @@ fn merge_entries(
     theirs: &BTreeMap<Vec<u8>, Vec<u8>>,
     conflicts: &mut usize,
 ) -> BTreeMap<Vec<u8>, Vec<u8>> {
-    let keys: BTreeSet<&Vec<u8>> = base.keys().chain(ours.keys()).chain(theirs.keys()).collect();
+    let keys: BTreeSet<&Vec<u8>> = base
+        .keys()
+        .chain(ours.keys())
+        .chain(theirs.keys())
+        .collect();
     keys.into_iter()
         .filter_map(|key| {
             pick(&base.get(key), &ours.get(key), &theirs.get(key), conflicts)

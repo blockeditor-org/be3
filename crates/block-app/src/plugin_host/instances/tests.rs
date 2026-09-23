@@ -56,6 +56,7 @@ fn placed_with(client: &Arc<BlockClient>, block: Uuid, block_type: Uuid) -> Inst
     instances
 }
 
+mod a_database_view_given_content_links_to_its_database_in_the_old_graph;
 mod a_frame_childs_chrome_is_withheld_from_the_editor_it_covers;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;

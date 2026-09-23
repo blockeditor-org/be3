@@ -1,4 +1,5 @@
-use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType, DatabaseSchema};
+use block_client::blocks::database_schema::DatabaseSchema;
+use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};

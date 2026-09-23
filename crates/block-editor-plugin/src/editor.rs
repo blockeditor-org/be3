@@ -380,6 +380,17 @@ impl Editor {
         self.projection(Some(block))
     }
 
+    pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> Rc<crate::RelatedContent<C>>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        Rc::new(crate::RelatedContent::new(self.clone(), block))
+    }
+
+    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.0.host.seed_content(block, content);
+    }
+
     fn projection<C>(&self, block: Option<Uuid>) -> Rc<ContentProjection<C>>
     where
         C: be_block::LiveEdit + Clone + Default,
@@ -769,6 +780,10 @@ impl Creation {
 
     pub fn client(&self) -> &Arc<BlockClient> {
         &self.0.client
+    }
+
+    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.0.host.seed_content(block, content);
     }
 
     pub fn set_ready(&self, ready: bool) {

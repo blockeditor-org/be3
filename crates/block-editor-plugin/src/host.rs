@@ -454,8 +454,16 @@ pub struct EditorHost {
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
+    seeded: Rc<RefCell<Vec<SeededContent>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SeededContent {
+    pub block: Uuid,
+    pub content_type: Uuid,
+    pub bytes: Vec<u8>,
 }
 
 impl EditorHost {
@@ -808,6 +816,19 @@ impl EditorHost {
         self.watched_content
             .borrow_mut()
             .insert(block, content_type);
+    }
+
+    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.seeded.borrow_mut().push(SeededContent {
+            block,
+            content_type: C::CONTENT_TYPE,
+            bytes: content.encode(),
+        });
+        self.waker.wake();
+    }
+
+    pub fn take_seeded_content(&self) -> Vec<SeededContent> {
+        std::mem::take(&mut self.seeded.borrow_mut())
     }
 
     pub fn watched_content(&self) -> Vec<(Uuid, Uuid)> {

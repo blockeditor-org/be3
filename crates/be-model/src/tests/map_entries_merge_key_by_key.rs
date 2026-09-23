@@ -8,11 +8,23 @@ fn map_entries_merge_key_by_key() {
             .collect(),
     });
     let mut ours = base.clone();
-    ours.apply(&Sheet::CELLS.put(ObjectId::ROOT, &1, Some(&"uno".to_owned())).into());
-    ours.apply(&Sheet::CELLS.put(ObjectId::ROOT, &3, Some(&"ours".to_owned())).into());
+    ours.apply(
+        &Sheet::CELLS
+            .put(ObjectId::ROOT, &1, Some(&"uno".to_owned()))
+            .into(),
+    );
+    ours.apply(
+        &Sheet::CELLS
+            .put(ObjectId::ROOT, &3, Some(&"ours".to_owned()))
+            .into(),
+    );
     let mut theirs = base.clone();
     theirs.apply(&Sheet::CELLS.put(ObjectId::ROOT, &2, None).into());
-    theirs.apply(&Sheet::CELLS.put(ObjectId::ROOT, &3, Some(&"theirs".to_owned())).into());
+    theirs.apply(
+        &Sheet::CELLS
+            .put(ObjectId::ROOT, &3, Some(&"theirs".to_owned()))
+            .into(),
+    );
 
     let (merged, conflicts) = Document::merge(&base, &ours, &theirs);
 

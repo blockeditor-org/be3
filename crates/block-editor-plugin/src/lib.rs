@@ -17,6 +17,7 @@ mod host;
 #[cfg(target_arch = "wasm32")]
 mod panes;
 mod related;
+mod related_content;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
 #[cfg(target_arch = "wasm32")]
@@ -45,9 +46,10 @@ pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
     BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
     HostContent, ImagePaster, OpenRequest, PastedImage, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, ShowRequest, Task, Waker,
+    PerformanceReporter, PickedBlock, PickedFile, SeededContent, ShowRequest, Task, Waker,
 };
 pub use related::RelatedBlock;
+pub use related_content::RelatedContent;
 
 pub trait BeuiApp: 'static {
     fn view(editor: Editor) -> beui::NodeId;

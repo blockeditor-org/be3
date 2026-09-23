@@ -99,7 +99,7 @@ struct ContentLink {
     opened: bool,
     origin: u64,
     sent: Option<u64>,
-    named: Option<u64>,
+    bridged: Option<u64>,
     old_block: Option<Box<dyn BlockHandleAccess>>,
 }
 
@@ -110,8 +110,31 @@ impl ContentLink {
             opened: false,
             origin: crate::be::next_origin(),
             sent: None,
-            named: None,
+            bridged: None,
             old_block: None,
+        }
+    }
+
+    fn bridge(&mut self, client: &BlockClient, block: Uuid, block_type: Uuid) {
+        let Some(content) = crate::be::content(block) else {
+            return;
+        };
+        if self.bridged == Some(content.revision)
+            || client.block_access(block) != block::BlockAccess::Edit
+        {
+            return;
+        }
+        if self.old_block.is_none() {
+            self.old_block = block_client::blocks::open(client, block, block_type);
+        }
+        let Some(old_block) = &self.old_block else {
+            return;
+        };
+        let references = crate::be::references_of(&content).unwrap_or_default();
+        if old_block.set_implicit_name(crate::be::name_of(&content))
+            && old_block.set_references(references)
+        {
+            self.bridged = Some(content.revision);
         }
     }
 
@@ -289,29 +312,14 @@ impl Instance {
         }))
     }
 
-    fn name_from_content(&mut self, client: &BlockClient) {
-        let Some(block) = self.role.block() else {
-            return;
-        };
-        let Some(link) = self.content.as_mut() else {
-            return;
-        };
-        let Some(content) = crate::be::content(block.id) else {
-            return;
-        };
-        if link.named == Some(content.revision)
-            || client.block_access(block.id) != block::BlockAccess::Edit
-        {
-            return;
+    fn bridge_content(&mut self, client: &BlockClient) {
+        if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
+            link.bridge(client, block.id, block.block_type);
         }
-        if link.old_block.is_none() {
-            link.old_block = block_client::blocks::open(client, block.id, block.block_type);
-        }
-        let Some(old_block) = &link.old_block else {
-            return;
-        };
-        if old_block.set_implicit_name(crate::be::name_of(&content)) {
-            link.named = Some(content.revision);
+        for (block, link) in &mut self.watched {
+            if let Some(block_type) = crate::be::block_type_of(link.content_type) {
+                link.bridge(client, *block, block_type);
+            }
         }
     }
 }
@@ -900,7 +908,7 @@ impl Instances {
                 }
             }
             opened.extend(entry.content_messages(instance));
-            entry.name_from_content(client);
+            entry.bridge_content(client);
             if let Some(message) = entry.history_message(instance) {
                 opened.push(message);
             }
@@ -1892,6 +1900,19 @@ impl Instances {
             }
             EditorMessage::WatchContent { instance, blocks } => {
                 self.watch_content(instance, blocks)
+            }
+            EditorMessage::SeedContent {
+                block_id,
+                content_type,
+                bytes,
+                ..
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                let content_type = Uuid::from_bytes(content_type);
+                if crate::be::is_migrated(content_type) {
+                    crate::be::seed(block, content_type, bytes);
+                }
+                false
             }
             EditorMessage::DragAccepted { instance, accepted } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {

@@ -656,6 +656,14 @@ impl EditorSession {
         if std::mem::take(&mut self.leaving) {
             messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
         }
+        for seeded in self.host.take_seeded_content() {
+            messages.push(Message::Editor(EditorMessage::SeedContent {
+                instance,
+                block_id: seeded.block.into_bytes(),
+                content_type: seeded.content_type.into_bytes(),
+                bytes: seeded.bytes,
+            }));
+        }
         if let Some(outcome) = self.created.take() {
             messages.push(Message::Editor(EditorMessage::CreationBlock {
                 instance,

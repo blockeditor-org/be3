@@ -4,6 +4,12 @@ use crate::{
     calendar::{Calendar, CalendarContent, CalendarEvent},
     checklist::{Checklist, ChecklistContent},
     counter::{Counter, CounterContent},
+    database::{Database, DatabaseContent, DatabaseValue},
+    database_schema::{
+        DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale, DatabaseSchema,
+        DatabaseSchemaContent,
+    },
+    database_view::{DatabaseView, DatabaseViewContent},
     image::{ImageContent, ImageHeader},
     text::{TextContent, TextLanguage, TextOp},
     ui_settings::{UiSettings, UiSettingsContent},
@@ -14,8 +20,12 @@ mod a_browser_tab_push_discards_forward_history;
 mod a_calendar_undo_keeps_what_someone_else_changed_since;
 mod a_calendar_update_writes_only_the_fields_that_changed;
 mod a_counter_reset_undoes_back_to_its_count;
+mod a_database_and_its_views_reference_what_they_link_to;
+mod a_database_grows_rows_to_fill_a_cell_and_drops_trailing_empty_ones;
+mod a_schema_normalizes_number_options_and_keeps_option_ids;
 mod an_image_merges_only_when_one_side_changed_it;
 mod calendars_merge_each_event_field_by_field;
+mod cells_set_on_both_sides_of_one_row_merge_to_both;
 mod clearing_a_checklist_keeps_the_open_items;
 mod streamed_content_separates_its_header_from_its_payload;
 mod text_merges_line_by_line_and_marks_real_conflicts;

@@ -10,6 +10,10 @@ pub trait Root: Model + Send + Sync + 'static {
     fn name(&self) -> Option<String> {
         None
     }
+
+    fn references(&self) -> Vec<Uuid> {
+        Vec::new()
+    }
 }
 
 impl<R: Root> BlockContent for Document<R> {
@@ -25,6 +29,10 @@ impl<R: Root> BlockContent for Document<R> {
 
     fn name(&self) -> Option<String> {
         self.root().name()
+    }
+
+    fn references(&self) -> Vec<Uuid> {
+        self.root().references()
     }
 }
 

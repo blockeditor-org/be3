@@ -481,6 +481,12 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         blocks: Vec<WatchedContent>,
     },
+    SeedContent {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        content_type: [u8; 16],
+        bytes: Vec<u8>,
+    },
     ViewChanged {
         instance: EditorInstanceId,
         x: f32,
@@ -746,6 +752,7 @@ impl EditorMessage {
             | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
             | Self::WatchContent { instance, .. }
+            | Self::SeedContent { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -1194,6 +1201,7 @@ impl EditorMessage {
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
             | Self::WatchContent { .. }
+            | Self::SeedContent { .. }
             | Self::Performance { .. } => Direction::ToHost,
         }
     }

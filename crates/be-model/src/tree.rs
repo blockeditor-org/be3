@@ -170,7 +170,8 @@ impl Tree {
                     return None;
                 };
                 let held = entries.get(key);
-                (held != value.as_ref()).then(|| conditional_entry(*object, *field, key, held, value.as_ref()))
+                (held != value.as_ref())
+                    .then(|| conditional_entry(*object, *field, key, held, value.as_ref()))
             }
             Change::PutIf {
                 object,
