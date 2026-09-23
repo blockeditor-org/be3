@@ -84,6 +84,7 @@ fn read_dropped(file: egui::DroppedFile) -> Option<DroppedFile> {
 #[derive(Default)]
 pub(super) struct InputAdapter {
     captured: bool,
+    pointer_inside: bool,
     pressed_buttons: u8,
     focused: bool,
     modifiers: Modifiers,
@@ -106,10 +107,8 @@ impl InputAdapter {
         screen: ScreenId,
         holes: &Holes,
     ) -> Vec<Message> {
-        self.over_hole = !self.captured
-            && context
-                .pointer_latest_pos()
-                .is_some_and(|position| holes.contains(position));
+        let latest = context.pointer_latest_pos();
+        self.over_hole = !self.captured && latest.is_some_and(|position| holes.contains(position));
         let events = context.input(|input| input.events.clone());
         let mut normalized = Vec::new();
         if focused != self.focused {
@@ -126,6 +125,13 @@ impl InputAdapter {
             for event in events {
                 self.normalize_event(event, rect, hovered, focused, holes, &mut normalized);
             }
+        }
+
+        let over_viewport =
+            latest.is_some_and(|position| rect.contains(position) && !holes.contains(position));
+        if self.pointer_inside && !self.captured && !over_viewport {
+            self.pointer_inside = false;
+            normalized.push(InputEvent::PointerLeft);
         }
 
         let shortcut_down = super::clipboard::paste_shortcut_down();
@@ -158,11 +164,18 @@ impl InputAdapter {
         };
         match event {
             egui::Event::PointerMoved(position) if pointer(position, self.captured) => {
+                self.pointer_inside = true;
                 let position = position - rect.min;
                 output.push(InputEvent::PointerMoved {
                     x: position.x,
                     y: position.y,
                 });
+            }
+            egui::Event::PointerMoved(_) | egui::Event::PointerGone
+                if self.pointer_inside && !self.captured =>
+            {
+                self.pointer_inside = false;
+                output.push(InputEvent::PointerLeft);
             }
             egui::Event::MouseMoved(delta) if focused => {
                 output.push(InputEvent::PointerMotion {
