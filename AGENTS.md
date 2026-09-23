@@ -57,3 +57,4 @@ In your handoff message:
 - If any, mention any small issues you encountered or small things you noticed that could make the code / application better.
 - If any, mention any new principles / constraints in a user message that may deserve to be added to the design principles list.
 - If any, mention any existing code you noticed that is violating a design principle.
+- If any, things that took a few tries to figure out and it could help future agents to clarify.
