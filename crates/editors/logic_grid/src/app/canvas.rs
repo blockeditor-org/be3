@@ -341,331 +341,288 @@ fn flip_selected_wire(
 }
 
 impl LogicGridEditor {
-    pub(super) fn handle_canvas_input(&mut self, response: &egui::Response) {
-        if self.tool.kind == ToolKind::Select
-            && response.ctx.input(|input| {
-                input.key_pressed(egui::Key::Delete) || input.key_pressed(egui::Key::Backspace)
-            })
-        {
+    pub(super) fn key(&mut self, key: Key) -> bool {
+        if self.tool.kind == ToolKind::Select && matches!(key, Key::Delete | Key::Backspace) {
             self.delete_selection();
+            return true;
         }
-
-        if self.tool.kind == ToolKind::Select && !response.ctx.egui_wants_keyboard_input() {
-            response.ctx.input(|input| {
-                if input.key_pressed(egui::Key::Q) {
-                    self.rotate_selection(RotationDirection::Left);
-                }
-                if input.key_pressed(egui::Key::E) {
-                    self.rotate_selection(RotationDirection::Right);
-                }
-                if input.key_pressed(egui::Key::OpenBracket) {
-                    self.scale_selection(ScaleDirection::Down);
-                }
-                if input.key_pressed(egui::Key::CloseBracket) {
-                    self.scale_selection(ScaleDirection::Up);
-                }
-                if input.key_pressed(egui::Key::H) {
-                    self.flip_selection(FlipDirection::Horizontal);
-                }
-                if input.key_pressed(egui::Key::V) {
-                    self.flip_selection(FlipDirection::Vertical);
-                }
-            });
+        if self.tool.kind == ToolKind::Select {
+            match key {
+                Key::Q => self.rotate_selection(RotationDirection::Left),
+                Key::E => self.rotate_selection(RotationDirection::Right),
+                Key::BracketLeft => self.scale_selection(ScaleDirection::Down),
+                Key::BracketRight => self.scale_selection(ScaleDirection::Up),
+                Key::H => self.flip_selection(FlipDirection::Horizontal),
+                Key::V => self.flip_selection(FlipDirection::Vertical),
+                _ => return self.hotbar_key(key),
+            };
+            return true;
         }
-
-        if self.tool.kind.places_component() && !response.ctx.egui_wants_keyboard_input() {
-            response.ctx.input(|input| {
-                if input.key_pressed(egui::Key::Q) {
-                    self.placement_orientation = self.placement_orientation.rotate_left();
-                }
-                if input.key_pressed(egui::Key::E) {
-                    self.placement_orientation = self.placement_orientation.rotate_right();
-                }
-                if input.key_pressed(egui::Key::OpenBracket) {
-                    self.tool.scale = previous_scale(self.tool.scale);
-                }
-                if input.key_pressed(egui::Key::CloseBracket) {
-                    self.tool.scale = next_scale(self.tool.scale);
-                }
-                if input.key_pressed(egui::Key::H) {
-                    self.placement_orientation = self.placement_orientation.flip_horizontal();
-                }
-                if input.key_pressed(egui::Key::V) {
-                    self.placement_orientation = self.placement_orientation.flip_vertical();
-                }
-            });
-        }
-
-        if response.hovered()
-            && let Some(pointer) = response.ctx.pointer_hover_pos()
-        {
-            let scroll = response.ctx.input(|input| input.smooth_scroll_delta.y);
-            if scroll != 0.0 {
-                self.camera
-                    .zoom_around(pointer, response.rect, (scroll * 0.002).exp());
+        if self.tool.kind.places_component() {
+            match key {
+                Key::Q => self.placement_orientation = self.placement_orientation.rotate_left(),
+                Key::E => self.placement_orientation = self.placement_orientation.rotate_right(),
+                Key::BracketLeft => self.tool.scale = previous_scale(self.tool.scale),
+                Key::BracketRight => self.tool.scale = next_scale(self.tool.scale),
+                Key::H => self.placement_orientation = self.placement_orientation.flip_horizontal(),
+                Key::V => self.placement_orientation = self.placement_orientation.flip_vertical(),
+                _ => return self.hotbar_key(key),
             }
+            return true;
         }
+        self.hotbar_key(key)
+    }
 
-        let Some(pointer) = response.interact_pointer_pos() else {
-            return;
-        };
+    pub(super) fn escape(&mut self) {
+        if self.gesture.is_some()
+            || self.active_hotbar_slot.is_some()
+            || self.tool.kind != ToolKind::Select
+        {
+            self.select_tool();
+        } else {
+            self.active_hotbar_folder.pop();
+        }
+    }
 
-        let middle_down = response
-            .ctx
-            .input(|input| input.pointer.button_down(PointerButton::Middle));
-        if middle_down && response.hovered() {
-            let delta = response.ctx.input(|input| input.pointer.delta());
-            self.camera.center[0] -= delta.x / self.camera.zoom;
-            self.camera.center[1] -= delta.y / self.camera.zoom;
+    pub(super) fn delete_wire_at(&mut self, world: [f32; 2]) {
+        if self.tool.kind != ToolKind::Wire {
             return;
         }
-
-        let world = self.camera.screen_to_world(pointer, response.rect);
-        let snapped = snap_point(world, self.active_tool_snap());
-
-        if response.clicked_by(PointerButton::Secondary)
-            && self.tool.kind == ToolKind::Wire
-            && let Some(wire) =
-                deletion_wire(self.grid.wires(), world, WIRE_HIT_RADIUS / self.camera.zoom)
+        if let Some(wire) =
+            deletion_wire(self.grid.wires(), world, WIRE_HIT_RADIUS / self.camera.zoom)
         {
             self.edit(LogicGridOperation::RemoveWireSegment { wire });
         }
+    }
 
-        let primary_pressed = response
-            .ctx
-            .input(|input| input.pointer.button_pressed(PointerButton::Primary));
-        if primary_pressed && response.hovered() {
-            let custom_kind = self.selected_custom_kind();
-            self.gesture = match self.tool.kind {
-                ToolKind::Select => {
-                    let additive = response.ctx.input(|input| input.modifiers.shift);
-                    let hit = self.entity_at(world);
-                    match hit {
-                        Some(entity) if additive => {
-                            self.selection.toggle(entity);
-                            None
+    pub(super) fn press(&mut self, world: [f32; 2], additive: bool) {
+        let snapped = snap_point(world, self.active_tool_snap());
+        let custom_kind = self.selected_custom_kind();
+        self.gesture = match self.tool.kind {
+            ToolKind::Select => {
+                let hit = self.entity_at(world);
+                match hit {
+                    Some(entity) if additive => {
+                        self.selection.toggle(entity);
+                        None
+                    }
+                    Some(entity) => {
+                        if !self.selection.contains(entity) {
+                            self.selection.clear();
+                            self.selection.insert(entity);
                         }
-                        Some(entity) => {
-                            if !self.selection.contains(entity) {
-                                self.selection.clear();
-                                self.selection.insert(entity);
-                            }
-                            self.move_gesture(world)
-                        }
-                        None => Some(Gesture::SelectBox {
-                            start: world,
-                            additive,
-                        }),
+                        self.move_gesture(world)
                     }
+                    None => Some(Gesture::SelectBox {
+                        start: world,
+                        additive,
+                    }),
                 }
-                ToolKind::Wire => Some(Gesture::Wire { start: snapped }),
-                ToolKind::Not => Some(Gesture::Not {
-                    anchor: snapped,
-                    drag_start: world,
-                }),
-                ToolKind::MergerSplitter => Some(Gesture::MergerSplitter {
-                    anchor: snapped,
-                    drag_start: world,
-                }),
-                ToolKind::Led => Some(Gesture::Led {
-                    anchor: snapped,
-                    drag_start: world,
-                }),
-                ToolKind::Storage => Some(Gesture::Storage {
-                    anchor: snapped,
-                    drag_start: world,
-                }),
-                ToolKind::Input => (self.challenge.is_none()
-                    || self.next_missing_challenge_input().is_some())
-                .then_some(Gesture::Input {
-                    anchor: snapped,
-                    drag_start: world,
-                }),
-                ToolKind::Output => (self.challenge.is_none()
-                    || self.next_missing_challenge_output().is_some())
-                .then_some(Gesture::Output {
-                    anchor: snapped,
-                    drag_start: world,
-                }),
-                ToolKind::ConfigureStorage => {
-                    if let Some(DebugEntity::Component(id)) = self.entity_at(world)
-                        && let Some(ComponentKind::Storage { scale, .. }) =
-                            self.grid.component(id).map(|component| &component.kind)
-                    {
-                        if *scale == Scale::ONE {
-                            self.toggle_storage_bit(id, 0);
-                        } else {
-                            self.configured_storage = Some(id);
-                        }
-                    }
-                    None
-                }
-                ToolKind::Custom => custom_kind.map(|kind| Gesture::Subcomponent {
-                    anchor: snap_point(world, kind.snap()),
-                    drag_start: world,
-                    kind,
-                }),
-            };
-        }
-
-        let primary_released = response
-            .ctx
-            .input(|input| input.pointer.button_released(PointerButton::Primary));
-        if primary_released {
-            match self.gesture.take() {
-                Some(Gesture::Wire { start }) => {
-                    if let Some(wire) = projected_wire(start, snapped, self.tool.scale) {
-                        self.edit(LogicGridOperation::AddWire { wire });
-                    }
-                }
-                Some(Gesture::Not { anchor, drag_start }) => {
-                    let orientation = placement_rotation(
-                        drag_start,
-                        world,
-                        self.placement_orientation,
-                        ToolKind::Not,
-                    );
-                    let scale = self.tool.scale;
-                    self.place(
-                        component_placement_position(
-                            anchor,
-                            orientation.rotation(),
-                            scale,
-                            ToolKind::Not,
-                        ),
-                        orientation,
-                        ComponentKind::Not { scale },
-                    );
-                }
-                Some(Gesture::MergerSplitter { anchor, drag_start }) => {
-                    let orientation = placement_rotation(
-                        drag_start,
-                        world,
-                        self.placement_orientation,
-                        ToolKind::MergerSplitter,
-                    );
-                    let (input_scale, output_scale) = self.tool.conversion_scales();
-                    self.place(
-                        component_placement_position(
-                            anchor,
-                            orientation.rotation(),
-                            output_scale,
-                            ToolKind::MergerSplitter,
-                        ),
-                        orientation,
-                        ComponentKind::MergerSplitter {
-                            input_scale,
-                            output_scale,
-                        },
-                    );
-                }
-                Some(Gesture::Led { anchor, drag_start }) => {
-                    let orientation = placement_rotation(
-                        drag_start,
-                        world,
-                        self.placement_orientation,
-                        ToolKind::Led,
-                    );
-                    self.place(
-                        component_placement_position(
-                            anchor,
-                            orientation.rotation(),
-                            Scale::ONE,
-                            ToolKind::Led,
-                        ),
-                        orientation,
-                        ComponentKind::Led,
-                    );
-                }
-                Some(Gesture::Storage { anchor, drag_start }) => {
-                    let orientation = placement_rotation(
-                        drag_start,
-                        world,
-                        self.placement_orientation,
-                        ToolKind::Storage,
-                    );
-                    let scale = self.tool.scale;
-                    self.place(
-                        component_placement_position(
-                            anchor,
-                            orientation.rotation(),
-                            scale,
-                            ToolKind::Storage,
-                        ),
-                        orientation,
-                        ComponentKind::Storage { scale, value: 0 },
-                    );
-                }
-                Some(Gesture::Input { anchor, drag_start }) => {
-                    let orientation = placement_rotation(
-                        drag_start,
-                        world,
-                        self.placement_orientation,
-                        ToolKind::Input,
-                    );
-                    let scale = self.active_input_scale();
-                    let position = component_placement_position(
-                        anchor,
-                        orientation.rotation(),
-                        scale,
-                        ToolKind::Input,
-                    );
-                    if let Some(id) = self.add_input_at(position, orientation.rotation()) {
-                        self.edit(LogicGridOperation::OrientComponent { id, orientation });
-                    }
-                }
-                Some(Gesture::Output { anchor, drag_start }) => {
-                    let orientation = placement_rotation(
-                        drag_start,
-                        world,
-                        self.placement_orientation,
-                        ToolKind::Output,
-                    );
-                    let scale = self.active_output_scale();
-                    let position = component_placement_position(
-                        anchor,
-                        orientation.rotation(),
-                        scale,
-                        ToolKind::Output,
-                    );
-                    if let Some(id) = self.add_output_at(position, orientation.rotation()) {
-                        self.edit(LogicGridOperation::OrientComponent { id, orientation });
-                    }
-                }
-                Some(Gesture::Subcomponent {
-                    anchor,
-                    drag_start,
-                    kind,
-                }) => {
-                    let orientation = placement_rotation(
-                        drag_start,
-                        world,
-                        self.placement_orientation,
-                        ToolKind::Custom,
-                    );
-                    if let Some(position) =
-                        subcomponent_placement_position(anchor, orientation, &kind)
-                    {
-                        self.place(position, orientation, kind);
-                    }
-                }
-                Some(Gesture::SelectBox { start, additive }) => {
-                    if !additive {
-                        self.selection.clear();
-                    }
-                    self.select_in_rect(start, world);
-                }
-                Some(Gesture::MoveSelection {
-                    start,
-                    scale,
-                    components,
-                    wires,
-                }) => {
-                    let delta = snapped_delta(start, world, scale);
-                    self.apply_move(&components, &wires, delta);
-                }
-                None => {}
             }
+            ToolKind::Wire => Some(Gesture::Wire { start: snapped }),
+            ToolKind::Not => Some(Gesture::Not {
+                anchor: snapped,
+                drag_start: world,
+            }),
+            ToolKind::MergerSplitter => Some(Gesture::MergerSplitter {
+                anchor: snapped,
+                drag_start: world,
+            }),
+            ToolKind::Led => Some(Gesture::Led {
+                anchor: snapped,
+                drag_start: world,
+            }),
+            ToolKind::Storage => Some(Gesture::Storage {
+                anchor: snapped,
+                drag_start: world,
+            }),
+            ToolKind::Input => (self.challenge.is_none()
+                || self.next_missing_challenge_input().is_some())
+            .then_some(Gesture::Input {
+                anchor: snapped,
+                drag_start: world,
+            }),
+            ToolKind::Output => (self.challenge.is_none()
+                || self.next_missing_challenge_output().is_some())
+            .then_some(Gesture::Output {
+                anchor: snapped,
+                drag_start: world,
+            }),
+            ToolKind::ConfigureStorage => {
+                if let Some(DebugEntity::Component(id)) = self.entity_at(world)
+                    && let Some(ComponentKind::Storage { scale, .. }) =
+                        self.grid.component(id).map(|component| &component.kind)
+                {
+                    if *scale == Scale::ONE {
+                        self.toggle_storage_bit(id, 0);
+                    } else {
+                        self.configured_storage = Some(id);
+                    }
+                }
+                None
+            }
+            ToolKind::Custom => custom_kind.map(|kind| Gesture::Subcomponent {
+                anchor: snap_point(world, kind.snap()),
+                drag_start: world,
+                kind,
+            }),
+        };
+    }
+
+    pub(super) fn release(&mut self, world: [f32; 2]) {
+        let snapped = snap_point(world, self.active_tool_snap());
+        match self.gesture.take() {
+            Some(Gesture::Wire { start }) => {
+                if let Some(wire) = projected_wire(start, snapped, self.tool.scale) {
+                    self.edit(LogicGridOperation::AddWire { wire });
+                }
+            }
+            Some(Gesture::Not { anchor, drag_start }) => {
+                let orientation = placement_rotation(
+                    drag_start,
+                    world,
+                    self.placement_orientation,
+                    ToolKind::Not,
+                );
+                let scale = self.tool.scale;
+                self.place(
+                    component_placement_position(
+                        anchor,
+                        orientation.rotation(),
+                        scale,
+                        ToolKind::Not,
+                    ),
+                    orientation,
+                    ComponentKind::Not { scale },
+                );
+            }
+            Some(Gesture::MergerSplitter { anchor, drag_start }) => {
+                let orientation = placement_rotation(
+                    drag_start,
+                    world,
+                    self.placement_orientation,
+                    ToolKind::MergerSplitter,
+                );
+                let (input_scale, output_scale) = self.tool.conversion_scales();
+                self.place(
+                    component_placement_position(
+                        anchor,
+                        orientation.rotation(),
+                        output_scale,
+                        ToolKind::MergerSplitter,
+                    ),
+                    orientation,
+                    ComponentKind::MergerSplitter {
+                        input_scale,
+                        output_scale,
+                    },
+                );
+            }
+            Some(Gesture::Led { anchor, drag_start }) => {
+                let orientation = placement_rotation(
+                    drag_start,
+                    world,
+                    self.placement_orientation,
+                    ToolKind::Led,
+                );
+                self.place(
+                    component_placement_position(
+                        anchor,
+                        orientation.rotation(),
+                        Scale::ONE,
+                        ToolKind::Led,
+                    ),
+                    orientation,
+                    ComponentKind::Led,
+                );
+            }
+            Some(Gesture::Storage { anchor, drag_start }) => {
+                let orientation = placement_rotation(
+                    drag_start,
+                    world,
+                    self.placement_orientation,
+                    ToolKind::Storage,
+                );
+                let scale = self.tool.scale;
+                self.place(
+                    component_placement_position(
+                        anchor,
+                        orientation.rotation(),
+                        scale,
+                        ToolKind::Storage,
+                    ),
+                    orientation,
+                    ComponentKind::Storage { scale, value: 0 },
+                );
+            }
+            Some(Gesture::Input { anchor, drag_start }) => {
+                let orientation = placement_rotation(
+                    drag_start,
+                    world,
+                    self.placement_orientation,
+                    ToolKind::Input,
+                );
+                let scale = self.active_input_scale();
+                let position = component_placement_position(
+                    anchor,
+                    orientation.rotation(),
+                    scale,
+                    ToolKind::Input,
+                );
+                if let Some(id) = self.add_input_at(position, orientation.rotation()) {
+                    self.edit(LogicGridOperation::OrientComponent { id, orientation });
+                }
+            }
+            Some(Gesture::Output { anchor, drag_start }) => {
+                let orientation = placement_rotation(
+                    drag_start,
+                    world,
+                    self.placement_orientation,
+                    ToolKind::Output,
+                );
+                let scale = self.active_output_scale();
+                let position = component_placement_position(
+                    anchor,
+                    orientation.rotation(),
+                    scale,
+                    ToolKind::Output,
+                );
+                if let Some(id) = self.add_output_at(position, orientation.rotation()) {
+                    self.edit(LogicGridOperation::OrientComponent { id, orientation });
+                }
+            }
+            Some(Gesture::Subcomponent {
+                anchor,
+                drag_start,
+                kind,
+            }) => {
+                let orientation = placement_rotation(
+                    drag_start,
+                    world,
+                    self.placement_orientation,
+                    ToolKind::Custom,
+                );
+                if let Some(position) = subcomponent_placement_position(anchor, orientation, &kind)
+                {
+                    self.place(position, orientation, kind);
+                }
+            }
+            Some(Gesture::SelectBox { start, additive }) => {
+                if !additive {
+                    self.selection.clear();
+                }
+                self.select_in_rect(start, world);
+            }
+            Some(Gesture::MoveSelection {
+                start,
+                scale,
+                components,
+                wires,
+            }) => {
+                let delta = snapped_delta(start, world, scale);
+                self.apply_move(&components, &wires, delta);
+            }
+            None => {}
         }
     }
 

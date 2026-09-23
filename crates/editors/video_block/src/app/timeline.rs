@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
@@ -6,6 +7,9 @@ use block_editor_plugin::beui::reactive::{
     create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Body, Caption, use_theme};
+use block_editor_plugin::beui::unstyled::{
+    DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
+};
 use block_editor_plugin::beui::{
     CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2,
 };
@@ -157,14 +161,10 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
 
     let dropped = Rc::clone(&state);
     let dropped_target = target.clone();
-    let on_active_change = move |active: bool| {
-        if active {
-            return;
-        }
+    let on_drop = move |_: (Uuid, DragPoint)| {
         let Some(drag) = dropped.drag.get_untracked() else {
             return;
         };
-        dropped.begin_drag(None);
         let (Some(video), Some(target)) = (dropped.video(), dropped_target.get_untracked()) else {
             return;
         };
@@ -178,10 +178,12 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
     let drag_offset = offset.clone();
     let drag_placed = placed.clone();
     let drag_pointer = set_pointer.clone();
-    let on_hover_drag = move |press: PointerPress| {
-        drag_pointer.set(Some(
-            press.pos - drag_placed.get_untracked().min.to_vec2() + drag_offset.get_untracked(),
-        ));
+    let on_over = move |over: Option<(Uuid, DragPoint)>| {
+        if let Some((_, point)) = over {
+            drag_pointer.set(Some(
+                point.pos - drag_placed.get_untracked().min.to_vec2() + drag_offset.get_untracked(),
+            ));
+        }
     };
 
     let seeking = Rc::clone(&state);
@@ -221,45 +223,47 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
     let theme = use_theme();
 
     view! {
-        <ClickCatcher
-            cursor=CursorIcon::Default
-            on_press={on_press}
-            on_scroll={on_scroll}
-            on_hover_move={on_hover}
-            on_drag={on_hover_drag}
-            on_active_change={on_active_change}
-            @test_id={"video.timeline"}
-        >
-            <Canvas view={camera}>
-                <ForEach keys={lane_keys}>
-                    {move |lane: usize| {
-                        let content = content.clone();
-                        view! {
-                            <LaneStrip lane content />
-                        }
-                    }}
-                </ForEach>
-                <ForEach keys={ticks}>
-                    {move |tick: Tick| view! {
-                        <RulerTick tick />
-                    }}
-                </ForEach>
-                <ForEach keys={rows}>
-                    {move |row: Lane| {
-                        let state = Rc::clone(&rowed_state);
-                        let selected = selection.memo(Some(row.id));
-                        let scale = row_scale.clone();
-                        view! {
-                            <Clip state row selected scale />
-                        }
-                    }}
-                </ForEach>
-                <DropTarget target={target} scale={pixels_per_frame.clone()} />
-                <CanvasItem x={playhead_x} y=0.0 width=1.5 height={playhead_height}>
-                    <Frame color={theme.accent.clone()} />
-                </CanvasItem>
-            </Canvas>
-        </ClickCatcher>
+        <DropTarget on_over={on_over} on_drop={on_drop}>
+            {move |_: DropHandle| view! {
+                <ClickCatcher
+                    cursor=CursorIcon::Default
+                    on_press={on_press}
+                    on_scroll={on_scroll}
+                    on_hover_move={on_hover}
+                    @test_id={"video.timeline"}
+                >
+                    <Canvas view={camera}>
+                        <ForEach keys={lane_keys}>
+                            {move |lane: usize| {
+                                let content = content.clone();
+                                view! {
+                                    <LaneStrip lane content />
+                                }
+                            }}
+                        </ForEach>
+                        <ForEach keys={ticks}>
+                            {move |tick: Tick| view! {
+                                <RulerTick tick />
+                            }}
+                        </ForEach>
+                        <ForEach keys={rows}>
+                            {move |row: Lane| {
+                                let state = Rc::clone(&rowed_state);
+                                let selected = selection.memo(Some(row.id));
+                                let scale = row_scale.clone();
+                                view! {
+                                    <Clip state row selected scale />
+                                }
+                            }}
+                        </ForEach>
+                        <DropMarker target={target} scale={pixels_per_frame.clone()} />
+                        <CanvasItem x={playhead_x} y=0.0 width=1.5 height={playhead_height}>
+                            <Frame color={theme.accent.clone()} />
+                        </CanvasItem>
+                    </Canvas>
+                </ClickCatcher>
+            }}
+        </DropTarget>
     }
 }
 
@@ -362,59 +366,73 @@ fn Clip(
     let trim_edge_scale = scale.clone();
     let editor = state.editor().clone();
     let test_id = format!("video.clip.{}", row.id);
+    let grabbed_at = Rc::new(Cell::new(None::<Pos2>));
+    let grabbing = Rc::clone(&grabbed_at);
 
     view! {
         <CanvasItem x={x} y={y} width={width} height=LANE_HEIGHT>
-            <ClickCatcher
+            <Draggable
+                payload={row.id}
                 cursor=CursorIcon::Grab
                 @test_id={test_id}
                 on_click={move || chosen.select(Some(row.id))}
-                on_drag={move |press: PointerPress| {
+                on_drag_change={move |dragging: bool| {
+                    if !dragging {
+                        trimming.begin_drag(None);
+                        return;
+                    }
                     let scale = trim_scale.get_untracked().max(f32::EPSILON);
-                    let offset = (press.pos.x - clip_left.get_untracked()) / scale;
+                    let pressed = grabbed_at.get().map_or(0.0, |pos| pos.x);
+                    let offset = (pressed - clip_left.get_untracked()) / scale;
                     trimming.begin_drag(Some(ClipDrag {
                         clip: row.id,
                         grab: offset.max(0.0) as u64,
                     }));
                 }}
             >
-                <Frame
-                    color={fill}
-                    radius=CLIP_RADIUS
-                    outline={theme.accent.clone()}
-                    outline_width=2.0
-                    outline_visible={selected}
-                    padding_horizontal=THUMBNAIL_MARGIN
-                    padding_vertical=THUMBNAIL_MARGIN
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
+                {move |_: DragHandle| view! {
+                    <ClickCatcher
+                        on_press={move |press: PointerPress| grabbing.set(Some(press.pos))}
+                    >
                         <Frame
-                            width={(LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0) * 1.4}
-                            height={LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0}
+                            color={fill}
+                            radius=CLIP_RADIUS
+                            outline={theme.accent.clone()}
+                            outline_width=2.0
+                            outline_visible={selected}
+                            padding_horizontal=THUMBNAIL_MARGIN
+                            padding_vertical=THUMBNAIL_MARGIN
                         >
-                            <ChildBlock
-                                editor={editor}
-                                block={block}
-                                mode=ChildMode::Preview
-                                on_state={move |_| {}}
-                            />
+                            <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
+                                <Frame
+                                    width={(LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0) * 1.4}
+                                    height={LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0}
+                                >
+                                    <ChildBlock
+                                        editor={editor}
+                                        block={block}
+                                        mode=ChildMode::Preview
+                                        on_state={move |_| {}}
+                                    />
+                                </Frame>
+                                <Body @sizing=ItemSize::Percent(100.0) content={name} />
+                                <TrimHandle
+                                    state={trimming_edge}
+                                    row={row}
+                                    scale={trim_edge_scale}
+                                    left={handle_left}
+                                />
+                            </List>
                         </Frame>
-                        <Body @sizing=ItemSize::Percent(100.0) content={name} />
-                        <TrimHandle
-                            state={trimming_edge}
-                            row={row}
-                            scale={trim_edge_scale}
-                            left={handle_left}
-                        />
-                    </List>
-                </Frame>
-            </ClickCatcher>
+                    </ClickCatcher>
+                }}
+            </Draggable>
         </CanvasItem>
     }
 }
 
 #[component]
-fn DropTarget(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) -> CanvasItem {
+fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) -> CanvasItem {
     let preview = create_memo(clone!(target scale -> move || {
         let scale = scale.get();
         match target.get()? {
