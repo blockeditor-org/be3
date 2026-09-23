@@ -131,7 +131,8 @@ impl Textures {
         let Some(gpu) = self.gpu.clone() else {
             return;
         };
-        let buffer = with_renderer_surface_state(surface, |state| state.buffer().cloned()).flatten();
+        let buffer =
+            with_renderer_surface_state(surface, |state| state.buffer().cloned()).flatten();
         let Some(buffer) = buffer else {
             self.surfaces.remove(surface);
             return;
@@ -199,7 +200,12 @@ impl Textures {
 }
 
 impl Gpu {
-    fn texture(&self, size: wgpu::Extent3d, format: wgpu::TextureFormat, opaque: bool) -> SurfaceTexture {
+    fn texture(
+        &self,
+        size: wgpu::Extent3d,
+        format: wgpu::TextureFormat,
+        opaque: bool,
+    ) -> SurfaceTexture {
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("client surface"),
             size,
@@ -302,7 +308,12 @@ fn quad(layer: &Layer, at: &DrawAt) -> Option<[Vertex; 6]> {
         uv: [u(x), v(y)],
         opaque: 0.0,
     };
-    let (a, b, c, d) = (corner(x0, y0), corner(x1, y0), corner(x1, y1), corner(x0, y1));
+    let (a, b, c, d) = (
+        corner(x0, y0),
+        corner(x1, y0),
+        corner(x1, y1),
+        corner(x0, y1),
+    );
     Some([a, b, c, a, c, d])
 }
 

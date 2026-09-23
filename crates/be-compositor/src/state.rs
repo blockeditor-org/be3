@@ -100,6 +100,7 @@ pub struct State {
     committed: Vec<WlSurface>,
     cursor: CursorImageStatus,
     scale: i32,
+    size: Size<i32, Logical>,
     pointer_window: Option<WindowId>,
     keyboard_window: Option<WindowId>,
 }
@@ -146,10 +147,11 @@ impl State {
             committed: Vec::new(),
             cursor: CursorImageStatus::default_named(),
             scale: 1,
+            size: Size::from((1280, 800)),
             pointer_window: None,
             keyboard_window: None,
         };
-        state.set_output(Size::from((1280, 800)), 1);
+        state.set_output(state.size, state.scale);
         state
     }
 
@@ -192,11 +194,15 @@ impl State {
     }
 
     pub fn set_scale(&mut self, scale: i32, size: Size<i32, Logical>) {
+        if (scale, size) == (self.scale, self.size) {
+            return;
+        }
+        self.set_output(size, scale);
+        self.size = size;
         if scale == self.scale {
             return;
         }
         self.scale = scale;
-        self.set_output(size, scale);
         for window in &self.windows {
             window.window.with_surfaces(|surface, data| {
                 send_surface_state(surface, data, scale, Transform::Normal);
@@ -209,9 +215,12 @@ impl State {
     }
 
     fn window_of_root(&self, root: &WlSurface) -> Option<&ClientWindow> {
-        self.windows
-            .iter()
-            .find(|window| window.window.toplevel().is_some_and(|toplevel| toplevel.wl_surface() == root))
+        self.windows.iter().find(|window| {
+            window
+                .window
+                .toplevel()
+                .is_some_and(|toplevel| toplevel.wl_surface() == root)
+        })
     }
 
     fn toplevel(&self, id: WindowId) -> Option<ToplevelSurface> {
@@ -220,10 +229,6 @@ impl State {
 
     pub fn surface(&self, id: WindowId) -> Option<WlSurface> {
         Some(self.toplevel(id)?.wl_surface().clone())
-    }
-
-    pub fn geometry(&self, id: WindowId) -> Option<Rectangle<i32, Logical>> {
-        Some(self.find(id)?.window.geometry())
     }
 
     pub fn configure(&mut self, id: WindowId, size: Size<i32, Logical>, activated: bool) {
@@ -280,11 +285,12 @@ impl State {
             return;
         };
         let output = self.output.clone();
-        window
-            .window
-            .send_frame(&self.output, self.start.elapsed(), Some(Duration::ZERO), |_, _| {
-                Some(output.clone())
-            });
+        window.window.send_frame(
+            &self.output,
+            self.start.elapsed(),
+            Some(Duration::ZERO),
+            |_, _| Some(output.clone()),
+        );
     }
 
     fn time(&self) -> u32 {
@@ -317,7 +323,7 @@ impl State {
                 self.pointer_window = Some(id);
                 pointer.motion(
                     self,
-                    under.map(|(surface, origin)| (surface, origin)),
+                    under,
                     &MotionEvent {
                         location,
                         serial,
@@ -388,7 +394,8 @@ impl State {
 
     pub fn pointer_axis(&mut self, delta: (f64, f64)) {
         let pointer = self.pointer();
-        let mut frame = AxisFrame::new(self.time()).source(smithay::backend::input::AxisSource::Continuous);
+        let mut frame =
+            AxisFrame::new(self.time()).source(smithay::backend::input::AxisSource::Continuous);
         if delta.0 != 0.0 {
             frame = frame.value(smithay::backend::input::Axis::Horizontal, delta.0);
         }
@@ -559,7 +566,12 @@ impl XdgShellHandler for State {
         let _ = self.popups.track_popup(PopupKind::Xdg(surface));
     }
 
-    fn reposition_request(&mut self, surface: PopupSurface, positioner: PositionerState, token: u32) {
+    fn reposition_request(
+        &mut self,
+        surface: PopupSurface,
+        positioner: PositionerState,
+        token: u32,
+    ) {
         let geometry = self.constrained(&surface, positioner);
         surface.with_pending_state(|state| {
             state.geometry = geometry;
@@ -610,7 +622,11 @@ impl XdgShellHandler for State {
 }
 
 impl State {
-    fn constrained(&self, popup: &PopupSurface, positioner: PositionerState) -> Rectangle<i32, Logical> {
+    fn constrained(
+        &self,
+        popup: &PopupSurface,
+        positioner: PositionerState,
+    ) -> Rectangle<i32, Logical> {
         let Ok(root) = find_popup_root_surface(&PopupKind::Xdg(popup.clone())) else {
             return positioner.get_geometry();
         };

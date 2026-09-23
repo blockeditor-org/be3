@@ -5,7 +5,7 @@ fn destroying_a_toplevel_closes_its_window() {
     let mut server = server();
     let mut client = TestClient::connect(&mut server);
     let (window, id) = client.open(&mut server);
-    window.toplevel.destroy();
+    window.toplevel.as_ref().unwrap().destroy();
     window.xdg_surface.destroy();
     client.exchange(&mut server);
 

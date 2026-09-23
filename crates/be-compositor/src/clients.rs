@@ -168,7 +168,9 @@ impl Clients {
         if self.0.focused.get() == Some(id) {
             self.0.focused.set(None);
         }
-        self.0.set_order.update(|order| order.retain(|window| *window != id));
+        self.0
+            .set_order
+            .update(|order| order.retain(|window| *window != id));
         let tab = tab_of(id);
         if self.0.dock.get_untracked().contains(tab) {
             self.0.set_dock.update(|state| {

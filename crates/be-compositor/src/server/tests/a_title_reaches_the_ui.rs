@@ -5,7 +5,11 @@ fn a_title_reaches_the_ui() {
     let mut server = server();
     let mut client = TestClient::connect(&mut server);
     let (window, id) = client.open(&mut server);
-    window.toplevel.set_title("Terminal".to_owned());
+    window
+        .toplevel
+        .as_ref()
+        .unwrap()
+        .set_title("Terminal".to_owned());
     client.exchange(&mut server);
 
     assert!(

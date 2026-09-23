@@ -3,7 +3,9 @@ use beui::reactive::{
     component_rect, create_effect, create_memo, create_signal, on_cleanup, view,
 };
 use beui::styled::theme::use_theme;
-use beui::styled::{Body, Button, ButtonVariant, Caption, DockArea, Heading, ListRow, Scroll, TextInput};
+use beui::styled::{
+    Body, Button, ButtonVariant, Caption, DockArea, Heading, ListRow, Scroll, TextInput,
+};
 use beui::unstyled::{DockState, TabId};
 use beui::{Align, Direction, ItemSize, NodeId};
 
@@ -86,7 +88,7 @@ fn Launcher(clients: Clients) -> NodeId {
                         @test_id={"compositor.run"}
                         label="Run"
                         variant=ButtonVariant::Primary
-                        on_click={move || launch()}
+                        on_click={launch}
                     />
                 </List>
                 <Heading content="Windows" />
@@ -133,11 +135,7 @@ fn ClientView(clients: Clients, id: WindowId, signals: ClientSignals) -> NodeId 
             on_focus_change={move |focused: bool| focus.focus(id, focused)}
             on_key={|_| true}
         >
-            <ClickCatcher
-                cursor
-                capture_presses=true
-                on_hover_change={move |hovered: bool| hover.hover(id, hovered)}
-            >
+            <ClickCatcher cursor on_hover_change={move |hovered: bool| hover.hover(id, hovered)}>
                 <Viewport drawing={signals.drawing} />
             </ClickCatcher>
         </Focusable>

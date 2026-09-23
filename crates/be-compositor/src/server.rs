@@ -23,7 +23,8 @@ impl Server {
         let socket = match std::env::var_os("XDG_RUNTIME_DIR") {
             Some(_) => ListeningSocket::bind_auto("wayland", 1..33)?,
             None => {
-                let path = std::env::temp_dir().join(format!("be-compositor-{}", std::process::id()));
+                let path =
+                    std::env::temp_dir().join(format!("be-compositor-{}", std::process::id()));
                 let socket = ListeningSocket::bind_absolute(path.clone())?;
                 server.name = Some(path.into_os_string());
                 socket

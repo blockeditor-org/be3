@@ -109,11 +109,8 @@ impl Compositor {
                 }
             }
         });
-        for id in &redraw {
-            self.configured.entry(*id).or_insert(((0, 0), false));
-        }
-        self.configured
-            .retain(|id, _| self.server.state.windows().contains(id));
+        let windows = self.server.state.windows();
+        self.configured.retain(|id, _| windows.contains(id));
         if redraw.is_empty() {
             return;
         }
@@ -211,12 +208,10 @@ impl Compositor {
                         }
                     }
                 }
-                Event::Scroll(delta) => {
-                    if self.grab.or(self.clients.hovered()).is_some() {
-                        self.server
-                            .state
-                            .pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
-                    }
+                Event::Scroll(delta) if self.grab.or(self.clients.hovered()).is_some() => {
+                    self.server
+                        .state
+                        .pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
                 }
                 _ => {}
             }
@@ -369,3 +364,6 @@ fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
         _ => CursorIcon::Default,
     }
 }
+
+#[cfg(test)]
+mod tests;
