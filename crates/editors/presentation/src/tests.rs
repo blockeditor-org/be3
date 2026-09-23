@@ -27,10 +27,9 @@ fn editor(count: usize) -> (Harness, Editor) {
     let block = client.create_block(PresentationBlock::new());
     let mut content = PresentationContent::default();
     for index in 0..count {
-        let edit =
-            content
-                .root()
-                .insert(ObjectId::new(), index, BlockRef::Direct(Uuid::new_v4()));
+        let edit = content
+            .root()
+            .insert(ObjectId::new(), index, BlockRef::Direct(Uuid::new_v4()));
         content.apply(&edit);
     }
     let host = EditorHost::default();
