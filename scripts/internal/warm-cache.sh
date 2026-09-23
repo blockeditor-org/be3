@@ -30,10 +30,8 @@ fi
 assert_command cargo 'Install Rust from https://rustup.rs.'
 cd "$repository"
 
-# The plugins are excluded from the native run for the same reason verify
-# excludes them: their tests are wasm, and the plugin phase below builds those.
-# The selection is otherwise verify's, so what is warmed is what verify asks
-# for rather than something close to it.
+# The lint pass links block-app, and a full build's block-app links
+# libghostty-vt, which cargo does not build.
 if full_build; then
     echo 'Warming libghostty-vt...'
     host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
@@ -59,13 +57,12 @@ if ! cargo clippy --quiet --keep-going "${selection[@]}" --all-targets -- -D war
     echo 'Clippy has something to say about this checkout; ./scripts/verify will say it.'
 fi
 
-echo 'Warming the native test binaries...'
-cargo nextest run --cargo-quiet --no-run "${native[@]}"
-
-# Fetches the WASI sysroot, builds the runner, compiles every plugin's tests to
-# wasm and leaves a .cwasm beside each of them, which is the whole of what the
-# plugin phase does before it starts a test.
-echo 'Warming the plugin tests...'
-"$internal/test-plugins.sh" --build-only
+# The tests are built on BuildBuddy's workers, so what warms here is only what
+# this machine downloads to run the ones that run locally. Without the key
+# there is nothing to warm.
+if [[ -n "${BUILDBUDDY_API_KEY:-}" ]]; then
+    echo 'Warming the test binaries...'
+    "$repository/scripts/buck" build //crates/...
+fi
 
 echo 'Caches are warm.'

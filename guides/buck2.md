@@ -1,274 +1,182 @@
 # buck2
 
-The repository builds with cargo. buck2 builds part of it as well, and is being
-grown towards the rest. This guide says what it covers today, how to run it, and
-what has to happen for it to cover the rest.
+buck2 builds and tests the workspace, and every action it runs, runs on
+BuildBuddy. This guide says what it covers, how to run it, why it is set up the
+way it is, and what is still cargo's.
 
-Nothing here replaces cargo. `./scripts/check`, `./scripts/verify`,
-`./scripts/build` and `./scripts/run` are unchanged, and a change that does not
-touch a `BUCK` file needs nothing from this guide.
+`./scripts/verify` runs the tests through it. cargo is still what `./scripts/check`,
+the lint pass, `./scripts/build` and `./scripts/run` use, and what builds for
+every platform but Linux on x86_64; the last section says why each of those is
+still cargo's.
 
-## What buck2 builds today
+## What buck2 builds
 
 - Every third-party crate the workspace depends on, on `x86_64-unknown-linux-gnu`:
   around nine hundred of them, including the ones that compile C or assembly -
   sqlite, zstd, freetype, harfbuzz, tree-sitter, ring, wasmtime.
-- Thirty-three first-party crates and their unit tests, which is the native half
-  of the workspace: the `be-*` stack, `block*`, `beui`, `reactive`,
-  `text-editor-core`, the games' api and host, and the tools.
+- Every first-party crate and its tests: the `be-*` stack, `block*`, `beui`,
+  `reactive`, `text-editor-core`, the games' api and host, the tools, and
+  `block-app` itself, with its terminal and without its embedded browser.
+- libghostty-vt, the Zig library behind the terminal, built on a worker by the
+  same script cargo's build uses.
 - The three game modules, as WebAssembly, and the native tests that drive them
   through the host.
 - All thirty-three editors, as the wasm plugins the app loads, and their tests,
   compiled to wasm and run through the same host `block-app` runs a plugin in.
 
-`./scripts/buck test //crates/... --exclude cargo-only` is 68 test targets.
+`./scripts/buck test //crates/...` is 71 test targets.
 
 ## Running it
 
 ```
+export BUILDBUDDY_API_KEY=<key>
 ./scripts/buck build //crates/...
-./scripts/buck test //crates/... --exclude cargo-only
+./scripts/buck test //crates/...
+./scripts/buck test //crates/editors/checklist:test
 ./scripts/buckify
 ```
 
-`./scripts/buck` is buck2 with this machine written down first: it resolves the
-host tools into `buck/tools` and, if this machine has the credential for the
-shared cache, writes it to `.buckconfig.local`. Both are ignored by git. Always
-go through it rather than calling `buck2` directly; a checkout that has never
-run it has no `buck/tools` and will not load.
+`./scripts/buck` is buck2 with two checks in front: that `BUILDBUDDY_API_KEY` is
+set, since there is nowhere else to build, and that no `.buckconfig.local` an
+older copy of it wrote is left behind. It also lets a test run put its tests on
+the workers (below). Calling `buck2` directly works too, once the key is in the
+environment.
+
+**Restart the daemon when the key changes**, with `buck2 killall`. `.buckconfig`
+names the variable rather than holding the key, and buck2 expands it from the
+environment of the daemon, which is the one it was started with.
 
 `./scripts/buckify` regenerates `third-party/rust/BUCK`. Run it after changing
 any `Cargo.toml` or `Cargo.lock`; CI fails if the file and the manifests
-disagree.
+disagree. A crate's own `BUCK` file names its dependencies by hand, so a new
+dependency goes there too.
 
 The tools are installed by `./scripts/internal/install-buck2.sh`,
 `install-starlark-fmt.sh` and `install-reindeer.sh`. The first two are
-downloads; reindeer is built from source, which takes a few minutes.
+downloads; reindeer is built from source, which takes a few minutes, and only
+`./scripts/buckify` needs it.
 
-## The shared cache
+## BuildBuddy
 
-CI builds every action and writes the result to a cache, so a checkout that has
-never built anything gets the answers rather than the work:
-
-```
-$ ./scripts/buck test //crates/... --exclude cargo-only
-Cache hits: 93%
-Commands: 3604 (cached: 3339, remote: 0, local: 265)
-Network: up 3.6MiB  down 1.3GiB
-Tests finished: Pass 68. Fail 0.
-
-real    1m35.716s
-```
-
-A minute and a half to build the workspace, the games, the thirty-three plugins
-and to run all sixty-eight test targets. The same checkout with nothing in the
-cache takes about forty minutes, and the cargo run it replaces -
-`./scripts/verify --check --tests --plugin-tests` from an empty `target/` -
-takes fourteen. Nothing runs on a
-remote machine; buck2 only asks whether an action's result is already known, and
-what comes back is a digest rather than a file. Buck2 downloads an artifact only
-when a local action needs it or when it is something you asked to build, so a
-build that hits everywhere never sees the intermediate rlibs at all - which is
-where most of the saving is. Asking for one binary rather than `//crates/...`
-downloads far less than the 369MiB above.
-
-To use it, put the credential in the environment:
+Every action runs on one of BuildBuddy's workers, and BuildBuddy keeps the
+result, so a build only ever does the work nobody has done before:
 
 ```
-export BLOCKS_CACHE_AUTH=$(printf 'bazel:<password>' | base64 -w0)
-```
-
-Without it nothing is configured and the build is local-only, which is what a
-fresh checkout does rather than failing against a server it cannot talk to.
-Reads are all a developer needs; `BLOCKS_CACHE_UPLOAD=1` turns on writes and is
-CI's, because a cache anyone can write to is a cache anyone can use to hand
-every machine that reads it a compiler output of their choosing.
-
-### BuildBuddy
-
-The same checkout can use BuildBuddy instead, as a cache or as a build farm.
-`BUILDBUDDY_API_KEY` takes precedence over `BLOCKS_CACHE_AUTH` when both are
-set:
-
-```
-export BUILDBUDDY_API_KEY=<key>
-export BUILDBUDDY_REMOTE_EXECUTION=1     # leave out for cache only
-buck2 killall && ./scripts/buck test //crates/... --exclude cargo-only
-```
-
-The `killall` matters whenever the key changes: `.buckconfig.local` names the
-variable rather than holding the key, and buck2 expands it from the daemon's
-environment, which is the one it was started with.
-
-As a cache it is the shared cache with a different address, and the same rule
-holds: `BUILDBUDDY_UPLOAD=1` turns on writes, and without it nothing is written.
-
-With `BUILDBUDDY_REMOTE_EXECUTION=1` the actions run on BuildBuddy's workers.
-BuildBuddy writes the result of every action a worker ran to its own cache, so
-this needs no `BUILDBUDDY_UPLOAD`, and a miss costs a worker's time rather than
-this machine's:
-
-```
-./scripts/buck build //crates/...    # BuildBuddy empty, nothing on this machine
+./scripts/buck build //crates/...    # BuildBuddy empty
 Commands: 4699 (cached: 0, remote: 4699, local: 0)
 real    4m07s
 
-./scripts/buck test //crates/... --exclude cargo-only    # after buck2 clean
+./scripts/buck test //crates/...     # after buck2 clean
 Cache hits: 100%
 Commands: 3610 (cached: 3610, remote: 0, local: 0)
-Network: up 1.5MiB  down 737MiB
 Tests finished: Pass 68. Fail 0.
 real    0m20s
 ```
 
-Four minutes is the whole workspace from nothing, on a four-core machine that
-takes nine to build `beui` and one plugin locally. What makes it possible is
-that a worker has nothing of ours on it: the container is Ubuntu 24.04's
-`buildpack-deps`, pinned by digest in `buck/remote/defs.bzl`, and the compilers
-come with the build. `buck/remote/BUCK` downloads rust-toolchain.toml's Rust
-from static.rust-lang.org and Ubuntu's clang-20, lld and llvm-ar packages from
-Launchpad, all pinned by hash, and `buck/toolchains/BUCK` uses those instead of
-`buck/tools` when remote execution is on. They reach a worker as inputs of the
-actions that run them, so this machine needs neither a Rust toolchain nor clang
-to build remotely, and does not write `buck/tools` at all.
+Four minutes is the whole workspace from nothing. The same machine takes nine
+to build `beui` and one plugin by itself, and cargo's own test run takes
+fourteen from an empty `target/`.
 
-Because the tools differ, the two modes do not share cache entries: an action
-compiled by this machine's rustc is not the same action as one compiled by the
-downloaded one, even when they are the same version.
+What this machine downloads is what it asked for and what a local test runs;
+the intermediate rlibs stay in BuildBuddy's CAS and never arrive. Nothing is
+uploaded from here: BuildBuddy writes the result of every action a worker ran,
+and a machine never vouches for an output it compiled itself.
 
-Most tests run on the workers as well. Two kinds stay here, because a worker
-cannot do what they do:
+### What a worker is
+
+A worker is a container with nothing of this project's in it: Ubuntu 24.04's
+`buildpack-deps`, pinned by digest in `buck/tools/defs.bzl`. It brings the parts
+of a build that are the distribution's rather than the project's - glibc and
+its headers, libstdc++, the gcc install clang takes them from, and a Python new
+enough for the prelude.
+
+Everything else comes with the build, as inputs of the actions that use it:
+
+- `buck/tools/BUCK` downloads `rust-toolchain.toml`'s Rust from
+  static.rust-lang.org - rustc, clippy and the three standard libraries - and
+  Ubuntu 24.04's clang-20, lld and llvm-ar packages from Launchpad, which keeps
+  every version it ever published.
+- `third-party/system/BUCK` does the same for ALSA, which `rodio` links and the
+  container does not have.
+- `crates/ghostty-vt/BUCK` runs `scripts/internal/build-ghostty-vt.sh` on a
+  worker, which downloads Zig and Ghostty itself. It is the one action that
+  needs the network, and its inputs pin everything it downloads.
+
+Every download is pinned by size as well as hash. With both, buck2 knows the
+file's digest without asking the server, so a build whose workers already have
+it never contacts the host that serves it; with only the hash it sends a HEAD
+request per download on every new daemon, and fails the build when a host is
+slow to answer.
+
+Because the tools are artifacts rather than names, they are part of every
+action's key: a different rustc or clang is a different action, never a cache
+hit on another compiler's output. The container is part of the key too, through
+the platform properties every action carries.
+
+### Tests
+
+Most tests run on the workers as well. Three kinds stay on the machine that
+asked, because a worker cannot do what they do:
 
 - **The plugin tests** read the accepted paintings out of `snapshots/` in the
   working tree and write the ones that changed back into it, and may open a
-  graphics adapter.
+  graphics adapter. They are labelled `plugin`, which is how
+  `./scripts/verify --tests` and `--plugin-tests` tell them apart.
 - **`beui`'s renderer tests** draw through a real graphics adapter, and the
   container has none. Its `rust_test` says `remote_execution = "disabled"`.
+- **`block-plugin-api`'s `every_editor_manifest_parses`** walks
+  `crates/editors` in the working tree, and the editors are packages of their
+  own rather than its inputs. Same attribute.
 
 buck2 keeps every test local unless it is told otherwise, so `./scripts/buck`
-adds `--unstable-allow-compatible-tests-on-re` to a test run under remote
-execution. "Compatible" is what separates the two: a Rust test runs from the
-project root with project-relative paths, which is what a worker can give it,
-and the plugin tests' rule asks for absolute ones.
+adds `--unstable-allow-compatible-tests-on-re` to a test run. "Compatible" is
+what separates them: a Rust test runs from the project root with
+project-relative paths, which is what a worker can give it, and the plugin
+tests' rule asks for absolute ones.
 
-Three things about the connection are not guessable. The address is a bare
-`remote.buildbuddy.io:443`: buck2 parses it itself and rejects both `grpcs://`
-and `https://` with `Invalid URI`. `http_headers` separates name from value
-with a colon, not an equals sign. And the instance name is empty rather than
-`buck2-cache`.
+A local test runs a binary a worker linked, against the worker's glibc. That is
+Ubuntu 24.04's, so a machine on an older one cannot run them.
 
-None of them announce themselves, because **buck2 treats a cache it cannot use
-as a cache that is empty.** A wrong key, a wrong address and a working setup
-that simply has no entry yet all look the same from the console: the build
-succeeds and reports no hits. The rejection is in the event log rather than on
-screen, so that is where to look when a cache that should be warm is not:
+Arguments after `--` go to buck2's test executor rather than the test.
+`--env NAME=VALUE` sets a variable for the tests - `UPDATE_SNAPSHOTS=1` is how
+`./scripts/verify` accepts paintings - and `--test-arg` passes one through to
+the test binary, which is how to run a single test:
+
+```
+./scripts/buck test //crates/editors/checklist:test -- --env UPDATE_SNAPSHOTS=1
+./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name
+```
+
+buck2's test runner starts one process per test binary and runs its tests on
+threads, the way `cargo test` does, where nextest gave every test a process of
+its own. A test that installs process-wide state has to take turns with the
+others that do; `block-app`'s `be` tests hold a lock for that.
+
+### When the key is wrong
+
+Three things about the connection are not guessable, and none of them
+announces itself. The address is a bare `remote.buildbuddy.io:443`: buck2
+parses it itself and rejects both `grpcs://` and `https://` with `Invalid
+URI`. `http_headers` separates name from value with a colon, not an equals
+sign. And the instance name is empty.
+
+buck2 treats a cache it cannot use as a cache that is empty, so a wrong key
+shows up as a build with no hits rather than as an error. BuildBuddy's
+rejection is in the event log rather than on screen:
 
 ```
 buck2 log show | grep -i 'invalid api key'
 ```
 
-The server is a [bazel-remote](https://github.com/buchgr/bazel-remote) speaking
-the remote execution API, with no scheduler and no workers. `buck/platforms/BUCK`
-is the execution platform that turns the cache on; `[buck2] digest_algorithms`,
-`sqlite_materializer_state` and `default_allow_cache_upload` in `.buckconfig`
-are the three settings without which it silently does nothing.
+### Build metadata
 
-A clean local build fills about twenty gigabytes of `buck-out`, against about
-nine for cargo's `target/` on the same workspace. `buck2 clean` empties it, and
-`buck2 clean --stale=<duration>` drops what the last builds did not touch.
-
-**The cache is also what makes the daemon expendable.** buck2 remembers what it
-has already done in the daemon rather than on disk, so a machine that sleeps, or
-a `buck2 killall`, costs every action its memory of the result. What that costs
-depends entirely on whether the cache can answer:
-
-```
-./scripts/buck build //crates/...   # nothing changed, daemon killed first
-with the cache       0m45s   4730 commands, 94% hits
-without the cache    4m19s+  every one of them compiled again
-```
-
-On a live daemon the same command is under a second. This is the difference
-between a cache that is nice to have on a fresh checkout and one that is load
-bearing every day.
-
-## Why buck/tools exists
-
-Two machines share a cache entry when they agree on an action, and an action is
-its command line plus the files it reads. Everything a toolchain gives buck2 as
-a plain string ends up in that command line, so a toolchain that names
-`/usr/bin/clang` makes every action using it machine-specific, and the cache
-useless across machines. The prelude's Python is worse: it is in the command
-line of every action there is.
-
-So the host tools reach buck2 as files instead. `./scripts/buck` writes a
-one-line wrapper per tool into `buck/tools`, and `buck/toolchains/BUCK` hands
-those to the toolchains as artifacts, which buck2 writes into a command line as
-a path relative to the repository root - the same string everywhere.
-
-Each wrapper names the version of the tool it runs:
-
-```sh
-#!/bin/sh
-# Ubuntu clang version 18.1.3 (1ubuntu1)
-exec clang-18 "$@"
-```
-
-That line is the other half. buck2 keys an action on the bytes of every file it
-reads, so the version makes a cache entry belong to a compiler rather than to a
-machine: two machines on the same compiler share it, and two on different
-compilers do not. Without it a build would take an artifact compiled by
-something else and never say so. What it costs when they differ, measured by
-editing a version line and rebuilding:
-
-| | cache hits |
-|---|---|
-| same tools | 96% |
-| a different clang | 89% |
-| a different rustc | 54% |
-
-`buck/tools/python3` is the exception, and the only wrapper checked in. It has
-no version and resolves the interpreter itself at run time, so its bytes are
-the same on every machine. That is deliberate: this Python decides nothing
-about what an artifact contains. It runs the prelude's own helpers -
-`rustc_action`, `buildscript_run`, `from_any_dir`, `dep_file_processor` - which
-start the real compiler and shuffle paths and diagnostics around it. Keying on
-it would only mean Ubuntu 24.04, which has 3.12, sharing nothing with a machine
-that has 3.13. A checkout running 3.12 against a cache filled by one running
-3.13 gets the same 94% it would have got from an identical machine.
-
-What the Python version does decide is whether the helpers run at all: one of
-them needs `Path.relative_to(walk_up=True)`, which arrived in 3.12.
-`./scripts/buck` refuses to run without one, because the alternative is a
-`TypeError` from inside an unrelated C compile.
-
-## Is this hermetic, and does it need a build server?
-
-Locally, no. Under remote execution, very nearly.
-
-A hermetic toolchain means the compilers are downloaded and content-addressed,
-so every machine has the same ones. That needs downloads, not a server. For
-rustc it is already effectively true locally: `rust-toolchain.toml` pins the
-version and rustup gives every checkout the same one, which is why the rustc
-wrapper says the same thing everywhere without anything being downloaded.
-
-A hermetic *build* is a bigger claim: that the whole input root is declared.
-Locally it is not, and downloading clang would not make it so. The C compiles
-read `/usr/include`, and the links resolve `-lasound` and the system libc, none
-of which buck2 sees. Two machines would compute the same action digest from
-different inputs - which is worse than not sharing, because it is sharing that
-is wrong. That is why uploads from a local build are CI's alone: a machine
-whose C output would differ never poisons anything, it just compiles those
-actions itself, which is under a minute.
-
-Remote execution closes that gap from the other side. The part of the input
-root buck2 does not see is the container, and the container is pinned by
-digest and is part of every action's key, so an action names everything it
-could have read. The compilers are downloads, pinned by hash. What is left
-undeclared is the kernel of whichever worker ran it.
-
-What remote execution buys is not mainly soundness, though: it is making a
-*miss* fast by fanning it out, which is the four minutes above against forty.
+BuildBuddy's build metadata - the repository, branch, commit and role that
+group invocations and drive its GitHub commit statuses - is not available here.
+BuildBuddy reads it from the Build Event Stream, which is Bazel's, and buck2
+does not implement it; nothing in the pinned release speaks it, and buck2's own
+`--client-metadata` goes only to its event log. What BuildBuddy does see is the
+remote execution traffic itself: the actions, their inputs and outputs, and
+what they cost.
 
 ## WebAssembly
 
@@ -290,7 +198,7 @@ gets Cargo.toml's plugin profile rather than its dev one. The C toolchain
 switches too: rustc emits lld's own flags for a wasm link and hands them to
 whatever the cxx toolchain calls a linker, which for the host is a clang driver
 that has never heard of them, so wasm gets `rust-lld` from the same rustc
-instead. The wrapper for it drops `-fuse-ld=lld` on the way through, because
+instead. `buck/tools/wasm-ld` drops `-fuse-ld=lld` on the way through, because
 `prelude//os_lookup` has no case for WebAssembly and falls back to linux - its
 own FIXME says so - and a linux link is what the prelude thinks it is building.
 
@@ -304,10 +212,11 @@ library is self-contained, and a pure-Rust module links without the sysroot at
 all. `beui` builds for `wasm32-wasip1-threads` through this, freetype and
 harfbuzz included.
 
-The wasm C compiler is not the host one. FreeType's setjmp lowering needs clang
-19 or newer and Ubuntu 24.04 ships 18 as plain `clang`, so `./scripts/buck`
-writes a second pair of wrappers for it, choosing the same compiler the cargo
-build does.
+The wasm C compiler is the host one aimed elsewhere: the same downloaded
+clang-20, with `--target=wasm32-wasip1-threads` in the tool itself rather than
+in the toolchain's flags, because the prelude's cxx toolchain has flags for C
+and for C++ and none for assembly. FreeType's setjmp lowering is why it is
+clang 20: it needs 19 or newer, which is also what the cargo build picks.
 
 **reindeer resolves the third-party crates once per platform**, and
 `reindeer.toml` names all four. The platform names are not free: a buck2
@@ -410,23 +319,26 @@ diagnostics to a file and the build still succeeds**. A lint gate has to build
 the subtarget for every target and then check that each output is empty; a
 green `buck2 build` says nothing about whether clippy was happy.
 
-`./scripts/verify` still lints with cargo, and should keep doing so until buck2
-covers the whole workspace. Switching now would quietly stop linting the 33
-editors and `block-app`, which have no BUCK files yet.
+`./scripts/verify` still lints with cargo. buck2 builds `block-app` without its
+embedded browser, so switching would quietly stop linting that half of it; and
+a gate on the subtarget has the empty-file problem above to solve first.
 
 ## How the build is laid out
 
-- `.buckconfig` names the cells, the execution platform and the three cache
-  settings. The prelude is the one bundled in the buck2 binary, so there is no
-  submodule to check out and no prelude version to keep in step with the binary:
-  the pinned buck2 release pins both.
-- `buck/toolchains/BUCK` is the toolchain, built on the wrappers in
-  `buck/tools`; `defs.bzl` beside it holds the three small rules that take a
-  file where the prelude's own toolchains take a name. rustc gets
-  `-Copt-level=0`, which is cargo's dev profile and also what makes the prelude
-  tell a build script what `OPT_LEVEL` it is building for.
-- `buck/platforms/BUCK` is the execution platform: the prelude's, with the
-  shared cache wired in.
+- `.buckconfig` names the cells, the execution platform and BuildBuddy. The
+  prelude is the one bundled in the buck2 binary, so there is no submodule to
+  check out and no prelude version to keep in step with the binary: the pinned
+  buck2 release pins both.
+- `buck/tools/BUCK` downloads the compilers, and `defs.bzl` beside it holds the
+  rules that lay them out and the container a worker runs.
+- `buck/toolchains/BUCK` is the toolchain, built on `buck/tools`; `defs.bzl`
+  beside it holds the small rules that take an artifact where the prelude's own
+  toolchains take a name, and the wrapper that lets links run on a worker and
+  puts a binary's shared libraries beside it. rustc gets `-Copt-level=0`, which
+  is cargo's dev profile and also what makes the prelude tell a build script
+  what `OPT_LEVEL` it is building for.
+- `buck/platforms/BUCK` is the execution platform: the prelude's, pointed at
+  BuildBuddy's workers.
 - `third-party/rust/BUCK` is generated by reindeer from the workspace manifests.
   It is checked in and nothing but `./scripts/buckify` should edit it. Crates
   are downloaded from crates.io at build time rather than vendored, so the
@@ -434,8 +346,8 @@ editors and `block-app`, which have no BUCK files yet.
 - `third-party/rust/fixups/<crate>/fixups.toml` is what reindeer needs told
   about a crate it cannot work out on its own. Every crate with a build script
   needs one, if only to say `buildscript.run = true`.
-- `third-party/system/BUCK` is for libraries this machine provides rather than
-  builds. Today that is the C++ runtime a Rust binary linking harfbuzz needs.
+- `third-party/system/BUCK` is for libraries the system provides rather than
+  the build: the C++ runtime a Rust binary linking harfbuzz needs, and ALSA.
 - `crates/<crate>/BUCK` is written by hand, one per crate.
 
 ## Adding a crate
@@ -508,8 +420,9 @@ ordinary dependency, so it is built for the host beside it. The accepted
 paintings are read from `snapshots/` through `CARGO_MANIFEST_DIR`, which
 `wasi_test` takes from the crate's `Cargo.toml` so that the path is the one in
 the repository rather than the staged copy a rustc action compiles against.
-buck2 never sets `UPDATE_SNAPSHOTS`, so a changed painting fails here and is
-accepted with `./scripts/verify` as before.
+A changed painting fails the test unless `UPDATE_SNAPSHOTS` is set, which
+`./scripts/verify` does through the test executor's `--env`, and the runner
+hands it to the guest.
 
 `block-editor-plugin` has a `test` of the same shape: it is the guest half of
 the plugin framework, and its tests are behind `cfg(target_arch = "wasm32")`.
@@ -527,48 +440,40 @@ process, and answered by the cache on a machine that has never built the
 plugin. It is the difference between `./scripts/buck test //crates/...` taking
 twenty-five minutes on an unchanged tree and taking twenty seconds.
 
-## What is not covered yet
+The artifact is compiled for the x86_64 baseline rather than for the machine
+that compiled it. Left to itself wasmtime uses every CPU feature it finds, and
+the artifact then only loads on a machine with the same ones - but it is
+compiled on a worker and loaded here, and the two rarely match. Naming the
+target with `--target` is what makes wasmtime stop looking.
 
-The gaps, roughly in the order they are worth closing:
+## What is still cargo's
 
-- **Only `x86_64-unknown-linux-gnu`.** `reindeer.toml` configures one platform.
-  Adding macOS and Windows is a matter of adding them there, re-running
-  `./scripts/buckify` and fixing what the new platforms' build scripts need; the
-  first-party `BUCK` files would then need `select()` where the dependency sets
-  differ.
-- **Nothing stages the plugins.** `scripts/internal/common.sh` copies each
-  manifest beside the modules as `<id>.plugin.json` and writes a `plugins.json`
-  index for the browser and Android. There is no buck2 rule for that yet, and
-  nothing to consume one until `block-app` is built.
+- **Every platform but Linux on x86_64.** `reindeer.toml` configures one
+  platform and a worker is one machine. macOS, Windows and Android builds, the
+  release artifacts CI uploads, and `./scripts/build` and `./scripts/run` are
+  cargo's. Adding a platform here is adding it to `reindeer.toml`, re-running
+  `./scripts/buckify` and fixing what its build scripts need, and a worker pool
+  for it where it cannot be cross-compiled.
+- **The embedded browser.** `block-app`'s `web-view` feature needs WebKitGTK and
+  the GTK stack under it, which the container does not have and which is far
+  too large to hand a worker the way ALSA is handed. A container image of our
+  own with it installed is the way to close this, and would also let beui's
+  renderer tests and the plugin tests' GPU half move to a worker, with Mesa's
+  software Vulkan in it.
+- **The lint pass.** clippy lints the embedded browser, above, and rustfmt and
+  `fix-rust-source` have no buck2 story yet.
 - **No web bundle.** The third-party half of it is there: `wgpu`, `wgpu-core`,
   `wgpu-hal` and `eframe` all build for `buck/platforms:wasi`, with the app's
-  feature set. What is left is `block-app` itself, wasm-bindgen after it, and
+  feature set. What is left is `block-app` for wasm, wasm-bindgen after it, and
   the JS shims in `scripts/internal/web`.
-- **`block-app` is not built.** It has a build script that shells out to git,
-  it links libghostty-vt, which Zig builds, and it is the one crate that pulls
-  in the whole GTK and WebKitGTK tree.
-- **One test target is labelled `cargo-only`** and skipped by the buck2 run.
-  `block-plugin-api` has one test that walks `crates/editors` in the source
-  tree; buck2 compiles a crate against a staged copy of its own sources, so
-  `CARGO_MANIFEST_DIR/../editors` is not there. Giving it the manifests means
-  naming all 33 editor packages somewhere, because they are packages of their
-  own and a `glob` cannot reach into them. cargo runs it.
-- **The lint pass is still cargo's.** Clippy works through buck2 (above) but
-  cannot replace `cargo clippy` until every crate has a BUCK file. rustfmt and
-  `fix-rust-source` have no buck2 story at all yet.
-- **C compiles are never served from the cache.** They are the 4% the numbers
-  above leave on the table - about twenty seconds of zstd, sqlite and freetype
-  on a fresh checkout. Everything else hits. The cause is somewhere in how buck2
-  keys dep-file-tracked compiles; turning on the remote dep file cache does not
-  change it.
-- **CI does not use remote execution.** Its buck2 job still builds on the
-  runner against the shared cache. Moving it is a matter of giving it a
-  BuildBuddy key and `BUILDBUDDY_REMOTE_EXECUTION=1`; the plugin tests would
-  still run on the runner, for the reasons above.
-- **Remote execution is Linux and x86_64 only**, like the rest of this, and the
-  plugin tests and `beui`'s renderer tests run locally under it. A container
-  with Mesa's software Vulkan in it would let the GPU tests move, but that is
-  an image of our own to build and host rather than a public one.
+- **Nothing stages the plugins.** `scripts/internal/common.sh` copies each
+  manifest beside the modules as `<id>.plugin.json` and writes a `plugins.json`
+  index for the browser and Android. There is no buck2 rule for that yet, which
+  is what running `block-app` from buck2 is waiting on.
+- **`BLOCK_APP_COMMIT` is `unknown`.** Under cargo, `block-app`'s build script
+  asks git for the commit; a worker has no checkout to ask. Passing it in as
+  config would rebuild the app on every commit, which is only worth it once
+  buck2 builds something that ships.
 
 ## Where the tools come from
 
