@@ -27,7 +27,10 @@ impl Session {
         let (graph_hover, set_graph_hover) = create_signal(GraphHover::default());
         let session = Rc::new(Self {
             editor: editor.clone(),
-            model: RefCell::new(LogicGridEditor::new(block.handle().clone())),
+            model: RefCell::new(LogicGridEditor::with_hotbar_editor(
+                block.handle().clone(),
+                editor.clone(),
+            )),
             version,
             set_version,
             pointer,

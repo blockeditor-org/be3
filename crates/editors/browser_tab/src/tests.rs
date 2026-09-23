@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use block_client::BlockClient;
 use block_client::blocks::web_browser_tab::WebBrowserTab;
-use block_editor_plugin::be_block::{BlockContent, BrowserTabContent, LiveEdit};
+use block_editor_plugin::be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
 use block_editor_plugin::beui::{Key, Modifiers};
 use block_editor_plugin::{Editor, EditorHost, WebViewCommand, WebViewEvent};
 use block_ui_test::BeuiTest;
@@ -34,7 +34,14 @@ impl Harness {
         let mut harness = Self {
             editor: BeuiTest::new(editor),
             host,
-            content: BrowserTabContent::at("https://example.com/"),
+            content: {
+                let mut content = BrowserTabContent::default();
+                let first = content
+                    .root()
+                    .push(&HistoryItem::new("https://example.com/", ""));
+                content.apply(&first);
+                content
+            },
             applied: 0,
         };
         harness.publish();
@@ -68,7 +75,8 @@ impl Harness {
 
     fn urls(&self) -> Vec<String> {
         self.content
-            .history()
+            .root()
+            .history
             .iter()
             .map(|item| item.url.clone())
             .collect()

@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use block_client::blocks::database_schema::{
-    DatabaseBlockOptions, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
-    DatabaseNumberOptions, DatabaseNumberScale, DatabaseSchema, DatabaseSchemaOperation,
+use block_editor_plugin::be_block::database_schema::{
+    DatabaseBlockOptions, DatabaseField, DatabaseFieldType, DatabaseNumberOptions,
+    DatabaseNumberScale, DatabaseSchema, DatabaseSchemaContent,
 };
 use block_editor_plugin::beui::icons::{ICON_ADD, ICON_DELETE};
 use block_editor_plugin::beui::reactive::{
@@ -15,12 +15,12 @@ use block_editor_plugin::beui::styled::{
 };
 use block_editor_plugin::beui::unstyled::ChoiceOption;
 use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{BlockProjection, Editor};
+use block_editor_plugin::{ContentProjection, Editor};
 use uuid::Uuid;
 
 use super::field_line_count;
 
-type Schema = Rc<BlockProjection<DatabaseSchema>>;
+type Schema = Rc<ContentProjection<DatabaseSchemaContent>>;
 
 const PADDING: f32 = 20.0;
 const SECTION_SPACING: f32 = 10.0;
@@ -48,8 +48,8 @@ const NUMBER_SCALES: [(DatabaseNumberScale, &str); 2] = [
 
 #[component]
 pub fn SchemaView(editor: Editor) -> NodeId {
-    let schema = editor.block::<DatabaseSchema>();
-    let fields = schema.project(|schema| schema.fields().to_vec());
+    let schema = editor.block_content::<DatabaseSchemaContent>();
+    let fields = schema.project(|schema| schema.root().fields());
     let rows = create_memo(clone!(fields -> move || fields.get()));
     let keys = create_memo(clone!(rows -> move || {
         rows.with(|rows| rows.iter().map(|field| field.id).collect::<Vec<Uuid>>())
@@ -69,16 +69,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
     }));
 
     let add = clone!(schema -> move || {
-        schema.operate(DatabaseSchemaOperation::AddField {
-            field: DatabaseField {
-                id: Uuid::new_v4(),
-                name: "Field".into(),
-                field_type: DatabaseFieldType::String,
-                enum_options: Vec::new(),
-                number_options: DatabaseNumberOptions::default(),
-                block_options: DatabaseBlockOptions::default(),
-            },
-        });
+        schema.operate(DatabaseSchema::add_field("Field", DatabaseFieldType::String).1);
     });
 
     let add_disabled = read_only.clone();
@@ -150,19 +141,16 @@ fn FieldRow(
     let is =
         |wanted: DatabaseFieldType| create_memo(clone!(kind -> move || kind.get() == Some(wanted)));
     let renamed = clone!(schema -> move |name: String| {
-        schema.operate(DatabaseSchemaOperation::RenameField { field_id: id, name });
+        schema.operate(DatabaseSchema::rename_field(id, name));
     });
     let retyped = clone!(schema -> move |selected: Option<usize>| {
         let Some(index) = selected else {
             return;
         };
-        schema.operate(DatabaseSchemaOperation::SetFieldType {
-            field_id: id,
-            field_type: FIELD_TYPES[index].0,
-        });
+        schema.operate(DatabaseSchema::set_field_type(id, FIELD_TYPES[index].0));
     });
     let remove = clone!(schema -> move || {
-        schema.operate(DatabaseSchemaOperation::RemoveField { field_id: id });
+        schema.operate(DatabaseSchema::remove_field(id));
     });
     let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
     let (name_off, type_off, delete_off) =
@@ -256,10 +244,7 @@ fn NumberOptions(
         };
         let mut next = options.get_untracked();
         next.scale = NUMBER_SCALES[index].0;
-        schema.operate(DatabaseSchemaOperation::SetNumberOptions {
-            field_id: id,
-            options: next,
-        });
+        schema.operate(DatabaseSchema::set_number_options(id, next));
     });
     let scale_keys = create_memo(|| (0..NUMBER_SCALES.len()).collect::<Vec<usize>>());
     let (minimum_off, maximum_off, step_off, scale_off) = (
@@ -389,10 +374,7 @@ fn OptionalNumber(
         move |value: Option<f64>| {
             let mut next = options.get_untracked();
             bound.write(&mut next, value);
-            schema.operate(DatabaseSchemaOperation::SetNumberOptions {
-                field_id: id,
-                options: next,
-            });
+            schema.operate(DatabaseSchema::set_number_options(id, next));
         }
     };
     let toggled = {
@@ -448,13 +430,7 @@ fn EnumOptions(
     }));
     let add_off = read_only.clone();
     let add = clone!(schema -> move || {
-        schema.operate(DatabaseSchemaOperation::AddEnumOption {
-            field_id: id,
-            option: DatabaseEnumOption {
-                id: Uuid::new_v4(),
-                name: "Option".into(),
-            },
-        });
+        schema.operate(DatabaseSchema::add_enum_option(id, "Option").1);
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -506,17 +482,10 @@ fn EnumOptionRow(
     read_only: Memo<bool>,
 ) -> NodeId {
     let renamed = clone!(schema -> move |name: String| {
-        schema.operate(DatabaseSchemaOperation::RenameEnumOption {
-            field_id: id,
-            option_id,
-            name,
-        });
+        schema.operate(DatabaseSchema::rename_enum_option(option_id, name));
     });
     let remove = clone!(schema -> move || {
-        schema.operate(DatabaseSchemaOperation::RemoveEnumOption {
-            field_id: id,
-            option_id,
-        });
+        schema.operate(DatabaseSchema::remove_enum_option(option_id));
     });
     let (name_off, delete_off) = (read_only.clone(), read_only);
     view! {
@@ -589,10 +558,10 @@ fn BlockOptions(
         }) else {
             return;
         };
-        schema.operate(DatabaseSchemaOperation::SetBlockOptions {
-            field_id: id,
-            options: DatabaseBlockOptions { block_type },
-        });
+        schema.operate(DatabaseSchema::set_block_options(
+            id,
+            DatabaseBlockOptions { block_type },
+        ));
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>

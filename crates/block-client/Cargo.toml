@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 base64 = "0.22"
+be-block = { path = "../be-block" }
 block = { path = "../block" }
 chacha20poly1305 = "0.10"
 eips = { version = "0.2.4", features = ["serde"] }

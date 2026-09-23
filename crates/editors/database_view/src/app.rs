@@ -1,12 +1,11 @@
 use block::BlockParent;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::database::Database;
-use block_client::blocks::database_schema::{
-    DatabaseField, DatabaseFieldType, DatabaseSchema, DatabaseSchemaOperation,
-};
 use block_client::blocks::database_view::DatabaseView;
+use block_editor_plugin::be_block::BlockRef;
+use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
+use block_editor_plugin::database::create_database;
 use block_editor_plugin::{Creation, Editor};
 use uuid::Uuid;
 
@@ -36,22 +35,18 @@ impl block_editor_plugin::BeuiApp for DatabaseViewApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        let client = creation.client();
-        let schema = client.create_block(DatabaseSchema::new());
-        schema.operate(DatabaseSchemaOperation::AddField {
-            field: DatabaseField {
-                id: Uuid::new_v4(),
-                name: "Name".into(),
-                field_type: DatabaseFieldType::String,
-                enum_options: Vec::new(),
-                number_options: Default::default(),
-                block_options: Default::default(),
-            },
-        });
-        let database = client.create_block(Database::new(BlockRef::Direct(schema.id())));
-        schema.set_parent(BlockParent::Uuid(database.id()));
-        let view = client.create_block(DatabaseView::new(BlockRef::Direct(database.id())));
-        database.set_parent(BlockParent::Uuid(view.id()));
+        let database = create_database(creation);
+        let view = creation
+            .client()
+            .create_block(DatabaseView::with_references(vec![database]));
+        creation.seed_content(
+            view.id(),
+            &DatabaseViewContent::new(&database_view::DatabaseView::of(BlockRef::Direct(database))),
+        );
+        creation
+            .client()
+            .get_block::<Database>(database)
+            .set_parent(BlockParent::Uuid(view.id()));
         Ok(view.id())
     }
 }

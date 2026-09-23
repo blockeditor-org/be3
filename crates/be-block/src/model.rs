@@ -2,12 +2,21 @@ use be_commit::MergeResult;
 use be_model::{Document, Edit, Model, Step, Touched};
 use uuid::Uuid;
 
-use crate::{BlockContent, ContentError, LiveEdit, Merge, Undo};
+use crate::{BlockContent, ChildChange, ContentError, LiveEdit, Merge, Undo};
 
 pub trait Root: Model + Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
 
     fn name(&self) -> Option<String> {
+        None
+    }
+
+    fn references(&self) -> Vec<Uuid> {
+        Vec::new()
+    }
+
+    fn child_edit(&self, change: ChildChange) -> Option<Edit> {
+        let _ = change;
         None
     }
 }
@@ -26,6 +35,10 @@ impl<R: Root> BlockContent for Document<R> {
     fn name(&self) -> Option<String> {
         self.root().name()
     }
+
+    fn references(&self) -> Vec<Uuid> {
+        self.root().references()
+    }
 }
 
 impl<R: Root> LiveEdit for Document<R> {
@@ -37,6 +50,10 @@ impl<R: Root> LiveEdit for Document<R> {
 
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         Document::apply_touching(self, operation, touched);
+    }
+
+    fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
+        self.root().child_edit(change).map(|edit| vec![edit])
     }
 }
 

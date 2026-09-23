@@ -5,6 +5,7 @@ use block_client::BlockHandle;
 use block_client::block_ref::BlockRef;
 use block_client::blocks::database::DatabaseValue;
 use block_client::blocks::database_schema::DatabaseSchema;
+use block_editor_plugin::be_block::database_schema::DatabaseSchemaContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
@@ -64,17 +65,12 @@ pub(crate) fn CanvasComponents(state: Rc<CanvasState>) -> NodeId {
 #[component]
 fn ComponentRow(state: Rc<CanvasState>, schema_id: BlockRef) -> NodeId {
     let resolved = create_memo(clone!(state -> move || state.resolve(schema_id)));
-    let schema = create_memo(clone!(state resolved -> move || {
-        let id = resolved.get()?;
-        state
-            .editor()
-            .client()
-            .get_block::<DatabaseSchema>(id)
-            .read()
-            .map(|schema| schema.fields().to_vec())
-    }));
-    let fields = create_memo(clone!(schema -> move || schema.get().unwrap_or_default()));
-    let loading = create_memo(clone!(schema -> move || schema.get().is_none()));
+    let schema = state
+        .editor()
+        .related_content::<DatabaseSchemaContent>(resolved.clone());
+    let fields = schema.project(|schema| schema.root().fields());
+    let fields = create_memo(clone!(fields -> move || fields.get()));
+    let loading = create_memo(clone!(resolved -> move || resolved.get().is_none()));
     let named = create_memo(clone!(state -> move || {
         state
             .label_of(schema_id)

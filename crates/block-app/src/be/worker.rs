@@ -28,6 +28,11 @@ pub(super) enum Command {
         to: Uuid,
         content_type: Uuid,
     },
+    Seed {
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+    },
     Flush(std::sync::mpsc::Sender<()>),
     History {
         block: Uuid,
@@ -78,6 +83,30 @@ where
         };
         peer.ensure::<C>(to, BlockParent::Root).await?;
         peer.save(to, &content, None).await?;
+        Ok(())
+    })
+}
+
+pub(super) type Seed =
+    for<'a> fn(&'a Arc<Peer<Store>>, Uuid, Vec<u8>) -> LocalBoxFuture<'a, Result<(), ClientError>>;
+
+pub(super) fn seed<C>(
+    peer: &Arc<Peer<Store>>,
+    block: Uuid,
+    bytes: Vec<u8>,
+) -> LocalBoxFuture<'_, Result<(), ClientError>>
+where
+    C: BlockContent + Default,
+{
+    Box::pin(async move {
+        let Ok(content) = C::decode(&bytes) else {
+            return Ok(());
+        };
+        peer.ensure::<C>(block, BlockParent::Root).await?;
+        if peer.remote_head(block).await?.is_some() {
+            return Ok(());
+        }
+        peer.save(block, &content, None).await?;
         Ok(())
     })
 }
@@ -589,6 +618,22 @@ async fn apply(
             };
             let shown = sessions.get(&from).map(|session| session.bytes());
             if let Err(error) = copy(peer, from, to, shown).await {
+                record(shared, error);
+            }
+            false
+        }
+        Command::Seed {
+            block,
+            content_type,
+            bytes,
+        } => {
+            if sessions.contains_key(&block) {
+                return false;
+            }
+            let Some(seed) = super::seed_for(content_type) else {
+                return false;
+            };
+            if let Err(error) = seed(peer, block, bytes).await {
                 record(shared, error);
             }
             false

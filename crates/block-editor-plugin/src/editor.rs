@@ -266,7 +266,7 @@ struct EditorState {
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<NodeRef>>,
-    projection: RefCell<Option<Rc<dyn std::any::Any>>>,
+    projections: RefCell<std::collections::HashMap<Option<Uuid>, Rc<dyn std::any::Any>>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
@@ -320,7 +320,7 @@ impl Editor {
             pending_reveal: Cell::new(None),
             replace: RefCell::new(None),
             content: RefCell::new(None),
-            projection: RefCell::new(None),
+            projections: RefCell::new(std::collections::HashMap::new()),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
             children: RefCell::new(Vec::new()),
@@ -367,19 +367,52 @@ impl Editor {
     where
         C: be_block::LiveEdit + Clone + Default,
     {
+        self.projection(None)
+    }
+
+    pub fn content_of<C>(&self, block: Uuid) -> Rc<ContentProjection<C>>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        if block == self.0.block {
+            return self.block_content();
+        }
+        self.0.host.watch_content(block, C::CONTENT_TYPE);
+        self.projection(Some(block))
+    }
+
+    pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> Rc<crate::RelatedContent<C>>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        Rc::new(crate::RelatedContent::new(self.clone(), block))
+    }
+
+    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.0.host.seed_content(block, content);
+    }
+
+    fn projection<C>(&self, block: Option<Uuid>) -> Rc<ContentProjection<C>>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
         let cached = self
             .0
-            .projection
+            .projections
             .borrow()
-            .clone()
+            .get(&block)
+            .cloned()
             .and_then(|held| held.downcast::<ContentProjection<C>>().ok());
         if let Some(source) = cached {
             return source;
         }
-        let source = Rc::new(ContentProjection::<C>::new(self.0.host.clone()));
+        let source = Rc::new(ContentProjection::<C>::new(self.0.host.clone(), block));
         let pumped = Rc::clone(&source);
         self.each_frame(move || pumped.pump());
-        *self.0.projection.borrow_mut() = Some(Rc::clone(&source) as Rc<dyn std::any::Any>);
+        self.0
+            .projections
+            .borrow_mut()
+            .insert(block, Rc::clone(&source) as Rc<dyn std::any::Any>);
         source
     }
 
@@ -751,6 +784,10 @@ impl Creation {
 
     pub fn client(&self) -> &Arc<BlockClient> {
         &self.0.client
+    }
+
+    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.0.host.seed_content(block, content);
     }
 
     pub fn set_ready(&self, ready: bool) {

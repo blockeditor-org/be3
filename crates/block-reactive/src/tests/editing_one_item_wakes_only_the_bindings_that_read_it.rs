@@ -3,23 +3,23 @@ use super::*;
 #[test]
 fn editing_one_item_wakes_only_the_bindings_that_read_it() {
     let client = client();
-    let block = client.create_block(Presentation::default());
+    let block = client.create_block(Deck::default());
     for index in 0..3 {
-        block.operate(add_slide(index));
+        block.operate(add_card(index));
     }
     let ids: Vec<Uuid> = block
         .read()
         .unwrap()
-        .slides()
+        .cards()
         .iter()
-        .map(|slide| slide.id)
+        .map(|card| card.id)
         .collect();
 
     let source = BlockSource::new(block.clone(), || {});
-    let items = source.project_keyed(|presentation, items| {
-        items.reconcile(presentation.slides().iter().map(|slide| (slide.id, slide)));
+    let items = source.project_keyed(|deck, items| {
+        items.reconcile(deck.cards().iter().map(|card| (card.id, card)));
     });
-    let done = source.project(|presentation: &Presentation| presentation.slides().len());
+    let done = source.project(|deck: &Deck| deck.cards().len());
 
     let scope = Scope::new();
     let runs: Vec<Rc<Cell<usize>>> = ids.iter().map(|_| Rc::new(Cell::new(0))).collect();
@@ -44,9 +44,9 @@ fn editing_one_item_wakes_only_the_bindings_that_read_it() {
     }
     done_runs.set(0);
 
-    block.operate(PresentationOperation::SetBlockId {
-        slide_id: ids[1],
-        block_id: BlockRef::Direct(Uuid::new_v4()),
+    block.operate(DeckOperation::Turn {
+        id: ids[1],
+        face: Uuid::new_v4(),
     });
     source.pump();
 

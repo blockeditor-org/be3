@@ -8,6 +8,7 @@ use super::*;
 use crate::platform;
 
 mod a_checklist_and_a_counter_are_held_by_one_peer;
+mod a_child_moved_into_a_migrated_block_is_added_to_its_content;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_held_block_stays_open_when_its_editors_close;

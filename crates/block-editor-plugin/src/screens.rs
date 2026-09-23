@@ -185,6 +185,7 @@ impl Screens {
             }
             Message::Editor(EditorMessage::Content {
                 instance,
+                block_id,
                 content_type,
                 bytes,
                 applied,
@@ -192,16 +193,23 @@ impl Screens {
                 let Some(session) = self.sessions.get(instance) else {
                     return false;
                 };
-                session.set_block_content(Uuid::from_bytes(*content_type), bytes.clone(), *applied);
+                session.set_block_content(
+                    Uuid::from_bytes(*block_id),
+                    Uuid::from_bytes(*content_type),
+                    bytes.clone(),
+                    *applied,
+                );
             }
             Message::Editor(EditorMessage::ContentOperations {
                 instance,
+                block_id,
                 operations,
             }) => {
                 let Some(session) = self.sessions.get(instance) else {
                     return false;
                 };
                 session.push_content_operations(
+                    Uuid::from_bytes(*block_id),
                     operations
                         .iter()
                         .map(|operation| (operation.operation.clone(), operation.mine))

@@ -2,23 +2,19 @@ use super::*;
 
 #[test]
 fn a_browser_tab_push_discards_forward_history() {
-    let visit = |url: &str| {
-        BrowserTabOp::Push(HistoryItem {
-            url: url.into(),
-            title: String::new(),
-        })
+    let visit = |tab: &BrowserTabContent, url: &str| {
+        let edit = tab.root().push(&HistoryItem::new(url, ""));
+        edited(tab, [edit])
     };
-    let mut tab = BrowserTabContent::default();
-    for operation in [
-        visit("https://one.example"),
-        visit("https://two.example"),
-        BrowserTabOp::History(1),
-        visit("https://three.example"),
-    ] {
-        tab.apply(&operation);
-    }
+    let tab = visit(&BrowserTabContent::default(), "about:blank");
+    let tab = visit(&tab, "https://one.example");
+    let tab = visit(&tab, "https://two.example");
+    let tab = edited(&tab, [tab.root().go(1)]);
+    assert!(tab.root().can_go_forward());
+    let tab = visit(&tab, "https://three.example");
 
-    let urls: Vec<_> = tab.history().iter().map(|item| item.url.as_str()).collect();
+    let root = tab.root();
+    let urls: Vec<&str> = root.history.iter().map(|item| item.url.as_str()).collect();
     assert_eq!(
         urls,
         [
@@ -27,6 +23,6 @@ fn a_browser_tab_push_discards_forward_history() {
             "https://three.example"
         ]
     );
-    assert_eq!(tab.index(), 2);
-    assert!(!tab.can_go_forward());
+    assert_eq!(root.index(), 2);
+    assert!(!root.can_go_forward());
 }

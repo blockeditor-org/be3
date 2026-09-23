@@ -134,12 +134,17 @@ pub(crate) struct Status {
     pub(crate) error: Option<String>,
 }
 
+type ChildOperations = fn(&[u8], be_block::ChildChange) -> Option<Vec<Vec<u8>>>;
+
 struct Migrated {
     block_type: Uuid,
     content_type: Uuid,
     join: worker::Join,
     copy: worker::Copy,
+    seed: worker::Seed,
     name: fn(&[u8]) -> Option<String>,
+    references: fn(&[u8]) -> Vec<Uuid>,
+    child: ChildOperations,
 }
 
 const fn migrated<B, C>() -> Migrated
@@ -152,7 +157,10 @@ where
         content_type: C::CONTENT_TYPE,
         join: worker::join::<C>,
         copy: worker::copy::<C>,
+        seed: worker::seed::<C>,
         name: content_name::<C>,
+        references: content_references::<C>,
+        child: child_operations::<C>,
     }
 }
 
@@ -166,7 +174,10 @@ where
         content_type: C::CONTENT_TYPE,
         join: worker::join_with_history::<C>,
         copy: worker::copy::<C>,
+        seed: worker::seed::<C>,
         name: content_name::<C>,
+        references: content_references::<C>,
+        child: child_operations::<C>,
     }
 }
 
@@ -174,11 +185,39 @@ fn content_name<C: be_block::BlockContent>(bytes: &[u8]) -> Option<String> {
     C::decode(bytes).ok()?.name()
 }
 
+fn child_operations<C: be_block::LiveEdit>(
+    bytes: &[u8],
+    change: be_block::ChildChange,
+) -> Option<Vec<Vec<u8>>> {
+    let operations = C::decode(bytes).ok()?.child_operations(change)?;
+    Some(operations.iter().map(C::encode_operation).collect())
+}
+
+fn content_references<C: be_block::BlockContent>(bytes: &[u8]) -> Vec<Uuid> {
+    C::decode(bytes)
+        .map(|content| content.references())
+        .unwrap_or_default()
+}
+
 const MIGRATED: &[Migrated] = &[
     migrated_with_history::<block_client::blocks::calendar::Calendar, be_block::CalendarContent>(),
     migrated_with_history::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(
     ),
     migrated_with_history::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
+    migrated_with_history::<block_client::blocks::database::Database, be_block::DatabaseContent>(),
+    migrated_with_history::<
+        block_client::blocks::database_schema::DatabaseSchema,
+        be_block::DatabaseSchemaContent,
+    >(),
+    migrated_with_history::<
+        block_client::blocks::database_view::DatabaseView,
+        be_block::DatabaseViewContent,
+    >(),
+    migrated_with_history::<block_client::blocks::hotbar::Hotbar, be_block::HotbarContent>(),
+    migrated_with_history::<
+        block_client::blocks::presentation::Presentation,
+        be_block::PresentationContent,
+    >(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
 ];
@@ -197,11 +236,38 @@ pub(crate) fn name_of(content: &Content) -> Option<String> {
     (migrated.name)(&content.bytes)
 }
 
+pub(crate) fn references_of(content: &Content) -> Option<Vec<Uuid>> {
+    let migrated = MIGRATED
+        .iter()
+        .find(|migrated| migrated.content_type == content.content_type)?;
+    Some((migrated.references)(&content.bytes))
+}
+
+pub(crate) fn block_type_of(content_type: Uuid) -> Option<Uuid> {
+    MIGRATED
+        .iter()
+        .find(|migrated| migrated.content_type == content_type)
+        .map(|migrated| migrated.block_type)
+}
+
+pub(crate) fn is_migrated(content_type: Uuid) -> bool {
+    MIGRATED
+        .iter()
+        .any(|migrated| migrated.content_type == content_type)
+}
+
 fn copy_for(content_type: Uuid) -> Option<worker::Copy> {
     MIGRATED
         .iter()
         .find(|migrated| migrated.content_type == content_type)
         .map(|migrated| migrated.copy)
+}
+
+fn seed_for(content_type: Uuid) -> Option<worker::Seed> {
+    MIGRATED
+        .iter()
+        .find(|migrated| migrated.content_type == content_type)
+        .map(|migrated| migrated.seed)
 }
 
 fn join_for(content_type: Uuid) -> Option<worker::Join> {
@@ -301,6 +367,24 @@ pub(crate) fn hold(block: Uuid, block_type: Uuid) {
     }
 }
 
+pub(crate) fn change_child(
+    block: Uuid,
+    block_type: Uuid,
+    change: be_block::ChildChange,
+) -> Option<bool> {
+    let migrated = MIGRATED
+        .iter()
+        .find(|migrated| migrated.block_type == block_type)?;
+    let Some(held) = content(block) else {
+        hold(block, block_type);
+        return None;
+    };
+    for operation in (migrated.child)(&held.bytes, change)? {
+        send(Command::Operate(block, None, operation));
+    }
+    Some(true)
+}
+
 pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
     send(Command::Operate(block, Some(origin), operation));
 }
@@ -334,6 +418,14 @@ pub(crate) fn duplicate(from: Uuid, to: Uuid, block_type: Uuid) {
             content_type,
         });
     }
+}
+
+pub(crate) fn seed(block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
+    send(Command::Seed {
+        block,
+        content_type,
+        bytes,
+    });
 }
 
 pub(crate) fn content(block: Uuid) -> Option<Content> {

@@ -1600,7 +1600,7 @@ impl BlockApp {
             <be_block::UiSettingsContent as be_block::BlockContent>::decode(&content.bytes).ok()
         });
         if let Some(settings) = settings {
-            context.set_zoom_factor(settings.zoom());
+            context.set_zoom_factor(settings.root().zoom());
         }
     }
 

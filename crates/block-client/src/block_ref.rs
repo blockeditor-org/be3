@@ -1,23 +1,8 @@
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::BlockClient;
 
-#[derive(Clone, Copy, Debug, Deserialize, Hash, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-pub enum BlockRef {
-    Direct(Uuid),
-    RepoRelative { repo: Uuid, eternal_id: Uuid },
-}
-
-impl BlockRef {
-    pub fn as_direct(&self) -> Option<Uuid> {
-        match self {
-            Self::Direct(id) => Some(*id),
-            Self::RepoRelative { .. } => None,
-        }
-    }
-}
+pub use be_block::BlockRef;
 
 pub trait WorktreeMembership: Send + Sync {
     fn worktree_type_id(&self) -> Uuid;
