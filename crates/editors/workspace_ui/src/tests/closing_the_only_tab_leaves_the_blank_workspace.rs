@@ -4,7 +4,7 @@ use super::*;
 fn closing_the_only_tab_leaves_the_blank_workspace() {
     let (mut fixture, opened) = editor();
 
-    show(&mut fixture, opened, None, None);
+    show(&mut fixture, opened, None);
     assert_eq!(fixture.shown(), vec![opened]);
 
     fixture.close_active_tab();

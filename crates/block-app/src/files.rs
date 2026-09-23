@@ -11,6 +11,6 @@ impl BlockApp {
         else {
             return;
         };
-        self.show_in_shell(id, Settings::TYPE_ID, None, None);
+        self.show_in_shell(id, Settings::TYPE_ID, None);
     }
 }

@@ -44,7 +44,7 @@ pub enum FrameChrome {
 pub struct FrameSpec {
     pub chrome: FrameChrome,
     pub content: Option<ChildRect>,
-    pub trail: Vec<String>,
+    pub top_bar: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -206,6 +206,7 @@ pub struct ChildPlacement {
     pub rect: ChildRect,
     pub clip: ChildRect,
     pub own_frame: bool,
+    pub top_bar: bool,
     pub corner_radius: f32,
     pub layer: ChildLayer,
     pub mode: ChildMode,
@@ -531,7 +532,6 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
-        from: Option<[u8; 16]>,
     },
 
     Focused {
@@ -1691,16 +1691,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        Message::Screens(value) => {
-            collection(value.screens.len())?;
-            for request in &value.screens {
-                if let Some(frame) = &request.frame {
-                    collection(frame.trail.len())?;
-                    strings(&frame.trail)?;
-                }
-            }
-            Ok(())
-        }
+        Message::Screens(value) => collection(value.screens.len()),
         Message::Frames(value) => {
             collection(value.len())?;
             for report in value {

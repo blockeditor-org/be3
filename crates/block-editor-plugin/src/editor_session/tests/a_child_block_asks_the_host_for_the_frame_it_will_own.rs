@@ -54,7 +54,7 @@ fn a_child_block_asks_the_host_for_the_frame_it_will_own() {
             frame: Some(FrameSpec {
                 chrome: FrameChrome::Drawn,
                 content: None,
-                trail: Vec::new(),
+                top_bar: false,
             }),
             ..Default::default()
         },
