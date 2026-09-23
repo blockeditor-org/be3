@@ -1,1 +1,4 @@
-buildscript.run = true
+# The build script only asks pkg-config how to link libasound, and the worker
+# has no pkg-config answer to give. third-party/system:asound is the library.
+buildscript.run = false
+extra_deps = ["//third-party/system:asound"]

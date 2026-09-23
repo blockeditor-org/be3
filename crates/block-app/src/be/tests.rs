@@ -28,10 +28,15 @@ pub(crate) struct Harness {
     account: Uuid,
     token: String,
     workspace: Uuid,
+    _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
 impl Harness {
     pub(crate) fn start() -> Self {
+        static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let one_stack = ONE_STACK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let directory = std::env::temp_dir().join(format!("block-app-be-test-{}", Uuid::new_v4()));
         let server = platform::start_embedded_server(directory.join("server"))
             .expect("the embedded block server starts");
@@ -60,6 +65,7 @@ impl Harness {
             account,
             token,
             workspace,
+            _one_stack: one_stack,
         }
     }
 

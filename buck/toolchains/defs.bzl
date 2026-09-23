@@ -1,4 +1,4 @@
-load("@prelude//cxx:cxx_toolchain_types.bzl", "CxxPlatformInfo", "CxxToolchainInfo", "LinkerInfo", "LinkerType")
+load("@prelude//cxx:cxx_toolchain_types.bzl", "CxxPlatformInfo", "CxxToolchainInfo", "LinkerInfo", "LinkerType", "RuntimeDependencyHandling")
 load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustToolchainInfo")
 load("@prelude//toolchains:cxx.bzl", "CxxToolsInfo")
 
@@ -145,6 +145,13 @@ pinned_rust_toolchain = rule(
 # binary links, onto a machine that then runs a linker it may not be able to
 # load. This passes the toolchain through with the three preferences cleared.
 #
+# It also puts a binary's shared libraries beside it. The demo toolchain
+# leaves them wherever they were built and trusts the machine that runs the
+# binary to find them, which a worker cannot: the one shared library the build
+# links, ALSA's, is not in its container. With symlink handling the binary gets
+# a tree of them next to it, an $ORIGIN rpath into that tree, and the tree as
+# an input of whatever runs it.
+#
 # Providers have no copy-with-changes, so the two that change are rebuilt from
 # their own fields.
 def _replace(constructor, value, **changes):
@@ -164,7 +171,12 @@ def _remote_linking_cxx_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
     )
     return [
         DefaultInfo(),
-        _replace(CxxToolchainInfo, info, linker_info = linker_info),
+        _replace(
+            CxxToolchainInfo,
+            info,
+            linker_info = linker_info,
+            runtime_dependency_handling = RuntimeDependencyHandling("symlink"),
+        ),
         toolchain[CxxPlatformInfo],
     ]
 

@@ -1,4 +1,6 @@
-# Libraries this machine provides, named so that a third-party crate that needs
+load("//buck/tools:defs.bzl", "deb_member")
+
+# System libraries, named so that a third-party crate that needs
 # one can depend on it rather than on a flag somewhere in the toolchain.
 
 # harfbuzz and the embedded browser are C++; a Rust binary linking them brings
@@ -20,5 +22,35 @@ prebuilt_cxx_library(
             "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
         ],
     }),
+    visibility = ["PUBLIC"],
+)
+
+# ALSA, which rodio plays sound through on Linux. alsa-sys ships its bindings
+# and its build script only asks pkg-config how to link, which the worker's
+# container cannot answer: it has neither the library nor its headers. So the
+# library is Ubuntu 24.04's own, from Launchpad like the compilers in
+# buck/tools, and third-party/rust/fixups/alsa-sys names this instead of
+# running the build script. It is a shared library - Ubuntu ships no static
+# one - so it goes beside whatever links it, and a test that runs on a worker
+# finds it there.
+http_file(
+    name = "libasound2t64.deb",
+    sha256 = "5d17bfb5683eb99f1be951fe48e1be5bf3c52391913b6b74a8aecf9b4f5e779f",
+    size_bytes = 397772,
+    urls = ["https://launchpad.net/ubuntu/+archive/primary/+files/libasound2t64_1.2.11-1ubuntu0.3_amd64.deb"],
+)
+
+deb_member(
+    name = "libasound.so.2",
+    member = "usr/lib/x86_64-linux-gnu/libasound.so.2",
+    out = "libasound.so.2",
+    package = ":libasound2t64.deb",
+)
+
+prebuilt_cxx_library(
+    name = "asound",
+    preferred_linkage = "shared",
+    shared_lib = ":libasound.so.2",
+    soname = "libasound.so.2",
     visibility = ["PUBLIC"],
 )

@@ -88,3 +88,34 @@ tool = rule(
     attrs = {"command": attrs.list(attrs.arg())},
     impl = _tool_impl,
 )
+
+# One file out of a Debian package, for a system library the worker's container
+# does not have. The file is copied rather than linked, so a symlink in the
+# package - libfoo.so.1 pointing at libfoo.so.1.2.3 - arrives as the library
+# itself under the name that was asked for.
+def _deb_member_impl(ctx: AnalysisContext) -> list[Provider]:
+    out = ctx.actions.declare_output(ctx.attrs.out)
+    script = """
+set -eu
+out="$1"
+package="$2"
+member="$3"
+extracted="$(mktemp -d)"
+dpkg-deb -x "$package" "$extracted"
+cp -L "$extracted/$member" "$out"
+rm -rf "$extracted"
+"""
+    ctx.actions.run(
+        cmd_args("sh", "-c", script, "--", out.as_output(), ctx.attrs.package, ctx.attrs.member),
+        category = "deb_member",
+    )
+    return [DefaultInfo(default_output = out)]
+
+deb_member = rule(
+    attrs = {
+        "member": attrs.string(),
+        "out": attrs.string(),
+        "package": attrs.source(),
+    },
+    impl = _deb_member_impl,
+)
