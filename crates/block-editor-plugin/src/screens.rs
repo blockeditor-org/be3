@@ -1,11 +1,9 @@
 use block_client::{BlockClient, TunnelCarrier};
 use block_plugin_api::{
-    BlockTypeDescriptor, ChildStatus, DEFAULT_SURFACE_SIDE, EditorBand, EditorInstanceId,
-    EditorMessage, EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec,
-    TunnelMessage,
+    BlockTypeDescriptor, ChildStatus, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
+    EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TunnelMessage,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry};
-use eframe::egui;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 use uuid::Uuid;
 
@@ -20,41 +18,25 @@ struct Client {
 
 pub(crate) struct Screens {
     sessions: HashMap<EditorInstanceId, EditorSession>,
-    chrome: Rc<Vec<EditorBand>>,
-    open: fn(Rc<Vec<EditorBand>>, EditorInstanceId, Waker) -> EditorSession,
+    open: fn(EditorInstanceId, Waker) -> EditorSession,
     waker: Waker,
     requests: Vec<ScreenRequest>,
     layout: ScreenLayout,
     block_types: Rc<BlockCatalog>,
     client: Option<Client>,
-    theme: egui::Theme,
     surface: Option<SurfaceSpec>,
 }
 
 impl Screens {
-    pub(crate) fn new<A: crate::App>(chrome: Vec<EditorBand>, waker: Waker) -> Self {
-        Self::of(EditorSession::new::<A>, chrome, waker)
-    }
-
-    pub(crate) fn beui<A: crate::BeuiApp>(chrome: Vec<EditorBand>, waker: Waker) -> Self {
-        Self::of(EditorSession::beui::<A>, chrome, waker)
-    }
-
-    fn of(
-        open: fn(Rc<Vec<EditorBand>>, EditorInstanceId, Waker) -> EditorSession,
-        chrome: Vec<EditorBand>,
-        waker: Waker,
-    ) -> Self {
+    pub(crate) fn new<A: crate::BeuiApp>(waker: Waker) -> Self {
         Self {
             sessions: HashMap::new(),
-            chrome: Rc::new(chrome),
-            open,
+            open: EditorSession::new::<A>,
             waker,
             requests: Vec::new(),
             layout: ScreenLayout::default(),
             block_types: Rc::new(BlockCatalog::default()),
             client: None,
-            theme: egui::Theme::Dark,
             surface: None,
         }
     }
@@ -82,21 +64,6 @@ impl Screens {
         client
     }
 
-    pub(crate) fn theme(&self) -> egui::Theme {
-        self.theme
-    }
-
-    fn set_theme(&mut self, theme: block_plugin_api::Theme) {
-        self.theme = match theme.dark {
-            true => egui::Theme::Dark,
-            false => egui::Theme::Light,
-        };
-    }
-
-    pub(crate) fn waker(&self) -> Waker {
-        self.waker.clone()
-    }
-
     pub(crate) fn layout(&self) -> &ScreenLayout {
         &self.layout
     }
@@ -111,11 +78,7 @@ impl Screens {
 
     pub(crate) fn receive(&mut self, message: &Message) -> bool {
         match message {
-            Message::HelloAccepted(accepted) => {
-                self.surface = accepted.surface;
-                self.set_theme(accepted.theme);
-            }
-            Message::Theme(theme) => self.set_theme(*theme),
+            Message::HelloAccepted(accepted) => self.surface = accepted.surface,
             Message::Editor(EditorMessage::Open {
                 instance,
                 block_id,
@@ -129,9 +92,10 @@ impl Screens {
                     Uuid::from_bytes(*account_id),
                     Uuid::from_bytes(*workspace_id),
                 );
-                let session = self.sessions.entry(*instance).or_insert_with(|| {
-                    (self.open)(Rc::clone(&self.chrome), *instance, self.waker.clone())
-                });
+                let session = self
+                    .sessions
+                    .entry(*instance)
+                    .or_insert_with(|| (self.open)(*instance, self.waker.clone()));
                 session.set_block_types(Rc::clone(&self.block_types));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_editable(*editable);
@@ -151,9 +115,10 @@ impl Screens {
                     Uuid::from_bytes(*account_id),
                     Uuid::from_bytes(*workspace_id),
                 );
-                let session = self.sessions.entry(*instance).or_insert_with(|| {
-                    (self.open)(Rc::clone(&self.chrome), *instance, self.waker.clone())
-                });
+                let session = self
+                    .sessions
+                    .entry(*instance)
+                    .or_insert_with(|| (self.open)(*instance, self.waker.clone()));
                 session.set_block_types(Rc::clone(&self.block_types));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.connect_creation(client);
@@ -171,9 +136,10 @@ impl Screens {
                     Uuid::from_bytes(*account_id),
                     Uuid::from_bytes(*workspace_id),
                 );
-                let session = self.sessions.entry(*instance).or_insert_with(|| {
-                    (self.open)(Rc::clone(&self.chrome), *instance, self.waker.clone())
-                });
+                let session = self
+                    .sessions
+                    .entry(*instance)
+                    .or_insert_with(|| (self.open)(*instance, self.waker.clone()));
                 session.set_block_types(Rc::clone(&self.block_types));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.connect_artifact(
@@ -189,7 +155,7 @@ impl Screens {
                 height,
             }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
-                    session.resized(egui::vec2(*width, *height));
+                    session.resized(beui::vec2(*width, *height));
                 }
             }
             Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
@@ -341,7 +307,7 @@ impl Screens {
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_view(
-                        egui::Rect::from_min_size(egui::pos2(*x, *y), egui::vec2(*width, *height)),
+                        beui::Rect::from_min_size(beui::pos2(*x, *y), beui::vec2(*width, *height)),
                         *scale,
                     );
                 }
@@ -397,7 +363,7 @@ impl Screens {
                     session.set_drag(Some((
                         *region,
                         BlockDrag {
-                            position: egui::pos2(*x, *y),
+                            position: beui::pos2(*x, *y),
                             block_id: Uuid::from_bytes(*block_id),
                             block_type: Uuid::from_bytes(*block_type),
                             dropped: *dropped,
@@ -450,7 +416,7 @@ impl Screens {
                     session.set_files(Some((
                         *region,
                         crate::host::FileDrop {
-                            position: egui::pos2(*x, *y),
+                            position: beui::pos2(*x, *y),
                             files: files
                                 .iter()
                                 .map(|file| crate::PickedFile {
@@ -543,8 +509,7 @@ fn catalog(descriptors: &[BlockTypeDescriptor]) -> BlockCatalog {
             Uuid::from_bytes(descriptor.block_type),
             BlockTypeEntry {
                 display_name: descriptor.display_name.clone(),
-                icon: (!codepoint.is_empty())
-                    .then(|| egui_material_icons::MaterialIcon::new(codepoint)),
+                icon: (!codepoint.is_empty()).then_some(codepoint),
                 child_edits: block_ui::ChildEdits {
                     add: descriptor.children.add,
                     delete: descriptor.children.delete,

@@ -273,11 +273,8 @@ pub(crate) fn entity_bounds(entity: &CanvasEntity) -> WorldRect {
 }
 
 pub(crate) fn direct_editor_entity_size(intrinsic: Vec2, scale: f32) -> CanvasPoint {
-    let size = block_ui::embedded_editor_frame_size(
-        block_editor_plugin::egui::vec2(intrinsic.x, intrinsic.y),
-        scale,
-    );
-    CanvasPoint::new(size.x.max(MIN_SIZE), size.y.max(MIN_SIZE))
+    let (width, height) = block_ui::embedded_editor_frame(intrinsic.x, intrinsic.y, scale);
+    CanvasPoint::new(width.max(MIN_SIZE), height.max(MIN_SIZE))
 }
 
 pub(crate) fn direct_editor_to_preview(

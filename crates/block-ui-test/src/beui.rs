@@ -236,7 +236,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         if let Some(viewport) = &mut self.viewport {
             viewport.place(&host, rect, intrinsic);
         }
-        host.begin_region(placement, block_editor_plugin::egui::Vec2::ZERO);
+        host.begin_region(placement, beui::Vec2::ZERO);
         let region = &mut self.region;
         match region {
             Region::Frame(editor, frame) => {

@@ -1155,8 +1155,8 @@ document to display new data.
 ## Use beui in a block editor plugin
 
 A beui editor is a `#[component]` function. It implements
-`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`
-instead of the egui `App` and `plugin!`. The type it names holds no state: the
+`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`.
+The type it names holds no state: the
 framework builds the view once, keeps the `Document` it produced, and shows it
 every frame.
 
@@ -1208,8 +1208,8 @@ A plugin with `"creation": "Dialog"` implements `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
 and shows in the host's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
-filled in. Host services such as `BlockPicker` work there in the same way they
-do from an egui creation UI, polled from `creation.each_frame(...)`.
+filled in. Host services such as `BlockPicker` work there too, polled from
+`creation.each_frame(...)`.
 
 ## Develop an unstyled component
 

@@ -4,7 +4,7 @@ use beui::reactive::{
 };
 use beui::styled::{Button, ButtonVariant, TextArea};
 use beui::unstyled::{RemoteTextCursor, TextAreaLayout, TextWidget};
-use beui::{Color32, Key, KeyPress, NodeId, Rect, Vec2};
+use beui::{Key, KeyPress, NodeId, Rect, Vec2};
 use block_editor_plugin::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
 
@@ -192,16 +192,10 @@ fn remote_cursors(state: &Shared) -> Vec<RemoteTextCursor> {
             Some(RemoteTextCursor {
                 selection,
                 caret,
-                color: presence_color(color),
+                color: block_editor_plugin::block_ui::presence_color(color),
             })
         })
         .collect()
-}
-
-fn presence_color(color: block_client::presence::PresenceColor) -> Color32 {
-    let rgb = block_editor_plugin::block_ui::presence_color(color);
-    let [red, green, blue, alpha] = rgb.to_srgba_unmultiplied();
-    Color32::from_rgba_unmultiplied(red, green, blue, alpha)
 }
 
 fn poll_drag(state: &Shared) {

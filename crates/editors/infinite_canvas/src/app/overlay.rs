@@ -140,7 +140,6 @@ impl Overlay {
     fn draw_presence(&self, painter: &Painter) {
         for selection in &self.presence.selections {
             let color = block_ui::presence_color(selection.color);
-            let color = Color32::from_rgb(color.r(), color.g(), color.b());
             let corners = selection
                 .frame
                 .corners()
@@ -152,7 +151,6 @@ impl Overlay {
                 continue;
             };
             let color = block_ui::presence_color(cursor.color);
-            let color = Color32::from_rgb(color.r(), color.g(), color.b());
             let tip = self.camera.at(pointer);
             let inward = Vec2::new(0.4, 1.0);
             let length = inward.length();

@@ -1,23 +1,15 @@
 pub mod database;
 pub mod datetime;
-pub mod frame;
-pub mod test_id;
 
 use std::collections::{BTreeMap, HashMap};
 
 use block::BlockReference;
 use block_client::{BlockHandleAccess, CachedBlock, presence::PresenceColor};
-use egui_material_icons::MaterialIcon;
 use uuid::Uuid;
 
 pub const EMBEDDED_EDITOR_PADDING: f32 = 12.0;
 pub const EMBEDDED_EDITOR_TITLE_HEIGHT: f32 = 28.0;
 pub const EMBEDDED_EDITOR_TITLE_GAP: f32 = 8.0;
-
-pub fn embedded_editor_frame_size(intrinsic: egui::Vec2, scale: f32) -> egui::Vec2 {
-    let (width, height) = embedded_editor_frame(intrinsic.x, intrinsic.y, scale);
-    egui::vec2(width, height)
-}
 
 pub fn embedded_editor_frame(width: f32, height: f32, scale: f32) -> (f32, f32) {
     (
@@ -30,22 +22,22 @@ pub fn embedded_editor_frame(width: f32, height: f32, scale: f32) -> (f32, f32) 
     )
 }
 
-pub fn presence_color(color: PresenceColor) -> egui::Color32 {
+pub fn presence_color(color: PresenceColor) -> beui::Color32 {
     match color {
-        PresenceColor::Red => egui::Color32::from_rgb(224, 82, 82),
-        PresenceColor::Orange => egui::Color32::from_rgb(230, 140, 50),
-        PresenceColor::Yellow => egui::Color32::from_rgb(214, 179, 41),
-        PresenceColor::Green => egui::Color32::from_rgb(84, 171, 90),
-        PresenceColor::Teal => egui::Color32::from_rgb(46, 173, 168),
-        PresenceColor::Blue => egui::Color32::from_rgb(74, 134, 227),
-        PresenceColor::Purple => egui::Color32::from_rgb(150, 100, 214),
-        PresenceColor::Pink => egui::Color32::from_rgb(224, 104, 168),
+        PresenceColor::Red => beui::Color32::from_rgb(224, 82, 82),
+        PresenceColor::Orange => beui::Color32::from_rgb(230, 140, 50),
+        PresenceColor::Yellow => beui::Color32::from_rgb(214, 179, 41),
+        PresenceColor::Green => beui::Color32::from_rgb(84, 171, 90),
+        PresenceColor::Teal => beui::Color32::from_rgb(46, 173, 168),
+        PresenceColor::Blue => beui::Color32::from_rgb(74, 134, 227),
+        PresenceColor::Purple => beui::Color32::from_rgb(150, 100, 214),
+        PresenceColor::Pink => beui::Color32::from_rgb(224, 104, 168),
     }
 }
 
 pub trait BlockTypes {
     fn display_name(&self, block_type: Uuid) -> Option<&str>;
-    fn icon(&self, block_type: Uuid) -> Option<MaterialIcon>;
+    fn icon(&self, block_type: Uuid) -> Option<&'static str>;
     fn child_edits(&self, _block_type: Uuid) -> ChildEdits {
         ChildEdits::default()
     }
@@ -60,7 +52,7 @@ pub struct ChildEdits {
 
 pub struct BlockTypeEntry {
     pub display_name: String,
-    pub icon: Option<MaterialIcon>,
+    pub icon: Option<&'static str>,
     pub child_edits: ChildEdits,
 }
 
@@ -87,7 +79,7 @@ impl BlockTypes for BlockCatalog {
             .map(|entry| entry.display_name.as_str())
     }
 
-    fn icon(&self, block_type: Uuid) -> Option<MaterialIcon> {
+    fn icon(&self, block_type: Uuid) -> Option<&'static str> {
         self.types.get(&block_type).and_then(|entry| entry.icon)
     }
 
@@ -97,25 +89,12 @@ impl BlockTypes for BlockCatalog {
             .map_or_else(ChildEdits::default, |entry| entry.child_edits)
     }
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct BlockLabel {
     pub block_type: Uuid,
-    pub icon: Option<MaterialIcon>,
+    pub icon: Option<&'static str>,
     pub name: String,
     pub automatic: bool,
-}
-
-impl PartialEq for BlockLabel {
-    fn eq(&self, other: &Self) -> bool {
-        self.block_type == other.block_type
-            && self.name == other.name
-            && self.automatic == other.automatic
-            && icon_key(self.icon) == icon_key(other.icon)
-    }
-}
-
-fn icon_key(icon: Option<MaterialIcon>) -> Option<(&'static str, egui_material_icons::IconStyle)> {
-    icon.map(|icon| (icon.codepoint, icon.style))
 }
 
 impl BlockLabel {
@@ -165,65 +144,4 @@ impl BlockLabel {
     pub fn for_handle(types: &dyn BlockTypes, handle: &dyn BlockHandleAccess) -> Self {
         Self::new(types, handle.block_type(), handle.block_name().as_ref())
     }
-
-    pub fn rich_text(&self) -> egui::RichText {
-        let text = egui::RichText::new(&self.name);
-        if self.automatic { text.italics() } else { text }
-    }
-
-    pub fn widget_text(&self, style: &egui::Style) -> egui::WidgetText {
-        let Some(icon) = self.icon else {
-            return self.rich_text().into();
-        };
-        let mut job = egui::text::LayoutJob::default();
-        egui::RichText::new(format!("{} ", icon.codepoint)).append_to(
-            &mut job,
-            style,
-            egui::FontSelection::Style(egui::TextStyle::Button),
-            egui::Align::Center,
-        );
-        self.rich_text().append_to(
-            &mut job,
-            style,
-            egui::FontSelection::Style(egui::TextStyle::Button),
-            egui::Align::Center,
-        );
-        job.into()
-    }
-}
-
-pub fn name_galley(
-    painter: &egui::Painter,
-    text: &str,
-    font_id: egui::FontId,
-    color: egui::Color32,
-    automatic: bool,
-) -> std::sync::Arc<egui::Galley> {
-    if !automatic {
-        return painter.layout_no_wrap(text.to_owned(), font_id, color);
-    }
-    painter.layout_job(egui::text::LayoutJob::single_section(
-        text.to_owned(),
-        egui::text::TextFormat {
-            font_id,
-            color,
-            italics: true,
-            ..Default::default()
-        },
-    ))
-}
-
-pub fn paint_name(
-    painter: &egui::Painter,
-    pos: egui::Pos2,
-    anchor: egui::Align2,
-    text: &str,
-    font_id: egui::FontId,
-    color: egui::Color32,
-    automatic: bool,
-) -> egui::Rect {
-    let galley = name_galley(painter, text, font_id, color, automatic);
-    let rect = anchor.anchor_size(pos, galley.size());
-    painter.galley(rect.min, galley, color);
-    rect
 }

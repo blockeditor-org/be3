@@ -4,7 +4,6 @@ use crate::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 
 mod a_frame_that_changed_is_named_by_its_number;
 mod a_glyph_paints_its_coverage_in_its_colour;
-mod a_painting_is_the_same_however_the_atlas_was_packed;
 mod a_recording_keeps_the_frames_it_was_given;
 mod a_rounded_rect_is_covered_the_way_the_shader_covers_it;
 mod a_snapshot_survives_a_round_trip;
@@ -44,38 +43,4 @@ fn triangles(colours: &[[u8; 4]]) -> Snapshot {
         frames: colours.iter().map(|colour| frame(*colour)).collect(),
         textures: BTreeMap::from([(0, white())]),
     }
-}
-
-fn captured(frames: &[&str]) -> Vec<Snapshot> {
-    let context = egui::Context::default();
-    let mut textures = crate::TextureStore::default();
-    let input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(
-            egui::Pos2::ZERO,
-            egui::vec2(200.0, 60.0),
-        )),
-        ..Default::default()
-    };
-    let mut captured = Vec::new();
-    for text in frames {
-        let output = context.run_ui(input.clone(), |ui| {
-            ui.label(*text);
-        });
-        textures.apply(&output.textures_delta);
-        captured.push(crate::capture(&context, &output, &textures).unwrap());
-    }
-    captured
-}
-
-fn painted(frames: &[&str]) -> Vec<u8> {
-    captured(frames).pop().unwrap().encode().unwrap()
-}
-
-fn recorded(frames: &[&str]) -> Snapshot {
-    let mut captured = captured(frames).into_iter();
-    let mut recording = captured.next().expect("a recording needs a frame");
-    for frame in captured {
-        recording.append(frame);
-    }
-    recording
 }
