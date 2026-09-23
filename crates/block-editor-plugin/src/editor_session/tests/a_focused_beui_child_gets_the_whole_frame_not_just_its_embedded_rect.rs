@@ -46,7 +46,7 @@ fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
                     width: 120.0,
                     height: 90.0,
                 }),
-                trail: vec!["Canvas".to_owned(), "Pan and Zoom".to_owned()],
+                top_bar: true,
             }),
             ..Default::default()
         },

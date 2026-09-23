@@ -178,6 +178,7 @@ struct ChildRecord {
     mode: Prop<ChildMode>,
     layer: Prop<ChildLayer>,
     own_frame: Prop<bool>,
+    top_bar: Prop<bool>,
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
@@ -391,6 +392,20 @@ impl Editor {
         self.0.host.seed_content(block, content);
     }
 
+    pub fn replace_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.0.host.replace_content(block, content);
+    }
+
+    pub fn create_with_content<B, C>(&self, content: &C) -> BlockHandle<B>
+    where
+        B: Block + Default,
+        C: be_block::BlockContent,
+    {
+        let block = self.0.client.create_block(B::default());
+        self.seed_content(block.id(), content);
+        block
+    }
+
     fn projection<C>(&self, block: Option<Uuid>) -> Rc<ContentProjection<C>>
     where
         C: be_block::LiveEdit + Clone + Default,
@@ -475,6 +490,7 @@ impl Editor {
         mode: Prop<ChildMode>,
         layer: Prop<ChildLayer>,
         own_frame: Prop<bool>,
+        top_bar: Prop<bool>,
         rotation: Prop<f32>,
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
@@ -492,6 +508,7 @@ impl Editor {
                 mode,
                 layer,
                 own_frame,
+                top_bar,
                 rotation,
                 opacity,
                 intrinsic,
@@ -691,6 +708,7 @@ impl Editor {
             record.mode.peek(),
             record.layer.peek(),
             record.own_frame.peek(),
+            record.top_bar.peek(),
             record.rotation.peek(),
             record.opacity.peek(),
             record.intrinsic.peek(),

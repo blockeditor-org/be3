@@ -1,7 +1,8 @@
 use block_client::blocks::pdf::Pdf;
+use block_editor_plugin::be_block::PdfContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, file_creation};
+use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
 
 mod pages;
 mod ui;
@@ -24,7 +25,7 @@ impl block_editor_plugin::BeuiApp for PdfApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        file_creation(&creation, "pdf", filter(), imported)
+        content_file_creation::<Pdf, PdfContent>(&creation, "pdf", filter(), imported)
     }
 }
 
@@ -35,7 +36,8 @@ pub(crate) fn filter() -> FileFilter {
     FileFilter::new("PDF", "Document.pdf", &["pdf"], &["application/pdf"])
 }
 
-pub(crate) fn imported(file: PickedFile) -> Result<Pdf, String> {
+pub(crate) fn imported(file: PickedFile) -> Result<PdfContent, String> {
     let PickedFile { name, data } = file;
-    Pdf::new(name.clone(), data).map_err(|error| format!("Could not import {name}: {error}"))
+    PdfContent::from_file(name.clone(), data)
+        .map_err(|error| format!("Could not import {name}: {error}"))
 }

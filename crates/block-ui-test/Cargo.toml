@@ -11,6 +11,7 @@ paint-snapshot = { path = "../paint-snapshot" }
 uuid = "1"
 
 [dev-dependencies]
+block = { path = "../block" }
 block-client = { path = "../block-client" }
 
 [lints]

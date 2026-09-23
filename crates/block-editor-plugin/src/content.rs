@@ -38,6 +38,7 @@ pub struct ContentProjection<C: LiveEdit> {
     watchers: Watchers<C>,
     next_watcher: Cell<u64>,
     touched: RefCell<Vec<Touched>>,
+    revision: Cell<u64>,
 }
 
 impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
@@ -53,6 +54,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             watchers: Rc::new(RefCell::new(Vec::new())),
             next_watcher: Cell::new(0),
             touched: RefCell::new(Vec::new()),
+            revision: Cell::new(0),
         }
     }
 
@@ -62,6 +64,11 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
 
     pub fn block(&self) -> Option<uuid::Uuid> {
         self.block
+    }
+
+    pub fn revision(&self) -> Option<u64> {
+        self.adopt();
+        self.loaded.get().then(|| self.revision.get())
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
@@ -132,6 +139,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         self.visible
             .borrow_mut()
             .apply_touching(&operation, &mut self.touched.borrow_mut());
+        self.revision.set(self.revision.get() + 1);
         self.host
             .operate_content_at(self.block, C::encode_operation(&operation));
         self.pending.borrow_mut().push_back(operation);
@@ -202,6 +210,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
                             self.visible
                                 .borrow_mut()
                                 .apply_touching(&operation, &mut self.touched.borrow_mut());
+                            self.revision.set(self.revision.get() + 1);
                         } else {
                             rebuild = true;
                         }
@@ -221,6 +230,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         }
         *self.visible.borrow_mut() = visible;
         self.touched.borrow_mut().push(Touched::Everything);
+        self.revision.set(self.revision.get() + 1);
     }
 }
 

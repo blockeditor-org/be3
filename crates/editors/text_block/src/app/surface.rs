@@ -234,9 +234,9 @@ fn poll_paste(state: &Shared) {
     };
     match pasted {
         block_editor_plugin::PastedImage::Image { name, data } => {
-            let image = block_client::blocks::image::Image::new(name, data);
-            let source_name = image.source_name().to_owned();
-            let id = state.create_image_block(image);
+            let image = block_editor_plugin::be_block::ImageContent::from_file(name, data);
+            let source_name = image.header().source_name.clone();
+            let id = state.create_image_block(&image);
             state.insert_image_embed(id, &source_name);
             state.set_import_error.set(None);
         }

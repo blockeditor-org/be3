@@ -308,14 +308,24 @@ values, and every algorithm is written once against that table:
 `migrated_with_history` and has undo from the start. Every migrated editor's
 content is built this way: the counter, the checklist, the calendar, the browser
 tab, the UI settings, the three database types, the presentation and the
-hotbar. Text and images still implement the traits by hand,
-which remains possible for content that does not fit, such as a byte payload or
-a type that is better as a CRDT. The browser tab shows a register holding an
+hotbar. Text still implements the traits by hand, which remains possible for
+content that does not fit, such as a type that is better as a CRDT. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
 so a push and a navigation made at the same time still agree on which page is
 current. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
 store, so renaming a field or an option changes nothing that points at it.
+
+A file is the other shape that does not fit a document: a small header and a
+payload that can be megabytes. `Blob<K>` is that shape once, for any `BlobKind`
+that names a content type and a header: `ImageContent`, `AudioContent` and
+`PdfContent` are each a `Blob` of their own kind. It encodes as a `Streamed`
+type, its only live edit is `BlobOp::SetHeader` (the image editor records what
+it decoded that way), and an offline merge takes whichever side changed it.
+The payload never travels as an operation, because a session relays operations
+in frames of at most 8 MB. It arrives as a commit instead, which be-store has
+already cut into chunks: a new block's first content comes from `SeedContent`,
+and a new file for an existing block from `ReplaceContent` (below).
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
@@ -454,6 +464,25 @@ this way: `block_editor_plugin::database::create_database` seeds a schema with a
 Name field and a database pointing at it, and gives the old database block the
 schema as its reference straight away, so the graph is right before any editor
 opens it.
+
+Replacing a block's whole content is `editor.replace_content(block, &content)`,
+which sends `EditorMessage::ReplaceContent`; the host takes it only for a block
+the account may edit. The worker hands it to the open session's
+`Live::replace`, or saves it straight to the server when nothing has the block
+open. `Live::replace` publishes the new content as a commit based on the head it
+knows, retrying on the newer head a rejection names, so the bytes go through the
+chunked upload rather than the session. An owner that replaces settles on that
+commit and tells its followers to reload; a follower sends the owner
+`SessionMessage::Replaced { head }`, and the owner reloads from that head,
+reapplies whatever it had sequenced but not sealed, and seals, so a header edit
+made while someone was replacing the file is not lost. The image, audio and PDF
+editors' "replace" buttons and the pixel art export's regeneration all go this
+way. `editor.create_with_content::<B, C>(&content)` and
+`content_file_creation::<B, C>` are the shortcuts for making a block of an
+emptied old type with its first content, from code and from the new-block
+dialog's file picker. `ContentProjection::revision` counts the changes an editor
+has seen, for code like the PDF pane that re-renders on a change rather than
+projecting.
 
 An editor that follows a block chosen by its content, rather than a fixed one,
 uses `editor.related_content::<C>(block)`: given a `Memo<Option<Uuid>>` it

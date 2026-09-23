@@ -105,6 +105,19 @@ pub fn file_creation<B: Block>(
     filter: FileFilter,
     import: impl Fn(PickedFile) -> Result<B, String> + 'static,
 ) -> NodeId {
+    let client = creation.client().clone();
+    file_creation_with(creation, test_id, filter, import, move |block: B| {
+        client.create_block(block).id()
+    })
+}
+
+fn file_creation_with<T: 'static>(
+    creation: &Creation,
+    test_id: &str,
+    filter: FileFilter,
+    import: impl Fn(PickedFile) -> Result<T, String> + 'static,
+    make: impl Fn(T) -> uuid::Uuid + 'static,
+) -> NodeId {
     let chooser = FileChooser::new(filter, import);
     let polled = Rc::clone(&chooser);
     let host = creation.host().clone();
@@ -112,11 +125,10 @@ pub fn file_creation<B: Block>(
         polled.poll(&host);
         host.set_creation_ready(polled.is_chosen());
     });
-    let client = creation.client().clone();
     let made = Rc::clone(&chooser);
     creation.on_create(move || {
-        let block = made.take().ok_or("no file was chosen")?;
-        Ok(client.create_block(block).id())
+        let chosen = made.take().ok_or("no file was chosen")?;
+        Ok(make(chosen))
     });
 
     let chosen = chooser.name();
@@ -152,4 +164,22 @@ pub fn file_creation<B: Block>(
             </List>
         </Frame>
     }
+}
+
+pub fn content_file_creation<B, C>(
+    creation: &Creation,
+    test_id: &str,
+    filter: FileFilter,
+    import: impl Fn(PickedFile) -> Result<C, String> + 'static,
+) -> NodeId
+where
+    B: Block + Default,
+    C: be_block::BlockContent,
+{
+    let seeding = creation.clone();
+    file_creation_with(creation, test_id, filter, import, move |content: C| {
+        let block = seeding.client().create_block(B::default()).id();
+        seeding.seed_content(block, &content);
+        block
+    })
 }

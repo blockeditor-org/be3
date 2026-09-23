@@ -41,7 +41,7 @@ pub use datetime::DateTimeRow;
 pub use editor::{
     Artifacts, BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor, fit_content,
 };
-pub use file_chooser::{FileChooser, file_creation};
+pub use file_chooser::{FileChooser, content_file_creation, file_creation};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
     BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,

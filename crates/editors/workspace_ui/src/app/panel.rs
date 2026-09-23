@@ -9,7 +9,7 @@ use block_editor_plugin::beui::reactive::{
     Align, Dynamic, Frame, ItemSize, List, ReadSignal, clone, component, create_memo,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Caption, Heading, Separator};
+use block_editor_plugin::beui::styled::{Caption, Heading};
 use block_editor_plugin::beui::unstyled::TabId;
 use block_editor_plugin::block_ui::BlockTypes;
 use block_editor_plugin::{
@@ -19,7 +19,6 @@ use uuid::Uuid;
 
 use super::artifact::ArtifactBar;
 use super::block_data::BlockData;
-use super::chrome::ChromeBar;
 use super::linked::LinkedBar;
 use super::status::StatusBar;
 use super::tab::TabItem;
@@ -27,7 +26,6 @@ use super::workspace::{PanelStatus, Workspace};
 
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
-const SEPARATOR_HEIGHT: f32 = 1.0;
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Refs {
@@ -38,19 +36,12 @@ pub(crate) struct Refs {
 #[derive(Clone, PartialEq)]
 pub(crate) struct Info {
     pub(crate) item: TabItem,
-    pub(crate) can_go_back: bool,
-    pub(crate) can_go_forward: bool,
     pub(crate) access: BlockAccess,
     pub(crate) ceiling: BlockAccess,
     pub(crate) can_edit: bool,
     pub(crate) debugging: bool,
     pub(crate) dynamic_artifact: bool,
     pub(crate) type_name: String,
-    pub(crate) label: String,
-    pub(crate) glyph: String,
-    pub(crate) automatic: bool,
-    pub(crate) can_undo: bool,
-    pub(crate) can_redo: bool,
     pub(crate) parent: Option<BlockParent>,
     pub(crate) container: Option<Uuid>,
     pub(crate) parents: Refs,
@@ -94,8 +85,7 @@ fn refs(list: Option<&ReferenceList>) -> Refs {
 }
 
 fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> Option<Info> {
-    let block = workspace.tab(tab)?;
-    let item = block.current();
+    let item = workspace.tab(tab)?;
     workspace.record_type(item.id, item.block_type);
     let mut watched = watched.borrow_mut();
     watched.follow(workspace.client(), item.id);
@@ -105,11 +95,6 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
     if debugging && !ceiling.can_view() {
         workspace.debug(item.id, false);
     }
-    let history = if access.can_edit() {
-        workspace.history(item)
-    } else {
-        (false, false)
-    };
     let parent = workspace
         .read_handle(item, |handle| {
             handle
@@ -132,22 +117,14 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
     let type_name = types
         .display_name(item.block_type)
         .map_or_else(|| item.block_type.to_string(), str::to_owned);
-    let label = workspace.label(item.id, item.block_type);
     Some(Info {
         item,
-        can_go_back: block.can_go_back(),
-        can_go_forward: block.can_go_forward(),
         access,
         ceiling,
         can_edit: workspace.can_edit(item.id),
         debugging: debugging && ceiling.can_view(),
         dynamic_artifact: workspace.client().is_dynamic_artifact(item.id),
         type_name,
-        glyph: label.icon.map(str::to_owned).unwrap_or_default(),
-        automatic: label.automatic,
-        label: label.name,
-        can_undo: history.0,
-        can_redo: history.1,
         parent,
         container: workspace.container_of(item.id),
         parents,
@@ -179,10 +156,8 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     view! {
         <Frame>
             <List spacing=0.0>
-                <ArtifactBar workspace={Rc::clone(&workspace)} tab={tab} info={info.clone()} />
-                <LinkedBar workspace={Rc::clone(&workspace)} tab={tab} info={info.clone()} />
-                <ChromeBar workspace={Rc::clone(&workspace)} tab={tab} info={info.clone()} />
-                <Separator @sizing=ItemSize::Fixed(SEPARATOR_HEIGHT) />
+                <ArtifactBar workspace={Rc::clone(&workspace)} info={info.clone()} />
+                <LinkedBar workspace={Rc::clone(&workspace)} info={info.clone()} />
                 <Dynamic value={content}>
                     {move |content: Content| {
                         let workspace = Rc::clone(&branch);
@@ -209,7 +184,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                         }
                     }}
                 </Dynamic>
-                <StatusBar workspace={workspace} tab={tab} info={info} />
+                <StatusBar workspace={workspace} info={info} />
             </List>
         </Frame>
     }
@@ -229,6 +204,7 @@ fn BlockChild(editor: Editor, info: ReadSignal<Option<Info>>) -> NodeId {
             block={target}
             mode=ChildMode::Live
             own_frame=true
+            top_bar=true
             @test_id={"workspace.block"}
         >
             {move |handle: ChildBlockHandle| view! {

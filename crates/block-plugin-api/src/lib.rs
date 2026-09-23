@@ -44,7 +44,7 @@ pub enum FrameChrome {
 pub struct FrameSpec {
     pub chrome: FrameChrome,
     pub content: Option<ChildRect>,
-    pub trail: Vec<String>,
+    pub top_bar: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -206,6 +206,7 @@ pub struct ChildPlacement {
     pub rect: ChildRect,
     pub clip: ChildRect,
     pub own_frame: bool,
+    pub top_bar: bool,
     pub corner_radius: f32,
     pub layer: ChildLayer,
     pub mode: ChildMode,
@@ -487,6 +488,12 @@ pub enum EditorMessage {
         content_type: [u8; 16],
         bytes: Vec<u8>,
     },
+    ReplaceContent {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        content_type: [u8; 16],
+        bytes: Vec<u8>,
+    },
     ViewChanged {
         instance: EditorInstanceId,
         x: f32,
@@ -531,7 +538,6 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
-        from: Option<[u8; 16]>,
     },
 
     Focused {
@@ -753,6 +759,7 @@ impl EditorMessage {
             | Self::Operate { instance, .. }
             | Self::WatchContent { instance, .. }
             | Self::SeedContent { instance, .. }
+            | Self::ReplaceContent { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -1202,6 +1209,7 @@ impl EditorMessage {
             | Self::Operate { .. }
             | Self::WatchContent { .. }
             | Self::SeedContent { .. }
+            | Self::ReplaceContent { .. }
             | Self::Performance { .. } => Direction::ToHost,
         }
     }
@@ -1691,16 +1699,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        Message::Screens(value) => {
-            collection(value.screens.len())?;
-            for request in &value.screens {
-                if let Some(frame) = &request.frame {
-                    collection(frame.trail.len())?;
-                    strings(&frame.trail)?;
-                }
-            }
-            Ok(())
-        }
+        Message::Screens(value) => collection(value.screens.len()),
         Message::Frames(value) => {
             collection(value.len())?;
             for report in value {

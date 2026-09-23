@@ -165,7 +165,7 @@ fn screens() -> Message {
                 frame: Some(FrameSpec {
                     chrome: FrameChrome::Drawn,
                     content: None,
-                    trail: Vec::new(),
+                    top_bar: false,
                 }),
                 metrics: ViewportMetrics {
                     logical_width: WIDTH as f32,
