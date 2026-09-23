@@ -67,6 +67,38 @@ pub enum Key {
     X,
     Y,
     Z,
+    Insert,
+    Comma,
+    Period,
+    Slash,
+    Backslash,
+    Semicolon,
+    Quote,
+    BrowserBack,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    F13,
+    F14,
+    F15,
+    F16,
+    F17,
+    F18,
+    F19,
+    F20,
+    F21,
+    F22,
+    F23,
+    F24,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -143,6 +175,8 @@ pub enum PointerButton {
     Primary,
     Secondary,
     Middle,
+    Back,
+    Forward,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -194,6 +228,31 @@ pub enum Event {
         force: Option<f32>,
     },
     Zoom(f32),
+    Ime(ImeEvent),
+    FileHovered,
+    FileHoverCancelled,
+    FileDropped(DroppedFile),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum ImeEvent {
+    Enabled,
+    Preedit(String),
+    Commit(String),
+    Disabled,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DroppedFile {
+    pub name: String,
+    pub path: Option<std::path::PathBuf>,
+    pub bytes: Option<std::sync::Arc<[u8]>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ImeArea {
+    pub rect: crate::geometry::Rect,
+    pub cursor: crate::geometry::Rect,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -211,6 +270,11 @@ pub enum CursorIcon {
     ResizeNwSe,
     Text,
     Wait,
+    None,
+    Move,
+    Progress,
+    Help,
+    Alias,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -254,7 +318,7 @@ impl InputState {
             }
         }
         input.pointer.pos = input.pointer.pos.map(scale);
-        input.pointer.motion = input.pointer.motion * factor;
+        input.pointer.motion *= factor;
         input.pointer.last_click = input
             .pointer
             .last_click
@@ -265,14 +329,14 @@ impl InputState {
         }
         touch.start = touch.start.map(scale);
         touch.previous = touch.previous.map(scale);
-        touch.scroll_delta = touch.scroll_delta * factor;
-        touch.pinch_pan = touch.pinch_pan * factor;
+        touch.scroll_delta *= factor;
+        touch.pinch_pan *= factor;
         touch.pinch_center = touch.pinch_center.map(scale);
         touch.pinch_span = touch.pinch_span.map(|span| span * factor);
         for (_, pos) in &mut touch.samples {
             *pos = scale(*pos);
         }
-        touch.velocity = touch.velocity * factor;
+        touch.velocity *= factor;
         input
     }
 
@@ -290,7 +354,7 @@ impl InputState {
             match event {
                 Event::PointerMoved(pos) if !suppress_mouse => self.pointer.pos = Some(*pos),
                 Event::PointerMotion(delta) => {
-                    self.pointer.motion = self.pointer.motion + *delta;
+                    self.pointer.motion += *delta;
                 }
                 Event::PointerGone if !suppress_mouse => {
                     self.pointer.pos = None;
@@ -339,9 +403,10 @@ impl InputState {
                                 self.pointer.middle_released = true;
                             }
                         }
+                        PointerButton::Back | PointerButton::Forward => {}
                     }
                 }
-                Event::Scroll(delta) => self.scroll_delta = self.scroll_delta + *delta,
+                Event::Scroll(delta) => self.scroll_delta += *delta,
                 Event::Zoom(factor) => self.zoom_factor *= *factor,
                 Event::Key { modifiers, .. } | Event::Modifiers(modifiers) => {
                     self.modifiers = *modifiers;
@@ -525,9 +590,9 @@ impl TouchState {
             } else {
                 TouchDirection::Horizontal
             };
-            self.scroll_delta = self.scroll_delta + self.along(movement);
+            self.scroll_delta += self.along(movement);
         } else if self.direction != TouchDirection::Undecided {
-            self.scroll_delta = self.scroll_delta + self.along(pos - previous);
+            self.scroll_delta += self.along(pos - previous);
         }
         self.sample(pos);
     }
@@ -574,7 +639,7 @@ impl TouchState {
             && span > 0.0
         {
             self.pinch *= span / previous_span;
-            self.pinch_pan = self.pinch_pan + (center - previous_center);
+            self.pinch_pan += center - previous_center;
         }
         self.pinch_span = Some(span);
         self.pinch_center = Some(center);

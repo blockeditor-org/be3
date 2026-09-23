@@ -1,13 +1,14 @@
+use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_client::{BlockClient, BlockHandleAccess, Tunnel, blocks::audio::Audio};
+use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FetchResult,
-    FilePick, FrameReport, FrameSpec, HostReply, HostRequest, ImeArea, Message, Occluder,
+    FilePick, FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, TunnelMessage, ViewChange,
 };
-use eframe::egui;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -22,6 +23,7 @@ use super::{
     pieces,
 };
 use crate::{
+    host::{self, Target},
     performance,
     platform::{FileFilter, FilePicker, http::Fetch},
     plugin_host::web_view::WebViewHost,
@@ -50,7 +52,6 @@ struct Connection {
 }
 
 struct Instance {
-    context: egui::Context,
     role: InstanceRole,
     artifact: ArtifactState,
     creation_ready: bool,
@@ -67,13 +68,13 @@ struct Instance {
     artifact_watch: Option<Vec<Uuid>>,
     reported_artifacts: Vec<block_plugin_api::ArtifactState>,
     drag_accepted: bool,
-    intrinsic: Option<egui::Vec2>,
+    intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
     pending: Vec<Pending>,
     text_pastes: Vec<String>,
     audio: Option<AudioPlayer>,
     reported_audio: AudioStatus,
-    reported_size: Option<egui::Vec2>,
+    reported_size: Option<Vec2>,
     block_picks: Vec<BlockPickRequest>,
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
@@ -109,14 +110,14 @@ pub(crate) struct Focus {
 
 #[derive(Clone, Copy)]
 pub(super) struct Held {
-    pub(super) rect: egui::Rect,
-    pub(super) clip: egui::Rect,
+    pub(super) rect: Rect,
+    pub(super) clip: Rect,
     pub(super) drawn: (u32, u32),
 }
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) struct EditorView {
-    pub(crate) rect: egui::Rect,
+    pub(crate) rect: Rect,
     pub(crate) scale: f32,
 }
 
@@ -134,9 +135,8 @@ struct ArtifactState {
 }
 
 impl Instance {
-    fn new(context: &egui::Context, role: InstanceRole) -> Self {
+    fn new(role: InstanceRole) -> Self {
         Self {
-            context: context.clone(),
             role,
             artifact: ArtifactState::default(),
             creation_ready: false,
@@ -254,9 +254,9 @@ enum Work {
 }
 
 impl Work {
-    fn poll(&mut self, context: &egui::Context) -> Option<HostReply> {
+    fn poll(&mut self) -> Option<HostReply> {
         match self {
-            Self::Pick(picker) => Some(HostReply::FilePicked(match picker.poll(context) {
+            Self::Pick(picker) => Some(HostReply::FilePicked(match picker.poll() {
                 Some(Ok(file)) => FilePick::Chosen {
                     name: file.name,
                     data: file.data,
@@ -269,7 +269,7 @@ impl Work {
                 Some(Ok(body)) => Some(HostReply::Fetched(FetchResult::Body(body))),
                 Some(Err(error)) => Some(HostReply::Fetched(FetchResult::Failed(error))),
                 None => {
-                    context.request_repaint_after(FETCH_POLL_INTERVAL);
+                    host::request_repaint_after(FETCH_POLL_INTERVAL);
                     None
                 }
             },
@@ -283,9 +283,9 @@ impl Work {
 
 #[derive(Clone, Copy)]
 pub(super) struct Placement {
-    pub(super) id: egui::Id,
-    pub(super) rect: egui::Rect,
-    pub(super) clip: egui::Rect,
+    pub(super) target: Target,
+    pub(super) rect: Rect,
+    pub(super) clip: Rect,
     pub(super) pass: u64,
 }
 
@@ -294,14 +294,14 @@ struct Screen {
     placement: Option<Placement>,
     request: ScreenRequest,
     last_seen: u64,
-    presented: Option<(egui::Rect, egui::Rect)>,
+    presented: Option<(Rect, Rect)>,
     holding: bool,
-    used: Option<egui::Vec2>,
+    used: Option<Vec2>,
     report: Option<FrameReport>,
     dragging: bool,
     file_dropping: bool,
     cursor: CursorIcon,
-    ime: Option<ImeArea>,
+    ime: Option<PluginImeArea>,
     children: ChildTable,
     reported_statuses: HashMap<ChildId, ChildStatus>,
     revoked: HashSet<ChildId>,
@@ -311,24 +311,24 @@ struct Screen {
 #[derive(Default, PartialEq)]
 struct ChildTable {
     generation: u64,
-    size: egui::Vec2,
+    size: Vec2,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
 }
 
 struct Hole {
-    rect: egui::Rect,
-    occluders: Vec<egui::Rect>,
+    rect: Rect,
+    occluders: Vec<Rect>,
 }
 
 #[derive(Clone, Default)]
 pub(super) struct FrameOverlay {
     pub(super) owner: Option<EditorInstanceId>,
-    pub(super) rects: Vec<egui::Rect>,
+    pub(super) rects: Vec<Rect>,
 }
 
 impl FrameOverlay {
-    pub(super) fn covering(&self, instance: EditorInstanceId) -> &[egui::Rect] {
+    pub(super) fn covering(&self, instance: EditorInstanceId) -> &[Rect] {
         match self.owner == Some(instance) {
             true => &[],
             false => &self.rects,
@@ -342,7 +342,7 @@ pub(super) struct Holes {
 }
 
 impl Holes {
-    pub(super) fn cover(&mut self, rects: &[egui::Rect]) {
+    pub(super) fn cover(&mut self, rects: &[Rect]) {
         for rect in rects {
             self.holes.push(Hole {
                 rect: *rect,
@@ -351,7 +351,7 @@ impl Holes {
         }
     }
 
-    pub(super) fn contains(&self, position: egui::Pos2) -> bool {
+    pub(super) fn contains(&self, position: beui::Pos2) -> bool {
         self.holes.iter().any(|hole| {
             hole.rect.contains(position)
                 && !hole
@@ -435,7 +435,7 @@ impl Instances {
         })
     }
 
-    fn connect(&mut self, context: &egui::Context, client: &Arc<BlockClient>, client_id: Uuid) {
+    fn connect(&mut self, client: &Arc<BlockClient>, client_id: Uuid) {
         if self
             .connection
             .as_ref()
@@ -443,10 +443,7 @@ impl Instances {
         {
             return;
         }
-        let tunnel = client.open_tunnel({
-            let context = context.clone();
-            move || context.request_repaint()
-        });
+        let tunnel = client.open_tunnel(host::wake);
         self.connection = Some(Connection {
             client: Arc::clone(client),
             client_id,
@@ -458,25 +455,24 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         region: EditorRegion,
-        context: &egui::Context,
         client: &Arc<BlockClient>,
         client_id: Uuid,
         role: InstanceRole,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
         frame: Option<FrameSpec>,
-        size: egui::Vec2,
-        visible: egui::Rect,
+        size: Vec2,
+        visible: Rect,
         scale_factor: f32,
         pass: u64,
     ) -> ScreenId {
-        self.connect(context, client, client_id);
+        self.connect(client, client_id);
         if self.block_types.is_none() {
             self.block_types = Some(Arc::clone(block_types));
         }
         let entry = self
             .entries
             .entry(instance)
-            .or_insert_with(|| Instance::new(context, role));
+            .or_insert_with(|| Instance::new(role));
         let next_screen = &mut self.next_screen;
         let screen = entry.screens.entry(region).or_insert_with(|| {
             *next_screen += 1;
@@ -525,8 +521,8 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         region: EditorRegion,
-        rect: Option<egui::Rect>,
-        clip: egui::Rect,
+        rect: Option<Rect>,
+        clip: Rect,
         drawn: Option<(u32, u32)>,
     ) -> Option<Held> {
         let screen = self
@@ -571,7 +567,7 @@ impl Instances {
         changed
     }
 
-    pub(super) fn resized(&mut self, instance: EditorInstanceId, size: egui::Vec2) -> Vec<Message> {
+    pub(super) fn resized(&mut self, instance: EditorInstanceId, size: Vec2) -> Vec<Message> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
@@ -598,25 +594,23 @@ impl Instances {
     pub(super) fn report_creation(
         &mut self,
         instance: EditorInstanceId,
-        context: &egui::Context,
         client: &Arc<BlockClient>,
         client_id: Uuid,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
     ) -> bool {
-        self.connect(context, client, client_id);
+        self.connect(client, client_id);
         if self.block_types.is_none() {
             self.block_types = Some(Arc::clone(block_types));
         }
         self.entries
             .entry(instance)
-            .or_insert_with(|| Instance::new(context, InstanceRole::Creation))
+            .or_insert_with(|| Instance::new(InstanceRole::Creation))
             .opened
     }
 
     pub(super) fn report_artifact(
         &mut self,
         instance: EditorInstanceId,
-        context: &egui::Context,
         client: &Arc<BlockClient>,
         client_id: Uuid,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
@@ -624,12 +618,12 @@ impl Instances {
         data: &[u8],
         resync: bool,
     ) -> Vec<Message> {
-        self.connect(context, client, client_id);
+        self.connect(client, client_id);
         if self.block_types.is_none() {
             self.block_types = Some(Arc::clone(block_types));
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
-            let mut entry = Instance::new(context, InstanceRole::Artifact(block));
+            let mut entry = Instance::new(InstanceRole::Artifact(block));
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -836,7 +830,7 @@ impl Instances {
                     .values_mut()
                     .find(|screen| screen.request.screen == size.screen)
                 {
-                    let used = egui::vec2(size.logical_width, size.logical_height);
+                    let used = vec2(size.logical_width, size.logical_height);
                     changed |= screen.used != Some(used);
                     screen.used = Some(used);
                 }
@@ -948,7 +942,7 @@ impl Instances {
         });
         let table = ChildTable {
             generation,
-            size: egui::vec2(
+            size: vec2(
                 screen.request.metrics.logical_width,
                 screen.request.metrics.logical_height,
             ),
@@ -964,8 +958,8 @@ impl Instances {
         &self,
         instance: EditorInstanceId,
         region: EditorRegion,
-        rect: egui::Rect,
-        clip: egui::Rect,
+        rect: Rect,
+        clip: Rect,
     ) -> (Vec<HostChild>, Holes) {
         let Some(screen) = self
             .entries
@@ -976,7 +970,7 @@ impl Instances {
         };
         let table = &screen.children;
         let origin = rect.min.to_vec2();
-        let stretch = egui::vec2(
+        let stretch = vec2(
             ratio(rect.width(), table.size.x),
             ratio(rect.height(), table.size.y),
         );
@@ -984,7 +978,7 @@ impl Instances {
         let mut holes = Holes::default();
         let mut live = 0;
         if let Some(report) = &screen.report {
-            let painted: Vec<egui::Rect> = report
+            let painted: Vec<Rect> = report
                 .painted
                 .iter()
                 .map(|painted| host_rect(*painted, origin, stretch))
@@ -1046,9 +1040,7 @@ impl Instances {
                 clip: child_clip,
                 layer: child.layer,
                 mode,
-                intrinsic: child
-                    .intrinsic
-                    .map(|size| egui::vec2(size.width, size.height)),
+                intrinsic: child.intrinsic.map(|size| vec2(size.width, size.height)),
                 rotation: child.rotation,
                 opacity: child.opacity,
             });
@@ -1208,7 +1200,7 @@ impl Instances {
                         super::ScreenStatus {
                             screen: screen.request.screen,
                             region: screen.request.region,
-                            logical: egui::vec2(metrics.logical_width, metrics.logical_height),
+                            logical: vec2(metrics.logical_width, metrics.logical_height),
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
                             used: screen.used,
@@ -1280,7 +1272,7 @@ impl Instances {
         self.entries.get(&instance)?.aspect_ratio
     }
 
-    pub(super) fn intrinsic_size(&self, instance: EditorInstanceId) -> Option<egui::Vec2> {
+    pub(super) fn intrinsic_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
         self.entries.get(&instance)?.intrinsic
     }
 
@@ -1288,7 +1280,7 @@ impl Instances {
         &self,
         instance: EditorInstanceId,
         region: EditorRegion,
-    ) -> Option<egui::Vec2> {
+    ) -> Option<Vec2> {
         self.entries.get(&instance)?.screens.get(&region)?.used
     }
 
@@ -1318,12 +1310,7 @@ impl Instances {
             .as_ref()
     }
 
-    pub(super) fn drive_web_views(
-        &mut self,
-        frame: &eframe::Frame,
-        context: &egui::Context,
-        pass: u64,
-    ) -> Vec<Message> {
+    pub(super) fn drive_web_views(&mut self, pass: u64) -> Vec<Message> {
         let mut messages = Vec::new();
         for (instance, entry) in &mut self.entries {
             if entry.web_view.is_none() {
@@ -1334,7 +1321,7 @@ impl Instances {
                 let placement = screen.placement?;
                 let live = placement.pass == pass && screen.last_seen == pass;
                 let origin = placement.rect.min.to_vec2();
-                let stretch = egui::vec2(
+                let stretch = vec2(
                     ratio(placement.rect.width(), screen.request.metrics.logical_width),
                     ratio(
                         placement.rect.height(),
@@ -1345,7 +1332,7 @@ impl Instances {
             });
             let mut events = Vec::new();
             let view = entry.web_view.as_mut().expect("the web view is present");
-            view.drive(frame, context, rect, &mut events);
+            view.drive(rect, &mut events);
             for event in events {
                 messages.push(Message::Editor(EditorMessage::WebViewEvent {
                     instance: *instance,
@@ -1438,18 +1425,18 @@ impl Instances {
         &self,
         instance: EditorInstanceId,
         region: EditorRegion,
-        rect: egui::Rect,
-    ) -> Option<egui::output::IMEOutput> {
+        rect: Rect,
+    ) -> Option<ImeArea> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
         let area = screen.ime?;
         let origin = rect.min.to_vec2();
-        let stretch = egui::vec2(
+        let stretch = vec2(
             ratio(rect.width(), screen.request.metrics.logical_width),
             ratio(rect.height(), screen.request.metrics.logical_height),
         );
-        Some(egui::output::IMEOutput {
+        Some(ImeArea {
             rect: host_rect(area.rect, origin, stretch),
-            cursor_rect: host_rect(area.cursor, origin, stretch),
+            cursor: host_rect(area.cursor, origin, stretch),
         })
     }
 
@@ -1457,25 +1444,25 @@ impl Instances {
         &self,
         instance: EditorInstanceId,
         region: EditorRegion,
-    ) -> Option<egui::CursorIcon> {
+    ) -> Option<beui::CursorIcon> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
         Some(match screen.cursor {
-            CursorIcon::Default => egui::CursorIcon::Default,
-            CursorIcon::None => egui::CursorIcon::None,
-            CursorIcon::Pointer => egui::CursorIcon::PointingHand,
-            CursorIcon::Text => egui::CursorIcon::Text,
-            CursorIcon::Crosshair => egui::CursorIcon::Crosshair,
-            CursorIcon::Grab => egui::CursorIcon::Grab,
-            CursorIcon::Grabbing => egui::CursorIcon::Grabbing,
-            CursorIcon::Move => egui::CursorIcon::Move,
-            CursorIcon::NotAllowed => egui::CursorIcon::NotAllowed,
-            CursorIcon::Wait => egui::CursorIcon::Wait,
-            CursorIcon::Progress => egui::CursorIcon::Progress,
-            CursorIcon::Help => egui::CursorIcon::Help,
-            CursorIcon::ResizeHorizontal => egui::CursorIcon::ResizeHorizontal,
-            CursorIcon::ResizeVertical => egui::CursorIcon::ResizeVertical,
-            CursorIcon::ResizeNeSw => egui::CursorIcon::ResizeNeSw,
-            CursorIcon::ResizeNwSe => egui::CursorIcon::ResizeNwSe,
+            CursorIcon::Default => beui::CursorIcon::Default,
+            CursorIcon::None => beui::CursorIcon::None,
+            CursorIcon::Pointer => beui::CursorIcon::PointingHand,
+            CursorIcon::Text => beui::CursorIcon::Text,
+            CursorIcon::Crosshair => beui::CursorIcon::Crosshair,
+            CursorIcon::Grab => beui::CursorIcon::Grab,
+            CursorIcon::Grabbing => beui::CursorIcon::Grabbing,
+            CursorIcon::Move => beui::CursorIcon::Move,
+            CursorIcon::NotAllowed => beui::CursorIcon::NotAllowed,
+            CursorIcon::Wait => beui::CursorIcon::Wait,
+            CursorIcon::Progress => beui::CursorIcon::Progress,
+            CursorIcon::Help => beui::CursorIcon::Help,
+            CursorIcon::ResizeHorizontal => beui::CursorIcon::ResizeHorizontal,
+            CursorIcon::ResizeVertical => beui::CursorIcon::ResizeVertical,
+            CursorIcon::ResizeNeSw => beui::CursorIcon::ResizeNeSw,
+            CursorIcon::ResizeNwSe => beui::CursorIcon::ResizeNwSe,
         })
     }
 
@@ -1503,12 +1490,7 @@ impl Instances {
         }
     }
 
-    pub(super) fn frame_input(
-        &mut self,
-        context: &egui::Context,
-        pass: u64,
-        overlay: &FrameOverlay,
-    ) -> Vec<Message> {
+    pub(super) fn frame_input(&mut self, pass: u64, overlay: &FrameOverlay) -> Vec<Message> {
         let announced = &self.announced;
         let mut placed: Vec<_> = self
             .entries
@@ -1524,18 +1506,15 @@ impl Instances {
             })
             .collect();
         placed.sort_by_key(|(instance, _, screen, _)| (instance.0, screen.0));
-        let cycle = context.input_mut(|input| {
-            if input.consume_key(egui::Modifiers::SHIFT, egui::Key::F6) {
-                Some(true)
-            } else if input.consume_key(egui::Modifiers::NONE, egui::Key::F6) {
-                Some(false)
-            } else {
-                None
-            }
-        });
+        let cycle = if host::consume_key(beui::Modifiers::SHIFT, beui::Key::F6) {
+            Some(true)
+        } else if host::consume_key(beui::Modifiers::NONE, beui::Key::F6) {
+            Some(false)
+        } else {
+            None
+        };
         if let Some(backward) = cycle {
             cycle_focus(
-                context,
                 placed.iter().map(|(_, _, _, placement)| placement),
                 backward,
             );
@@ -1545,24 +1524,21 @@ impl Instances {
             let (_, mut holes) =
                 self.host_children(instance, region, placement.rect, placement.clip);
             holes.cover(overlay.covering(instance));
-            let Some(response) = context.read_response(placement.id) else {
-                continue;
-            };
-            if response.clicked() {
-                response.request_focus();
-            }
-            let focused = response.has_focus();
-            let hovered = response.hovered();
+            let focused = host::focused(placement.target);
+            let hovered = host::hovered(placement.target);
             messages.extend(self.input(instance, region, |input| {
-                input.update(context, placement.rect, hovered, focused, screen, &holes)
+                input.update(
+                    placement.target,
+                    placement.rect,
+                    hovered,
+                    focused,
+                    screen,
+                    &holes,
+                )
             }));
-            let over_hole = context
-                .pointer_latest_pos()
-                .is_some_and(|position| holes.contains(position));
-            let dismissed = context.input(|input| {
-                input.key_pressed(egui::Key::Escape)
-                    || (input.pointer.button_pressed(egui::PointerButton::Primary) && !over_hole)
-            });
+            let over_hole = host::pointer().is_some_and(|position| holes.contains(position));
+            let dismissed = host::key_pressed(beui::Key::Escape)
+                || host::input(|input| input.primary_pressed && !over_hole);
             if dismissed {
                 self.revoke_active(instance, region);
             }
@@ -1599,10 +1575,9 @@ impl Instances {
         instances.sort_by_key(|instance| instance.0);
         for instance in instances {
             let entry = self.entries.get_mut(&instance).unwrap();
-            let context = entry.context.clone();
             let mut waiting = std::mem::take(&mut entry.pending);
             waiting.retain_mut(|pending| {
-                let Some(reply) = pending.work.poll(&context) else {
+                let Some(reply) = pending.work.poll() else {
                     return true;
                 };
                 messages.push(Message::Editor(EditorMessage::Replied {
@@ -1635,7 +1610,7 @@ impl Instances {
             if let Some(player) = &entry.audio {
                 let status = player.status();
                 if status.playing {
-                    context.request_repaint();
+                    host::request_repaint();
                 }
                 if status != entry.reported_audio {
                     entry.reported_audio.clone_from(&status);
@@ -1668,7 +1643,7 @@ impl Instances {
         let work = match request {
             HostRequest::PickFile(filter) => {
                 let mut picker = FilePicker::default();
-                picker.open(&entry.context, &host_filter(filter));
+                picker.open(&host_filter(filter));
                 Work::Pick(picker)
             }
             HostRequest::PasteImage => Work::Paste(super::clipboard::read_clipboard_image()),
@@ -1887,10 +1862,10 @@ impl Instances {
                 changed
             }
             EditorMessage::CopyText { instance, text } => {
-                let Some(entry) = self.entries.get(&instance) else {
+                if !self.entries.contains_key(&instance) {
                     return false;
-                };
-                entry.context.copy_text(text);
+                }
+                host::copy_text(text);
                 false
             }
             EditorMessage::PasteText { instance } => {
@@ -1999,7 +1974,7 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                let intrinsic = size.map(|size| egui::vec2(size.width, size.height));
+                let intrinsic = size.map(|size| vec2(size.width, size.height));
                 let changed = entry.intrinsic != intrinsic;
                 entry.intrinsic = intrinsic;
                 changed
@@ -2137,14 +2112,10 @@ impl Instances {
     }
 }
 
-fn host_rect(
-    rect: block_plugin_api::ChildRect,
-    origin: egui::Vec2,
-    stretch: egui::Vec2,
-) -> egui::Rect {
-    egui::Rect::from_min_size(
-        egui::pos2(rect.x * stretch.x, rect.y * stretch.y) + origin,
-        egui::vec2(rect.width * stretch.x, rect.height * stretch.y),
+fn host_rect(rect: block_plugin_api::ChildRect, origin: Vec2, stretch: Vec2) -> Rect {
+    Rect::from_min_size(
+        pos2(rect.x * stretch.x, rect.y * stretch.y) + origin,
+        vec2(rect.width * stretch.x, rect.height * stretch.y),
     )
 }
 
@@ -2187,21 +2158,19 @@ fn allowed(url: &str, hosts: &[String]) -> bool {
     hosts.iter().any(|allowed| allowed == host)
 }
 
-fn cycle_focus<'a>(
-    context: &egui::Context,
-    placements: impl Iterator<Item = &'a Placement>,
-    backward: bool,
-) {
+fn cycle_focus<'a>(placements: impl Iterator<Item = &'a Placement>, backward: bool) {
     let mut order: Vec<_> = placements
         .filter(|placement| placement.rect.width() > 0.0 && placement.rect.height() > 0.0)
-        .map(|placement| (placement.rect.min, placement.id))
+        .map(|placement| (placement.rect.min, placement.target))
         .collect();
     if order.is_empty() {
         return;
     }
     order.sort_by(|(a, _), (b, _)| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)));
-    let focused = context.memory(|memory| memory.focused());
-    let current = order.iter().position(|(_, id)| Some(*id) == focused);
+    let focused = host::focus();
+    let current = order
+        .iter()
+        .position(|(_, target)| Some(*target) == focused);
     let count = order.len();
     let next = match (current, backward) {
         (Some(index), false) => (index + 1) % count,
@@ -2209,7 +2178,7 @@ fn cycle_focus<'a>(
         (None, false) => 0,
         (None, true) => count - 1,
     };
-    context.memory_mut(|memory| memory.request_focus(order[next].1));
+    host::request_focus(order[next].1);
 }
 
 #[cfg(test)]

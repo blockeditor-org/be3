@@ -389,6 +389,22 @@ impl Document {
         self.arena.get_as::<OverlayNode>(overlay).content
     }
 
+    pub fn modal_open(&self) -> bool {
+        !self.overlay_stack.is_empty()
+    }
+
+    pub fn floating_rects(&self) -> Vec<Rect> {
+        self.floating_overlays()
+            .into_iter()
+            .filter_map(|overlay| self.overlay_content(overlay))
+            .filter_map(|content| self.node_rect(content))
+            .collect()
+    }
+
+    pub fn pointer_claimed(&self, pos: Pos2) -> bool {
+        self.modal_open() || self.floating_covers(pos)
+    }
+
     pub fn overlay_rects(&self) -> Vec<Rect> {
         self.overlay_stack
             .iter()

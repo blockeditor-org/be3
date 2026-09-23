@@ -14,7 +14,7 @@ fn a_migrated_editor_is_only_sent_messages_its_plugin_session_accepts() {
     harness.connect();
     let block = Uuid::new_v4();
     let block_type = block_client::blocks::counter::Counter::TYPE_ID;
-    let (mut instances, ..) = placed_on(block, block_type);
+    let mut instances = placed_on(block, block_type);
     let mut session = ClientSession::new("be3.counter", "Counter", "1");
     session.receive(Message::HelloAccepted(HelloAccepted {
         version: PROTOCOL_VERSION,

@@ -112,6 +112,7 @@ pub fn TextInput(
     value: Prop<String>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] password: Prop<bool>,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
     #[prop(default = FONT_SIZE)] font_size: Prop<f32>,
@@ -142,14 +143,18 @@ pub fn TextInput(
     let (menu_actions, set_menu_actions) = create_signal(Vec::new());
     let text = NodeRef::new();
     let placeholder = create_memo(move || placeholder.get());
-    let string = shown_string(&text_value, placeholder.clone());
+    let password = create_memo(move || password.get());
+    let string = shown_string(&text_value, placeholder.clone(), password.clone());
     let color = shown_color(&text_value, color, placeholder_color);
     let disabled = create_memo(move || disabled.get());
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::TextInput)));
     component_accessibility(create_memo(
-        clone!(text_value placeholder disabled -> move || {
+        clone!(text_value placeholder disabled password -> move || {
             let mut node = accessibility.get();
-            node.set_value(text_value.get());
+            match password.get() {
+                true => node.set_value(mask(&text_value.get())),
+                false => node.set_value(text_value.get()),
+            }
             node.set_placeholder(placeholder.get());
             if disabled.get() {
                 node.set_disabled();
@@ -428,12 +433,21 @@ fn TouchMenuRow(
     }
 }
 
-fn shown_string(value: &ReadSignal<String>, placeholder: Memo<String>) -> Memo<String> {
+fn shown_string(
+    value: &ReadSignal<String>,
+    placeholder: Memo<String>,
+    password: Memo<bool>,
+) -> Memo<String> {
     let value = value.clone();
     create_memo(move || match value.get() {
         text if text.is_empty() => placeholder.get(),
+        text if password.get() => mask(&text),
         text => text,
     })
+}
+
+fn mask(text: &str) -> String {
+    "*".repeat(text.len())
 }
 
 fn shown_color(

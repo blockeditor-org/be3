@@ -1,146 +1,141 @@
-use std::{cell::RefCell, time::Duration};
+use std::time::Duration;
 
+use beui::Vec2;
 use block_plugin_api::{EditorCapabilities, EditorRegion, PluginManifest};
-use eframe::egui;
 
 use crate::plugin_host::{InstanceStatus, RuntimeStatus, ScreenStatus};
+use crate::ui::{Line, LineStyle, PluginsView, RuntimeView};
 
-thread_local! {
-    static OPEN: RefCell<bool> = const { RefCell::new(false) };
+fn push(lines: &mut Vec<Line>, style: LineStyle, indent: u8, text: impl Into<String>) {
+    lines.push(Line {
+        text: text.into(),
+        style,
+        indent,
+    });
 }
 
-pub(crate) fn open() {
-    OPEN.with(|open| *open.borrow_mut() = true);
-}
-
-pub(crate) fn show(ctx: &egui::Context) {
-    let mut open = OPEN.with(|open| *open.borrow());
-    if !open {
-        return;
+pub(super) fn view() -> PluginsView {
+    let mut lines = Vec::new();
+    discovered(&mut lines);
+    PluginsView {
+        lines,
+        runtimes: crate::plugin_host::running()
+            .iter()
+            .map(|runtime| RuntimeView {
+                id: runtime.plugin_id.clone(),
+                state: runtime.state.clone(),
+                lines: runtime_lines(runtime),
+            })
+            .collect(),
     }
-    let mut kill = None;
-    egui::Window::new("Plugins")
-        .open(&mut open)
-        .default_size([520.0, 420.0])
-        .resizable(true)
-        .show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                show_discovered(ui);
-                ui.separator();
-                kill = show_running(ui);
-            });
-        });
-    if let Some(plugin_id) = kill {
-        crate::plugin_host::kill(ctx, &plugin_id);
-    }
-    OPEN.with(|state| *state.borrow_mut() = open);
 }
 
-fn show_discovered(ui: &mut egui::Ui) {
+fn discovered(lines: &mut Vec<Line>) {
     let discovered = crate::editors::plugin::discovery::plugins();
-    ui.strong(format!("Discovered ({})", discovered.manifests().len()));
+    push(
+        lines,
+        LineStyle::Heading,
+        0,
+        format!("Discovered ({})", discovered.manifests().len()),
+    );
     if discovered.manifests().is_empty() {
-        ui.weak("    no plugins were found");
+        push(lines, LineStyle::Muted, 1, "no plugins were found");
     }
     for manifest in discovered.manifests() {
-        egui::CollapsingHeader::new(format!(
-            "{} {} — {}",
-            manifest.identity.id,
-            manifest.identity.version,
-            uuid::Uuid::from_bytes(manifest.block_type)
-        ))
-        .id_salt(&manifest.identity.id)
-        .show(ui, |ui| show_manifest(ui, manifest));
+        push(
+            lines,
+            LineStyle::Body,
+            0,
+            format!(
+                "{} {} — {}",
+                manifest.identity.id,
+                manifest.identity.version,
+                uuid::Uuid::from_bytes(manifest.block_type)
+            ),
+        );
+        manifest_lines(lines, manifest);
     }
     for error in discovered.errors() {
-        ui.colored_label(egui::Color32::RED, format!("    {error}"));
+        push(lines, LineStyle::Error, 1, error.to_string());
     }
 }
 
-fn show_manifest(ui: &mut egui::Ui, manifest: &PluginManifest) {
-    ui.small(format!(
+fn manifest_lines(lines: &mut Vec<Line>, manifest: &PluginManifest) {
+    let mut small = |text: String| push(lines, LineStyle::Muted, 1, text);
+    small(format!(
         "name {} ({})",
         manifest.display_name, manifest.identity.name
     ));
-    ui.small(format!("regions {}", regions(&manifest.regions)));
-    ui.small(format!(
+    small(format!("regions {}", regions(&manifest.regions)));
+    small(format!(
         "creation {:?} · interaction {:?} · resize {:?} · important {}",
         manifest.creation, manifest.interaction, manifest.resize, manifest.important
     ));
-    ui.small(format!(
+    small(format!(
         "children add {} · delete {} · replace {}",
         manifest.children.add, manifest.children.delete, manifest.children.replace
     ));
-    ui.small(format!(
+    small(format!(
         "capabilities {}",
         capabilities(&manifest.capabilities)
     ));
-    ui.small(format!("entry point {}", manifest.entry_point));
+    small(format!("entry point {}", manifest.entry_point));
 }
 
-fn show_running(ui: &mut egui::Ui) -> Option<String> {
-    let running = crate::plugin_host::running();
-    ui.strong(format!("Running ({})", running.len()));
-    if running.is_empty() {
-        ui.weak("    no editor plugins are running");
-        return None;
-    }
-    let mut kill = None;
-    for runtime in running {
-        if show_runtime(ui, &runtime) {
-            kill = Some(runtime.plugin_id.clone());
-        }
-        ui.separator();
-    }
-    kill
-}
-
-fn show_runtime(ui: &mut egui::Ui, runtime: &RuntimeStatus) -> bool {
-    let mut kill = false;
-    ui.horizontal(|ui| {
-        ui.strong(&runtime.plugin_id);
-        ui.weak(&runtime.state);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            kill = ui.button("Kill").clicked();
-        });
-    });
+fn runtime_lines(runtime: &RuntimeStatus) -> Vec<Line> {
+    let mut lines = Vec::new();
     let surface = &runtime.surface;
-    ui.small(format!(
-        "    surface {} — {}x{} px, {}, {} placement(s), generation {}",
-        surface.index,
-        surface.width,
-        surface.height,
-        bytes(u64::from(surface.width) * u64::from(surface.height) * 4),
-        surface.placements,
-        surface.generation
-    ));
-    ui.small(format!(
-        "    pass {}{}",
-        runtime.pass,
-        runtime
-            .uptime
-            .map(|uptime| format!(" · up {}", elapsed(uptime)))
-            .unwrap_or_default()
-    ));
+    push(
+        &mut lines,
+        LineStyle::Muted,
+        1,
+        format!(
+            "surface {} — {}x{} px, {}, {} placement(s), generation {}",
+            surface.index,
+            surface.width,
+            surface.height,
+            bytes(u64::from(surface.width) * u64::from(surface.height) * 4),
+            surface.placements,
+            surface.generation
+        ),
+    );
+    push(
+        &mut lines,
+        LineStyle::Muted,
+        1,
+        format!(
+            "pass {}{}",
+            runtime.pass,
+            runtime
+                .uptime
+                .map(|uptime| format!(" · up {}", elapsed(uptime)))
+                .unwrap_or_default()
+        ),
+    );
     if runtime.instances.is_empty() {
-        ui.weak("    idle");
+        push(&mut lines, LineStyle::Muted, 1, "idle");
     }
     for instance in &runtime.instances {
-        show_instance(ui, instance);
+        instance_lines(&mut lines, instance);
     }
-    kill
+    lines
 }
 
-fn show_instance(ui: &mut egui::Ui, instance: &InstanceStatus) {
+fn instance_lines(lines: &mut Vec<Line>, instance: &InstanceStatus) {
     let block = instance
         .block
         .map_or_else(|| "creating a block".to_owned(), |id| id.to_string());
-    ui.small(format!(
-        "    {} — {} {block}{}",
-        instance.instance.0,
-        instance.role,
-        if instance.opened { "" } else { ", opening" }
-    ));
+    push(
+        lines,
+        LineStyle::Body,
+        1,
+        format!(
+            "{} — {} {block}{}",
+            instance.instance.0,
+            instance.role,
+            if instance.opened { "" } else { ", opening" }
+        ),
+    );
     let mut details = Vec::new();
     if let Some(ratio) = instance.aspect_ratio {
         details.push(format!("aspect {ratio:.3}"));
@@ -157,30 +152,35 @@ fn show_instance(ui: &mut egui::Ui, instance: &InstanceStatus) {
         ));
     }
     if !details.is_empty() {
-        ui.small(format!("        {}", details.join(" · ")));
+        push(lines, LineStyle::Muted, 2, details.join(" · "));
     }
     if let Some(artifact) = &instance.artifact {
-        ui.small(format!(
-            "        artifact {}{} — {}",
-            bytes(artifact.data as u64),
-            artifact
-                .draft
-                .map(|draft| format!(", draft {}", bytes(draft as u64)))
-                .unwrap_or_default(),
-            artifact.description.as_deref().unwrap_or("undescribed")
-        ));
+        push(
+            lines,
+            LineStyle::Muted,
+            2,
+            format!(
+                "artifact {}{} — {}",
+                bytes(artifact.data as u64),
+                artifact
+                    .draft
+                    .map(|draft| format!(", draft {}", bytes(draft as u64)))
+                    .unwrap_or_default(),
+                artifact.description.as_deref().unwrap_or("undescribed")
+            ),
+        );
     }
     if instance.screens.is_empty() {
-        ui.small("        no screens");
+        push(lines, LineStyle::Muted, 2, "no screens");
     }
     for screen in &instance.screens {
-        show_screen(ui, screen);
+        screen_line(lines, screen);
     }
 }
 
-fn show_screen(ui: &mut egui::Ui, screen: &ScreenStatus) {
+fn screen_line(lines: &mut Vec<Line>, screen: &ScreenStatus) {
     let text = format!(
-        "        {:?} #{} — {} pt @ {:.2} ({}x{} px){}{}{}{}",
+        "{:?} #{} — {} pt @ {:.2} ({}x{} px){}{}{}{}",
         screen.region,
         screen.screen.0,
         size(screen.logical),
@@ -204,11 +204,11 @@ fn show_screen(ui: &mut egui::Ui, screen: &ScreenStatus) {
             ),
         }
     );
-    if screen.drawn {
-        ui.small(text);
-    } else {
-        ui.small(egui::RichText::new(text).weak());
-    }
+    let style = match screen.drawn {
+        true => LineStyle::Code,
+        false => LineStyle::Muted,
+    };
+    push(lines, style, 2, text);
 }
 
 fn regions(regions: &[EditorRegion]) -> String {
@@ -238,7 +238,7 @@ fn list(items: impl Iterator<Item = String>) -> String {
     }
 }
 
-fn size(size: egui::Vec2) -> String {
+fn size(size: Vec2) -> String {
     format!("{:.0}x{:.0}", size.x, size.y)
 }
 

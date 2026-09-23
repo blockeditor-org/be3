@@ -338,7 +338,7 @@ impl MouseSimulation {
         match role {
             Role::Trackpad => {
                 if self.scrolling {
-                    self.scroll = self.scroll + delta * count.recip();
+                    self.scroll += delta * count.recip();
                 } else {
                     self.move_cursor(delta);
                 }
@@ -352,7 +352,7 @@ impl MouseSimulation {
                 while self.middle_travel.abs() >= tick {
                     let direction = self.middle_travel.signum();
                     self.middle_travel -= direction * tick;
-                    self.scroll = self.scroll + vec2(0.0, direction * WHEEL_LINE);
+                    self.scroll += vec2(0.0, direction * WHEEL_LINE);
                 }
             }
             _ => {}
