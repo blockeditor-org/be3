@@ -1,9 +1,10 @@
 use std::time::Duration;
 
 use block_client::blocks::audio::Audio;
+use block_editor_plugin::be_block::AudioContent;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, file_creation};
+use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
 
 mod ui;
 
@@ -21,7 +22,7 @@ impl block_editor_plugin::BeuiApp for AudioApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        file_creation(&creation, "audio", filter(), decode)
+        content_file_creation::<Audio, AudioContent>(&creation, "audio", filter(), decode)
     }
 
     fn intrinsic_size() -> Option<Vec2> {
@@ -63,9 +64,9 @@ pub(crate) fn guess_media_type(source_name: &str) -> &'static str {
     }
 }
 
-pub(crate) fn decode(file: PickedFile) -> Result<Audio, String> {
+pub(crate) fn decode(file: PickedFile) -> Result<AudioContent, String> {
     let PickedFile { name, data } = file;
     let media_type = guess_media_type(&name);
-    Audio::new(name.clone(), media_type, data)
+    AudioContent::from_file(name.clone(), media_type, data)
         .map_err(|error| format!("Could not import {name}: {error}"))
 }

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use block_client::blocks::audio::Audio;
+use be_block::AudioContent as Audio;
 use block_plugin_api::AudioStatus;
 
 impl AudioPlayer {
@@ -187,7 +187,7 @@ fn create_element(audio: &Audio) -> Result<(web_sys::HtmlAudioElement, String), 
     parts.push(&bytes.buffer());
 
     let properties = web_sys::BlobPropertyBag::new();
-    properties.set_type(audio.media_type());
+    properties.set_type(&audio.header().media_type);
     let blob = web_sys::Blob::new_with_buffer_source_sequence_and_options(&parts, &properties)
         .map_err(|_| "Could not create an audio blob".to_owned())?;
 

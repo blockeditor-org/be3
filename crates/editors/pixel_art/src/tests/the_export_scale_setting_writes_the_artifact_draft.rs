@@ -4,7 +4,7 @@ use super::*;
 fn the_export_scale_setting_writes_the_artifact_draft() {
     let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
     let source = client.create_block(PixelArt::new());
-    let target = client.create_block(Image::new("Sprite Export".to_owned(), Vec::new()));
+    let target = client.create_block(Image::new());
     let artifacts = Artifacts::new(
         EditorHost::default(),
         Arc::clone(&client),

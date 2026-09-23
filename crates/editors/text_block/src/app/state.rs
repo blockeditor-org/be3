@@ -11,6 +11,7 @@ use block_client::{
     BlockClient, BlockHandle, ReferenceList, block_ref::BlockRef, blocks::image::Image,
     blocks::text::TextDocument, presence::PresenceColor, presence::UserActive,
 };
+use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::{ChildState, Editor, EditorHost, ImagePaster, Task};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
@@ -143,8 +144,9 @@ impl State {
         }
     }
 
-    pub fn create_image_block(&self, image: Image) -> Uuid {
-        let block = self.client.create_block(image);
+    pub fn create_image_block(&self, image: &ImageContent) -> Uuid {
+        let block = self.client.create_block(Image::new());
+        self.host().seed_content(block.id(), image);
         block.set_parent(BlockParent::Uuid(self.block.id()));
         block.id()
     }

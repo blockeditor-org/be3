@@ -15,6 +15,7 @@ use block_client::blocks::infinite_canvas::{
 };
 use block_client::presence::{PresenceColor, UserActive};
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
+use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::beui::reactive::{CanvasView, ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::beui::{Pos2, Rect, Vec2};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
@@ -1450,8 +1451,8 @@ impl CanvasState {
         );
     }
 
-    pub(crate) fn add_imported_image(&self, image: ImageBlock, center: CanvasPoint) {
-        let block = self.editor.client().create_block(image);
+    pub(crate) fn add_imported_image(&self, image: ImageContent, center: CanvasPoint) {
+        let block = self.editor.create_with_content::<ImageBlock, _>(&image);
         let id = block.id();
         block.set_parent(BlockParent::Uuid(self.block_id()));
         self.add_direct_editor(id, center);
@@ -1898,7 +1899,7 @@ impl CanvasState {
         for (index, file) in drop.files.into_iter().enumerate() {
             let offset = IMPORT_CASCADE_OFFSET * index as f32;
             self.add_imported_image(
-                ImageBlock::new(file.name, file.data),
+                ImageContent::from_file(file.name, file.data),
                 CanvasPoint::new(base.x + offset, base.y + offset),
             );
         }
@@ -1914,7 +1915,7 @@ impl CanvasState {
             Some(PastedImage::Image { name, data }) => {
                 self.set_import_error.set(None);
                 let center = self.viewport_center();
-                self.add_imported_image(ImageBlock::new(name, data), center);
+                self.add_imported_image(ImageContent::from_file(name, data), center);
             }
             Some(PastedImage::Failed(error)) => self.set_import_error.set(Some(error)),
             Some(PastedImage::Empty) | None => {}

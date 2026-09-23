@@ -391,6 +391,20 @@ impl Editor {
         self.0.host.seed_content(block, content);
     }
 
+    pub fn replace_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.0.host.replace_content(block, content);
+    }
+
+    pub fn create_with_content<B, C>(&self, content: &C) -> BlockHandle<B>
+    where
+        B: Block + Default,
+        C: be_block::BlockContent,
+    {
+        let block = self.0.client.create_block(B::default());
+        self.seed_content(block.id(), content);
+        block
+    }
+
     fn projection<C>(&self, block: Option<Uuid>) -> Rc<ContentProjection<C>>
     where
         C: be_block::LiveEdit + Clone + Default,

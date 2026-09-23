@@ -17,6 +17,7 @@ mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_unmigrated_block_type_has_no_content_in_the_new_stack;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
+mod replacing_content_reaches_a_block_open_or_not;
 mod two_peers_of_one_workspace_share_a_counter;
 mod undo_steps_back_through_what_this_peer_did;
 

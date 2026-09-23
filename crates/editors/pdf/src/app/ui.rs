@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::pdf::{Pdf, PdfOperation};
+use block_editor_plugin::be_block::PdfContent;
 use block_editor_plugin::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_plugin::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo,
@@ -17,7 +17,7 @@ const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 
 #[component]
 pub fn PdfEditor(editor: Editor) -> NodeId {
-    let block = editor.block::<Pdf>();
+    let block = editor.block_content::<PdfContent>();
     let pages = Pages::new();
     let chooser = FileChooser::new(filter(), imported);
     let shown = pages.shown();
@@ -27,7 +27,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
 
     let pumping = Rc::clone(&pages);
     let polled = Rc::clone(&chooser);
-    let operating = Rc::clone(&block);
+    let replacing = editor.clone();
     let host = editor.host().clone();
     let frame = editor.clone();
     let canvas = editor.canvas();
@@ -37,7 +37,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         let _measure = performance.measure("Editor frame");
         polled.poll(&host);
         if let Some(pdf) = polled.take() {
-            operating.operate(PdfOperation::Replace { pdf });
+            replacing.replace_content(replacing.block_id(), &pdf);
             pumping.go(0);
         }
         let content = frame.content_rect();
@@ -83,7 +83,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let refusal = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let opening = editor.host().clone();
     let choose = clone!(chooser -> move || chooser.open(&opening));
-    let source = block.project(|pdf| pdf.source_name().to_owned());
+    let source = block.project(|pdf| pdf.header().source_name.clone());
     let name = create_memo(clone!(source -> move || source.get()));
 
     let panning = editor.clone();
@@ -202,7 +202,7 @@ fn PageCanvas(
 
 #[component]
 pub fn PdfPreview(editor: Editor) -> NodeId {
-    let block = editor.block::<Pdf>();
+    let block = editor.block_content::<PdfContent>();
     let pages = Pages::new();
     let shown = pages.shown();
     let performance = editor

@@ -29,6 +29,7 @@ mod calendars_merge_each_event_field_by_field;
 mod cells_set_on_both_sides_of_one_row_merge_to_both;
 mod clearing_a_checklist_keeps_the_open_items;
 mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
+mod file_contents_check_what_they_hold_and_round_trip;
 mod streamed_content_separates_its_header_from_its_payload;
 mod text_merges_line_by_line_and_marks_real_conflicts;
 mod text_operations_rebase_onto_concurrent_edits;
@@ -43,6 +44,7 @@ fn header(name: &str) -> ImageHeader {
         media_type: "image/png".into(),
         width: 640,
         height: 480,
+        failure: None,
     }
 }
 
