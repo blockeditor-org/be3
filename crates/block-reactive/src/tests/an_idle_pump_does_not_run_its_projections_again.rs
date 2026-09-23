@@ -3,13 +3,13 @@ use super::*;
 #[test]
 fn an_idle_pump_does_not_run_its_projections_again() {
     let client = client();
-    let block = client.create_block(Calendar::default());
+    let block = client.create_block(Presentation::default());
     let source = BlockSource::new(block.clone(), || {});
     let runs = Rc::new(Cell::new(0));
     let counted = runs.clone();
-    let events = source.project(move |calendar: &Calendar| {
+    let slides = source.project(move |presentation: &Presentation| {
         counted.set(counted.get() + 1);
-        calendar.events().len()
+        presentation.slides().len()
     });
 
     assert_eq!(runs.get(), 1);
@@ -17,13 +17,13 @@ fn an_idle_pump_does_not_run_its_projections_again() {
         source.pump();
     }
     assert_eq!(runs.get(), 1);
-    assert_eq!(events.get_untracked(), 0);
+    assert_eq!(slides.get_untracked(), 0);
 
-    block.operate(add_event("write"));
-    block.operate(add_event("review"));
+    block.operate(add_slide(0));
+    block.operate(add_slide(1));
     source.pump();
     assert_eq!(runs.get(), 2);
-    assert_eq!(events.get_untracked(), 2);
+    assert_eq!(slides.get_untracked(), 2);
 
     source.pump();
     assert_eq!(runs.get(), 2);

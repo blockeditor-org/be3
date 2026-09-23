@@ -15,10 +15,7 @@ fn an_edit_from_elsewhere_leaves_the_other_rows_alone() {
     };
     let before = rows(&mut checklist);
 
-    checklist.arrive(ChecklistOp::SetText {
-        id: second,
-        text: "call the vet back".to_owned(),
-    });
+    checklist.arrive(ChecklistModel::set_text(second, "call the vet back"));
 
     assert_eq!(
         checklist.items(),

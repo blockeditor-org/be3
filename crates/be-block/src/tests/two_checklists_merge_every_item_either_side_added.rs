@@ -2,31 +2,19 @@ use super::*;
 
 #[test]
 fn two_checklists_merge_every_item_either_side_added() {
-    let base = listed(
-        &ChecklistContent::default(),
-        &[ChecklistOp::add("milk"), ChecklistOp::add("eggs")],
-    );
-    let milk = base.items()[0].id;
-    let eggs = base.items()[1].id;
-    let ours = listed(
+    let (milk, add_milk) = Checklist::add("milk");
+    let (eggs, add_eggs) = Checklist::add("eggs");
+    let base = edited(&ChecklistContent::default(), [add_milk, add_eggs]);
+    let ours = edited(
         &base,
-        &[
-            ChecklistOp::add("bread"),
-            ChecklistOp::SetDone {
-                id: milk,
-                done: true,
-            },
-        ],
+        [Checklist::add("bread").1, Checklist::set_done(milk, true)],
     );
-    let theirs = listed(
+    let theirs = edited(
         &base,
-        &[
-            ChecklistOp::add("jam"),
-            ChecklistOp::SetText {
-                id: milk,
-                text: "oat milk".into(),
-            },
-            ChecklistOp::Remove { id: eggs },
+        [
+            Checklist::add("jam").1,
+            Checklist::set_text(milk, "oat milk"),
+            Checklist::remove(eggs),
         ],
     );
 
@@ -34,8 +22,18 @@ fn two_checklists_merge_every_item_either_side_added() {
         panic!("the two sides changed different things");
     };
 
+    let items: Vec<(String, bool)> = merged
+        .root()
+        .items
+        .iter()
+        .map(|item| (item.text.clone(), item.done))
+        .collect();
     assert_eq!(
-        texts(&merged),
-        [("oat milk", true), ("bread", false), ("jam", false)]
+        items,
+        [
+            ("oat milk".to_owned(), true),
+            ("bread".to_owned(), false),
+            ("jam".to_owned(), false)
+        ]
     );
 }

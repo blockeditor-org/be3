@@ -7,8 +7,9 @@ use block::Block;
 use block_client::blocks::web_browser_tab::WebBrowserTab;
 
 fn titled(block: Uuid, title: &str) {
-    crate::be::operate(
+    crate::be::operate_from(
         block,
+        0,
         BrowserTabContent::encode_operation(&BrowserTabOp::Replace(HistoryItem {
             url: "https://example.com/".into(),
             title: title.into(),

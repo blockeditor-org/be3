@@ -194,6 +194,20 @@ impl Screens {
                 };
                 session.set_block_content(Uuid::from_bytes(*content_type), bytes.clone(), *applied);
             }
+            Message::Editor(EditorMessage::ContentOperations {
+                instance,
+                operations,
+            }) => {
+                let Some(session) = self.sessions.get(instance) else {
+                    return false;
+                };
+                session.push_content_operations(
+                    operations
+                        .iter()
+                        .map(|operation| (operation.operation.clone(), operation.mine))
+                        .collect(),
+                );
+            }
             Message::Editor(EditorMessage::FocusChanged {
                 instance,
                 block_id,
@@ -222,6 +236,11 @@ impl Screens {
                         via.map(Uuid::from_bytes),
                         from.map(Uuid::from_bytes),
                     );
+                }
+            }
+            Message::Editor(EditorMessage::HistoryStates { instance, states }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.set_histories(states);
                 }
             }
             Message::Editor(EditorMessage::ArtifactStates { instance, states }) => {

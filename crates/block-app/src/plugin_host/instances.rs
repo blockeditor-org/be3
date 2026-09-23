@@ -67,6 +67,8 @@ struct Instance {
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     reported_artifacts: Vec<block_plugin_api::ArtifactState>,
+    history_watch: Vec<Uuid>,
+    reported_history: Option<Vec<block_plugin_api::HistoryState>>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
@@ -94,8 +96,8 @@ struct Instance {
 struct ContentLink {
     content_type: Uuid,
     opened: bool,
-    applied: u64,
-    sent: Option<(u64, u64)>,
+    origin: u64,
+    sent: Option<u64>,
     named: Option<u64>,
     old_block: Option<Box<dyn BlockHandleAccess>>,
 }
@@ -152,6 +154,8 @@ impl Instance {
             focus_reports: Vec::new(),
             artifact_watch: None,
             reported_artifacts: Vec::new(),
+            history_watch: Vec::new(),
+            reported_history: None,
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
@@ -178,7 +182,7 @@ impl Instance {
                     crate::be::content_type_for(block.block_type).map(|content_type| ContentLink {
                         content_type,
                         opened: false,
-                        applied: 0,
+                        origin: crate::be::next_origin(),
                         sent: None,
                         named: None,
                         old_block: None,
@@ -194,27 +198,63 @@ impl Instance {
     fn content_message(&mut self, instance: EditorInstanceId) -> Option<Message> {
         let block = self.role.block()?;
         let link = self.content.as_mut()?;
-        let Some(content) = crate::be::content(block.id) else {
+        if crate::be::content(block.id).is_none() {
             if !std::mem::replace(&mut link.opened, true) {
                 crate::be::open(block.id, link.content_type);
             }
             return None;
-        };
-        let state = (content.revision, link.applied);
-        if link.sent == Some(state) {
-            return None;
         }
-        link.sent = Some(state);
-        Some(Message::Editor(EditorMessage::Content {
-            instance,
-            content_type: content.content_type.into_bytes(),
-            bytes: content.bytes,
-            applied: link.applied,
+        let (revision, update) = crate::be::update_since(block.id, link.origin, link.sent)?;
+        link.sent = Some(revision);
+        Some(Message::Editor(match update {
+            crate::be::Update::Snapshot {
+                content_type,
+                bytes,
+                applied,
+            } => EditorMessage::Content {
+                instance,
+                content_type: content_type.into_bytes(),
+                bytes,
+                applied,
+            },
+            crate::be::Update::Operations(operations) => EditorMessage::ContentOperations {
+                instance,
+                operations: operations
+                    .into_iter()
+                    .map(|(operation, mine)| block_plugin_api::ContentOperation { operation, mine })
+                    .collect(),
+            },
         }))
     }
 }
 
 impl Instance {
+    fn history_message(&mut self, instance: EditorInstanceId) -> Option<Message> {
+        if self.history_watch.is_empty() && self.reported_history.is_none() {
+            return None;
+        }
+        let states: Vec<_> = self
+            .history_watch
+            .iter()
+            .map(|block| {
+                let history = crate::be::history(*block);
+                block_plugin_api::HistoryState {
+                    block_id: block.into_bytes(),
+                    can_undo: history.can_undo,
+                    can_redo: history.can_redo,
+                }
+            })
+            .collect();
+        if self.reported_history.as_ref() == Some(&states) {
+            return None;
+        }
+        self.reported_history = Some(states.clone());
+        Some(Message::Editor(EditorMessage::HistoryStates {
+            instance,
+            states,
+        }))
+    }
+
     fn name_from_content(&mut self, client: &BlockClient) {
         let Some(block) = self.role.block() else {
             return;
@@ -781,6 +821,9 @@ impl Instances {
                 opened.push(message);
             }
             entry.name_from_content(client);
+            if let Some(message) = entry.history_message(instance) {
+                opened.push(message);
+            }
             if entry.reported_focus.as_ref() != Some(&focus) {
                 entry.reported_focus = Some(focus.clone());
                 let (block_id, block_type) = match focus.block {
@@ -1703,6 +1746,13 @@ impl Instances {
                 });
                 true
             }
+            EditorMessage::WatchHistory { instance, blocks } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.history_watch = blocks.into_iter().map(Uuid::from_bytes).collect();
+                true
+            }
             EditorMessage::WatchArtifacts { instance, blocks } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
@@ -1762,8 +1812,7 @@ impl Instances {
                 else {
                     return false;
                 };
-                link.applied += 1;
-                crate::be::operate(block.id, operation);
+                crate::be::operate_from(block.id, link.origin, operation);
                 true
             }
             EditorMessage::DragAccepted { instance, accepted } => {

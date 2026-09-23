@@ -3,25 +3,23 @@ use super::*;
 #[test]
 fn editing_one_item_wakes_only_the_bindings_that_read_it() {
     let client = client();
-    let block = client.create_block(Calendar::default());
-    for title in ["write", "review", "ship"] {
-        block.operate(CalendarOperation::AddEvent {
-            event: CalendarEvent::new(title.to_owned(), 0, 60),
-        });
+    let block = client.create_block(Presentation::default());
+    for index in 0..3 {
+        block.operate(add_slide(index));
     }
     let ids: Vec<Uuid> = block
         .read()
         .unwrap()
-        .events()
+        .slides()
         .iter()
-        .map(|event| event.id)
+        .map(|slide| slide.id)
         .collect();
 
     let source = BlockSource::new(block.clone(), || {});
-    let items = source.project_keyed(|calendar, items| {
-        items.reconcile(calendar.events().iter().map(|event| (event.id, event)));
+    let items = source.project_keyed(|presentation, items| {
+        items.reconcile(presentation.slides().iter().map(|slide| (slide.id, slide)));
     });
-    let done = source.project(|calendar: &Calendar| calendar.events().len());
+    let done = source.project(|presentation: &Presentation| presentation.slides().len());
 
     let scope = Scope::new();
     let runs: Vec<Rc<Cell<usize>>> = ids.iter().map(|_| Rc::new(Cell::new(0))).collect();
@@ -46,9 +44,10 @@ fn editing_one_item_wakes_only_the_bindings_that_read_it() {
     }
     done_runs.set(0);
 
-    let mut renamed = block.read().unwrap().event(ids[1]).unwrap().clone();
-    renamed.title = "review again".to_owned();
-    block.operate(CalendarOperation::UpdateEvent { event: renamed });
+    block.operate(PresentationOperation::SetBlockId {
+        slide_id: ids[1],
+        block_id: BlockRef::Direct(Uuid::new_v4()),
+    });
     source.pump();
 
     assert_eq!(

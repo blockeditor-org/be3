@@ -105,17 +105,11 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
     if debugging && !ceiling.can_view() {
         workspace.debug(item.id, false);
     }
-    let history = access
-        .can_edit()
-        .then(|| {
-            workspace.read_handle(item, |handle| {
-                handle.history().map_or((false, false), |history| {
-                    (history.can_undo(), history.can_redo())
-                })
-            })
-        })
-        .flatten()
-        .unwrap_or((false, false));
+    let history = if access.can_edit() {
+        workspace.history(item)
+    } else {
+        (false, false)
+    };
     let parent = workspace
         .read_handle(item, |handle| {
             handle

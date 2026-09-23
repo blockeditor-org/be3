@@ -1,8 +1,9 @@
 use super::*;
 use crate::{
     browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem},
-    checklist::{ChecklistContent, ChecklistOp},
-    counter::{CounterContent, CounterOp},
+    calendar::{Calendar, CalendarContent, CalendarEvent},
+    checklist::{Checklist, ChecklistContent},
+    counter::{Counter, CounterContent},
     image::{ImageContent, ImageHeader},
     text::{TextContent, TextLanguage, TextOp},
     ui_settings::{UiSettingsContent, UiSettingsOp},
@@ -10,16 +11,16 @@ use crate::{
 
 mod a_browser_tab_is_named_after_its_page_and_refuses_a_bad_index;
 mod a_browser_tab_push_discards_forward_history;
-mod a_checklist_ignores_a_second_add_of_one_item;
-mod a_checklist_round_trips_through_its_bytes;
-mod a_counter_reset_wins_over_the_adds_before_it;
-mod a_counter_round_trips_through_its_bytes;
+mod a_calendar_undo_keeps_what_someone_else_changed_since;
+mod a_calendar_update_writes_only_the_fields_that_changed;
+mod a_counter_reset_undoes_back_to_its_count;
 mod an_image_merges_only_when_one_side_changed_it;
 mod browser_tabs_navigated_on_both_sides_conflict;
+mod calendars_merge_each_event_field_by_field;
+mod clearing_a_checklist_keeps_the_open_items;
 mod streamed_content_separates_its_header_from_its_payload;
 mod text_merges_line_by_line_and_marks_real_conflicts;
 mod text_operations_rebase_onto_concurrent_edits;
-mod two_checklists_conflict_only_where_both_changed_one_field;
 mod two_checklists_merge_every_item_either_side_added;
 mod two_counters_merge_by_keeping_both_sides_of_the_count;
 mod ui_settings_keep_the_zoom_in_bounds;
@@ -45,26 +46,15 @@ fn applied(start: &str, operations: &[TextOp]) -> String {
     content.text()
 }
 
-fn counted(start: CounterContent, operations: &[CounterOp]) -> CounterContent {
-    let mut content = start;
-    for operation in operations {
-        content.apply(operation);
-    }
-    content
-}
-
-fn listed(start: &ChecklistContent, operations: &[ChecklistOp]) -> ChecklistContent {
+fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {
     let mut content = start.clone();
-    for operation in operations {
-        content.apply(operation);
+    for edit in edits {
+        content.apply(&edit);
     }
     content
 }
 
-fn texts(checklist: &ChecklistContent) -> Vec<(&str, bool)> {
-    checklist
-        .items()
-        .iter()
-        .map(|item| (item.text.as_str(), item.done))
-        .collect()
+fn scheduled() -> (CalendarContent, crate::ObjectId) {
+    let (id, add) = Calendar::add(&CalendarEvent::new("Standup", 540, 555));
+    (edited(&CalendarContent::default(), [add]), id)
 }

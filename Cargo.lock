@@ -615,6 +615,7 @@ name = "be-block"
 version = "0.1.0"
 dependencies = [
  "be-commit",
+ "be-model",
  "postcard",
  "serde",
  "uuid",
@@ -661,6 +662,26 @@ dependencies = [
  "be-store",
  "serde",
  "uuid",
+]
+
+[[package]]
+name = "be-model"
+version = "0.1.0"
+dependencies = [
+ "be-commit",
+ "be-model-derive",
+ "postcard",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "be-model-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]

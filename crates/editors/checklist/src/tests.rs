@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use block_client::BlockClient;
 use block_client::blocks::checklist::Checklist;
-use block_editor_plugin::be_block::{BlockContent, ChecklistContent, ChecklistOp, LiveEdit};
+use block_editor_plugin::be_block::{
+    BlockContent, Checklist as ChecklistModel, ChecklistContent, Edit, LiveEdit, ObjectId,
+};
 use block_editor_plugin::beui::Document;
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
@@ -30,13 +32,10 @@ impl Harness {
         let editor = Editor::new(host.clone(), client, block.id());
         let mut content = ChecklistContent::default();
         for (text, done) in items {
-            let add = ChecklistOp::add(*text);
-            let ChecklistOp::Add { id, .. } = add else {
-                unreachable!("add builds an add operation")
-            };
+            let (id, add) = ChecklistModel::add(*text);
             content.apply(&add);
             if *done {
-                content.apply(&ChecklistOp::SetDone { id, done: true });
+                content.apply(&ChecklistModel::set_done(id, true));
             }
         }
         let mut harness = Self {
@@ -74,7 +73,7 @@ impl Harness {
         );
     }
 
-    fn arrive(&mut self, operation: ChecklistOp) {
+    fn arrive(&mut self, operation: Edit) {
         self.content.apply(&operation);
         self.publish();
         self.run();
@@ -100,13 +99,14 @@ impl Harness {
 
     fn items(&self) -> Vec<(String, bool)> {
         self.content
-            .items()
+            .root()
+            .items
             .iter()
             .map(|item| (item.text.clone(), item.done))
             .collect()
     }
 
-    fn id(&self, index: usize) -> Uuid {
-        self.content.items()[index].id
+    fn id(&self, index: usize) -> ObjectId {
+        self.content.root().items[index].id
     }
 }
