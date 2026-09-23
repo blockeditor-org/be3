@@ -12,7 +12,9 @@ use uuid::Uuid;
 use crate::app::LogicGridApp;
 
 mod a_number_key_picks_a_tool_and_a_click_places_a_gate;
+mod dragging_a_hotbar_slot_onto_another_moves_it_there;
 mod dragging_with_the_wire_tool_draws_a_wire;
+mod dropping_a_hotbar_slot_on_an_open_folder_puts_it_inside;
 mod the_rename_setting_writes_the_artifact_draft;
 
 fn editor() -> (BeuiTest<LogicGridApp>, BlockHandle<LogicGrid>) {

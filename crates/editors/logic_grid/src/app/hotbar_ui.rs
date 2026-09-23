@@ -259,6 +259,7 @@ fn HotbarColumn(session: Rc<Session>, zones: Rc<DropZones>, column: usize) -> No
     }));
     view! {
         <Frame
+            @test_id={format!("logic-grid.column.{column}")}
             color={fill}
             radius=4
             padding_horizontal=COLUMN_PADDING
@@ -324,38 +325,43 @@ fn HotbarSlotButton(session: Rc<Session>, zones: Rc<DropZones>, path: Vec<usize>
     let (hovered, set_hovered) = create_signal(false);
     let on_hover_change = move |over: bool| set_hovered.set(over);
     let pressed_at = Rc::new(Cell::new(None::<Pos2>));
+    let dragged_to = Rc::new(Cell::new(None::<Pos2>));
     let disabled = create_memo(clone!(shown -> move || {
         shown.get().is_none_or(|slot| slot.disabled)
     }));
-    let on_press = clone!(pressed_at -> move |press: PointerPress| pressed_at.set(Some(press.pos)));
-    let on_drag = clone!(session path pressed_at disabled -> move |press: PointerPress| {
+    let on_press = clone!(pressed_at dragged_to -> move |press: PointerPress| {
+        pressed_at.set(Some(press.pos));
+        dragged_to.set(None);
+    });
+    let on_drag = clone!(session path pressed_at dragged_to disabled -> move |press: PointerPress| {
         let Some(start) = pressed_at.get() else {
             return;
         };
-        if disabled.get_untracked()
-            || (press.pos - start).length() < DRAG_DISTANCE
-            || session.peek(|model| model.hotbar_drag.is_some())
+        if dragged_to.get().is_none()
+            && (disabled.get_untracked() || (press.pos - start).length() < DRAG_DISTANCE)
         {
             return;
         }
-        session.update(|model| model.hotbar_drag = Some(path.clone()));
+        let started = dragged_to.replace(Some(press.pos)).is_none();
+        if started {
+            session.update(|model| model.hotbar_drag = Some(path.clone()));
+        }
     });
-    let on_click_at = clone!(session path zones disabled -> move |press: PointerPress| {
-        if session.peek(|model| model.hotbar_drag.is_some()) {
-            let target = zones.target_at(press.pos);
-            session.update(|model| model.drop_hotbar_slot(target));
-        } else if !disabled.get_untracked() {
+    let on_click_at = clone!(session path dragged_to disabled -> move |_: PointerPress| {
+        if dragged_to.get().is_none() && !disabled.get_untracked() {
             session.update(|model| model.click_hotbar_slot(path.clone()));
         }
     });
-    let on_active_change = clone!(session pressed_at -> move |active: bool| {
+    let on_active_change = clone!(session zones pressed_at dragged_to -> move |active: bool| {
         if active {
             return;
         }
         pressed_at.set(None);
-        if session.peek(|model| model.hotbar_drag.is_some()) {
-            session.update(|model| model.hotbar_drag = None);
-        }
+        let Some(dropped) = dragged_to.take() else {
+            return;
+        };
+        let target = zones.target_at(dropped);
+        session.update(|model| model.drop_hotbar_slot(target));
     });
     let on_activate = clone!(session path disabled -> move || {
         if !disabled.get_untracked() {

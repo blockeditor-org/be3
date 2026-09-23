@@ -315,14 +315,15 @@ impl LogicGridEditor {
         let (Some(source), Some(target)) = (self.hotbar_drag.take(), target) else {
             return;
         };
-        match target {
-            HotbarDropTarget::Slot(target) => {
-                move_hotbar_slot(&mut self.hotbar, &source, &target);
-            }
+        let placed = match target {
+            HotbarDropTarget::Slot(target) => move_hotbar_slot(&mut self.hotbar, &source, &target),
             HotbarDropTarget::Folder(target) => {
-                move_hotbar_slot_to_folder(&mut self.hotbar, &source, &target);
+                move_hotbar_slot_to_folder(&mut self.hotbar, &source, &target)
             }
-        }
+        };
+        let Some(placed) = placed else {
+            return;
+        };
         self.persist_hotbar();
         if self
             .active_hotbar_slot
@@ -334,6 +335,11 @@ impl LogicGridEditor {
         if self.active_hotbar_folder.starts_with(&source) {
             self.active_hotbar_folder.clear();
         }
+        self.active_hotbar_folder = followed(&self.active_hotbar_folder, &source, &placed);
+        self.active_hotbar_slot = self
+            .active_hotbar_slot
+            .as_deref()
+            .map(|path| followed(path, &source, &placed));
     }
 }
 #[derive(Debug, PartialEq, Eq)]
@@ -584,51 +590,77 @@ pub(super) fn hotbar_slot_drop_target(
     get_hotbar_slot(slots, path).map(|_| HotbarDropTarget::Slot(path.to_vec()))
 }
 
+fn followed(path: &[usize], removed: &[usize], inserted: &[usize]) -> Vec<usize> {
+    shifted_after_insertion(&shifted_after_removal(path, removed), inserted)
+}
+
+pub(super) fn shifted_after_removal(path: &[usize], removed: &[usize]) -> Vec<usize> {
+    let mut path = path.to_vec();
+    let Some((index, parent)) = removed.split_last() else {
+        return path;
+    };
+    let level = parent.len();
+    if path.len() > level && path[..level] == *parent && path[level] > *index {
+        path[level] -= 1;
+    }
+    path
+}
+
+pub(super) fn shifted_after_insertion(path: &[usize], inserted: &[usize]) -> Vec<usize> {
+    let mut path = path.to_vec();
+    let Some((index, parent)) = inserted.split_last() else {
+        return path;
+    };
+    let level = parent.len();
+    if path.len() > level && path[..level] == *parent && path[level] >= *index {
+        path[level] += 1;
+    }
+    path
+}
+
 pub(super) fn move_hotbar_slot_to_folder(
     slots: &mut Vec<HotbarSlot>,
     source: &[usize],
     folder_path: &[usize],
-) {
+) -> Option<Vec<usize>> {
     if source == folder_path || folder_path.starts_with(source) {
-        return;
+        return None;
     }
-    let Some(slot) = remove_hotbar_slot_at(slots, source) else {
-        return;
-    };
-
-    let mut adjusted_folder = folder_path.to_vec();
-    if !folder_path.is_empty()
-        && source.len() == folder_path.len()
-        && source[..source.len() - 1] == folder_path[..folder_path.len() - 1]
-        && source[source.len() - 1] < folder_path[folder_path.len() - 1]
-    {
-        *adjusted_folder
-            .last_mut()
-            .expect("folder path is non-empty") -= 1;
-    }
-
-    get_hotbar_slots_mut(slots, &adjusted_folder).push(slot);
+    let slot = remove_hotbar_slot_at(slots, source)?;
+    let adjusted_folder = shifted_after_removal(folder_path, source);
+    let folder = get_hotbar_slots_mut(slots, &adjusted_folder);
+    folder.push(slot);
+    let mut placed = adjusted_folder;
+    placed.push(folder.len() - 1);
+    Some(placed)
 }
 
-pub(super) fn move_hotbar_slot(slots: &mut Vec<HotbarSlot>, source: &[usize], target: &[usize]) {
+pub(super) fn move_hotbar_slot(
+    slots: &mut Vec<HotbarSlot>,
+    source: &[usize],
+    target: &[usize],
+) -> Option<Vec<usize>> {
     if source == target || target.starts_with(source) {
-        return;
+        return None;
     }
-    let Some(slot) = remove_hotbar_slot_at(slots, source) else {
-        return;
-    };
+    let slot = remove_hotbar_slot_at(slots, source)?;
 
     if target.is_empty() {
         slots.push(slot);
-        return;
+        return Some(vec![slots.len() - 1]);
     }
 
-    let adjusted_target = target.to_vec();
-    let Some((index, parent_path)) = adjusted_target.split_last() else {
-        return;
+    let adjusted_target = match target.len() > source.len() {
+        true => shifted_after_removal(target, source),
+        false => target.to_vec(),
     };
+    let (index, parent_path) = adjusted_target.split_last()?;
     let parent = get_hotbar_slots_mut(slots, parent_path);
-    parent.insert((*index).min(parent.len()), slot);
+    let index = (*index).min(parent.len());
+    parent.insert(index, slot);
+    let mut placed = parent_path.to_vec();
+    placed.push(index);
+    Some(placed)
 }
 
 pub(super) fn step_scale(scale: &mut Scale, direction: ScaleDirection) {
