@@ -84,15 +84,74 @@ Reads are all a developer needs; `BLOCKS_CACHE_UPLOAD=1` turns on writes and is
 CI's, because a cache anyone can write to is a cache anyone can use to hand
 every machine that reads it a compiler output of their choosing.
 
-To point the same checkout at BuildBuddy instead, for comparing a hosted cache
-against this one, set `BUILDBUDDY_API_KEY` and it takes precedence:
+### BuildBuddy
+
+The same checkout can use BuildBuddy instead, as a cache or as a build farm.
+`BUILDBUDDY_API_KEY` takes precedence over `BLOCKS_CACHE_AUTH` when both are
+set:
 
 ```
 export BUILDBUDDY_API_KEY=<key>
+export BUILDBUDDY_REMOTE_EXECUTION=1     # leave out for cache only
 buck2 killall && ./scripts/buck test //crates/... --exclude cargo-only
 ```
 
-Three things about that configuration are not guessable. The address is a bare
+The `killall` matters whenever the key changes: `.buckconfig.local` names the
+variable rather than holding the key, and buck2 expands it from the daemon's
+environment, which is the one it was started with.
+
+As a cache it is the shared cache with a different address, and the same rule
+holds: `BUILDBUDDY_UPLOAD=1` turns on writes, and without it nothing is written.
+
+With `BUILDBUDDY_REMOTE_EXECUTION=1` the actions run on BuildBuddy's workers.
+BuildBuddy writes the result of every action a worker ran to its own cache, so
+this needs no `BUILDBUDDY_UPLOAD`, and a miss costs a worker's time rather than
+this machine's:
+
+```
+./scripts/buck build //crates/...    # BuildBuddy empty, nothing on this machine
+Commands: 4699 (cached: 0, remote: 4699, local: 0)
+real    4m07s
+
+./scripts/buck test //crates/... --exclude cargo-only    # after buck2 clean
+Cache hits: 100%
+Commands: 3610 (cached: 3610, remote: 0, local: 0)
+Network: up 1.5MiB  down 737MiB
+Tests finished: Pass 68. Fail 0.
+real    0m20s
+```
+
+Four minutes is the whole workspace from nothing, on a four-core machine that
+takes nine to build `beui` and one plugin locally. What makes it possible is
+that a worker has nothing of ours on it: the container is Ubuntu 24.04's
+`buildpack-deps`, pinned by digest in `buck/remote/defs.bzl`, and the compilers
+come with the build. `buck/remote/BUCK` downloads rust-toolchain.toml's Rust
+from static.rust-lang.org and Ubuntu's clang-20, lld and llvm-ar packages from
+Launchpad, all pinned by hash, and `buck/toolchains/BUCK` uses those instead of
+`buck/tools` when remote execution is on. They reach a worker as inputs of the
+actions that run them, so this machine needs neither a Rust toolchain nor clang
+to build remotely, and does not write `buck/tools` at all.
+
+Because the tools differ, the two modes do not share cache entries: an action
+compiled by this machine's rustc is not the same action as one compiled by the
+downloaded one, even when they are the same version.
+
+Most tests run on the workers as well. Two kinds stay here, because a worker
+cannot do what they do:
+
+- **The plugin tests** read the accepted paintings out of `snapshots/` in the
+  working tree and write the ones that changed back into it, and may open a
+  graphics adapter.
+- **`beui`'s renderer tests** draw through a real graphics adapter, and the
+  container has none. Its `rust_test` says `remote_execution = "disabled"`.
+
+buck2 keeps every test local unless it is told otherwise, so `./scripts/buck`
+adds `--unstable-allow-compatible-tests-on-re` to a test run under remote
+execution. "Compatible" is what separates the two: a Rust test runs from the
+project root with project-relative paths, which is what a worker can give it,
+and the plugin tests' rule asks for absolute ones.
+
+Three things about the connection are not guessable. The address is a bare
 `remote.buildbuddy.io:443`: buck2 parses it itself and rejects both `grpcs://`
 and `https://` with `Invalid URI`. `http_headers` separates name from value
 with a colon, not an equals sign. And the instance name is empty rather than
@@ -105,7 +164,7 @@ succeeds and reports no hits. The rejection is in the event log rather than on
 screen, so that is where to look when a cache that should be warm is not:
 
 ```
-buck2 log show | grep -i 'invalid api key\|re_error_code'
+buck2 log show | grep -i 'invalid api key'
 ```
 
 The server is a [bazel-remote](https://github.com/buchgr/bazel-remote) speaking
@@ -185,30 +244,31 @@ them needs `Path.relative_to(walk_up=True)`, which arrived in 3.12.
 
 ## Is this hermetic, and does it need a build server?
 
-No, and no.
+Locally, no. Under remote execution, very nearly.
 
 A hermetic toolchain means the compilers are downloaded and content-addressed,
-so every machine has the same ones. That needs downloads, not a server, and for
-rustc it is already effectively true: `rust-toolchain.toml` pins the version and
-rustup gives every checkout the same one, which is why the rustc wrapper says
-the same thing everywhere without anything being downloaded.
+so every machine has the same ones. That needs downloads, not a server. For
+rustc it is already effectively true locally: `rust-toolchain.toml` pins the
+version and rustup gives every checkout the same one, which is why the rustc
+wrapper says the same thing everywhere without anything being downloaded.
 
-A hermetic *build* is a bigger claim: that the whole input root is declared. It
-is not, and downloading clang would not make it so. The C compiles read
-`/usr/include`, and the links resolve `-lasound` and the system libc, none of
-which buck2 sees. Two machines would compute the same action digest from
+A hermetic *build* is a bigger claim: that the whole input root is declared.
+Locally it is not, and downloading clang would not make it so. The C compiles
+read `/usr/include`, and the links resolve `-lasound` and the system libc, none
+of which buck2 sees. Two machines would compute the same action digest from
 different inputs - which is worse than not sharing, because it is sharing that
-is wrong. Completing the input root is what remote execution buys, by running
-each action in a declared container image.
+is wrong. That is why uploads from a local build are CI's alone: a machine
+whose C output would differ never poisons anything, it just compiles those
+actions itself, which is under a minute.
 
-That is not worth a build server here. The C toolchain touches about a tenth of
-the graph, the C compiles inside it never hit the cache anyway, and uploads are
-CI's alone, so a machine whose C output would differ never poisons anything -
-it just compiles those actions itself, which is under a minute. If heterogeneous
-machines ever do become the problem, developing in the image CI uses is the
-cheap answer and gets the same soundness for none of the operational surface.
-Remote execution is the answer to a different question: making *misses* fast by
-fanning them out.
+Remote execution closes that gap from the other side. The part of the input
+root buck2 does not see is the container, and the container is pinned by
+digest and is part of every action's key, so an action names everything it
+could have read. The compilers are downloads, pinned by hash. What is left
+undeclared is the kernel of whichever worker ran it.
+
+What remote execution buys is not mainly soundness, though: it is making a
+*miss* fast by fanning it out, which is the four minutes above against forty.
 
 ## WebAssembly
 
@@ -501,10 +561,14 @@ The gaps, roughly in the order they are worth closing:
   on a fresh checkout. Everything else hits. The cause is somewhere in how buck2
   keys dep-file-tracked compiles; turning on the remote dep file cache does not
   change it.
-- **No remote execution.** The cache answers with results; nothing runs on
-  another machine, so a miss is as slow as it ever was. That is a separate
-  switch (`remote_enabled` in `buck/platforms/BUCK`) and needs workers rather
-  than storage; the section above says when it would be worth it.
+- **CI does not use remote execution.** Its buck2 job still builds on the
+  runner against the shared cache. Moving it is a matter of giving it a
+  BuildBuddy key and `BUILDBUDDY_REMOTE_EXECUTION=1`; the plugin tests would
+  still run on the runner, for the reasons above.
+- **Remote execution is Linux and x86_64 only**, like the rest of this, and the
+  plugin tests and `beui`'s renderer tests run locally under it. A container
+  with Mesa's software Vulkan in it would let the GPU tests move, but that is
+  an image of our own to build and host rather than a public one.
 
 ## Where the tools come from
 

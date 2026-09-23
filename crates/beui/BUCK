@@ -85,5 +85,8 @@ rust_test(
         "render",
         "window",
     ],
+    # The renderer's tests draw through a real graphics adapter, and a remote
+    # worker's container has none, so these stay on the machine that asked.
+    remote_execution = "disabled",
     srcs = glob(["src/**/*.rs", "assets/**/*", "examples/**/*.rs", "src/**/*.wgsl"]),
 )

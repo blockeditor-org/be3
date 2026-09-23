@@ -1,4 +1,4 @@
-load("@prelude//cxx:cxx_toolchain_types.bzl", "LinkerType")
+load("@prelude//cxx:cxx_toolchain_types.bzl", "CxxPlatformInfo", "CxxToolchainInfo", "LinkerInfo", "LinkerType")
 load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustToolchainInfo")
 load("@prelude//toolchains:cxx.bzl", "CxxToolsInfo")
 
@@ -31,15 +31,15 @@ def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
     return [
         DefaultInfo(),
         CxxToolsInfo(
-            archiver = ctx.attrs.archiver,
+            archiver = ctx.attrs.archiver[RunInfo].args,
             archiver_type = "gnu",
-            asm_compiler = ctx.attrs.compiler,
+            asm_compiler = ctx.attrs.compiler[RunInfo].args,
             asm_compiler_type = "clang",
-            compiler = ctx.attrs.compiler,
+            compiler = ctx.attrs.compiler[RunInfo].args,
             compiler_type = "clang",
             cvtres_compiler = None,
-            cxx_compiler = ctx.attrs.cxx_compiler,
-            linker = ctx.attrs.cxx_compiler,
+            cxx_compiler = ctx.attrs.cxx_compiler[RunInfo].args,
+            linker = ctx.attrs.cxx_compiler[RunInfo].args,
             linker_type = LinkerType("gnu"),
             rc_compiler = None,
         ),
@@ -48,9 +48,9 @@ def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
 # The same tools prelude//toolchains/cxx/clang:path_clang_tools names, as files.
 host_cxx_tools = rule(
     attrs = {
-        "archiver": attrs.source(),
-        "compiler": attrs.source(),
-        "cxx_compiler": attrs.source(),
+        "archiver": attrs.exec_dep(providers = [RunInfo]),
+        "compiler": attrs.exec_dep(providers = [RunInfo]),
+        "cxx_compiler": attrs.exec_dep(providers = [RunInfo]),
     },
     impl = _host_cxx_tools_impl,
 )
@@ -66,15 +66,15 @@ def _wasm_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
     return [
         DefaultInfo(),
         CxxToolsInfo(
-            archiver = ctx.attrs.archiver,
+            archiver = ctx.attrs.archiver[RunInfo].args,
             archiver_type = "gnu",
-            asm_compiler = ctx.attrs.compiler,
+            asm_compiler = ctx.attrs.compiler[RunInfo].args,
             asm_compiler_type = "clang",
-            compiler = ctx.attrs.compiler,
+            compiler = ctx.attrs.compiler[RunInfo].args,
             compiler_type = "clang",
             cvtres_compiler = None,
-            cxx_compiler = ctx.attrs.cxx_compiler,
-            linker = ctx.attrs.linker,
+            cxx_compiler = ctx.attrs.cxx_compiler[RunInfo].args,
+            linker = ctx.attrs.linker[RunInfo].args,
             linker_type = LinkerType("wasm"),
             rc_compiler = None,
         ),
@@ -82,10 +82,10 @@ def _wasm_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
 
 wasm_cxx_tools = rule(
     attrs = {
-        "archiver": attrs.source(),
-        "compiler": attrs.source(),
-        "cxx_compiler": attrs.source(),
-        "linker": attrs.source(),
+        "archiver": attrs.exec_dep(providers = [RunInfo]),
+        "compiler": attrs.exec_dep(providers = [RunInfo]),
+        "cxx_compiler": attrs.exec_dep(providers = [RunInfo]),
+        "linker": attrs.exec_dep(providers = [RunInfo]),
     },
     impl = _wasm_cxx_tools_impl,
 )
@@ -100,9 +100,9 @@ def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
         DefaultInfo(),
         RustToolchainInfo(
             allow_lints = ctx.attrs.allow_lints,
-            clippy_driver = RunInfo(args = cmd_args(ctx.attrs.clippy_driver)),
+            clippy_driver = ctx.attrs.clippy_driver[RunInfo],
             clippy_toml = ctx.attrs.clippy_toml,
-            compiler = RunInfo(args = cmd_args(ctx.attrs.compiler)),
+            compiler = ctx.attrs.compiler[RunInfo],
             default_edition = ctx.attrs.default_edition,
             deny_lints = ctx.attrs.deny_lints,
             doctests = ctx.attrs.doctests,
@@ -113,7 +113,7 @@ def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
             rustc_flags = ctx.attrs.rustc_flags,
             rustc_target_triple = ctx.attrs.rustc_target_triple,
             rustc_test_flags = ctx.attrs.rustc_test_flags,
-            rustdoc = RunInfo(args = cmd_args(ctx.attrs.rustdoc)),
+            rustdoc = ctx.attrs.rustdoc[RunInfo],
             rustdoc_flags = ctx.attrs.rustdoc_flags,
             warn_lints = ctx.attrs.warn_lints,
         ),
@@ -122,9 +122,9 @@ def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
 pinned_rust_toolchain = rule(
     attrs = {
         "allow_lints": attrs.list(attrs.string(), default = []),
-        "clippy_driver": attrs.source(),
+        "clippy_driver": attrs.exec_dep(providers = [RunInfo]),
         "clippy_toml": attrs.source(),
-        "compiler": attrs.source(),
+        "compiler": attrs.exec_dep(providers = [RunInfo]),
         "default_edition": attrs.option(attrs.string(), default = None),
         "deny_lints": attrs.list(attrs.string(), default = []),
         "doctests": attrs.bool(default = False),
@@ -134,10 +134,54 @@ pinned_rust_toolchain = rule(
         "rustc_flags": attrs.list(attrs.arg(), default = []),
         "rustc_target_triple": attrs.string(),
         "rustc_test_flags": attrs.list(attrs.arg(), default = []),
-        "rustdoc": attrs.source(),
+        "rustdoc": attrs.exec_dep(providers = [RunInfo]),
         "rustdoc_flags": attrs.list(attrs.arg(), default = []),
         "warn_lints": attrs.list(attrs.string(), default = []),
     },
     impl = _pinned_rust_toolchain_impl,
+    is_toolchain_rule = True,
+)
+
+# A cxx toolchain whose links may run on a remote worker.
+#
+# prelude//toolchains:cxx.bzl hard-codes every link and archive to run locally,
+# which is the right call for a toolchain that is whatever is on PATH: a worker
+# would not have it. Under remote execution the toolchain is buck/remote's, and
+# a worker has exactly that, so the preference only costs a download - the
+# whole compiler and every rlib a binary links, onto a machine that then runs a
+# linker it may not be able to load. This passes the toolchain through with
+# the three preferences cleared when linking remotely, and untouched otherwise.
+#
+# Providers have no copy-with-changes, so the two that change are rebuilt from
+# their own fields.
+def _replace(constructor, value, **changes):
+    fields = {name: getattr(value, name) for name in dir(value)}
+    fields.update(changes)
+    return constructor(**fields)
+
+def _remote_linking_cxx_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
+    toolchain = ctx.attrs.toolchain
+    if not ctx.attrs.link_remotely:
+        return toolchain.providers
+    info = toolchain[CxxToolchainInfo]
+    linker_info = _replace(
+        LinkerInfo,
+        info.linker_info,
+        archive_objects_locally = False,
+        link_binaries_locally = False,
+        link_libraries_locally = False,
+    )
+    return [
+        DefaultInfo(),
+        _replace(CxxToolchainInfo, info, linker_info = linker_info),
+        toolchain[CxxPlatformInfo],
+    ]
+
+remote_linking_cxx_toolchain = rule(
+    attrs = {
+        "link_remotely": attrs.bool(),
+        "toolchain": attrs.toolchain_dep(providers = [CxxToolchainInfo]),
+    },
+    impl = _remote_linking_cxx_toolchain_impl,
     is_toolchain_rule = True,
 )

@@ -1,0 +1,148 @@
+load(":defs.bzl", "llvm_tree", "rust_sysroot", "tool")
+
+# The toolchain a remote worker builds with.
+#
+# A worker is a container with nothing of this project's in it, so the
+# compilers come with the build: they are downloaded here, pinned by hash, and
+# reach a worker the way a source file does, as inputs of the actions that run
+# them. buck/toolchains/BUCK picks these over buck/tools when ./scripts/buck
+# turned remote execution on. guides/buck2.md says what the container is.
+#
+# The versions are the ones the local build already uses: rust-toolchain.toml's
+# Rust, and the clang-20 that newest_wasm_clang in scripts/internal/common.sh
+# picks on Ubuntu 24.04, which is the distribution the container is.
+
+rust_version = "1.98.0"
+
+rust_host = "x86_64-unknown-linux-gnu"
+
+http_archive(
+    name = "rustc-component",
+    sha256 = "0e37cb339f447fc44d6d781073bacacebfdc5612f2600e4c7e84c266f5f3aced",
+    strip_prefix = "rustc-{}-{}/rustc".format(rust_version, rust_host),
+    urls = ["https://static.rust-lang.org/dist/rustc-{}-{}.tar.xz".format(rust_version, rust_host)],
+)
+
+http_archive(
+    name = "clippy-component",
+    sha256 = "646c6bd2450ea4c32a3c78ad7a3727294eea1f1519718a3f1487424021695ffa",
+    strip_prefix = "clippy-{}-{}/clippy-preview".format(rust_version, rust_host),
+    urls = ["https://static.rust-lang.org/dist/clippy-{}-{}.tar.xz".format(rust_version, rust_host)],
+)
+
+rust_std = {
+    "wasm32-unknown-unknown": "3bb537c09555b96020a38a3a8810c38908b194eff3c2cb6184a45dda5c6828de",
+    "wasm32-wasip1-threads": "56002ff8232f0e82d446267b6d84dc394007e4b090b8f84b17124615802407f3",
+    "x86_64-unknown-linux-gnu": "f5022e6c95a5ad23cca2513dc8281200f585fa188de6370aa37b128a43f876a3",
+}
+
+[
+    http_archive(
+        name = "rust-std-" + target,
+        sha256 = sha256,
+        strip_prefix = "rust-std-{}-{}/rust-std-{}".format(rust_version, target, target),
+        urls = ["https://static.rust-lang.org/dist/rust-std-{}-{}.tar.xz".format(rust_version, target)],
+    )
+    for target, sha256 in rust_std.items()
+]
+
+rust_sysroot(
+    name = "rust",
+    components = [":rustc-component", ":clippy-component"] + [":rust-std-" + target for target in sorted(rust_std)],
+)
+
+# Launchpad's copy of each package rather than the archive's: the archive drops
+# a version once a newer one supersedes it, and Launchpad keeps every one.
+llvm_version = "20.1.2-0ubuntu1~24.04.3"
+
+llvm_packages = {
+    "clang-20": "d3fec854d8b998510a6f525ba397123563be091939d11131ce2dff02ed9368bc",
+    "libclang-common-20-dev": "1f50ed5cb36909b83e885e5e507ccb8a54c70816f4f6574d6190cfa5cf95a891",
+    "libclang-cpp20": "0dc8f6d4cc8588e963fa86414c93f6065766211064cdc766e588c9b882b0714b",
+    "libllvm20": "f018e71c72c7a4742fb1aff9dc98b45586f42e6ea464d4918af7e3772b7f0658",
+    "lld-20": "50d8db763d3e3526c050d01c2c8c9c94e3f94cca6f7dbdb8f9a4c65aefefcf83",
+    "llvm-20": "b7ca50166943d94c786611ebe7a0dd8f5b9a9b1f81025620cf9dfcd8aac84563",
+}
+
+[
+    http_file(
+        name = package + ".deb",
+        sha256 = sha256,
+        urls = ["https://launchpad.net/ubuntu/+archive/primary/+files/{}_{}_amd64.deb".format(package, llvm_version)],
+    )
+    for package, sha256 in llvm_packages.items()
+]
+
+llvm_tree(
+    name = "llvm",
+    packages = [":{}.deb".format(package) for package in sorted(llvm_packages)],
+)
+
+# The same names buck/tools has, so the toolchain can take either directory.
+tool(
+    name = "rustc",
+    command = ["$(location :rust)/bin/rustc"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "rustdoc",
+    command = ["$(location :rust)/bin/rustdoc"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "clippy-driver",
+    command = ["$(location :rust)/bin/clippy-driver"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "cc",
+    command = ["$(location :llvm)/bin/clang"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "cxx",
+    command = ["$(location :llvm)/bin/clang++"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "ar",
+    command = ["$(location :llvm)/bin/llvm-ar"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "wasm-cc",
+    command = [
+        "$(location :llvm)/bin/clang",
+        "--target=wasm32-wasip1-threads",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "wasm-cxx",
+    command = [
+        "$(location :llvm)/bin/clang++",
+        "--target=wasm32-wasip1-threads",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "wasm-ld",
+    command = [
+        "$(location :wasm-ld.sh)",
+        "$(location :rust)/lib/rustlib/{}/bin/rust-lld".format(rust_host),
+    ],
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "wasm-ld.sh",
+    src = "wasm-ld",
+)

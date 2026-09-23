@@ -8,9 +8,11 @@ load("@prelude//cfg/exec_platform:marker.bzl", "get_exec_platform_marker")
 # against, and the exec marker is what buck2 uses to tell an execution
 # configuration from a target one.
 #
-# remote_enabled stays False. Nothing here runs on a remote worker; what the
-# cache gives us is the result of an action someone else already ran, which is
-# a different switch. See guides/buck2.md.
+# With remote_execution off, which is the default, nothing runs on a remote
+# worker: what the cache gives us is the result of an action someone else
+# already ran. With it on, an action runs on the remote executor, in the
+# container remote_execution_properties names, unless the rule that declared it
+# asked to run locally. See guides/buck2.md.
 def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
     constraints = dict()
     constraints.update(ctx.attrs.cpu_configuration[ConfigurationInfo].constraints)
@@ -24,7 +26,13 @@ def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
             allow_cache_uploads = ctx.attrs.allow_cache_uploads,
             local_enabled = True,
             remote_cache_enabled = ctx.attrs.remote_cache_enabled,
-            remote_enabled = False,
+            remote_enabled = ctx.attrs.remote_execution,
+            # Only when remote: the properties are part of every action's
+            # digest, so setting them for a local build would give it cache
+            # keys of its own.
+            remote_execution_properties = ctx.attrs.remote_execution_properties if ctx.attrs.remote_execution else {},
+            remote_execution_use_case = "buck2-default",
+            use_limited_hybrid = True,
             use_windows_path_separators = ctx.attrs.use_windows_path_separators,
         ),
         label = name,
@@ -46,6 +54,8 @@ execution_platform = rule(
         "cpu_configuration": attrs.dep(providers = [ConfigurationInfo]),
         "os_configuration": attrs.dep(providers = [ConfigurationInfo]),
         "remote_cache_enabled": attrs.bool(),
+        "remote_execution": attrs.bool(),
+        "remote_execution_properties": attrs.dict(key = attrs.string(), value = attrs.string()),
         "use_windows_path_separators": attrs.bool(),
     },
     impl = _execution_platform_impl,

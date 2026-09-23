@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# rust-lld for a wasm link, with the one flag it cannot take dropped.
+#
+# The same job as the wasm-ld wrapper ./scripts/buck writes into buck/tools,
+# and the comment on write_buck_wasm_linker in scripts/internal/common.sh says
+# why the job exists. What differs is where the linker comes from: here it is
+# the first argument, a path into the downloaded sysroot, rather than a symlink
+# into this machine's rustup.
+linker="$1"
+shift
+count=$#
+index=0
+while [ "$index" -lt "$count" ]; do
+    argument="$1"
+    shift
+    index=$((index + 1))
+    case "$argument" in
+        -fuse-ld=*) continue ;;
+    esac
+    set -- "$@" "$argument"
+done
+exec "$linker" "$@"

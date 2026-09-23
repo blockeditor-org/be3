@@ -1025,10 +1025,21 @@ EOF
 # BUILDBUDDY_UPLOAD is the counterpart of BLOCKS_CACHE_UPLOAD and carries the
 # same warning: a cache you write to is one whose contents you are vouching
 # for. Reads are enough to measure a hit rate against a cache CI has filled.
+#
+# BUILDBUDDY_REMOTE_EXECUTION runs the actions on BuildBuddy's workers rather
+# than here, with the toolchain in buck/remote. Results of an action a worker
+# ran are written to the cache by BuildBuddy itself, so this needs no
+# BUILDBUDDY_UPLOAD; that only decides whether the few actions that still run
+# here are written too.
 buck_buildbuddy_config_local() {
     local uploads='false'
     if [[ -n "${BUILDBUDDY_UPLOAD:-}" ]]; then
         uploads='true'
+    fi
+
+    local remote_execution='false'
+    if buck_remote_execution; then
+        remote_execution='true'
     fi
 
     cat << EOF
@@ -1036,6 +1047,7 @@ buck_buildbuddy_config_local() {
 [be3]
 cache_uploads = $uploads
 remote_cache = true
+remote_execution = $remote_execution
 
 [buck2_re_client]
 action_cache_address = $buildbuddy_address
@@ -1044,6 +1056,12 @@ engine_address = $buildbuddy_address
 http_headers = x-buildbuddy-api-key:\$BUILDBUDDY_API_KEY
 tls = true
 EOF
+}
+
+# Whether actions run on BuildBuddy's workers. It needs BuildBuddy's key, since
+# there is nowhere else to run them.
+buck_remote_execution() {
+    [[ -n "${BUILDBUDDY_API_KEY:-}" && -n "${BUILDBUDDY_REMOTE_EXECUTION:-}" ]]
 }
 
 # The newest Python of at least 3.12, preferring whatever python3 already is so
@@ -1273,7 +1291,11 @@ write_buck_tool() {
 # treats it as an input to every target, so rewriting it with the same bytes
 # still costs a full reanalysis.
 write_buck_config_local() {
-    write_buck_tools || return 1
+    # A remote build brings its own compilers, so this machine needs none: the
+    # wrappers would describe tools nothing runs.
+    if ! buck_remote_execution; then
+        write_buck_tools || return 1
+    fi
 
     local wanted
     wanted="$(buck_config_local)" || return 1

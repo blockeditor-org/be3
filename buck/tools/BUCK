@@ -1,64 +1,67 @@
+load("@toolchains//:defs.bzl", "script")
+
 # The host tool wrappers ./scripts/buck writes. They are not checked in: each
 # one names the version of the tool it runs, which is what makes a cache entry
 # belong to a compiler rather than to a machine, and that is a fact about the
 # machine rather than about the repository.
 #
-# buck/toolchains/BUCK is what turns them into a toolchain.
-export_file(
+# buck/toolchains/BUCK is what turns them into a toolchain, and buck/remote has
+# a target of each name for when the tools come from a download instead.
+script(
     name = "ar",
     src = "ar",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "cc",
     src = "cc",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "clippy-driver",
     src = "clippy-driver",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "cxx",
     src = "cxx",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "python3",
     src = "python3",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "rustc",
     src = "rustc",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "rustdoc",
     src = "rustdoc",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "wasm-ld",
     src = "wasm-ld",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "wasm-cc",
     src = "wasm-cc",
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "wasm-cxx",
     src = "wasm-cxx",
     visibility = ["PUBLIC"],

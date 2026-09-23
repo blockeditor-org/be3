@@ -12,7 +12,8 @@
 # The file is only rewritten when what it should say has changed: buck2 treats
 # it as an input, and touching it invalidates the graph.
 #
-# Everything after the script name is handed to buck2 unchanged.
+# Everything after the script name is handed to buck2 unchanged, except that a
+# test run under remote execution is allowed to put its tests on the workers.
 #
 # Usage:
 #   ./scripts/buck build //crates/...
@@ -32,5 +33,14 @@ cd "$repository"
 
 assert_command buck2 'Run ./scripts/internal/install-buck2.sh.'
 write_buck_config_local
+
+# buck2 runs every test locally, whatever its executor says, until it is told
+# otherwise. This tells it to send the ones it calls compatible: a test that
+# runs from the project root with project-relative paths, which is every Rust
+# test and none of the plugin tests. guides/buck2.md says why those stay here.
+if buck_remote_execution && [[ "${1:-}" == 'test' ]]; then
+    shift
+    exec buck2 test --unstable-allow-compatible-tests-on-re "$@"
+fi
 
 exec buck2 "$@"
