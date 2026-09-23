@@ -901,6 +901,12 @@ reindeer_toolchain='nightly-2026-07-05'
 buck_cache_address='blocks.pfg.pw:443'
 buck_cache_instance='buck2-cache'
 
+# BuildBuddy, for measuring the shared cache against a hosted one. A bare
+# host:port on purpose: buck2's RE client parses this itself and rejects both
+# grpcs:// and https:// with "Invalid URI". BuildBuddy's instance name is empty
+# rather than bazel-remote's buck2-cache, so there is no instance to name here.
+buildbuddy_address='remote.buildbuddy.io:443'
+
 # The triple the buck2 release is named after, for this machine.
 buck2_triple() {
     local architecture
@@ -979,6 +985,11 @@ buck_config_local() {
 # decides whether it is, so the machines that write are the ones running a
 # build that was reviewed.
 buck_cache_config_local() {
+    if [[ -n "${BUILDBUDDY_API_KEY:-}" ]]; then
+        buck_buildbuddy_config_local
+        return 0
+    fi
+
     [[ -n "${BLOCKS_CACHE_AUTH:-}" ]] || return 0
 
     local uploads='false'
@@ -998,6 +1009,39 @@ cas_address = $buck_cache_address
 engine_address = $buck_cache_address
 http_headers = Authorization:Basic \$BLOCKS_CACHE_AUTH
 instance_name = $buck_cache_instance
+tls = true
+EOF
+}
+
+# BuildBuddy in place of the shared cache, so the two can be compared on the
+# same checkout. Opt-in and it wins: a machine with both credentials in the
+# environment is one deliberately pointed at BuildBuddy, and silently
+# preferring the other would make the comparison a lie.
+#
+# The header name is BuildBuddy's own. http_headers separates name from value
+# with a colon, and buck2 expands $NAME in the value itself, so the key stays a
+# variable reference here exactly as the shared cache's does.
+#
+# BUILDBUDDY_UPLOAD is the counterpart of BLOCKS_CACHE_UPLOAD and carries the
+# same warning: a cache you write to is one whose contents you are vouching
+# for. Reads are enough to measure a hit rate against a cache CI has filled.
+buck_buildbuddy_config_local() {
+    local uploads='false'
+    if [[ -n "${BUILDBUDDY_UPLOAD:-}" ]]; then
+        uploads='true'
+    fi
+
+    cat << EOF
+
+[be3]
+cache_uploads = $uploads
+remote_cache = true
+
+[buck2_re_client]
+action_cache_address = $buildbuddy_address
+cas_address = $buildbuddy_address
+engine_address = $buildbuddy_address
+http_headers = x-buildbuddy-api-key:\$BUILDBUDDY_API_KEY
 tls = true
 EOF
 }

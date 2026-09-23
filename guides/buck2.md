@@ -84,6 +84,30 @@ Reads are all a developer needs; `BLOCKS_CACHE_UPLOAD=1` turns on writes and is
 CI's, because a cache anyone can write to is a cache anyone can use to hand
 every machine that reads it a compiler output of their choosing.
 
+To point the same checkout at BuildBuddy instead, for comparing a hosted cache
+against this one, set `BUILDBUDDY_API_KEY` and it takes precedence:
+
+```
+export BUILDBUDDY_API_KEY=<key>
+buck2 killall && ./scripts/buck test //crates/... --exclude cargo-only
+```
+
+Three things about that configuration are not guessable. The address is a bare
+`remote.buildbuddy.io:443`: buck2 parses it itself and rejects both `grpcs://`
+and `https://` with `Invalid URI`. `http_headers` separates name from value
+with a colon, not an equals sign. And the instance name is empty rather than
+`buck2-cache`.
+
+None of them announce themselves, because **buck2 treats a cache it cannot use
+as a cache that is empty.** A wrong key, a wrong address and a working setup
+that simply has no entry yet all look the same from the console: the build
+succeeds and reports no hits. The rejection is in the event log rather than on
+screen, so that is where to look when a cache that should be warm is not:
+
+```
+buck2 log show | grep -i 'invalid api key\|re_error_code'
+```
+
 The server is a [bazel-remote](https://github.com/buchgr/bazel-remote) speaking
 the remote execution API, with no scheduler and no workers. `buck/platforms/BUCK`
 is the execution platform that turns the cache on; `[buck2] digest_algorithms`,
