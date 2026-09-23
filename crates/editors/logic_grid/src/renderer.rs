@@ -1,7 +1,9 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 
-use block_editor_plugin::egui_wgpu::{self, wgpu};
-use bytemuck::Pod;
+use beui::{Draw, DrawAt, Drawing};
+use bytemuck::{Pod, Zeroable};
 
 use crate::frame::{
     RenderFrame, RenderVertex, WireValue, WireVertex, background_triangles, ray_vertices,
@@ -37,39 +39,71 @@ impl WireVertex {
     }
 }
 
-pub struct GridCallback {
-    pub frame: RenderFrame,
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct Placement {
+    rect: [f32; 4],
+    clip: [f32; 4],
+    screen: [f32; 2],
+    padding: [f32; 2],
 }
 
-impl egui_wgpu::CallbackTrait for GridCallback {
-    fn prepare(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        _screen_descriptor: &egui_wgpu::ScreenDescriptor,
-        _egui_encoder: &mut wgpu::CommandEncoder,
-        callback_resources: &mut egui_wgpu::CallbackResources,
-    ) -> Vec<wgpu::CommandBuffer> {
-        let renderer = callback_resources
-            .entry::<GridRenderer>()
-            .or_insert_with(|| GridRenderer::new(device, block_editor_plugin::surface_format()));
-        renderer.prepare(device, queue, &self.frame);
-        Vec::new()
-    }
-
-    fn paint(
-        &self,
-        _info: block_editor_plugin::egui::PaintCallbackInfo,
-        render_pass: &mut wgpu::RenderPass<'static>,
-        callback_resources: &egui_wgpu::CallbackResources,
-    ) {
-        if let Some(renderer) = callback_resources.get::<GridRenderer>() {
-            renderer.paint(render_pass);
+impl Placement {
+    fn of(at: DrawAt) -> Self {
+        Self {
+            rect: at.rect,
+            clip: [
+                at.clip[0].max(at.rect[0]),
+                at.clip[1].max(at.rect[1]),
+                at.clip[2].min(at.rect[2]),
+                at.clip[3].min(at.rect[3]),
+            ],
+            screen: [at.screen.x, at.screen.y],
+            padding: [0.0; 2],
         }
     }
 }
 
-pub struct GridRenderer {
+#[derive(Clone, Default)]
+pub(crate) struct GridScene(Rc<RefCell<Option<GridRenderer>>>);
+
+impl GridScene {
+    pub(crate) fn drawing(&self, frame: RenderFrame) -> Drawing {
+        Drawing::new(GridDraw {
+            scene: self.clone(),
+            frame,
+        })
+    }
+}
+
+struct GridDraw {
+    scene: GridScene,
+    frame: RenderFrame,
+}
+
+impl Draw for GridDraw {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let mut held = self.scene.0.borrow_mut();
+        let renderer = held.get_or_insert_with(|| GridRenderer::new(device, at.format));
+        renderer.prepare(device, queue, &self.frame, at);
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
+        if let Some(renderer) = self.scene.0.borrow().as_ref() {
+            renderer.paint(pass);
+        }
+    }
+}
+
+struct GridRenderer {
+    placement_buffer: wgpu::Buffer,
+    placement_bind_group: wgpu::BindGroup,
     triangle_pipeline: wgpu::RenderPipeline,
     wire_pipeline: wgpu::RenderPipeline,
     wire_value_bind_group_layout: wgpu::BindGroupLayout,
@@ -91,12 +125,40 @@ pub struct GridRenderer {
 }
 
 impl GridRenderer {
-    pub fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
+    fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("renderer.wgsl"));
+        let placement_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("logic placement bind group layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let placement_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("logic placement buffer"),
+            size: std::mem::size_of::<Placement>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let placement_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("logic placement bind group"),
+            layout: &placement_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: placement_buffer.as_entire_binding(),
+            }],
+        });
         let triangle_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("logic triangle pipeline layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[Some(&placement_bind_group_layout)],
                 immediate_size: 0,
             });
         let wire_value_bind_group_layout =
@@ -115,7 +177,10 @@ impl GridRenderer {
             });
         let wire_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("logic wire pipeline layout"),
-            bind_group_layouts: &[Some(&wire_value_bind_group_layout)],
+            bind_group_layouts: &[
+                Some(&placement_bind_group_layout),
+                Some(&wire_value_bind_group_layout),
+            ],
             immediate_size: 0,
         });
         let triangle_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -207,6 +272,8 @@ impl GridRenderer {
         });
 
         Self {
+            placement_buffer,
+            placement_bind_group,
             triangle_pipeline,
             wire_pipeline,
             wire_value_bind_group_layout,
@@ -228,7 +295,18 @@ impl GridRenderer {
         }
     }
 
-    fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, frame: &RenderFrame) {
+    fn prepare(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        frame: &RenderFrame,
+        at: DrawAt,
+    ) {
+        queue.write_buffer(
+            &self.placement_buffer,
+            0,
+            bytemuck::bytes_of(&Placement::of(at)),
+        );
         let background_vertices = triangle_vertices(background_triangles(frame), frame);
         prepare_vertex_buffer(
             device,
@@ -321,7 +399,8 @@ impl GridRenderer {
         );
     }
 
-    fn paint(&self, render_pass: &mut wgpu::RenderPass<'static>) {
+    fn paint(&self, render_pass: &mut wgpu::RenderPass<'_>) {
+        render_pass.set_bind_group(0, &self.placement_bind_group, &[]);
         if self.background_vertex_count > 0 {
             render_pass.set_pipeline(&self.triangle_pipeline);
             render_pass.set_vertex_buffer(0, self.background_vertex_buffer.slice(..));
@@ -329,7 +408,7 @@ impl GridRenderer {
         }
         if self.wire_vertex_count > 0 {
             render_pass.set_pipeline(&self.wire_pipeline);
-            render_pass.set_bind_group(0, &self.wire_value_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.wire_value_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.wire_vertex_buffer.slice(..));
             render_pass.draw(0..self.wire_vertex_count, 0..1);
         }
@@ -340,7 +419,7 @@ impl GridRenderer {
         }
         if self.value_vertex_count > 0 {
             render_pass.set_pipeline(&self.wire_pipeline);
-            render_pass.set_bind_group(0, &self.wire_value_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.wire_value_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.value_vertex_buffer.slice(..));
             render_pass.draw(0..self.value_vertex_count, 0..1);
         }

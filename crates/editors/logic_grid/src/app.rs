@@ -3,9 +3,14 @@ mod canvas;
 mod challenge;
 mod dynamic_artifact;
 mod geometry;
+mod glyph;
 mod hotbar;
+mod hotbar_ui;
+mod panels;
 mod render;
+mod session;
 mod simulation;
+mod ui;
 
 pub use app_impl::LogicGridApp;
 
@@ -14,6 +19,8 @@ use std::{
     rc::Rc,
 };
 
+use beui::reactive::CanvasView;
+use beui::{Color32, Key, Pos2, Rect, TextAlign, Vec2};
 use block::Block;
 use block_client::root_settings::RootSetting;
 use block_client::{
@@ -24,11 +31,6 @@ use block_client::{
         hotbar::{Hotbar, HotbarOperation, HotbarSlot as BlockHotbarSlot},
         logic_grid::{LogicGrid, LogicGridOperation},
     },
-};
-use block_editor_plugin::{
-    EditorHost,
-    egui::{self, PointerButton},
-    egui_material_icons::icons::ICON_BUILD,
 };
 use logicgame::{
     challenges::{Challenge, ChallengeId, generate_challenge},
@@ -44,50 +46,41 @@ use uuid::Uuid;
 use crate::frame::{
     DrawRay, DrawStub, DrawTriangle, DrawValueTriangle, DrawWire, RenderFrame, WireValue,
 };
-use std::sync::Arc;
-
 use geometry::*;
 use hotbar::*;
+use render::*;
 use simulation::*;
 
 #[cfg(test)]
 use challenge::*;
 
-const MIN_ZOOM: f32 = 0.1;
-const MAX_ZOOM: f32 = 768.0;
-const DEFAULT_ZOOM: f32 = 24.0;
+const CELL: f32 = 24.0;
 const WIRE_HIT_RADIUS: f32 = 7.0;
 const SCALES: [u8; 7] = [1, 2, 4, 8, 16, 32, 64];
-const HOTBAR_COLUMN_WIDTH: f32 = 92.0;
-const HOTBAR_COLUMN_GAP: f32 = 8.0;
-const SIDE_PANEL_HORIZONTAL_MARGIN: f32 = 16.0;
-const HOTBAR_WIDTH: f32 =
-    HOTBAR_COLUMN_WIDTH * 2.0 + HOTBAR_COLUMN_GAP + SIDE_PANEL_HORIZONTAL_MARGIN;
 
-const LABEL_COLOR: egui::Color32 = egui::Color32::from_rgb(232, 236, 245);
+const LABEL_COLOR: Color32 = Color32::from_rgb(232, 236, 245);
 
-const NAME_COLOR: egui::Color32 = egui::Color32::from_rgb(232, 236, 245);
+const NAME_COLOR: Color32 = Color32::from_rgb(232, 236, 245);
 
-const PORT_LABEL_COLOR: egui::Color32 = egui::Color32::from_rgb(176, 188, 208);
-const HOTBAR_SLOT_SIZE: f32 = 64.0;
-const GRAPH_NODE_SIZE: egui::Vec2 = egui::vec2(150.0, 48.0);
+const PORT_LABEL_COLOR: Color32 = Color32::from_rgb(176, 188, 208);
+const GRAPH_NODE_SIZE: Vec2 = Vec2::new(150.0, 48.0);
 const GRAPH_COLUMN_GAP: f32 = 70.0;
 const GRAPH_ROW_GAP: f32 = 18.0;
 const GRAPH_MARGIN: f32 = 24.0;
-const HOTBAR_KEYS: [egui::Key; 10] = [
-    egui::Key::Num1,
-    egui::Key::Num2,
-    egui::Key::Num3,
-    egui::Key::Num4,
-    egui::Key::Num5,
-    egui::Key::Num6,
-    egui::Key::Num7,
-    egui::Key::Num8,
-    egui::Key::Num9,
-    egui::Key::Num0,
+const HOTBAR_KEYS: [Key; 10] = [
+    Key::One,
+    Key::Two,
+    Key::Three,
+    Key::Four,
+    Key::Five,
+    Key::Six,
+    Key::Seven,
+    Key::Eight,
+    Key::Nine,
+    Key::Zero,
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum ToolKind {
     Select,
     Wire,
@@ -225,26 +218,44 @@ impl Default for Camera {
     fn default() -> Self {
         Self {
             center: [0.0, 0.0],
-            zoom: DEFAULT_ZOOM,
+            zoom: CELL,
         }
     }
 }
 
 impl Camera {
-    fn screen_to_world(self, screen: egui::Pos2, rect: egui::Rect) -> [f32; 2] {
-        let relative = screen - rect.center();
-        [
-            self.center[0] + relative.x / self.zoom,
-            self.center[1] + relative.y / self.zoom,
-        ]
+    fn from_view(view: Option<CanvasView>, world: Option<Vec2>, rect: Rect) -> Self {
+        let view = view.unwrap_or_else(|| CanvasView::new(rect.min, 1.0));
+        let scale = view.scale.max(f32::EPSILON);
+        let world = world.unwrap_or_else(|| Vec2::new(rect.width() / scale, rect.height() / scale));
+        let center = view.to_canvas(rect.center());
+        Self {
+            center: [
+                (center.x - world.x * 0.5) / CELL,
+                (center.y - world.y * 0.5) / CELL,
+            ],
+            zoom: CELL * scale,
+        }
     }
 
-    fn zoom_around(&mut self, screen: egui::Pos2, rect: egui::Rect, factor: f32) {
-        let before = self.screen_to_world(screen, rect);
-        self.zoom = (self.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
-        let after = self.screen_to_world(screen, rect);
-        self.center[0] += before[0] - after[0];
-        self.center[1] += before[1] - after[1];
+    fn view(self, rect: Rect) -> CanvasView {
+        CanvasView::new(
+            Pos2::new(
+                rect.center().x - self.center[0] * self.zoom,
+                rect.center().y - self.center[1] * self.zoom,
+            ),
+            self.zoom,
+        )
+    }
+
+    fn screen_to_world(self, screen: Pos2, rect: Rect) -> [f32; 2] {
+        let world = self.view(rect).to_canvas(screen);
+        [world.x, world.y]
+    }
+
+    #[cfg(test)]
+    fn world_to_screen(self, world: [f32; 2], rect: Rect) -> Pos2 {
+        self.view(rect).to_screen(Pos2::new(world[0], world[1]))
     }
 }
 
@@ -294,20 +305,20 @@ enum Gesture {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum DebugEntity {
     Component(ComponentId),
     Wire(Wire),
     WireEndpoint(WireEndpoint),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum WireEnd {
     Start,
     End,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct WireEndpoint {
     wire: Wire,
     end: WireEnd,
@@ -645,14 +656,13 @@ impl LogicGridEditor {
         self.edit(LogicGridOperation::SetStorageValue { id, value });
     }
 
-    fn sync(&mut self, client: Option<&BlockClient>, client_id: Uuid) {
+    fn sync(&mut self, client: Option<&BlockClient>, client_id: Uuid) -> bool {
         let revision = self.block.revision();
         if self.observed_revision == Some(revision) {
-            self.sync_hotbar(client, client_id);
-            return;
+            return self.sync_hotbar(client, client_id);
         }
         let Some(block) = self.block.read() else {
-            return;
+            return false;
         };
         self.grid = block.grid().clone();
         let challenge = block.challenge();
@@ -674,6 +684,11 @@ impl LogicGridEditor {
             }
         }
         self.sync_hotbar(client, client_id);
+        true
+    }
+
+    fn loaded(&self) -> bool {
+        self.observed_revision.is_some()
     }
 
     fn ensure_compiled(&mut self, client: &BlockClient, compiled: Uuid) {
@@ -726,63 +741,6 @@ impl LogicGridEditor {
             }
         }
     }
-
-    fn canvas_ui(&mut self, ui: &mut egui::Ui) {
-        let context = ui.ctx().clone();
-        let (response, painter) =
-            ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
-        self.handle_canvas_input(&response);
-
-        let pointer_world = response
-            .hovered()
-            .then(|| context.pointer_hover_pos())
-            .flatten()
-            .map(|position| self.camera.screen_to_world(position, response.rect));
-
-        self.update_simulation_preview();
-        self.show_metrics(&context);
-        self.show_storage_configuration(&context);
-        self.show_simulation(&context);
-        self.show_challenge(&context);
-
-        let hovered_square = pointer_world.map(|pointer| snap_point(pointer, self.tool.snap()));
-        let hovered_entity = self.show_grid_debugger(&context, hovered_square);
-        let graph_hover = self.show_generated_graph(&context);
-        let frame = self.render_frame(response.rect, pointer_world, hovered_entity, &graph_hover);
-        crate::paint::paint(&painter, response.rect, frame);
-        self.draw_component_labels(&painter, response.rect);
-        if let (Some(pointer), Some(Gesture::SelectBox { start, .. })) =
-            (pointer_world, self.gesture.as_ref())
-        {
-            let start = world_to_screen(*start, self.camera, response.rect);
-            let end = world_to_screen(pointer, self.camera, response.rect);
-            let selection_rect = egui::Rect::from_two_pos(start, end);
-            painter.rect_filled(
-                selection_rect,
-                0.0,
-                egui::Color32::from_rgba_unmultiplied(66, 153, 225, 28),
-            );
-            painter.rect_stroke(
-                selection_rect,
-                0.0,
-                egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(90, 180, 255)),
-                egui::StrokeKind::Inside,
-            );
-        }
-
-        if context.input(|input| input.key_pressed(egui::Key::Escape)) {
-            if self.gesture.is_some()
-                || self.active_hotbar_slot.is_some()
-                || self.tool.kind != ToolKind::Select
-            {
-                self.select_tool();
-            } else {
-                self.active_hotbar_folder.pop();
-            }
-        }
-
-        context.request_repaint();
-    }
 }
 
 #[cfg(test)]
@@ -814,6 +772,16 @@ impl Default for LogicGridEditor {
     fn default() -> Self {
         Self::detached(Grid::new(), None)
     }
+}
+
+#[cfg(test)]
+pub(crate) fn descriptor_data(source: Uuid) -> Vec<u8> {
+    dynamic_artifact::descriptor(source).data
+}
+
+#[cfg(test)]
+pub(crate) fn artifact_summary(data: &[u8]) -> String {
+    dynamic_artifact::summary(data)
 }
 
 #[cfg(test)]

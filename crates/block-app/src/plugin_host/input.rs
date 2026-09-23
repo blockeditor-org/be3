@@ -84,6 +84,7 @@ fn read_dropped(file: egui::DroppedFile) -> Option<DroppedFile> {
 #[derive(Default)]
 pub(super) struct InputAdapter {
     captured: bool,
+    pointer_inside: bool,
     pressed_buttons: u8,
     focused: bool,
     modifiers: Modifiers,
@@ -144,6 +145,13 @@ impl InputAdapter {
         })]
     }
 
+    fn leave(&mut self, output: &mut Vec<InputEvent>) {
+        if self.pointer_inside && !self.captured {
+            self.pointer_inside = false;
+            output.push(InputEvent::PointerLeft);
+        }
+    }
+
     fn normalize_event(
         &mut self,
         event: egui::Event,
@@ -158,12 +166,14 @@ impl InputAdapter {
         };
         match event {
             egui::Event::PointerMoved(position) if pointer(position, self.captured) => {
+                self.pointer_inside = true;
                 let position = position - rect.min;
                 output.push(InputEvent::PointerMoved {
                     x: position.x,
                     y: position.y,
                 });
             }
+            egui::Event::PointerMoved(_) | egui::Event::PointerGone => self.leave(output),
             egui::Event::MouseMoved(delta) if focused => {
                 output.push(InputEvent::PointerMotion {
                     x: delta.x,
@@ -201,6 +211,9 @@ impl InputAdapter {
                     x: position.x,
                     y: position.y,
                 });
+                if !pointer(pos, false) {
+                    self.leave(output);
+                }
             }
             egui::Event::MouseWheel {
                 unit,

@@ -145,6 +145,16 @@ impl Document {
         }
     }
 
+    pub fn focus_takes_text(&self) -> bool {
+        self.focused.is_some_and(|focused| {
+            self.arena
+                .get(focused)
+                .as_any()
+                .downcast_ref::<FocusableNode>()
+                .is_some_and(|node| !node.on_text.is_empty())
+        })
+    }
+
     pub(crate) fn key_focused(&mut self, press: KeyPress) -> bool {
         let Some(focused) = self.focused else {
             return false;

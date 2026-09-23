@@ -192,6 +192,10 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
         true => theme.accent.get(),
         false => theme.border.get(),
     }));
+    let inset = match floating {
+        true => 0.0,
+        false => BORDER_WIDTH,
+    };
     view! {
         <Frame
             color={theme.surface.clone()}
@@ -199,6 +203,8 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
             outline_width=BORDER_WIDTH
             outline_visible={!floating}
             radius=RADIUS
+            padding_horizontal={inset}
+            padding_vertical={inset}
         >
             <List spacing=0.0>
                 <Show condition={bar.is_some()}>
@@ -289,6 +295,8 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             outline_visible=true
             radius=CARD_RADIUS
+            padding_horizontal=FOCUS_RING_WIDTH
+            padding_vertical=FOCUS_RING_WIDTH
         >
             <List spacing=0.0>
                 <Frame
