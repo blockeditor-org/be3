@@ -15,7 +15,7 @@ def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:
             out.as_output(),
             ctx.attrs.resolver,
             ctx.attrs.snapshot,
-            ctx.attrs.architecture,
+            ",".join(ctx.attrs.architectures),
             ctx.attrs.packages,
         ),
         category = "deb_lock",
@@ -24,7 +24,7 @@ def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:
 
 deb_lock = rule(
     attrs = {
-        "architecture": attrs.string(),
+        "architectures": attrs.list(attrs.string()),
         "packages": attrs.list(attrs.string()),
         "resolver": attrs.source(),
         "snapshot": attrs.string(),
@@ -66,6 +66,11 @@ for kept in usr/include usr/lib64 usr/lib/gcc usr/lib/pkgconfig usr/share/pkgcon
         mkdir -p "$out/$(dirname "$kept")"
         cp -a "$unpacked/$kept" "$out/$kept"
     fi
+done
+# The dynamic loader is directly in usr/lib on arm64, where glibc's libc.so
+# linker script looks for it; amd64's is in usr/lib64, which is kept whole.
+for loader in "$unpacked"/usr/lib/ld-linux-*.so*; do
+    if [ -e "$loader" ]; then cp -a "$loader" "$out/usr/lib/"; fi
 done
 rm -rf "$unpacked"
 cd "$out"

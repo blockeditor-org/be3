@@ -1,3 +1,4 @@
+load("//buck/platforms:cross.bzl", "per_cross_platform")
 load(":defs.bzl", "deb_lock", "deb_sysroot", "pkg_config")
 load(":packages.bzl", "packages")
 
@@ -31,31 +32,44 @@ wanted = [
 
 deb_lock(
     name = "lock",
-    architecture = "amd64",
+    architectures = ["amd64", "arm64"],
     packages = wanted,
     resolver = "resolve.py",
     snapshot = snapshot,
 )
 
+# The amd64 packages keep the names they had before there was a second
+# architecture; arm64's are prefixed. A package that is the same for both - an
+# _all.deb - is downloaded once, whichever name asks for it.
 [
     http_file(
-        name = name.replace("+", "p") + ".deb",
+        name = prefix + name.replace("+", "p") + ".deb",
         sha256 = sha256,
         size_bytes = size_bytes,
         urls = [url],
     )
-    for name, url, sha256, size_bytes in packages
+    for architecture, prefix in [("amd64", ""), ("arm64", "arm64-")]
+    for name, url, sha256, size_bytes in packages[architecture]
 ]
 
 deb_sysroot(
     name = "amd64",
-    packages = [":" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages],
+    packages = [":" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages["amd64"]],
     visibility = ["PUBLIC"],
 )
 
+deb_sysroot(
+    name = "arm64",
+    packages = [":arm64-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages["arm64"]],
+    visibility = ["PUBLIC"],
+)
+
+# What a -sys crate's build script asks, for the platform it is building for.
+# The fixups name it with $(exe_target), which is that platform's, rather than
+# with $(exe), which is the worker's.
 pkg_config(
     name = "pkg-config",
-    sysroot = ":amd64",
-    triple = "x86_64-linux-gnu",
+    sysroot = per_cross_platform(":amd64", lambda name: ":arm64" if name == "linux_arm64" else None),
+    triple = per_cross_platform("x86_64-linux-gnu", lambda name: "aarch64-linux-gnu" if name == "linux_arm64" else None),
     visibility = ["PUBLIC"],
 )

@@ -69,6 +69,7 @@ rust_sysroot(
 # every cache key the host build has.
 cross_rust_std = {
     "aarch64-apple-darwin": ("48c05269ed36fb5f0a8438065156891fe59fcb868d90cfed9b7209540d54b2ce", 29740736),
+    "aarch64-unknown-linux-gnu": ("a36f7ac98af20ef0ba6368aace0345efabbebaef7962eba99f47190fd256162d", 30768752),
     "x86_64-apple-darwin": ("8923fa9d0e0407b8a492e59d568e7aceff75949e1eee2e3e1b60e174373890cb", 29760212),
 }
 
@@ -187,23 +188,30 @@ tool(
     visibility = ["PUBLIC"],
 )
 
-# clang for a macOS target. The target is part of the command rather than a
-# toolchain flag because the prelude assembles a .S file with the bare compiler
-# and none of the flags, and an assembly file that asks which platform it is for
-# would otherwise be told Linux.
+# clang for each cross-compiled platform. The target is part of the command
+# rather than a toolchain flag because the prelude assembles a .S file with the
+# bare compiler and none of the flags, and an assembly file that asks which
+# platform it is for would otherwise be told Linux on x86_64. The macOS
+# minimums are rustc's defaults for the two triples, so C and Rust agree.
+clang_targets = {
+    "linux_arm64": "aarch64-linux-gnu",
+    "macos_arm64": "arm64-apple-macosx11.0",
+    "macos_x86_64": "x86_64-apple-macosx10.12",
+}
+
 [
     [
         tool(
-            name = "{}-{}-apple-macosx".format(program, cpu),
+            name = "{}-{}".format(program, name),
             command = [
                 "$(location :llvm)/bin/" + driver,
-                "--target={}-apple-macosx{}".format(cpu, minimum),
+                "--target=" + target,
             ],
             visibility = ["PUBLIC"],
         )
         for program, driver in [("cc", "clang"), ("cxx", "clang++")]
     ]
-    for cpu, minimum in [("arm64", "11.0"), ("x86_64", "10.12")]
+    for name, target in clang_targets.items()
 ]
 
 tool(

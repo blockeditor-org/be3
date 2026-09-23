@@ -95,6 +95,7 @@ cargo_alias(
     name = "accesskit",
     actual = ":accesskit-0.24",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -313,6 +314,7 @@ cargo_alias(
     name = "accesskit_winit",
     actual = ":accesskit_winit-0.33",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -365,6 +367,9 @@ cargo.rust_library(
         "rwh_06": ":raw-window-handle-0.6",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":accesskit_unix-0.22"],
+        ),
         "linux-x86_64": dict(
             deps = [":accesskit_unix-0.22"],
         ),
@@ -492,6 +497,16 @@ cargo.rust_library(
         "OUT_DIR": "$(location :ahash-0.8-build-script-run[out_dir])",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "default",
+                "getrandom",
+                "no-rng",
+                "runtime-rng",
+                "std",
+            ],
+            deps = [":getrandom-0.3"],
+        ),
         "linux-x86_64": dict(
             features = [
                 "default",
@@ -536,6 +551,15 @@ cargo.rust_binary(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "default",
+                "getrandom",
+                "no-rng",
+                "runtime-rng",
+                "std",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "default",
@@ -567,6 +591,15 @@ buildscript_run(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "default",
+                "getrandom",
+                "no-rng",
+                "runtime-rng",
+                "std",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "default",
@@ -855,7 +888,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "3",
         "CARGO_PKG_VERSION_PATCH": "1",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     rustc_link_lib = True,
     version = "0.3.1",
@@ -1032,6 +1065,7 @@ cargo_alias(
     name = "arboard",
     actual = ":arboard-3",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -1078,6 +1112,14 @@ cargo.rust_library(
         "windows-sys",
     ],
     platform = {
+        "linux-arm64": dict(
+            deps = [
+                ":log-0.4",
+                ":parking_lot-0.12",
+                ":percent-encoding-2",
+                ":x11rb-0.13",
+            ],
+        ),
         "linux-x86_64": dict(
             deps = [
                 ":log-0.4",
@@ -1113,6 +1155,7 @@ cargo_alias(
     name = "argon2",
     actual = ":argon2-0.5",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -1242,6 +1285,12 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "default",
+                "std",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "default",
@@ -2133,7 +2182,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     rustc_link_lib = True,
     version = "0.18.2",
@@ -2342,6 +2391,7 @@ cargo_alias(
     name = "base64",
     actual = ":base64-0.22",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -2430,6 +2480,7 @@ cargo_alias(
     name = "bincode",
     actual = ":bincode-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -2944,6 +2995,7 @@ cargo_alias(
     name = "bytemuck",
     actual = ":bytemuck-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -2992,6 +3044,9 @@ cargo.rust_library(
         "min_const_generics",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["aarch64_simd"],
+        ),
         "linux-x86_64": dict(
             features = ["aarch64_simd"],
         ),
@@ -3293,7 +3348,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     features = [
         "glib",
@@ -3519,6 +3574,9 @@ cargo.rust_library(
         "OUT_DIR": "$(location :cap-primitives-4-build-script-run[out_dir])",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":rustix-linux-procfs-0.1"],
+        ),
         "linux-x86_64": dict(
             deps = [":rustix-linux-procfs-0.1"],
         ),
@@ -3990,6 +4048,7 @@ cargo_alias(
     name = "chacha20poly1305",
     actual = ":chacha20poly1305-0.10",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -4869,6 +4928,12 @@ cargo.rust_library(
         "OUT_DIR": "$(location :cpal-0.15-build-script-run[out_dir])",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [
+                ":alsa-0.9",
+                ":libc-0.2",
+            ],
+        ),
         "linux-x86_64": dict(
             deps = [
                 ":alsa-0.9",
@@ -4972,6 +5037,9 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "macos-arm64": dict(
             deps = [":libc-0.2"],
         ),
@@ -6390,6 +6458,7 @@ cargo_alias(
     name = "directories-next",
     actual = ":directories-next-2",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -6543,6 +6612,9 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":libc-0.2"],
         ),
@@ -6864,6 +6936,7 @@ cargo_alias(
     name = "eips",
     actual = ":eips-0.2",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -7185,6 +7258,10 @@ cargo.rust_library(
     },
     features = ["std"],
     platform = {
+        "linux-arm64": dict(
+            features = ["default"],
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             features = ["default"],
             deps = [":libc-0.2"],
@@ -7664,6 +7741,7 @@ cargo_alias(
     name = "flate2",
     actual = ":flate2-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -8049,6 +8127,7 @@ cargo_alias(
     name = "freetype",
     actual = ":freetype-0.7",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -9294,6 +9373,7 @@ cargo_alias(
     name = "futures-channel",
     actual = ":futures-channel-0.3",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -9385,6 +9465,9 @@ cargo.rust_library(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["default"],
+        ),
         "linux-x86_64": dict(
             features = ["default"],
         ),
@@ -9468,6 +9551,9 @@ cargo.rust_library(
     },
     features = ["std"],
     platform = {
+        "linux-arm64": dict(
+            features = ["default"],
+        ),
         "linux-x86_64": dict(
             features = ["default"],
         ),
@@ -9645,6 +9731,7 @@ cargo_alias(
     name = "futures-util",
     actual = ":futures-util-0.3",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -9888,7 +9975,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     rustc_link_lib = True,
     version = "0.18.0",
@@ -9985,7 +10072,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     rustc_link_lib = True,
     version = "0.18.2",
@@ -10121,7 +10208,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     rustc_link_lib = True,
     version = "0.18.2",
@@ -10280,6 +10367,10 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = ["std"],
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             features = ["std"],
             deps = [":libc-0.2"],
@@ -10339,6 +10430,9 @@ cargo.rust_library(
     },
     features = ["std"],
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":libc-0.2"],
         ),
@@ -10438,6 +10532,9 @@ cargo.rust_library(
         "sys_rng",
     ],
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":libc-0.2"],
         ),
@@ -10757,7 +10854,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "1",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     features = [
         "v2_58",
@@ -10977,7 +11074,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "1",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     features = [
         "v2_58",
@@ -11174,7 +11271,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     features = [
         "v2_58",
@@ -11451,7 +11548,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     rustc_link_lib = True,
     version = "0.18.2",
@@ -11839,6 +11936,9 @@ cargo.rust_library(
         "pkg-config",
     ],
     platform = {
+        "linux-arm64": dict(
+            deps = [":freetype-0.7"],
+        ),
         "linux-x86_64": dict(
             deps = [":freetype-0.7"],
         ),
@@ -12197,6 +12297,7 @@ cargo_alias(
     name = "harfbuzz_rs",
     actual = ":harfbuzz_rs-2",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -12396,6 +12497,18 @@ cargo.rust_library(
         "inline-more",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "allocator-api2",
+                "default",
+                "equivalent",
+                "raw-entry",
+            ],
+            deps = [
+                ":allocator-api2-0.2",
+                ":equivalent-1",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "allocator-api2",
@@ -12822,6 +12935,7 @@ cargo_alias(
     name = "httparse",
     actual = ":httparse-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -13464,6 +13578,7 @@ cargo_alias(
     name = "image",
     actual = ":image-0.25",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -13574,6 +13689,7 @@ cargo_alias(
     name = "indexmap",
     actual = ":indexmap-2",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -14271,7 +14387,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "1",
         "CARGO_PKG_VERSION_PATCH": "1",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     features = [
         "v2_28",
@@ -14354,6 +14470,7 @@ cargo_alias(
     name = "js-sys",
     actual = ":js-sys-0.3",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -14676,6 +14793,7 @@ cargo_alias(
     name = "libc",
     actual = ":libc-0.2",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -14723,6 +14841,9 @@ cargo.rust_library(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["extra_traits"],
+        ),
         "linux-x86_64": dict(
             features = ["extra_traits"],
         ),
@@ -14759,6 +14880,9 @@ cargo.rust_binary(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["extra_traits"],
+        ),
         "linux-x86_64": dict(
             features = ["extra_traits"],
         ),
@@ -14787,6 +14911,9 @@ buildscript_run(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["extra_traits"],
+        ),
         "linux-x86_64": dict(
             features = ["extra_traits"],
         ),
@@ -15788,6 +15915,7 @@ cargo_alias(
     name = "naga",
     actual = ":naga-29",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -15835,6 +15963,15 @@ cargo.rust_library(
         "wgsl-in",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "glsl-out",
+                "hlsl-out",
+                "spv-out",
+                "wgsl-out",
+            ],
+            deps = [":spirv-0.4"],
+        ),
         "linux-x86_64": dict(
             features = [
                 "glsl-out",
@@ -15919,6 +16056,14 @@ cargo.rust_binary(
         "wgsl-in",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "glsl-out",
+                "hlsl-out",
+                "spv-out",
+                "wgsl-out",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "glsl-out",
@@ -15977,6 +16122,14 @@ buildscript_run(
         "wgsl-in",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "glsl-out",
+                "hlsl-out",
+                "spv-out",
+                "wgsl-out",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "glsl-out",
@@ -17603,7 +17756,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "18",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     rustc_link_lib = True,
     version = "0.18.0",
@@ -17647,6 +17800,7 @@ cargo_alias(
     name = "parking_lot",
     actual = ":parking_lot-0.12",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -17729,6 +17883,9 @@ cargo.rust_library(
         "OUT_DIR": "$(location :parking_lot_core-0.9-build-script-run[out_dir])",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":libc-0.2"],
         ),
@@ -17840,6 +17997,7 @@ cargo_alias(
     name = "pdfium-render",
     actual = ":pdfium-render-0.9",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -17994,6 +18152,9 @@ cargo.rust_library(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["default"],
+        ),
         "linux-x86_64": dict(
             features = ["default"],
         ),
@@ -18465,6 +18626,7 @@ cargo_alias(
     name = "pollster",
     actual = ":pollster-0.4",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -18559,6 +18721,7 @@ cargo_alias(
     name = "postcard",
     actual = ":postcard-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -19060,6 +19223,7 @@ cargo_alias(
     name = "proc-macro2",
     actual = ":proc-macro2-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -19395,6 +19559,7 @@ cargo_alias(
     name = "quote",
     actual = ":quote-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -19649,6 +19814,9 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":libc-0.2"],
         ),
@@ -19673,6 +19841,7 @@ cargo_alias(
     name = "ra_ap_syntax",
     actual = ":ra_ap_syntax-0.0.351",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -19766,6 +19935,21 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "alloc",
+                "default",
+                "getrandom",
+                "libc",
+                "rand_chacha",
+                "std",
+                "std_rng",
+            ],
+            deps = [
+                ":libc-0.2",
+                ":rand_chacha-0.3",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "alloc",
@@ -19844,6 +20028,7 @@ cargo_alias(
     name = "rand",
     actual = ":rand-0.9",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -19887,6 +20072,17 @@ cargo.rust_library(
     },
     features = ["alloc"],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "default",
+                "os_rng",
+                "small_rng",
+                "std",
+                "std_rng",
+                "thread_rng",
+            ],
+            deps = [":rand_chacha-0.9"],
+        ),
         "linux-x86_64": dict(
             features = [
                 "default",
@@ -19979,6 +20175,19 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "alloc",
+                "std",
+                "std_rng",
+                "sys_rng",
+                "thread_rng",
+            ],
+            deps = [
+                ":chacha20-0.10",
+                ":getrandom-0.4",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "alloc",
@@ -20092,6 +20301,7 @@ cargo_alias(
     name = "rand_chacha",
     actual = ":rand_chacha-0.9",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -20177,6 +20387,12 @@ cargo.rust_library(
     },
     features = ["getrandom"],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "alloc",
+                "std",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "alloc",
@@ -20245,6 +20461,10 @@ cargo.rust_library(
     },
     features = ["std"],
     platform = {
+        "linux-arm64": dict(
+            features = ["os_rng"],
+            deps = [":getrandom-0.3"],
+        ),
         "linux-x86_64": dict(
             features = ["os_rng"],
             deps = [":getrandom-0.3"],
@@ -20764,6 +20984,7 @@ cargo_alias(
     name = "rfd",
     actual = ":rfd-0.15",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -20812,6 +21033,13 @@ cargo.rust_library(
         "xdg-portal",
     ],
     platform = {
+        "linux-arm64": dict(
+            deps = [
+                ":ashpd-0.11",
+                ":pollster-0.4",
+                ":urlencoding-2",
+            ],
+        ),
         "linux-x86_64": dict(
             deps = [
                 ":ashpd-0.11",
@@ -20957,30 +21185,41 @@ http_archive(
         "pregenerated/aesni-x86_64-elf.S",
         "pregenerated/aesni-x86_64-macosx.S",
         "pregenerated/aesv8-armx-ios64.S",
+        "pregenerated/aesv8-armx-linux64.S",
         "pregenerated/aesv8-gcm-armv8-ios64.S",
+        "pregenerated/aesv8-gcm-armv8-linux64.S",
         "pregenerated/armv8-mont-ios64.S",
+        "pregenerated/armv8-mont-linux64.S",
         "pregenerated/chacha-armv8-ios64.S",
+        "pregenerated/chacha-armv8-linux64.S",
         "pregenerated/chacha-x86_64-elf.S",
         "pregenerated/chacha-x86_64-macosx.S",
         "pregenerated/chacha20_poly1305_armv8-ios64.S",
+        "pregenerated/chacha20_poly1305_armv8-linux64.S",
         "pregenerated/chacha20_poly1305_x86_64-elf.S",
         "pregenerated/chacha20_poly1305_x86_64-macosx.S",
         "pregenerated/ghash-neon-armv8-ios64.S",
+        "pregenerated/ghash-neon-armv8-linux64.S",
         "pregenerated/ghash-x86_64-elf.S",
         "pregenerated/ghash-x86_64-macosx.S",
         "pregenerated/ghashv8-armx-ios64.S",
+        "pregenerated/ghashv8-armx-linux64.S",
         "pregenerated/p256-armv8-asm-ios64.S",
+        "pregenerated/p256-armv8-asm-linux64.S",
         "pregenerated/p256-x86_64-asm-elf.S",
         "pregenerated/p256-x86_64-asm-macosx.S",
         "pregenerated/ring_core_generated/prefix_symbols.h",
         "pregenerated/ring_core_generated/prefix_symbols_asm.h",
         "pregenerated/sha256-armv8-ios64.S",
+        "pregenerated/sha256-armv8-linux64.S",
         "pregenerated/sha256-x86_64-elf.S",
         "pregenerated/sha256-x86_64-macosx.S",
         "pregenerated/sha512-armv8-ios64.S",
+        "pregenerated/sha512-armv8-linux64.S",
         "pregenerated/sha512-x86_64-elf.S",
         "pregenerated/sha512-x86_64-macosx.S",
         "pregenerated/vpaes-armv8-ios64.S",
+        "pregenerated/vpaes-armv8-linux64.S",
         "pregenerated/vpaes-x86_64-elf.S",
         "pregenerated/vpaes-x86_64-macosx.S",
         "pregenerated/x86_64-mont-elf.S",
@@ -21031,6 +21270,12 @@ cargo.rust_library(
         "dev_urandom_fallback",
     ],
     platform = {
+        "linux-arm64": dict(
+            deps = [
+                ":libc-0.2",
+                ":ring-0.17-ring-core-linux-arm64",
+            ],
+        ),
         "linux-x86_64": dict(
             deps = [":ring-0.17-ring-core-linux-x86_64"],
         ),
@@ -21108,6 +21353,78 @@ buildscript_run(
         "dev_urandom_fallback",
     ],
     version = "0.17.14",
+)
+
+cxx_library(
+    name = "ring-0.17-ring-core-linux-arm64",
+    srcs = [
+        ":ring-0.17.14.crate[crypto/curve25519/curve25519.c]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/aes/aes_nohw.c]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/bn/montgomery.c]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/bn/montgomery_inv.c]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/ecp_nistz.c]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/gfp_p256.c]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/gfp_p384.c]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/p256.c]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/p256-nistz.c]",
+        ":ring-0.17.14.crate[crypto/limbs/limbs.c]",
+        ":ring-0.17.14.crate[crypto/mem.c]",
+        ":ring-0.17.14.crate[crypto/poly1305/poly1305.c]",
+        ":ring-0.17.14.crate[pregenerated/aesv8-armx-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/aesv8-gcm-armv8-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/armv8-mont-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/chacha-armv8-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/chacha20_poly1305_armv8-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/ghash-neon-armv8-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/ghashv8-armx-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/p256-armv8-asm-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/sha256-armv8-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/sha512-armv8-linux64.S]",
+        ":ring-0.17.14.crate[pregenerated/vpaes-armv8-linux64.S]",
+    ],
+    headers = [
+        ":ring-0.17.14.crate[crypto/curve25519/curve25519_tables.h]",
+        ":ring-0.17.14.crate[crypto/curve25519/internal.h]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/bn/internal.h]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/ecp_nistz.h]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/ecp_nistz384.h]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/ecp_nistz384.inl]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/p256-nistz.h]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/p256-nistz-table.h]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/p256_shared.h]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/p256_table.h]",
+        ":ring-0.17.14.crate[crypto/fipsmodule/ec/util.h]",
+        ":ring-0.17.14.crate[crypto/internal.h]",
+        ":ring-0.17.14.crate[crypto/limbs/limbs.h]",
+        ":ring-0.17.14.crate[crypto/limbs/limbs.inl]",
+        ":ring-0.17.14.crate[include/ring-core/aes.h]",
+        ":ring-0.17.14.crate[include/ring-core/asm_base.h]",
+        ":ring-0.17.14.crate[include/ring-core/base.h]",
+        ":ring-0.17.14.crate[include/ring-core/check.h]",
+        ":ring-0.17.14.crate[include/ring-core/mem.h]",
+        ":ring-0.17.14.crate[include/ring-core/target.h]",
+        ":ring-0.17.14.crate[include/ring-core/type_check.h]",
+        ":ring-0.17.14.crate[pregenerated/ring_core_generated/prefix_symbols.h]",
+        ":ring-0.17.14.crate[pregenerated/ring_core_generated/prefix_symbols_asm.h]",
+        ":ring-0.17.14.crate[third_party/fiat/curve25519_32.h]",
+        ":ring-0.17.14.crate[third_party/fiat/curve25519_64.h]",
+        ":ring-0.17.14.crate[third_party/fiat/curve25519_64_adx.h]",
+        ":ring-0.17.14.crate[third_party/fiat/curve25519_64_msvc.h]",
+        ":ring-0.17.14.crate[third_party/fiat/p256_32.h]",
+        ":ring-0.17.14.crate[third_party/fiat/p256_64.h]",
+        ":ring-0.17.14.crate[third_party/fiat/p256_64_msvc.h]",
+    ],
+    compiler_flags = [
+        "-w",
+        "-std=c1x",
+        "-fvisibility=hidden",
+        "-DNDEBUG",
+    ],
+    preprocessor_flags = [
+        "-I$(location :ring-0.17.14.crate)/include",
+        "-I$(location :ring-0.17.14.crate)/pregenerated",
+    ],
+    visibility = [],
 )
 
 cxx_library(
@@ -21342,6 +21659,7 @@ cargo_alias(
     name = "rodio",
     actual = ":rodio-0.20",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -21447,6 +21765,7 @@ cargo_alias(
     name = "rpassword",
     actual = ":rpassword-7",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -21489,6 +21808,9 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":libc-0.2"],
         ),
@@ -21535,6 +21857,9 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":libc-0.2"],
         ),
@@ -21552,6 +21877,7 @@ cargo_alias(
     name = "rusqlite",
     actual = ":rusqlite-0.32",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -21922,6 +22248,18 @@ cargo.rust_library(
         "time",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "event",
+                "mm",
+                "net",
+                "param",
+                "pipe",
+                "shm",
+                "system",
+            ],
+            deps = [":linux-raw-sys-0.12"],
+        ),
         "linux-x86_64": dict(
             features = [
                 "event",
@@ -22015,6 +22353,17 @@ cargo.rust_binary(
         "time",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "event",
+                "mm",
+                "net",
+                "param",
+                "pipe",
+                "shm",
+                "system",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "event",
@@ -22072,6 +22421,17 @@ buildscript_run(
         "time",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "event",
+                "mm",
+                "net",
+                "param",
+                "pipe",
+                "shm",
+                "system",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "event",
@@ -22589,6 +22949,7 @@ cargo_alias(
     name = "serde",
     actual = ":serde-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -22846,6 +23207,7 @@ cargo_alias(
     name = "serde_json",
     actual = ":serde_json-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -23132,6 +23494,9 @@ cargo.rust_library(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            deps = [":cpufeatures-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":cpufeatures-0.2"],
         ),
@@ -23153,6 +23518,7 @@ cargo_alias(
     name = "sha2",
     actual = ":sha2-0.10",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -23199,6 +23565,9 @@ cargo.rust_library(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            deps = [":cpufeatures-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":cpufeatures-0.2"],
         ),
@@ -23373,6 +23742,7 @@ cargo_alias(
     name = "similar",
     actual = ":similar-3",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -23593,6 +23963,9 @@ cargo.rust_library(
     },
     features = ["std"],
     platform = {
+        "linux-arm64": dict(
+            features = ["default"],
+        ),
         "linux-x86_64": dict(
             features = ["default"],
         ),
@@ -24089,7 +24462,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "5",
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     features = ["v3_0"],
     rustc_link_lib = True,
@@ -24582,6 +24955,7 @@ cargo_alias(
     name = "syn",
     actual = ":syn-2",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -24633,6 +25007,9 @@ cargo.rust_library(
         "proc-macro",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["extra-traits"],
+        ),
         "linux-x86_64": dict(
             features = [
                 "extra-traits",
@@ -25735,6 +26112,7 @@ cargo_alias(
     name = "tokio",
     actual = ":tokio-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -25786,6 +26164,23 @@ cargo.rust_library(
         "tokio-macros",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "default",
+                "fs",
+                "io-std",
+                "libc",
+                "mio",
+                "net",
+                "rt-multi-thread",
+                "socket2",
+            ],
+            deps = [
+                ":libc-0.2",
+                ":mio-1",
+                ":socket2-0.6",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "default",
@@ -25928,6 +26323,7 @@ cargo_alias(
     name = "tokio-tungstenite",
     actual = ":tokio-tungstenite-0.23",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -25976,6 +26372,22 @@ cargo.rust_library(
         "stream",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "__rustls-tls",
+                "rustls",
+                "rustls-pki-types",
+                "rustls-tls-webpki-roots",
+                "tokio-rustls",
+                "webpki-roots",
+            ],
+            deps = [
+                ":rustls-0.23",
+                ":rustls-pki-types-1",
+                ":tokio-rustls-0.26",
+                ":webpki-roots-0.26",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "__rustls-tls",
@@ -26524,6 +26936,9 @@ cargo.rust_library(
         "tracing-attributes",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["default"],
+        ),
         "linux-x86_64": dict(
             features = ["default"],
         ),
@@ -26619,6 +27034,7 @@ cargo_alias(
     name = "tree-sitter",
     actual = ":tree-sitter-0.26",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -26930,6 +27346,7 @@ cargo_alias(
     name = "tree-sitter-md",
     actual = ":tree-sitter-md-0.5",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -27070,6 +27487,7 @@ cargo_alias(
     name = "tree-sitter-rust",
     actual = ":tree-sitter-rust-0.24",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -27196,6 +27614,7 @@ cargo_alias(
     name = "tree-sitter-zig",
     actual = ":tree-sitter-zig-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -27430,6 +27849,17 @@ cargo.rust_library(
         "sha1",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "__rustls-tls",
+                "rustls",
+                "rustls-pki-types",
+            ],
+            deps = [
+                ":rustls-0.23",
+                ":rustls-pki-types-1",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "__rustls-tls",
@@ -27586,6 +28016,7 @@ cargo_alias(
     name = "unicode-script",
     actual = ":unicode-script-0.5",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -27634,6 +28065,7 @@ cargo_alias(
     name = "unicode-segmentation",
     actual = ":unicode-segmentation-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -27792,6 +28224,7 @@ cargo_alias(
     name = "ureq",
     actual = ":ureq-2",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -27884,6 +28317,13 @@ cargo.rust_library(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = ["serde"],
+            deps = [
+                ":serde-1",
+                ":serde_derive-1",
+            ],
+        ),
         "linux-x86_64": dict(
             features = ["serde"],
             deps = [
@@ -28041,6 +28481,7 @@ cargo_alias(
     name = "uuid",
     actual = ":uuid-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -28088,6 +28529,13 @@ cargo.rust_library(
         "std",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "rng",
+                "v4",
+            ],
+            deps = [":getrandom-0.4"],
+        ),
         "linux-x86_64": dict(
             features = [
                 "rng",
@@ -28303,6 +28751,7 @@ cargo_alias(
     name = "wasm-bindgen",
     actual = ":wasm-bindgen-0.2",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -28419,6 +28868,7 @@ cargo_alias(
     name = "wasm-bindgen-futures",
     actual = ":wasm-bindgen-futures-0.4",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -28763,6 +29213,7 @@ cargo_alias(
     name = "wasmi",
     actual = ":wasmi-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -28806,6 +29257,10 @@ cargo.rust_library(
     },
     features = ["std"],
     platform = {
+        "linux-arm64": dict(
+            features = ["wat"],
+            deps = ["//third-party/rust:wat"],
+        ),
         "linux-x86_64": dict(
             features = ["wat"],
             deps = ["//third-party/rust:wat"],
@@ -29136,6 +29591,7 @@ cargo_alias(
     name = "wasmtime",
     actual = ":wasmtime-48",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -29206,6 +29662,12 @@ cargo.rust_library(
         "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [
+                ":memfd-0.6",
+                ":rustix-1",
+            ],
+        ),
         "linux-x86_64": dict(
             deps = [
                 ":memfd-0.6",
@@ -29878,6 +30340,12 @@ cargo.rust_library(
         "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [
+                ":libc-0.2",
+                ":rustix-1",
+            ],
+        ),
         "linux-x86_64": dict(
             deps = [
                 ":libc-0.2",
@@ -29988,6 +30456,9 @@ cargo.rust_library(
         "wasmtime_core": ":wasmtime-internal-core-48",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
         "linux-x86_64": dict(
             deps = [":libc-0.2"],
         ),
@@ -30187,6 +30658,7 @@ cargo_alias(
     name = "wasmtime-wasi",
     actual = ":wasmtime-wasi-48",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -30236,6 +30708,9 @@ cargo.rust_library(
         "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4",
     },
     platform = {
+        "linux-arm64": dict(
+            deps = [":rustix-1"],
+        ),
         "linux-x86_64": dict(
             deps = [":rustix-1"],
         ),
@@ -30390,6 +30865,7 @@ cargo_alias(
     name = "wat",
     actual = ":wat-1",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -30990,6 +31466,7 @@ cargo_alias(
     name = "web-sys",
     actual = ":web-sys-0.3",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -31645,7 +32122,7 @@ buildscript_run(
         "CARGO_PKG_VERSION_MINOR": "0",
         "CARGO_PKG_VERSION_PATCH": "2",
         "CARGO_PKG_VERSION_PRE": "",
-        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+        "PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)",
     },
     features = [
         "v2_10",
@@ -31787,6 +32264,7 @@ cargo_alias(
     name = "wgpu",
     actual = ":wgpu-29",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -31835,6 +32313,27 @@ cargo.rust_library(
         "wgsl",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "custom",
+                "default",
+                "dx12",
+                "gles",
+                "metal",
+                "noop",
+                "parking_lot",
+                "vulkan",
+                "webgl",
+                "webgpu",
+                "wgpu-core",
+            ],
+            deps = [
+                ":parking_lot-0.12",
+                ":smallvec-1",
+                ":wgpu-core-29",
+                ":wgpu-hal-29",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "custom",
@@ -31999,6 +32498,21 @@ cargo.rust_binary(
         "wgsl",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "custom",
+                "default",
+                "dx12",
+                "gles",
+                "metal",
+                "noop",
+                "parking_lot",
+                "vulkan",
+                "webgl",
+                "webgpu",
+                "wgpu-core",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "custom",
@@ -32100,6 +32614,21 @@ buildscript_run(
         "wgsl",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "custom",
+                "default",
+                "dx12",
+                "gles",
+                "metal",
+                "noop",
+                "parking_lot",
+                "vulkan",
+                "webgl",
+                "webgpu",
+                "wgpu-core",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "custom",
@@ -32221,6 +32750,15 @@ cargo.rust_library(
         "wgsl",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "noop",
+                "portable-atomic",
+                "renderdoc",
+                "wgpu-core-deps-windows-linux-android",
+            ],
+            deps = [":wgpu-core-deps-windows-linux-android-29"],
+        ),
         "linux-x86_64": dict(
             features = [
                 "noop",
@@ -32317,6 +32855,14 @@ cargo.rust_binary(
         "wgsl",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "noop",
+                "portable-atomic",
+                "renderdoc",
+                "wgpu-core-deps-windows-linux-android",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "noop",
@@ -32379,6 +32925,14 @@ buildscript_run(
         "wgsl",
     ],
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "noop",
+                "portable-atomic",
+                "renderdoc",
+                "wgpu-core-deps-windows-linux-android",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "noop",
@@ -32559,6 +33113,28 @@ cargo.rust_library(
         "OUT_DIR": "$(location :wgpu-hal-29-build-script-run[out_dir])",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "dx12",
+                "gles",
+                "portable-atomic",
+                "renderdoc",
+                "vulkan",
+            ],
+            deps = [
+                ":ash-0.38",
+                ":glow-0.17",
+                ":gpu-allocator-0.28",
+                ":gpu-descriptor-0.3",
+                ":khronos-egl-6",
+                ":libc-0.2",
+                ":libloading-0.8",
+                ":ordered-float-5",
+                ":renderdoc-sys-1",
+                ":smallvec-1",
+                ":wayland-sys-0.31",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "dx12",
@@ -32677,6 +33253,15 @@ cargo.rust_binary(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "dx12",
+                "gles",
+                "portable-atomic",
+                "renderdoc",
+                "vulkan",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "dx12",
@@ -32726,6 +33311,15 @@ buildscript_run(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "dx12",
+                "gles",
+                "portable-atomic",
+                "renderdoc",
+                "vulkan",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "dx12",
@@ -33036,6 +33630,7 @@ cargo_alias(
     name = "winit",
     actual = ":winit-0.30",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -33102,6 +33697,28 @@ cargo.rust_library(
         "rwh_06": ":raw-window-handle-0.6",
     },
     platform = {
+        "linux-arm64": dict(
+            named_deps = {
+                "sctk": ":smithay-client-toolkit-0.19",
+            },
+            deps = [
+                ":ahash-0.8",
+                ":bytemuck-1",
+                ":calloop-0.13",
+                ":libc-0.2",
+                ":memmap2-0.9",
+                ":percent-encoding-2",
+                ":rustix-0.38",
+                ":sctk-adwaita-0.10",
+                ":wayland-backend-0.3",
+                ":wayland-client-0.31",
+                ":wayland-protocols-0.32",
+                ":wayland-protocols-plasma-0.3",
+                ":x11-dl-2",
+                ":x11rb-0.13",
+                ":xkbcommon-dl-0.4",
+            ],
+        ),
         "linux-x86_64": dict(
             named_deps = {
                 "sctk": ":smithay-client-toolkit-0.19",
@@ -33386,6 +34003,16 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "alloc",
+                "ascii",
+                "binary",
+                "default",
+                "parser",
+                "std",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "alloc",
@@ -33579,6 +34206,7 @@ cargo_alias(
     name = "wry",
     actual = ":wry-0.55",
     platforms = [
+        "linux-arm64",
         "linux-x86_64",
         "macos-arm64",
         "macos-x86_64",
@@ -33631,6 +34259,18 @@ cargo.rust_library(
         "x11-dl",
     ],
     platform = {
+        "linux-arm64": dict(
+            deps = [
+                ":gdkx11-0.18",
+                ":gtk-0.18",
+                ":javascriptcore-rs-1",
+                ":percent-encoding-2",
+                ":soup3-0.5",
+                ":webkit2gtk-2",
+                ":webkit2gtk-sys-2",
+                ":x11-dl-2",
+            ],
+        ),
         "linux-x86_64": dict(
             deps = [
                 ":gdkx11-0.18",
@@ -34687,6 +35327,12 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     platform = {
+        "linux-arm64": dict(
+            features = [
+                "alloc",
+                "default",
+            ],
+        ),
         "linux-x86_64": dict(
             features = [
                 "alloc",

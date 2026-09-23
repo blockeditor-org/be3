@@ -20,8 +20,13 @@ execution-platform = true
 # buck/cargo/buckify.bxl asks cargo to plan the same build.
 features = ["default", "full"]
 
-# macOS, cross-compiled from the same Linux workers, with the host's features.
-# The names are the prelude's.
+# The cross-compiled platforms, with the host's features. The names are the
+# prelude's.
+[platform.linux-arm64]
+target = "aarch64-unknown-linux-gnu"
+execution-platform = false
+features = ["default", "full"]
+
 [platform.macos-arm64]
 target = "aarch64-apple-darwin"
 execution-platform = false

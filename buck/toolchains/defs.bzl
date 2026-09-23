@@ -1,6 +1,7 @@
 load("@prelude//cxx:cxx_toolchain_types.bzl", "CxxPlatformInfo", "CxxToolchainInfo", "LinkerInfo", "LinkerType", "RuntimeDependencyHandling")
 load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustToolchainInfo")
 load("@prelude//toolchains:cxx.bzl", "CxxToolsInfo")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 
 # A checked-in script, as a tool a toolchain can name.
 #
@@ -194,8 +195,7 @@ remote_linking_cxx_toolchain = rule(
 # the host and wasm targets share one, and a cross-compiled target has its own,
 # which buck/tools/BUCK says why.
 def cross_tool(tools: str, program: str):
-    return select({
-        "DEFAULT": "{}:{}".format(tools, program),
-        "root//buck/platforms:macos_arm64_setting": "{}:{}-aarch64-apple-darwin".format(tools, program),
-        "root//buck/platforms:macos_x86_64_setting": "{}:{}-x86_64-apple-darwin".format(tools, program),
-    })
+    return per_cross_platform(
+        "{}:{}".format(tools, program),
+        lambda name: "{}:{}-{}".format(tools, program, cross_triple(name)),
+    )

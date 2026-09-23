@@ -3,4 +3,4 @@
 # buck/sysroot, and the libraries it names reach the link.
 [buildscript.run]
 rustc_link_lib = true
-env = { PKG_CONFIG = "$(exe //buck/sysroot:pkg-config)" }
+env = { PKG_CONFIG = "$(exe_target //buck/sysroot:pkg-config)" }

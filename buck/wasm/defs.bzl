@@ -1,5 +1,6 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/cargo:defs.bzl", "cargo_wasm_facts")
+load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 
 # A WebAssembly module, named from a target that is not built for WebAssembly.
 #
@@ -133,11 +134,7 @@ def plugin_tests(srcs, exports = []):
         name = "test",
         manifest = "Cargo.toml",
         module = ":test_module",
-        precompile = select({
-            "DEFAULT": True,
-            "root//buck/platforms:macos_arm64_setting": False,
-            "root//buck/platforms:macos_x86_64_setting": False,
-        }),
+        precompile = per_cross_platform(True, lambda _: False),
         runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
     )
 
@@ -183,8 +180,8 @@ def plugin_tests(srcs, exports = []):
 # input to the action that wrote the artifact, so a runner that could not read
 # what it wrote is not a state that exists.
 #
-# Only for the host. A test built for another platform - a Mac, from a Linux
-# worker - has a runner that cannot run where the compile does, and the
+# Only for the host. A test built for another platform - a Mac, or Linux on
+# arm64 - has a runner that cannot run where the compile does, and the
 # worker's wasmtime has only cranelift's x86_64 backend; there the runner
 # compiles the module itself when the test runs.
 def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:

@@ -23,8 +23,8 @@ still cargo's.
   through the host.
 - All thirty-three editors, as the wasm plugins the app loads, and their tests,
   compiled to wasm and run through the same host `block-app` runs a plugin in.
-- All of the above for macOS, arm64 and x86_64, cross-compiled on the same
-  Linux workers (below).
+- All of the above for Linux on arm64 and for macOS on arm64 and x86_64,
+  cross-compiled on the same Linux workers (below).
 
 `./scripts/buck test //crates/...` is 72 test targets.
 
@@ -382,49 +382,59 @@ That replaces the build script under cargo, which shells out to a second cargo
 build for wasm32 and prints the path it wrote to. The plugin tests will want the
 same rule.
 
-## macOS
+## Cross-compiling
 
 ```
-./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 //crates/block-app:block-app-bin
+./scripts/buck build --target-platforms root//buck/platforms:linux_arm64 //crates/block-app:block-app-bin
+./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 //crates/...
 ./scripts/buck build --target-platforms root//buck/platforms:macos_x86_64 //crates/...
 ```
 
-Both Macs are cross-compiled on the Linux workers everything else builds on;
-CI builds the whole workspace for both. What makes that work:
+Linux on arm64 and both Macs are built on the Linux workers everything else
+builds on; CI builds the whole workspace for each. `buck/platforms/cross.bzl`
+lists them, and every rule that differs between platforms selects over that
+list with `per_cross_platform`.
 
-- **Apple's SDK** (`buck/tools:macos-sdk`): the headers and `.tbd` stubs of
-  MacOSX15.5.sdk, a pinned download. It is a repackaging of the one in Xcode,
-  and Apple's licence allows the SDK on Apple hardware only. Building on Linux
-  is for development; before a release ships, the release build moves to a
-  worker that is a Mac or runs Asahi Linux on one.
-- **The compilers**: the same clang with `--target=<cpu>-apple-macosx<min>`
-  as part of the command (the prelude assembles a `.S` file with the bare
-  compiler, so a toolchain flag would not reach it), and lld's `ld64.lld` as
-  the linker. The minimums are rustc's defaults, 11.0 and 10.12.
-- **rustc**: a sysroot per Apple target with only that target's standard
+- **Compilers**: the same clang with `--target=` as part of the command (the
+  prelude assembles a `.S` file with the bare compiler, so a toolchain flag
+  would not reach it). Linux on arm64 links with lld like the host; a Mac with
+  lld's `ld64.lld`. The macOS minimums are rustc's defaults, 11.0 and 10.12.
+- **rustc**: a sysroot per cross target with only that target's standard
   library, so the host's cache keys do not change when a target is added.
-  rustc gets `SDKROOT` rather than asking `xcrun`, and
+- **Linux on arm64** compiles and links against `buck/sysroot:arm64`, Ubuntu
+  24.04's arm64 packages from the same snapshot and the same package list as
+  amd64's; `resolve.py` resolves both into `packages.bzl`. The snapshot of
+  `ubuntu-ports`, where Ubuntu keeps arm64, refuses anonymous requests, and the
+  main archive's snapshot serves the same packages. The fixups ask
+  `$(exe_target //buck/sysroot:pkg-config)`, which answers for the platform
+  being built rather than the worker's. The app runs under
+  `qemu-aarch64 -L <that sysroot>` as far as looking for a display.
+- **macOS** compiles and links against Apple's SDK (`buck/tools:macos-sdk`),
+  the headers and `.tbd` stubs of MacOSX15.5.sdk, a pinned download. It is a
+  repackaging of the one in Xcode, and Apple's licence allows the SDK on Apple
+  hardware only. Building on Linux is for development; before a release ships,
+  the release build moves to a worker that is a Mac or runs Asahi Linux on
+  one. rustc gets `SDKROOT` rather than asking `xcrun`, and
   `-Csplit-debuginfo=unpacked`, because the default runs `dsymutil`.
-- **reindeer and cargo's plan**: `macos-arm64` and `macos-x86_64` in
-  `reindeer.toml`, and a `cargo test --unit-graph` per triple in
-  `buckify.bxl`, so the Mac gets the dependencies and features cargo would
-  give it. `buck/platforms` has a `config_setting` per Mac that the generated
-  `select()`s key on.
-- **The build scripts**: `coreaudio-sys` runs bindgen against the SDK with
+- **reindeer and cargo's plan**: a platform per target in `reindeer.toml`, and
+  a `cargo test --unit-graph` per triple in `buckify.bxl`, so each gets the
+  dependencies and features cargo would give it.
+- **Build scripts**: `coreaudio-sys` runs bindgen against the SDK with
   `libclang` from `buck/tools:llvm`; `objc2-exception-helper` compiles its
   Objective-C through its own build script; ring's C and assembly are named
   per platform in its fixup, each set under a name of its own because reindeer
   keys a library by name. libghostty-vt is Zig, and Zig cross-compiles, so it
   is the same genrule with a different triple. Ghostty's `memset` override is
   patched out on Darwin, where it collides with Zig's own in the archive.
-- **Plugin tests** build for a Mac but are not precompiled: the precompile
-  runs on a Linux worker, whose wasmtime has only cranelift's x86_64 backend,
-  so the runner compiles the module when a Mac runs the test.
+- **Plugin tests** build for every platform but are only precompiled for the
+  host: the precompile runs on a Linux worker, whose wasmtime has only
+  cranelift's x86_64 backend, so elsewhere the runner compiles the module when
+  the test runs.
 
-A macOS binary links only the system's frameworks, carries lld's ad hoc
-signature, and has not been run from here: nothing in this setup has a Mac to
-run it on. Neither is there a `.app` bundle yet; `./scripts/build` still makes
-the one that ships.
+A macOS binary links only the system's frameworks and carries lld's ad hoc
+signature; none has been run from here, since nothing in this setup has a Mac.
+Neither is there a `.app` bundle yet; `./scripts/build` still makes the one
+that ships.
 
 ## The compiler is a stable one, and the build says so
 
@@ -593,12 +603,12 @@ target with `--target` is what makes wasmtime stop looking.
 
 ## What is still cargo's
 
-- **Windows, Android and Linux on arm64, and every release artifact.** buck2
-  builds for Linux on x86_64 and for both Macs; the release artifacts CI
-  uploads, the macOS `.app`, and `./scripts/build` and `./scripts/run` are
-  cargo's. Adding a platform is the macOS section above again: a target
-  platform, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain, and
-  whatever its build scripts need.
+- **Windows and Android, and every release artifact.** buck2 builds for Linux
+  on both architectures and for both Macs; the release artifacts CI uploads,
+  the macOS `.app`, and `./scripts/build` and `./scripts/run` are cargo's.
+  Adding a platform is the cross-compiling section above again: an entry in
+  `cross.bzl`, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain,
+  and whatever its build scripts need.
 - **The GPU tests.** beui's renderer tests and the plugin tests' GPU half
   still run locally. Mesa's software Vulkan is a sysroot package away; what is
   left is pointing the Vulkan loader at it on a worker.

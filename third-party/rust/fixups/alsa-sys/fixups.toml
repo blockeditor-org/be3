@@ -2,4 +2,4 @@
 # the sysroot in buck/sysroot, and the -lasound it prints reaches the link.
 [buildscript.run]
 rustc_link_lib = true
-env = { PKG_CONFIG = "$(exe //buck/sysroot:pkg-config)" }
+env = { PKG_CONFIG = "$(exe_target //buck/sysroot:pkg-config)" }

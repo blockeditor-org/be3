@@ -1,4 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 
 # libghostty-vt, the terminal emulator behind block-app's debug terminal.
 #
@@ -15,11 +16,7 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 genrule(
     name = "libghostty-vt.a",
     cmd = "triple="
-    + select({
-        "DEFAULT": "x86_64-unknown-linux-gnu",
-        "root//buck/platforms:macos_arm64_setting": "aarch64-apple-darwin",
-        "root//buck/platforms:macos_x86_64_setting": "x86_64-apple-darwin",
-    })
+    + per_cross_platform("x86_64-unknown-linux-gnu", cross_triple)
     + """
         set -eu
         repository=`mktemp -d`

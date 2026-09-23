@@ -1,4 +1,5 @@
 load("//buck/tools:defs.bzl", "worker_properties")
+load(":cross.bzl", "CROSS_PLATFORMS")
 load(":defs.bzl", "execution_platform")
 
 # Where every action runs: a BuildBuddy worker. buck/tools/defs.bzl says what
@@ -54,9 +55,8 @@ platform(
     visibility = ["PUBLIC"],
 )
 
-# The platforms that are cross-compiled from a Linux worker, and a
-# config_setting for each: what the select()s buck/cargo/defs.bzl writes are
-# keyed on, since a select key is one setting and these are two constraints.
+# The platforms that are cross-compiled from a Linux worker. cross.bzl lists
+# them, and says why each has a config_setting beside it.
 [
     [
         platform(
@@ -76,8 +76,5 @@ platform(
             visibility = ["PUBLIC"],
         ),
     ]
-    for name, cpu, os in [
-        ("macos_arm64", "arm64", "macos"),
-        ("macos_x86_64", "x86_64", "macos"),
-    ]
+    for name, (cpu, os, _) in CROSS_PLATFORMS.items()
 ]

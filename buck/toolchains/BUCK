@@ -3,6 +3,7 @@ load("@prelude//toolchains:cxx.bzl", "cxx_tools_info_toolchain")
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "python_bootstrap_toolchain")
 load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/tools:defs.bzl", "worker_properties")
 load(":defs.bzl", "cross_tool", "host_cxx_tools", "pinned_rust_toolchain", "remote_linking_cxx_toolchain", "wasm_cxx_tools")
 
@@ -37,29 +38,33 @@ cxx_tools_info_toolchain(
     visibility = ["PUBLIC"],
 )
 
-# macOS, cross-compiled: the same clang, for the target (buck/tools says why
-# that is part of the command) and pointed at Apple's SDK, and lld's Mach-O
-# linker. The deployment targets are rustc's defaults for the two triples, so C
-# and Rust agree on them.
+# The cross-compiled platforms: the same clang, for the target (buck/tools
+# says why that is part of the command). Linux on arm64 compiles and links
+# against buck/sysroot's arm64 packages the way the host does against amd64's;
+# a Mac against Apple's SDK, linked by lld's ld64.lld.
 [
     [
         host_cxx_tools(
-            name = "macos_{}_cxx_tools".format(cpu),
+            name = name + "_cxx_tools",
             archiver = tools + ":ar",
-            compiler = "{}:cc-{}-apple-macosx".format(tools, cpu),
-            cxx_compiler = "{}:cxx-{}-apple-macosx".format(tools, cpu),
-            linker_type = "darwin",
+            compiler = "{}:cc-{}".format(tools, name),
+            cxx_compiler = "{}:cxx-{}".format(tools, name),
+            linker_type = "darwin" if name.startswith("macos") else "gnu",
         ),
         cxx_tools_info_toolchain(
-            name = "macos_{}_cxx".format(cpu),
-            c_flags = ["-isysroot", "$(location root//buck/tools:macos-sdk)"],
-            cxx_flags = ["-isysroot", "$(location root//buck/tools:macos-sdk)"],
-            cxx_tools_info = ":macos_{}_cxx_tools".format(cpu),
-            link_flags = ["-isysroot", "$(location root//buck/tools:macos-sdk)", "-fuse-ld=lld"],
+            name = name + "_cxx",
+            c_flags = flags,
+            cxx_flags = flags,
+            cxx_tools_info = ":{}_cxx_tools".format(name),
+            link_flags = flags + (["-fuse-ld=lld"] if name.startswith("macos") else []),
             visibility = ["PUBLIC"],
         ),
     ]
-    for cpu in ["arm64", "x86_64"]
+    for name, flags in [
+        ("linux_arm64", ["--sysroot=$(location root//buck/sysroot:arm64)"]),
+        ("macos_arm64", ["-isysroot", "$(location root//buck/tools:macos-sdk)"]),
+        ("macos_x86_64", ["-isysroot", "$(location root//buck/tools:macos-sdk)"]),
+    ]
 ]
 
 # Two of them, because only one of the wasm platforms has C in it. A plugin's
@@ -118,13 +123,14 @@ remote_linking_cxx_toolchain(
 
 toolchain_alias(
     name = "cxx_for_target",
-    actual = select({
-        "DEFAULT": ":host_cxx",
-        "prelude//os:none": ":wasm32_cxx",
-        "prelude//os:wasi": ":wasi_cxx",
-        "root//buck/platforms:macos_arm64_setting": ":macos_arm64_cxx",
-        "root//buck/platforms:macos_x86_64_setting": ":macos_x86_64_cxx",
-    }),
+    actual = per_cross_platform(
+        ":host_cxx",
+        lambda name: ":{}_cxx".format(name),
+        extra = {
+            "prelude//os:none": ":wasm32_cxx",
+            "prelude//os:wasi": ":wasi_cxx",
+        },
+    ),
     visibility = ["PUBLIC"],
 )
 
@@ -169,13 +175,14 @@ pinned_rust_toolchain(
         # Apple's and not something a Linux worker has.
         "prelude//os:macos": ["-Copt-level=0", "-Cdebuginfo=line-tables-only", "-Csplit-debuginfo=unpacked"],
     }),
-    rustc_target_triple = select({
-        "DEFAULT": "x86_64-unknown-linux-gnu",
-        "prelude//os:none": "wasm32-unknown-unknown",
-        "prelude//os:wasi": "wasm32-wasip1-threads",
-        "root//buck/platforms:macos_arm64_setting": "aarch64-apple-darwin",
-        "root//buck/platforms:macos_x86_64_setting": "x86_64-apple-darwin",
-    }),
+    rustc_target_triple = per_cross_platform(
+        "x86_64-unknown-linux-gnu",
+        cross_triple,
+        extra = {
+            "prelude//os:none": "wasm32-unknown-unknown",
+            "prelude//os:wasi": "wasm32-wasip1-threads",
+        },
+    ),
     rustdoc = cross_tool(tools, "rustdoc"),
     visibility = ["PUBLIC"],
 )
