@@ -27,7 +27,7 @@ const DEFAULT_WIDTH: f32 = 320.0;
 const MINIMUM_WIDTH: f32 = 200.0;
 const GRIP_WIDTH: f32 = 4.0;
 const GRIP_PAINT_WIDTH: f32 = 2.0;
-const COMPACT_WIDTH: f32 = 480.0;
+const MINIMUM_APP_WIDTH: f32 = 480.0;
 const BAR_HEIGHT: f32 = 44.0;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -336,7 +336,11 @@ impl Inspector {
     }
 
     pub(crate) fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
-        (self.width * scale(ctx)).min(rect.width() / 2.0).max(0.0)
+        let scale = scale(ctx);
+        (self.width * scale)
+            .min(rect.width() / 2.0)
+            .min(rect.width() - MINIMUM_APP_WIDTH * scale)
+            .max(0.0)
     }
 
     pub(crate) fn closed(&self) -> bool {
@@ -352,7 +356,7 @@ impl Inspector {
 
     pub(crate) fn layout(&mut self, ctx: &Context, rect: Rect) -> Layout {
         let scale = scale(ctx);
-        let compact = rect.width() < COMPACT_WIDTH * scale;
+        let compact = rect.width() < (MINIMUM_APP_WIDTH + DEFAULT_WIDTH) * scale;
         self.state.compact.set(compact);
         if !compact {
             self.grab(ctx, rect);
@@ -401,7 +405,9 @@ impl Inspector {
             self.grabbed = Some(pointer.x - edge);
         }
         if let Some(grabbed) = self.grabbed {
-            let maximum = (rect.width() / 2.0 / scale).max(MINIMUM_WIDTH);
+            let maximum = (rect.width() / scale / 2.0)
+                .min(rect.width() / scale - MINIMUM_APP_WIDTH)
+                .max(MINIMUM_WIDTH);
             self.width =
                 ((rect.right() - pointer.x + grabbed) / scale).clamp(MINIMUM_WIDTH, maximum);
         }
