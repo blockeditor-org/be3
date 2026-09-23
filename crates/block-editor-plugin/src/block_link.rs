@@ -45,10 +45,7 @@ pub fn watch_block_label(
         };
         set_shown.set(BlockDisplay {
             name: label.name,
-            glyph: label
-                .icon
-                .map(|icon| icon.codepoint.to_owned())
-                .unwrap_or_default(),
+            glyph: label.icon.map(str::to_owned).unwrap_or_default(),
             type_name: types
                 .display_name(next.block_type)
                 .map_or_else(|| next.block_type.to_string(), str::to_owned),

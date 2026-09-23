@@ -20,7 +20,7 @@ per-slide metadata exists yet.
 - **Presenter view** — separate window/second-monitor mode showing current
   slide, next slide thumbnail, notes, and an elapsed timer.
   `show_playback_surface` already isolates the render logic, so this is
-  mostly a second `egui::Area`/viewport reusing it.
+  mostly a second viewport reusing it.
 - **Jump to slide by number** (type digits + Enter) and **blank/black screen
   toggle** (`B`/`.` like PowerPoint) — cheap additions to the existing
   key-handling block in `show_playback`.

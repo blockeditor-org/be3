@@ -209,7 +209,7 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
             glyph: label
                 .as_ref()
                 .and_then(|label| label.icon)
-                .map(|icon| icon.codepoint.to_owned()),
+                .map(str::to_owned),
             automatic: label.is_some_and(|label| label.automatic),
             measure: drawn.measure_text(entity.id),
             entity,

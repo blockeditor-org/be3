@@ -26,11 +26,7 @@ impl crate::BeuiApp for NestingApp {
 
 #[test]
 fn a_child_block_asks_the_host_for_the_frame_it_will_own() {
-    let mut session = EditorSession::beui::<NestingApp>(
-        Rc::new(Vec::new()),
-        EditorInstanceId(0),
-        Waker::default(),
-    );
+    let mut session = EditorSession::new::<NestingApp>(EditorInstanceId(0), Waker::default());
     let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
     session.connect(client, Uuid::new_v4(), Uuid::new_v4());
     session.regions.insert(
@@ -64,8 +60,8 @@ fn a_child_block_asks_the_host_for_the_frame_it_will_own() {
         },
     );
 
-    session.run_beui(EditorRegion::Frame, 1);
-    session.run_beui(EditorRegion::Frame, 2);
+    session.run(EditorRegion::Frame, 1);
+    session.run(EditorRegion::Frame, 2);
 
     let children = &session
         .regions

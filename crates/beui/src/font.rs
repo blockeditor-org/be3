@@ -385,9 +385,9 @@ pub struct FontSources {
 impl Default for FontSources {
     fn default() -> Self {
         Self {
-            proportional: vec![epaint_default_fonts::UBUNTU_LIGHT],
-            monospace: vec![epaint_default_fonts::HACK_REGULAR],
-            fallback: vec![epaint_default_fonts::NOTO_EMOJI_REGULAR],
+            proportional: vec![UBUNTU_LIGHT],
+            monospace: vec![HACK_REGULAR],
+            fallback: vec![NOTO_EMOJI_REGULAR],
             icons: vec![ICONS_FONT],
         }
     }
@@ -947,6 +947,9 @@ fn pixels(bitmap: &ft::FT_Bitmap) -> Vec<u8> {
 }
 
 pub const ICONS_FONT: &[u8] = include_bytes!("../assets/icons/MaterialSymbolsRounded-Filled.ttf");
+const UBUNTU_LIGHT: &[u8] = include_bytes!("../assets/fonts/Ubuntu-Light.ttf");
+const HACK_REGULAR: &[u8] = include_bytes!("../assets/fonts/Hack-Regular.ttf");
+const NOTO_EMOJI_REGULAR: &[u8] = include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf");
 
 #[cfg(test)]
 mod tests;

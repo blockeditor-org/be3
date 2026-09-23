@@ -18,11 +18,7 @@ impl crate::BeuiApp for SidebarApp {
 
 #[test]
 fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view() {
-    let mut session = EditorSession::beui::<SidebarApp>(
-        Rc::new(Vec::new()),
-        EditorInstanceId(0),
-        Waker::default(),
-    );
+    let mut session = EditorSession::new::<SidebarApp>(EditorInstanceId(0), Waker::default());
     let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
     session.connect(client, Uuid::new_v4(), Uuid::new_v4());
     session.regions.insert(
@@ -61,8 +57,8 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
         },
     );
 
-    session.run_beui(EditorRegion::Frame, 1);
-    session.run_beui(EditorRegion::Frame, 2);
+    session.run(EditorRegion::Frame, 1);
+    session.run(EditorRegion::Frame, 2);
 
     let report = session
         .regions

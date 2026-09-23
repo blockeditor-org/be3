@@ -149,10 +149,7 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
         debugging: debugging && ceiling.can_view(),
         dynamic_artifact: workspace.client().is_dynamic_artifact(item.id),
         type_name,
-        glyph: label
-            .icon
-            .map(|icon| icon.codepoint.to_owned())
-            .unwrap_or_default(),
+        glyph: label.icon.map(str::to_owned).unwrap_or_default(),
         automatic: label.automatic,
         label: label.name,
         can_undo: history.0,

@@ -201,7 +201,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                     .as_ref()
                     .map_or_else(Uuid::nil, |(block_type, _)| *block_type),
                 label: label.name,
-                icon: label.icon.map(|icon| icon.codepoint),
+                icon: label.icon,
                 automatic: label.automatic,
                 large: embed.large,
                 available: metadata.is_some(),

@@ -251,7 +251,7 @@ While it is held the host reports raw pointer motion to the focused instance
 alongside the events it already sends, since there is no position to report.
 
 An editor instance may ask the host to put text on the clipboard, which only
-the host can reach: the plugin's own egui context has no window under it. The
+the host can reach: the plugin's own ui context has no window under it. The
 text an instance copied while drawing is sent as it is drawn and the host puts
 it on the clipboard for it; a paste comes back the other way as an ordinary
 paste event.

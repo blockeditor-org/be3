@@ -267,10 +267,7 @@ impl Builder<'_> {
             id: Some(reference.id),
             block_type: reference.block_type,
             label: label.name,
-            glyph: label
-                .icon
-                .map(|icon| icon.codepoint.to_owned())
-                .unwrap_or_default(),
+            glyph: label.icon.map(str::to_owned).unwrap_or_default(),
             automatic: label.automatic,
             depth,
             expandable,
