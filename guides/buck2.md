@@ -409,6 +409,19 @@ accepted with `./scripts/verify` as before.
 `block-editor-plugin` has a `test` of the same shape: it is the guest half of
 the plugin framework, and its tests are behind `cfg(target_arch = "wasm32")`.
 
+Cranelift is most of what a plugin test run costs - about forty seconds a
+module, and there are thirty-four of them - so compiling one is an action
+rather than something each test process does again. `plugin-test-runner
+--precompile-to` writes the artifact where buck2 asks for it and the test
+command names it with `--precompiled`, rather than the runner looking beside
+the module the way it does under cargo: what decides staleness there is an
+mtime, and buck2 does not preserve those. It does not need to, because the
+runner is an input to the action that wrote the artifact. Being an action is
+also what makes the compile shared - once per module rather than once per test
+process, and answered by the cache on a machine that has never built the
+plugin. It is the difference between `./scripts/buck test //crates/...` taking
+twenty-five minutes on an unchanged tree and taking twenty seconds.
+
 ## What is not covered yet
 
 The gaps, roughly in the order they are worth closing:

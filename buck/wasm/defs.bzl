@@ -153,9 +153,31 @@ def editor(name, module, deps, test_deps = [], visibility = ["PUBLIC"]):
 # what the transition below does. An exec_dep would put the runner in the
 # execution platform's configuration instead and build wasmtime a second time
 # for it.
+# Cranelift is what makes a module this size take seconds rather than minutes,
+# and it is still most of what a plugin test run costs: about forty seconds a
+# module, and there are thirty-four of them. So the compile is an action here
+# rather than something each test process does again - done once, shared by
+# every test in the module, and answered by the cache on a machine that has
+# never built the plugin.
+#
+# The runner is told where the artifact is rather than looking beside the
+# module, because what decides whether one is stale under cargo is its mtime
+# and buck2 does not preserve those. It does not need to: the runner is an
+# input to the action that wrote the artifact, so a runner that could not read
+# what it wrote is not a state that exists.
+def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
+    runner = ctx.attrs.runner[RunInfo]
+    artifact = ctx.actions.declare_output(module.basename.removesuffix(".wasm") + ".cwasm")
+    ctx.actions.run(
+        cmd_args(runner, "--precompile-to", artifact.as_output(), module),
+        category = "wasm_precompile",
+        identifier = module.basename,
+    )
+    return cmd_args("--precompiled", artifact, module)
+
 def _wasi_test_impl(ctx: AnalysisContext) -> list[Provider]:
     module = ctx.attrs.module[DefaultInfo].default_outputs[0]
-    command = cmd_args(ctx.attrs.runner[RunInfo], module)
+    command = cmd_args(ctx.attrs.runner[RunInfo], _precompiled(ctx, module))
     env = dict(ctx.attrs.env)
     if ctx.attrs.manifest:
         env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)

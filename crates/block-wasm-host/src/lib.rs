@@ -21,7 +21,7 @@ use state::Device;
 use threads::Spawner;
 use wake::Wake;
 
-pub use precompile::precompile;
+pub use precompile::{precompile, precompile_to};
 pub use state::{Connect, State};
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
