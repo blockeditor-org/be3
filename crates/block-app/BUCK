@@ -13,7 +13,9 @@ commit = {"BLOCK_APP_COMMIT": "unknown"}
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
 
-cargo_library(env = commit, srcs = app_srcs)
+# On Android the app is this library, as the shared object the APK carries and
+# its NativeActivity loads by cargo's name for it.
+cargo_library(env = commit, soname = "libblock_app_lib.so", srcs = app_srcs)
 
 # The app links system libraries the worker's image does not have - ALSA, and
 # GTK and WebKitGTK when the browser is built - so its tests load them from the

@@ -69,6 +69,7 @@ rust_sysroot(
 # every cache key the host build has.
 cross_rust_std = {
     "aarch64-apple-darwin": ("48c05269ed36fb5f0a8438065156891fe59fcb868d90cfed9b7209540d54b2ce", 29740736),
+    "aarch64-linux-android": ("e71a6405289f64b5edf00e255a32fe5e3d2e97d2d86324c279b5c1f3f20bdde6", 29451812),
     "aarch64-pc-windows-msvc": ("df28cbf39697dfbfac0633814b56c1ca6f07fd32a70ab2074cb095f3871ae338", 23048684),
     "aarch64-unknown-linux-gnu": ("a36f7ac98af20ef0ba6368aace0345efabbebaef7962eba99f47190fd256162d", 30768752),
     "x86_64-apple-darwin": ("8923fa9d0e0407b8a492e59d568e7aceff75949e1eee2e3e1b60e174373890cb", 29760212),
@@ -252,12 +253,31 @@ http_file(
     for arch in ["x86_64", "aarch64"]
 ]
 
+# Android's NDK r29, the version ./scripts/build uses: the aarch64 sysroot and
+# the compiler runtime clang links into an Android program, which
+# android-ndk.py downloads, checks and keeps on a worker - the NDK is a 780 MB
+# zip, and an action whose input it was would move all of it to every worker
+# that compiled for Android.
+genrule(
+    name = "android-ndk",
+    cmd = "python3 $(location :android-ndk.py) "
+    + "https://dl.google.com/android/repository/android-ndk-r29-linux.zip "
+    + "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf $OUT",
+    out = "ndk",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "android-ndk.py",
+)
+
 # clang for each cross-compiled platform. The target is part of the command
 # rather than a toolchain flag because the prelude assembles a .S file with the
 # bare compiler and none of the flags, and an assembly file that asks which
 # platform it is for would otherwise be told Linux on x86_64. The macOS
 # minimums are rustc's defaults for the two triples, so C and Rust agree.
 clang_targets = {
+    "android_arm64": "aarch64-linux-android26",
     "linux_arm64": "aarch64-linux-gnu",
     "macos_arm64": "arm64-apple-macosx11.0",
     "macos_x86_64": "x86_64-apple-macosx10.12",

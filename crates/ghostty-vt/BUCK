@@ -15,7 +15,9 @@ load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 # worker; the triple is the only thing that differs, and the archive's name,
 # which is MSVC's convention on Windows. Whatever it is called, it is the one
 # archive in the directory, and the linker takes it by path. For Windows, Zig is
-# pointed at the MSVC runtime and SDK buck/tools lays out, with a libc file.
+# pointed at the MSVC runtime and SDK buck/tools lays out, with a libc file; for
+# Android, Ghostty's build looks for an NDK itself, and is given buck/tools' at
+# the path it looks for the sysroot at.
 genrule(
     name = "libghostty-vt.a",
     cmd = "triple="
@@ -27,9 +29,17 @@ genrule(
             "$(location //buck/tools:windows-sdk-{})".format("aarch64" if name == "windows_arm64" else "x86_64") if name.startswith("windows") else None
         ),
     )
+    + "\nandroid_ndk="
+    + per_cross_platform("", lambda name: "$(location //buck/tools:android-ndk)" if name.startswith("android") else None)
     + """
         set -eu
         repository=`mktemp -d`
+        if [ -n "$android_ndk" ]; then
+            ANDROID_NDK_HOME="$repository/ndk"
+            export ANDROID_NDK_HOME
+            mkdir -p "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
+            ln -s "`cd "$android_ndk" && pwd`/sysroot" "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+        fi
         if [ -n "$windows_sdk" ]; then
             sdk=`cd "$windows_sdk" && pwd`
             arch="${triple%%-*}"

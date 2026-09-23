@@ -8,6 +8,7 @@
 
 # name: (buck2 cpu, buck2 os, Rust triple)
 CROSS_PLATFORMS = {
+    "android_arm64": ("arm64", "android", "aarch64-linux-android"),
     "linux_arm64": ("arm64", "linux", "aarch64-unknown-linux-gnu"),
     "macos_arm64": ("arm64", "macos", "aarch64-apple-darwin"),
     "macos_x86_64": ("x86_64", "macos", "x86_64-apple-darwin"),

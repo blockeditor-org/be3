@@ -227,14 +227,16 @@ jobs:
       - run: ./scripts/buck build //crates/...
 
       # The same for the platforms buck/platforms/cross.bzl cross-compiles on
-      # the same Linux workers: Linux on arm64, against Ubuntu's arm64
-      # packages, both Macs, against Apple's SDK, and both Windows, against
-      # the MSVC runtime and Windows SDK. Nothing runs them here.
+      # the same Linux workers: Android, against the NDK, Linux on arm64,
+      # against Ubuntu's arm64 packages, both Macs, against Apple's SDK, and
+      # both Windows, against the MSVC runtime and Windows SDK. Android's app
+      # is the library the APK carries. Nothing runs any of them here.
       - name: Build for the cross-compiled platforms
         run: |
-          for platform in linux_arm64 macos_arm64 macos_x86_64 windows_arm64 windows_x86_64; do
+          for platform in android_arm64 linux_arm64 macos_arm64 macos_x86_64 windows_arm64 windows_x86_64; do
             ./scripts/buck build --target-platforms "root//buck/platforms:$platform" //crates/...
           done
+          ./scripts/buck build --target-platforms root//buck/platforms:android_arm64 '//crates/block-app:block-app[cdylib]'
 
   web:
     name: web bundle

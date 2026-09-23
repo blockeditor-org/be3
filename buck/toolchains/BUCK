@@ -39,7 +39,9 @@ cxx_tools_info_toolchain(
 )
 
 # The cross-compiled platforms: the same clang, for the target (buck/tools
-# says why that is part of the command). Linux on arm64 compiles and links
+# says why that is part of the command). Android compiles against the NDK's
+# sysroot, and links the NDK's compiler runtime, which is the NDK's clang's and
+# so is named as the resource directory for the link alone. Linux on arm64 compiles and links
 # against buck/sysroot's arm64 packages the way the host does against amd64's;
 # a Mac against Apple's SDK, linked by lld's ld64.lld; Windows against the MSVC
 # runtime and the Windows SDK that xwin lays out, linked by lld-link. Those go
@@ -66,6 +68,15 @@ cxx_tools_info_toolchain(
         ),
     ]
     for name, flags, link_flags in [
+        (
+            "android_arm64",
+            ["--sysroot=$(location root//buck/tools:android-ndk)/sysroot"],
+            [
+                "--sysroot=$(location root//buck/tools:android-ndk)/sysroot",
+                "-resource-dir=$(location root//buck/tools:android-ndk)/clang",
+                "-fuse-ld=lld",
+            ],
+        ),
         (
             "linux_arm64",
             ["--sysroot=$(location root//buck/sysroot:arm64)"],

@@ -23,8 +23,9 @@ still cargo's.
   through the host.
 - All thirty-three editors, as the wasm plugins the app loads, and their tests,
   compiled to wasm and run through the same host `block-app` runs a plugin in.
-- All of the above for Linux on arm64, macOS on arm64 and x86_64, and Windows
-  on arm64 and x86_64, cross-compiled on the same Linux workers (below).
+- All of the above for Android, Linux on arm64, macOS on arm64 and x86_64,
+  and Windows on arm64 and x86_64, cross-compiled on the same Linux workers
+  (below).
 
 `./scripts/buck test //crates/...` is 72 test targets.
 
@@ -389,10 +390,11 @@ same rule.
 ./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 //crates/...
 ./scripts/buck build --target-platforms root//buck/platforms:macos_x86_64 //crates/...
 ./scripts/buck build --target-platforms root//buck/platforms:windows_x86_64 //crates/...
+./scripts/buck build --target-platforms root//buck/platforms:android_arm64 '//crates/block-app:block-app[cdylib]'
 ```
 
-Linux on arm64, both Macs and both Windows are built on the Linux workers
-everything else builds on; CI builds the whole workspace for each. `buck/platforms/cross.bzl`
+Android, Linux on arm64, both Macs and both Windows are built on the Linux
+workers everything else builds on; CI builds the whole workspace for each. `buck/platforms/cross.bzl`
 lists them, and every rule that differs between platforms selects over that
 list with `per_cross_platform`.
 
@@ -419,6 +421,16 @@ list with `per_cross_platform`.
   the release build moves to a worker that is a Mac or runs Asahi Linux on
   one. rustc gets `SDKROOT` rather than asking `xcrun`, and
   `-Csplit-debuginfo=unpacked`, because the default runs `dsymutil`.
+- **Android** compiles against the sysroot of NDK r29, the NDK `./scripts/build`
+  uses, at API level 26, and links the NDK's compiler runtime, which is its
+  clang's and so is named as the resource directory for the link alone.
+  `buck/tools:android-ndk` downloads the 780 MB NDK on a worker, checks it,
+  and keeps the 86 MB of it the build reads. The app is `block-app`'s
+  `[cdylib]`, `libblock_app_lib.so`, the library the APK carries; it needs
+  `libc++_shared.so` beside it, as cargo's build does. Ghostty's build finds
+  an NDK itself, and is shown the same one. oboe-sys compiles Oboe with cc-rs,
+  which appends a `--target` with no API level unless one is visible in the
+  compiler's command, so the fixup puts the versioned one in its `CXXFLAGS`.
 - **Windows** (MSVC, as what ships is) compiles and links against the MSVC C
   runtime and the Windows SDK, which `buck/tools:windows-sdk-<arch>` has xwin
   download from Microsoft and lay out on a worker, from a pinned Visual Studio
@@ -628,9 +640,10 @@ target with `--target` is what makes wasmtime stop looking.
 
 ## What is still cargo's
 
-- **Android, and every release artifact.** buck2 builds for Linux, macOS and
-  Windows on both architectures; the release artifacts CI uploads, the macOS
-  `.app`, and `./scripts/build` and `./scripts/run` are cargo's.
+- **Every release artifact.** buck2 builds for Linux, macOS and Windows on
+  both architectures and for Android; the release artifacts CI uploads, the
+  APK, the macOS `.app`, and `./scripts/build` and `./scripts/run` are
+  cargo's.
   Adding a platform is the cross-compiling section above again: an entry in
   `cross.bzl`, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain,
   and whatever its build scripts need.

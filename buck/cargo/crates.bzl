@@ -13,6 +13,19 @@ crates = {
         },
         "name": "be-block",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model:be-model",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -117,6 +130,27 @@ crates = {
         },
         "name": "be-client",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -256,6 +290,18 @@ crates = {
         },
         "name": "be-commit",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:similar",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -353,6 +399,18 @@ crates = {
         },
         "name": "be-graph",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -438,6 +496,19 @@ crates = {
         },
         "name": "be-model",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model-derive:be-model-derive",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -542,6 +613,17 @@ crates = {
         },
         "name": "be-model-derive",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -632,6 +714,20 @@ crates = {
         },
         "name": "be-protocol",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -734,6 +830,45 @@ crates = {
         },
         "name": "be-server",
         "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "be-server": [
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-session:be-session",
+                        "//crates/be-store:be-store",
+                        "//third-party/rust:argon2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:rand",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:sha2",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:tokio-tungstenite",
+                        "//third-party/rust:uuid",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:argon2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {
                     "be-server": [
@@ -981,6 +1116,19 @@ crates = {
         },
         "name": "be-session",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -1072,6 +1220,20 @@ crates = {
         },
         "name": "be-store",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:chacha20poly1305",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -1183,6 +1345,34 @@ crates = {
         },
         "name": "beui",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui_macros:beui_macros",
+                    "//crates/reactive:reactive",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:accesskit",
+                    "//third-party/rust:accesskit_winit",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:freetype",
+                    "//third-party/rust:harfbuzz_rs",
+                    "//third-party/rust:pollster",
+                    "//third-party/rust:unicode-script",
+                    "//third-party/rust:wgpu",
+                    "//third-party/rust:winit",
+                ],
+                "features": [
+                    "default",
+                    "render",
+                    "window",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "default",
+                    "render",
+                    "window",
+                ],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -1389,6 +1579,17 @@ crates = {
         },
         "name": "beui_macros",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -1479,6 +1680,16 @@ crates = {
         },
         "name": "block",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -1567,6 +1778,95 @@ crates = {
         },
         "name": "block-app",
         "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "block-app": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/beui:beui",
+                        "//crates/block-client:block-client",
+                        "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-server:block-server",
+                        "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/block:block",
+                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/logicgame:logicgame",
+                        "//crates/reactive:reactive",
+                        "//crates/tabletop_games/host:game-host",
+                        "//crates/wasi-threads:wasi-threads",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:directories-next",
+                        "//third-party/rust:flate2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:image",
+                        "//third-party/rust:jni",
+                        "//third-party/rust:ndk-context",
+                        "//third-party/rust:rodio",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:serde_json",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:ureq",
+                        "//third-party/rust:uuid",
+                        "//third-party/rust:wgpu",
+                        "//third-party/rust:winit",
+                        "//third-party/rust:zip",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-server:block-server",
+                    "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/block:block",
+                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/logicgame:logicgame",
+                    "//crates/reactive:reactive",
+                    "//crates/tabletop_games/host:game-host",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:directories-next",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:image",
+                    "//third-party/rust:jni",
+                    "//third-party/rust:ndk-context",
+                    "//third-party/rust:rodio",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:ureq",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wgpu",
+                    "//third-party/rust:winit",
+                    "//third-party/rust:zip",
+                ],
+                "features": [
+                    "default",
+                    "full",
+                    "terminal",
+                    "web-view",
+                ],
+                "test_deps": [
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                ],
+                "test_features": [
+                    "default",
+                    "full",
+                    "terminal",
+                    "web-view",
+                ],
+            },
             "linux-arm64": {
                 "binaries": {
                     "block-app": [
@@ -2126,6 +2426,33 @@ crates = {
         },
         "name": "block-client",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block:block",
+                    "//crates/logicgame:logicgame",
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:base64",
+                    "//third-party/rust:chacha20poly1305",
+                    "//third-party/rust:eips",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:futures-channel",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:parking_lot",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:ureq",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-server:block-server",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2330,6 +2657,20 @@ crates = {
         },
         "name": "block-e2e",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-client:block-client",
+                    "//crates/block-server:block-server",
+                    "//crates/block:block",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2427,6 +2768,25 @@ crates = {
         },
         "name": "block-editor-plugin",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-reactive:block-reactive",
+                    "//crates/block-ui:block-ui",
+                    "//crates/block:block",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2577,6 +2937,16 @@ crates = {
         },
         "name": "block-gpu-abi",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:serde",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2660,6 +3030,17 @@ crates = {
         },
         "name": "block-gpu-guest",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2751,6 +3132,16 @@ crates = {
         },
         "name": "block-gpu-host",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2836,6 +3227,19 @@ crates = {
         },
         "name": "block-plugin-api",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:libc",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2939,6 +3343,18 @@ crates = {
         },
         "name": "block-reactive",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-client:block-client",
+                    "//crates/block:block",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -3041,6 +3457,51 @@ crates = {
         },
         "name": "block-server",
         "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "block-server": [
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-server:be-server",
+                        "//crates/block:block",
+                        "//third-party/rust:argon2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:httparse",
+                        "//third-party/rust:indexmap",
+                        "//third-party/rust:rand",
+                        "//third-party/rust:rpassword",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:serde_json",
+                        "//third-party/rust:sha2",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:tokio-tungstenite",
+                        "//third-party/rust:uuid",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/block:block",
+                    "//third-party/rust:argon2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:httparse",
+                    "//third-party/rust:indexmap",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rpassword",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:ureq",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {
                     "block-server": [
@@ -3324,6 +3785,18 @@ crates = {
         },
         "name": "block-ui",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block:block",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -3421,6 +3894,20 @@ crates = {
         },
         "name": "block-ui-test",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-client:block-client",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -3535,6 +4022,29 @@ crates = {
         },
         "name": "block-wasm-host",
         "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "precompile": [
+                        "//crates/block-gpu-abi:block-gpu-abi",
+                        "//crates/block-gpu-host:block-gpu-host",
+                        "//third-party/rust:wasmtime",
+                        "//third-party/rust:wasmtime-wasi",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//crates/block-gpu-host:block-gpu-host",
+                    "//third-party/rust:wasmtime",
+                    "//third-party/rust:wasmtime-wasi",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {
                     "precompile": [
@@ -3691,6 +4201,15 @@ crates = {
         },
         "name": "cvl2",
         "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "cvl2": [],
+                },
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {
                     "cvl2": [],
@@ -4700,6 +5219,19 @@ crates = {
         },
         "name": "fix-rust-source",
         "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "fix-rust-source": [
+                        "//third-party/rust:ra_ap_syntax",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:ra_ap_syntax",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {
                     "fix-rust-source": [
@@ -4791,6 +5323,15 @@ crates = {
         },
         "name": "ghostty-vt",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [],
@@ -4858,6 +5399,20 @@ crates = {
         },
         "name": "logicgame",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rand_chacha",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -4967,6 +5522,19 @@ crates = {
         },
         "name": "paint-snapshot",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:image",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5072,6 +5640,19 @@ crates = {
         "library": None,
         "name": "plugin-test-runner",
         "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "plugin-test-runner": [
+                        "//crates/block-wasm-host:block-wasm-host",
+                        "//third-party/rust:pollster",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {
                     "plugin-test-runner": [
@@ -5163,6 +5744,15 @@ crates = {
         },
         "name": "reactive",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/reactive_macros:reactive_macros",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5239,6 +5829,17 @@ crates = {
         },
         "name": "reactive_macros",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5329,6 +5930,19 @@ crates = {
         },
         "name": "game-api",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rand_chacha",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5446,6 +6060,18 @@ crates = {
         },
         "name": "game-host",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wasmi",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5543,6 +6169,19 @@ crates = {
         },
         "name": "connect_four",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:bincode",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5644,6 +6283,18 @@ crates = {
         },
         "name": "crazy_8s",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:uuid",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5738,6 +6389,19 @@ crates = {
         },
         "name": "tic_tac_toe",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:bincode",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5851,6 +6515,24 @@ crates = {
         },
         "name": "text-editor-core",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde",
+                    "//third-party/rust:similar",
+                    "//third-party/rust:tree-sitter",
+                    "//third-party/rust:tree-sitter-md",
+                    "//third-party/rust:tree-sitter-rust",
+                    "//third-party/rust:tree-sitter-zig",
+                    "//third-party/rust:unicode-segmentation",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
@@ -5988,6 +6670,13 @@ crates = {
         },
         "name": "wasi-threads",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "linux-arm64": {
                 "binaries": {},
                 "deps": [],

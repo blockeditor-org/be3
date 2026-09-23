@@ -24,6 +24,11 @@ features = ["default", "full"]
 # prelude's, but for Windows, which the prelude names by ABI rather than by
 # architecture and which differs by architecture here: windows-targets links a
 # different crate of import libraries for each.
+[platform.android-arm64]
+target = "aarch64-linux-android"
+execution-platform = false
+features = ["default", "full"]
+
 [platform.linux-arm64]
 target = "aarch64-unknown-linux-gnu"
 execution-platform = false

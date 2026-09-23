@@ -16,6 +16,7 @@ load(":crates.bzl", "crates")
 # after the platforms reindeer.toml names; these are the constraints buck2
 # tells them apart by.
 _CONSTRAINTS = {
+    "android-arm64": "root//buck/platforms:android_arm64_setting",
     "linux-arm64": "root//buck/platforms:linux_arm64_setting",
     "linux-x86_64": "DEFAULT",
     "macos-arm64": "root//buck/platforms:macos_arm64_setting",
