@@ -59,6 +59,7 @@ pub struct Document {
     placing: Vec<NodeId>,
     interact_pool: Vec<Vec<NodeId>>,
     placed_pass: NodeMap<u64>,
+    reached_pass: NodeMap<u64>,
     layout_pass: u64,
     scroll_hosts: Vec<NodeId>,
     scroll_shifts: NodeMap<f32>,
@@ -189,6 +190,7 @@ impl Document {
             placing: Vec::new(),
             interact_pool: Vec::new(),
             placed_pass: NodeMap::default(),
+            reached_pass: NodeMap::default(),
             layout_pass: 0,
             scroll_hosts: Vec::new(),
             scroll_shifts: NodeMap::default(),
@@ -991,6 +993,9 @@ impl Document {
     }
 
     fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>, dropped: &mut Vec<NodeId>) {
+        if self.delivering && self.reached_pass.get(&id) == Some(&self.layout_pass) {
+            return;
+        }
         let clip = self.clips.remove(&id).unwrap_or(Rect::EVERYTHING);
         if let Some(rect) = out.remove(&id) {
             if self.paints(id) {
@@ -1065,6 +1070,7 @@ impl Document {
     pub(crate) fn note_placed(&mut self, id: NodeId) {
         if self.delivering {
             self.placing.push(id);
+            self.reached_pass.insert(id, self.layout_pass);
             self.deliver_placed(id, true);
         }
     }
