@@ -558,10 +558,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross
           {
             echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
             echo CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+            echo CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
             echo AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
           } >> "$GITHUB_ENV"
 
@@ -606,6 +607,17 @@ jobs:
           --no-plugins
           ${{ matrix.client && ' ' || '--no-client' }}
           ${{ runner.os == 'macOS' && '--sign-identity -' || ' ' }}
+
+      # The beui demo links nothing from the target beyond libc and libstdc++:
+      # FreeType and HarfBuzz are compiled in, and the windowing and graphics
+      # libraries are opened at runtime. So unlike the client it cross-compiles
+      # without a sysroot, and it is what runs on an aarch64 Linux device such
+      # as the PineNote.
+      - name: Build the beui demo
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          cargo build -p beui --example demo --release --target aarch64-unknown-linux-gnu
+          cp target/aarch64-unknown-linux-gnu/release/examples/demo dist/beui-demo
 
       - uses: ./.github/actions/sccache-report
         if: always()
