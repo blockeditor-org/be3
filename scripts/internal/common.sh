@@ -926,14 +926,14 @@ remove_generated_buck_config_local() {
 }
 
 # Every Starlark file a person wrote: the BUCK file beside each crate, and the
-# toolchain and platform definitions. third-party/rust/BUCK and
-# buck/cargo/crates.bzl are left out because ./scripts/buckify writes them, and
-# a formatter that rewrote them would put it and the check that they are current
-# permanently at odds.
+# toolchain and platform definitions. The files ./scripts/buckify writes -
+# third-party/rust/BUCK, buck/cargo/crates.bzl and buck/sysroot/packages.bzl -
+# are left out, because a formatter that rewrote them would put it and the
+# check that they are current permanently at odds.
 starlark_files() {
     find "$repository/buck" "$repository/crates" "$repository/third-party/system" \
         \( -name BUCK -o -name '*.bzl' -o -name '*.bxl' \) -print 2> /dev/null \
-        | grep -v '/buck/cargo/crates\.bzl$' | sort
+        | grep -v -e '/buck/cargo/crates\.bzl$' -e '/buck/sysroot/packages\.bzl$' | sort
 }
 
 # Reports the Starlark files that are not formatted, and fails if there are

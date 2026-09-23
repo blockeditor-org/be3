@@ -210,15 +210,16 @@ jobs:
       - uses: ./.github/actions/buck2
 
       # third-party/rust/BUCK and buck/cargo/crates.bzl are generated from the
-      # workspace's Cargo.toml and checked in, so this is what says they still
-      # agree. A pull request
+      # workspace's Cargo.toml, and buck/sysroot/packages.bzl from
+      # buck/sysroot/BUCK, and all three are checked in, so this is what says
+      # they still agree. A pull request
       # that changed a dependency and did not run ./scripts/buckify fails here
       # rather than in whichever job first tried to build the crate. reindeer
       # runs on a worker, and is a cache hit unless a manifest changed.
       - name: Check the generated third-party rules are current
         run: |
           ./scripts/buckify
-          git diff --exit-code third-party/rust/BUCK buck/cargo/crates.bzl
+          git diff --exit-code third-party/rust/BUCK buck/cargo/crates.bzl buck/sysroot/packages.bzl
 
       # Everything, on BuildBuddy's workers: the tests jobs above build what
       # they test, and this is what says the rest - the binaries, the plugin
