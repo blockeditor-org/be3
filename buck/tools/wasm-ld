@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# rust-lld for a wasm link, with the one flag it cannot take dropped.
+#
+# prelude//os_lookup has no case for WebAssembly and falls back to linux - its
+# own FIXME says so - so a wasm link arrives with -fuse-ld=lld on it, which
+# belongs to a compiler driver rather than to a linker. rustc adds -flavor wasm
+# for lld's generic driver, and that part is right; this passes it through and
+# drops the other.
+#
+# The linker is the first argument, a path into the downloaded sysroot. The
+# loop is the POSIX way to rewrite "$@" without losing an argument that
+# contains a space: take one off the front, decide, and put the ones that
+# survive back on the end.
+linker="$1"
+shift
+count=$#
+index=0
+while [ "$index" -lt "$count" ]; do
+    argument="$1"
+    shift
+    index=$((index + 1))
+    case "$argument" in
+        -fuse-ld=*) continue ;;
+    esac
+    set -- "$@" "$argument"
+done
+exec "$linker" "$@"

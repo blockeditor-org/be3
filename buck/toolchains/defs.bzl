@@ -2,20 +2,13 @@ load("@prelude//cxx:cxx_toolchain_types.bzl", "CxxPlatformInfo", "CxxToolchainIn
 load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustToolchainInfo")
 load("@prelude//toolchains:cxx.bzl", "CxxToolsInfo")
 
-# A tool this repository hands buck2 as a file rather than as a name.
+# A checked-in script, as a tool a toolchain can name.
 #
-# Everything about a toolchain that buck2 is given as a plain string ends up in
-# the command line of every action that uses it, and a string that is a path is
-# a different string on every machine - which makes the action a different
-# action, and the shared cache useless. An artifact does not have that problem:
-# buck2 writes it into the command line as a path relative to the repository
-# root, which is the same everywhere.
-#
-# The files are the wrappers ./scripts/buck writes into buck/tools. Each one
-# names the version of the tool it runs, so two machines with the same compiler
-# agree on the bytes and share a cache entry, and two machines with different
-# compilers do not - which is the half of this that keeps the cache honest
-# rather than fast.
+# Every tool reaches buck2 as an artifact rather than as a name. Anything a
+# toolchain gives buck2 as a plain string ends up in the command line of every
+# action that uses it and is resolved wherever the action runs; an artifact is
+# written as a path relative to the repository root and is an input of the
+# action, so the worker has exactly the file this repository says it should.
 def _script_impl(ctx: AnalysisContext) -> list[Provider]:
     return [
         DefaultInfo(default_output = ctx.attrs.src),
@@ -45,7 +38,8 @@ def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
     ]
 
-# The same tools prelude//toolchains/cxx/clang:path_clang_tools names, as files.
+# The same tools prelude//toolchains/cxx/clang:path_clang_tools names, as
+# artifacts.
 host_cxx_tools = rule(
     attrs = {
         "archiver": attrs.exec_dep(providers = [RunInfo]),
@@ -91,10 +85,10 @@ wasm_cxx_tools = rule(
 )
 
 # prelude//toolchains:rust.bzl's system_rust_toolchain, with the three tools it
-# names as strings taken as files instead, for the reason above. rustc is the
-# one that matters: without it, an action that compiles Rust says nothing about
-# which rustc compiled it, and two machines on different toolchains would share
-# each other's results.
+# names as strings taken as artifacts instead, for the reason above. rustc is
+# the one that matters: as an artifact it is part of every Rust action's key,
+# so a different rustc is a different action rather than a cache hit on
+# another compiler's output.
 def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
     return [
         DefaultInfo(),
@@ -142,15 +136,14 @@ pinned_rust_toolchain = rule(
     is_toolchain_rule = True,
 )
 
-# A cxx toolchain whose links may run on a remote worker.
+# A cxx toolchain whose links run on a remote worker.
 #
 # prelude//toolchains:cxx.bzl hard-codes every link and archive to run locally,
 # which is the right call for a toolchain that is whatever is on PATH: a worker
-# would not have it. Under remote execution the toolchain is buck/remote's, and
-# a worker has exactly that, so the preference only costs a download - the
-# whole compiler and every rlib a binary links, onto a machine that then runs a
-# linker it may not be able to load. This passes the toolchain through with
-# the three preferences cleared when linking remotely, and untouched otherwise.
+# would not have it. This one is buck/tools', which a worker has, so the
+# preference would only cost a download - the whole compiler and every rlib a
+# binary links, onto a machine that then runs a linker it may not be able to
+# load. This passes the toolchain through with the three preferences cleared.
 #
 # Providers have no copy-with-changes, so the two that change are rebuilt from
 # their own fields.
@@ -161,8 +154,6 @@ def _replace(constructor, value, **changes):
 
 def _remote_linking_cxx_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
     toolchain = ctx.attrs.toolchain
-    if not ctx.attrs.link_remotely:
-        return toolchain.providers
     info = toolchain[CxxToolchainInfo]
     linker_info = _replace(
         LinkerInfo,
@@ -179,7 +170,6 @@ def _remote_linking_cxx_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
 
 remote_linking_cxx_toolchain = rule(
     attrs = {
-        "link_remotely": attrs.bool(),
         "toolchain": attrs.toolchain_dep(providers = [CxxToolchainInfo]),
     },
     impl = _remote_linking_cxx_toolchain_impl,

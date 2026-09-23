@@ -1,28 +1,19 @@
-load("//buck/remote:defs.bzl", "worker_properties")
-load(":defs.bzl", "execution_platform", "host_configuration")
+load("//buck/tools:defs.bzl", "worker_properties")
+load(":defs.bzl", "execution_platform")
 
-# Whether to talk to the shared cache at all, and whether to write to it.
+# Where every action runs: a BuildBuddy worker. buck/tools/defs.bzl says what
+# the container is, and it is Linux on x86_64 whatever the machine that asked
+# for the build is.
 #
-# Both are off unless ./scripts/buck turned them on in .buckconfig.local, which
-# it does when the credential for the cache is in the environment. A checkout
-# without one builds locally and says nothing about it, rather than failing
-# every action against a server it cannot authenticate to.
-#
-# Reads are for everyone; writes are CI's. A cache anyone can write to is a
-# cache anyone can use to hand every machine that reads it a compiler output of
-# their choosing, and those get executed.
-#
-# Remote execution is a third switch, and only BuildBuddy's: the shared cache
-# has no workers. buck/remote/defs.bzl says what a worker is.
+# Nothing is uploaded from here. BuildBuddy writes the result of every action
+# a worker ran to its own cache, and the few that run locally - the plugin
+# tests, which are not cached anyway - have nothing a second machine would
+# want.
 execution_platform(
     name = "default",
-    allow_cache_uploads = read_root_config("be3", "cache_uploads", "false") == "true",
-    cpu_configuration = host_configuration.cpu,
-    os_configuration = host_configuration.os,
-    remote_cache_enabled = read_root_config("be3", "remote_cache", "false") == "true",
-    remote_execution = read_root_config("be3", "remote_execution", "false") == "true",
+    cpu_configuration = "prelude//cpu:x86_64",
+    os_configuration = "prelude//os:linux",
     remote_execution_properties = worker_properties,
-    use_windows_path_separators = host_info().os.is_windows,
     visibility = ["PUBLIC"],
 )
 

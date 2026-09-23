@@ -1,68 +1,168 @@
 load("@toolchains//:defs.bzl", "script")
+load(":defs.bzl", "llvm_tree", "rust_sysroot", "tool")
 
-# The host tool wrappers ./scripts/buck writes. They are not checked in: each
-# one names the version of the tool it runs, which is what makes a cache entry
-# belong to a compiler rather than to a machine, and that is a fact about the
-# machine rather than about the repository.
+# The compilers the build runs, downloaded rather than taken from the machine.
 #
-# buck/toolchains/BUCK is what turns them into a toolchain, and buck/remote has
-# a target of each name for when the tools come from a download instead.
-script(
-    name = "ar",
-    src = "ar",
+# Every action runs on a BuildBuddy worker, which is a container with nothing
+# of this project's in it, so the compilers come with the build: they are
+# downloaded here, pinned by hash, and reach a worker the way a source file
+# does, as inputs of the actions that run them. defs.bzl says what the
+# container is. guides/buck2.md says why none of it is taken from the machine
+# that asked for the build.
+#
+# The versions are the ones cargo uses: rust-toolchain.toml's Rust, and the
+# clang-20 that newest_wasm_clang in scripts/internal/common.sh picks on Ubuntu
+# 24.04, which is the distribution the container is.
+
+# Each download is pinned by its size as well as its hash. With both, buck2
+# knows the file's digest without asking the server anything, so a build whose
+# workers already have the file never contacts the host that serves it. With
+# only the hash it sends a HEAD request for the size on every new daemon, and
+# the build fails whenever that host is slow to answer.
+rust_version = "1.98.0"
+
+rust_host = "x86_64-unknown-linux-gnu"
+
+http_archive(
+    name = "rustc-component",
+    sha256 = "0e37cb339f447fc44d6d781073bacacebfdc5612f2600e4c7e84c266f5f3aced",
+    size_bytes = 79745456,
+    strip_prefix = "rustc-{}-{}/rustc".format(rust_version, rust_host),
+    urls = ["https://static.rust-lang.org/dist/rustc-{}-{}.tar.xz".format(rust_version, rust_host)],
+)
+
+http_archive(
+    name = "clippy-component",
+    sha256 = "646c6bd2450ea4c32a3c78ad7a3727294eea1f1519718a3f1487424021695ffa",
+    size_bytes = 5379668,
+    strip_prefix = "clippy-{}-{}/clippy-preview".format(rust_version, rust_host),
+    urls = ["https://static.rust-lang.org/dist/clippy-{}-{}.tar.xz".format(rust_version, rust_host)],
+)
+
+rust_std = {
+    "wasm32-unknown-unknown": ("3bb537c09555b96020a38a3a8810c38908b194eff3c2cb6184a45dda5c6828de", 22441312),
+    "wasm32-wasip1-threads": ("56002ff8232f0e82d446267b6d84dc394007e4b090b8f84b17124615802407f3", 23857356),
+    "x86_64-unknown-linux-gnu": ("f5022e6c95a5ad23cca2513dc8281200f585fa188de6370aa37b128a43f876a3", 30715556),
+}
+
+[
+    http_archive(
+        name = "rust-std-" + target,
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        strip_prefix = "rust-std-{}-{}/rust-std-{}".format(rust_version, target, target),
+        urls = ["https://static.rust-lang.org/dist/rust-std-{}-{}.tar.xz".format(rust_version, target)],
+    )
+    for target, (sha256, size_bytes) in rust_std.items()
+]
+
+rust_sysroot(
+    name = "rust",
+    components = [":rustc-component", ":clippy-component"] + [":rust-std-" + target for target in sorted(rust_std)],
+)
+
+# Launchpad's copy of each package rather than the archive's: the archive drops
+# a version once a newer one supersedes it, and Launchpad keeps every one.
+llvm_version = "20.1.2-0ubuntu1~24.04.3"
+
+llvm_packages = {
+    "clang-20": ("d3fec854d8b998510a6f525ba397123563be091939d11131ce2dff02ed9368bc", 77674),
+    "libclang-common-20-dev": ("1f50ed5cb36909b83e885e5e507ccb8a54c70816f4f6574d6190cfa5cf95a891", 782474),
+    "libclang-cpp20": ("0dc8f6d4cc8588e963fa86414c93f6065766211064cdc766e588c9b882b0714b", 14244738),
+    "libllvm20": ("f018e71c72c7a4742fb1aff9dc98b45586f42e6ea464d4918af7e3772b7f0658", 30574382),
+    "lld-20": ("50d8db763d3e3526c050d01c2c8c9c94e3f94cca6f7dbdb8f9a4c65aefefcf83", 1488474),
+    "llvm-20": ("b7ca50166943d94c786611ebe7a0dd8f5b9a9b1f81025620cf9dfcd8aac84563", 19772486),
+}
+
+[
+    http_file(
+        name = package + ".deb",
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        urls = ["https://launchpad.net/ubuntu/+archive/primary/+files/{}_{}_amd64.deb".format(package, llvm_version)],
+    )
+    for package, (sha256, size_bytes) in llvm_packages.items()
+]
+
+llvm_tree(
+    name = "llvm",
+    packages = [":{}.deb".format(package) for package in sorted(llvm_packages)],
+)
+
+# What buck/toolchains/BUCK names.
+tool(
+    name = "rustc",
+    command = ["$(location :rust)/bin/rustc"],
     visibility = ["PUBLIC"],
 )
 
-script(
-    name = "cc",
-    src = "cc",
+tool(
+    name = "rustdoc",
+    command = ["$(location :rust)/bin/rustdoc"],
     visibility = ["PUBLIC"],
 )
 
-script(
+tool(
     name = "clippy-driver",
-    src = "clippy-driver",
+    command = ["$(location :rust)/bin/clippy-driver"],
     visibility = ["PUBLIC"],
 )
 
-script(
+tool(
+    name = "cc",
+    command = ["$(location :llvm)/bin/clang"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
     name = "cxx",
-    src = "cxx",
+    command = ["$(location :llvm)/bin/clang++"],
     visibility = ["PUBLIC"],
 )
 
+tool(
+    name = "ar",
+    command = ["$(location :llvm)/bin/llvm-ar"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "wasm-cc",
+    command = [
+        "$(location :llvm)/bin/clang",
+        "--target=wasm32-wasip1-threads",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "wasm-cxx",
+    command = [
+        "$(location :llvm)/bin/clang++",
+        "--target=wasm32-wasip1-threads",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "wasm-ld",
+    command = [
+        "$(location :wasm-ld.sh)",
+        "$(location :rust)/lib/rustlib/{}/bin/rust-lld".format(rust_host),
+    ],
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "wasm-ld.sh",
+    src = "wasm-ld",
+)
+
+# The Python the prelude's own helpers run on. The one tool here that is not a
+# download: it is a checked-in script that finds the container's Python when
+# it runs, and the file says why that is safe to leave out of the cache key.
 script(
     name = "python3",
     src = "python3",
-    visibility = ["PUBLIC"],
-)
-
-script(
-    name = "rustc",
-    src = "rustc",
-    visibility = ["PUBLIC"],
-)
-
-script(
-    name = "rustdoc",
-    src = "rustdoc",
-    visibility = ["PUBLIC"],
-)
-
-script(
-    name = "wasm-ld",
-    src = "wasm-ld",
-    visibility = ["PUBLIC"],
-)
-
-script(
-    name = "wasm-cc",
-    src = "wasm-cc",
-    visibility = ["PUBLIC"],
-)
-
-script(
-    name = "wasm-cxx",
-    src = "wasm-cxx",
     visibility = ["PUBLIC"],
 )

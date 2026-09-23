@@ -23,31 +23,40 @@ prelude = bundled
 [parser]
 target_platform_detector_spec = target:root//...->prelude//platforms:default
 
-# Where actions run. The prelude's default platform runs everything locally and
-# consults no cache; this one is the same platform with the shared cache wired
-# in. buck/platforms/BUCK says how it is turned on.
+# Where actions run: on BuildBuddy's workers. buck/platforms/BUCK is the
+# platform, and buck/tools the compilers it runs.
 [build]
 execution_platforms = root//buck/platforms:default
 
 [buck2]
-# The digest the shared cache speaks. buck2 defaults to SHA1, and this is not
-# something to leave to a default: it is the key space every cached action
-# lives in, so a machine that disagrees shares nothing with the others. It is
-# set here rather than beside the cache credential so that it is the same
-# whether or not a checkout has one.
+# The digest BuildBuddy is spoken to in. buck2 defaults to SHA1, and this is
+# not something to leave to a default: it is the key space every cached action
+# lives in.
 digest_algorithms = SHA256
 
 # Remember which artifacts are already on disk across daemon restarts, and skip
 # writing a file whose content is already there. Both are what the deferred
-# materializer wants: with the cache on, most of what a build "produces" is a
-# digest buck2 never downloads, and this is what stops it downloading one twice.
+# materializer wants: most of what a build "produces" is a digest in
+# BuildBuddy's CAS that buck2 never downloads, and this is what stops it
+# downloading one twice.
 defer_write_actions = true
 sqlite_materializer_state = true
 
-# Whether an action that ran locally may be written to the cache. It is a
-# per-action setting the rules in the prelude never pass, so without this
-# default nothing is ever uploaded, however the executor is configured. What
-# decides whether uploads actually happen is allow_cache_uploads on the
-# execution platform, which is off unless ./scripts/buck was given the write
-# credential; this only says the rules do not object.
-default_allow_cache_upload = true
+# BuildBuddy: its remote executor, and the action cache and CAS beside it.
+#
+# Three things about this are not guessable, and none of them announces itself
+# when it is wrong, because buck2 treats a cache it cannot use as one that is
+# empty. The address is a bare host:port: buck2 parses it itself and rejects
+# both grpcs:// and https:// with "Invalid URI". http_headers separates name
+# from value with a colon, not an equals sign. And there is no instance name.
+#
+# The key is named rather than written: buck2 expands $BUILDBUDDY_API_KEY from
+# the environment the daemon was started in, so a daemon started without it,
+# or with a different one, has to be restarted with buck2 killall.
+# ./scripts/buck refuses to start one without it.
+[buck2_re_client]
+action_cache_address = remote.buildbuddy.io:443
+cas_address = remote.buildbuddy.io:443
+engine_address = remote.buildbuddy.io:443
+http_headers = x-buildbuddy-api-key:$BUILDBUDDY_API_KEY
+tls = true

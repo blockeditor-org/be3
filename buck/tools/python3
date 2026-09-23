@@ -1,30 +1,11 @@
 #!/bin/sh
 #
-# The Python the prelude's own helpers run on.
+# The Python the prelude's own helpers run on: rustc_action, buildscript_run,
+# from_any_dir and dep_file_processor, which start the real compiler and
+# shuffle paths and diagnostics around it.
 #
-# The one tool wrapper here that is checked in and has no version in it, on
-# purpose. Every other one decides what an artifact contains, so the cache has
-# to be able to tell two of them apart. This one does not: it runs
-# rustc_action, buildscript_run, from_any_dir and dep_file_processor, which
-# start the real compiler and shuffle paths and diagnostics around it, and
-# never touch what comes out. Two machines on different Pythons compile the
-# same bytes, so they should share the cache entry - and since buck2 keys an
-# action on the bytes of this file, that only happens if the file is the same
-# everywhere. Hence resolving the interpreter here, at run time, rather than
-# writing this machine's answer into it.
-#
-# command -v is a shell builtin, so the search costs no processes; the exec
-# replaces the shell that was going to run anyway.
-#
-# What the version does decide is whether the helpers run at all: one of them
-# uses Path.relative_to(walk_up=True), which arrived in 3.12. ./scripts/buck
-# checks for that and refuses to run without it, which is why there is no
-# version check here.
-for python in python3.14 python3.13 python3.12 python3; do
-    if command -v "$python" > /dev/null 2>&1; then
-        exec "$python" "$@"
-    fi
-done
-
-echo 'buck2 needs a Python of at least 3.12 and none was found on PATH.' >&2
-exit 1
+# It runs in the worker's container, whose Python is Ubuntu 24.04's 3.12. That
+# is also the oldest one that works: one of the helpers uses
+# Path.relative_to(walk_up=True), which arrived in 3.12, and an older one fails
+# from inside an unrelated C compile as a TypeError nobody would connect to it.
+exec python3 "$@"

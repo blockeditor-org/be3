@@ -13,6 +13,9 @@
 http_archive(
     name = "sysroot",
     sha256 = "063bc1b56582b9923e08ac9b89e58789618d851763f01530b3ff20b9e5df0ca3",
+    # With the size as well as the hash, buck2 knows the digest without asking
+    # the mirror for anything; buck/tools/BUCK says why that matters.
+    size_bytes = 124253494,
     strip_prefix = "wasi-sysroot-33.0+m",
     # One url, because buck2's http_archive takes one. It is the mirror rather
     # than upstream because upstream is a GitHub release asset, which is what

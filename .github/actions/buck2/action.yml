@@ -19,9 +19,10 @@ inputs:
 runs:
   using: composite
   steps:
+    # Both land in ~/.cargo/bin, which GitHub's Ubuntu runners already have on
+    # PATH.
     - shell: bash
       run: |
-        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
         ./scripts/internal/install-buck2.sh
         ./scripts/internal/install-starlark-fmt.sh
 

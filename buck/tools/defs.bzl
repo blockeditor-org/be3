@@ -1,15 +1,15 @@
-# The rules that turn the downloads in buck/remote/BUCK into tools.
+# The rules that turn the downloads in buck/tools/BUCK into tools.
 #
-# Everything here runs as an ordinary action, so under remote execution it runs
-# on a worker rather than on the machine that asked for the build, and what it
-# produces is a directory in the CAS rather than on anyone's disk.
+# Everything here runs as an ordinary action, so it runs on a worker rather
+# than on the machine that asked for the build, and what it produces is a
+# directory in the CAS rather than on anyone's disk.
 
 # The container a remote worker runs an action or a test in: buildpack-deps on
 # Ubuntu 24.04, pinned by digest so that a worker is the same machine from one
 # build to the next. It brings the parts of a build that are the
 # distribution's rather than the project's - glibc and its headers, libstdc++,
 # the gcc install clang takes them from, and a Python new enough for the
-# prelude. The compilers are not among them; buck/remote/BUCK downloads those.
+# prelude. The compilers are not among them; buck/tools/BUCK downloads those.
 worker_properties = {
     "OSFamily": "Linux",
     "container-image": "docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549",

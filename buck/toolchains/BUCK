@@ -3,16 +3,12 @@ load("@prelude//toolchains:cxx.bzl", "cxx_tools_info_toolchain")
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "python_bootstrap_toolchain")
 load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
-load("@root//buck/remote:defs.bzl", "worker_properties")
+load("@root//buck/tools:defs.bzl", "worker_properties")
 load(":defs.bzl", "host_cxx_tools", "pinned_rust_toolchain", "remote_linking_cxx_toolchain", "wasm_cxx_tools")
 
-# Where the compilers come from. buck/tools is this machine's, through the
-# wrappers ./scripts/buck writes; buck/remote is a pinned download, which is
-# what a remote worker has to use because it has no compilers of its own.
-# ./scripts/buck chooses the second when it turns remote execution on.
-remote_execution = read_root_config("be3", "remote_execution", "false") == "true"
-
-tools = "root//buck/remote" if remote_execution else "root//buck/tools"
+# Every tool comes from buck/tools, which downloads them, because every action
+# runs on a remote worker that has none of its own.
+tools = "root//buck/tools"
 
 host_cxx_tools(
     name = "cxx_tools",
@@ -85,7 +81,6 @@ cxx_tools_info_toolchain(
 # Which of the two a target gets is decided by what it is being built for.
 remote_linking_cxx_toolchain(
     name = "cxx",
-    link_remotely = remote_execution,
     toolchain = ":cxx_for_target",
     visibility = ["PUBLIC"],
 )
@@ -162,15 +157,14 @@ system_genrule_toolchain(name = "genrule", visibility = ["PUBLIC"])
 
 noop_test_toolchain(name = "test", visibility = ["PUBLIC"])
 
-# Where a Rust test runs. Locally, unless actions are running remotely too: then
-# it runs in the same container its binary was linked for, so what it loads at
-# run time is what it was linked against. A test can still ask to stay local,
-# as beui's does. buck2 keeps every test local unless it is also given
-# --unstable-allow-compatible-tests-on-re, which ./scripts/buck passes when
-# remote execution is on.
+# Where a Rust test runs: on a worker, in the same container its binary was
+# linked for, so what it loads at run time is what it was linked against. A
+# test can still ask to stay local, as beui's does. buck2 keeps every test
+# local unless it is also given --unstable-allow-compatible-tests-on-re, which
+# ./scripts/buck passes.
 remote_test_execution_toolchain(
     name = "remote_test_execution",
-    default_profile = "remote" if remote_execution else None,
+    default_profile = "remote",
     profiles = {
         "remote": {
             "capabilities": worker_properties,
