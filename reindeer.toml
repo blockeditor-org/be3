@@ -14,6 +14,11 @@ cargo_env = true
 [platform.linux-x86_64]
 target = "x86_64-unknown-linux-gnu"
 execution-platform = true
+# The workspace's features on the host: each crate's defaults, and block-app's
+# full, which is the terminal and the embedded browser. reindeer would
+# otherwise resolve from the defaults alone, and neither of those is one.
+# buck/cargo/buckify.bxl asks cargo to plan the same build.
+features = ["default", "full"]
 
 # The plugins. WASI with threads, which is what the plugin host runs.
 [platform.wasi]

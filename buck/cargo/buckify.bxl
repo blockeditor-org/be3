@@ -106,7 +106,7 @@ plan() {
 }
 "$nightly/bin/cargo" metadata --no-deps --format-version 1 --locked > "$scratch/metadata.json"
 plan test --workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim \
-    --exclude test-third-party --features block-app/terminal > "$scratch/host.json"
+    --exclude test-third-party --features block-app/full > "$scratch/host.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin > "$scratch/wasi.json"
 plan build --target wasm32-unknown-unknown $games > "$scratch/wasm32.json"
 python3 "$generate" "$scratch/metadata.json" \

@@ -1,0 +1,6 @@
+# A GTK or WebKitGTK binding: the build script asks pkg-config, through
+# system-deps, for the library it binds. It is answered from the sysroot in
+# buck/sysroot, and the libraries it names reach the link.
+[buildscript.run]
+rustc_link_lib = true
+env = { PKG_CONFIG = "$(exe //buck/sysroot:pkg-config)" }

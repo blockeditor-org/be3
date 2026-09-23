@@ -1,13 +1,11 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
-# The desktop app, with the terminal and without the embedded browser. Both are
-# features because what they need is not a Rust dependency. The terminal's is
-# libghostty-vt, which crates/ghostty-vt builds on a worker. The browser's is
-# WebKitGTK and the GTK stack under it, which the worker's container does not
-# have and which is far too large to hand it the way ALSA is handed; cargo
-# still builds and lints that half. Which of the two is on is decided where
-# buck/cargo/crates.bzl is generated: buck/cargo/buckify.bxl asks cargo to
-# plan the host build with block-app/terminal.
+# The desktop app, with both of the features that are more than Rust: the
+# terminal, whose libghostty-vt crates/ghostty-vt builds on a worker, and the
+# embedded browser, whose WebKitGTK and GTK come from the sysroot in
+# buck/sysroot. Which features are on is decided where the dependencies are
+# generated: reindeer.toml turns on block-app's full on the host, and
+# buck/cargo/buckify.bxl asks cargo to plan the same build.
 #
 # BLOCK_APP_COMMIT is what build.rs asks git for under cargo. A worker has no
 # checkout to ask, so this says what build.rs says when git cannot answer.

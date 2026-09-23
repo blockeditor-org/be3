@@ -16,7 +16,7 @@ still cargo's.
   sqlite, zstd, freetype, harfbuzz, tree-sitter, ring, wasmtime.
 - Every first-party crate and its tests: the `be-*` stack, `block*`, `beui`,
   `reactive`, `text-editor-core`, the games' api and host, the tools, and
-  `block-app` itself, with its terminal and without its embedded browser.
+  `block-app` itself, with its terminal and its embedded browser.
 - libghostty-vt, the Zig library behind the terminal, built on a worker by the
   same script cargo's build uses.
 - The three game modules, as WebAssembly, and the native tests that drive them
@@ -101,6 +101,38 @@ daemon.
 
 It is a BXL script rather than a rule because the manifests belong to
 seventy-odd packages, and a rule can only take the files of its own package.
+
+## The sysroot
+
+Everything built for the host is compiled and linked against `buck/sysroot`
+rather than against whatever machine runs the action: Ubuntu 24.04's glibc,
+libstdc++ and every system library a crate links - ALSA, GTK, WebKitGTK - as
+Ubuntu's own packages. The worker's image is only what runs the tools.
+
+- `buck/sysroot/BUCK` names the packages the build needs and the snapshot of
+  the archive they come from. snapshot.ubuntu.com serves the archive as it was
+  at any moment, so a timestamp pins every package index for good.
+- `./scripts/buckify` runs `buck/sysroot/resolve.py` on a worker, which
+  resolves the dependency closure the way apt would and writes
+  `buck/sysroot/packages.bzl`: the URL, hash and size of every `.deb`. It is
+  checked in, like a lockfile. Today it is 441 packages, most of them GTK's
+  and WebKitGTK's.
+- An action on a worker unpacks them into the sysroot, keeping headers,
+  libraries, the gcc install clang takes the C++ runtime from, and pkg-config
+  files. Absolute symlinks are made relative so they resolve inside it.
+- The host toolchain compiles and links with `--sysroot`.
+- A `-sys` crate's build script asks pkg-config how to link its library.
+  `buck/sysroot:pkg-config` answers from the sysroot, and the crate's fixup
+  names it with `PKG_CONFIG` and asks for `rustc_link_lib`, so the libraries
+  it prints reach the link, where `--sysroot` finds them. alsa-sys and the
+  GTK and WebKitGTK bindings are set up this way.
+
+A new system library is a line in `buck/sysroot/BUCK` and a `./scripts/buckify`.
+
+A test that loads one of these at run time, on a worker whose image does not
+have it, gets the sysroot's library directory through `LD_LIBRARY_PATH`; today
+that is `block-app`'s. A binary built here links against the same libraries a
+user's Ubuntu 24.04 has, and loads them from the system when it runs.
 
 ## BuildBuddy
 
@@ -365,9 +397,9 @@ diagnostics to a file and the build still succeeds**. A lint gate has to build
 the subtarget for every target and then check that each output is empty; a
 green `buck2 build` says nothing about whether clippy was happy.
 
-`./scripts/verify` still lints with cargo. buck2 builds `block-app` without its
-embedded browser, so switching would quietly stop linting that half of it; and
-a gate on the subtarget has the empty-file problem above to solve first.
+`./scripts/verify` still lints with cargo. Moving it needs a gate on the
+subtarget that solves the empty-file problem above, and an answer for
+`cargo clippy --fix`.
 
 ## How the build is laid out
 
@@ -490,13 +522,10 @@ target with `--target` is what makes wasmtime stop looking.
   cargo's. Adding a platform here is adding it to `reindeer.toml`, re-running
   `./scripts/buckify` and fixing what its build scripts need, and a worker pool
   for it where it cannot be cross-compiled.
-- **The embedded browser.** `block-app`'s `web-view` feature needs WebKitGTK and
-  the GTK stack under it, which the container does not have and which is far
-  too large to hand a worker the way ALSA is handed. A container image of our
-  own with it installed is the way to close this, and would also let beui's
-  renderer tests and the plugin tests' GPU half move to a worker, with Mesa's
-  software Vulkan in it.
-- **The lint pass.** clippy lints the embedded browser, above, and rustfmt and
+- **The GPU tests.** beui's renderer tests and the plugin tests' GPU half
+  still run locally. Mesa's software Vulkan is a sysroot package away; what is
+  left is pointing the Vulkan loader at it on a worker.
+- **The lint pass.** clippy has no gate yet (above), and rustfmt and
   `fix-rust-source` have no buck2 story yet.
 - **No web bundle.** The third-party half of it is there: `wgpu`, `wgpu-core`,
   `wgpu-hal` and `eframe` all build for `buck/platforms:wasi`, with the app's

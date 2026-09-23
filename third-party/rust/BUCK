@@ -2004,6 +2004,137 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "atk-0.18.2.crate",
+    sha256 = "241b621213072e993be4f6f3a9e4b45f65b7e6faad43001be957184b7bb1824b",
+    strip_prefix = "atk-0.18.2",
+    urls = ["https://static.crates.io/crates/atk/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "atk-0.18",
+    srcs = [":atk-0.18.2.crate"],
+    crate = "atk",
+    crate_root = "atk-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "atk",
+        "CARGO_CRATE_NAME": "atk",
+        "CARGO_MANIFEST_DIR": "atk-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED Rust bindings for the ATK library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "atk",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    named_deps = {
+        "ffi": ":atk-sys-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":glib-0.18",
+        ":libc-0.2",
+    ],
+)
+
+http_archive(
+    name = "atk-sys-0.18.2.crate",
+    sha256 = "c5e48b684b0ca77d2bbadeef17424c2ea3c897d44d566a1617e7e8f30614d086",
+    strip_prefix = "atk-sys-0.18.2",
+    urls = ["https://static.crates.io/crates/atk-sys/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "atk-sys-0.18",
+    srcs = [":atk-sys-0.18.2.crate"],
+    crate = "atk_sys",
+    crate_root = "atk-sys-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "atk_sys",
+        "CARGO_CRATE_NAME": "atk_sys",
+        "CARGO_MANIFEST_DIR": "atk-sys-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libatk-1",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "atk-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :atk-sys-0.18-build-script-run[out_dir])",
+    },
+    named_deps = {
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+    },
+    rustc_flags = ["@$(location :atk-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "atk-sys-0.18-build-script-build",
+    srcs = [":atk-sys-0.18.2.crate"],
+    crate = "build_script_build",
+    crate_root = "atk-sys-0.18.2.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "atk-sys-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libatk-1",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "atk-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "atk-sys-0.18-build-script-run",
+    package_name = "atk-sys",
+    buildscript_rule = ":atk-sys-0.18-build-script-build",
+    env = {
+        "CARGO_MANIFEST_LINKS": "atk-1.0",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libatk-1",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    rustc_link_lib = True,
+    version = "0.18.2",
+)
+
+http_archive(
     name = "atomic-waker-1.1.2.crate",
     sha256 = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0",
     strip_prefix = "atomic-waker-1.1.2",
@@ -2842,6 +2973,155 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "cairo-rs-0.18.5.crate",
+    sha256 = "8ca26ef0159422fb77631dc9d17b102f253b876fe1586b03b803e63a309b4ee2",
+    strip_prefix = "cairo-rs-0.18.5",
+    urls = ["https://static.crates.io/crates/cairo-rs/0.18.5/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "cairo-rs-0.18",
+    srcs = [":cairo-rs-0.18.5.crate"],
+    crate = "cairo",
+    crate_root = "cairo-rs-0.18.5.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "cairo",
+        "CARGO_CRATE_NAME": "cairo",
+        "CARGO_MANIFEST_DIR": "cairo-rs-0.18.5.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings for the Cairo library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "cairo-rs",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.5",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "5",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "glib",
+        "use_glib",
+    ],
+    named_deps = {
+        "ffi": ":cairo-sys-rs-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":bitflags-2",
+        ":glib-0.18",
+        ":libc-0.2",
+        ":once_cell-1",
+        ":thiserror-1",
+    ],
+)
+
+http_archive(
+    name = "cairo-sys-rs-0.18.2.crate",
+    sha256 = "685c9fa8e590b8b3d678873528d83411db17242a73fccaed827770ea0fedda51",
+    strip_prefix = "cairo-sys-rs-0.18.2",
+    urls = ["https://static.crates.io/crates/cairo-sys-rs/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "cairo-sys-rs-0.18",
+    srcs = [":cairo-sys-rs-0.18.2.crate"],
+    crate = "cairo_sys",
+    crate_root = "cairo-sys-rs-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "cairo_sys",
+        "CARGO_CRATE_NAME": "cairo_sys",
+        "CARGO_MANIFEST_DIR": "cairo-sys-rs-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libcairo",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "cairo-sys-rs",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :cairo-sys-rs-0.18-build-script-run[out_dir])",
+    },
+    features = [
+        "glib",
+        "use_glib",
+    ],
+    named_deps = {
+        "glib": ":glib-sys-0.18",
+    },
+    rustc_flags = ["@$(location :cairo-sys-rs-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "cairo-sys-rs-0.18-build-script-build",
+    srcs = [":cairo-sys-rs-0.18.2.crate"],
+    crate = "build_script_build",
+    crate_root = "cairo-sys-rs-0.18.2.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "cairo-sys-rs-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libcairo",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "cairo-sys-rs",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "glib",
+        "use_glib",
+    ],
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "cairo-sys-rs-0.18-build-script-run",
+    package_name = "cairo-sys-rs",
+    buildscript_rule = ":cairo-sys-rs-0.18-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libcairo",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    features = [
+        "glib",
+        "use_glib",
+    ],
+    rustc_link_lib = True,
+    version = "0.18.2",
+)
+
+http_archive(
     name = "calloop-0.13.0.crate",
     sha256 = "b99da2f8558ca23c71f4fd15dc57c906239752dd27ff3c00a1d56b685b7cbfec",
     strip_prefix = "calloop-0.13.0",
@@ -3366,6 +3646,49 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "cfg-expr-0.15.8.crate",
+    sha256 = "d067ad48b8650848b989a59a86c6c36a995d02d2bf778d45c3c5d57bc2718f02",
+    strip_prefix = "cfg-expr-0.15.8",
+    urls = ["https://static.crates.io/crates/cfg-expr/0.15.8/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "cfg-expr-0.15",
+    srcs = [":cfg-expr-0.15.8.crate"],
+    crate = "cfg_expr",
+    crate_root = "cfg-expr-0.15.8.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "cfg_expr",
+        "CARGO_CRATE_NAME": "cfg_expr",
+        "CARGO_MANIFEST_DIR": "cfg-expr-0.15.8.crate",
+        "CARGO_PKG_AUTHORS": "Embark <opensource@embark-studios.com>:Jake Shadle <jake.shadle@embark-studios.com>",
+        "CARGO_PKG_DESCRIPTION": "A parser and evaluator for Rust `cfg()` expressions.",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/EmbarkStudios/cfg-expr",
+        "CARGO_PKG_NAME": "cfg-expr",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/EmbarkStudios/cfg-expr",
+        "CARGO_PKG_RUST_VERSION": "1.70.0",
+        "CARGO_PKG_VERSION": "0.15.8",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "15",
+        "CARGO_PKG_VERSION_PATCH": "8",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "target-lexicon",
+        "targets",
+    ],
+    visibility = [],
+    deps = [
+        ":smallvec-1",
+        ":target-lexicon-0.12",
+    ],
+)
+
+http_archive(
     name = "cfg-if-1.0.4.crate",
     sha256 = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801",
     strip_prefix = "cfg-if-1.0.4",
@@ -3886,6 +4209,41 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [":crossbeam-utils-0.8"],
+)
+
+http_archive(
+    name = "cookie-0.18.1.crate",
+    sha256 = "4ddef33a339a91ea89fb53151bd0a4689cfce27055c291dfa69945475d22c747",
+    strip_prefix = "cookie-0.18.1",
+    urls = ["https://static.crates.io/crates/cookie/0.18.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "cookie-0.18",
+    srcs = [":cookie-0.18.1.crate"],
+    crate = "cookie",
+    crate_root = "cookie-0.18.1.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "cookie",
+        "CARGO_CRATE_NAME": "cookie",
+        "CARGO_MANIFEST_DIR": "cookie-0.18.1.crate",
+        "CARGO_PKG_AUTHORS": "Sergio Benitez <sb@sergio.bz>:Alex Crichton <alex@alexcrichton.com>",
+        "CARGO_PKG_DESCRIPTION": "HTTP cookie parsing and cookie jar management. Supports signed and private\n(encrypted, authenticated) jars.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "cookie",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/SergioBenitez/cookie-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.18.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":time-0.3"],
 )
 
 http_archive(
@@ -5401,6 +5759,41 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "deranged-0.5.8.crate",
+    sha256 = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c",
+    strip_prefix = "deranged-0.5.8",
+    urls = ["https://static.crates.io/crates/deranged/0.5.8/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "deranged-0.5",
+    srcs = [":deranged-0.5.8.crate"],
+    crate = "deranged",
+    crate_root = "deranged-0.5.8.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "deranged",
+        "CARGO_CRATE_NAME": "deranged",
+        "CARGO_MANIFEST_DIR": "deranged-0.5.8.crate",
+        "CARGO_PKG_AUTHORS": "Jacob Pratt <jacob@jhpratt.dev>",
+        "CARGO_PKG_DESCRIPTION": "Ranged integers",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "deranged",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/jhpratt/deranged",
+        "CARGO_PKG_RUST_VERSION": "1.85.0",
+        "CARGO_PKG_VERSION": "0.5.8",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "8",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default"],
+    visibility = [],
+)
+
+http_archive(
     name = "digest-0.10.7.crate",
     sha256 = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292",
     strip_prefix = "digest-0.10.7",
@@ -5483,6 +5876,79 @@ cargo.rust_library(
     deps = [
         ":cfg-if-1",
         ":dirs-sys-next-0.1",
+    ],
+)
+
+http_archive(
+    name = "dirs-6.0.0.crate",
+    sha256 = "c3e8aa94d75141228480295a7d0e7feb620b1a5ad9f12bc40be62411e38cce4e",
+    strip_prefix = "dirs-6.0.0",
+    urls = ["https://static.crates.io/crates/dirs/6.0.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "dirs-6",
+    srcs = [":dirs-6.0.0.crate"],
+    crate = "dirs",
+    crate_root = "dirs-6.0.0.crate/src/lib.rs",
+    edition = "2015",
+    env = {
+        "CARGO_BIN_NAME": "dirs",
+        "CARGO_CRATE_NAME": "dirs",
+        "CARGO_MANIFEST_DIR": "dirs-6.0.0.crate",
+        "CARGO_PKG_AUTHORS": "Simon Ochsenreither <simon@ochsenreither.de>",
+        "CARGO_PKG_DESCRIPTION": "A tiny low-level library that provides platform-specific standard locations of directories for config, cache and other data on Linux, Windows, macOS and Redox by leveraging the mechanisms defined by the XDG base/user directory specifications on Linux, the Known Folder API on Windows, and the Standard Directory guidelines on macOS.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "dirs",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/soc/dirs-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "6.0.0",
+        "CARGO_PKG_VERSION_MAJOR": "6",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":dirs-sys-0.5"],
+)
+
+http_archive(
+    name = "dirs-sys-0.5.0.crate",
+    sha256 = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab",
+    strip_prefix = "dirs-sys-0.5.0",
+    urls = ["https://static.crates.io/crates/dirs-sys/0.5.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "dirs-sys-0.5",
+    srcs = [":dirs-sys-0.5.0.crate"],
+    crate = "dirs_sys",
+    crate_root = "dirs-sys-0.5.0.crate/src/lib.rs",
+    edition = "2015",
+    env = {
+        "CARGO_BIN_NAME": "dirs_sys",
+        "CARGO_CRATE_NAME": "dirs_sys",
+        "CARGO_MANIFEST_DIR": "dirs-sys-0.5.0.crate",
+        "CARGO_PKG_AUTHORS": "Simon Ochsenreither <simon@ochsenreither.de>",
+        "CARGO_PKG_DESCRIPTION": "System-level helper functions for the dirs and directories crates.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "dirs-sys",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/dirs-dev/dirs-sys-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.5.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":libc-0.2",
+        ":option-ext-0.2",
     ],
 )
 
@@ -7035,6 +7501,41 @@ cargo.rust_library(
     features = ["std"],
     visibility = [],
     deps = [":bytemuck-1"],
+)
+
+http_archive(
+    name = "field-offset-0.3.6.crate",
+    sha256 = "38e2275cc4e4fc009b0669731a1e5ab7ebf11f469eaede2bab9309a5b4d6057f",
+    strip_prefix = "field-offset-0.3.6",
+    urls = ["https://static.crates.io/crates/field-offset/0.3.6/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "field-offset-0.3",
+    srcs = [":field-offset-0.3.6.crate"],
+    crate = "field_offset",
+    crate_root = "field-offset-0.3.6.crate/src/lib.rs",
+    edition = "2015",
+    env = {
+        "CARGO_BIN_NAME": "field_offset",
+        "CARGO_CRATE_NAME": "field_offset",
+        "CARGO_MANIFEST_DIR": "field-offset-0.3.6.crate",
+        "CARGO_PKG_AUTHORS": "Diggory Blake <diggsey@googlemail.com>",
+        "CARGO_PKG_DESCRIPTION": "Safe pointer-to-member implementation",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "field-offset",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Diggsey/rust-field-offset",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.3.6",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "3",
+        "CARGO_PKG_VERSION_PATCH": "6",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":memoffset-0.9"],
 )
 
 http_archive(
@@ -8776,6 +9277,49 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "futures-executor-0.3.32.crate",
+    sha256 = "baf29c38818342a3b26b5b923639e7b1f4a61fc5e76102d4b1981c6dc7a7579d",
+    strip_prefix = "futures-executor-0.3.32",
+    urls = ["https://static.crates.io/crates/futures-executor/0.3.32/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "futures-executor-0.3",
+    srcs = [":futures-executor-0.3.32.crate"],
+    crate = "futures_executor",
+    crate_root = "futures-executor-0.3.32.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "futures_executor",
+        "CARGO_CRATE_NAME": "futures_executor",
+        "CARGO_MANIFEST_DIR": "futures-executor-0.3.32.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Executors for asynchronous tasks based on the futures-rs library.\n",
+        "CARGO_PKG_HOMEPAGE": "https://rust-lang.github.io/futures-rs",
+        "CARGO_PKG_NAME": "futures-executor",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/futures-rs",
+        "CARGO_PKG_RUST_VERSION": "1.71",
+        "CARGO_PKG_VERSION": "0.3.32",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "3",
+        "CARGO_PKG_VERSION_PATCH": "32",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+    deps = [
+        ":futures-core-0.3",
+        ":futures-task-0.3",
+        ":futures-util-0.3",
+    ],
+)
+
+http_archive(
     name = "futures-io-0.3.33.crate",
     sha256 = "4577ecaa3c4f96589d473f679a71b596316f6641bc350038b962a5daf0085d7a",
     strip_prefix = "futures-io-0.3.33",
@@ -9052,6 +9596,417 @@ cargo.rust_library(
         ":pin-project-lite-0.2",
         ":slab-0.4",
     ],
+)
+
+http_archive(
+    name = "gdk-0.18.2.crate",
+    sha256 = "d9f245958c627ac99d8e529166f9823fb3b838d1d41fd2b297af3075093c2691",
+    strip_prefix = "gdk-0.18.2",
+    urls = ["https://static.crates.io/crates/gdk/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gdk-0.18",
+    srcs = [":gdk-0.18.2.crate"],
+    crate = "gdk",
+    crate_root = "gdk-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gdk",
+        "CARGO_CRATE_NAME": "gdk",
+        "CARGO_MANIFEST_DIR": "gdk-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED Rust bindings for the GDK 3 library (use gdk4 instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdk",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    named_deps = {
+        "ffi": ":gdk-sys-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":cairo-rs-0.18",
+        ":gdk-pixbuf-0.18",
+        ":gio-0.18",
+        ":glib-0.18",
+        ":libc-0.2",
+        ":pango-0.18",
+    ],
+)
+
+http_archive(
+    name = "gdk-pixbuf-0.18.5.crate",
+    sha256 = "50e1f5f1b0bfb830d6ccc8066d18db35c487b1b2b1e8589b5dfe9f07e8defaec",
+    strip_prefix = "gdk-pixbuf-0.18.5",
+    urls = ["https://static.crates.io/crates/gdk-pixbuf/0.18.5/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gdk-pixbuf-0.18",
+    srcs = [":gdk-pixbuf-0.18.5.crate"],
+    crate = "gdk_pixbuf",
+    crate_root = "gdk-pixbuf-0.18.5.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gdk_pixbuf",
+        "CARGO_CRATE_NAME": "gdk_pixbuf",
+        "CARGO_MANIFEST_DIR": "gdk-pixbuf-0.18.5.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings for the GdkPixbuf library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdk-pixbuf",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.5",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "5",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    named_deps = {
+        "ffi": ":gdk-pixbuf-sys-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":gio-0.18",
+        ":glib-0.18",
+        ":libc-0.2",
+        ":once_cell-1",
+    ],
+)
+
+http_archive(
+    name = "gdk-pixbuf-sys-0.18.0.crate",
+    sha256 = "3f9839ea644ed9c97a34d129ad56d38a25e6756f99f3a88e15cd39c20629caf7",
+    strip_prefix = "gdk-pixbuf-sys-0.18.0",
+    urls = ["https://static.crates.io/crates/gdk-pixbuf-sys/0.18.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gdk-pixbuf-sys-0.18",
+    srcs = [":gdk-pixbuf-sys-0.18.0.crate"],
+    crate = "gdk_pixbuf_sys",
+    crate_root = "gdk-pixbuf-sys-0.18.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gdk_pixbuf_sys",
+        "CARGO_CRATE_NAME": "gdk_pixbuf_sys",
+        "CARGO_MANIFEST_DIR": "gdk-pixbuf-sys-0.18.0.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgdk_pixbuf-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdk-pixbuf-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :gdk-pixbuf-sys-0.18-build-script-run[out_dir])",
+    },
+    named_deps = {
+        "gio": ":gio-sys-0.18",
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+    },
+    rustc_flags = ["@$(location :gdk-pixbuf-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "gdk-pixbuf-sys-0.18-build-script-build",
+    srcs = [":gdk-pixbuf-sys-0.18.0.crate"],
+    crate = "build_script_build",
+    crate_root = "gdk-pixbuf-sys-0.18.0.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "gdk-pixbuf-sys-0.18.0.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgdk_pixbuf-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdk-pixbuf-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "gdk-pixbuf-sys-0.18-build-script-run",
+    package_name = "gdk-pixbuf-sys",
+    buildscript_rule = ":gdk-pixbuf-sys-0.18-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgdk_pixbuf-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    rustc_link_lib = True,
+    version = "0.18.0",
+)
+
+http_archive(
+    name = "gdk-sys-0.18.2.crate",
+    sha256 = "5c2d13f38594ac1e66619e188c6d5a1adb98d11b2fcf7894fc416ad76aa2f3f7",
+    strip_prefix = "gdk-sys-0.18.2",
+    urls = ["https://static.crates.io/crates/gdk-sys/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gdk-sys-0.18",
+    srcs = [":gdk-sys-0.18.2.crate"],
+    crate = "gdk_sys",
+    crate_root = "gdk-sys-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gdk_sys",
+        "CARGO_CRATE_NAME": "gdk_sys",
+        "CARGO_MANIFEST_DIR": "gdk-sys-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libgdk-3 (use gdk4-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdk-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :gdk-sys-0.18-build-script-run[out_dir])",
+    },
+    named_deps = {
+        "cairo": ":cairo-sys-rs-0.18",
+        "gdk_pixbuf": ":gdk-pixbuf-sys-0.18",
+        "gio": ":gio-sys-0.18",
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+        "pango": ":pango-sys-0.18",
+    },
+    rustc_flags = ["@$(location :gdk-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "gdk-sys-0.18-build-script-build",
+    srcs = [":gdk-sys-0.18.2.crate"],
+    crate = "build_script_build",
+    crate_root = "gdk-sys-0.18.2.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "gdk-sys-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libgdk-3 (use gdk4-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdk-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":pkg-config-0.3",
+        ":system-deps-6",
+    ],
+)
+
+buildscript_run(
+    name = "gdk-sys-0.18-build-script-run",
+    package_name = "gdk-sys",
+    buildscript_rule = ":gdk-sys-0.18-build-script-build",
+    env = {
+        "CARGO_MANIFEST_LINKS": "gdk-3",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libgdk-3 (use gdk4-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    rustc_link_lib = True,
+    version = "0.18.2",
+)
+
+http_archive(
+    name = "gdkx11-0.18.2.crate",
+    sha256 = "3caa00e14351bebbc8183b3c36690327eb77c49abc2268dd4bd36b856db3fbfe",
+    strip_prefix = "gdkx11-0.18.2",
+    urls = ["https://static.crates.io/crates/gdkx11/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gdkx11-0.18",
+    srcs = [":gdkx11-0.18.2.crate"],
+    crate = "gdkx11",
+    crate_root = "gdkx11-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gdkx11",
+        "CARGO_CRATE_NAME": "gdkx11",
+        "CARGO_MANIFEST_DIR": "gdkx11-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED Rust bindings for the GDK X11 library (use gdk4-x11 instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdkx11",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    named_deps = {
+        "ffi": ":gdkx11-sys-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":gdk-0.18",
+        ":gio-0.18",
+        ":glib-0.18",
+        ":libc-0.2",
+        ":x11-2",
+    ],
+)
+
+http_archive(
+    name = "gdkx11-sys-0.18.2.crate",
+    sha256 = "6e2e7445fe01ac26f11601db260dd8608fe172514eb63b3b5e261ea6b0f4428d",
+    strip_prefix = "gdkx11-sys-0.18.2",
+    urls = ["https://static.crates.io/crates/gdkx11-sys/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gdkx11-sys-0.18",
+    srcs = [":gdkx11-sys-0.18.2.crate"],
+    crate = "gdk_x11_sys",
+    crate_root = "gdkx11-sys-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gdk_x11_sys",
+        "CARGO_CRATE_NAME": "gdk_x11_sys",
+        "CARGO_MANIFEST_DIR": "gdkx11-sys-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI binding for libgdkx11 (use gdk4-x11-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdkx11-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :gdkx11-sys-0.18-build-script-run[out_dir])",
+    },
+    named_deps = {
+        "gdk": ":gdk-sys-0.18",
+        "glib": ":glib-sys-0.18",
+    },
+    rustc_flags = ["@$(location :gdkx11-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [
+        ":libc-0.2",
+        ":x11-2",
+    ],
+)
+
+cargo.rust_binary(
+    name = "gdkx11-sys-0.18-build-script-build",
+    srcs = [":gdkx11-sys-0.18.2.crate"],
+    crate = "build_script_build",
+    crate_root = "gdkx11-sys-0.18.2.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "gdkx11-sys-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI binding for libgdkx11 (use gdk4-x11-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gdkx11-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "gdkx11-sys-0.18-build-script-run",
+    package_name = "gdkx11-sys",
+    buildscript_rule = ":gdkx11-sys-0.18-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI binding for libgdkx11 (use gdk4-x11-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    rustc_link_lib = True,
+    version = "0.18.2",
 )
 
 http_archive(
@@ -9506,6 +10461,400 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "gio-0.18.4.crate",
+    sha256 = "d4fc8f532f87b79cbc51a79748f16a6828fb784be93145a322fa14d06d354c73",
+    strip_prefix = "gio-0.18.4",
+    urls = ["https://static.crates.io/crates/gio/0.18.4/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gio-0.18",
+    srcs = [":gio-0.18.4.crate"],
+    crate = "gio",
+    crate_root = "gio-0.18.4.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gio",
+        "CARGO_CRATE_NAME": "gio",
+        "CARGO_MANIFEST_DIR": "gio-0.18.4.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings for the Gio library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gio",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.4",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "4",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "v2_58",
+        "v2_60",
+        "v2_62",
+        "v2_64",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    named_deps = {
+        "ffi": ":gio-sys-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":futures-channel-0.3",
+        ":futures-core-0.3",
+        ":futures-io-0.3",
+        ":futures-util-0.3",
+        ":glib-0.18",
+        ":libc-0.2",
+        ":once_cell-1",
+        ":pin-project-lite-0.2",
+        ":smallvec-1",
+        ":thiserror-1",
+    ],
+)
+
+http_archive(
+    name = "gio-sys-0.18.1.crate",
+    sha256 = "37566df850baf5e4cb0dfb78af2e4b9898d817ed9263d1090a2df958c64737d2",
+    strip_prefix = "gio-sys-0.18.1",
+    urls = ["https://static.crates.io/crates/gio-sys/0.18.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gio-sys-0.18",
+    srcs = [":gio-sys-0.18.1.crate"],
+    crate = "gio_sys",
+    crate_root = "gio-sys-0.18.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gio_sys",
+        "CARGO_CRATE_NAME": "gio_sys",
+        "CARGO_MANIFEST_DIR": "gio-sys-0.18.1.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgio-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gio-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :gio-sys-0.18-build-script-run[out_dir])",
+    },
+    features = [
+        "v2_58",
+        "v2_60",
+        "v2_62",
+        "v2_64",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    named_deps = {
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+    },
+    rustc_flags = ["@$(location :gio-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "gio-sys-0.18-build-script-build",
+    srcs = [":gio-sys-0.18.1.crate"],
+    crate = "build_script_build",
+    crate_root = "gio-sys-0.18.1.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "gio-sys-0.18.1.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgio-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gio-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "v2_58",
+        "v2_60",
+        "v2_62",
+        "v2_64",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "gio-sys-0.18-build-script-run",
+    package_name = "gio-sys",
+    buildscript_rule = ":gio-sys-0.18-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgio-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    features = [
+        "v2_58",
+        "v2_60",
+        "v2_62",
+        "v2_64",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    rustc_link_lib = True,
+    version = "0.18.1",
+)
+
+http_archive(
+    name = "glib-0.18.5.crate",
+    sha256 = "233daaf6e83ae6a12a52055f568f9d7cf4671dabb78ff9560ab6da230ce00ee5",
+    strip_prefix = "glib-0.18.5",
+    urls = ["https://static.crates.io/crates/glib/0.18.5/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "glib-0.18",
+    srcs = [":glib-0.18.5.crate"],
+    crate = "glib",
+    crate_root = "glib-0.18.5.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "glib",
+        "CARGO_CRATE_NAME": "glib",
+        "CARGO_MANIFEST_DIR": "glib-0.18.5.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings for the GLib library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "glib",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.5",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "5",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "gio",
+        "gio_ffi",
+        "v2_58",
+        "v2_60",
+        "v2_62",
+        "v2_64",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    named_deps = {
+        "ffi": ":glib-sys-0.18",
+        "gio_ffi": ":gio-sys-0.18",
+        "gobject_ffi": ":gobject-sys-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":bitflags-2",
+        ":futures-channel-0.3",
+        ":futures-core-0.3",
+        ":futures-executor-0.3",
+        ":futures-task-0.3",
+        ":futures-util-0.3",
+        ":glib-macros-0.18",
+        ":libc-0.2",
+        ":memchr-2",
+        ":once_cell-1",
+        ":smallvec-1",
+        ":thiserror-1",
+    ],
+)
+
+http_archive(
+    name = "glib-macros-0.18.5.crate",
+    sha256 = "0bb0228f477c0900c880fd78c8759b95c7636dbd7842707f49e132378aa2acdc",
+    strip_prefix = "glib-macros-0.18.5",
+    urls = ["https://static.crates.io/crates/glib-macros/0.18.5/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "glib-macros-0.18",
+    srcs = [":glib-macros-0.18.5.crate"],
+    crate = "glib_macros",
+    crate_root = "glib-macros-0.18.5.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "glib_macros",
+        "CARGO_CRATE_NAME": "glib_macros",
+        "CARGO_MANIFEST_DIR": "glib-macros-0.18.5.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings for the GLib library, proc macros crate",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "glib-macros",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.5",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "5",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":heck-0.4",
+        ":proc-macro-crate-2",
+        ":proc-macro-error-1",
+        ":proc-macro2-1",
+        ":quote-1",
+        ":syn-2",
+    ],
+)
+
+http_archive(
+    name = "glib-sys-0.18.1.crate",
+    sha256 = "063ce2eb6a8d0ea93d2bf8ba1957e78dbab6be1c2220dd3daca57d5a9d869898",
+    strip_prefix = "glib-sys-0.18.1",
+    urls = ["https://static.crates.io/crates/glib-sys/0.18.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "glib-sys-0.18",
+    srcs = [":glib-sys-0.18.1.crate"],
+    crate = "glib_sys",
+    crate_root = "glib-sys-0.18.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "glib_sys",
+        "CARGO_CRATE_NAME": "glib_sys",
+        "CARGO_MANIFEST_DIR": "glib-sys-0.18.1.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libglib-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "glib-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :glib-sys-0.18-build-script-run[out_dir])",
+    },
+    features = [
+        "v2_58",
+        "v2_60",
+        "v2_62",
+        "v2_64",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    rustc_flags = ["@$(location :glib-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "glib-sys-0.18-build-script-build",
+    srcs = [":glib-sys-0.18.1.crate"],
+    crate = "build_script_build",
+    crate_root = "glib-sys-0.18.1.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "glib-sys-0.18.1.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libglib-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "glib-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "v2_58",
+        "v2_60",
+        "v2_62",
+        "v2_64",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "glib-sys-0.18-build-script-run",
+    package_name = "glib-sys",
+    buildscript_rule = ":glib-sys-0.18-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libglib-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    features = [
+        "v2_58",
+        "v2_60",
+        "v2_62",
+        "v2_64",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    rustc_link_lib = True,
+    version = "0.18.1",
+)
+
+http_archive(
     name = "glow-0.17.0.crate",
     sha256 = "29038e1c483364cc6bb3cf78feee1816002e127c331a1eec55a4d202b9e1adb5",
     strip_prefix = "glow-0.17.0",
@@ -9555,6 +10904,115 @@ cargo.rust_library(
         ),
     },
     visibility = [],
+)
+
+http_archive(
+    name = "gobject-sys-0.18.0.crate",
+    sha256 = "0850127b514d1c4a4654ead6dedadb18198999985908e6ffe4436f53c785ce44",
+    strip_prefix = "gobject-sys-0.18.0",
+    urls = ["https://static.crates.io/crates/gobject-sys/0.18.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gobject-sys-0.18",
+    srcs = [":gobject-sys-0.18.0.crate"],
+    crate = "gobject_sys",
+    crate_root = "gobject-sys-0.18.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gobject_sys",
+        "CARGO_CRATE_NAME": "gobject_sys",
+        "CARGO_MANIFEST_DIR": "gobject-sys-0.18.0.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgobject-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gobject-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :gobject-sys-0.18-build-script-run[out_dir])",
+    },
+    features = [
+        "v2_58",
+        "v2_62",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    named_deps = {
+        "glib": ":glib-sys-0.18",
+    },
+    rustc_flags = ["@$(location :gobject-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "gobject-sys-0.18-build-script-build",
+    srcs = [":gobject-sys-0.18.0.crate"],
+    crate = "build_script_build",
+    crate_root = "gobject-sys-0.18.0.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "gobject-sys-0.18.0.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgobject-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gobject-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "v2_58",
+        "v2_62",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "gobject-sys-0.18-build-script-run",
+    package_name = "gobject-sys",
+    buildscript_rule = ":gobject-sys-0.18-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libgobject-2.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    features = [
+        "v2_58",
+        "v2_62",
+        "v2_66",
+        "v2_68",
+        "v2_70",
+    ],
+    rustc_link_lib = True,
+    version = "0.18.0",
 )
 
 http_archive(
@@ -9679,6 +11137,194 @@ cargo.rust_library(
     },
     visibility = [],
     deps = [":bitflags-2"],
+)
+
+http_archive(
+    name = "gtk-0.18.2.crate",
+    sha256 = "fd56fb197bfc42bd5d2751f4f017d44ff59fbb58140c6b49f9b3b2bdab08506a",
+    strip_prefix = "gtk-0.18.2",
+    urls = ["https://static.crates.io/crates/gtk/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gtk-0.18",
+    srcs = [":gtk-0.18.2.crate"],
+    crate = "gtk",
+    crate_root = "gtk-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gtk",
+        "CARGO_CRATE_NAME": "gtk",
+        "CARGO_MANIFEST_DIR": "gtk-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED Rust bindings for the GTK+ 3 library (use gtk4 instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gtk",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    named_deps = {
+        "ffi": ":gtk-sys-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":atk-0.18",
+        ":cairo-rs-0.18",
+        ":field-offset-0.3",
+        ":futures-channel-0.3",
+        ":gdk-0.18",
+        ":gdk-pixbuf-0.18",
+        ":gio-0.18",
+        ":glib-0.18",
+        ":gtk3-macros-0.18",
+        ":libc-0.2",
+        ":pango-0.18",
+    ],
+)
+
+http_archive(
+    name = "gtk-sys-0.18.2.crate",
+    sha256 = "8f29a1c21c59553eb7dd40e918be54dccd60c52b049b75119d5d96ce6b624414",
+    strip_prefix = "gtk-sys-0.18.2",
+    urls = ["https://static.crates.io/crates/gtk-sys/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gtk-sys-0.18",
+    srcs = [":gtk-sys-0.18.2.crate"],
+    crate = "gtk_sys",
+    crate_root = "gtk-sys-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gtk_sys",
+        "CARGO_CRATE_NAME": "gtk_sys",
+        "CARGO_MANIFEST_DIR": "gtk-sys-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libgtk-3 (use gtk4-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gtk-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :gtk-sys-0.18-build-script-run[out_dir])",
+    },
+    named_deps = {
+        "atk": ":atk-sys-0.18",
+        "cairo": ":cairo-sys-rs-0.18",
+        "gdk": ":gdk-sys-0.18",
+        "gdk_pixbuf": ":gdk-pixbuf-sys-0.18",
+        "gio": ":gio-sys-0.18",
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+        "pango": ":pango-sys-0.18",
+    },
+    rustc_flags = ["@$(location :gtk-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "gtk-sys-0.18-build-script-build",
+    srcs = [":gtk-sys-0.18.2.crate"],
+    crate = "build_script_build",
+    crate_root = "gtk-sys-0.18.2.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "gtk-sys-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libgtk-3 (use gtk4-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gtk-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "gtk-sys-0.18-build-script-run",
+    package_name = "gtk-sys",
+    buildscript_rule = ":gtk-sys-0.18-build-script-build",
+    env = {
+        "CARGO_MANIFEST_LINKS": "gtk-3",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED FFI bindings to libgtk-3 (use gtk4-sys instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    rustc_link_lib = True,
+    version = "0.18.2",
+)
+
+http_archive(
+    name = "gtk3-macros-0.18.2.crate",
+    sha256 = "52ff3c5b21f14f0736fed6dcfc0bfb4225ebf5725f3c0209edeec181e4d73e9d",
+    strip_prefix = "gtk3-macros-0.18.2",
+    urls = ["https://static.crates.io/crates/gtk3-macros/0.18.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "gtk3-macros-0.18",
+    srcs = [":gtk3-macros-0.18.2.crate"],
+    crate = "gtk3_macros",
+    crate_root = "gtk3-macros-0.18.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "gtk3_macros",
+        "CARGO_CRATE_NAME": "gtk3_macros",
+        "CARGO_MANIFEST_DIR": "gtk3-macros-0.18.2.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "UNMAINTAINED Rust bindings for the GTK 3 library (use gtk4-macros instead)",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "gtk3-macros",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":proc-macro-crate-1",
+        ":proc-macro-error-1",
+        ":proc-macro2-1",
+        ":quote-1",
+        ":syn-2",
+    ],
 )
 
 http_archive(
@@ -10755,6 +12401,41 @@ buildscript_run(
         "serde",
     ],
     version = "0.7.17",
+)
+
+http_archive(
+    name = "heck-0.4.1.crate",
+    sha256 = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8",
+    strip_prefix = "heck-0.4.1",
+    urls = ["https://static.crates.io/crates/heck/0.4.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "heck-0.4",
+    srcs = [":heck-0.4.1.crate"],
+    crate = "heck",
+    crate_root = "heck-0.4.1.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "heck",
+        "CARGO_CRATE_NAME": "heck",
+        "CARGO_MANIFEST_DIR": "heck-0.4.1.crate",
+        "CARGO_PKG_AUTHORS": "Without Boats <woboats@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "heck is a case conversion library.",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/withoutboats/heck",
+        "CARGO_PKG_NAME": "heck",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/withoutboats/heck",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.4.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "4",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default"],
+    visibility = [],
 )
 
 http_archive(
@@ -12370,6 +14051,153 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     visibility = [],
+)
+
+http_archive(
+    name = "javascriptcore-rs-1.1.2.crate",
+    sha256 = "ca5671e9ffce8ffba57afc24070e906da7fc4b1ba66f2cabebf61bf2ea257fcc",
+    strip_prefix = "javascriptcore-rs-1.1.2",
+    urls = ["https://static.crates.io/crates/javascriptcore-rs/1.1.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "javascriptcore-rs-1",
+    srcs = [":javascriptcore-rs-1.1.2.crate"],
+    crate = "javascriptcore",
+    crate_root = "javascriptcore-rs-1.1.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "javascriptcore",
+        "CARGO_CRATE_NAME": "javascriptcore",
+        "CARGO_MANIFEST_DIR": "javascriptcore-rs-1.1.2.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings for the javacriptcore library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "javascriptcore-rs",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/javascriptcore-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.1.2",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "v2_28",
+        "v2_38",
+    ],
+    named_deps = {
+        "ffi": ":javascriptcore-rs-sys-1",
+    },
+    visibility = [],
+    deps = [
+        ":bitflags-1",
+        ":glib-0.18",
+    ],
+)
+
+http_archive(
+    name = "javascriptcore-rs-sys-1.1.1.crate",
+    sha256 = "af1be78d14ffa4b75b66df31840478fef72b51f8c2465d4ca7c194da9f7a5124",
+    strip_prefix = "javascriptcore-rs-sys-1.1.1",
+    urls = ["https://static.crates.io/crates/javascriptcore-rs-sys/1.1.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "javascriptcore-rs-sys-1",
+    srcs = [":javascriptcore-rs-sys-1.1.1.crate"],
+    crate = "javascriptcore_rs_sys",
+    crate_root = "javascriptcore-rs-sys-1.1.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "javascriptcore_rs_sys",
+        "CARGO_CRATE_NAME": "javascriptcore_rs_sys",
+        "CARGO_MANIFEST_DIR": "javascriptcore-rs-sys-1.1.1.crate",
+        "CARGO_PKG_AUTHORS": "The Gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Sys functions for the Rust bindings of the javacriptcore library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "javascriptcore-rs-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/javascriptcore-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.1.1",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :javascriptcore-rs-sys-1-build-script-run[out_dir])",
+    },
+    features = [
+        "v2_28",
+        "v2_38",
+    ],
+    named_deps = {
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+    },
+    rustc_flags = ["@$(location :javascriptcore-rs-sys-1-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "javascriptcore-rs-sys-1-build-script-build",
+    srcs = [":javascriptcore-rs-sys-1.1.1.crate"],
+    crate = "build_script_build",
+    crate_root = "javascriptcore-rs-sys-1.1.1.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "javascriptcore-rs-sys-1.1.1.crate",
+        "CARGO_PKG_AUTHORS": "The Gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Sys functions for the Rust bindings of the javacriptcore library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "javascriptcore-rs-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/javascriptcore-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.1.1",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "v2_28",
+        "v2_38",
+    ],
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "javascriptcore-rs-sys-1-build-script-run",
+    package_name = "javascriptcore-rs-sys",
+    buildscript_rule = ":javascriptcore-rs-sys-1-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The Gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Sys functions for the Rust bindings of the javacriptcore library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/javascriptcore-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    features = [
+        "v2_28",
+        "v2_38",
+    ],
+    rustc_link_lib = True,
+    version = "1.1.1",
 )
 
 http_archive(
@@ -14234,6 +16062,40 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "num-conv-0.2.2.crate",
+    sha256 = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441",
+    strip_prefix = "num-conv-0.2.2",
+    urls = ["https://static.crates.io/crates/num-conv/0.2.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "num-conv-0.2",
+    srcs = [":num-conv-0.2.2.crate"],
+    crate = "num_conv",
+    crate_root = "num-conv-0.2.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "num_conv",
+        "CARGO_CRATE_NAME": "num_conv",
+        "CARGO_MANIFEST_DIR": "num-conv-0.2.2.crate",
+        "CARGO_PKG_AUTHORS": "Jacob Pratt <jacob@jhpratt.dev>",
+        "CARGO_PKG_DESCRIPTION": "`num_conv` is a crate to convert between integer types without using `as` casts. This provides\nbetter certainty when refactoring, makes the exact behavior of code more explicit, and allows using\nturbofish syntax.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "num-conv",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/jhpratt/num-conv",
+        "CARGO_PKG_RUST_VERSION": "1.57.0",
+        "CARGO_PKG_VERSION": "0.2.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
     name = "num-traits-0.2.19.crate",
     sha256 = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841",
     strip_prefix = "num-traits-0.2.19",
@@ -14567,6 +16429,40 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "option-ext-0.2.0.crate",
+    sha256 = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d",
+    strip_prefix = "option-ext-0.2.0",
+    urls = ["https://static.crates.io/crates/option-ext/0.2.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "option-ext-0.2",
+    srcs = [":option-ext-0.2.0.crate"],
+    crate = "option_ext",
+    crate_root = "option-ext-0.2.0.crate/src/lib.rs",
+    edition = "2015",
+    env = {
+        "CARGO_BIN_NAME": "option_ext",
+        "CARGO_CRATE_NAME": "option_ext",
+        "CARGO_MANIFEST_DIR": "option-ext-0.2.0.crate",
+        "CARGO_PKG_AUTHORS": "Simon Ochsenreither <simon@ochsenreither.de>",
+        "CARGO_PKG_DESCRIPTION": "Extends `Option` with additional operations",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/soc/option-ext",
+        "CARGO_PKG_NAME": "option-ext",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/soc/option-ext.git",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.2.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
     name = "ordered-float-5.3.0.crate",
     sha256 = "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e",
     strip_prefix = "ordered-float-5.3.0",
@@ -14681,6 +16577,138 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [":ttf-parser-0.25"],
+)
+
+http_archive(
+    name = "pango-0.18.3.crate",
+    sha256 = "7ca27ec1eb0457ab26f3036ea52229edbdb74dee1edd29063f5b9b010e7ebee4",
+    strip_prefix = "pango-0.18.3",
+    urls = ["https://static.crates.io/crates/pango/0.18.3/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "pango-0.18",
+    srcs = [":pango-0.18.3.crate"],
+    crate = "pango",
+    crate_root = "pango-0.18.3.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "pango",
+        "CARGO_CRATE_NAME": "pango",
+        "CARGO_MANIFEST_DIR": "pango-0.18.3.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings for the Pango library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "pango",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.3",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "3",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    named_deps = {
+        "ffi": ":pango-sys-0.18",
+    },
+    visibility = [],
+    deps = [
+        ":gio-0.18",
+        ":glib-0.18",
+        ":libc-0.2",
+        ":once_cell-1",
+    ],
+)
+
+http_archive(
+    name = "pango-sys-0.18.0.crate",
+    sha256 = "436737e391a843e5933d6d9aa102cb126d501e815b83601365a948a518555dc5",
+    strip_prefix = "pango-sys-0.18.0",
+    urls = ["https://static.crates.io/crates/pango-sys/0.18.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "pango-sys-0.18",
+    srcs = [":pango-sys-0.18.0.crate"],
+    crate = "pango_sys",
+    crate_root = "pango-sys-0.18.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "pango_sys",
+        "CARGO_CRATE_NAME": "pango_sys",
+        "CARGO_MANIFEST_DIR": "pango-sys-0.18.0.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libpango-1.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "pango-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :pango-sys-0.18-build-script-run[out_dir])",
+    },
+    named_deps = {
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+    },
+    rustc_flags = ["@$(location :pango-sys-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "pango-sys-0.18-build-script-build",
+    srcs = [":pango-sys-0.18.0.crate"],
+    crate = "build_script_build",
+    crate_root = "pango-sys-0.18.0.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "pango-sys-0.18.0.crate",
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libpango-1.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_NAME": "pango-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.18.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "pango-sys-0.18-build-script-run",
+    package_name = "pango-sys",
+    buildscript_rule = ":pango-sys-0.18-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "FFI bindings to libpango-1.0",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org/",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gtk-rs/gtk-rs-core",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    rustc_link_lib = True,
+    version = "0.18.0",
 )
 
 http_archive(
@@ -15784,6 +17812,40 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "powerfmt-0.2.0.crate",
+    sha256 = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391",
+    strip_prefix = "powerfmt-0.2.0",
+    urls = ["https://static.crates.io/crates/powerfmt/0.2.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "powerfmt-0.2",
+    srcs = [":powerfmt-0.2.0.crate"],
+    crate = "powerfmt",
+    crate_root = "powerfmt-0.2.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "powerfmt",
+        "CARGO_CRATE_NAME": "powerfmt",
+        "CARGO_MANIFEST_DIR": "powerfmt-0.2.0.crate",
+        "CARGO_PKG_AUTHORS": "Jacob Pratt <jacob@jhpratt.dev>",
+        "CARGO_PKG_DESCRIPTION": "    `powerfmt` is a library that provides utilities for formatting values. This crate makes it\n    significantly easier to support filling to a minimum width with alignment, avoid heap\n    allocation, and avoid repetitive calculations.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "powerfmt",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/jhpratt/powerfmt",
+        "CARGO_PKG_RUST_VERSION": "1.67.0",
+        "CARGO_PKG_VERSION": "0.2.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
     name = "ppv-lite86-0.2.21.crate",
     sha256 = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9",
     strip_prefix = "ppv-lite86-0.2.21",
@@ -15857,6 +17919,79 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "proc-macro-crate-1.3.1.crate",
+    sha256 = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919",
+    strip_prefix = "proc-macro-crate-1.3.1",
+    urls = ["https://static.crates.io/crates/proc-macro-crate/1.3.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "proc-macro-crate-1",
+    srcs = [":proc-macro-crate-1.3.1.crate"],
+    crate = "proc_macro_crate",
+    crate_root = "proc-macro-crate-1.3.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "proc_macro_crate",
+        "CARGO_CRATE_NAME": "proc_macro_crate",
+        "CARGO_MANIFEST_DIR": "proc-macro-crate-1.3.1.crate",
+        "CARGO_PKG_AUTHORS": "Bastian Köcher <git@kchr.de>",
+        "CARGO_PKG_DESCRIPTION": "Replacement for crate (macro_rules keyword) in proc-macros\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "proc-macro-crate",
+        "CARGO_PKG_README": "./README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bkchr/proc-macro-crate",
+        "CARGO_PKG_RUST_VERSION": "1.60.0",
+        "CARGO_PKG_VERSION": "1.3.1",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "3",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":once_cell-1",
+        ":toml_edit-0.19",
+    ],
+)
+
+http_archive(
+    name = "proc-macro-crate-2.0.0.crate",
+    sha256 = "7e8366a6159044a37876a2b9817124296703c586a5c92e2c53751fa06d8d43e8",
+    strip_prefix = "proc-macro-crate-2.0.0",
+    urls = ["https://static.crates.io/crates/proc-macro-crate/2.0.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "proc-macro-crate-2",
+    srcs = [":proc-macro-crate-2.0.0.crate"],
+    crate = "proc_macro_crate",
+    crate_root = "proc-macro-crate-2.0.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "proc_macro_crate",
+        "CARGO_CRATE_NAME": "proc_macro_crate",
+        "CARGO_MANIFEST_DIR": "proc-macro-crate-2.0.0.crate",
+        "CARGO_PKG_AUTHORS": "Bastian Köcher <git@kchr.de>",
+        "CARGO_PKG_DESCRIPTION": "Replacement for crate (macro_rules keyword) in proc-macros\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "proc-macro-crate",
+        "CARGO_PKG_README": "./README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bkchr/proc-macro-crate",
+        "CARGO_PKG_RUST_VERSION": "1.66.0",
+        "CARGO_PKG_VERSION": "2.0.0",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":toml_edit-0.20"],
+)
+
+http_archive(
     name = "proc-macro-crate-3.5.0.crate",
     sha256 = "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f",
     strip_prefix = "proc-macro-crate-3.5.0",
@@ -15889,6 +18024,196 @@ cargo.rust_library(
     },
     visibility = [],
     deps = [":toml_edit-0.25"],
+)
+
+http_archive(
+    name = "proc-macro-error-1.0.4.crate",
+    sha256 = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c",
+    strip_prefix = "proc-macro-error-1.0.4",
+    urls = ["https://static.crates.io/crates/proc-macro-error/1.0.4/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "proc-macro-error-1",
+    srcs = [":proc-macro-error-1.0.4.crate"],
+    crate = "proc_macro_error",
+    crate_root = "proc-macro-error-1.0.4.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "proc_macro_error",
+        "CARGO_CRATE_NAME": "proc_macro_error",
+        "CARGO_MANIFEST_DIR": "proc-macro-error-1.0.4.crate",
+        "CARGO_PKG_AUTHORS": "CreepySkeleton <creepy-skeleton@yandex.ru>",
+        "CARGO_PKG_DESCRIPTION": "Almost drop-in replacement to panics in proc-macros",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "proc-macro-error",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.com/CreepySkeleton/proc-macro-error",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.0.4",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "4",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :proc-macro-error-1-build-script-run[out_dir])",
+    },
+    features = [
+        "default",
+        "syn",
+        "syn-error",
+    ],
+    rustc_flags = ["@$(location :proc-macro-error-1-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [
+        ":proc-macro-error-attr-1",
+        ":proc-macro2-1",
+        ":quote-1",
+        ":syn-1",
+    ],
+)
+
+cargo.rust_binary(
+    name = "proc-macro-error-1-build-script-build",
+    srcs = [":proc-macro-error-1.0.4.crate"],
+    crate = "build_script_build",
+    crate_root = "proc-macro-error-1.0.4.crate/build.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "proc-macro-error-1.0.4.crate",
+        "CARGO_PKG_AUTHORS": "CreepySkeleton <creepy-skeleton@yandex.ru>",
+        "CARGO_PKG_DESCRIPTION": "Almost drop-in replacement to panics in proc-macros",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "proc-macro-error",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.com/CreepySkeleton/proc-macro-error",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.0.4",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "4",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "syn",
+        "syn-error",
+    ],
+    visibility = [],
+    deps = [":version_check-0.9"],
+)
+
+buildscript_run(
+    name = "proc-macro-error-1-build-script-run",
+    package_name = "proc-macro-error",
+    buildscript_rule = ":proc-macro-error-1-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "CreepySkeleton <creepy-skeleton@yandex.ru>",
+        "CARGO_PKG_DESCRIPTION": "Almost drop-in replacement to panics in proc-macros",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.com/CreepySkeleton/proc-macro-error",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "4",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "syn",
+        "syn-error",
+    ],
+    version = "1.0.4",
+)
+
+http_archive(
+    name = "proc-macro-error-attr-1.0.4.crate",
+    sha256 = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869",
+    strip_prefix = "proc-macro-error-attr-1.0.4",
+    urls = ["https://static.crates.io/crates/proc-macro-error-attr/1.0.4/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "proc-macro-error-attr-1",
+    srcs = [":proc-macro-error-attr-1.0.4.crate"],
+    crate = "proc_macro_error_attr",
+    crate_root = "proc-macro-error-attr-1.0.4.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "proc_macro_error_attr",
+        "CARGO_CRATE_NAME": "proc_macro_error_attr",
+        "CARGO_MANIFEST_DIR": "proc-macro-error-attr-1.0.4.crate",
+        "CARGO_PKG_AUTHORS": "CreepySkeleton <creepy-skeleton@yandex.ru>",
+        "CARGO_PKG_DESCRIPTION": "Attribute macro for proc-macro-error crate",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "proc-macro-error-attr",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.com/CreepySkeleton/proc-macro-error",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.0.4",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "4",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :proc-macro-error-attr-1-build-script-run[out_dir])",
+    },
+    proc_macro = True,
+    rustc_flags = ["@$(location :proc-macro-error-attr-1-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [
+        ":proc-macro2-1",
+        ":quote-1",
+    ],
+)
+
+cargo.rust_binary(
+    name = "proc-macro-error-attr-1-build-script-build",
+    srcs = [":proc-macro-error-attr-1.0.4.crate"],
+    crate = "build_script_build",
+    crate_root = "proc-macro-error-attr-1.0.4.crate/build.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "proc-macro-error-attr-1.0.4.crate",
+        "CARGO_PKG_AUTHORS": "CreepySkeleton <creepy-skeleton@yandex.ru>",
+        "CARGO_PKG_DESCRIPTION": "Attribute macro for proc-macro-error crate",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "proc-macro-error-attr",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.com/CreepySkeleton/proc-macro-error",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.0.4",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "4",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":version_check-0.9"],
+)
+
+buildscript_run(
+    name = "proc-macro-error-attr-1-build-script-run",
+    package_name = "proc-macro-error-attr",
+    buildscript_rule = ":proc-macro-error-attr-1-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "CreepySkeleton <creepy-skeleton@yandex.ru>",
+        "CARGO_PKG_DESCRIPTION": "Attribute macro for proc-macro-error crate",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.com/CreepySkeleton/proc-macro-error",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "4",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    version = "1.0.4",
 )
 
 http_archive(
@@ -19644,6 +21969,42 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "serde_spanned-0.6.9.crate",
+    sha256 = "bf41e0cfaf7226dca15e8197172c295a782857fcb97fad1808a166870dee75a3",
+    strip_prefix = "serde_spanned-0.6.9",
+    urls = ["https://static.crates.io/crates/serde_spanned/0.6.9/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "serde_spanned-0.6",
+    srcs = [":serde_spanned-0.6.9.crate"],
+    crate = "serde_spanned",
+    crate_root = "serde_spanned-0.6.9.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "serde_spanned",
+        "CARGO_CRATE_NAME": "serde_spanned",
+        "CARGO_MANIFEST_DIR": "serde_spanned-0.6.9.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Serde-compatible spanned Value",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "serde_spanned",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/toml-rs/toml",
+        "CARGO_PKG_RUST_VERSION": "1.66",
+        "CARGO_PKG_VERSION": "0.6.9",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "6",
+        "CARGO_PKG_VERSION_PATCH": "9",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["serde"],
+    visibility = [],
+    deps = [":serde-1"],
+)
+
+http_archive(
     name = "serde_spanned-1.1.1.crate",
     sha256 = "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26",
     strip_prefix = "serde_spanned-1.1.1",
@@ -20694,6 +23055,143 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "soup3-0.5.0.crate",
+    sha256 = "471f924a40f31251afc77450e781cb26d55c0b650842efafc9c6cbd2f7cc4f9f",
+    strip_prefix = "soup3-0.5.0",
+    urls = ["https://static.crates.io/crates/soup3/0.5.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "soup3-0.5",
+    srcs = [":soup3-0.5.0.crate"],
+    crate = "soup",
+    crate_root = "soup3-0.5.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "soup",
+        "CARGO_CRATE_NAME": "soup",
+        "CARGO_MANIFEST_DIR": "soup3-0.5.0.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Soup crate for Rust",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "soup3",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.gnome.org/World/Rust/soup3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.5.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default"],
+    named_deps = {
+        "ffi": ":soup3-sys-0.5",
+    },
+    visibility = [],
+    deps = [
+        ":futures-channel-0.3",
+        ":gio-0.18",
+        ":glib-0.18",
+        ":libc-0.2",
+    ],
+)
+
+http_archive(
+    name = "soup3-sys-0.5.0.crate",
+    sha256 = "7ebe8950a680a12f24f15ebe1bf70db7af98ad242d9db43596ad3108aab86c27",
+    strip_prefix = "soup3-sys-0.5.0",
+    urls = ["https://static.crates.io/crates/soup3-sys/0.5.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "soup3-sys-0.5",
+    srcs = [":soup3-sys-0.5.0.crate"],
+    crate = "soup3_sys",
+    crate_root = "soup3-sys-0.5.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "soup3_sys",
+        "CARGO_CRATE_NAME": "soup3_sys",
+        "CARGO_MANIFEST_DIR": "soup3-sys-0.5.0.crate",
+        "CARGO_PKG_AUTHORS": "The Gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Sys functions for the Rust bindings of the javacriptcore library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org",
+        "CARGO_PKG_NAME": "soup3-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.gnome.org/World/Rust/soup3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.5.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :soup3-sys-0.5-build-script-run[out_dir])",
+    },
+    features = ["v3_0"],
+    named_deps = {
+        "gio": ":gio-sys-0.18",
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+    },
+    rustc_flags = ["@$(location :soup3-sys-0.5-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [":libc-0.2"],
+)
+
+cargo.rust_binary(
+    name = "soup3-sys-0.5-build-script-build",
+    srcs = [":soup3-sys-0.5.0.crate"],
+    crate = "build_script_build",
+    crate_root = "soup3-sys-0.5.0.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "soup3-sys-0.5.0.crate",
+        "CARGO_PKG_AUTHORS": "The Gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Sys functions for the Rust bindings of the javacriptcore library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org",
+        "CARGO_PKG_NAME": "soup3-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.gnome.org/World/Rust/soup3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION": "0.5.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["v3_0"],
+    visibility = [],
+    deps = [":system-deps-6"],
+)
+
+buildscript_run(
+    name = "soup3-sys-0.5-build-script-run",
+    package_name = "soup3-sys",
+    buildscript_rule = ":soup3-sys-0.5-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "The Gtk-rs Project Developers",
+        "CARGO_PKG_DESCRIPTION": "Sys functions for the Rust bindings of the javacriptcore library",
+        "CARGO_PKG_HOMEPAGE": "https://gtk-rs.org",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.gnome.org/World/Rust/soup3-rs",
+        "CARGO_PKG_RUST_VERSION": "1.70",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    features = ["v3_0"],
+    rustc_link_lib = True,
+    version = "0.5.0",
+)
+
+http_archive(
     name = "spin-0.9.9.crate",
     sha256 = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e",
     strip_prefix = "spin-0.9.9",
@@ -21124,6 +23622,44 @@ cargo.rust_library(
     ],
 )
 
+http_archive(
+    name = "syn-1.0.109.crate",
+    sha256 = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237",
+    strip_prefix = "syn-1.0.109",
+    urls = ["https://static.crates.io/crates/syn/1.0.109/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "syn-1",
+    srcs = [":syn-1.0.109.crate"],
+    crate = "syn",
+    crate_root = "syn-1.0.109.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "syn",
+        "CARGO_CRATE_NAME": "syn",
+        "CARGO_MANIFEST_DIR": "syn-1.0.109.crate",
+        "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Parser for Rust source code",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "syn",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/dtolnay/syn",
+        "CARGO_PKG_RUST_VERSION": "1.31",
+        "CARGO_PKG_VERSION": "1.0.109",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "109",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":proc-macro2-1",
+        ":unicode-ident-1",
+    ],
+)
+
 cargo_alias(
     name = "syn",
     actual = ":syn-2",
@@ -21287,6 +23823,47 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "system-deps-6.2.2.crate",
+    sha256 = "a3e535eb8dded36d55ec13eddacd30dec501792ff23a0b1682c38601b8cf2349",
+    strip_prefix = "system-deps-6.2.2",
+    urls = ["https://static.crates.io/crates/system-deps/6.2.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "system-deps-6",
+    srcs = [":system-deps-6.2.2.crate"],
+    crate = "system_deps",
+    crate_root = "system-deps-6.2.2.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "system_deps",
+        "CARGO_CRATE_NAME": "system_deps",
+        "CARGO_MANIFEST_DIR": "system-deps-6.2.2.crate",
+        "CARGO_PKG_AUTHORS": "Guillaume Desmottes <guillaume.desmottes@collabora.com>:Josh Triplett <josh@joshtriplett.org>",
+        "CARGO_PKG_DESCRIPTION": "Discover and configure system dependencies from declarative dependencies in Cargo.toml",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "system-deps",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/gdesmott/system-deps",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "6.2.2",
+        "CARGO_PKG_VERSION_MAJOR": "6",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":cfg-expr-0.15",
+        ":heck-0.5",
+        ":pkg-config-0.3",
+        ":toml-0.8",
+        ":version-compare-0.2",
+    ],
+)
+
+http_archive(
     name = "tagged-pointer-0.2.11.crate",
     sha256 = "aae4105b706d399250b34d1b88902bc6f6252bb4b110b6addf32e6d90d9d4c82",
     strip_prefix = "tagged-pointer-0.2.11",
@@ -21365,6 +23942,90 @@ buildscript_run(
         "CARGO_PKG_VERSION_PRE": "",
     },
     version = "0.2.11",
+)
+
+http_archive(
+    name = "target-lexicon-0.12.16.crate",
+    sha256 = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1",
+    strip_prefix = "target-lexicon-0.12.16",
+    urls = ["https://static.crates.io/crates/target-lexicon/0.12.16/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "target-lexicon-0.12",
+    srcs = [":target-lexicon-0.12.16.crate"],
+    crate = "target_lexicon",
+    crate_root = "target-lexicon-0.12.16.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "target_lexicon",
+        "CARGO_CRATE_NAME": "target_lexicon",
+        "CARGO_MANIFEST_DIR": "target-lexicon-0.12.16.crate",
+        "CARGO_PKG_AUTHORS": "Dan Gohman <sunfish@mozilla.com>",
+        "CARGO_PKG_DESCRIPTION": "Targeting utilities for compilers and related tools",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "target-lexicon",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/target-lexicon",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.12.16",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "12",
+        "CARGO_PKG_VERSION_PATCH": "16",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :target-lexicon-0.12-build-script-run[out_dir])",
+    },
+    features = ["default"],
+    rustc_flags = ["@$(location :target-lexicon-0.12-build-script-run[rustc_flags])"],
+    visibility = [],
+)
+
+cargo.rust_binary(
+    name = "target-lexicon-0.12-build-script-build",
+    srcs = [":target-lexicon-0.12.16.crate"],
+    crate = "build_script_build",
+    crate_root = "target-lexicon-0.12.16.crate/build.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "target-lexicon-0.12.16.crate",
+        "CARGO_PKG_AUTHORS": "Dan Gohman <sunfish@mozilla.com>",
+        "CARGO_PKG_DESCRIPTION": "Targeting utilities for compilers and related tools",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "target-lexicon",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/target-lexicon",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.12.16",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "12",
+        "CARGO_PKG_VERSION_PATCH": "16",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default"],
+    visibility = [],
+)
+
+buildscript_run(
+    name = "target-lexicon-0.12-build-script-run",
+    package_name = "target-lexicon",
+    buildscript_rule = ":target-lexicon-0.12-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "Dan Gohman <sunfish@mozilla.com>",
+        "CARGO_PKG_DESCRIPTION": "Targeting utilities for compilers and related tools",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/target-lexicon",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "12",
+        "CARGO_PKG_VERSION_PATCH": "16",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default"],
+    version = "0.12.16",
 )
 
 http_archive(
@@ -21827,6 +24488,131 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "time-0.3.54.crate",
+    sha256 = "3e1d5e639ff6bab73cb6885cc7e7b1de96c3f32c68ec55f3952614bec1092244",
+    strip_prefix = "time-0.3.54",
+    urls = ["https://static.crates.io/crates/time/0.3.54/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "time-0.3",
+    srcs = [":time-0.3.54.crate"],
+    crate = "time",
+    crate_root = "time-0.3.54.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "time",
+        "CARGO_CRATE_NAME": "time",
+        "CARGO_MANIFEST_DIR": "time-0.3.54.crate",
+        "CARGO_PKG_AUTHORS": "Jacob Pratt <open-source@jhpratt.dev>:Time contributors",
+        "CARGO_PKG_DESCRIPTION": "Date and time library. Fully interoperable with the standard library. Mostly compatible with #![no_std].",
+        "CARGO_PKG_HOMEPAGE": "https://time-rs.github.io",
+        "CARGO_PKG_NAME": "time",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/time-rs/time",
+        "CARGO_PKG_RUST_VERSION": "1.88.0",
+        "CARGO_PKG_VERSION": "0.3.54",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "3",
+        "CARGO_PKG_VERSION_PATCH": "54",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "alloc",
+        "formatting",
+        "macros",
+        "parsing",
+        "std",
+    ],
+    visibility = [],
+    deps = [
+        ":deranged-0.5",
+        ":num-conv-0.2",
+        ":powerfmt-0.2",
+        ":time-core-0.1",
+        ":time-macros-0.2",
+    ],
+)
+
+http_archive(
+    name = "time-core-0.1.9.crate",
+    sha256 = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109",
+    strip_prefix = "time-core-0.1.9",
+    urls = ["https://static.crates.io/crates/time-core/0.1.9/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "time-core-0.1",
+    srcs = [":time-core-0.1.9.crate"],
+    crate = "time_core",
+    crate_root = "time-core-0.1.9.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "time_core",
+        "CARGO_CRATE_NAME": "time_core",
+        "CARGO_MANIFEST_DIR": "time-core-0.1.9.crate",
+        "CARGO_PKG_AUTHORS": "Jacob Pratt <open-source@jhpratt.dev>:Time contributors",
+        "CARGO_PKG_DESCRIPTION": "This crate is an implementation detail and should not be relied upon directly.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "time-core",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/time-rs/time",
+        "CARGO_PKG_RUST_VERSION": "1.88.0",
+        "CARGO_PKG_VERSION": "0.1.9",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "9",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
+    name = "time-macros-0.2.32.crate",
+    sha256 = "7e689342a48d2ea927c87ea50cabf8594854bf940e9310208848d680d668ed85",
+    strip_prefix = "time-macros-0.2.32",
+    urls = ["https://static.crates.io/crates/time-macros/0.2.32/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "time-macros-0.2",
+    srcs = [":time-macros-0.2.32.crate"],
+    crate = "time_macros",
+    crate_root = "time-macros-0.2.32.crate/src/lib.rs",
+    edition = "2024",
+    env = {
+        "CARGO_BIN_NAME": "time_macros",
+        "CARGO_CRATE_NAME": "time_macros",
+        "CARGO_MANIFEST_DIR": "time-macros-0.2.32.crate",
+        "CARGO_PKG_AUTHORS": "Jacob Pratt <open-source@jhpratt.dev>:Time contributors",
+        "CARGO_PKG_DESCRIPTION": "    Procedural macros for the time crate.\n    This crate is an implementation detail and should not be relied upon directly.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "time-macros",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/time-rs/time",
+        "CARGO_PKG_RUST_VERSION": "1.88.0",
+        "CARGO_PKG_VERSION": "0.2.32",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "32",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "formatting",
+        "parsing",
+    ],
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":num-conv-0.2",
+        ":time-core-0.1",
+    ],
+)
+
+http_archive(
     name = "tiny-skia-0.11.4.crate",
     sha256 = "83d13394d44dae3207b52a326c0c85a8bf87f1541f23b0d143811088497b09ab",
     strip_prefix = "tiny-skia-0.11.4",
@@ -22259,6 +25045,47 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "toml-0.8.23.crate",
+    sha256 = "dc1beb996b9d83529a9e75c17a1686767d148d70663143c7854d8b4a09ced362",
+    strip_prefix = "toml-0.8.23",
+    urls = ["https://static.crates.io/crates/toml/0.8.23/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "toml-0.8",
+    srcs = [":toml-0.8.23.crate"],
+    crate = "toml",
+    crate_root = "toml-0.8.23.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "toml",
+        "CARGO_CRATE_NAME": "toml",
+        "CARGO_MANIFEST_DIR": "toml-0.8.23.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "A native Rust encoder and decoder of TOML-formatted files and streams. Provides\nimplementations of the standard Serialize/Deserialize traits for TOML data to\nfacilitate deserializing and serializing Rust structures.\n",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "toml",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/toml-rs/toml",
+        "CARGO_PKG_RUST_VERSION": "1.66",
+        "CARGO_PKG_VERSION": "0.8.23",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "8",
+        "CARGO_PKG_VERSION_PATCH": "23",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["parse"],
+    visibility = [],
+    deps = [
+        ":serde-1",
+        ":serde_spanned-0.6",
+        ":toml_datetime-0.6",
+        ":toml_edit-0.22",
+    ],
+)
+
+http_archive(
     name = "toml-0.9.12+spec-1.1.0.crate",
     sha256 = "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863",
     strip_prefix = "toml-0.9.12+spec-1.1.0",
@@ -22353,6 +25180,42 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "toml_datetime-0.6.11.crate",
+    sha256 = "22cddaf88f4fbc13c51aebbf5f8eceb5c7c5a9da2ac40a13519eb5b0a0e8f11c",
+    strip_prefix = "toml_datetime-0.6.11",
+    urls = ["https://static.crates.io/crates/toml_datetime/0.6.11/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "toml_datetime-0.6",
+    srcs = [":toml_datetime-0.6.11.crate"],
+    crate = "toml_datetime",
+    crate_root = "toml_datetime-0.6.11.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "toml_datetime",
+        "CARGO_CRATE_NAME": "toml_datetime",
+        "CARGO_MANIFEST_DIR": "toml_datetime-0.6.11.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "A TOML-compatible datetime type",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "toml_datetime",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/toml-rs/toml",
+        "CARGO_PKG_RUST_VERSION": "1.66",
+        "CARGO_PKG_VERSION": "0.6.11",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "6",
+        "CARGO_PKG_VERSION_PATCH": "11",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["serde"],
+    visibility = [],
+    deps = [":serde-1"],
+)
+
+http_archive(
     name = "toml_datetime-0.7.5+spec-1.1.0.crate",
     sha256 = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347",
     strip_prefix = "toml_datetime-0.7.5+spec-1.1.0",
@@ -22437,6 +25300,131 @@ cargo.rust_library(
     },
     visibility = [],
     deps = [":serde_core-1"],
+)
+
+http_archive(
+    name = "toml_edit-0.19.15.crate",
+    sha256 = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421",
+    strip_prefix = "toml_edit-0.19.15",
+    urls = ["https://static.crates.io/crates/toml_edit/0.19.15/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "toml_edit-0.19",
+    srcs = [":toml_edit-0.19.15.crate"],
+    crate = "toml_edit",
+    crate_root = "toml_edit-0.19.15.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "toml_edit",
+        "CARGO_CRATE_NAME": "toml_edit",
+        "CARGO_MANIFEST_DIR": "toml_edit-0.19.15.crate",
+        "CARGO_PKG_AUTHORS": "Andronik Ordian <write@reusable.software>:Ed Page <eopage@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Yet another format-preserving TOML parser.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "toml_edit",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/toml-rs/toml",
+        "CARGO_PKG_RUST_VERSION": "1.66.0",
+        "CARGO_PKG_VERSION": "0.19.15",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "19",
+        "CARGO_PKG_VERSION_PATCH": "15",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default"],
+    visibility = [],
+    deps = [
+        ":indexmap-2",
+        ":toml_datetime-0.6",
+        ":winnow-0.5",
+    ],
+)
+
+http_archive(
+    name = "toml_edit-0.20.2.crate",
+    sha256 = "396e4d48bbb2b7554c944bde63101b5ae446cff6ec4a24227428f15eb72ef338",
+    strip_prefix = "toml_edit-0.20.2",
+    urls = ["https://static.crates.io/crates/toml_edit/0.20.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "toml_edit-0.20",
+    srcs = [":toml_edit-0.20.2.crate"],
+    crate = "toml_edit",
+    crate_root = "toml_edit-0.20.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "toml_edit",
+        "CARGO_CRATE_NAME": "toml_edit",
+        "CARGO_MANIFEST_DIR": "toml_edit-0.20.2.crate",
+        "CARGO_PKG_AUTHORS": "Andronik Ordian <write@reusable.software>:Ed Page <eopage@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Yet another format-preserving TOML parser.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "toml_edit",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/toml-rs/toml",
+        "CARGO_PKG_RUST_VERSION": "1.66.0",
+        "CARGO_PKG_VERSION": "0.20.2",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "20",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = ["default"],
+    visibility = [],
+    deps = [
+        ":indexmap-2",
+        ":toml_datetime-0.6",
+        ":winnow-0.5",
+    ],
+)
+
+http_archive(
+    name = "toml_edit-0.22.27.crate",
+    sha256 = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a",
+    strip_prefix = "toml_edit-0.22.27",
+    urls = ["https://static.crates.io/crates/toml_edit/0.22.27/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "toml_edit-0.22",
+    srcs = [":toml_edit-0.22.27.crate"],
+    crate = "toml_edit",
+    crate_root = "toml_edit-0.22.27.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "toml_edit",
+        "CARGO_CRATE_NAME": "toml_edit",
+        "CARGO_MANIFEST_DIR": "toml_edit-0.22.27.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Yet another format-preserving TOML parser.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "toml_edit",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/toml-rs/toml",
+        "CARGO_PKG_RUST_VERSION": "1.66",
+        "CARGO_PKG_VERSION": "0.22.27",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "22",
+        "CARGO_PKG_VERSION_PATCH": "27",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "parse",
+        "serde",
+    ],
+    visibility = [],
+    deps = [
+        ":indexmap-2",
+        ":serde-1",
+        ":serde_spanned-0.6",
+        ":toml_datetime-0.6",
+        ":winnow-0.7",
+    ],
 )
 
 http_archive(
@@ -24423,6 +27411,40 @@ cargo.rust_library(
         ":hashbrown-0.16",
         ":vello_common-0.0.6",
     ],
+)
+
+http_archive(
+    name = "version-compare-0.2.1.crate",
+    sha256 = "03c2856837ef78f57382f06b2b8563a2f512f7185d732608fd9176cb3b8edf0e",
+    strip_prefix = "version-compare-0.2.1",
+    urls = ["https://static.crates.io/crates/version-compare/0.2.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "version-compare-0.2",
+    srcs = [":version-compare-0.2.1.crate"],
+    crate = "version_compare",
+    crate_root = "version-compare-0.2.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "version_compare",
+        "CARGO_CRATE_NAME": "version_compare",
+        "CARGO_MANIFEST_DIR": "version-compare-0.2.1.crate",
+        "CARGO_PKG_AUTHORS": "Tim Visee <3a4fb3964f@sinenomine.email>",
+        "CARGO_PKG_DESCRIPTION": "Rust library to easily compare version numbers with no specific format, and test against various comparison operators.",
+        "CARGO_PKG_HOMEPAGE": "https://timvisee.com/projects/version-compare/",
+        "CARGO_PKG_NAME": "version-compare",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://gitlab.com/timvisee/version-compare",
+        "CARGO_PKG_RUST_VERSION": "1.56.0",
+        "CARGO_PKG_VERSION": "0.2.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
 )
 
 http_archive(
@@ -27727,6 +30749,240 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "webkit2gtk-2.0.2.crate",
+    sha256 = "a1027150013530fb2eaf806408df88461ae4815a45c541c8975e61d6f2fc4793",
+    strip_prefix = "webkit2gtk-2.0.2",
+    urls = ["https://static.crates.io/crates/webkit2gtk/2.0.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "webkit2gtk-2",
+    srcs = [":webkit2gtk-2.0.2.crate"],
+    crate = "webkit2gtk",
+    crate_root = "webkit2gtk-2.0.2.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "webkit2gtk",
+        "CARGO_CRATE_NAME": "webkit2gtk",
+        "CARGO_MANIFEST_DIR": "webkit2gtk-2.0.2.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings for webkit-gtk library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "webkit2gtk",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/webkit2gtk-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "2.0.2",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "v2_10",
+        "v2_12",
+        "v2_14",
+        "v2_16",
+        "v2_18",
+        "v2_2",
+        "v2_20",
+        "v2_22",
+        "v2_24",
+        "v2_26",
+        "v2_28",
+        "v2_30",
+        "v2_32",
+        "v2_34",
+        "v2_36",
+        "v2_38",
+        "v2_4",
+        "v2_6",
+        "v2_8",
+    ],
+    named_deps = {
+        "ffi": ":webkit2gtk-sys-2",
+        "java_script_core": ":javascriptcore-rs-1",
+    },
+    visibility = [],
+    deps = [
+        ":bitflags-1",
+        ":cairo-rs-0.18",
+        ":gdk-0.18",
+        ":gdk-sys-0.18",
+        ":gio-0.18",
+        ":gio-sys-0.18",
+        ":glib-0.18",
+        ":glib-sys-0.18",
+        ":gobject-sys-0.18",
+        ":gtk-0.18",
+        ":gtk-sys-0.18",
+        ":libc-0.2",
+        ":once_cell-1",
+        ":soup3-0.5",
+    ],
+)
+
+http_archive(
+    name = "webkit2gtk-sys-2.0.2.crate",
+    sha256 = "916a5f65c2ef0dfe12fff695960a2ec3d4565359fdbb2e9943c974e06c734ea5",
+    strip_prefix = "webkit2gtk-sys-2.0.2",
+    urls = ["https://static.crates.io/crates/webkit2gtk-sys/2.0.2/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "webkit2gtk-sys-2",
+    srcs = [":webkit2gtk-sys-2.0.2.crate"],
+    crate = "webkit2gtk_sys",
+    crate_root = "webkit2gtk-sys-2.0.2.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "webkit2gtk_sys",
+        "CARGO_CRATE_NAME": "webkit2gtk_sys",
+        "CARGO_MANIFEST_DIR": "webkit2gtk-sys-2.0.2.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Rust binding for webkit-gtk library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "webkit2gtk-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/webkit2gtk-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "2.0.2",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :webkit2gtk-sys-2-build-script-run[out_dir])",
+    },
+    features = [
+        "v2_10",
+        "v2_12",
+        "v2_14",
+        "v2_16",
+        "v2_18",
+        "v2_20",
+        "v2_22",
+        "v2_24",
+        "v2_26",
+        "v2_28",
+        "v2_30",
+        "v2_32",
+        "v2_34",
+        "v2_36",
+        "v2_38",
+        "v2_6",
+        "v2_8",
+    ],
+    named_deps = {
+        "cairo": ":cairo-sys-rs-0.18",
+        "gdk": ":gdk-sys-0.18",
+        "gio": ":gio-sys-0.18",
+        "glib": ":glib-sys-0.18",
+        "gobject": ":gobject-sys-0.18",
+        "gtk": ":gtk-sys-0.18",
+        "java_script_core": ":javascriptcore-rs-sys-1",
+        "soup": ":soup3-sys-0.5",
+    },
+    rustc_flags = ["@$(location :webkit2gtk-sys-2-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [
+        ":bitflags-1",
+        ":libc-0.2",
+    ],
+)
+
+cargo.rust_binary(
+    name = "webkit2gtk-sys-2-build-script-build",
+    srcs = [":webkit2gtk-sys-2.0.2.crate"],
+    crate = "build_script_build",
+    crate_root = "webkit2gtk-sys-2.0.2.crate/build.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "webkit2gtk-sys-2.0.2.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Rust binding for webkit-gtk library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "webkit2gtk-sys",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/webkit2gtk-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "2.0.2",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "v2_10",
+        "v2_12",
+        "v2_14",
+        "v2_16",
+        "v2_18",
+        "v2_20",
+        "v2_22",
+        "v2_24",
+        "v2_26",
+        "v2_28",
+        "v2_30",
+        "v2_32",
+        "v2_34",
+        "v2_36",
+        "v2_38",
+        "v2_6",
+        "v2_8",
+    ],
+    visibility = [],
+    deps = [
+        ":pkg-config-0.3",
+        ":system-deps-6",
+    ],
+)
+
+buildscript_run(
+    name = "webkit2gtk-sys-2-build-script-run",
+    package_name = "webkit2gtk-sys",
+    buildscript_rule = ":webkit2gtk-sys-2-build-script-build",
+    env = {
+        "CARGO_MANIFEST_LINKS": "web_kit2",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Rust binding for webkit-gtk library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/webkit2gtk-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "2",
+        "CARGO_PKG_VERSION_PRE": "",
+        "PKG_CONFIG": "$(exe //buck/sysroot:pkg-config)",
+    },
+    features = [
+        "v2_10",
+        "v2_12",
+        "v2_14",
+        "v2_16",
+        "v2_18",
+        "v2_20",
+        "v2_22",
+        "v2_24",
+        "v2_26",
+        "v2_28",
+        "v2_30",
+        "v2_32",
+        "v2_34",
+        "v2_36",
+        "v2_38",
+        "v2_6",
+        "v2_8",
+    ],
+    rustc_link_lib = True,
+    version = "2.0.2",
+)
+
+http_archive(
     name = "webpki-roots-0.26.11.crate",
     sha256 = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9",
     strip_prefix = "webpki-roots-0.26.11",
@@ -29069,6 +32325,45 @@ buildscript_run(
 )
 
 http_archive(
+    name = "winnow-0.5.40.crate",
+    sha256 = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876",
+    strip_prefix = "winnow-0.5.40",
+    urls = ["https://static.crates.io/crates/winnow/0.5.40/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "winnow-0.5",
+    srcs = [":winnow-0.5.40.crate"],
+    crate = "winnow",
+    crate_root = "winnow-0.5.40.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "winnow",
+        "CARGO_CRATE_NAME": "winnow",
+        "CARGO_MANIFEST_DIR": "winnow-0.5.40.crate",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "A byte-oriented, zero-copy, parser combinators library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "winnow",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/winnow-rs/winnow",
+        "CARGO_PKG_RUST_VERSION": "1.64.0",
+        "CARGO_PKG_VERSION": "0.5.40",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "40",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "alloc",
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
+http_archive(
     name = "winnow-0.7.15.crate",
     sha256 = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945",
     strip_prefix = "winnow-0.7.15",
@@ -29098,6 +32393,15 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_MINOR": "7",
         "CARGO_PKG_VERSION_PATCH": "15",
         "CARGO_PKG_VERSION_PRE": "",
+    },
+    platform = {
+        "linux-x86_64": dict(
+            features = [
+                "alloc",
+                "default",
+                "std",
+            ],
+        ),
     },
     visibility = [],
 )
@@ -29321,6 +32625,182 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     visibility = [],
+)
+
+cargo_alias(
+    name = "wry",
+    actual = ":wry-0.55",
+    platforms = ["linux-x86_64"],
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "wry-0.55.1.crate",
+    sha256 = "186f9871daa55fd9c016578b810d149de58367113db7fb72b462d2323ce19514",
+    strip_prefix = "wry-0.55.1",
+    urls = ["https://static.crates.io/crates/wry/0.55.1/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "wry-0.55",
+    srcs = [":wry-0.55.1.crate"],
+    crate = "wry",
+    crate_root = "wry-0.55.1.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "wry",
+        "CARGO_CRATE_NAME": "wry",
+        "CARGO_MANIFEST_DIR": "wry-0.55.1.crate",
+        "CARGO_PKG_AUTHORS": "Tauri Programme within The Commons Conservancy",
+        "CARGO_PKG_DESCRIPTION": "Cross-platform WebView rendering library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "wry",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/wry",
+        "CARGO_PKG_RUST_VERSION": "1.77",
+        "CARGO_PKG_VERSION": "0.55.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "55",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :wry-0.55-build-script-run[out_dir])",
+    },
+    features = [
+        "default",
+        "gdkx11",
+        "javascriptcore-rs",
+        "os-webview",
+        "protocol",
+        "soup3",
+        "webkit2gtk",
+        "webkit2gtk-sys",
+        "x11",
+        "x11-dl",
+    ],
+    rustc_flags = ["@$(location :wry-0.55-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [
+        ":cookie-0.18",
+        ":dirs-6",
+        ":dpi-0.1",
+        ":gdkx11-0.18",
+        ":gtk-0.18",
+        ":http-1",
+        ":javascriptcore-rs-1",
+        ":once_cell-1",
+        ":percent-encoding-2",
+        ":raw-window-handle-0.6",
+        ":soup3-0.5",
+        ":thiserror-2",
+        ":webkit2gtk-2",
+        ":webkit2gtk-sys-2",
+        ":x11-dl-2",
+    ],
+)
+
+cargo.rust_binary(
+    name = "wry-0.55-build-script-build",
+    srcs = [":wry-0.55.1.crate"],
+    crate = "build_script_build",
+    crate_root = "wry-0.55.1.crate/build.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "wry-0.55.1.crate",
+        "CARGO_PKG_AUTHORS": "Tauri Programme within The Commons Conservancy",
+        "CARGO_PKG_DESCRIPTION": "Cross-platform WebView rendering library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "wry",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/wry",
+        "CARGO_PKG_RUST_VERSION": "1.77",
+        "CARGO_PKG_VERSION": "0.55.1",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "55",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "gdkx11",
+        "javascriptcore-rs",
+        "os-webview",
+        "protocol",
+        "soup3",
+        "webkit2gtk",
+        "webkit2gtk-sys",
+        "x11",
+        "x11-dl",
+    ],
+    visibility = [],
+)
+
+buildscript_run(
+    name = "wry-0.55-build-script-run",
+    package_name = "wry",
+    buildscript_rule = ":wry-0.55-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "Tauri Programme within The Commons Conservancy",
+        "CARGO_PKG_DESCRIPTION": "Cross-platform WebView rendering library",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/tauri-apps/wry",
+        "CARGO_PKG_RUST_VERSION": "1.77",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "55",
+        "CARGO_PKG_VERSION_PATCH": "1",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "gdkx11",
+        "javascriptcore-rs",
+        "os-webview",
+        "protocol",
+        "soup3",
+        "webkit2gtk",
+        "webkit2gtk-sys",
+        "x11",
+        "x11-dl",
+    ],
+    version = "0.55.1",
+)
+
+http_archive(
+    name = "x11-2.21.0.crate",
+    sha256 = "502da5464ccd04011667b11c435cb992822c2c0dbde1770c988480d312a0db2e",
+    strip_prefix = "x11-2.21.0",
+    urls = ["https://static.crates.io/crates/x11/2.21.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "x11-2",
+    srcs = [":x11-2.21.0.crate"],
+    crate = "x11",
+    crate_root = "x11-2.21.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "x11",
+        "CARGO_CRATE_NAME": "x11",
+        "CARGO_MANIFEST_DIR": "x11-2.21.0.crate",
+        "CARGO_PKG_AUTHORS": "daggerbot <daggerbot@gmail.com>:Erle Pereira <erle@erlepereira.com>:AltF02 <contact@altf2.dev>",
+        "CARGO_PKG_DESCRIPTION": "X11 library bindings for Rust",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "x11",
+        "CARGO_PKG_README": "",
+        "CARGO_PKG_REPOSITORY": "https://github.com/AltF02/x11-rs.git",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "2.21.0",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "21",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [":libc-0.2"],
 )
 
 http_archive(

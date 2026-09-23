@@ -467,6 +467,7 @@ crates = {
                         "//third-party/rust:tokio",
                         "//third-party/rust:ureq",
                         "//third-party/rust:uuid",
+                        "//third-party/rust:wry",
                     ],
                 },
                 "deps": [
@@ -501,17 +502,22 @@ crates = {
                     "//third-party/rust:tokio",
                     "//third-party/rust:ureq",
                     "//third-party/rust:uuid",
+                    "//third-party/rust:wry",
                 ],
                 "features": [
                     "default",
+                    "full",
                     "terminal",
+                    "web-view",
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
                 ],
                 "test_features": [
                     "default",
+                    "full",
                     "terminal",
+                    "web-view",
                 ],
             },
         },
