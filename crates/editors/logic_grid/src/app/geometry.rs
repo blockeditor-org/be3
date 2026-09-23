@@ -41,14 +41,6 @@ pub(super) fn move_selected_wire(selected: SelectedWire, delta: Point) -> Option
     Wire::new(start, end, selected.wire.scale).ok()
 }
 
-pub(super) fn world_to_screen(world: [f32; 2], camera: Camera, rect: egui::Rect) -> egui::Pos2 {
-    rect.center()
-        + egui::vec2(
-            (world[0] - camera.center[0]) * camera.zoom,
-            (world[1] - camera.center[1]) * camera.zoom,
-        )
-}
-
 #[derive(Clone, Copy)]
 pub(super) struct WorldRect {
     min: [f32; 2],
@@ -61,6 +53,10 @@ impl WorldRect {
             min: [first[0].min(second[0]), first[1].min(second[1])],
             max: [first[0].max(second[0]), first[1].max(second[1])],
         }
+    }
+
+    pub(super) fn bounds(self) -> [f32; 4] {
+        [self.min[0], self.min[1], self.max[0], self.max[1]]
     }
 
     pub(super) fn intersects(self, min: [f32; 2], max: [f32; 2]) -> bool {

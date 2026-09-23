@@ -4206,6 +4206,7 @@ dependencies = [
 name = "logic_grid"
 version = "0.1.0"
 dependencies = [
+ "beui",
  "block",
  "block-client",
  "block-editor-plugin",
@@ -4215,6 +4216,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "wgpu",
 ]
 
 [[package]]

@@ -161,6 +161,10 @@ pub fn on_shortcut(shortcut: impl Fn(crate::input::KeyPress) -> bool + 'static) 
     on_cleanup(move || drop(shortcut));
 }
 
+pub fn focus_takes_text() -> bool {
+    with_document(|document| document.focus_takes_text())
+}
+
 pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     let reading = match test_id {
         Prop::Static(value) => {

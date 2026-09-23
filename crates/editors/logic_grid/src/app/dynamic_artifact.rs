@@ -1,9 +1,12 @@
+use beui::NodeId;
+use beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
+use beui::styled::{Caption, Checkbox, use_theme};
 use block::Block;
 use block_client::{
     BlockClient, BlockHandle, DynamicArtifactDescriptor,
     blocks::{compiled_logic::CompiledLogic, logic_grid::LogicGrid},
 };
-use block_editor_plugin::egui;
+use block_editor_plugin::Artifacts;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -71,19 +74,49 @@ pub(super) fn summary(data: &[u8]) -> String {
     }
 }
 
-pub(super) fn settings_ui(ui: &mut egui::Ui, data: &mut Vec<u8>) {
-    let Ok(mut artifact) = ComponentArtifact::decode(data) else {
-        ui.label("These settings cannot be read.");
-        return;
-    };
-    if ui
-        .checkbox(
-            &mut artifact.settings.rename_with_source,
-            "Rename with the grid",
-        )
-        .changed()
-    {
-        *data = artifact.encode();
+const SETTINGS_PADDING: f32 = 14.0;
+const SETTINGS_SPACING: f32 = 12.0;
+
+#[component]
+pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
+    let data = artifacts.settings();
+    let decoded = create_memo(clone!(data -> move || ComponentArtifact::decode(&data.get()).ok()));
+    let readable = create_memo(clone!(decoded -> move || decoded.get().is_some()));
+    let unreadable = create_memo(clone!(decoded -> move || decoded.get().is_none()));
+    let renamed = create_memo(clone!(decoded -> move || {
+        decoded
+            .get()
+            .is_some_and(|artifact| artifact.settings.rename_with_source)
+    }));
+    let edited = artifacts.clone();
+    let rename = clone!(decoded -> move |on: bool| {
+        let Some(mut artifact) = decoded.get_untracked() else {
+            return;
+        };
+        artifact.settings.rename_with_source = on;
+        edited.edit_settings(artifact.encode());
+    });
+    let theme = use_theme();
+    view! {
+        <Frame
+            color={theme.background.clone()}
+            padding_horizontal=SETTINGS_PADDING
+            padding_vertical=SETTINGS_PADDING
+        >
+            <List spacing=SETTINGS_SPACING>
+                <Show condition={readable}>
+                    <Checkbox
+                        label="Rename with the grid"
+                        checked={renamed}
+                        @test_id={"logic-grid.rename-with-source"}
+                        on_change={rename}
+                    />
+                </Show>
+                <Show condition={unreadable}>
+                    <Caption content="These settings cannot be read." />
+                </Show>
+            </List>
+        </Frame>
     }
 }
 
