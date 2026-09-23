@@ -207,18 +207,13 @@ jobs:
         with:
           persist-credentials: false
 
-      # For ./scripts/buckify below, which reads the workspace through cargo
-      # metadata, and for the reindeer it runs.
-      - uses: ./.github/actions/rust-toolchain
-
       - uses: ./.github/actions/buck2
-        with:
-          reindeer: 'true'
 
       # third-party/rust/BUCK is generated from the workspace's Cargo.toml and
       # checked in, so this is what says the two still agree. A pull request
       # that changed a dependency and did not run ./scripts/buckify fails here
-      # rather than in whichever job first tried to build the crate.
+      # rather than in whichever job first tried to build the crate. reindeer
+      # runs on a worker, and is a cache hit unless a manifest changed.
       - name: Check the generated third-party rules are current
         run: |
           ./scripts/buckify

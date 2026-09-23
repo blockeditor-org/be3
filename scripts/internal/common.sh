@@ -853,12 +853,6 @@ starlark_fmt_sha256_aarch64_apple_darwin='188446c453f654572268734d5bc784501b975a
 starlark_fmt_sha256_x86_64_pc_windows_msvc='c9c4d71775c64ffa7989ea4fcbb63b0ac04128e62bd05b519e6bd32b9fcc52b3'
 starlark_fmt_sha256_aarch64_pc_windows_msvc='a16de34be943ba1772879a84d68469019b958f2086c55dd949f0973ad39cf2ec'
 
-reindeer_revision='3be7bd2e11d8fe949ae6db0bcbc46db8adab7264'
-
-# reindeer does not build on stable; its rust-toolchain asks for this nightly.
-# Nothing in this workspace is compiled with it.
-reindeer_toolchain='nightly-2026-07-05'
-
 # The triple the buck2 release is named after, for this machine.
 buck2_triple() {
     local architecture
@@ -937,7 +931,7 @@ remove_generated_buck_config_local() {
 # and the check that the file is current permanently at odds.
 starlark_files() {
     find "$repository/buck" "$repository/crates" "$repository/third-party/system" \
-        \( -name BUCK -o -name '*.bzl' \) -print 2> /dev/null | sort
+        \( -name BUCK -o -name '*.bzl' -o -name '*.bxl' \) -print 2> /dev/null | sort
 }
 
 # Reports the Starlark files that are not formatted, and fails if there are

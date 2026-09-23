@@ -1,20 +1,10 @@
 name: Install the buck2 tools
 description: >-
-  Installs buck2 and starlark_fmt from the pinned release, and optionally the
-  reindeer that generates the third-party build rules.
+  Installs buck2 and starlark_fmt from the pinned release.
 
 # buck2 and starlark_fmt are prebuilt releases checked against the hashes in
 # scripts/internal/common.sh, so installing them is a download and costs
-# seconds. reindeer publishes no releases at all and is built from source, which
-# costs a few minutes, so it is cached under a key that is the pin itself: an
-# entry can only ever be the commit the repository asked for, and moving the pin
-# misses rather than serving a stale one. Only the job that regenerates the
-# rules asks for it.
-inputs:
-  reindeer:
-    description: Also install reindeer, which ./scripts/buckify needs
-    required: false
-    default: 'false'
+# seconds. Nothing else is needed: reindeer runs on a BuildBuddy worker.
 
 runs:
   using: composite
@@ -25,30 +15,3 @@ runs:
       run: |
         ./scripts/internal/install-buck2.sh
         ./scripts/internal/install-starlark-fmt.sh
-
-    # The pin comes out of common.sh rather than being repeated here, for the
-    # same reason the ghostty-vt action reads its commit out of the build
-    # script: two copies of a version are one copy and a bug.
-    - id: pin
-      if: inputs.reindeer == 'true'
-      shell: bash
-      run: |
-        reindeer="$(sed -n "s/^reindeer_revision='\(.*\)'$/\1/p" scripts/internal/common.sh)"
-        if [ -z "$reindeer" ]; then
-          echo 'scripts/internal/common.sh pins no reindeer revision' >&2
-          exit 1
-        fi
-        echo "key=reindeer-$RUNNER_OS-$reindeer" >> "$GITHUB_OUTPUT"
-
-    - uses: actions/cache@v6
-      if: inputs.reindeer == 'true'
-      with:
-        path: ~/.cargo/bin/reindeer
-        key: ${{ steps.pin.outputs.key }}
-
-    # The install script returns immediately when reindeer is already on PATH,
-    # so a restore makes this a no-op rather than something to skip with a
-    # condition that could disagree with it.
-    - if: inputs.reindeer == 'true'
-      shell: bash
-      run: ./scripts/internal/install-reindeer.sh

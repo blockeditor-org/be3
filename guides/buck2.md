@@ -51,10 +51,32 @@ any `Cargo.toml` or `Cargo.lock`; CI fails if the file and the manifests
 disagree. A crate's own `BUCK` file names its dependencies by hand, so a new
 dependency goes there too.
 
-The tools are installed by `./scripts/internal/install-buck2.sh`,
-`install-starlark-fmt.sh` and `install-reindeer.sh`. The first two are
-downloads; reindeer is built from source, which takes a few minutes, and only
-`./scripts/buckify` needs it.
+The tools are installed by `./scripts/internal/install-buck2.sh` and
+`install-starlark-fmt.sh`, which are downloads. reindeer is not installed at
+all: `./scripts/buckify` runs it on a worker (below).
+
+### reindeer on a worker
+
+`buck/reindeer/buckify.bxl` is what `./scripts/buckify` runs. It builds reindeer
+on a worker - `cargo install` of the pinned commit, with the nightly reindeer's
+own rust-toolchain asks for, both in `buck/reindeer/BUCK` - and then runs
+`reindeer buckify --stdout` on a worker too, against rust-toolchain.toml's
+cargo, and prints where the generated file is. The script copies it over the
+checked-in one. Building reindeer takes about nine minutes on a worker, once;
+running it takes about three, most of it cargo downloading the crates, and only
+when something it reads has changed.
+
+What it reads is the root `Cargo.toml`, `Cargo.lock`, `reindeer.toml`, the
+fixups, and every `Cargo.toml` under `crates/`: those are the action's real
+inputs. `cargo metadata` also looks at the layout of each crate - whether there
+is a `src/lib.rs`, a `build.rs`, an `examples/` directory - but never reads a
+source file, so every other file under `crates/` is passed as a path only and
+recreated empty on the worker. An edit to a source file leaves the action's key
+alone; adding a file, a dependency or a crate is what runs reindeer again. With
+nothing changed, `./scripts/buckify` takes about a second on a live daemon.
+
+It is a BXL script rather than a rule because the manifests belong to seventy-odd
+packages, and a rule can only take the files of its own package.
 
 ## BuildBuddy
 
@@ -488,8 +510,9 @@ push to main, so it is never what to pin. A buck2 binary carries the prelude it
 was built with, which is why moving that version is a change to verify with a
 build rather than a number to bump.
 
-reindeer publishes no releases at all, so it is pinned by commit and built from
-source. Only `./scripts/buckify` needs it; the file it writes is checked in.
+reindeer publishes no releases at all, so it is pinned by commit in
+`buck/reindeer/BUCK` and built from source on a worker. Only `./scripts/buckify`
+uses it; the file it writes is checked in.
 
 ## Why reindeer, and why it reads the workspace manifests
 

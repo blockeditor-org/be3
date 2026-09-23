@@ -1,0 +1,65 @@
+load("//buck/tools:defs.bzl", "rust_sysroot")
+load(":defs.bzl", "reindeer")
+
+# reindeer, and the cargo it runs, for ./scripts/buckify.
+#
+# Nothing here is part of the build: buckify.bxl beside this file is what uses
+# it, to regenerate third-party/rust/BUCK on a worker. Every download is pinned
+# by hash and size, like buck/tools.
+
+# The commit reindeer is built from, and the nightly its rust-toolchain asks for.
+reindeer_revision = "3be7bd2e11d8fe949ae6db0bcbc46db8adab7264"
+
+nightly = "2026-07-05"
+
+host = "x86_64-unknown-linux-gnu"
+
+nightly_components = {
+    "cargo": ("f2ff375d36c15603dad26d70b4c353c167b43973692b1f057a598f726612dd84", 11167952),
+    "rust-std": ("7fd733405f7aefac314398727c9a02c108fa003a37399f2f2421710810212435", 30648272),
+    "rustc": ("f24c968957a924e1e3b43c81ef0a12d429fe8b5e5eac4c00b66b425c6c678a4d", 79631456),
+}
+
+[
+    http_archive(
+        name = "nightly-" + component,
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        strip_prefix = "{}-nightly-{}/{}".format(component, host, component if component != "rust-std" else "rust-std-" + host),
+        urls = ["https://static.rust-lang.org/dist/{}/{}-nightly-{}.tar.xz".format(nightly, component, host)],
+    )
+    for component, (sha256, size_bytes) in nightly_components.items()
+]
+
+rust_sysroot(
+    name = "nightly",
+    components = [":nightly-" + component for component in sorted(nightly_components)],
+)
+
+reindeer(
+    name = "reindeer",
+    revision = reindeer_revision,
+    toolchain = ":nightly",
+    visibility = ["PUBLIC"],
+)
+
+# The cargo reindeer asks for `cargo metadata`, beside the rustc it asks for
+# the host's details: rust-toolchain.toml's, the same one the workspace builds
+# with, so the resolution is the one a developer's cargo makes.
+http_archive(
+    name = "cargo-component",
+    sha256 = "2f512d170d3dd23e16ababcda32ee2e6d5172d861a7af1f504e0b1e270cafab9",
+    size_bytes = 11669560,
+    strip_prefix = "cargo-1.98.0-{}/cargo".format(host),
+    urls = ["https://static.rust-lang.org/dist/cargo-1.98.0-{}.tar.xz".format(host)],
+)
+
+rust_sysroot(
+    name = "cargo",
+    components = [
+        ":cargo-component",
+        "//buck/tools:rustc-component",
+        "//buck/tools:rust-std-" + host,
+    ],
+    visibility = ["PUBLIC"],
+)

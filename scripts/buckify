@@ -8,7 +8,14 @@
 # against a stale file fails with a target that does not exist.
 #
 # The generated file is checked in, because a build should not need reindeer
-# installed and because the diff is what says what a dependency change did.
+# and because the diff is what says what a dependency change did.
+#
+# reindeer runs on a BuildBuddy worker, through buck/reindeer/buckify.bxl, which
+# builds it there too, so nothing is installed here and nothing but buck2 and
+# BUILDBUDDY_API_KEY is needed. The action is keyed on the manifests, the
+# lockfile, the fixups and the layout of each crate, so a checkout whose
+# dependencies have not changed gets the answer from the cache in seconds, and
+# only a change to one of those runs reindeer again.
 #
 # What it does not generate is the BUCK file beside each crate in crates/.
 # Those are written by hand: guides/buck2.md says what goes in one.
@@ -26,9 +33,15 @@ if [[ $# -ne 0 ]]; then
     exit 1
 fi
 
-assert_command reindeer 'Run ./scripts/internal/install-reindeer.sh.'
 time_script 'Buckifying'
 
-step 'Generating third-party/rust/BUCK'
-reindeer buckify
+step 'Generating third-party/rust/BUCK on BuildBuddy'
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
+if ! "$repository/scripts/buck" bxl //buck/reindeer/buckify.bxl:main > "$log" 2>&1; then
+    cat "$log" >&2
+    exit 1
+fi
+generated="$(grep -o '/.*/buckify\.bxl/.*/BUCK$' "$log" | tail -1)"
+cp "$generated" third-party/rust/BUCK
 end_step
