@@ -20,9 +20,17 @@
 
 set -euo pipefail
 
+# Sourcing common.sh turns sccache on for the cargo build: RUSTC_WRAPPER, CC and
+# CXX pointed at it, and its store's credentials. buck2 has a cache of its own,
+# and whatever is exported here is in the environment of the daemon this starts
+# and so of every action it runs locally, where a build script that runs rustc
+# through RUSTC_WRAPPER hands sccache a relative path it resolves from the
+# wrong directory. So the cargo build's cache stays out of this one.
+export BE3_NO_SCCACHE=1
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 cd "$repository"
 
 assert_command buck2 'Run ./scripts/internal/install-buck2.sh.'
 write_buck_config_local
+
 exec buck2 "$@"
