@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+#
+# Writes rust-project.json, which is how rust-analyzer reads the workspace
+# without cargo.
+#
+# buck2's rust-project walks the build graph for every crate under crates/ and
+# writes the crates, their dependencies, features, cfgs and editions as buck2
+# builds them. rust-analyzer prefers a rust-project.json over Cargo.toml when
+# it finds one at the root, and runs `rust-project check` on save for
+# diagnostics, which builds the saved file's target on BuildBuddy.
+#
+# The standard library comes from buck/cargo:analyzer-sysroot, a download of
+# rust-toolchain.toml's toolchain with its sources, so this needs no rustup.
+# Both it and rust-project are built on a worker and fetched here. Run this
+# again after adding a crate or a dependency; the file is ignored by git,
+# because the paths in it are this checkout's.
+#
+# Usage:
+#   ./scripts/rust-project
+
+set -euo pipefail
+
+export BE3_NO_SCCACHE=1
+source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
+cd "$repository"
+
+if [[ $# -ne 0 ]]; then
+    echo 'Usage: ./scripts/rust-project' >&2
+    exit 1
+fi
+
+time_script 'Writing rust-project.json'
+
+step 'Building rust-project and the standard library sources on BuildBuddy'
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
+if ! "$repository/scripts/buck" build //buck/cargo:rust-project //buck/cargo:analyzer-sysroot \
+    --show-full-output > "$log" 2>&1; then
+    cat "$log" >&2
+    exit 1
+fi
+rust_project="$(grep '^root//buck/cargo:rust-project ' "$log" | awk '{print $2}')"
+sysroot="$(grep '^root//buck/cargo:analyzer-sysroot ' "$log" | awk '{print $2}')"
+end_step
+
+# Twice, because the plugins are a build of their own: every editor and
+# block-editor-plugin are only ever compiled for wasm32-wasip1-threads, as the
+# guest, which is a configuration the host's graph does not have. rust-analyzer
+# needs to be told the target, or it evaluates their cfg(target_arch = "wasm32")
+# code as the host's and treats it as disabled.
+step 'Reading the build graph'
+host="$(mktemp)"
+guest="$(mktemp)"
+trap 'rm -f "$log" "$host" "$guest"' EXIT
+develop() {
+    "$rust_project" develop --sysroot "$sysroot" --buck2-command "$repository/scripts/buck" \
+        --stdout "$@" 2> "$log" || {
+        cat "$log" >&2
+        exit 1
+    }
+}
+develop //crates/... > "$host"
+develop --mode=--target-platforms=root//buck/platforms:wasi_guest \
+    --rustc-target wasm32-wasip1-threads \
+    //crates/editors/... //crates/block-editor-plugin: > "$guest"
+end_step
+
+# One file from the two, and three things rust-project leaves for its caller.
+# The standard library's sources have to be named. Its
+# runnables name a `buck` on PATH, which here is ./scripts/buck. And it adds no
+# flycheck, so rust-analyzer would fall back to `cargo check` for diagnostics on
+# save; rust-project's own check builds the saved file's target through buck2
+# instead.
+step 'Writing rust-project.json'
+python3 - "$host" "$guest" "$repository/rust-project.json" "$repository" "$rust_project" << 'PYTHON'
+import json
+import sys
+
+host, guest, out, repository, rust_project = sys.argv[1:]
+with open(host) as file:
+    project = json.load(file)
+with open(guest) as file:
+    other = json.load(file)
+
+offset = len(project["crates"])
+for crate in other["crates"]:
+    for dependency in crate["deps"]:
+        dependency["crate"] += offset
+    project["crates"].append(crate)
+
+buck = repository + "/scripts/buck"
+runnables = [runnable for runnable in project.get("runnables", []) if runnable["kind"] != "flycheck"]
+for runnable in runnables:
+    if runnable["program"] == "buck":
+        runnable["program"] = buck
+runnables.append(
+    {
+        "program": rust_project,
+        "args": ["check", "--buck2-command", buck, "{saved_file}"],
+        "cwd": repository,
+        "kind": "flycheck",
+    }
+)
+project["runnables"] = runnables
+# rust-analyzer does not work the standard library's sources out from the
+# sysroot for a rust-project.json, and without them every std type is unknown.
+project["sysroot_src"] = project["sysroot"] + "/lib/rustlib/src/rust/library"
+with open(out, "w") as file:
+    json.dump(project, file)
+PYTHON
+end_step

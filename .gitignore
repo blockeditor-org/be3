@@ -10,3 +10,4 @@ shelley.db*
 /.zig-cache/
 /buck-out
 /.buckconfig.local
+/rust-project.json

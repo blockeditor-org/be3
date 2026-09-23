@@ -102,6 +102,37 @@ daemon.
 It is a BXL script rather than a rule because the manifests belong to
 seventy-odd packages, and a rule can only take the files of its own package.
 
+## rust-analyzer
+
+`./scripts/rust-project` writes `rust-project.json` at the root, which is how
+rust-analyzer reads the workspace without cargo. rust-analyzer prefers it over
+`Cargo.toml` when both are there. Run it again after adding a crate or a
+dependency; the file is ignored by git, because the paths in it are this
+checkout's.
+
+- buck2's own `rust-project` tool walks the build graph and writes every crate
+  with its dependencies, features, cfgs and edition as buck2 builds it. It is
+  built on a worker from the commit the pinned buck2 release was, like
+  reindeer (`buck/cargo/BUCK`).
+- It walks the graph twice: once as the host, and once as the plugins' guest
+  for every editor and `block-editor-plugin`, with their target set to
+  `wasm32-wasip1-threads` so rust-analyzer evaluates their
+  `cfg(target_arch = "wasm32")` code as live. The script merges the two.
+- The standard library and its sources come from `buck/cargo:analyzer-sysroot`,
+  rust-toolchain.toml's toolchain with `rust-src`, so no rustup is involved.
+  rust-analyzer's proc-macro server comes from the same place, so macros are
+  expanded by the compiler the build uses.
+- Diagnostics on save come from `rust-project check`, which builds the saved
+  file's target through buck2, rather than from `cargo check`. The script adds
+  that as the file's flycheck runnable, and points its test runnable at
+  `./scripts/buck`.
+- Third-party crates' sources are unpacked locally under
+  `buck-out/.rust-analyzer`, which is a buck2 isolation directory of its own:
+  rust-analyzer has to read them from disk. It is about 1.6 GB.
+
+Use a current rust-analyzer, the one an editor extension ships. The one in the
+Rust 1.98.0 toolchain panics in its lexer on a file in this workspace.
+
 ## The sysroot
 
 Everything built for the host is compiled and linked against `buck/sysroot`
@@ -527,6 +558,9 @@ target with `--target` is what makes wasmtime stop looking.
   left is pointing the Vulkan loader at it on a worker.
 - **The lint pass.** clippy has no gate yet (above), and rustfmt and
   `fix-rust-source` have no buck2 story yet.
+- **`./scripts/check`.** It is `cargo check`. `rust-project check` is its
+  buck2 counterpart for one file, and `./scripts/buck build //crates/...` for
+  everything.
 - **No web bundle.** The third-party half of it is there: `wgpu`, `wgpu-core`,
   `wgpu-hal` and `eframe` all build for `buck/platforms:wasi`, with the app's
   feature set. What is left is `block-app` for wasm, wasm-bindgen after it, and

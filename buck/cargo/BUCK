@@ -1,5 +1,5 @@
 load("//buck/tools:defs.bzl", "rust_sysroot")
-load(":reindeer.bzl", "reindeer")
+load(":cargo_install.bzl", "cargo_install")
 
 # reindeer, and the cargo it and generate.py run, for ./scripts/buckify.
 #
@@ -37,8 +37,10 @@ rust_sysroot(
     components = [":nightly-" + component for component in sorted(nightly_components)],
 )
 
-reindeer(
+cargo_install(
     name = "reindeer",
+    package = "reindeer",
+    repository = "https://github.com/facebookincubator/reindeer.git",
     revision = reindeer_revision,
     toolchain = ":nightly",
     visibility = ["PUBLIC"],
@@ -59,6 +61,42 @@ rust_sysroot(
     name = "cargo",
     components = [
         ":cargo-component",
+        "//buck/tools:rustc-component",
+        "//buck/tools:rust-std-" + host,
+    ],
+    visibility = ["PUBLIC"],
+)
+
+# buck2's rust-project, which writes the rust-project.json rust-analyzer reads
+# the workspace through: ./scripts/rust-project runs it. It is built from the
+# commit the pinned buck2 release was, so it and the prelude it queries agree.
+cargo_install(
+    name = "rust-project",
+    package = "rust-project",
+    repository = "https://github.com/facebook/buck2.git",
+    revision = "6507dd157a6f81a810c48583edf1758dd0c337c5",
+    toolchain = ":nightly",
+    visibility = ["PUBLIC"],
+)
+
+# What rust-analyzer reads the standard library from: rust-toolchain.toml's
+# rustc and host standard library, and its sources, which is rust-src. Kept
+# apart from buck/tools:rust so that the sources are not an input of every
+# compile. rust-analyzer also takes its proc-macro server from here, which
+# ships in the rustc component, so it expands macros with the compiler the
+# build uses.
+http_archive(
+    name = "rust-src-component",
+    sha256 = "0e977492aed5ff137815bf9b4b796e8a85b80fb2367ed64e82d5c5839870f2bf",
+    size_bytes = 5741336,
+    strip_prefix = "rust-src-1.98.0/rust-src",
+    urls = ["https://static.rust-lang.org/dist/rust-src-1.98.0.tar.xz"],
+)
+
+rust_sysroot(
+    name = "analyzer-sysroot",
+    components = [
+        ":rust-src-component",
         "//buck/tools:rustc-component",
         "//buck/tools:rust-std-" + host,
     ],
