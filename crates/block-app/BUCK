@@ -1,7 +1,9 @@
-# The desktop app, in its default configuration: no terminal and no embedded
-# browser. Those two are features because what they need is not a Rust
-# dependency - a Zig toolchain and a Ghostty checkout for one, WebKitGTK for the
-# other - and neither is something a BuildBuddy worker has.
+# The desktop app, with the terminal and without the embedded browser. Both are
+# features because what they need is not a Rust dependency. The terminal's is
+# libghostty-vt, which crates/ghostty-vt builds on a worker. The browser's is
+# WebKitGTK and the GTK stack under it, which the worker's container does not
+# have and which is far too large to hand it the way ALSA is handed; cargo
+# still builds and lints that half.
 #
 # BLOCK_APP_COMMIT is what build.rs asks git for under cargo. A worker has no
 # checkout to ask, so this says what build.rs says when git cannot answer.
@@ -21,6 +23,7 @@ rust_library(
         "//crates/block-server:block-server",
         "//crates/block-ui:block-ui",
         "//crates/block-wasm-host:block-wasm-host",
+        "//crates/ghostty-vt:ghostty-vt",
         "//crates/logicgame:logicgame",
         "//crates/tabletop_games/host:game-host",
         "//crates/wasi-threads:wasi-threads",
@@ -49,6 +52,7 @@ rust_library(
         "CARGO_PKG_NAME": "block-app",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    features = ["terminal"],
     srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"]),
     visibility = ["PUBLIC"],
 )
@@ -70,6 +74,7 @@ rust_test(
         "//crates/block-server:block-server",
         "//crates/block-ui:block-ui",
         "//crates/block-wasm-host:block-wasm-host",
+        "//crates/ghostty-vt:ghostty-vt",
         "//crates/logicgame:logicgame",
         "//crates/tabletop_games/host:game-host",
         "//crates/wasi-threads:wasi-threads",
@@ -98,6 +103,7 @@ rust_test(
         "CARGO_PKG_NAME": "block-app",
         "CARGO_PKG_VERSION": "0.1.0",
     },
+    features = ["terminal"],
     srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"]),
 )
 
@@ -118,6 +124,7 @@ rust_binary(
         "//crates/block-server:block-server",
         "//crates/block-ui:block-ui",
         "//crates/block-wasm-host:block-wasm-host",
+        "//crates/ghostty-vt:ghostty-vt",
         "//crates/logicgame:logicgame",
         "//crates/tabletop_games/host:game-host",
         "//crates/wasi-threads:wasi-threads",

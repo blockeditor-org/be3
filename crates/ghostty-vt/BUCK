@@ -1,0 +1,67 @@
+# libghostty-vt, the terminal emulator behind block-app's debug terminal.
+#
+# It is Zig rather than Rust. scripts/internal/build-ghostty-vt.sh is what
+# builds it for cargo, and it is what builds it here too: this runs the script
+# on a worker, in a copy of the three files it reads laid out the way it
+# expects to find them, and keeps the archive. The script downloads Zig and
+# Ghostty itself, pinned by hash and by commit, and Zig fetches Ghostty's own
+# dependencies, so this is the one action that needs the network. Its inputs
+# pin everything it downloads, which is what makes its result safe to cache.
+genrule(
+    name = "libghostty-vt.a",
+    cmd = """
+        set -eu
+        repository=`mktemp -d`
+        cp -RL "$SRCDIR/scripts" "$repository/" || { ls -laR "$SRCDIR" >&2; exit 1; }
+        BE3_NO_SCCACHE=1 bash "$repository/scripts/internal/build-ghostty-vt.sh" \\
+            --triple x86_64-unknown-linux-gnu > /dev/null
+        cp "$repository/target/ghostty-vt/x86_64-unknown-linux-gnu/libghostty-vt.a" "$OUT"
+        rm -rf "$repository"
+    """,
+    out = "libghostty-vt.a",
+    srcs = {
+        "scripts/internal/build-ghostty-vt.sh": "//scripts/internal:build-ghostty-vt.sh",
+        "scripts/internal/common.sh": "//scripts/internal:common.sh",
+        "scripts/internal/ghostty-vt.patch": "//scripts/internal:ghostty-vt.patch",
+    },
+)
+
+prebuilt_cxx_library(
+    name = "libghostty-vt",
+    preferred_linkage = "static",
+    static_lib = ":libghostty-vt.a",
+)
+
+rust_library(
+    name = "ghostty-vt",
+    crate = "ghostty_vt",
+    crate_root = "src/lib.rs",
+    deps = [":libghostty-vt"],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "ghostty_vt",
+        "CARGO_MANIFEST_DIR": "crates/ghostty-vt",
+        "CARGO_PKG_NAME": "ghostty-vt",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
+    visibility = ["PUBLIC"],
+)
+
+rust_test(
+    name = "test",
+    crate = "ghostty_vt",
+    crate_root = "src/lib.rs",
+    deps = [
+        ":libghostty-vt",
+        "//third-party/rust:serde_json",
+    ],
+    edition = "2024",
+    env = {
+        "CARGO_CRATE_NAME": "ghostty_vt",
+        "CARGO_MANIFEST_DIR": "crates/ghostty-vt",
+        "CARGO_PKG_NAME": "ghostty-vt",
+        "CARGO_PKG_VERSION": "0.1.0",
+    },
+    srcs = glob(["src/**/*.rs"]),
+)
