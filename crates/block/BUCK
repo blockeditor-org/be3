@@ -1,36 +1,5 @@
-rust_library(
-    name = "block",
-    crate = "block",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block",
-        "CARGO_MANIFEST_DIR": "crates/block",
-        "CARGO_PKG_NAME": "block",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "block",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block",
-        "CARGO_MANIFEST_DIR": "crates/block",
-        "CARGO_PKG_NAME": "block",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

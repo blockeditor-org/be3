@@ -1,52 +1,7 @@
-rust_library(
-    name = "fix-rust-source",
-    crate = "fix_rust_source",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:ra_ap_syntax",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "fix_rust_source",
-        "CARGO_MANIFEST_DIR": "crates/fix-rust-source",
-        "CARGO_PKG_NAME": "fix-rust-source",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "fix_rust_source",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:ra_ap_syntax",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "fix_rust_source",
-        "CARGO_MANIFEST_DIR": "crates/fix-rust-source",
-        "CARGO_PKG_NAME": "fix-rust-source",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
 
-rust_binary(
-    name = "fix-rust-source-bin",
-    crate_root = "src/main.rs",
-    deps = [
-        "//crates/fix-rust-source:fix-rust-source",
-        "//third-party/rust:ra_ap_syntax",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "fix_rust_source",
-        "CARGO_MANIFEST_DIR": "crates/fix-rust-source",
-        "CARGO_PKG_NAME": "fix-rust-source",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+cargo_test()
+
+cargo_binary()

@@ -1,3 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
 # libghostty-vt, the terminal emulator behind block-app's debug terminal.
 #
 # It is Zig rather than Rust. scripts/internal/build-ghostty-vt.sh is what
@@ -32,36 +34,6 @@ prebuilt_cxx_library(
     static_lib = ":libghostty-vt.a",
 )
 
-rust_library(
-    name = "ghostty-vt",
-    crate = "ghostty_vt",
-    crate_root = "src/lib.rs",
-    deps = [":libghostty-vt"],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "ghostty_vt",
-        "CARGO_MANIFEST_DIR": "crates/ghostty-vt",
-        "CARGO_PKG_NAME": "ghostty-vt",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+cargo_library(extra_deps = [":libghostty-vt"])
 
-rust_test(
-    name = "test",
-    crate = "ghostty_vt",
-    crate_root = "src/lib.rs",
-    deps = [
-        ":libghostty-vt",
-        "//third-party/rust:serde_json",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "ghostty_vt",
-        "CARGO_MANIFEST_DIR": "crates/ghostty-vt",
-        "CARGO_PKG_NAME": "ghostty-vt",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_test(extra_deps = [":libghostty-vt"])

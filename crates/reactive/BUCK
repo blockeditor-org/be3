@@ -1,34 +1,5 @@
-rust_library(
-    name = "reactive",
-    crate = "reactive",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/reactive_macros:reactive_macros",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "reactive",
-        "CARGO_MANIFEST_DIR": "crates/reactive",
-        "CARGO_PKG_NAME": "reactive",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "reactive",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/reactive_macros:reactive_macros",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "reactive",
-        "CARGO_MANIFEST_DIR": "crates/reactive",
-        "CARGO_PKG_NAME": "reactive",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

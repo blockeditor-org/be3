@@ -1,92 +1,12 @@
-rust_library(
-    name = "beui",
-    crate = "beui",
-    crate_root = "src/lib.rs",
-    deps = select({
-        # A plugin is a guest: it draws into a texture the host composites
-        # and has no window, no clipboard and no event loop of its own.
-        "DEFAULT": [
-            "//crates/beui_macros:beui_macros",
-            "//crates/reactive:reactive",
-            "//crates/text-editor-core:text-editor-core",
-            "//third-party/rust:accesskit",
-            "//third-party/rust:accesskit_winit",
-            "//third-party/rust:arboard",
-            "//third-party/rust:bytemuck",
-            "//third-party/rust:epaint_default_fonts",
-            "//third-party/rust:freetype",
-            "//third-party/rust:harfbuzz_rs",
-            "//third-party/rust:pollster",
-            "//third-party/rust:unicode-script",
-            "//third-party/rust:wgpu",
-            "//third-party/rust:winit",
-        ],
-        "prelude//cpu:wasm32": [
-            "//crates/beui_macros:beui_macros",
-            "//crates/reactive:reactive",
-            "//crates/text-editor-core:text-editor-core",
-            "//third-party/rust:accesskit",
-            "//third-party/rust:bytemuck",
-            "//third-party/rust:epaint_default_fonts",
-            "//third-party/rust:freetype",
-            "//third-party/rust:harfbuzz_rs",
-            "//third-party/rust:unicode-script",
-            "//third-party/rust:wgpu",
-        ],
-    }),
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "beui",
-        "CARGO_MANIFEST_DIR": "crates/beui",
-        "CARGO_PKG_NAME": "beui",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    features = select({
-        "DEFAULT": [
-            "default",
-            "render",
-            "window",
-        ],
-        "prelude//cpu:wasm32": ["render"],
-    }),
-    srcs = glob(["src/**/*.rs", "assets/**/*", "examples/**/*.rs", "src/**/*.wgsl"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "beui",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/beui_macros:beui_macros",
-        "//crates/reactive:reactive",
-        "//crates/text-editor-core:text-editor-core",
-        "//third-party/rust:accesskit",
-        "//third-party/rust:accesskit_winit",
-        "//third-party/rust:arboard",
-        "//third-party/rust:bytemuck",
-        "//third-party/rust:epaint_default_fonts",
-        "//third-party/rust:freetype",
-        "//third-party/rust:harfbuzz_rs",
-        "//third-party/rust:pollster",
-        "//third-party/rust:unicode-script",
-        "//third-party/rust:wgpu",
-        "//third-party/rust:winit",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "beui",
-        "CARGO_MANIFEST_DIR": "crates/beui",
-        "CARGO_PKG_NAME": "beui",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    features = [
-        "default",
-        "render",
-        "window",
-    ],
+beui_srcs = glob(["src/**/*.rs", "assets/**/*", "examples/**/*.rs", "src/**/*.wgsl"])
+
+cargo_library(srcs = beui_srcs)
+
+cargo_test(
     # The renderer's tests draw through a real graphics adapter, and a remote
     # worker's container has none, so these stay on the machine that asked.
     remote_execution = "disabled",
-    srcs = glob(["src/**/*.rs", "assets/**/*", "examples/**/*.rs", "src/**/*.wgsl"]),
+    srcs = beui_srcs,
 )

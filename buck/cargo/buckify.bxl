@@ -1,0 +1,135 @@
+# Regenerates the two files buck2 reads the workspace's Cargo.toml files
+# through, on a worker, and prints the directory they are in.
+# ./scripts/buckify copies them into the repository:
+#
+#   - third-party/rust/BUCK, the rules for every third-party crate, which
+#     reindeer writes;
+#   - buck/cargo/crates.bzl, what each workspace crate's Cargo.toml says, which
+#     generate.py writes from cargo's own plan for each build buck2 stands in
+#     for. The BUCK file beside each crate reads it through buck/cargo/defs.bzl.
+#
+# Both read the workspace through cargo, which reads every Cargo.toml,
+# Cargo.lock and the layout of each crate: whether it has a src/lib.rs, a
+# build.rs, an examples/ directory. It never reads a source file. So the
+# manifests, the lockfile, reindeer.toml, the fixups and generate.py are the
+# action's real inputs, and every other file under crates/ is only a path,
+# recreated empty where cargo will look for it. An edit to a source file
+# therefore leaves the action's key alone and is answered from the cache;
+# adding a file, a dependency or a crate is what runs it again.
+#
+# A BXL script rather than a rule because the manifests belong to seventy-odd
+# packages, and a rule can only take the files of its own; a script can take
+# any file in the repository.
+
+def _files(ctx, directory: str) -> list[str]:
+    found = []
+    for entry in ctx.fs.list(directory):
+        path = str(entry).removeprefix("root//")
+        if ctx.fs.is_dir(path):
+            found.extend(_files(ctx, path))
+        else:
+            found.append(path)
+    return found
+
+def _output(ctx, target: str):
+    configured = ctx.configured_targets(target)
+    return ctx.analysis(configured).providers()[DefaultInfo].default_outputs[0]
+
+def _impl(ctx):
+    actions = ctx.bxl_actions().actions
+
+    real = ["Cargo.toml", "Cargo.lock", "reindeer.toml"] + _files(ctx, "third-party/rust/fixups")
+    placeholders = []
+    for path in _files(ctx, "crates"):
+        if path.endswith("/Cargo.toml"):
+            real.append(path)
+        else:
+            placeholders.append(path)
+
+    workspace = actions.copied_dir(
+        "workspace",
+        {path: ctx.fs.source(path) for path in sorted(real)},
+    )
+    layout = actions.write("placeholders.txt", sorted(placeholders))
+
+    reindeer = _output(ctx, "root//buck/cargo:reindeer")
+    cargo = _output(ctx, "root//buck/cargo:cargo")
+    nightly = _output(ctx, "root//buck/cargo:nightly")
+    generate = ctx.fs.source("buck/cargo/generate.py")
+
+    out = actions.declare_output("generated", dir = True)
+
+    # The three builds buck2 stands in for, as cargo would be asked for them.
+    # The host is the workspace with block-app's terminal and without its
+    # embedded browser, less the plugins, which are only ever wasm, and the two
+    # crates buck2 does not build. The plugins are every editor and
+    # block-editor-plugin, for wasm32-wasip1-threads. The games are the three
+    # rule crates, for wasm32-unknown-unknown. `cargo test` rather than `cargo
+    # build` where there are tests, so that the plan has the dev-dependencies
+    # and the features they unify. --unit-graph is nightly's, which is why the
+    # nightly reindeer is built with is what runs it.
+    script = """
+set -eu
+out="$(pwd)/$1"
+workspace="$2"
+layout="$(pwd)/$3"
+reindeer="$(pwd)/$4"
+toolchain="$(cd "$5" && pwd)"
+nightly="$(cd "$6" && pwd)"
+generate="$(pwd)/$7"
+scratch="$(mktemp -d)"
+mkdir -p "$out"
+cp -RL "$workspace/." "$scratch/workspace"
+cd "$scratch/workspace"
+while IFS= read -r path || [ -n "$path" ]; do
+    mkdir -p "$(dirname "$path")"
+    : > "$path"
+done < "$layout"
+export CARGO_HOME="$scratch/cargo-home"
+
+PATH="$toolchain/bin:$PATH" "$reindeer"     --cargo-path "$toolchain/bin/cargo" --rustc-path "$toolchain/bin/rustc"     buckify --stdout > "$out/BUCK"
+
+plugins=""
+excluded=""
+for manifest in crates/editors/*/manifest.json; do
+    name="$(basename "$(dirname "$manifest")")"
+    plugins="$plugins -p $name"
+    excluded="$excluded --exclude $name"
+done
+games=""
+for directory in crates/tabletop_games/rules/*/; do
+    games="$games -p $(basename "$directory")"
+done
+
+plan() {
+    RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
+}
+"$nightly/bin/cargo" metadata --no-deps --format-version 1 --locked > "$scratch/metadata.json"
+plan test --workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim \
+    --exclude test-third-party --features block-app/terminal > "$scratch/host.json"
+plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin > "$scratch/wasi.json"
+plan build --target wasm32-unknown-unknown $games > "$scratch/wasm32.json"
+python3 "$generate" "$scratch/metadata.json" \
+    "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasm32=$scratch/wasm32.json" \
+    > "$out/crates.bzl"
+rm -rf "$scratch"
+"""
+    actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            script,
+            "--",
+            out.as_output(),
+            workspace,
+            layout,
+            reindeer,
+            cargo,
+            nightly,
+            generate,
+        ),
+        category = "buckify",
+    )
+    ctx.output.print(ctx.output.ensure(out).abs_path())
+
+main = bxl_main(cli_args = {}, impl = _impl)

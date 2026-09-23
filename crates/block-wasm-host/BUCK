@@ -1,65 +1,7 @@
-rust_library(
-    name = "block-wasm-host",
-    crate = "block_wasm_host",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/block-gpu-abi:block-gpu-abi",
-        "//crates/block-gpu-host:block-gpu-host",
-        "//third-party/rust:wasmtime",
-        "//third-party/rust:wasmtime-wasi",
-        "//third-party/rust:wgpu",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_wasm_host",
-        "CARGO_MANIFEST_DIR": "crates/block-wasm-host",
-        "CARGO_PKG_NAME": "block-wasm-host",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "block_wasm_host",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/block-gpu-abi:block-gpu-abi",
-        "//crates/block-gpu-host:block-gpu-host",
-        "//crates/block-plugin-api:block-plugin-api",
-        "//third-party/rust:wasmtime",
-        "//third-party/rust:wasmtime-wasi",
-        "//third-party/rust:wgpu",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_wasm_host",
-        "CARGO_MANIFEST_DIR": "crates/block-wasm-host",
-        "CARGO_PKG_NAME": "block-wasm-host",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
 
-rust_binary(
-    name = "precompile",
-    crate_root = "src/bin/precompile.rs",
-    deps = [
-        "//crates/block-gpu-abi:block-gpu-abi",
-        "//crates/block-gpu-host:block-gpu-host",
-        "//crates/block-wasm-host:block-wasm-host",
-        "//third-party/rust:wasmtime",
-        "//third-party/rust:wasmtime-wasi",
-        "//third-party/rust:wgpu",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_wasm_host",
-        "CARGO_MANIFEST_DIR": "crates/block-wasm-host",
-        "CARGO_PKG_NAME": "block-wasm-host",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+cargo_test()
+
+cargo_binary()

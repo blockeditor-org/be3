@@ -1,18 +1,3 @@
-rust_binary(
-    name = "plugin-test-runner-bin",
-    crate_root = "src/main.rs",
-    deps = [
-        "//crates/block-wasm-host:block-wasm-host",
-        "//third-party/rust:pollster",
-        "//third-party/rust:wgpu",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "plugin_test_runner",
-        "CARGO_MANIFEST_DIR": "crates/plugin-test-runner",
-        "CARGO_PKG_NAME": "plugin-test-runner",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_binary")
+
+cargo_binary()

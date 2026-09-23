@@ -1,4 +1,5 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
+load("@root//buck/cargo:defs.bzl", "cargo_wasm_facts")
 
 # A WebAssembly module, named from a target that is not built for WebAssembly.
 #
@@ -81,20 +82,18 @@ _plugin_exports = [
 # cfg(target_arch = "wasm32") - so the library is compatible with wasm32 alone
 # and asking for it on the host is a configuration error rather than a link
 # failure. The module is named from the manifest's entry_point, which is what
-# the app resolves against the directory it found the manifest in.
-def editor(name, module, deps, test_deps = [], visibility = ["PUBLIC"]):
+# the app resolves against the directory it found the manifest in. Everything
+# else comes from the editor's Cargo.toml, through buck/cargo/crates.bzl.
+def editor(name, module, visibility = ["PUBLIC"]):
+    facts = cargo_wasm_facts()
     native.rust_library(
         name = name + "_wasm",
-        crate = name,
-        crate_root = "src/lib.rs",
-        deps = deps,
-        edition = "2024",
-        env = {
-            "CARGO_CRATE_NAME": name,
-            "CARGO_MANIFEST_DIR": "crates/editors/" + name,
-            "CARGO_PKG_NAME": name,
-            "CARGO_PKG_VERSION": "0.1.0",
-        },
+        crate = facts.crate,
+        crate_root = facts.crate_root,
+        deps = facts.deps,
+        edition = facts.edition,
+        env = facts.env,
+        features = facts.features,
         preferred_linkage = "shared",
         rustc_flags = _plugin_exports,
         srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
@@ -107,20 +106,27 @@ def editor(name, module, deps, test_deps = [], visibility = ["PUBLIC"]):
         module = module,
         visibility = visibility,
     )
+    plugin_tests(
+        exports = _plugin_exports,
+        srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
+    )
+
+# A crate's tests compiled to wasm and run through plugin-test-runner: the test
+# module, and the test that runs it. An editor's, and block-editor-plugin's,
+# whose tests are the guest half of the plugin framework and exist only on
+# wasm.
+def plugin_tests(srcs, exports = []):
+    facts = cargo_wasm_facts()
     native.rust_binary(
         name = "test_module",
-        crate = name,
-        crate_root = "src/lib.rs",
-        deps = deps + test_deps,
-        edition = "2024",
-        env = {
-            "CARGO_CRATE_NAME": name,
-            "CARGO_MANIFEST_DIR": "crates/editors/" + name,
-            "CARGO_PKG_NAME": name,
-            "CARGO_PKG_VERSION": "0.1.0",
-        },
-        rustc_flags = _plugin_exports + ["--test"],
-        srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
+        crate = facts.crate,
+        crate_root = facts.crate_root,
+        deps = facts.test_deps,
+        edition = facts.edition,
+        env = facts.env,
+        features = facts.test_features,
+        rustc_flags = exports + ["--test"],
+        srcs = srcs,
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
     wasi_test(

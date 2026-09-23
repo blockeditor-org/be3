@@ -29,7 +29,7 @@ http_archive(
     size_bytes = 79745456,
     strip_prefix = "rustc-{}-{}/rustc".format(rust_version, rust_host),
     urls = ["https://static.rust-lang.org/dist/rustc-{}-{}.tar.xz".format(rust_version, rust_host)],
-    visibility = ["//buck/reindeer:"],
+    visibility = ["//buck/cargo:"],
 )
 
 http_archive(
@@ -53,7 +53,7 @@ rust_std = {
         size_bytes = size_bytes,
         strip_prefix = "rust-std-{}-{}/rust-std-{}".format(rust_version, target, target),
         urls = ["https://static.rust-lang.org/dist/rust-std-{}-{}.tar.xz".format(rust_version, target)],
-        visibility = ["//buck/reindeer:"],
+        visibility = ["//buck/cargo:"],
     )
     for target, (sha256, size_bytes) in rust_std.items()
 ]

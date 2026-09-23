@@ -1,56 +1,11 @@
-rust_library(
-    name = "block-plugin-api",
-    crate = "block_plugin_api",
-    crate_root = "src/lib.rs",
-    deps = select({
-        # No libc on a guest.
-        "DEFAULT": [
-            "//third-party/rust:bincode",
-            "//third-party/rust:libc",
-            "//third-party/rust:serde",
-            "//third-party/rust:serde_json",
-            "//third-party/rust:uuid",
-        ],
-        "prelude//cpu:wasm32": [
-            "//third-party/rust:bincode",
-            "//third-party/rust:serde",
-            "//third-party/rust:serde_json",
-            "//third-party/rust:uuid",
-        ],
-    }),
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_plugin_api",
-        "CARGO_MANIFEST_DIR": "crates/block-plugin-api",
-        "CARGO_PKG_NAME": "block-plugin-api",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "block_plugin_api",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:bincode",
-        "//third-party/rust:libc",
-        "//third-party/rust:serde",
-        "//third-party/rust:serde_json",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_plugin_api",
-        "CARGO_MANIFEST_DIR": "crates/block-plugin-api",
-        "CARGO_PKG_NAME": "block-plugin-api",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
+cargo_library()
+
+cargo_test(
     # every_editor_manifest_parses reads each editor's manifest.json out of the
     # working tree, beside this crate. A remote worker has only the inputs a
     # test declares and the editors are packages of their own, so the test
     # runs here, from the project root that CARGO_MANIFEST_DIR is relative to.
     remote_execution = "disabled",
-    srcs = glob(["src/**/*.rs"]),
 )

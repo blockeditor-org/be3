@@ -1,42 +1,5 @@
-rust_library(
-    name = "be-session",
-    crate = "be_session",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/be-commit:be-commit",
-        "//crates/be-protocol:be-protocol",
-        "//crates/be-store:be-store",
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "be_session",
-        "CARGO_MANIFEST_DIR": "crates/be-session",
-        "CARGO_PKG_NAME": "be-session",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "be_session",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/be-commit:be-commit",
-        "//crates/be-protocol:be-protocol",
-        "//crates/be-store:be-store",
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "be_session",
-        "CARGO_MANIFEST_DIR": "crates/be-session",
-        "CARGO_PKG_NAME": "be-session",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

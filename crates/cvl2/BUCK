@@ -1,45 +1,7 @@
-rust_library(
-    name = "cvl2",
-    crate = "cvl2",
-    crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "cvl2",
-        "CARGO_MANIFEST_DIR": "crates/cvl2",
-        "CARGO_PKG_NAME": "cvl2",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "cvl2",
-    crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "cvl2",
-        "CARGO_MANIFEST_DIR": "crates/cvl2",
-        "CARGO_PKG_NAME": "cvl2",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
 
-rust_binary(
-    name = "cvl2-bin",
-    crate_root = "src/main.rs",
-    deps = [
-        "//crates/cvl2:cvl2",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "cvl2",
-        "CARGO_MANIFEST_DIR": "crates/cvl2",
-        "CARGO_PKG_NAME": "cvl2",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+cargo_test()
+
+cargo_binary()

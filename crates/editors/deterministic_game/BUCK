@@ -2,18 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     name = "deterministic_game",
-    deps = [
-        "//crates/beui:beui",
-        "//crates/block:block",
-        "//crates/block-client:block-client",
-        "//crates/block-editor-plugin:block-editor-plugin",
-        "//crates/block-reactive:block-reactive",
-        "//crates/tabletop_games/api:game-api",
-        "//crates/tabletop_games/host:game-host",
-        "//third-party/rust:uuid",
-    ],
     module = "deterministic_game",
-    test_deps = [
-        "//crates/block-ui-test:block-ui-test",
-    ],
 )

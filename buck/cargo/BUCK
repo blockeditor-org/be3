@@ -1,11 +1,12 @@
 load("//buck/tools:defs.bzl", "rust_sysroot")
-load(":defs.bzl", "reindeer")
+load(":reindeer.bzl", "reindeer")
 
-# reindeer, and the cargo it runs, for ./scripts/buckify.
+# reindeer, and the cargo it and generate.py run, for ./scripts/buckify.
 #
 # Nothing here is part of the build: buckify.bxl beside this file is what uses
-# it, to regenerate third-party/rust/BUCK on a worker. Every download is pinned
-# by hash and size, like buck/tools.
+# it, to regenerate third-party/rust/BUCK and crates.bzl on a worker. Every
+# download is pinned by hash and size, like buck/tools. The nightly is also what
+# plans the builds generate.py reads, because --unit-graph is nightly-only.
 
 # The commit reindeer is built from, and the nightly its rust-toolchain asks for.
 reindeer_revision = "3be7bd2e11d8fe949ae6db0bcbc46db8adab7264"

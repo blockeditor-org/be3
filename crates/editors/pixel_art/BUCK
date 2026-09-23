@@ -2,18 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     name = "pixel_art",
-    deps = [
-        "//crates/beui:beui",
-        "//crates/block:block",
-        "//crates/block-client:block-client",
-        "//crates/block-editor-plugin:block-editor-plugin",
-        "//third-party/rust:image",
-        "//third-party/rust:serde",
-        "//third-party/rust:serde_json",
-        "//third-party/rust:uuid",
-    ],
     module = "pixel_art",
-    test_deps = [
-        "//crates/block-ui-test:block-ui-test",
-    ],
 )

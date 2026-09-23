@@ -46,37 +46,61 @@ environment.
 names the variable rather than holding the key, and buck2 expands it from the
 environment of the daemon, which is the one it was started with.
 
-`./scripts/buckify` regenerates `third-party/rust/BUCK`. Run it after changing
-any `Cargo.toml` or `Cargo.lock`; CI fails if the file and the manifests
-disagree. A crate's own `BUCK` file names its dependencies by hand, so a new
-dependency goes there too.
+`./scripts/buckify` regenerates `third-party/rust/BUCK` and
+`buck/cargo/crates.bzl`. Run it after changing any `Cargo.toml` or
+`Cargo.lock`; CI fails if either disagrees with the manifests. Nothing else
+needs touching for a new dependency: a crate's `BUCK` file takes its
+dependencies from `crates.bzl` (below).
 
 The tools are installed by `./scripts/internal/install-buck2.sh` and
 `install-starlark-fmt.sh`, which are downloads. reindeer is not installed at
 all: `./scripts/buckify` runs it on a worker (below).
 
-### reindeer on a worker
+### Generated from Cargo.toml
 
-`buck/reindeer/buckify.bxl` is what `./scripts/buckify` runs. It builds reindeer
+Two files are generated, and both are checked in:
+
+- `third-party/rust/BUCK`, one rule per third-party crate, which reindeer
+  writes.
+- `buck/cargo/crates.bzl`, what each workspace crate's `Cargo.toml` says - its
+  dependencies and features on each platform, its edition and its targets -
+  which `buck/cargo/generate.py` writes. The `BUCK` file beside a crate turns
+  that into rules with `cargo_library()`, `cargo_test()` and `cargo_binary()`
+  from `buck/cargo/defs.bzl`, and the plugin macros in `buck/wasm/defs.bzl`
+  read it the same way.
+
+A crate's dependencies and features come from cargo's own plan for the build
+buck2 stands in for, `cargo test --unit-graph` or `cargo build --unit-graph`,
+rather than from `cargo metadata`. The difference matters: cargo unifies
+features across one invocation, so `beui` has `window` in a build of the app
+and only `render` in a build of the plugins, and `cargo metadata` would give it
+`window` everywhere. There are three plans - the host, the plugins for
+`wasm32-wasip1-threads`, the games for `wasm32-unknown-unknown` - and
+`buck/cargo/buckify.bxl` says exactly how each is asked for. Where they differ
+for a crate, the macro writes the `select()`.
+
+`buck/cargo/buckify.bxl` is what `./scripts/buckify` runs. It builds reindeer
 on a worker - `cargo install` of the pinned commit, with the nightly reindeer's
-own rust-toolchain asks for, both in `buck/reindeer/BUCK` - and then runs
-`reindeer buckify --stdout` on a worker too, against rust-toolchain.toml's
-cargo, and prints where the generated file is. The script copies it over the
-checked-in one. Building reindeer takes about nine minutes on a worker, once;
-running it takes about three, most of it cargo downloading the crates, and only
-when something it reads has changed.
+own rust-toolchain asks for, both in `buck/cargo/BUCK` - and then, in one
+action on a worker, runs `reindeer buckify --stdout` against
+rust-toolchain.toml's cargo and the three plans against the nightly's, and
+prints the directory the two files are in. The script copies them into the
+repository. Building reindeer takes about nine minutes, once; regenerating
+takes about a minute, most of it cargo downloading the crates, and only when
+something it reads has changed.
 
 What it reads is the root `Cargo.toml`, `Cargo.lock`, `reindeer.toml`, the
-fixups, and every `Cargo.toml` under `crates/`: those are the action's real
-inputs. `cargo metadata` also looks at the layout of each crate - whether there
-is a `src/lib.rs`, a `build.rs`, an `examples/` directory - but never reads a
-source file, so every other file under `crates/` is passed as a path only and
-recreated empty on the worker. An edit to a source file leaves the action's key
-alone; adding a file, a dependency or a crate is what runs reindeer again. With
-nothing changed, `./scripts/buckify` takes about a second on a live daemon.
+fixups, `generate.py`, and every `Cargo.toml` under `crates/`: those are the
+action's real inputs. cargo also looks at the layout of each crate - whether
+there is a `src/lib.rs`, a `build.rs`, an `examples/` directory - but never
+reads a source file, so every other file under `crates/` is passed as a path
+only and recreated empty on the worker. An edit to a source file leaves the
+action's key alone; adding a file, a dependency or a crate is what runs it
+again. With nothing changed, `./scripts/buckify` takes about a second on a live
+daemon.
 
-It is a BXL script rather than a rule because the manifests belong to seventy-odd
-packages, and a rule can only take the files of its own package.
+It is a BXL script rather than a rule because the manifests belong to
+seventy-odd packages, and a rule can only take the files of its own package.
 
 ## BuildBuddy
 
@@ -374,53 +398,43 @@ a gate on the subtarget has the empty-file problem above to solve first.
 
 ## Adding a crate
 
-Write a `BUCK` file beside its `Cargo.toml`:
+Add it to the workspace in the root `Cargo.toml`, run `./scripts/buckify`, and
+write a `BUCK` file beside its `Cargo.toml` naming the targets it has:
 
 ```
-rust_library(
-    name = "be-store",
-    srcs = glob(["src/**/*.rs"]),
-    crate = "be_store",
-    crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "be_store",
-        "CARGO_MANIFEST_DIR": "crates/be-store",
-        "CARGO_PKG_NAME": "be-store",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    visibility = ["PUBLIC"],
-    deps = ["//third-party/rust:serde"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    srcs = glob(["src/**/*.rs"]),
-    crate = "be_store",
-    crate_root = "src/lib.rs",
-    edition = "2024",
-    env = { ... },
-    deps = ["//third-party/rust:serde"],
-)
+cargo_library()
+
+cargo_test()
+
+cargo_binary()
 ```
 
-Things worth knowing when you do:
+Everything a rule needs that is in `Cargo.toml` comes from `crates.bzl`: the
+dependencies (third-party ones as `//third-party/rust:<package>`, workspace ones
+as `//crates/<dir>:<package>`), the features, the edition, the crate name and
+root, and cargo's package environment. What is left for the `BUCK` file is what
+`Cargo.toml` cannot say, passed as arguments:
 
-- The `env` block is cargo's package environment. First-party code reads
-  `CARGO_PKG_VERSION` through `env!()` and will not compile without it.
-- A dependency on another crate here is `//crates/<dir>:<package name>`; a
-  third-party one is `//third-party/rust/<package name>`, spelled exactly as
-  cargo spells the package.
-- `rust_test` takes the library's own sources, because the tests are
-  `#[cfg(test)]` modules inside them, and its `deps` are the library's plus the
-  dev-dependencies.
-- A proc-macro library takes `proc_macro = True`; its test target takes
-  `rustc_flags = ["--extern", "proc_macro"]` instead, because `rust_test` has no
-  such attribute.
-- A binary target whose name matches the library's needs a different one, since
-  both are targets in the same package. `block-server` is `:block-server-bin`.
-- Anything the crate reads at compile time that is not Rust - a `.wgsl` shader,
-  a font, an `examples/` file a test includes - has to be in `srcs`.
+- `extra_deps` for something that is not a crate, like `ghostty-vt`'s Zig
+  archive.
+- `env` for a variable beyond cargo's, like a game's `GAME_WASM`.
+- `srcs` when the crate reads files at compile time that are not Rust - a
+  `.wgsl` shader, a font, an `examples/` file a test includes. The default is
+  `src/**/*.rs`.
+- Any other rule attribute as it is, like a test's `remote_execution =
+  "disabled"`.
+
+A few conventions the macros follow:
+
+- The library is named after the package, and its tests are `:test`.
+- A binary named like its package is `<name>-bin`, since the library has the
+  name; any other binary keeps its own name, and a crate with several names the
+  one with `bin = "..."`.
+- A proc macro's tests get `--extern proc_macro` without being asked.
+- An editor is one `editor(name, module)` call instead, from
+  `buck/wasm/defs.bzl`.
 
 ## The plugins
 
@@ -511,7 +525,7 @@ was built with, which is why moving that version is a change to verify with a
 build rather than a number to bump.
 
 reindeer publishes no releases at all, so it is pinned by commit in
-`buck/reindeer/BUCK` and built from source on a worker. Only `./scripts/buckify`
+`buck/cargo/BUCK` and built from source on a worker. Only `./scripts/buckify`
 uses it; the file it writes is checked in.
 
 ## Why reindeer, and why it reads the workspace manifests

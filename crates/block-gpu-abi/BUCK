@@ -1,36 +1,5 @@
-rust_library(
-    name = "block-gpu-abi",
-    crate = "block_gpu_abi",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:bincode",
-        "//third-party/rust:serde",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_gpu_abi",
-        "CARGO_MANIFEST_DIR": "crates/block-gpu-abi",
-        "CARGO_PKG_NAME": "block-gpu-abi",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "block_gpu_abi",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:bincode",
-        "//third-party/rust:serde",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_gpu_abi",
-        "CARGO_MANIFEST_DIR": "crates/block-gpu-abi",
-        "CARGO_PKG_NAME": "block-gpu-abi",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

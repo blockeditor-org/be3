@@ -1,41 +1,5 @@
-rust_library(
-    name = "logicgame",
-    crate = "logicgame",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:rand",
-        "//third-party/rust:rand_chacha",
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "logicgame",
-        "CARGO_MANIFEST_DIR": "crates/logicgame",
-        "CARGO_PKG_NAME": "logicgame",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "logicgame",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:rand",
-        "//third-party/rust:rand_chacha",
-        "//third-party/rust:serde",
-        "//third-party/rust:serde_json",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "logicgame",
-        "CARGO_MANIFEST_DIR": "crates/logicgame",
-        "CARGO_PKG_NAME": "logicgame",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

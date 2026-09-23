@@ -1,45 +1,5 @@
-rust_library(
-    name = "block-ui-test",
-    crate = "block_ui_test",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/beui:beui",
-        "//crates/block-editor-plugin:block-editor-plugin",
-        "//crates/paint-snapshot:paint-snapshot",
-        "//third-party/rust:egui",
-        "//third-party/rust:egui_kittest",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_ui_test",
-        "CARGO_MANIFEST_DIR": "crates/block-ui-test",
-        "CARGO_PKG_NAME": "block-ui-test",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "block_ui_test",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/beui:beui",
-        "//crates/block-client:block-client",
-        "//crates/block-editor-plugin:block-editor-plugin",
-        "//crates/paint-snapshot:paint-snapshot",
-        "//third-party/rust:egui",
-        "//third-party/rust:egui_kittest",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_ui_test",
-        "CARGO_MANIFEST_DIR": "crates/block-ui-test",
-        "CARGO_PKG_NAME": "block-ui-test",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

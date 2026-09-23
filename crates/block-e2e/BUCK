@@ -1,44 +1,5 @@
-rust_library(
-    name = "block-e2e",
-    crate = "block_e2e",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/block:block",
-        "//crates/block-client:block-client",
-        "//crates/block-server:block-server",
-        "//third-party/rust:serde",
-        "//third-party/rust:tokio",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_e2e",
-        "CARGO_MANIFEST_DIR": "crates/block-e2e",
-        "CARGO_PKG_NAME": "block-e2e",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "block_e2e",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/block:block",
-        "//crates/block-client:block-client",
-        "//crates/block-server:block-server",
-        "//third-party/rust:serde",
-        "//third-party/rust:tokio",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_e2e",
-        "CARGO_MANIFEST_DIR": "crates/block-e2e",
-        "CARGO_PKG_NAME": "block-e2e",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

@@ -1,40 +1,5 @@
-rust_library(
-    name = "beui_macros",
-    crate = "beui_macros",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:proc-macro2",
-        "//third-party/rust:quote",
-        "//third-party/rust:syn",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "beui_macros",
-        "CARGO_MANIFEST_DIR": "crates/beui_macros",
-        "CARGO_PKG_NAME": "beui_macros",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    proc_macro = True,
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "beui_macros",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:proc-macro2",
-        "//third-party/rust:quote",
-        "//third-party/rust:syn",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "beui_macros",
-        "CARGO_MANIFEST_DIR": "crates/beui_macros",
-        "CARGO_PKG_NAME": "beui_macros",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    rustc_flags = ["--extern", "proc_macro"],
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

@@ -1,40 +1,5 @@
-rust_library(
-    name = "be-block",
-    crate = "be_block",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/be-commit:be-commit",
-        "//third-party/rust:postcard",
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "be_block",
-        "CARGO_MANIFEST_DIR": "crates/be-block",
-        "CARGO_PKG_NAME": "be-block",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "be_block",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/be-commit:be-commit",
-        "//third-party/rust:postcard",
-        "//third-party/rust:serde",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "be_block",
-        "CARGO_MANIFEST_DIR": "crates/be-block",
-        "CARGO_PKG_NAME": "be-block",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

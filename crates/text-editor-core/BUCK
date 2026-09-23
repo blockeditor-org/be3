@@ -1,49 +1,5 @@
-rust_library(
-    name = "text-editor-core",
-    crate = "text_editor_core",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:serde",
-        "//third-party/rust:similar",
-        "//third-party/rust:tree-sitter",
-        "//third-party/rust:tree-sitter-md",
-        "//third-party/rust:tree-sitter-rust",
-        "//third-party/rust:tree-sitter-zig",
-        "//third-party/rust:unicode-segmentation",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "text_editor_core",
-        "CARGO_MANIFEST_DIR": "crates/text-editor-core",
-        "CARGO_PKG_NAME": "text-editor-core",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "text_editor_core",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//third-party/rust:serde",
-        "//third-party/rust:serde_json",
-        "//third-party/rust:similar",
-        "//third-party/rust:tree-sitter",
-        "//third-party/rust:tree-sitter-md",
-        "//third-party/rust:tree-sitter-rust",
-        "//third-party/rust:tree-sitter-zig",
-        "//third-party/rust:unicode-segmentation",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "text_editor_core",
-        "CARGO_MANIFEST_DIR": "crates/text-editor-core",
-        "CARGO_PKG_NAME": "text-editor-core",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

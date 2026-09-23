@@ -1,40 +1,5 @@
-rust_library(
-    name = "block-reactive",
-    crate = "block_reactive",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/block:block",
-        "//crates/block-client:block-client",
-        "//crates/reactive:reactive",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_reactive",
-        "CARGO_MANIFEST_DIR": "crates/block-reactive",
-        "CARGO_PKG_NAME": "block-reactive",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "block_reactive",
-    crate_root = "src/lib.rs",
-    deps = [
-        "//crates/block:block",
-        "//crates/block-client:block-client",
-        "//crates/reactive:reactive",
-        "//third-party/rust:uuid",
-    ],
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "block_reactive",
-        "CARGO_MANIFEST_DIR": "crates/block-reactive",
-        "CARGO_PKG_NAME": "block-reactive",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()

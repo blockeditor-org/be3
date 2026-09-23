@@ -1,28 +1,5 @@
-rust_library(
-    name = "wasi-threads",
-    crate = "wasi_threads",
-    crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "wasi_threads",
-        "CARGO_MANIFEST_DIR": "crates/wasi-threads",
-        "CARGO_PKG_NAME": "wasi-threads",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-    visibility = ["PUBLIC"],
-)
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-rust_test(
-    name = "test",
-    crate = "wasi_threads",
-    crate_root = "src/lib.rs",
-    edition = "2024",
-    env = {
-        "CARGO_CRATE_NAME": "wasi_threads",
-        "CARGO_MANIFEST_DIR": "crates/wasi-threads",
-        "CARGO_PKG_NAME": "wasi-threads",
-        "CARGO_PKG_VERSION": "0.1.0",
-    },
-    srcs = glob(["src/**/*.rs"]),
-)
+cargo_library()
+
+cargo_test()
