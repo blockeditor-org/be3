@@ -56,6 +56,7 @@ fn placed_with(client: &Arc<BlockClient>, block: Uuid, block_type: Uuid) -> Inst
     instances
 }
 
+mod a_database_view_given_content_links_to_its_database_in_the_old_graph;
 mod a_frame_childs_chrome_is_withheld_from_the_editor_it_covers;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
@@ -65,6 +66,7 @@ mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_press_under_a_dialog_is_withheld_from_the_plugin;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
+mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_instance_the_plugin_never_opened_is_not_closed;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 mod f6_moves_the_focus_to_the_next_plugin;

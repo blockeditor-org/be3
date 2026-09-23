@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Deref};
+use std::{collections::BTreeMap, marker::PhantomData, ops::Deref};
 
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -95,6 +95,10 @@ impl<T> List<T> {
 
     pub fn last_id(&self) -> Option<ObjectId> {
         self.items.last().map(|item| item.id)
+    }
+
+    pub fn get_index(&self, index: usize) -> Option<&Item<T>> {
+        self.items.get(index)
     }
 }
 
@@ -208,17 +212,18 @@ impl<M> FieldRef<M, Count> {
 impl<M, T: Model> FieldRef<M, List<T>> {
     pub fn insert(self, owner: ObjectId, anchor: Anchor, value: &T) -> (ObjectId, Change) {
         let id = ObjectId::new();
+        (id, self.insert_as(id, owner, anchor, value))
+    }
+
+    pub fn insert_as(self, id: ObjectId, owner: ObjectId, anchor: Anchor, value: &T) -> Change {
         let place = self.of(owner);
         let mut objects = Vec::new();
         value.write(id, Some(place), &mut objects);
-        (
-            id,
-            Change::Insert {
-                place,
-                anchor,
-                objects,
-            },
-        )
+        Change::Insert {
+            place,
+            anchor,
+            objects,
+        }
     }
 
     pub fn move_into(self, owner: ObjectId, anchor: Anchor, object: ObjectId) -> Change {
@@ -226,6 +231,76 @@ impl<M, T: Model> FieldRef<M, List<T>> {
             object,
             place: self.of(owner),
             anchor,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Map<K, V> {
+    entries: BTreeMap<K, V>,
+}
+
+impl<K, V> Default for Map<K, V> {
+    fn default() -> Self {
+        Self {
+            entries: BTreeMap::new(),
+        }
+    }
+}
+
+impl<K, V> Deref for Map<K, V> {
+    type Target = BTreeMap<K, V>;
+
+    fn deref(&self) -> &BTreeMap<K, V> {
+        &self.entries
+    }
+}
+
+impl<K: Ord, V> FromIterator<(K, V)> for Map<K, V> {
+    fn from_iter<I: IntoIterator<Item = (K, V)>>(entries: I) -> Self {
+        Self {
+            entries: entries.into_iter().collect(),
+        }
+    }
+}
+
+impl<K: Serialize + DeserializeOwned + Ord, V: Serialize + DeserializeOwned> Field for Map<K, V> {
+    fn blank() -> Value {
+        Value::Map(BTreeMap::new())
+    }
+
+    fn read(_tree: &Tree, value: &Value) -> Self {
+        let Value::Map(entries) = value else {
+            return Self::default();
+        };
+        entries
+            .iter()
+            .filter_map(|(key, value)| {
+                Some((
+                    postcard::from_bytes(key).ok()?,
+                    postcard::from_bytes(value).ok()?,
+                ))
+            })
+            .collect()
+    }
+
+    fn write(&self, _owner: ObjectId, _field: u16, _out: &mut Vec<(ObjectId, Object)>) -> Value {
+        Value::Map(
+            self.entries
+                .iter()
+                .map(|(key, value)| (encode(key), encode(value)))
+                .collect(),
+        )
+    }
+}
+
+impl<M, K: Serialize, V: Serialize> FieldRef<M, Map<K, V>> {
+    pub fn put(self, object: ObjectId, key: &K, value: Option<&V>) -> Change {
+        Change::Put {
+            object,
+            field: self.index,
+            key: encode(key),
+            value: value.map(encode),
         }
     }
 }

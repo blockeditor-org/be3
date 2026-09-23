@@ -11,7 +11,7 @@ mod merge;
 mod tree;
 
 pub use be_model_derive::Model;
-pub use field::{Count, Field, FieldRef, Item, List, Register};
+pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
 pub use history::Step;
 pub use tree::Tree;
 
@@ -67,6 +67,7 @@ pub enum Value {
     Register(Vec<u8>),
     Count(i64),
     List(Vec<ObjectId>),
+    Map(BTreeMap<Vec<u8>, Vec<u8>>),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -111,6 +112,19 @@ pub enum Change {
         place: Place,
         anchor: Anchor,
         objects: Vec<(ObjectId, Object)>,
+    },
+    Put {
+        object: ObjectId,
+        field: u16,
+        key: Vec<u8>,
+        value: Option<Vec<u8>>,
+    },
+    PutIf {
+        object: ObjectId,
+        field: u16,
+        key: Vec<u8>,
+        expected: Option<Vec<u8>>,
+        value: Option<Vec<u8>>,
     },
     Remove {
         object: ObjectId,

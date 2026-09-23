@@ -29,6 +29,7 @@ type Watchers<C> = Rc<RefCell<Vec<(u64, Watcher<C>)>>>;
 
 pub struct ContentProjection<C: LiveEdit> {
     host: EditorHost,
+    block: Option<uuid::Uuid>,
     confirmed: RefCell<C>,
     visible: RefCell<C>,
     pending: RefCell<VecDeque<C::Op>>,
@@ -40,9 +41,10 @@ pub struct ContentProjection<C: LiveEdit> {
 }
 
 impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
-    pub(crate) fn new(host: EditorHost) -> Self {
+    pub(crate) fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
         Self {
             host,
+            block,
             confirmed: RefCell::new(C::default()),
             visible: RefCell::new(C::default()),
             pending: RefCell::new(VecDeque::new()),
@@ -56,6 +58,10 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
 
     pub fn content_type(&self) -> uuid::Uuid {
         C::CONTENT_TYPE
+    }
+
+    pub fn block(&self) -> Option<uuid::Uuid> {
+        self.block
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
@@ -126,7 +132,8 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         self.visible
             .borrow_mut()
             .apply_touching(&operation, &mut self.touched.borrow_mut());
-        self.host.operate_content(C::encode_operation(&operation));
+        self.host
+            .operate_content_at(self.block, C::encode_operation(&operation));
         self.pending.borrow_mut().push_back(operation);
     }
 
@@ -155,7 +162,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
     }
 
     fn adopt(&self) {
-        for update in self.host.take_content_updates() {
+        for update in self.host.take_content_updates(self.block) {
             match update {
                 ContentUpdate::Snapshot(content) => {
                     if content.content_type != C::CONTENT_TYPE {

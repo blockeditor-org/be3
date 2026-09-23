@@ -11,5 +11,8 @@ block-client = { path = "../block-client" }
 reactive = { path = "../reactive" }
 uuid = "1"
 
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+
 [lints]
 workspace = true

@@ -1,4 +1,4 @@
-use crate::{Anchor, Change, Count, Document, Edit, List, Model, ObjectId, Touched};
+use crate::{Anchor, Change, Count, Document, Edit, List, Map, Model, ObjectId, Touched};
 
 mod a_burst_of_sets_to_one_field_undoes_as_one_step;
 mod a_card_edited_after_a_move_is_edited_where_it_went;
@@ -6,10 +6,12 @@ mod a_document_reads_back_what_it_was_built_from;
 mod a_node_cannot_move_inside_itself;
 mod an_edit_touches_its_field_and_what_holds_it;
 mod counts_merge_by_adding_both_sides;
+mod map_entries_merge_key_by_key;
 mod merging_a_move_on_one_side_with_an_edit_on_the_other_keeps_both;
 mod merging_restores_a_column_one_side_removed_while_the_other_filled_it;
 mod one_field_set_on_both_sides_conflicts_and_keeps_ours;
 mod undo_leaves_a_field_someone_else_changed_since;
+mod undo_of_map_entries_restores_only_what_nobody_changed_since;
 mod undo_puts_a_removed_column_back_with_its_cards;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -35,6 +37,15 @@ struct Card {
 struct Node {
     name: String,
     children: List<Node>,
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct Sheet {
+    cells: Map<u32, String>,
+}
+
+fn cell(document: &Document<Sheet>, key: u32) -> Option<String> {
+    document.root().cells.get(&key).cloned()
 }
 
 fn card(text: &str) -> Card {

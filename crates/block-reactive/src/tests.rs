@@ -1,10 +1,10 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use block::Block;
 use block_client::BlockClient;
-use block_client::block_ref::BlockRef;
-use block_client::blocks::presentation::{Presentation, PresentationOperation, PresentationSlide};
 use reactive::{Scope, create_effect};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::BlockSource;
@@ -17,11 +17,55 @@ fn client() -> BlockClient {
     BlockClient::new(Uuid::new_v4(), Uuid::new_v4())
 }
 
-fn add_slide(index: usize) -> PresentationOperation {
-    PresentationOperation::Insert {
-        slide: PresentationSlide {
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct Deck {
+    cards: Vec<Card>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+struct Card {
+    id: Uuid,
+    face: Uuid,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+enum DeckOperation {
+    Insert { card: Card, index: usize },
+    Turn { id: Uuid, face: Uuid },
+}
+
+impl Deck {
+    fn cards(&self) -> &[Card] {
+        &self.cards
+    }
+}
+
+impl Block for Deck {
+    type Operation = DeckOperation;
+    type History = block::NoHistory;
+
+    const TYPE_ID: Uuid = Uuid::from_u128(0x6465_636b);
+
+    fn apply_operation(deck: &mut Self, operation: &Self::Operation) {
+        match operation {
+            DeckOperation::Insert { card, index } => {
+                deck.cards
+                    .insert((*index).min(deck.cards.len()), card.clone());
+            }
+            DeckOperation::Turn { id, face } => {
+                if let Some(card) = deck.cards.iter_mut().find(|card| card.id == *id) {
+                    card.face = *face;
+                }
+            }
+        }
+    }
+}
+
+fn add_card(index: usize) -> DeckOperation {
+    DeckOperation::Insert {
+        card: Card {
             id: Uuid::new_v4(),
-            block_id: BlockRef::Direct(Uuid::new_v4()),
+            face: Uuid::new_v4(),
         },
         index,
     }

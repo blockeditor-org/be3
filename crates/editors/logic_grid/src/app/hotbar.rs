@@ -1,5 +1,10 @@
 use super::canvas::ScaleDirection;
 use super::*;
+use block_editor_plugin::ContentProjection;
+use block_editor_plugin::be_block::Item;
+use block_editor_plugin::be_block::hotbar::{
+    HotbarContent, HotbarSlot as BlockHotbarSlot, SlotKind,
+};
 
 pub(super) fn default_hotbar() -> Vec<HotbarSlot> {
     vec![
@@ -121,16 +126,12 @@ impl LogicGridEditor {
             self.persist_hotbar();
         }
 
-        let Some(hotbar) = self
-            .hotbar_block
-            .as_ref()
-            .and_then(RootSetting::block)
-            .and_then(BlockHandle::read)
+        let Some(slots) = self
+            .hotbar_content()
+            .and_then(|content| content.read(|hotbar| hotbar.root().slots.to_vec()))
         else {
             return false;
         };
-        let slots = hotbar.slots().to_vec();
-        drop(hotbar);
         if let Some(client) = client {
             for compiled in pinned_components(&slots) {
                 self.ensure_compiled(client, compiled);
@@ -156,21 +157,27 @@ impl LogicGridEditor {
         true
     }
 
-    fn hotbar_slot_from_block(&self, slot: &BlockHotbarSlot) -> Option<HotbarSlot> {
-        Some(match slot {
-            BlockHotbarSlot::Builtin { tool } => ToolKind::from_id(tool).map_or_else(
+    fn hotbar_content(&self) -> Option<Rc<ContentProjection<HotbarContent>>> {
+        let id = self.hotbar_block.as_ref()?.block()?.id();
+        Some(self.hotbar_editor.as_ref()?.content_of::<HotbarContent>(id))
+    }
+
+    fn hotbar_slot_from_block(&self, slot: &Item<BlockHotbarSlot>) -> Option<HotbarSlot> {
+        let slots = &slot.slots;
+        Some(match &slot.kind {
+            SlotKind::Builtin { tool } => ToolKind::from_id(tool).map_or_else(
                 || HotbarSlot::Locked { name: tool.clone() },
                 HotbarSlot::Builtin,
             ),
-            BlockHotbarSlot::Locked { name } => HotbarSlot::Locked { name: name.clone() },
-            BlockHotbarSlot::Folder { name, slots } => HotbarSlot::Folder {
+            SlotKind::Locked { name } => HotbarSlot::Locked { name: name.clone() },
+            SlotKind::Folder { name } => HotbarSlot::Folder {
                 name: name.clone(),
                 slots: slots
                     .iter()
                     .filter_map(|slot| self.hotbar_slot_from_block(slot))
                     .collect(),
             },
-            BlockHotbarSlot::Component { name, compiled } => {
+            SlotKind::Component { name, compiled } => {
                 let compiled = compiled.as_direct()?;
                 HotbarSlot::Component {
                     name: name.clone(),
@@ -247,13 +254,15 @@ impl LogicGridEditor {
     }
 
     pub(super) fn persist_hotbar(&mut self) {
-        let Some(block) = self.hotbar_block.as_ref().and_then(RootSetting::block) else {
+        let slots: Vec<BlockHotbarSlot> = self.hotbar.iter().map(hotbar_slot_to_block).collect();
+        let Some((content, edit)) = self.hotbar_content().and_then(|content| {
+            let edit = content.read(|hotbar| hotbar.root().replace_all(slots))?;
+            Some((content, edit))
+        }) else {
             self.hotbar_needs_write = true;
             return;
         };
-        block.operate(HotbarOperation::SetSlots {
-            slots: self.hotbar.iter().map(hotbar_slot_to_block).collect(),
-        });
+        content.operate(edit);
         self.hotbar_needs_write = false;
     }
 
@@ -365,30 +374,29 @@ pub(super) fn hotbar_key_label(index: usize) -> Option<&'static str> {
 }
 
 pub(super) fn hotbar_slot_to_block(slot: &HotbarSlot) -> BlockHotbarSlot {
+    let leaf = |kind| BlockHotbarSlot {
+        kind,
+        slots: Default::default(),
+    };
     match slot {
-        HotbarSlot::Builtin(kind) => BlockHotbarSlot::Builtin {
+        HotbarSlot::Builtin(kind) => leaf(SlotKind::Builtin {
             tool: kind.id().to_string(),
-        },
-        HotbarSlot::Locked { name } => BlockHotbarSlot::Locked { name: name.clone() },
-        HotbarSlot::Folder { name, slots } => BlockHotbarSlot::Folder {
-            name: name.clone(),
-            slots: slots.iter().map(hotbar_slot_to_block).collect(),
-        },
-        HotbarSlot::Component { name, compiled, .. } => BlockHotbarSlot::Component {
-            name: name.clone(),
-            compiled: BlockRef::Direct(*compiled),
-        },
+        }),
+        HotbarSlot::Locked { name } => leaf(SlotKind::Locked { name: name.clone() }),
+        HotbarSlot::Folder { name, slots } => {
+            BlockHotbarSlot::folder(name.clone(), slots.iter().map(hotbar_slot_to_block))
+        }
+        HotbarSlot::Component { name, compiled, .. } => {
+            BlockHotbarSlot::component(name.clone(), BlockRef::Direct(*compiled))
+        }
     }
 }
 
-fn pinned_components(slots: &[BlockHotbarSlot]) -> Vec<Uuid> {
+fn pinned_components(slots: &[Item<BlockHotbarSlot>]) -> Vec<Uuid> {
     let mut pinned = Vec::new();
     for slot in slots {
-        match slot {
-            BlockHotbarSlot::Component { compiled, .. } => pinned.extend(compiled.as_direct()),
-            BlockHotbarSlot::Folder { slots, .. } => pinned.extend(pinned_components(slots)),
-            BlockHotbarSlot::Builtin { .. } | BlockHotbarSlot::Locked { .. } => {}
-        }
+        pinned.extend(slot.compiled().and_then(|compiled| compiled.as_direct()));
+        pinned.extend(pinned_components(&slot.slots));
     }
     pinned
 }

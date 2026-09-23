@@ -603,3 +603,25 @@ fn changer<T: 'static>(
 fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
     move |value| callback.call(value)
 }
+
+pub fn create_database(creation: &crate::Creation) -> Uuid {
+    use be_block::BlockRef;
+    use be_block::database::{Database, DatabaseContent};
+    use be_block::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
+    use block::BlockParent;
+
+    let client = creation.client();
+    let schema = client.create_block(block_client::blocks::database_schema::DatabaseSchema::new());
+    let mut fields = DatabaseSchemaContent::default();
+    fields.apply(&DatabaseSchema::add_field("Name", DatabaseFieldType::String).1);
+    creation.seed_content(schema.id(), &fields);
+    let database = client.create_block(block_client::blocks::database::Database::with_references(
+        vec![schema.id()],
+    ));
+    creation.seed_content(
+        database.id(),
+        &DatabaseContent::new(&Database::with_schema(BlockRef::Direct(schema.id()))),
+    );
+    schema.set_parent(BlockParent::Uuid(database.id()));
+    database.id()
+}

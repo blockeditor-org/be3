@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_filmstrip_stays_while_a_slide_holds_the_frame() {
-    let (mut test, editor, block) = editor(3);
+    let (mut test, editor) = editor(3);
     test.run();
 
     editor.host().set_chrome_shown(false);
@@ -12,7 +12,7 @@ fn the_filmstrip_stays_while_a_slide_holds_the_frame() {
         test.shown("presentation.add"),
         "the toolbar should stay while a slide is edited"
     );
-    for id in slide_ids(&block) {
+    for id in slide_ids(&test) {
         assert!(
             test.shown(&format!("presentation.slide.{id}")),
             "slide {id} left the filmstrip while a slide was edited"

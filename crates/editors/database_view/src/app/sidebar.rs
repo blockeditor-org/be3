@@ -1,6 +1,6 @@
 use block::Block;
 use block_client::blocks::database_schema::{DatabaseField, DatabaseSchema};
-use block_client::blocks::database_view::{DatabaseViewKind, DatabaseViewOperation};
+use block_editor_plugin::be_block::database_view::{DatabaseView, DatabaseViewKind};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::{
     ICON_DESELECT, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA, ICON_VIEW_KANBAN,
@@ -96,7 +96,7 @@ fn ViewSwitch(data: Data) -> NodeId {
                     let pressed = create_memo(clone!(data -> move || data.kind.get() == wanted));
                     let choose = clone!(data -> move |_: bool| {
                         if data.kind.get_untracked() != wanted {
-                            data.operate_view(DatabaseViewOperation::SetKind { kind: wanted });
+                            data.operate_view(DatabaseView::set_kind(wanted));
                         }
                     });
                     view! {
@@ -123,7 +123,7 @@ fn StatusPicker(data: Data) -> NodeId {
         let field_id = index.and_then(|index| {
             options.with_untracked(|options| options.get(index).map(|field| field.id))
         });
-        data.operate_view(DatabaseViewOperation::SetKanbanField { field_id });
+        data.operate_view(DatabaseView::set_kanban_field(field_id));
     });
     view! {
         <List spacing=6.0>
@@ -154,13 +154,13 @@ fn AxisPickers(data: Data) -> NodeId {
         let field_id = index.and_then(|index| {
             options.with_untracked(|options| options.get(index).map(|field| field.id))
         });
-        data.operate_view(DatabaseViewOperation::SetScatterXField { field_id });
+        data.operate_view(DatabaseView::set_scatter_x(field_id));
     });
     let pick_y = clone!(data options -> move |index: Option<usize>| {
         let field_id = index.and_then(|index| {
             options.with_untracked(|options| options.get(index).map(|field| field.id))
         });
-        data.operate_view(DatabaseViewOperation::SetScatterYField { field_id });
+        data.operate_view(DatabaseView::set_scatter_y(field_id));
     });
     view! {
         <List spacing=6.0>

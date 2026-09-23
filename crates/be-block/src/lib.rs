@@ -4,29 +4,41 @@ use be_commit::MergeResult;
 use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
+pub mod block_ref;
 pub mod browser_tab;
 pub mod calendar;
 pub mod checklist;
 pub mod counter;
+pub mod database;
+pub mod database_schema;
+pub mod database_view;
+pub mod hotbar;
 pub mod image;
 pub mod model;
+pub mod presentation;
 pub mod streamed;
 pub mod text;
 pub mod ui_settings;
 
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
-pub use browser_tab::{BrowserTabContent, BrowserTabOp, HistoryItem};
+pub use block_ref::BlockRef;
+pub use browser_tab::{BrowserTab, BrowserTabContent, HistoryItem};
 pub use calendar::{Calendar, CalendarContent, CalendarEvent};
 pub use checklist::{Checklist, ChecklistContent, ChecklistItem};
 pub use counter::{Counter, CounterContent};
+pub use database::{Database, DatabaseContent};
+pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
+pub use database_view::{DatabaseView, DatabaseViewContent};
+pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader};
 pub use model::Root;
+pub use presentation::{Presentation, PresentationContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use text::{TextContent, TextHeader, TextLanguage, TextOp};
-pub use ui_settings::{UiSettingsContent, UiSettingsOp};
+pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {
@@ -61,6 +73,13 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChildChange {
+    Add(Uuid),
+    Delete(Uuid),
+    Replace { old: Uuid, new: Uuid },
+}
+
 pub trait LiveEdit: BlockContent {
     type Op: Clone + Serialize + DeserializeOwned + Send + Sync + 'static;
 
@@ -69,6 +88,11 @@ pub trait LiveEdit: BlockContent {
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         self.apply(operation);
         touched.push(Touched::Everything);
+    }
+
+    fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
+        let _ = change;
+        None
     }
 
     fn rebase(operation: Self::Op, onto: &[Self::Op]) -> Option<Self::Op> {

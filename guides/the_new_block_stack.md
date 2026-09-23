@@ -263,11 +263,14 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of three things. A `Count` is a counter whose concurrent changes
-add up. A `List<T>` holds objects of a `Model` type `T`. Anything else that is
-`Serialize + DeserializeOwned + Clone + PartialEq + Default` is a register: it is
-set as a whole, and setting it on both sides of an offline merge is a conflict.
-`Root` names the content type and, optionally, the block's name.
+A field is one of four things. A `Count` is a counter whose concurrent changes
+add up. A `List<T>` holds objects of a `Model` type `T`. A `Map<K, V>` holds
+values by key, each key its own register: two people setting different keys
+both keep theirs, which is how a database row holds a cell per schema field.
+Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
+Default` is a register: it is set as a whole, and setting it on both sides of an
+offline merge is a conflict. `Root` names the content type and, optionally, the
+block's name and the blocks it references.
 
 `be-model` stores a document as a table of objects with ids, not as a tree of
 values, and every algorithm is written once against that table:
@@ -279,8 +282,8 @@ values, and every algorithm is written once against that table:
   to another.
 - **Edits.** The derive gives each field a typed constant, `CalendarEvent::TITLE`,
   that builds the changes an `Edit` is made of: `set` for a register, `add` for a
-  `Count`, `insert` and `move_into` for a `List`, and `Change::remove` for any
-  object. A content type usually wraps these in helpers the editor calls, like
+  `Count`, `put` for a key of a `Map`, `insert` and `move_into` for a `List`, and
+  `Change::remove` for any object. A content type usually wraps these in helpers the editor calls, like
   `Calendar::update`, which only writes the fields that changed.
 - **Live editing.** Edits address objects by id and anchor inserts to a sibling,
   so they mean the same thing whatever the sequencer put before them: there is
@@ -294,18 +297,25 @@ values, and every algorithm is written once against that table:
   edit.
 - **Undo.** `Document::step` records, for each change, the change that undoes it
   and the one that redoes it, both taken against the state before the edit. A
-  register's undo is conditional (`Change::SetIf`): it only puts the old value
-  back if nobody has changed the field since, which is how undo leaves other
+  register's undo is conditional (`Change::SetIf`, and `Change::PutIf` for a map
+  key): it only puts the old value back if nobody has changed it since, which is how undo leaves other
   people's edits alone. A removed object is put back with everything under it,
   after the sibling it followed. Consecutive sets of the same fields absorb into
   one step.
 
 `Document<R>` implements `BlockContent`, `LiveEdit`, `Merge` and `Undo` in
 `be-block` (`model.rs`), so a type built this way is registered with
-`migrated_with_history` and has undo from the start. The counter, the checklist
-and the calendar are built this way. The browser tab, the UI settings, text and
-images still implement the traits by hand, which remains possible for content
-that does not fit, such as a byte payload or a type that is better as a CRDT.
+`migrated_with_history` and has undo from the start. Every migrated editor's
+content is built this way: the counter, the checklist, the calendar, the browser
+tab, the UI settings, the three database types, the presentation and the
+hotbar. Text and images still implement the traits by hand,
+which remains possible for content that does not fit, such as a byte payload or
+a type that is better as a CRDT. The browser tab shows a register holding an
+`Option<ObjectId>`: its current page is an object in its history, not an index,
+so a push and a navigation made at the same time still agree on which page is
+current. The database schema shows the other direction: its fields and enum
+options are objects, and their ids are the ids a database's cells and enum values
+store, so renaming a field or an option changes nothing that points at it.
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
@@ -344,16 +354,27 @@ thread of its own with a `FileStore` under it, and `be/web.rs` runs it on the
 browser's own executor with a `MemoryStore`, because there is no file system to
 keep objects in there and every open fetches what it needs. The plugin never
 sees the content key or the connection: it is handed content and hands back
-operation bytes, through three messages on the plugin protocol.
+operation bytes, through four messages on the plugin protocol. Each names the
+block it is about, because an editor can work on more than its own block.
 
-- `EditorMessage::Content { content_type, bytes, applied }` - host to plugin, a
+- `EditorMessage::Content { block_id, content_type, bytes, applied }` - host to plugin, a
   snapshot. `applied` counts the operations *this instance* sent that the
   snapshot already contains, which is what lets a plugin tell its own
   unacknowledged edits from everyone else's.
-- `EditorMessage::ContentOperations { operations }` - host to plugin, every
+- `EditorMessage::ContentOperations { block_id, operations }` - host to plugin, every
   operation since the last thing the instance was sent, in order, each marked
   `mine` when this instance is the one that sent it.
-- `EditorMessage::Operate { operation }` - plugin to host.
+- `EditorMessage::Operate { block_id, operation }` - plugin to host.
+- `EditorMessage::WatchContent { blocks }` - plugin to host, the other blocks
+  (and their content types) the editor wants to follow.
+
+`editor.content_of::<C>(block)` is how an editor reads and edits another block:
+it registers the block with `WatchContent` and hands back the same
+`ContentProjection` an editor gets for its own block, keyed by that block. The
+host opens a watched block only if the account may view it and its content type
+is migrated, keeps a content link per block per instance beside the editor's own,
+takes an `Operate` for any of them only if the account may edit that block, and
+closes a watched block in the new stack when no instance holds it any more.
 
 Operations, not snapshots, are the normal case. `Live` journals how its visible
 content changed (`Journaled::Edited`, `Applied` or `Replaced`), the worker tags
@@ -402,6 +423,44 @@ An empty automatic name is how a name is taken away, because the old server has
 no way to delete a property. This is a bridge, not the design: it shows the old
 server every name, exactly as the old stack already does, and it goes away with
 the old stack, when names move into an index the server cannot read.
+
+The same bridge carries references, which the file tree, backlinks and
+`watch_references` read from the old graph. The old client derives a block's
+references from its value, so a migrated type that references other blocks
+keeps them in its otherwise empty old value: `Database`, `DatabaseSchema` and
+`DatabaseView` each hold a `references` list and nothing else, and
+`Block::bridged_references` names the operation that sets it. Whenever the host
+bridges a name it also hands `BlockContent::references` to
+`BlockHandleAccess::set_references`, for the editor's own block and for every
+block it watches, which only writes when the set changed.
+
+The old stack's child hooks reach a migrated block's content too. Moving a
+block into a container, deleting a child or replacing it with a copy calls
+`add_child`, `delete_child` or `replace_child` on the container's editor, and
+for a migrated type `PluginEditor` sends that to `be::change_child` instead of
+the emptied old value. The content type answers with `Root::child_edit`, which
+turns a `be_block::ChildChange` into an ordinary edit: a presentation adds or
+drops a slide, a database clears or rewrites the cells that link the block, a
+hotbar unpins or repoints a component. If the block is not open, `change_child`
+holds it and answers `None`, which the callers already treat as "not yet" and
+retry.
+
+A new block's first content comes from the editor that made it. The old stack
+creates the block, and `editor.seed_content(block, &content)` (or the same on
+`Creation`) sends `EditorMessage::SeedContent`; the peer writes it as the
+block's first commit, and ignores it for a block that already has content or is
+open, so it cannot overwrite anything. Creating a database makes three blocks
+this way: `block_editor_plugin::database::create_database` seeds a schema with a
+Name field and a database pointing at it, and gives the old database block the
+schema as its reference straight away, so the graph is right before any editor
+opens it.
+
+An editor that follows a block chosen by its content, rather than a fixed one,
+uses `editor.related_content::<C>(block)`: given a `Memo<Option<Uuid>>` it
+projects whichever block that currently names, the way `related` does for an old
+block. A database view follows its database and the database's schema this way,
+resolving each `BlockRef` with `editor.resolve` as before. `BlockRef` itself now
+lives in `be-block`, and `block_client::block_ref` re-exports it.
 
 Duplicating a block is the old stack's `BlockHandleAccess::duplicate`, which
 copies an empty block for a migrated type, so the app follows it with
@@ -474,6 +533,8 @@ the old client - and it is what the key wrapping below replaces.
 
 ## What is not built yet
 
+- A migrated block's references reach the old graph only while an editor holds
+  the block, like its name.
 - A migrated block's content is not in the old workspace index, so nothing but
   the editor can read it: no preview and no search. Only its name is carried
   across, and only while an editor has it open.
