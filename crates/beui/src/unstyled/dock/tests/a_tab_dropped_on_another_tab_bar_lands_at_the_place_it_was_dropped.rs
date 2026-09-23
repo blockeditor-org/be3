@@ -10,7 +10,7 @@ fn a_tab_dropped_on_another_tab_bar_lands_at_the_place_it_was_dropped() {
 
     state.drop_tab(
         TabId::new(1),
-        DropTarget::Tab {
+        DockDrop::Tab {
             leaf: right,
             index: 1,
         },

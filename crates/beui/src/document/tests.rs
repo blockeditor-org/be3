@@ -17,6 +17,8 @@ mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
+mod a_docked_pane_lays_its_content_inside_its_border;
+mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
@@ -51,6 +53,7 @@ mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
+mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
 mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
@@ -137,6 +140,7 @@ mod dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar;
 mod dragging_a_tab_within_a_window_bar_reorders_it;
 mod dragging_a_window_by_its_bar_moves_it;
 mod dragging_again_during_overscroll_continues_from_the_band;
+mod dragging_onto_a_drop_target_hands_it_the_payload;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
@@ -230,6 +234,7 @@ mod the_dock_demo_leaves_a_tab_saying_nothing_is_open;
 mod the_dock_demo_opens_a_paper_from_the_files_it_lists;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
+mod the_innermost_drop_target_that_accepts_the_payload_takes_the_drop;
 mod the_inspector_follows_nodes_added_to_the_document;
 mod the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated;
 mod the_inspector_keeps_the_rows_of_nodes_that_survive_an_update;
@@ -508,6 +513,24 @@ impl Harness {
 
     pub(crate) fn close_button_center(&self) -> Pos2 {
         self.inspector_center("inspector.close")
+    }
+
+    pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {
+        self.bar_option_rect(index).center()
+    }
+
+    pub(crate) fn bar_option_rect(&self, index: usize) -> Rect {
+        self.inspector()
+            .bar_option_rect(index)
+            .expect("the inspector has no tab bar")
+            .scaled(crate::inspector::scale(&self.context))
+    }
+
+    pub(crate) fn inspector_panel_rect(&self) -> Rect {
+        self.inspector()
+            .panel_rect()
+            .expect("the inspector panel was not laid out")
+            .scaled(crate::inspector::scale(&self.context))
     }
 
     pub(crate) fn mouse_simulation(&self) -> bool {
@@ -1155,6 +1178,12 @@ mod unchanged_input_reuses_layout_and_paint;
 
 mod a_bare_separator_rules_across_the_column_it_sits_in;
 mod a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears;
+mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
+mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
+mod open_inspector_opens_the_inspector_from_inside_the_document;
+mod picking_in_a_narrow_window_returns_to_the_inspector;
+mod the_app_tab_shows_the_document_below_the_tab_bar;
+mod the_inspector_shows_the_renderer_the_host_reports;
 mod unused_navigation_keys_scroll_the_nearest_ancestor;

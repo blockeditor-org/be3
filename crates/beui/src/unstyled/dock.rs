@@ -22,21 +22,22 @@ use crate::reactive::{
     create_memo, create_signal, node_scope, on_cleanup, on_shortcut, owner_scope,
     set_component_state, try_with_document, with_document,
 };
-use crate::unstyled::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, Scroll};
+use crate::unstyled::{
+    Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, DragHandle, DragPoint, Draggable,
+    DropHandle, DropTarget, Scroll,
+};
 
 pub use state::{
-    DockLayout, DockSplitter, DockState, DropTarget, LeafId, Side, SplitId, SurfaceId, TabId,
+    DockDrop, DockLayout, DockSplitter, DockState, LeafId, Side, SplitId, SurfaceId, TabId,
     TabPosition, layout_surface,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_at};
 
 pub const SPLITTER_THICKNESS: f32 = 6.0;
-const DRAG_THRESHOLD: f32 = 4.0;
 const EDGE_ZONE: f32 = 0.22;
 const GRIP: f32 = 7.0;
 const MARKER_WIDTH: f32 = 3.0;
 const SPLIT_STEP: f32 = 0.02;
-const PREVIEW_OFFSET: Vec2 = Vec2::new(12.0, 14.0);
 const FLOAT_INSET: Vec2 = Vec2::new(64.0, 48.0);
 const GRAB_OFFSET: Vec2 = Vec2::new(72.0, 14.0);
 
@@ -95,10 +96,7 @@ struct TabBar {
 #[derive(Clone, Copy, PartialEq)]
 struct Drag {
     tab: TabId,
-    from: Pos2,
-    pointer: Pos2,
-    moved: bool,
-    target: Option<DropTarget>,
+    target: Option<DockDrop>,
     highlight: Option<Rect>,
 }
 
@@ -241,7 +239,7 @@ impl State {
         let dock = self.rect.get_untracked();
         let origin = pos2(FLOAT_INSET.x, FLOAT_INSET.y);
         let pos = self.clamped_origin(Rect::from_min_size(origin, FLOATING_SIZE), dock.size());
-        self.edit(|state| state.drop_tab(tab, DropTarget::Window { pos }));
+        self.edit(|state| state.drop_tab(tab, DockDrop::Window { pos }));
     }
 
     fn clamped_origin(&self, rect: Rect, bounds: Vec2) -> Pos2 {
@@ -268,46 +266,39 @@ impl State {
         true
     }
 
-    fn begin_drag(&self, tab: TabId, pos: Pos2) {
+    fn begin_drag(&self, tab: TabId) {
         self.set_drag.set(Some(Drag {
             tab,
-            from: pos,
-            pointer: pos,
-            moved: false,
             target: None,
             highlight: None,
         }));
     }
 
-    fn drag_to(&self, pos: Pos2, float: bool) {
+    fn drag_over(&self, point: Option<DragPoint>) {
         let Some(mut drag) = self.drag.get_untracked() else {
             return;
         };
-        drag.pointer = pos;
-        drag.moved = drag.moved || drag.from.distance(pos) > DRAG_THRESHOLD;
-        if drag.moved {
-            let (target, highlight) = self.resolve(pos, float);
-            drag.target = target;
-            drag.highlight = highlight;
-        }
+        let (target, highlight) = match point {
+            Some(point) => self.resolve(point.pos, point.modifiers.alt),
+            None => (None, None),
+        };
+        drag.target = target;
+        drag.highlight = highlight;
         self.set_drag.set(Some(drag));
     }
 
     fn end_drag(&self) {
-        let Some(drag) = self.drag.get_untracked() else {
-            return;
-        };
         self.set_drag.set(None);
-        if !drag.moved {
-            return;
-        }
-        let Some(target) = drag.target else {
-            return;
-        };
-        self.edit(|state| state.drop_tab(drag.tab, target));
     }
 
-    fn resolve(&self, pos: Pos2, float: bool) -> (Option<DropTarget>, Option<Rect>) {
+    fn drop_at(&self, tab: TabId, point: DragPoint) {
+        let (target, _) = self.resolve(point.pos, point.modifiers.alt);
+        if let Some(target) = target {
+            self.edit(|state| state.drop_tab(tab, target));
+        }
+    }
+
+    fn resolve(&self, pos: Pos2, float: bool) -> (Option<DockDrop>, Option<Rect>) {
         let state = self.state.get_untracked();
         if !float {
             for surface in state.surfaces().into_iter().rev() {
@@ -330,15 +321,15 @@ impl State {
                     .is_some_and(|bar| pos.y >= bar.top() && pos.y <= bar.bottom());
                 if bar {
                     let (index, marker) = self.insert_index(leaf, pos);
-                    return (Some(DropTarget::Tab { leaf, index }), Some(marker));
+                    return (Some(DockDrop::Tab { leaf, index }), Some(marker));
                 }
                 let split = state.window_rect(surface).is_none();
                 return match zone(rect, pos).filter(|_| split) {
                     Some(side) => (
-                        Some(DropTarget::Split { leaf, side }),
+                        Some(DockDrop::Split { leaf, side }),
                         Some(side_rect(rect, side)),
                     ),
-                    None => (Some(DropTarget::Pane { leaf }), Some(rect)),
+                    None => (Some(DockDrop::Pane { leaf }), Some(rect)),
                 };
             }
         }
@@ -346,7 +337,7 @@ impl State {
         let origin = pos - dock.min.to_vec2() - GRAB_OFFSET;
         let origin = self.clamped_origin(Rect::from_min_size(origin, FLOATING_SIZE), dock.size());
         (
-            Some(DropTarget::Window { pos: origin }),
+            Some(DockDrop::Window { pos: origin }),
             Some(Rect::from_min_size(
                 dock.min + origin.to_vec2(),
                 FLOATING_SIZE,
@@ -598,26 +589,35 @@ pub fn Dock(
     let windows = create_memo(clone!(current -> move || current.with(DockState::windows)));
     let panes = dock.clone();
     let floating = dock.clone();
+    let over = dock.clone();
+    let dropped = dock.clone();
     view! {
-        <List spacing=0.0>
-            <Dynamic value={main}>
-                {move |surface: SurfaceId| {
-                    let dock = panes.clone();
-                    view! {
-                        <DockPane dock surface @sizing=ItemSize::Percent(100.0) />
-                    }
-                }}
-            </Dynamic>
-            <ForEach keys={windows}>
-                {move |surface: SurfaceId| {
-                    let dock = floating.clone();
-                    view! {
-                        <DockWindowView dock surface />
-                    }
-                }}
-            </ForEach>
-            <DockDragLayer dock />
-        </List>
+        <DropTarget
+            on_over={move |point: Option<(TabId, DragPoint)>| over.drag_over(point.map(|(_, point)| point))}
+            on_drop={move |(tab, point): (TabId, DragPoint)| dropped.drop_at(tab, point)}
+        >
+            {move |_: DropHandle| view! {
+                <List spacing=0.0>
+                    <Dynamic value={main}>
+                        {move |surface: SurfaceId| {
+                            let dock = panes.clone();
+                            view! {
+                                <DockPane dock surface @sizing=ItemSize::Percent(100.0) />
+                            }
+                        }}
+                    </Dynamic>
+                    <ForEach keys={windows}>
+                        {move |surface: SurfaceId| {
+                            let dock = floating.clone();
+                            view! {
+                                <DockWindowView dock surface />
+                            }
+                        }}
+                    </ForEach>
+                    <DockDragLayer dock />
+                </List>
+            }}
+        </DropTarget>
     }
 }
 
@@ -737,10 +737,10 @@ fn DockDropMarker(dock: Handle, surface: SurfaceId, origin: Memo<Pos2>) -> Canva
         let state = dock.state.get_untracked();
         let drag = dock.drag.get()?;
         let leaf = match drag.target? {
-            DropTarget::Tab { leaf, .. }
-            | DropTarget::Pane { leaf }
-            | DropTarget::Split { leaf, .. } => leaf,
-            DropTarget::Window { .. } => return None,
+            DockDrop::Tab { leaf, .. }
+            | DockDrop::Pane { leaf }
+            | DockDrop::Split { leaf, .. } => leaf,
+            DockDrop::Window { .. } => return None,
         };
         if state.surface_of(leaf) != Some(surface) {
             return None;
@@ -789,11 +789,9 @@ fn DockPanelView(dock: Handle, surface: SurfaceId, leaf: LeafId, hoisted: bool) 
         body,
     });
     let pressed = dock.clone();
-    let hovered = dock.clone();
     view! {
         <ClickCatcher
             on_press={move |_: PointerPress| pressed.edit(|state| state.focus(leaf))}
-            on_hover_move={move |press: PointerPress| hovered.drag_to(press.pos, press.modifiers.alt)}
             children={chrome}
         />
     }
@@ -886,7 +884,7 @@ fn DockTabView(dock: Handle, leaf: LeafId, tab: TabId, handle: ChoiceOptionHandl
     let title = create_memo(clone!(dock -> move || dock.title(tab)));
     let dragged = create_memo(clone!(dock -> move || {
         dock.drag
-            .with(|drag| drag.as_ref().is_some_and(|drag| drag.tab == tab && drag.moved))
+            .with(|drag| drag.as_ref().is_some_and(|drag| drag.tab == tab))
     }));
     let close = ClickCallback::new(clone!(dock -> move || dock.close_tab(tab)));
     let float = ClickCallback::new(clone!(dock -> move || dock.float_tab(tab)));
@@ -912,20 +910,19 @@ fn DockTabView(dock: Handle, leaf: LeafId, tab: TabId, handle: ChoiceOptionHandl
         close,
         float,
     });
-    let pressed = dock.clone();
-    let moved = dock.clone();
-    let released = dock.clone();
+    let carried = dock.clone();
+    let preview = dock.preview.clone();
     view! {
-        <ClickCatcher
-            on_press={move |press: PointerPress| pressed.begin_drag(tab, press.pos)}
-            on_drag={move |press: PointerPress| moved.drag_to(press.pos, press.modifiers.alt)}
-            on_active_change={move |active: bool| {
-                if !active {
-                    released.end_drag();
-                }
+        <Draggable
+            payload={tab}
+            preview={move |tab: TabId| preview.call(tab)}
+            on_drag_change={move |dragging: bool| match dragging {
+                true => carried.begin_drag(tab),
+                false => carried.end_drag(),
             }}
-            children={face}
-        />
+        >
+            {move |_: DragHandle| face}
+        </Draggable>
     }
 }
 
@@ -1084,7 +1081,6 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let pressed = dock.clone();
     let start = grabbed.clone();
     let moved = dock.clone();
-    let hovered = dock.clone();
     view! {
         <Overlay
             @node_ref=&overlay
@@ -1121,9 +1117,6 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                         Rect::from_min_size(origin, start.size()),
                                     );
                                 });
-                            }}
-                            on_hover_move={move |press: PointerPress| {
-                                hovered.drag_to(press.pos, press.modifiers.alt)
                             }}
                             children={chrome}
                         />
@@ -1168,13 +1161,10 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
 #[component]
 fn DockDragLayer(dock: Handle) -> NodeId {
     let drag = dock.drag.clone();
-    let dragging = create_memo(clone!(drag -> move || {
-        drag.with(|drag| drag.as_ref().is_some_and(|drag| drag.moved))
-    }));
     let marked = create_memo(clone!(drag -> move || {
         drag.with(|drag| {
             let drag = drag.as_ref()?;
-            matches!(drag.target?, DropTarget::Window { .. })
+            matches!(drag.target?, DockDrop::Window { .. })
                 .then_some(drag.highlight)
                 .flatten()
         })
@@ -1186,15 +1176,7 @@ fn DockDragLayer(dock: Handle) -> NodeId {
         .map(OverlayAnchor::Point);
     let marker_width = create_memo(clone!(highlight -> move || highlight.get().width()));
     let marker_height = create_memo(clone!(highlight -> move || highlight.get().height()));
-    let preview_anchor = create_memo(clone!(drag -> move || {
-        drag.with(|drag| drag.as_ref().map_or(Pos2::ZERO, |drag| drag.pointer + PREVIEW_OFFSET))
-    }))
-    .into_prop()
-    .map(OverlayAnchor::Point);
-    let dragged =
-        create_memo(clone!(drag -> move || drag.with(|drag| drag.as_ref().map(|drag| drag.tab))));
     let face = dock.highlight.call(());
-    let preview = dock.preview.clone();
     view! {
         <List spacing=0.0>
             <Overlay
@@ -1205,24 +1187,6 @@ fn DockDragLayer(dock: Handle) -> NodeId {
                 open={marking}
             >
                 <Frame width={marker_width} height={marker_height}>{face}</Frame>
-            </Overlay>
-            <Overlay
-                anchor={preview_anchor}
-                placement=Placement::BelowStart
-                mode=OverlayMode::Passive
-                traps_focus=false
-                open={dragging}
-            >
-                <List spacing=0.0>
-                    <Dynamic value={dragged}>
-                        {move |tab: Option<TabId>| match tab {
-                            Some(tab) => preview.call(tab),
-                            None => view! {
-                                <Frame />
-                            },
-                        }}
-                    </Dynamic>
-                </List>
             </Overlay>
         </List>
     }

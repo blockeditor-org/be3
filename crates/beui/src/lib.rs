@@ -61,4 +61,4 @@ pub use page::{Page, PageShape};
 pub use painter::{Painter, Shape};
 pub use performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
 #[cfg(feature = "render")]
-pub use renderer::{Renderer, Repaint, clear_color};
+pub use renderer::{Renderer, RendererInfo, Repaint, clear_color};

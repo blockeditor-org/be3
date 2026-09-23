@@ -1256,6 +1256,7 @@ pub enum InputEvent {
         x: f32,
         y: f32,
     },
+    PointerLeft,
     PointerMotion {
         x: f32,
         y: f32,

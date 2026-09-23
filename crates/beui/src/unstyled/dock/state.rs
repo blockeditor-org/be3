@@ -45,7 +45,7 @@ impl Side {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum DropTarget {
+pub enum DockDrop {
     Tab { leaf: LeafId, index: usize },
     Pane { leaf: LeafId },
     Split { leaf: LeafId, side: Side },
@@ -511,13 +511,13 @@ impl DockState {
         true
     }
 
-    pub fn drop_tab(&mut self, tab: TabId, target: DropTarget) {
+    pub fn drop_tab(&mut self, tab: TabId, target: DockDrop) {
         let Some(position) = self.find(tab) else {
             return;
         };
         let alone = self.tabs(position.leaf).len() == 1;
         match target {
-            DropTarget::Tab { leaf, index } if leaf == position.leaf => {
+            DockDrop::Tab { leaf, index } if leaf == position.leaf => {
                 let Some(target) = self.leaf_mut(leaf) else {
                     return;
                 };
@@ -528,25 +528,25 @@ impl DockState {
                 target.active = index;
                 self.focus(leaf);
             }
-            DropTarget::Tab { leaf, index } => {
+            DockDrop::Tab { leaf, index } => {
                 self.remove(tab);
                 self.insert(leaf, index, tab);
             }
-            DropTarget::Pane { leaf } => {
+            DockDrop::Pane { leaf } => {
                 if leaf == position.leaf && alone {
                     return;
                 }
                 self.remove(tab);
                 self.push(leaf, tab);
             }
-            DropTarget::Split { leaf, side } => {
+            DockDrop::Split { leaf, side } => {
                 if leaf == position.leaf && alone {
                     return;
                 }
                 self.remove(tab);
                 self.split(leaf, side, 0.5, vec![tab]);
             }
-            DropTarget::Window { pos } => {
+            DockDrop::Window { pos } => {
                 let window = self
                     .surface_of(position.leaf)
                     .and_then(|surface| Some((surface, self.window_rect(surface)?)));

@@ -1,15 +1,15 @@
-use beui::icons::ICON_GRID_VIEW;
+use beui::icons::{ICON_BUG_REPORT, ICON_GRID_VIEW};
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
     Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
-    create_selector, create_signal, view,
+    create_selector, create_signal, view, with_document,
 };
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
-    Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
-    Separator, Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree,
-    TreeRowFace, use_theme,
+    IconButton, Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs,
+    Scroll, Select, Separator, Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title,
+    ToggleButton, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
@@ -269,6 +269,12 @@ fn DemoHeader(set_count: WriteSignal<i64>) -> NodeId {
                     </Frame>
                 </List>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
+                <IconButton
+                    glyph={ICON_BUG_REPORT.to_owned()}
+                    label="Open the inspector"
+                    variant=ButtonVariant::Ghost
+                    on_click={|| with_document(Document::open_inspector)}
+                />
                 <Button
                     label="Reset"
                     variant=ButtonVariant::Secondary

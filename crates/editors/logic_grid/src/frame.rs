@@ -196,6 +196,8 @@ impl DrawTriangle {
     pub const ERROR_COLOR: [f32; 4] = [0.95, 0.22, 0.25, 1.0];
     pub const HIGHLIGHT_COLOR: [f32; 4] = [1.0, 0.78, 0.15, 1.0];
     pub const BOUNDS_COLOR: [f32; 4] = [0.72, 0.50, 0.96, 1.0];
+    pub const SELECTION_FILL_COLOR: [f32; 4] = [0.26, 0.6, 0.88, 0.11];
+    pub const SELECTION_STROKE_COLOR: [f32; 4] = [0.35, 0.71, 1.0, 1.0];
 
     fn new(positions: [[f32; 2]; 3], color: [f32; 4]) -> Self {
         Self { positions, color }
@@ -416,6 +418,12 @@ impl DrawTriangle {
             Self::BOUNDS_COLOR,
         )
         .to_vec()
+    }
+
+    pub fn selection_box(rect: [f32; 4], thickness: f32) -> Vec<Self> {
+        let mut triangles = rectangle(rect, Self::SELECTION_FILL_COLOR).to_vec();
+        triangles.extend(outline(rect, thickness, Self::SELECTION_STROKE_COLOR));
+        triangles
     }
 
     pub fn with_color(mut self, color: [f32; 4]) -> Self {

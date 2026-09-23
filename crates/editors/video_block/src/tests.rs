@@ -4,6 +4,7 @@ use block_client::block_ref::BlockRef;
 use block_client::blocks::counter::Counter;
 use block_client::blocks::video::{Video, VideoClip, VideoFrameRate, VideoOperation};
 use block_client::{BlockClient, BlockHandle};
+use block_editor_plugin::beui::Pos2;
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -13,6 +14,7 @@ use crate::timeline::timecode;
 
 mod an_empty_video_has_nothing_at_the_playhead;
 mod clicking_a_clip_selects_it_for_the_effects_panel;
+mod dragging_a_clip_past_the_next_one_reorders_the_base_track;
 mod timecode_counts_minutes_seconds_and_frames;
 
 fn editor() -> (BeuiTest<VideoApp>, BlockHandle<Video>) {

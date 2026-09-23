@@ -21,7 +21,7 @@ use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{
     CursorIcon, Event, Key, Modifiers, PointerButton, RawInput, TouchId, TouchPhase,
 };
-use crate::renderer::{Renderer, Repaint, clear_color};
+use crate::renderer::{Renderer, RendererInfo, Repaint, clear_color};
 
 const LINE_HEIGHT: f32 = 40.0;
 const DEFAULT_SIZE: Vec2 = Vec2::new(1280.0, 800.0);
@@ -376,7 +376,12 @@ impl ApplicationHandler<AccessKitEvent> for Runner {
         );
         let touch_cursor = event_loop.create_custom_cursor(touch_cursor_source());
         window.set_visible(true);
-        match pollster::block_on(create_surface(window, accessibility, touch_cursor)) {
+        match pollster::block_on(create_surface(
+            window,
+            accessibility,
+            touch_cursor,
+            &self.context,
+        )) {
             Ok(surface) => self.surface = Some(surface),
             Err(error) => self.fail(event_loop, error),
         }
@@ -644,6 +649,7 @@ async fn create_surface(
     window: Arc<Window>,
     accessibility: AccessKitAdapter,
     touch_cursor: CustomCursor,
+    context: &Context,
 ) -> Result<Surface, Box<dyn Error>> {
     let size = window.inner_size();
     let instance = wgpu::Instance::default();
@@ -677,6 +683,10 @@ async fn create_surface(
     }
     surface.configure(&device, &config);
     let renderer = Renderer::new(&device, config.format);
+    context.set_renderer_info(RendererInfo {
+        adapter: adapter.get_info(),
+        format: config.format,
+    });
 
     Ok(Surface {
         window,
@@ -789,6 +799,16 @@ fn key(code: KeyCode) -> Option<Key> {
         KeyCode::Space => Key::Space,
         KeyCode::Tab => Key::Tab,
         KeyCode::Digit0 | KeyCode::Numpad0 => Key::Zero,
+        KeyCode::Digit1 | KeyCode::Numpad1 => Key::One,
+        KeyCode::Digit2 | KeyCode::Numpad2 => Key::Two,
+        KeyCode::Digit3 | KeyCode::Numpad3 => Key::Three,
+        KeyCode::Digit4 | KeyCode::Numpad4 => Key::Four,
+        KeyCode::Digit5 | KeyCode::Numpad5 => Key::Five,
+        KeyCode::Digit6 | KeyCode::Numpad6 => Key::Six,
+        KeyCode::Digit7 | KeyCode::Numpad7 => Key::Seven,
+        KeyCode::Digit8 | KeyCode::Numpad8 => Key::Eight,
+        KeyCode::Digit9 | KeyCode::Numpad9 => Key::Nine,
+        KeyCode::Backquote => Key::Backtick,
         KeyCode::KeyA => Key::A,
         KeyCode::KeyB => Key::B,
         KeyCode::KeyC => Key::C,
