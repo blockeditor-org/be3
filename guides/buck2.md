@@ -51,15 +51,20 @@ CI builds every action and writes the result to a cache, so a checkout that has
 never built anything gets the answers rather than the work:
 
 ```
-$ ./scripts/buck build //crates/...
-Cache hits: 96%
-Commands: 4713 (cached: 4544, remote: 0, local: 169)
-Network: up 2.6MiB  down 369MiB
+$ ./scripts/buck test //crates/... --exclude cargo-only
+Cache hits: 93%
+Commands: 3604 (cached: 3339, remote: 0, local: 265)
+Network: up 3.6MiB  down 1.3GiB
+Tests finished: Pass 68. Fail 0.
 
-real    0m25.283s
+real    1m35.716s
 ```
 
-Twenty-five seconds against about ten minutes of compiling. Nothing runs on a
+A minute and a half to build the workspace, the games, the thirty-three plugins
+and to run all sixty-eight test targets. The same checkout with nothing in the
+cache takes about forty minutes, and the cargo run it replaces -
+`./scripts/verify --check --tests --plugin-tests` from an empty `target/` -
+takes fourteen. Nothing runs on a
 remote machine; buck2 only asks whether an action's result is already known, and
 what comes back is a digest rather than a file. Buck2 downloads an artifact only
 when a local action needs it or when it is something you asked to build, so a
@@ -85,8 +90,24 @@ is the execution platform that turns the cache on; `[buck2] digest_algorithms`,
 `sqlite_materializer_state` and `default_allow_cache_upload` in `.buckconfig`
 are the three settings without which it silently does nothing.
 
-A clean local build fills about twelve gigabytes of `buck-out`, which is roughly
-what cargo's `target/` costs for the same workspace. `buck2 clean` empties it.
+A clean local build fills about twenty gigabytes of `buck-out`, against about
+nine for cargo's `target/` on the same workspace. `buck2 clean` empties it, and
+`buck2 clean --stale=<duration>` drops what the last builds did not touch.
+
+**The cache is also what makes the daemon expendable.** buck2 remembers what it
+has already done in the daemon rather than on disk, so a machine that sleeps, or
+a `buck2 killall`, costs every action its memory of the result. What that costs
+depends entirely on whether the cache can answer:
+
+```
+./scripts/buck build //crates/...   # nothing changed, daemon killed first
+with the cache       0m45s   4730 commands, 94% hits
+without the cache    4m19s+  every one of them compiled again
+```
+
+On a live daemon the same command is under a second. This is the difference
+between a cache that is nice to have on a fresh checkout and one that is load
+bearing every day.
 
 ## Why buck/tools exists
 
