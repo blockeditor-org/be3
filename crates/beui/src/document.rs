@@ -15,7 +15,7 @@ use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::input::{Event, Key, KeyPress};
 
-use crate::inspector::Inspector;
+use crate::inspector::{Inspector, Layout};
 use crate::interact;
 use crate::layout;
 use crate::node::{Arena, NodeId, NodeMap};
@@ -36,6 +36,7 @@ pub struct Document {
     pub(crate) rects: Rc<NodeMap<Rect>>,
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
+    inspector_requested: bool,
     pub(crate) portal_holders: std::collections::HashMap<NodeId, NodeId>,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
@@ -163,6 +164,7 @@ impl Document {
             rects: Rc::new(NodeMap::default()),
             inspector: None,
             inspectable: true,
+            inspector_requested: false,
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
@@ -238,6 +240,10 @@ impl Document {
     pub fn set_theme(&mut self, theme: Theme) {
         let store = self.theme.clone();
         crate::reactive::with_reactive_scope(self, move || store.set(theme));
+    }
+
+    pub fn open_inspector(&mut self) {
+        self.inspector_requested = self.inspectable;
     }
 
     pub(crate) fn theme_store(&self) -> ThemeStore {
@@ -521,18 +527,15 @@ impl Document {
 
         let viewport = rect;
         let rect = trim_bottom(rect, ctx.measure_mouse_simulation(viewport)).0;
-        let (content, panel) = match &mut self.inspector {
-            Some(inspector) => {
-                inspector.grab(ctx, rect);
-                split(rect, inspector.panel_width(ctx, rect))
-            }
-            None => (rect, Rect::NOTHING),
+        let mut layout = match &mut self.inspector {
+            Some(inspector) => inspector.layout(ctx, rect),
+            None => Layout::app(rect),
         };
-        let reserved = self
-            .inspector
-            .as_ref()
-            .map_or(0.0, |inspector| inspector.readout_height(ctx));
-        let (content, readout) = trim_bottom(content, reserved);
+        let reserved = match &self.inspector {
+            Some(inspector) if layout.app_visible => inspector.readout_height(ctx),
+            _ => 0.0,
+        };
+        (layout.content, layout.readout) = trim_bottom(layout.content, reserved);
         let intercepted = self
             .inspector
             .as_ref()
@@ -541,10 +544,18 @@ impl Document {
             .inspector
             .as_ref()
             .is_some_and(|inspector| inspector.document.focused_node().is_some());
-        self.show_content(ctx, content, !intercepted, !inspector_has_focus);
+        if layout.app_visible {
+            self.show_content(ctx, layout.content, !intercepted, !inspector_has_focus);
+        } else {
+            self.viewport = None;
+        }
+        if std::mem::take(&mut self.inspector_requested) && self.inspector.is_none() {
+            self.inspector = Some(Box::new(Inspector::new(ctx, self.theme())));
+            ctx.request_repaint();
+        }
 
         if let Some(mut inspector) = self.inspector.take() {
-            inspector.show(self, ctx, content, readout, panel, inspector_has_focus);
+            inspector.show(self, ctx, &layout, inspector_has_focus);
             if !inspector.closed() {
                 self.inspector = Some(inspector);
             }
@@ -1156,14 +1167,6 @@ fn trim_bottom(rect: Rect, height: f32) -> (Rect, Rect) {
     (
         Rect::from_min_max(rect.min, pos2(rect.right(), edge)),
         Rect::from_min_max(pos2(rect.left(), edge), rect.max),
-    )
-}
-
-fn split(rect: Rect, width: f32) -> (Rect, Rect) {
-    let edge = rect.right() - width;
-    (
-        Rect::from_min_max(rect.min, pos2(edge, rect.bottom())),
-        Rect::from_min_max(pos2(edge, rect.top()), rect.max),
     )
 }
 

@@ -13,6 +13,42 @@ use crate::image::{Image, ImageId};
 
 mod filter;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct RendererInfo {
+    pub adapter: wgpu::AdapterInfo,
+    pub format: wgpu::TextureFormat,
+}
+
+impl RendererInfo {
+    pub(crate) fn rows(&self) -> Vec<(&'static str, String)> {
+        let adapter = &self.adapter;
+        let mut rows = vec![
+            ("Backend", format!("{:?}", adapter.backend)),
+            ("Adapter", adapter.name.clone()),
+            ("Device type", format!("{:?}", adapter.device_type)),
+            ("Driver", or_unknown(&adapter.driver)),
+            ("Driver info", or_unknown(&adapter.driver_info)),
+            (
+                "Vendor / device",
+                format!("{:#06x} / {:#06x}", adapter.vendor, adapter.device),
+            ),
+        ];
+        if !adapter.device_pci_bus_id.is_empty() {
+            rows.push(("PCI bus", adapter.device_pci_bus_id.clone()));
+        }
+        rows.push(("Surface format", format!("{:?}", self.format)));
+        rows
+    }
+}
+
+fn or_unknown(value: &str) -> String {
+    if value.is_empty() {
+        "unknown".to_owned()
+    } else {
+        value.to_owned()
+    }
+}
+
 const ATLAS_SIZE: u32 = 2048;
 const GLYPH_PADDING: u32 = 1;
 

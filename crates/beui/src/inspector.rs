@@ -27,6 +27,8 @@ const DEFAULT_WIDTH: f32 = 320.0;
 const MINIMUM_WIDTH: f32 = 200.0;
 const GRIP_WIDTH: f32 = 4.0;
 const GRIP_PAINT_WIDTH: f32 = 2.0;
+const COMPACT_WIDTH: f32 = 480.0;
+const BAR_HEIGHT: f32 = 44.0;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum InspectorTab {
@@ -70,6 +72,8 @@ pub(crate) struct State {
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
     closed: Cell<bool>,
+    compact: Cell<bool>,
+    app_shown: Cell<bool>,
 }
 
 impl State {
@@ -96,6 +100,8 @@ impl State {
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
             closed: Cell::new(false),
+            compact: Cell::new(false),
+            app_shown: Cell::new(false),
         }
     }
 
@@ -192,11 +198,43 @@ impl State {
 
     fn toggle_picking(&self) {
         self.picking.set(!self.picking.get());
+        if self.picking.get() {
+            self.app_shown.set(true);
+        }
         self.touch();
+    }
+
+    fn show_app(&self, shown: bool) {
+        self.app_shown.set(shown);
+        self.touch();
+    }
+
+    pub(crate) fn app_visible(&self) -> bool {
+        !self.compact.get() || self.app_shown.get()
     }
 
     fn touch(&self) {
         self.revision.set(self.revision.get() + 1);
+    }
+}
+
+pub(crate) struct Layout {
+    pub(crate) bar: Rect,
+    pub(crate) content: Rect,
+    pub(crate) readout: Rect,
+    pub(crate) panel: Rect,
+    pub(crate) app_visible: bool,
+}
+
+impl Layout {
+    pub(crate) fn app(rect: Rect) -> Self {
+        Self {
+            bar: Rect::NOTHING,
+            content: rect,
+            readout: Rect::NOTHING,
+            panel: Rect::NOTHING,
+            app_visible: true,
+        }
     }
 }
 
@@ -215,9 +253,11 @@ pub(crate) struct Inspector {
     set_entries: WriteSignal<HashMap<Key, Entry>>,
     set_summary: WriteSignal<Summary>,
     set_performance: WriteSignal<panel::PerformanceSummary>,
+    set_renderer: WriteSignal<panel::RendererRows>,
     set_selection: WriteSignal<Option<Key>>,
     set_reveal: WriteSignal<Option<Key>>,
     tree: NodeRef,
+    bar: panel::Bar,
     pub(crate) width: f32,
     grabbed: Option<f32>,
     grip: bool,
@@ -230,7 +270,9 @@ impl Inspector {
     pub(crate) fn new(ctx: &Context, theme: Theme) -> Self {
         let state = Rc::new(State::new(ctx, theme));
         let panel = panel::build(&state);
+        let bar = panel::build_bar(&state);
         Self {
+            bar,
             document: panel.document,
             entries: Vec::new(),
             tree: panel.tree,
@@ -240,6 +282,7 @@ impl Inspector {
             set_entries: panel.set_entries,
             set_summary: panel.set_summary,
             set_performance: panel.set_performance,
+            set_renderer: panel.set_renderer,
             set_selection: panel.set_selection,
             set_reveal: panel.set_reveal,
             width: DEFAULT_WIDTH,
@@ -269,6 +312,20 @@ impl Inspector {
     }
 
     #[cfg(test)]
+    pub(crate) fn bar_option_rect(&self, index: usize) -> Option<Rect> {
+        let document = &self.bar.document;
+        let bar = document.find_test_id("inspector.bar")?;
+        document.node_rect(document.children(bar)[index])
+    }
+
+    #[cfg(test)]
+    pub(crate) fn panel_rect(&self) -> Option<Rect> {
+        self.document
+            .root()
+            .and_then(|root| self.document.node_rect(root))
+    }
+
+    #[cfg(test)]
     pub(crate) fn reader(&self) -> &ScreenReader {
         &self.reader
     }
@@ -293,6 +350,31 @@ impl Inspector {
         }
     }
 
+    pub(crate) fn layout(&mut self, ctx: &Context, rect: Rect) -> Layout {
+        let scale = scale(ctx);
+        let compact = rect.width() < COMPACT_WIDTH * scale;
+        self.state.compact.set(compact);
+        if !compact {
+            self.grab(ctx, rect);
+            let (content, panel) = split(rect, self.panel_width(ctx, rect));
+            return Layout {
+                panel,
+                ..Layout::app(content)
+            };
+        }
+        self.grabbed = None;
+        self.grip = false;
+        let (bar, rect) = trim_top(rect, BAR_HEIGHT * scale);
+        let app_visible = self.state.app_visible();
+        Layout {
+            bar,
+            content: rect,
+            readout: Rect::NOTHING,
+            panel: if app_visible { Rect::NOTHING } else { rect },
+            app_visible,
+        }
+    }
+
     pub(crate) fn intercepts(&self) -> bool {
         self.state.picking.get() || self.grabbed.is_some() || self.state.screen_reader.get()
     }
@@ -301,7 +383,7 @@ impl Inspector {
         self.state.toggle_picking();
     }
 
-    pub(crate) fn grab(&mut self, ctx: &Context, rect: Rect) {
+    fn grab(&mut self, ctx: &Context, rect: Rect) {
         let scale = scale(ctx);
         let edge = rect.right() - self.panel_width(ctx, rect);
         let grip = Rect::from_min_max(
@@ -330,18 +412,26 @@ impl Inspector {
         &mut self,
         target: &mut Document,
         ctx: &Context,
-        content: Rect,
-        readout: Rect,
-        panel: Rect,
+        layout: &Layout,
         keyboard_interactive: bool,
     ) {
+        let Layout {
+            bar,
+            content,
+            readout,
+            panel,
+            app_visible,
+        } = *layout;
         self.forget_removed(target);
         self.sync(target, ctx);
         let scale = scale(ctx);
         let document = &mut self.document;
-        ctx.scaled(scale, || {
-            document.show_content(ctx, panel.scaled(scale.recip()), true, keyboard_interactive);
-        });
+        if panel.is_positive() {
+            ctx.scaled(scale, || {
+                document.show_content(ctx, panel.scaled(scale.recip()), true, keyboard_interactive);
+            });
+        }
+        self.show_bar(ctx, bar);
         if self.state.reset_performance.take() {
             target.reset_performance();
             ctx.request_repaint();
@@ -355,18 +445,22 @@ impl Inspector {
             target.set_theme(theme);
             ctx.request_repaint();
         }
-        self.pick(target, ctx, content);
+        if app_visible {
+            self.pick(target, ctx, content);
+        }
         self.release_focus(ctx);
         self.reveal();
-        self.read(target, ctx, content, keyboard_interactive);
-        self.paint(target, ctx, content, panel);
-        let covering = self.reader.painting();
-        if covering {
-            self.cover(ctx, content, readout, Layer::Below);
-        }
-        ctx.apply_filter(self.state.filter(content));
-        if covering {
-            self.cover(ctx, content, readout, Layer::Above);
+        if app_visible {
+            self.read(target, ctx, content, keyboard_interactive);
+            self.paint(target, ctx, content, panel);
+            let covering = self.reader.painting();
+            if covering {
+                self.cover(ctx, content, readout, Layer::Below);
+            }
+            ctx.apply_filter(self.state.filter(content));
+            if covering {
+                self.cover(ctx, content, readout, Layer::Above);
+            }
         }
         if target.flashing() {
             ctx.request_repaint();
@@ -375,6 +469,22 @@ impl Inspector {
             self.seen = self.state.revision.get();
             ctx.request_repaint();
         }
+    }
+
+    fn show_bar(&mut self, ctx: &Context, bar: Rect) {
+        if !bar.is_positive() {
+            return;
+        }
+        let scale = scale(ctx);
+        let selected = usize::from(!self.state.app_shown.get());
+        let panel::Bar {
+            document,
+            set_selected,
+        } = &mut self.bar;
+        with_reactive_scope(document, || set_selected.set(selected));
+        ctx.scaled(scale, || {
+            document.show_content(ctx, bar.scaled(scale.recip()), true, false);
+        });
     }
 
     fn read(&mut self, target: &Document, ctx: &Context, content: Rect, panel_has_focus: bool) {
@@ -423,6 +533,10 @@ impl Inspector {
         };
         let summary = self.summary(target, ctx, &entries);
         let performance = panel::PerformanceSummary::from(target.performance());
+        let renderer = ctx
+            .renderer_info()
+            .map(|info| info.rows())
+            .unwrap_or_default();
         let selection = entries
             .iter()
             .find(|entry| entry.selected)
@@ -433,6 +547,7 @@ impl Inspector {
             set_entries,
             set_summary,
             set_performance,
+            set_renderer,
             set_selection,
             ..
         } = self;
@@ -446,6 +561,7 @@ impl Inspector {
             );
             set_summary.set(summary);
             set_performance.set(performance);
+            set_renderer.set(renderer);
             set_selection.set(selection);
         });
         self.entries = entries;
@@ -547,6 +663,7 @@ impl Inspector {
         if ctx.input(|input| input.pointer.primary_pressed()) {
             self.state.picking.set(false);
             self.state.hovered.set(None);
+            self.state.app_shown.set(false);
             self.choose(target, id);
         }
     }
@@ -639,6 +756,23 @@ fn flashes(painter: &Painter, target: &Document, scale: f32) {
             flash::remaining(now, at),
         );
     }
+}
+
+fn split(rect: Rect, width: f32) -> (Rect, Rect) {
+    let edge = rect.right() - width;
+    (
+        Rect::from_min_max(rect.min, pos2(edge, rect.bottom())),
+        Rect::from_min_max(pos2(edge, rect.top()), rect.max),
+    )
+}
+
+fn trim_top(rect: Rect, height: f32) -> (Rect, Rect) {
+    let height = height.clamp(0.0, rect.height().max(0.0));
+    let edge = rect.top() + height;
+    (
+        Rect::from_min_max(rect.min, pos2(rect.right(), edge)),
+        Rect::from_min_max(pos2(rect.left(), edge), rect.max),
+    )
 }
 
 pub(crate) fn scale(ctx: &Context) -> f32 {

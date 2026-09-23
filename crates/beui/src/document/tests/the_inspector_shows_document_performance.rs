@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_inspector_shows_document_performance() {
     let HelloColumn { document, .. } = hello_column();
-    let mut harness = Harness::new(document);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
 
     harness.click(harness.performance_tab_center());
