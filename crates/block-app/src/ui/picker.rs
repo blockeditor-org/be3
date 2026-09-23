@@ -62,8 +62,14 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
     let tiles = create_memo(clone!(choose -> move || {
         choose.get().map(|choose| choose.tiles).unwrap_or_default()
     }));
-    let tile_keys = create_memo(clone!(tiles -> move || {
-        tiles.get().into_iter().map(|tile| tile.key).collect::<Vec<_>>()
+    let important = create_memo(clone!(tiles -> move || {
+        tiles.get().into_iter().filter(|tile| tile.important).collect::<Vec<_>>()
+    }));
+    let others = create_memo(clone!(tiles -> move || {
+        tiles.get().into_iter().filter(|tile| !tile.important).collect::<Vec<_>>()
+    }));
+    let divided = create_memo(clone!(important others -> move || {
+        !important.get().is_empty() && !others.get().is_empty()
     }));
     let links = create_memo(clone!(choose -> move || {
         choose.get().map(|choose| choose.links).unwrap_or_default()
@@ -106,18 +112,12 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
                     <List spacing=8.0>
                         <Show condition={tiling}>
                             <Scroll @sizing=ItemSize::Percent(100.0)>
-                                <List direction=Direction::Horizontal spacing=8.0 wrap=true>
-                                    <ForEach keys={tile_keys}>
-                                        {move |key: String| {
-                                            let tiles = tiles.clone();
-                                            let tile = create_memo(move || {
-                                                tiles.get().into_iter().find(|tile| tile.key == key)
-                                            });
-                                            view! {
-                                                <TileButton id={tile_id.clone()} tile />
-                                            }
-                                        }}
-                                    </ForEach>
+                                <List spacing=16.0>
+                                    <TileGrid id={tile_id.clone()} tiles={important} />
+                                    <Show condition={divided}>
+                                        <Separator />
+                                    </Show>
+                                    <TileGrid id={tile_id} tiles={others} />
                                 </List>
                             </Scroll>
                         </Show>
@@ -162,6 +162,26 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
                 </List>
             </List>
         </Dialog>
+    }
+}
+
+#[component]
+fn TileGrid(id: Memo<Uuid>, tiles: Memo<Vec<Tile>>) -> NodeId {
+    let keys = create_memo(clone!(tiles -> move || {
+        tiles.get().into_iter().map(|tile| tile.key).collect::<Vec<_>>()
+    }));
+    view! {
+        <List direction=Direction::Horizontal spacing=8.0 wrap=true>
+            <ForEach keys={keys}>
+                {move |key: String| {
+                    let tiles = tiles.clone();
+                    let tile = create_memo(move || tiles.get().into_iter().find(|tile| tile.key == key));
+                    view! {
+                        <TileButton id={id.clone()} tile />
+                    }
+                }}
+            </ForEach>
+        </List>
     }
 }
 

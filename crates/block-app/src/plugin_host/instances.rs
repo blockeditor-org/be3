@@ -1527,7 +1527,14 @@ impl Instances {
             let focused = host::focused(placement.target);
             let hovered = host::hovered(placement.target);
             messages.extend(self.input(instance, region, |input| {
-                input.update(placement.rect, hovered, focused, screen, &holes)
+                input.update(
+                    placement.target,
+                    placement.rect,
+                    hovered,
+                    focused,
+                    screen,
+                    &holes,
+                )
             }));
             let over_hole = host::pointer().is_some_and(|position| holes.contains(position));
             let dismissed = host::key_pressed(beui::Key::Escape)

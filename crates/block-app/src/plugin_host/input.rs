@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use uuid::Uuid;
 
 use super::instances::Holes;
-use crate::host;
+use crate::host::{self, Target};
 
 pub(super) struct BlockDragEvent {
     pub(super) position: Vec2,
@@ -97,6 +97,7 @@ impl InputAdapter {
 
     pub(super) fn update(
         &mut self,
+        target: Target,
         rect: Rect,
         hovered: bool,
         focused: bool,
@@ -121,6 +122,7 @@ impl InputAdapter {
             for event in events {
                 self.normalize_event(
                     event,
+                    target,
                     rect,
                     hovered,
                     focused,
@@ -158,6 +160,7 @@ impl InputAdapter {
     fn normalize_event(
         &mut self,
         event: Event,
+        target: Target,
         rect: Rect,
         hovered: bool,
         focused: bool,
@@ -166,7 +169,10 @@ impl InputAdapter {
         output: &mut Vec<InputEvent>,
     ) {
         let pointer = |position: Pos2, captured: bool| {
-            (rect.contains(position) && !holes.contains(position)) || captured
+            (rect.contains(position)
+                && !holes.contains(position)
+                && host::reaches(target, position))
+                || captured
         };
         match event {
             Event::PointerMoved(position) if pointer(position, self.captured) => {

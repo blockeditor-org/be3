@@ -631,6 +631,13 @@ the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
 
+### Spinners
+
+`styled::Spinner` is an indeterminate progress bar. It animates only while it is
+laid out: a spinner behind a `Show` that is false, or in a tab nobody is
+looking at, asks for no frames. It uses `node_placed`, which works for any
+component that should only work while it is on screen.
+
 ### Drag and drop
 
 Moving something from one place in a document to another is
@@ -873,20 +880,6 @@ Beui has three feature levels:
   painting output. This is enough for headless logic tests.
 - `render` adds the wgpu renderer without creating a window. Embedded hosts use
   this level.
-### Windows and spinners
-
-`styled::Window` is a titled panel floating over the document, which the user
-can drag by its title bar and resize from its bottom-right corner. It is a floating overlay,
-so the document under it stays usable, unlike a `Dialog`. The caller owns
-whether it is `open`, and `on_close` reports the close button. `position` and
-`size` are only where it starts: the window keeps the user's moves and resizes
-after that.
-
-`styled::Spinner` is an indeterminate progress bar. It animates only while it is
-laid out: a spinner behind a `Show` that is false, or in a tab nobody is
-looking at, asks for no frames. It uses `node_placed`, which works for any
-component that should only work while it is on screen.
-
 - `window` adds the desktop runner and enables `render`; it is the default.
 - `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
   and enables `render`.

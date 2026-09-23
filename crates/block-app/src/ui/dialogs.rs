@@ -1,16 +1,18 @@
+use beui::NodeId;
 use beui::reactive::{
     Align, Direction, Frame, ItemSize, List, Show, Spacer, clone, component, create_effect,
     create_memo, create_signal, untrack, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Dialog, Paragraph, Spinner, Tabs, TextInput, Window,
+    Button, ButtonVariant, Caption, Code, Dialog, Paragraph, Spinner, Tabs, TextInput,
 };
 use beui::unstyled::ChoiceOption;
-use beui::{NodeId, pos2, vec2};
 use block::WorkspaceRole;
 use block_client::properties::MAX_NAME_BYTES;
 
 use super::onboarding::ErrorText;
+
+const PANEL_PADDING: f32 = 12.0;
 use super::{AppViewStore, UiCommand, send};
 use crate::surfaces::{self, HostSurface, SurfaceId};
 
@@ -18,8 +20,6 @@ use crate::surfaces::{self, HostSurface, SurfaceId};
 pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
     view! {
         <List spacing=0.0>
-            <InviteWindow view={view.clone()} />
-            <AboutWindow view={view.clone()} />
             <DiscardDialog view={view.clone()} />
             <RenameDialog view={view.clone()} />
             <ArtifactSettingsDialog view={view.clone()} />
@@ -29,9 +29,8 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn InviteWindow(view: AppViewStore) -> NodeId {
+pub(super) fn InvitePanel(view: AppViewStore) -> NodeId {
     let invite = view.invite.clone();
-    let open = create_memo(clone!(invite -> move || invite.get().is_some()));
     let workspace = create_memo(clone!(invite -> move || {
         format!(
             "Workspace: {}",
@@ -60,13 +59,7 @@ fn InviteWindow(view: AppViewStore) -> NodeId {
     let cannot =
         create_memo(clone!(email busy -> move || busy.get() || email.get().trim().is_empty()));
     view! {
-        <Window
-            open={open}
-            title="Invite member"
-            position={pos2(120.0, 96.0)}
-            size={vec2(360.0, 330.0)}
-            on_close={|| send(UiCommand::CloseInvite)}
-        >
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=8.0>
                 <Caption content={workspace} />
                 <Caption content="Email address" />
@@ -100,21 +93,14 @@ fn InviteWindow(view: AppViewStore) -> NodeId {
                 </List>
                 <ErrorText text={error} />
             </List>
-        </Window>
+        </Frame>
     }
 }
 
 #[component]
-fn AboutWindow(view: AppViewStore) -> NodeId {
-    let open = view.about.clone();
+pub(super) fn AboutPanel() -> NodeId {
     view! {
-        <Window
-            open={open}
-            title="About"
-            position={pos2(160.0, 120.0)}
-            size={vec2(420.0, 190.0)}
-            on_close={|| send(UiCommand::About(false))}
-        >
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=8.0>
                 <Paragraph content="Block" />
                 <Caption content="Version" />
@@ -122,7 +108,7 @@ fn AboutWindow(view: AppViewStore) -> NodeId {
                 <Caption content="Commit" />
                 <Code content={crate::COMMIT.to_owned()} />
             </List>
-        </Window>
+        </Frame>
     }
 }
 

@@ -7,15 +7,13 @@ use beui::reactive::{
     untrack, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Heading, Icon, IconButton, Link, Scroll, Spinner, Window,
+    Button, ButtonVariant, Caption, Code, Heading, Icon, IconButton, Link, Scroll, Spinner,
     use_theme,
 };
-use beui::{
-    Color32, FontId, Key, KeyPress, Modifiers, NodeId, ScrollGesture, TextLayout, pos2, vec2,
-};
+use beui::{Color32, FontId, Key, KeyPress, Modifiers, NodeId, ScrollGesture, TextLayout};
 
 use super::onboarding::ErrorText;
-use super::{AppViewStore, UiCommand, send};
+use super::{UiCommand, send};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum DebugWindow {
@@ -190,30 +188,10 @@ fn debug(command: DebugCommand) {
 }
 
 const LINE_HEIGHT: f32 = 18.0;
+const PANEL_PADDING: f32 = 12.0;
 const INDENT: f32 = 14.0;
 const TERMINAL_FONT_SIZE: f32 = 13.0;
 const TERMINAL_PADDING: f32 = 6.0;
-
-#[component]
-pub(super) fn DebugWindows(view: AppViewStore) -> NodeId {
-    let debug = view.debug.clone();
-    let client = create_memo(clone!(debug -> move || debug.get().client));
-    let network = create_memo(clone!(debug -> move || debug.get().network));
-    let performance = create_memo(clone!(debug -> move || debug.get().performance));
-    let plugins = create_memo(clone!(debug -> move || debug.get().plugins));
-    let version = create_memo(clone!(debug -> move || debug.get().version));
-    let terminal = create_memo(move || debug.get().terminal);
-    view! {
-        <List spacing=0.0>
-            <ClientWindow client />
-            <NetworkWindow network />
-            <PerformanceWindow performance />
-            <PluginsWindow plugins />
-            <VersionWindow version />
-            <TerminalWindow terminal />
-        </List>
-    }
-}
 
 #[component]
 fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
@@ -271,25 +249,17 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
 }
 
 #[component]
-fn ClientWindow(client: Memo<Option<Vec<Line>>>) -> NodeId {
-    let open = create_memo(clone!(client -> move || client.get().is_some()));
+pub(super) fn ClientPanel(client: Memo<Option<Vec<Line>>>) -> NodeId {
     let lines = create_memo(move || client.get().unwrap_or_default());
     view! {
-        <Window
-            open={open}
-            title="Block Client State"
-            position={pos2(60.0, 60.0)}
-            size={vec2(760.0, 600.0)}
-            on_close={|| debug(DebugCommand::Close(DebugWindow::Client))}
-        >
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <LinesView lines />
-        </Window>
+        </Frame>
     }
 }
 
 #[component]
-fn NetworkWindow(network: Memo<Option<NetworkView>>) -> NodeId {
-    let open = create_memo(clone!(network -> move || network.get().is_some()));
+pub(super) fn NetworkPanel(network: Memo<Option<NetworkView>>) -> NodeId {
     let paused =
         create_memo(clone!(network -> move || network.get().is_some_and(|network| network.paused)));
     let sending = create_memo(clone!(paused -> move || !paused.get()));
@@ -312,13 +282,7 @@ fn NetworkWindow(network: Memo<Option<NetworkView>>) -> NodeId {
     }));
     let empty = create_memo(clone!(keys -> move || keys.get().is_empty()));
     view! {
-        <Window
-            open={open}
-            title="Network Traffic"
-            position={pos2(90.0, 80.0)}
-            size={vec2(720.0, 480.0)}
-            on_close={|| debug(DebugCommand::Close(DebugWindow::Network))}
-        >
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=8.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <IconButton
@@ -363,7 +327,7 @@ fn NetworkWindow(network: Memo<Option<NetworkView>>) -> NodeId {
                     </VirtualList>
                 </Scroll>
             </List>
-        </Window>
+        </Frame>
     }
 }
 
@@ -424,18 +388,11 @@ fn TrafficEntry(entry: Memo<Option<TrafficRow>>) -> NodeId {
 }
 
 #[component]
-fn PerformanceWindow(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
-    let open = create_memo(clone!(performance -> move || performance.get().is_some()));
+pub(super) fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
     let rows = create_memo(move || performance.get().unwrap_or_default());
     let keys = create_memo(clone!(rows -> move || (0..rows.get().len()).collect::<Vec<_>>()));
     view! {
-        <Window
-            open={open}
-            title="Performance"
-            position={pos2(120.0, 100.0)}
-            size={vec2(520.0, 420.0)}
-            on_close={|| debug(DebugCommand::Close(DebugWindow::Performance))}
-        >
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <Scroll>
                 <PerformanceLine
                     row={create_memo(|| Some(PerformanceRow {
@@ -456,7 +413,7 @@ fn PerformanceWindow(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
                     }}
                 </ForEach>
             </Scroll>
-        </Window>
+        </Frame>
     }
 }
 
@@ -510,8 +467,7 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
 }
 
 #[component]
-fn PluginsWindow(plugins: Memo<Option<PluginsView>>) -> NodeId {
-    let open = create_memo(clone!(plugins -> move || plugins.get().is_some()));
+pub(super) fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
     let lines = create_memo(
         clone!(plugins -> move || plugins.get().map(|plugins| plugins.lines).unwrap_or_default()),
     );
@@ -531,13 +487,7 @@ fn PluginsWindow(plugins: Memo<Option<PluginsView>>) -> NodeId {
         clone!(runtime_keys -> move || format!("Running ({})", runtime_keys.get().len())),
     );
     view! {
-        <Window
-            open={open}
-            title="Plugins"
-            position={pos2(150.0, 90.0)}
-            size={vec2(560.0, 440.0)}
-            on_close={|| debug(DebugCommand::Close(DebugWindow::Plugins))}
-        >
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <Scroll>
                 <ForEach keys={line_keys}>
                     {move |index: usize| {
@@ -565,7 +515,7 @@ fn PluginsWindow(plugins: Memo<Option<PluginsView>>) -> NodeId {
                     }}
                 </ForEach>
             </Scroll>
-        </Window>
+        </Frame>
     }
 }
 
@@ -609,8 +559,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
 }
 
 #[component]
-fn VersionWindow(version: Memo<Option<VersionView>>) -> NodeId {
-    let open = create_memo(clone!(version -> move || version.get().is_some()));
+pub(super) fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
     let commit = create_memo(
         clone!(version -> move || version.get().map(|version| version.commit).unwrap_or_default()),
     );
@@ -635,13 +584,7 @@ fn VersionWindow(version: Memo<Option<VersionView>>) -> NodeId {
         clone!(loaded -> move || loaded.get().into_iter().map(|run| run.id).collect::<Vec<_>>()),
     );
     view! {
-        <Window
-            open={open}
-            title="App Version"
-            position={pos2(180.0, 110.0)}
-            size={vec2(640.0, 480.0)}
-            on_close={|| debug(DebugCommand::Close(DebugWindow::Version))}
-        >
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=8.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Caption content="Running commit:" />
@@ -671,7 +614,7 @@ fn VersionWindow(version: Memo<Option<VersionView>>) -> NodeId {
                     </ForEach>
                 </Scroll>
             </List>
-        </Window>
+        </Frame>
     }
 }
 
@@ -738,19 +681,12 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
 }
 
 #[component]
-fn TerminalWindow(terminal: Memo<Option<TerminalView>>) -> NodeId {
-    let open = create_memo(clone!(terminal -> move || terminal.get().is_some()));
+pub(super) fn TerminalPanel(terminal: Memo<Option<TerminalView>>) -> NodeId {
     let error =
         create_memo(clone!(terminal -> move || terminal.get().and_then(|terminal| terminal.error)));
     let failed = create_memo(clone!(error -> move || error.get().is_some()));
     view! {
-        <Window
-            open={open}
-            title="Terminal"
-            position={pos2(200.0, 120.0)}
-            size={vec2(820.0, 520.0)}
-            on_close={|| debug(DebugCommand::Close(DebugWindow::Terminal))}
-        >
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=8.0>
                 <ErrorText text={error} />
                 <Show condition={failed}>
@@ -762,7 +698,7 @@ fn TerminalWindow(terminal: Memo<Option<TerminalView>>) -> NodeId {
                 </Show>
                 <TerminalScreen @sizing=ItemSize::Percent(100.0) terminal />
             </List>
-        </Window>
+        </Frame>
     }
 }
 

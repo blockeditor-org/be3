@@ -48,8 +48,20 @@ var counter_texture: texture_2d<f32>;
 @group(0) @binding(1)
 var counter_sampler: sampler;
 
+override decode_srgb: bool = false;
+
+fn to_linear(gamma: vec3<f32>) -> vec3<f32> {
+    let low = gamma / 12.92;
+    let high = pow((gamma + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(high, low, gamma <= vec3<f32>(0.04045));
+}
+
 @fragment
 fn blit_fragment(input: BlitOutput) -> @location(0) vec4<f32> {
-    let color = textureSample(counter_texture, counter_sampler, input.uv);
-    return vec4<f32>(color.rgb, color.a * input.opacity);
+    let color = textureSampleLevel(counter_texture, counter_sampler, input.uv, 0.0);
+    var rgb = color.rgb;
+    if decode_srgb {
+        rgb = to_linear(rgb);
+    }
+    return vec4<f32>(rgb, color.a * input.opacity);
 }

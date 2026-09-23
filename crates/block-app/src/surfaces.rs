@@ -119,7 +119,7 @@ pub(crate) fn with<R>(id: SurfaceId, act: impl FnOnce(&mut Ui) -> R) -> Option<R
         (state.placement, std::mem::take(&mut state.output))
     });
     let layer = match id {
-        SurfaceId::Main => 0,
+        SurfaceId::Main if !placement.is_some_and(|(rect, _)| host::floats(rect)) => 0,
         _ => 1,
     };
     let result = placement.map(|(rect, clip)| {

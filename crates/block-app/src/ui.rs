@@ -3,6 +3,7 @@ mod dialogs;
 mod onboarding;
 mod picker;
 mod share;
+mod tools;
 mod workspace;
 
 use std::cell::RefCell;

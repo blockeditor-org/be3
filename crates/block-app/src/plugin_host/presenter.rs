@@ -135,7 +135,15 @@ impl BlitPipeline {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: Some("blit_fragment"),
-                compilation_options: Default::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &[(
+                        "decode_srgb",
+                        f64::from(u8::from(
+                            target_format.is_srgb() && cfg!(not(target_arch = "wasm32")),
+                        )),
+                    )],
+                    ..Default::default()
+                },
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),

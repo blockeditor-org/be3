@@ -7,10 +7,11 @@ use beui::styled::{Caption, Icon, MenuButton, Separator, Spinner, use_theme};
 use beui::unstyled::MenuItem;
 use beui::{Color32, NodeId};
 
-use super::debug::{DebugCommand, DebugWindow, DebugWindows};
+use super::debug::{DebugCommand, DebugWindow};
 use super::dialogs::Dialogs;
 use super::picker::PickerDialogs;
 use super::share::ShareWindow;
+use super::tools::WorkspaceDock;
 use super::{AppViewStore, StatusView, UiCommand, send};
 use crate::surfaces::{HostSurface, SurfaceId};
 
@@ -22,10 +23,11 @@ pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
     let presenting = view.presenting.clone();
     let normal = create_memo(clone!(presenting -> move || !presenting.get()));
     let status = create_memo(clone!(view -> move || view.status.get()));
+    let docked = view.clone();
     view! {
         <List spacing=0.0>
             <Show condition={normal.clone()}>
-                <HostSurface @sizing=ItemSize::Percent(100.0) id=SurfaceId::Main />
+                <WorkspaceDock @sizing=ItemSize::Percent(100.0) view={docked} />
             </Show>
             <Show condition={normal.clone()}>
                 <Separator />
@@ -41,7 +43,6 @@ pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
             <Dialogs view={view.clone()} />
             <ShareWindow view={view.clone()} />
             <PickerDialogs view={view.clone()} />
-            <DebugWindows view />
         </List>
     }
 }

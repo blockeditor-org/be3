@@ -22,7 +22,6 @@ mod toggle;
 mod tooltip;
 mod tree;
 pub(crate) mod typeahead;
-mod window;
 
 pub use button::{Button, ButtonHandle, button_active, button_focused};
 pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
@@ -68,4 +67,3 @@ pub use text_input::{
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{Tree, TreeItem, TreeRowHandle, tree_focused, tree_row_node};
-pub use window::{Window, WindowHandle};

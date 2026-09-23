@@ -322,6 +322,16 @@ fn finish() -> Output {
 
 #[cfg(test)]
 pub(crate) fn test_frame(events: Vec<Event>, pointer: Option<Pos2>, pressed: bool) {
+    test_frame_with(events, pointer, pressed, false);
+}
+
+#[cfg(test)]
+pub(crate) fn test_frame_under_modal(events: Vec<Event>, pointer: Option<Pos2>, pressed: bool) {
+    test_frame_with(events, pointer, pressed, true);
+}
+
+#[cfg(test)]
+fn test_frame_with(events: Vec<Event>, pointer: Option<Pos2>, pressed: bool, modal: bool) {
     finish();
     let modifiers = events
         .iter()
@@ -336,6 +346,7 @@ pub(crate) fn test_frame(events: Vec<Event>, pointer: Option<Pos2>, pressed: boo
         modifiers,
         pressed,
         down: pressed,
+        modal,
         ..Frame::default()
     });
 }
@@ -444,6 +455,14 @@ pub(crate) fn consume_key(modifiers: Modifiers, key: Key) -> bool {
     })
 }
 
+pub(crate) fn floats(rect: Rect) -> bool {
+    with(|host| {
+        host.floating
+            .iter()
+            .any(|floating| floating.contains_rect(rect))
+    })
+}
+
 pub(crate) fn claimed(position: Pos2) -> bool {
     with(|host| host.claimed(position))
 }
@@ -457,6 +476,10 @@ pub(crate) fn register(target: Target, rect: Rect, clip: Rect, layer: u8) {
             layer,
         });
     });
+}
+
+pub(crate) fn reaches(target: Target, position: Pos2) -> bool {
+    with(|host| host.topmost(position) == Some(target))
 }
 
 pub(crate) fn hovered(target: Target) -> bool {

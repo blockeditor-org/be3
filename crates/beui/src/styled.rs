@@ -30,7 +30,6 @@ mod text_input;
 pub mod theme;
 mod tooltip;
 mod tree;
-mod window;
 
 pub use accordion::{Accordion, accordion_open};
 pub use border::{Bordered, Separator};
@@ -64,7 +63,6 @@ pub use text_input::{TextInput, text_input_value};
 pub use theme::{Theme, ThemeProvider, ThemeStore, use_theme};
 pub use tooltip::Tooltip;
 pub use tree::{Tree, TreeRowFace};
-pub use window::Window;
 
 mod choice;
 mod listbox;
