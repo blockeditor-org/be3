@@ -48,6 +48,7 @@ const TOKEN_PARAMETER: &str = "token";
 const WORKSPACE_PARAMETER: &str = "workspace";
 
 const MANAGEMENT_PATH: &str = "/api/management";
+const BE_PATH: &str = "/api/be";
 const DATABASE_FILE: &str = "server.sqlite3";
 
 const MIN_PASSWORD_BYTES: usize = 8;
@@ -88,6 +89,10 @@ pub async fn serve_until_shutdown(
 ) -> Result<(), ServerError> {
     let root = data_dir.into();
     fs::create_dir_all(&root).await?;
+    let be = Arc::new(
+        be_server::Hosted::open(root.join("be"))
+            .map_err(|error| ServerError::Storage(error.to_string()))?,
+    );
     let store = Arc::new(BlockStore::open_with_config(root, config).await?);
     let watch_hub = Arc::new(WatchHub::new());
     let mut connections = JoinSet::new();
@@ -100,8 +105,9 @@ pub async fn serve_until_shutdown(
                 let (stream, peer_addr) = accepted?;
                 let store = Arc::clone(&store);
                 let watch_hub = Arc::clone(&watch_hub);
+                let be = Arc::clone(&be);
                 connections.spawn(async move {
-                    if let Err(error) = handle_connection(stream, store, watch_hub).await {
+                    if let Err(error) = handle_connection(stream, store, watch_hub, be).await {
                         eprintln!("connection {peer_addr} closed with error: {error}");
                     }
                 });
@@ -143,6 +149,7 @@ async fn handle_connection(
     mut stream: TcpStream,
     store: Arc<BlockStore>,
     watch_hub: Arc<WatchHub>,
+    be: Arc<be_server::Hosted>,
 ) -> Result<(), ServerError> {
     let request = http::read_head(&mut stream).await?;
     if !request.head.is_websocket_upgrade() {
@@ -155,6 +162,12 @@ async fn handle_connection(
             return Err(ServerError::InvalidHandshake);
         }
     };
+    let be_connection = request
+        .head
+        .path
+        .split('?')
+        .next()
+        .is_some_and(|path| path == BE_PATH);
     let socket = accept_async_with_config(
         PrefixedStream::new(request.buffered, stream),
         Some(WebSocketConfig {
@@ -163,7 +176,48 @@ async fn handle_connection(
         }),
     )
     .await?;
+    if be_connection {
+        return handle_be_connection(socket, store, be, identity).await;
+    }
     handle_block_connection(socket, store, watch_hub, identity).await
+}
+
+async fn handle_be_connection(
+    socket: WebSocketStream<PrefixedStream<TcpStream>>,
+    store: Arc<BlockStore>,
+    be: Arc<be_server::Hosted>,
+    identity: Identity,
+) -> Result<(), ServerError> {
+    let (email, display_name, workspace_name) = store
+        .identity_details(identity)
+        .await
+        .map_err(|error| ServerError::Storage(format!("{error:?}")))?;
+    be.adopt(
+        identity.account_id,
+        &email,
+        &display_name,
+        identity.workspace_id,
+        &workspace_name,
+        be_role(identity.role),
+    )
+    .await
+    .map_err(|error| ServerError::Storage(error.to_string()))?;
+    be.serve(
+        socket,
+        be_server::Adopted {
+            account: identity.account_id,
+            display_name,
+        },
+    )
+    .await
+    .map_err(|error| ServerError::Storage(error.to_string()))
+}
+
+fn be_role(role: WorkspaceRole) -> be_protocol::WorkspaceRole {
+    match role {
+        WorkspaceRole::Administrator => be_protocol::WorkspaceRole::Administrator,
+        WorkspaceRole::Editor => be_protocol::WorkspaceRole::Editor,
+    }
 }
 
 async fn connection_identity(head: &http::RequestHead, store: &BlockStore) -> Option<Identity> {
@@ -1513,6 +1567,30 @@ impl BlockStore {
     ) -> Result<WorkspaceRole, ManagementStoreError> {
         let database = self.database.lock().await;
         require_membership(&database, account_id, workspace_id)
+    }
+
+    async fn identity_details(
+        &self,
+        identity: Identity,
+    ) -> Result<(String, String, String), ManagementStoreError> {
+        let database = self.database.lock().await;
+        let (email, display_name) = database
+            .query_row(
+                "SELECT email, display_name FROM accounts WHERE id = ?1",
+                [identity.account_id.to_string()],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?
+            .ok_or(ManagementStoreError::AccountNotFound)?;
+        let workspace_name = database
+            .query_row(
+                "SELECT name FROM workspaces WHERE id = ?1",
+                [identity.workspace_id.to_string()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .ok_or(ManagementStoreError::WorkspaceNotFound)?;
+        Ok((email, display_name, workspace_name))
     }
 
     async fn access(&self, identity: Identity) -> WorkspaceAccess {

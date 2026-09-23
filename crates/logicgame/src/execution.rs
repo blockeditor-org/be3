@@ -59,6 +59,35 @@ pub enum Instruction {
     },
 }
 
+impl std::fmt::Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Instruction::Call {
+                component,
+                instance,
+                subgraph,
+                inputs,
+                outputs,
+                ..
+            } => write!(
+                f,
+                "CALL c{component} i{instance} g{subgraph} {inputs:?} -> {outputs:?}"
+            ),
+            Instruction::Not { input, output } => write!(f, "NOT m{input} -> m{output}"),
+            Instruction::CopyBits {
+                input,
+                output,
+                shift,
+                mask,
+            } => write!(f, "BITS m{input} shift {shift} mask {mask:#x} -> m{output}"),
+            Instruction::ReadStorage { storage, output } => {
+                write!(f, "READ s{storage} -> m{output}")
+            }
+            Instruction::SaveStorage { storage, input } => write!(f, "SAVE m{input} -> s{storage}"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct UnlinkedComponent {
     pub inputs: Vec<MemoryAddress>,

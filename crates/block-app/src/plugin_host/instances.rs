@@ -1,4 +1,4 @@
-use block_client::{BlockClient, Tunnel, blocks::audio::Audio};
+use block_client::{BlockClient, BlockHandleAccess, Tunnel, blocks::audio::Audio};
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
@@ -87,6 +87,16 @@ struct Instance {
     replacements: HashMap<(Uuid, Uuid), Replacement>,
     next_replacement: u64,
     leaving: bool,
+    content: Option<ContentLink>,
+}
+
+struct ContentLink {
+    content_type: Uuid,
+    opened: bool,
+    applied: u64,
+    sent: Option<(u64, u64)>,
+    named: Option<u64>,
+    old_block: Option<Box<dyn BlockHandleAccess>>,
 }
 
 pub(super) type OpenRequest = (Uuid, Uuid, Option<Uuid>);
@@ -163,6 +173,71 @@ impl Instance {
             replacements: HashMap::new(),
             next_replacement: 0,
             leaving: false,
+            content: match role {
+                InstanceRole::Editor(block) => {
+                    crate::be::content_type_for(block.block_type).map(|content_type| ContentLink {
+                        content_type,
+                        opened: false,
+                        applied: 0,
+                        sent: None,
+                        named: None,
+                        old_block: None,
+                    })
+                }
+                InstanceRole::Creation | InstanceRole::Artifact(_) => None,
+            },
+        }
+    }
+}
+
+impl Instance {
+    fn content_message(&mut self, instance: EditorInstanceId) -> Option<Message> {
+        let block = self.role.block()?;
+        let link = self.content.as_mut()?;
+        let Some(content) = crate::be::content(block.id) else {
+            if !std::mem::replace(&mut link.opened, true) {
+                crate::be::open(block.id, link.content_type);
+            }
+            return None;
+        };
+        let state = (content.revision, link.applied);
+        if link.sent == Some(state) {
+            return None;
+        }
+        link.sent = Some(state);
+        Some(Message::Editor(EditorMessage::Content {
+            instance,
+            content_type: content.content_type.into_bytes(),
+            bytes: content.bytes,
+            applied: link.applied,
+        }))
+    }
+}
+
+impl Instance {
+    fn name_from_content(&mut self, client: &BlockClient) {
+        let Some(block) = self.role.block() else {
+            return;
+        };
+        let Some(link) = self.content.as_mut() else {
+            return;
+        };
+        let Some(content) = crate::be::content(block.id) else {
+            return;
+        };
+        if link.named == Some(content.revision)
+            || client.block_access(block.id) != block::BlockAccess::Edit
+        {
+            return;
+        }
+        if link.old_block.is_none() {
+            link.old_block = block_client::blocks::open(client, block.id, block.block_type);
+        }
+        let Some(old_block) = &link.old_block else {
+            return;
+        };
+        if old_block.set_implicit_name(crate::be::name_of(&content)) {
+            link.named = Some(content.revision);
         }
     }
 }
@@ -336,9 +411,28 @@ impl Instances {
     }
 
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
-        self.entries
-            .remove(&instance)
-            .is_some_and(|entry| entry.opened)
+        let Some(entry) = self.entries.remove(&instance) else {
+            return false;
+        };
+        if let Some(block) = entry.role.block()
+            && entry.content.is_some()
+            && !self.holds_content(block.id)
+        {
+            crate::be::close(block.id);
+        }
+        entry.opened
+    }
+
+    fn editable(&self, block: Uuid) -> bool {
+        self.connection.as_ref().is_some_and(|connection| {
+            connection.client.block_access(block) == block::BlockAccess::Edit
+        })
+    }
+
+    fn holds_content(&self, block: Uuid) -> bool {
+        self.entries.values().any(|entry| {
+            entry.content.is_some() && entry.role.block().is_some_and(|held| held.id == block)
+        })
     }
 
     fn connect(&mut self, context: &egui::Context, client: &Arc<BlockClient>, client_id: Uuid) {
@@ -689,6 +783,10 @@ impl Instances {
                     }));
                 }
             }
+            if let Some(message) = entry.content_message(instance) {
+                opened.push(message);
+            }
+            entry.name_from_content(client);
             if entry.reported_focus.as_ref() != Some(&focus) {
                 entry.reported_focus = Some(focus.clone());
                 let (block_id, block_type) = match focus.block {
@@ -1652,6 +1750,31 @@ impl Instances {
                 request_id,
                 request,
             } => self.request(instance, request_id, request),
+            EditorMessage::Operate {
+                instance,
+                operation,
+            } => {
+                let Some(block) = self
+                    .entries
+                    .get(&instance)
+                    .and_then(|entry| entry.role.block())
+                else {
+                    return false;
+                };
+                if !self.editable(block.id) {
+                    return false;
+                }
+                let Some(link) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.content.as_mut())
+                else {
+                    return false;
+                };
+                link.applied += 1;
+                crate::be::operate(block.id, operation);
+                true
+            }
             EditorMessage::DragAccepted { instance, accepted } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;

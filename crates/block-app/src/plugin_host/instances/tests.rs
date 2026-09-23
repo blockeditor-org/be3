@@ -8,6 +8,19 @@ const PASS: u64 = 1;
 const SIZE: egui::Vec2 = egui::vec2(100.0, 100.0);
 
 fn placed() -> (Instances, egui::Context, egui::Id) {
+    placed_on(Uuid::nil(), Uuid::nil())
+}
+
+fn placed_on(block: Uuid, block_type: Uuid) -> (Instances, egui::Context, egui::Id) {
+    let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
+    placed_with(&client, block, block_type)
+}
+
+fn placed_with(
+    client: &Arc<BlockClient>,
+    block: Uuid,
+    block_type: Uuid,
+) -> (Instances, egui::Context, egui::Id) {
     let context = egui::Context::default();
     let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), SIZE);
     let id = egui::Id::new("plugin screen");
@@ -15,17 +28,16 @@ fn placed() -> (Instances, egui::Context, egui::Id) {
         ui.interact(rect, id, egui::Sense::click_and_drag());
     });
     let mut instances = Instances::default();
-    let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
     let block_types = Arc::new(Vec::new());
     let role = InstanceRole::Editor(EditorBlock {
-        id: Uuid::nil(),
-        block_type: Uuid::nil(),
+        id: block,
+        block_type,
     });
     instances.report(
         INSTANCE,
         REGION,
         &context,
-        &client,
+        client,
         Uuid::nil(),
         role,
         &block_types,
@@ -51,6 +63,8 @@ fn placed() -> (Instances, egui::Context, egui::Id) {
 mod a_frame_childs_chrome_is_withheld_from_the_editor_it_covers;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
+mod a_migrated_block_is_named_after_its_content_until_someone_names_it;
+mod a_migrated_editor_is_only_sent_messages_its_plugin_session_accepts;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod an_instance_the_plugin_never_opened_is_not_closed;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;

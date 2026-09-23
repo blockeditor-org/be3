@@ -6,6 +6,10 @@ license.workspace = true
 
 [dependencies]
 argon2 = "0.5"
+# The new block stack's server rides on this one's port, so a peer of it needs
+# no second URL and no account of its own.
+be-protocol = { path = "../be-protocol" }
+be-server = { path = "../be-server" }
 block = { path = "../block" }
 futures-util = "0.3"
 httparse = "1"

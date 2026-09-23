@@ -6,6 +6,7 @@ use be_protocol::{
 use be_session::Claim;
 use futures_util::{SinkExt, StreamExt};
 use tokio::{
+    io::{AsyncRead, AsyncWrite},
     net::{TcpListener, TcpStream},
     sync::{mpsc, oneshot},
 };
@@ -25,6 +26,68 @@ pub use blocks::PublishOutcome;
 pub use sessions::SessionRegistry;
 pub use store::{Identity, ServerStore};
 pub use watch::WatchHub;
+
+#[derive(Clone, Debug)]
+pub struct Adopted {
+    pub account: Uuid,
+    pub display_name: String,
+}
+
+pub struct Hosted {
+    store: Arc<ServerStore>,
+    hub: Arc<WatchHub>,
+    registry: Arc<SessionRegistry>,
+}
+
+impl Hosted {
+    pub fn open(data_dir: impl Into<PathBuf>) -> Result<Self, ServerError> {
+        Ok(Self {
+            store: Arc::new(ServerStore::open(data_dir.into())?),
+            hub: Arc::new(WatchHub::new()),
+            registry: Arc::new(SessionRegistry::new()),
+        })
+    }
+
+    pub async fn adopt(
+        &self,
+        account: Uuid,
+        email: &str,
+        display_name: &str,
+        workspace: Uuid,
+        workspace_name: &str,
+        role: WorkspaceRole,
+    ) -> Result<(), ServerError> {
+        self.store
+            .adopt(
+                account,
+                email,
+                display_name,
+                workspace,
+                workspace_name,
+                role,
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn serve<S>(
+        &self,
+        socket: tokio_tungstenite::WebSocketStream<S>,
+        adopted: Adopted,
+    ) -> Result<(), ServerError>
+    where
+        S: AsyncRead + AsyncWrite + Unpin + Send,
+    {
+        serve_socket(
+            socket,
+            Arc::clone(&self.store),
+            Arc::clone(&self.hub),
+            Arc::clone(&self.registry),
+            Some(adopted),
+        )
+        .await
+    }
+}
 
 #[derive(Debug)]
 pub enum ServerError {
@@ -122,6 +185,7 @@ struct Connection {
     client: u64,
     account: Option<Uuid>,
     identity: Option<Identity>,
+    adopted: Option<Adopted>,
 }
 
 async fn handle_connection(
@@ -139,6 +203,19 @@ async fn handle_connection(
         }),
     )
     .await?;
+    serve_socket(socket, store, hub, registry, None).await
+}
+
+pub async fn serve_socket<S>(
+    socket: tokio_tungstenite::WebSocketStream<S>,
+    store: Arc<ServerStore>,
+    hub: Arc<WatchHub>,
+    registry: Arc<SessionRegistry>,
+    adopted: Option<Adopted>,
+) -> Result<(), ServerError>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send,
+{
     let (mut sink, mut source) = socket.split();
     let (sender, mut outbound) = mpsc::unbounded_channel();
     let client = hub.register(sender).await;
@@ -149,6 +226,7 @@ async fn handle_connection(
         client,
         account: None,
         identity: None,
+        adopted,
     };
 
     let outcome = async {
@@ -271,6 +349,22 @@ impl Connection {
                     request,
                     account,
                     display_name,
+                    token,
+                })
+            }
+            ClientMessage::Adopt { request } => {
+                let Some(adopted) = self.adopted.clone() else {
+                    return Err(ServerError::Refused(
+                        ErrorCode::NotAuthenticated,
+                        "this connection carries no identity to adopt".into(),
+                    ));
+                };
+                let token = self.store.issue_session(adopted.account).await?;
+                self.account = Some(adopted.account);
+                Ok(ServerMessage::Authenticated {
+                    request,
+                    account: adopted.account,
+                    display_name: adopted.display_name,
                     token,
                 })
             }

@@ -1505,6 +1505,17 @@ impl<B: Block> BlockHandle<B> {
         self.block.properties.read().clone()
     }
 
+    pub fn set_implicit_name(&self, name: Option<String>) -> bool {
+        if self.read().is_none() {
+            return false;
+        }
+        let update = properties::implicit_name_update(&self.block.properties.read(), name);
+        if let Some(value) = update {
+            self.set_property(properties::NAME, value);
+        }
+        true
+    }
+
     pub fn set_property(&self, key: Uuid, value: Vec<u8>) {
         self.block.properties.write().insert(key, value.clone());
         self.commands
@@ -1560,6 +1571,10 @@ pub trait BlockHandleAccess {
     fn relationships(&self) -> Option<BlockRelationships>;
     fn set_parent(&self, parent: BlockParent);
 
+    fn set_implicit_name(&self, _name: Option<String>) -> bool {
+        true
+    }
+
     fn add_child(&self, _block_id: Uuid) -> Option<bool> {
         None
     }
@@ -1610,6 +1625,10 @@ impl<B: Block> BlockHandleAccess for BlockHandle<B> {
 
     fn set_parent(&self, parent: BlockParent) {
         BlockHandle::set_parent(self, parent);
+    }
+
+    fn set_implicit_name(&self, name: Option<String>) -> bool {
+        BlockHandle::set_implicit_name(self, name)
     }
 
     fn add_child(&self, block_id: Uuid) -> Option<bool> {

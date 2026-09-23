@@ -1,10 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use block_client::blocks::calendar::CalendarEvent;
-use block_ui::datetime::{DateTimeFields, civil_from_days, days_from_civil};
+pub(crate) use block_ui::datetime::SECONDS_PER_DAY;
+use block_ui::datetime::{DateTimeFields, MONTH_NAMES, civil_from_days, days_from_civil};
 use uuid::Uuid;
-
-pub(crate) const SECONDS_PER_DAY: i64 = 86_400;
 
 pub(crate) const WEEKDAY_ABBR: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 pub(crate) const WEEKDAY_FULL: [&str; 7] = [
@@ -15,20 +14,6 @@ pub(crate) const WEEKDAY_FULL: [&str; 7] = [
     "Thursday",
     "Friday",
     "Saturday",
-];
-pub(crate) const MONTH_NAMES: [&str; 12] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
 ];
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]

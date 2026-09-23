@@ -1,33 +1,90 @@
 use std::sync::Arc;
 
+use block_client::BlockClient;
 use block_client::blocks::counter::Counter;
-use block_client::{BlockClient, BlockHandle};
+use block_editor_plugin::be_block::{BlockContent, CounterContent, LiveEdit};
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::CounterApp;
 
+mod an_edit_stays_on_screen_until_the_host_takes_it;
 mod clicking_the_plus_button_counts_up_on_the_block;
 mod resetting_puts_the_block_back_to_zero;
 mod the_counter_shows_what_the_block_holds;
 
-fn editor() -> (BeuiTest<CounterApp>, BlockHandle<Counter>) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(Counter::default());
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = Editor::new(host, client, block.id());
-    (BeuiTest::new(editor), block)
+struct Harness {
+    editor: BeuiTest<CounterApp>,
+    host: EditorHost,
+    content: CounterContent,
+    applied: u64,
 }
 
-fn shown(editor: &mut BeuiTest<CounterApp>) -> String {
-    let value = editor
-        .document()
-        .find_test_id("counter.value")
-        .expect("the ui has no counter.value node");
-    editor
-        .document()
-        .node_detail(value)
-        .expect("the value node has no text")
+impl Harness {
+    fn new() -> Self {
+        let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
+        let block = client.create_block(Counter::default());
+        let host = EditorHost::default();
+        host.set_editable(true);
+        let editor = Editor::new(host.clone(), client, block.id());
+        let mut harness = Self {
+            editor: BeuiTest::new(editor),
+            host,
+            content: CounterContent::default(),
+            applied: 0,
+        };
+        harness.publish();
+        harness.run();
+        harness
+    }
+
+    fn click(&mut self, test_id: &str) {
+        self.editor.click(test_id);
+    }
+
+    fn run(&mut self) {
+        self.editor.run();
+        let mut changed = false;
+        for operation in self.host.take_content_operations() {
+            let operation = CounterContent::decode_operation(&operation)
+                .expect("the editor sent an operation the counter cannot read");
+            self.content.apply(&operation);
+            self.applied += 1;
+            changed = true;
+        }
+        if changed {
+            self.publish();
+        }
+        self.editor.run();
+    }
+
+    fn publish(&mut self) {
+        self.host.set_block_content(
+            CounterContent::CONTENT_TYPE,
+            self.content.encode(),
+            self.applied,
+        );
+    }
+
+    fn set_count(&mut self, count: i64) {
+        self.content = CounterContent::new(count);
+        self.publish();
+    }
+
+    fn count(&self) -> i64 {
+        self.content.count()
+    }
+
+    fn shown(&mut self) -> String {
+        let value = self
+            .editor
+            .document()
+            .find_test_id("counter.value")
+            .expect("the ui has no counter.value node");
+        self.editor
+            .document()
+            .node_detail(value)
+            .expect("the value node has no text")
+    }
 }

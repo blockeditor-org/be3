@@ -58,6 +58,8 @@ pub struct Document {
     interact_pool: Vec<Vec<NodeId>>,
     placed_pass: NodeMap<u64>,
     layout_pass: u64,
+    scroll_hosts: Vec<NodeId>,
+    scroll_shifts: NodeMap<f32>,
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
     paint_cache: RefCell<PaintCache>,
@@ -80,6 +82,7 @@ pub struct Document {
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
+    clips: NodeMap<Rect>,
 }
 
 struct SizeWatcher {
@@ -182,6 +185,8 @@ impl Document {
             interact_pool: Vec::new(),
             placed_pass: NodeMap::default(),
             layout_pass: 0,
+            scroll_hosts: Vec::new(),
+            scroll_shifts: NodeMap::default(),
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
@@ -204,6 +209,7 @@ impl Document {
             changes: FlashLog::default(),
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
+            clips: NodeMap::default(),
         }
     }
 
@@ -468,6 +474,7 @@ impl Document {
         self.measurements.remove(&id);
         self.component_states.remove(&id);
         self.placed_children.remove(&id);
+        self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             if self.test_ids.get(&test_id) == Some(&id) {
@@ -637,7 +644,7 @@ impl Document {
             if let Some(node) = self.rects.get(&id)
                 && self.paints(id)
             {
-                self.damage.add(*node);
+                self.damage.add(node.intersect(self.clip(id)));
             }
             self.damage.add(self.paint_cache.borrow().bounds(id));
         }
@@ -929,11 +936,24 @@ impl Document {
     pub(crate) fn leave_layout(&mut self, id: NodeId, frame: LayoutFrame, out: &mut NodeMap<Rect>) {
         self.layout_parent = frame.parent;
         if self.delivering {
+            let mut dropped = Vec::new();
             for child in self.dropped_children(id, frame.base) {
-                self.drop_placement(child, out);
+                self.drop_placement(child, out, &mut dropped);
+            }
+            for node in dropped {
+                self.release_placement(node);
             }
         }
         self.placing.truncate(frame.base);
+    }
+
+    fn release_placement(&mut self, id: NodeId) {
+        if !self.arena.contains(id) {
+            return;
+        }
+        let mut element = self.arena.take(id);
+        element.unplaced(self);
+        self.arena.put_back(id, element);
     }
 
     fn dropped_children(&mut self, id: NodeId, base: usize) -> Vec<NodeId> {
@@ -954,21 +974,23 @@ impl Document {
         dropped
     }
 
-    fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>) {
+    fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>, dropped: &mut Vec<NodeId>) {
+        let clip = self.clips.remove(&id).unwrap_or(Rect::EVERYTHING);
         if let Some(rect) = out.remove(&id) {
             if self.paints(id) {
-                self.damage.add(rect);
+                self.damage.add(rect.intersect(clip));
             }
             self.damage.add(self.paint_cache.borrow().bounds(id));
         }
+        dropped.push(id);
         for child in self.placed_children.remove(&id).unwrap_or_default() {
-            self.drop_placement(child, out);
+            self.drop_placement(child, out, dropped);
         }
     }
 
     fn forget_placement(&mut self, id: NodeId) {
         let mut rects = std::mem::take(&mut self.rects);
-        self.drop_placement(id, Rc::make_mut(&mut rects));
+        self.drop_placement(id, Rc::make_mut(&mut rects), &mut Vec::new());
         self.rects = rects;
     }
 
@@ -980,36 +1002,95 @@ impl Document {
         self.interact_pool = pool;
     }
 
+    pub(crate) fn laying_out(&self) -> Option<NodeId> {
+        self.layout_parent
+    }
+
+    pub(crate) fn delivering(&self) -> bool {
+        self.delivering
+    }
+
+    pub(crate) fn invalidate_measurement(&mut self, id: NodeId) {
+        self.arena.invalidate_node(id);
+    }
+
+    pub(crate) fn enter_scroll_host(&mut self, id: NodeId) {
+        self.scroll_hosts.push(id);
+    }
+
+    pub(crate) fn leave_scroll_host(&mut self) {
+        self.scroll_hosts.pop();
+    }
+
+    pub(crate) fn record_scroll_shift(&mut self, shift: f32) {
+        let Some(&host) = self.scroll_hosts.last() else {
+            return;
+        };
+        *self.scroll_shifts.get_or_default(host) += shift;
+    }
+
+    pub(crate) fn take_scroll_shift(&mut self, id: NodeId) -> f32 {
+        self.scroll_shifts.remove(&id).unwrap_or(0.0)
+    }
+
+    pub(crate) fn placing_len(&self) -> usize {
+        self.placing.len()
+    }
+
+    pub(crate) fn rewind_placing(&mut self, len: usize) {
+        if self.delivering {
+            self.placing.truncate(len);
+        }
+    }
+
     pub(crate) fn note_placed(&mut self, id: NodeId) {
         if self.delivering {
             self.placing.push(id);
         }
     }
 
-    pub(crate) fn reusable_placement(&self, id: NodeId, rect: Rect, out: &NodeMap<Rect>) -> bool {
+    pub(crate) fn reusable_placement(
+        &self,
+        id: NodeId,
+        rect: Rect,
+        clip: Rect,
+        out: &NodeMap<Rect>,
+    ) -> bool {
         self.delivering
             && !self.arena.unplaced(id)
             && out.get(&id) == Some(&rect)
+            && self.clips.get(&id) == Some(&clip)
             && self.placed_children.contains_key(&id)
     }
 
-    pub(crate) fn record_placement(&mut self, id: NodeId, rect: Rect, out: &mut NodeMap<Rect>) {
+    pub(crate) fn record_placement(
+        &mut self,
+        id: NodeId,
+        rect: Rect,
+        clip: Rect,
+        out: &mut NodeMap<Rect>,
+    ) {
         let previous = out.insert(id, rect);
         if !self.delivering {
             return;
         }
         self.arena.clear_unplaced(id);
         self.placed_pass.insert(id, self.layout_pass);
-        if previous == Some(rect) {
+        let previous_clip = self.clips.insert(id, clip).unwrap_or(Rect::EVERYTHING);
+        if previous == Some(rect) && previous_clip == clip {
             return;
         }
         if self.paints(id) {
-            self.damage.add(rect);
+            self.damage.add(rect.intersect(clip));
             if let Some(previous) = previous {
-                self.damage.add(previous);
+                self.damage.add(previous.intersect(previous_clip));
             }
         }
         self.damage.add(self.paint_cache.borrow().bounds(id));
+    }
+
+    fn clip(&self, id: NodeId) -> Rect {
+        self.clips.get(&id).copied().unwrap_or(Rect::EVERYTHING)
     }
 
     fn paints(&self, id: NodeId) -> bool {

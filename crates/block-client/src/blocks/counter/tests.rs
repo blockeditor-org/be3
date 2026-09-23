@@ -1,8 +1,5 @@
-use block::Block;
-
-use super::{Counter, CounterOperation};
+use super::Counter;
 
 mod disabled_history;
-mod resetting_clears_the_count;
-mod saturating_operations;
 mod serialization_round_trip;
+mod stores_nothing;

@@ -1,9 +1,11 @@
 # The new block stack
 
 The `be-*` crates are a replacement for `block`, `block-server` and
-`block-client`. They live beside the old stack rather than inside it: nothing in
-`block-app` uses them yet, and the old stack still runs the application. Work on
-them by migrating one thing at a time, not by rewriting the app around them.
+`block-client`. They live beside the old stack rather than inside it: the old
+stack still runs the application, and four editors - the counter, the
+checklist, the browser tab and the UI settings - keep their content in the new
+one. Work on them
+by migrating one thing at a time, not by rewriting the app around them.
 
 If you are changing an existing editor or block type today, you want
 `guides/adding_a_block.md` and the `block` crate. This guide is for work on the
@@ -186,7 +188,12 @@ lets a reader take the header and then a byte range. `ImageContent` and
 
 ### be-client
 
-`Peer` is a local object store plus a connection.
+`Peer` is a local object store plus a connection. `transport/` is what makes
+that connection portable: a `Writer` and a `Reader` per platform - tokio and
+tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs` - plus the
+`spawn` each one's executor wants. `Connection` above it is the same code
+everywhere, and it waits on its command channel and its socket rather than
+polling either.
 
 - `open` reads the head commit, fetches its chunks and decodes.
 - `save` chunks the content, uploads only what `MissingObjects` says the server
@@ -202,9 +209,22 @@ lets a reader take the header and then a byte range. `ImageContent` and
 broadcasts; a follower applies its own edit immediately, rebases it against
 operations that arrive in between, and reconciles against the owner's echo. It
 keeps `confirmed` (server-ordered) and `visible` (`confirmed` plus pending),
-which is the same shape the old client used. `seal` writes a commit and
-heartbeats `clean_at`. `reconcile` runs the resume decision and merges when it
-has to.
+which is the same shape the old client used. `seal` writes a commit, heartbeats
+`clean_at`, and tells the followers with `SessionMessage::Sealed` which commit
+now holds which sequence number. `reconcile` runs the resume decision and merges
+when it has to.
+
+A follower's `head` is only right because of `Sealed`, and ownership depends on
+it being right. A follower that takes over carries on from the head the last
+owner sealed: it keeps the old sequence numbering so the other followers keep
+applying what it accepts, it accepts the operations it had pending as its own,
+and it owes a seal for whatever the old owner accepted after its last one.
+Get the head wrong and the new owner's first save is refused, and the resume
+decision reads its unsaved work as something to fast-forward over. `reconcile`
+now merges unsaved work into anything it fast-forwards or merges onto, and when
+it changes the owner's content outside the operation stream, the next `Sealed`
+tells the followers to reload the head. Only an owner ever seals or reconciles
+in the app's worker: a follower's edits are the owner's to save.
 
 ## Adding a content type
 
@@ -228,12 +248,135 @@ cargo run -p be-server -- --address 127.0.0.1:8787 --data-dir be-server-data
 ```
 
 Tests start their own server on an ephemeral port; see `Harness` in
-`crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`.
+`crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's
+own tests start a `block-server` instead and reach the new stack through it, the
+way the app does: `crates/block-app/src/be/tests.rs`.
+
+## The counter, migrated
+
+The counter editor is the first thing in `block-app` that keeps its content
+here. It is the shape every later migration should take, so it is worth reading
+before starting another one.
+
+Identity stays where it was. `block_client::blocks::counter::Counter` is still
+the block type: it is what the new-block menu offers, what the file tree draws,
+where the block sits in the workspace, and who may edit it. It stores nothing
+any more. The count is `be_block::CounterContent`, held in the new stack under
+the same block id, and `crates/block-app/src/be.rs` is the only place that says
+which block types that is true of: `MIGRATED` pairs each old block type with its
+content type, and `content_type_for` reads it.
+
+The app is the peer, not the plugin. `crates/block-app/src/be/worker.rs` is the
+peer's loop, with a `Live` session per open block behind the `Session` trait, so
+the loop never names a content type; `be/native.rs` runs it on a
+thread of its own with a `FileStore` under it, and `be/web.rs` runs it on the
+browser's own executor with a `MemoryStore`, because there is no file system to
+keep objects in there and every open fetches what it needs. The plugin never
+sees the content key or the connection: it is handed content bytes and hands
+back operation bytes, through two messages on the plugin protocol.
+
+- `EditorMessage::Content { content_type, bytes, applied }` - host to plugin.
+  `applied` counts the operations *this instance* sent that the stack has taken,
+  which is what lets a plugin tell its own unacknowledged edits from everyone
+  else's.
+- `EditorMessage::Operate { operation }` - plugin to host.
+
+On the plugin side that is `editor.block_content::<C>()`, the `ContentProjection`
+beside `BlockProjection`: `project` registers a reader, `operate` applies the
+operation to what the view sees and queues it for the host, and each echo
+replaces the confirmed state and replays whatever is still pending on top.
+`block_editor_plugin` re-exports `be_block`, so an editor names its content type
+without depending on the crate itself.
+
+Migrating another self-contained editor is now four steps: a content type in
+`be-block` with its merge, an entry in `MIGRATED`, the editor reading
+`editor.block_content::<C>()` instead of `editor.block::<B>()`, and the old block
+type emptied the way `Counter` and `Checklist` are. The checklist is the example
+to follow for a list of items: `ContentProjection::project_keyed` keeps a row
+from being rebuilt when another row changes. The browser tab is the example for
+an editor that reads its content outside a projection: `ContentProjection::read`
+answers `None` until the host has sent the content once.
+
+A migrated block is still named in the old stack, because that is where the file
+tree, the block picker and search look. `BlockContent::name` is the name, and
+the host carries it across: whenever an editable instance is sent a new revision,
+`Instance::name_from_content` writes it as the block's automatic name through
+`BlockHandle::set_implicit_name`, which never touches a name someone set by hand.
+An empty automatic name is how a name is taken away, because the old server has
+no way to delete a property. This is a bridge, not the design: it shows the old
+server every name, exactly as the old stack already does, and it goes away with
+the old stack, when names move into an index the server cannot read.
+
+Duplicating a block is the old stack's `BlockHandleAccess::duplicate`, which
+copies an empty block for a migrated type, so the app follows it with
+`be::duplicate`: the worker copies what the source's session shows, or its head
+when it is not open, into the copy's id before anything opens the copy.
+
+The app can read a migrated block itself, not only through an editor: the zoom
+in `sync_ui_settings` comes from the UI settings block's content. `be::hold`
+opens a block for the app and keeps it open when the last editor showing it
+closes, because `be::close` leaves a held block alone. Nothing releases a held
+block before the stack stops, which is when the workspace changes.
+
+Four things are worth copying. A migrated editor's block type keeps its old
+entry in `block_types!` with no state in it, rather than disappearing: the graph
+still needs it. The peer writes out what its sessions hold before it goes away:
+`flush()` seals and waits, `stop()` does the same and then joins the worker, and
+the close handler and every workspace change go through one of them, because a
+session that is merely dropped loses everything since the last autosave
+(`status().unsealed` is what says whether anything is outstanding). The host
+refuses an `Operate` for a block the account may only read: the plugin holds its
+own edits behind `editable()`, but nothing between the plugin and the peer knows
+about access, so `Instances::editable` asks the old client the same question
+`Open` asked. And nothing in the worker runs on a timer. It waits on its command
+channel and on the connection's broadcast, with one deadline for the autosave a
+dirty session is owed, so a workspace nobody is editing costs nothing;
+`status().wakes` counts the times it woke, and a test asserts that an idle peer
+never does.
+
+A connection that drops does not take the peer with it. `Connection::closed` is
+a watch the worker waits on beside its commands - the event broadcast outlives
+the socket, because the connection holds a sender of its own, so that is not the
+signal - and losing it leaves the last content on screen, backs off, connects
+again and rejoins every block that was open. What a session had not sealed when
+the socket went is lost: recovering it wants the resume path (`clean_at`,
+`Peer::fetch_history`) that be-session already has and the app does not use yet.
+
+### Reaching the server
+
+A browser has one origin: the one it was served from. So the new stack's server
+rides on the old one's port rather than on a second one - `block-server` opens a
+`be_server::Hosted` beside its own store and hands it every websocket upgrade
+for `/api/be`, which is the same handshake the block socket takes, with the same
+`token` and `workspace` query parameters.
+
+That is also what removed the accounts problem. The upgrade has already been
+authenticated, so `block-server` carries the account and the workspace across
+under the same ids (`Hosted::adopt`, an upsert of the account, the workspace and
+the membership), and the peer asks for them with `ClientMessage::Adopt` instead
+of registering. A be account id is a block account id, and a be workspace id is
+a block workspace id, so there is nothing for the app to store and nothing to
+keep in step.
+
+The content key follows from that: it is derived from the workspace id, so two
+devices of one workspace read each other's bytes. That is a placeholder, not a
+design - it is no more secret from the server than `crypto::STATIC_KEY` is in
+the old client - and it is what the key wrapping below replaces.
 
 ## What is not built yet
 
-- Nothing in `block-app` uses any of this. Wiring an editor to `be-client` is the
-  next migration step, and it should be done one editor at a time.
+- A migrated block's content is not in the old workspace index, so nothing but
+  the editor can read it: no preview and no search. Only its name is carried
+  across, and only while an editor has it open.
+- The browser peer keeps its objects in memory, so a reload refetches everything
+  and a tab that closes leaves whatever a session held since its last autosave
+  behind: `flush()` cannot wait there. An `ObjectStore` over IndexedDB is what
+  that wants.
+- A plugin still reaches the new stack through the host rather than through a
+  peer of its own. `block-client` runs inside a plugin over a tunnel the host
+  carries; be-client has the transport split to do the same, but no tunnel.
+- Reconnecting rejoins from the server's head, so operations a session had not
+  sealed when the socket dropped are gone.
 - Keys are passed in whole (`ContentKey`). There is no per-recipient key
   wrapping, so sharing a block across accounts does not yet share its key, and
   `crypto::STATIC_KEY` in the old client has no counterpart here on purpose.

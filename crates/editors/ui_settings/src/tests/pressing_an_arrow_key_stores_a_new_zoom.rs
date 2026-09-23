@@ -3,13 +3,15 @@ use block_editor_plugin::beui::Key;
 
 #[test]
 fn pressing_an_arrow_key_stores_a_new_zoom() {
-    let (mut editor, block) = editor();
+    let mut settings = Harness::new();
 
-    editor.key_press(Key::Tab);
-    editor.run();
-    editor.key_press(Key::ArrowRight);
-    editor.run();
+    settings.editor.key_press(Key::Tab);
+    settings.run();
+    settings.editor.key_press(Key::ArrowRight);
+    settings.run();
 
-    assert!(block.read().unwrap().zoom() > 1.0);
-    editor.snapshot("pressing_an_arrow_key_stores_a_new_zoom");
+    assert!(settings.content.zoom() > 1.0);
+    settings
+        .editor
+        .snapshot("pressing_an_arrow_key_stores_a_new_zoom");
 }

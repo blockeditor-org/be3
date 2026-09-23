@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{ItemSize, List, build, view};
-use crate::unstyled::VirtualList;
+use crate::reactive::{ItemSize, List, VirtualList, build, view};
+use crate::unstyled::Scroll;
 
 #[test]
 fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
@@ -10,23 +10,23 @@ fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <VirtualList
-                        @sizing=ItemSize::Percent(100.0)
-                        @node_ref=&scroll
-                        count=VIRTUAL_ITEM_COUNT
-                        item_size=VIRTUAL_ITEM_HEIGHT
-                    >
-                        {move |_: usize| {
-                            view! {
-                                <Frame
-                                    padding_horizontal=0.0
-                                    padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
-                                >
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }}
-                    </VirtualList>
+                    <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                        <VirtualList
+                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >
+                            {move |_: usize| {
+                                view! {
+                                    <Frame
+                                        padding_horizontal=0.0
+                                        padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
+                                    >
+                                        <Spacer />
+                                    </Frame>
+                                }
+                            }}
+                        </VirtualList>
+                    </Scroll>
                 </List>
             }
         }

@@ -2,15 +2,12 @@ use super::*;
 
 #[test]
 fn adding_an_item_puts_it_on_the_list() {
-    let (mut editor, block) = editor(&[]);
+    let mut checklist = Harness::new(&[]);
 
-    editor.click("checklist.draft");
-    editor.run();
-    editor.text("buy milk");
-    editor.run();
-    editor.click("checklist.add");
-    editor.run();
+    checklist.click("checklist.draft");
+    checklist.type_text("buy milk");
+    checklist.click("checklist.add");
 
-    assert_eq!(items(&block), [("buy milk".to_owned(), false)]);
-    editor.snapshot("adding_an_item_puts_it_on_the_list");
+    assert_eq!(checklist.items(), [("buy milk".to_owned(), false)]);
+    checklist.snapshot("adding_an_item_puts_it_on_the_list");
 }

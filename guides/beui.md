@@ -215,7 +215,7 @@ need:
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
-  `Offset`, `VirtualOffset`, `Canvas`, `Drawing`, `Overlay`, `Focusable`,
+  `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Focusable`,
   `ClickCatcher`, `Embed`, `Portal`, `Viewport` — and it stays small because most things are
   compositions of those.
   Add a base component only when the retained tree genuinely lacks a primitive:
@@ -257,7 +257,7 @@ Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
 
 The main base building blocks are `List`, `Frame`, `Text`, `Offset`, and
-`VirtualOffset`. `List` is the only box that arranges siblings: it takes a
+`VirtualList`. `List` is the only box that arranges siblings: it takes a
 `direction`, which is vertical unless the tag says otherwise, an `align` for
 the cross axis, and `spacing`. Nothing wraps it, so a row is written
 `<List direction=Direction::Horizontal spacing=8.0>` and a row that centres its
@@ -284,10 +284,12 @@ keeps the surface whole, for something the host draws over it instead.
 `Viewport` reserves a rectangle the renderer draws into rather than the
 document: it fills the space it is given and paints the `Drawing` it is handed
 in its place (see [Draw with the gpu](#draw-with-the-gpu)).
-`Offset` and `VirtualOffset` keep a run of items along a `direction` and lay
-them out from an offset; they answer no input at all, so nothing scrolls by
-putting one in a view (see [Scrolling](#scrolling)).
-`Scroll` and `VirtualList` take the same `direction`, so the same tag is a
+`Offset` keeps a run of items along a `direction` and lays them out from an
+offset; it answers no input at all, so nothing scrolls by putting one in a view
+(see [Scrolling](#scrolling)). `VirtualList` is an ordinary box that stands for
+one item per key, each of an estimated `item_size`, and builds only the ones its slice of
+the viewport reaches (see [Long lists](#long-lists)).
+`Scroll` takes a `direction`, so the same tag is a
 column of rows or a strip of cards; a horizontal one answers Shift+wheel, a
 sideways trackpad swipe, a touch drag and the left and right arrows.
 A plain wheel is left to whatever is around it, the way a browser leaves a
@@ -296,7 +298,7 @@ under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-`VirtualList`, and `Stack`. `TextArea` is the multiline one: it owns a
+and `Stack`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and reserves room for the inline and block `TextWidget`s the caller
@@ -327,7 +329,7 @@ lists.
 ### Scrolling
 
 Scrolling exists at all three layers, and app code wants the styled one.
-`styled::Scroll` and `styled::VirtualList` are a scroll with the project's
+`styled::Scroll` is a scroll with the project's
 scrollbar already beside it, so a panel that scrolls is one tag:
 
 ```rust
@@ -340,6 +342,59 @@ view! {
 
 The focus ring follows the theme's accent unless `focus_color` names another,
 and `on_change` still reports the position for anything else that wants it.
+
+### Long lists
+
+A `VirtualList` is a box like any other. It takes `keys` the way `ForEach` does,
+reports one `item_size` per key as its own length, and builds only the rows that
+its slice of the enclosing viewport
+reaches, so it goes wherever a tall child would: directly under a `Scroll`,
+beside plain siblings in one, or nested a few containers deep inside one.
+
+```rust
+view! {
+    <Scroll @sizing=ItemSize::Percent(100.0)>
+        <Header />
+        <VirtualList keys={row_ids} item_size=ROW_HEIGHT>
+            {move |id: RowId| view! { <Row id /> }}
+        </VirtualList>
+        <Footer />
+    </Scroll>
+}
+```
+
+`item_size` is an estimate, and a row that measures differently is laid out at
+the size it measured. The list remembers what each row it has built actually
+measured and reports the sum, so its length grows towards the truth as rows come
+into view and the last row can always be scrolled to. A row that is measured
+above the viewport would move everything below it, so the list keeps drawing
+from the row it drew from last frame and asks the scroll around it to move its
+offset by the difference instead; the scroll applies that before it places
+anything, so nothing on screen shifts. Outside a scroll a `VirtualList` builds
+what fits in the box it is given, which is how one sized by a `Stack` builds a
+screenful in one layout and a hundred pixels' worth in the next.
+
+Rows belong to their keys, not to their positions. Scrolling reuses the rows
+that stay in view and disposes the effects of the ones that leave, and the item
+builder runs once per key for as long as that row stays in view. Changing `keys`
+keeps every row whose key is still there: inserting a key anywhere builds only
+its row, and only if it lands in view; removing one disposes only its row; and
+the sizes the list measured move with their keys. A key inserted or removed
+above the view changes the length above what is shown, so the list moves the
+scroll's offset by that much and the rows on screen stay where they are. A
+list over data that is only ever addressed by position can pass
+`(0..count).collect()` as its keys, the way a `ForEach` over indices does.
+
+A row therefore follows its data the way any component does, by binding
+signals rather than reading them once while it is built. Changing `item_size`
+keeps the rows too, but forgets the sizes the list measured, on the assumption
+that the rows changed size with it; the rows in view are measured again as they
+are laid out.
+
+A list the layout stops reaching - scrolled out of view beside other content, or
+inside a scroll that collapsed - is told so through `Element::unplaced`, which
+the layout calls on every node it placed last pass and did not place this one.
+The list releases its rows there rather than holding a screenful it cannot see.
 
 `unstyled::Scroll` is the same arrangement without the appearance: it owns the
 base offset, the input that drives it, the position it reports, and the list
@@ -381,9 +436,9 @@ names a colour. The gutter is always reserved, and the bar paints nothing while
 its content fits, so a scroll that grows past its viewport does not shift the
 content beside it.
 
-Under both sits the base `Offset` and `VirtualOffset`, which are named for what
-they do rather than for what they are used for: they hold a run of items along a
-direction and lay them out from an offset, with no bar, no theme, and no input
+Under both sits the base `Offset`, which is named for what
+it does rather than for what it is used for: it holds a run of items along a
+direction and lays them out from an offset, with no bar, no theme, and no input
 of their own. A wheel, a touch drag and the arrow keys are `unstyled::Scroll`'s,
 which wraps the offset in a `Focusable` for the keys and a `ClickCatcher` for
 the wheel and the drag, keeps the momentum an unfinished fling carries, and
@@ -1180,13 +1235,21 @@ Put the node in `crates/beui/src/base/<name>.rs` and register the module in
   binds reactive props to setters with `create_effect`.
 
 `measure` takes `&self` and must not mutate; `layout` takes `&mut self` and may
-update the node's own retained state, which is how a virtual `Scroll` realises
-the rows the viewport and offset call for. Both receive `&mut Document` and are
+update the node's own retained state, which is how a `VirtualList` realises
+the rows its slice of the viewport calls for. Both receive `&mut Document` and are
 reached through `crate::layout::measure` and `crate::layout::layout`, which take
 the element out of the arena for the duration so an effect woken mid-walk cannot
 alias it. Reach children through those two functions rather than calling another
 element's methods directly, or the node you descend into is never handed its
 constraint.
+
+`unplaced` is the other half of `layout`. The layout calls it on every node it
+placed last pass and did not place this one - a child its parent now skips, and
+everything under that child - so a node that keeps retained state for what is
+on screen can let it go. It runs in the same pass, after the dropped rects are
+gone, and it may remove the node's own children, which is how a `VirtualList`
+scrolled out of view releases its rows. A node that is laid out again gets
+`layout` as usual and rebuilds whatever it released.
 
 Measurements are memoised per available size and dropped whenever the arena
 changes, so measuring a child repeatedly within a pass is cheap, but a `measure`
@@ -1226,9 +1289,9 @@ From the workspace root, use:
 ./scripts/verify
 ```
 
-`./scripts/check` is the fast complete-workspace compile check. Always finish a
-coherent change with `./scripts/verify`; it runs the workspace tests, lints,
-formatting, project structure checks, snapshot updates, and the formatter for
+`./scripts/check` is the fast complete-workspace compile check. `./scripts/verify`
+is the full check, and CI runs it on a pull request and pushes whatever it changes to
+the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
 failure. Run `./scripts/run --smoke` as well when a change can affect native

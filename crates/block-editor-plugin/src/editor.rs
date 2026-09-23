@@ -17,7 +17,7 @@ use block_ui::BlockCatalog;
 use std::hash::Hash;
 use uuid::Uuid;
 
-use crate::{BlockFilter, BlockPicker, EditorHost, PickedBlock};
+use crate::{BlockFilter, BlockPicker, ContentProjection, EditorHost, PickedBlock};
 
 type Regenerate = Rc<dyn Fn(&[u8])>;
 type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
@@ -358,6 +358,16 @@ impl Editor {
             source,
             host: self.0.host.clone(),
         })
+    }
+
+    pub fn block_content<C>(&self) -> Rc<ContentProjection<C>>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        let source = Rc::new(ContentProjection::<C>::new(self.0.host.clone()));
+        let pumped = Rc::clone(&source);
+        self.each_frame(move || pumped.pump());
+        source
     }
 
     pub fn each_frame(&self, work: impl Fn() + 'static) {

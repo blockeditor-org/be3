@@ -29,10 +29,10 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                             <Spacer @sizing=ItemSize::Percent(50.0) />
                             <List @sizing=ItemSize::Percent(50.0) spacing=0.0>
                                 <List @sizing={size} spacing=0.0>
-                                    <VirtualOffset
+                                    <VirtualList
                                         @sizing=ItemSize::Percent(100.0)
                                         @node_ref=&scroll
-                                        count=VIRTUAL_ITEM_COUNT
+                                        keys={indices(VIRTUAL_ITEM_COUNT)}
                                         item_size=VIRTUAL_ITEM_HEIGHT
                                     >
                                         {move |index: usize| {
@@ -46,7 +46,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                                 </Frame>
                                             }
                                         }}
-                                    </VirtualOffset>
+                                    </VirtualList>
                                 </List>
                             </List>
                         </Stack>

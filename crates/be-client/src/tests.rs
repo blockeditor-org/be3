@@ -10,11 +10,14 @@ use uuid::Uuid;
 use super::*;
 
 mod a_follower_takes_over_and_keeps_editing_without_a_merge;
+mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
 mod a_large_image_streams_without_downloading_all_of_it;
+mod a_second_follower_keeps_following_after_the_owner_leaves;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod an_image_round_trips_without_being_re_encoded;
 mod an_offline_edit_elsewhere_merges_cleanly;
 mod an_offline_rewrite_conflicts_instead_of_interleaving;
+mod an_unsaved_edit_survives_a_publish_from_outside_the_session;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
 mod references_declared_by_content_reach_the_graph;
 mod two_peers_converge_through_the_session_owner;
@@ -148,6 +151,29 @@ impl BlockContent for Link {
     fn references(&self) -> Vec<Uuid> {
         self.targets.clone()
     }
+}
+
+const PATIENCE: Duration = Duration::from_secs(20);
+
+async fn until<C: be_block::LiveEdit + Clone + Default>(
+    sessions: &mut [&mut Live<MemoryStore, C>],
+    what: &str,
+    ready: impl Fn(&[&mut Live<MemoryStore, C>]) -> bool,
+) {
+    let reached = tokio::time::timeout(PATIENCE, async {
+        loop {
+            for session in sessions.iter_mut() {
+                session.poll().await.unwrap();
+            }
+            if ready(sessions) {
+                return;
+            }
+            let waits = sessions.iter_mut().map(|session| Box::pin(session.wait()));
+            futures_util::future::select_all(waits).await.0.unwrap();
+        }
+    })
+    .await;
+    assert!(reached.is_ok(), "the sessions never {what}");
 }
 
 async fn settle<C: be_block::LiveEdit + Clone + Default>(

@@ -1,19 +1,14 @@
 use std::any::Any;
 use std::cell::Cell;
-use std::rc::Rc;
 
-use crate::base::child_list::{ChildHost, ChildList, SlotId};
+use crate::base::child_list::{ChildHost, ChildList};
 use crate::base::list::Direction;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
-use crate::reactive::KeyedItems;
 
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId, NodeMap};
-use crate::reactive::{
-    Callback, Children, Prop, RenderFn, ScopeContext, create_effect, create_signal, owner_scope,
-    settle, with_document,
-};
+use crate::reactive::{Callback, Children, Prop, create_effect, settle, with_document};
 use beui_macros::component;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -41,20 +36,9 @@ impl Default for ScrollPosition {
     }
 }
 
-type VirtualRows = KeyedItems<usize, NodeId>;
-
-pub(crate) struct VirtualItems {
-    pub(crate) count: usize,
-    pub(crate) estimated: f32,
-    pub(crate) first: usize,
-    slot: SlotId,
-    rows: Rc<VirtualRows>,
-    owner: Option<ScopeContext>,
-}
-
-enum OffsetAnchor {
-    Node { id: NodeId, start: f32 },
-    VirtualItem { index: usize, start: f32 },
+struct OffsetAnchor {
+    id: NodeId,
+    start: f32,
 }
 
 impl ChildHost for OffsetNode {
@@ -72,7 +56,6 @@ impl ChildHost for OffsetNode {
 pub(crate) struct OffsetNode {
     pub(crate) direction: Direction,
     pub(crate) items: ChildList<NodeId>,
-    pub(crate) virtual_items: Option<VirtualItems>,
     pub(crate) offset: f32,
     pub(crate) overscroll: f32,
     pub(crate) position: Option<ScrollPosition>,
@@ -87,7 +70,6 @@ impl OffsetNode {
         Self {
             direction: Direction::Vertical,
             items: ChildList::default(),
-            virtual_items: None,
             offset: 0.0,
             overscroll: 0.0,
             position: None,
@@ -114,50 +96,24 @@ impl OffsetNode {
         self.items.nodes()
     }
 
-    fn content(&self, measured: f32) -> f32 {
-        match &self.virtual_items {
-            Some(items) => items.count as f32 * items.estimated,
-            None => measured,
-        }
-    }
-
-    fn leading(&self, offset: f32) -> f32 {
-        match &self.virtual_items {
-            Some(items) => items.first as f32 * items.estimated - offset,
-            None => -offset,
-        }
-    }
-
     fn anchored_offset(&self, lengths: &[f32]) -> f32 {
-        match &self.anchor {
-            Some(OffsetAnchor::Node { id, start }) => self
-                .items
-                .iter()
-                .position(|item| item == id)
-                .map_or(self.offset, |index| {
-                    lengths[..index].iter().sum::<f32>() - start
-                }),
-            Some(OffsetAnchor::VirtualItem { index, start }) => self
-                .virtual_items
-                .as_ref()
-                .map_or(self.offset, |items| *index as f32 * items.estimated - start),
-            None => self.offset,
-        }
+        let Some(anchor) = &self.anchor else {
+            return self.offset;
+        };
+        self.items
+            .iter()
+            .position(|item| *item == anchor.id)
+            .map_or(self.offset, |index| {
+                lengths[..index].iter().sum::<f32>() - anchor.start
+            })
     }
 
     fn remember_anchor(&mut self, doc: &mut Document, painter: &Painter, cross: f32) {
-        if let Some(items) = &self.virtual_items {
-            self.anchor = (items.count > 0).then_some(OffsetAnchor::VirtualItem {
-                index: items.first,
-                start: items.first as f32 * items.estimated - self.offset,
-            });
-            return;
-        }
         let mut start = -self.offset;
         self.anchor = None;
         for (&id, length) in self.items.iter().zip(self.lengths(doc, painter, cross)) {
             if start + length > 0.0 {
-                self.anchor = Some(OffsetAnchor::Node { id, start });
+                self.anchor = Some(OffsetAnchor { id, start });
                 break;
             }
             start += length;
@@ -175,9 +131,7 @@ impl OffsetNode {
         let (_, cross) = self.direction.main_and_cross(rect.size());
         let lengths = self.lengths(doc, painter, cross);
         let index = self.items.iter().position(|id| *id == item)?;
-        let start = self.direction.main(rect.min.to_vec2())
-            + lengths[..index].iter().sum::<f32>()
-            + self.leading(0.0)
+        let start = self.direction.main(rect.min.to_vec2()) + lengths[..index].iter().sum::<f32>()
             - self.offset;
         let placed = item_rect(self.direction, rect, start, lengths[index]);
         let mut rects = NodeMap::default();
@@ -186,49 +140,53 @@ impl OffsetNode {
         revealed_offset(self.direction, rect, target, self.offset)
     }
 
-    fn realize(&mut self, doc: &mut Document, rect: Rect) {
-        let Some(items) = self.virtual_items.take() else {
-            return;
+    fn settled(&mut self, lengths: &[f32], main: f32) -> ScrollPosition {
+        let content: f32 = lengths.iter().sum();
+        let position = ScrollPosition {
+            offset: self.offset.clamp(0.0, (content - main).max(0.0)),
+            content,
+            viewport: main,
         };
-        let VirtualItems {
-            count,
-            estimated,
-            slot,
-            rows,
-            owner,
-            ..
-        } = items;
-        let (main, _) = self.direction.main_and_cross(rect.size());
-        let first = if estimated > 0.0 {
-            ((self.offset / estimated) as usize).min(count.saturating_sub(1))
-        } else {
-            0
-        };
-        let leading = first as f32 * estimated - self.offset;
-        let fit = match estimated > 0.0 {
-            true => ((main - leading) / estimated).ceil().max(0.0) as usize,
-            false => 0,
-        };
-        let last = first.saturating_add(fit).min(count);
-        let range: Vec<usize> = (first..last).collect();
-        let mapping = match owner.as_ref().filter(|owner| owner.is_alive()) {
-            Some(owner) => settle(|| owner.run(|| rows.map(range))),
-            None => settle(|| rows.map(range)),
-        };
-        mapping.commit(|realized, evicted| {
-            self.items.fill(slot, realized);
-            for item in evicted {
-                doc.remove_node(item);
+        self.offset = position.offset;
+        position
+    }
+
+    fn place(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        rect: Rect,
+        out: &mut NodeMap<Rect>,
+        lengths: &[f32],
+        position: ScrollPosition,
+        host: Option<NodeId>,
+    ) {
+        let main = self.direction.main(rect.size());
+        let start = self.direction.main(rect.min.to_vec2());
+        let offset = doc.pixel_grid().snap(position.offset + self.overscroll);
+        let mut cursor = start - offset;
+        let clipped = painter.with_clip_rect(rect);
+        if let Some(host) = host {
+            doc.enter_scroll_host(host);
+        }
+        for (&item, length) in self.items.iter().zip(lengths) {
+            if cursor >= start + main {
+                break;
             }
-        });
-        self.virtual_items = Some(VirtualItems {
-            count,
-            estimated,
-            first,
-            slot,
-            rows,
-            owner,
-        });
+            if cursor + length > start {
+                crate::layout::layout(
+                    doc,
+                    &clipped,
+                    item,
+                    item_rect(self.direction, rect, cursor, *length),
+                    out,
+                );
+            }
+            cursor += length;
+        }
+        if host.is_some() {
+            doc.leave_scroll_host();
+        }
     }
 }
 
@@ -275,43 +233,28 @@ impl Element for OffsetNode {
         rect: Rect,
         out: &mut NodeMap<Rect>,
     ) {
+        let host = doc.laying_out();
         let (main, cross) = self.direction.main_and_cross(rect.size());
-        let virtualised = self.virtual_items.is_some();
-        let mut lengths = match virtualised {
-            true => Vec::new(),
-            false => self.lengths(doc, painter, cross),
-        };
-        self.offset = self.anchored_offset(&lengths).max(0.0);
-        if virtualised {
-            self.realize(doc, rect);
-            lengths = self.lengths(doc, painter, cross);
-        }
-        let content = self.content(lengths.iter().sum());
-        let position = ScrollPosition {
-            offset: self.offset.clamp(0.0, (content - main).max(0.0)),
-            content,
-            viewport: main,
-        };
-        self.offset = position.offset;
-        let grid = doc.pixel_grid();
-        let offset = grid.snap(position.offset + self.overscroll);
-        let start = self.direction.main(rect.min.to_vec2());
-        let mut cursor = start + grid.snap(self.leading(offset));
-        let clipped = painter.with_clip_rect(rect);
-        for (&item, length) in self.items.iter().zip(&lengths) {
-            if cursor >= start + main {
-                break;
+        let carried = host.map_or(0.0, |host| doc.take_scroll_shift(host));
+        let mut lengths = self.lengths(doc, painter, cross);
+        self.offset = (self.anchored_offset(&lengths) + carried).max(0.0);
+        let mut position = self.settled(&lengths, main);
+        let base = doc.placing_len();
+        self.place(doc, painter, rect, out, &lengths, position, host);
+        if let Some(host) = host {
+            let shift = doc.take_scroll_shift(host);
+            let measured = self.lengths(doc, painter, cross);
+            if shift != 0.0 || measured != lengths {
+                lengths = measured;
+                self.offset = (self.offset + shift).max(0.0);
+                position = self.settled(&lengths, main);
+                doc.rewind_placing(base);
+                self.place(doc, painter, rect, out, &lengths, position, Some(host));
+                doc.take_scroll_shift(host);
             }
-            if cursor + length > start {
-                crate::layout::layout(
-                    doc,
-                    &clipped,
-                    item,
-                    item_rect(self.direction, rect, cursor, *length),
-                    out,
-                );
+            if shift != 0.0 || carried != 0.0 {
+                self.anchor = None;
             }
-            cursor += length;
         }
         if self.anchor.is_none() {
             self.remember_anchor(doc, painter, cross);
@@ -355,21 +298,7 @@ impl Element for OffsetNode {
     }
 
     fn detail(&self) -> Option<String> {
-        let horizontal = (self.direction == Direction::Horizontal).then_some("horizontal");
-        let realized = self.virtual_items.as_ref().map(|items| {
-            format!(
-                "{}..{} of {}",
-                items.first,
-                items.first + self.items.len(),
-                items.count
-            )
-        });
-        let detail = [horizontal.map(str::to_string), realized]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>()
-            .join(" ");
-        (!detail.is_empty()).then_some(detail)
+        (self.direction == Direction::Horizontal).then(|| "horizontal".to_string())
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -396,7 +325,7 @@ fn length(
     ))
 }
 
-fn item_rect(direction: Direction, rect: Rect, start: f32, length: f32) -> Rect {
+pub(crate) fn item_rect(direction: Direction, rect: Rect, start: f32, length: f32) -> Rect {
     match direction {
         Direction::Horizontal => {
             Rect::from_min_size(pos2(start, rect.top()), vec2(length, rect.height()))
@@ -419,33 +348,6 @@ impl Document {
         let node = self.arena.get_mut_as::<OffsetNode>(offset);
         node.direction = direction;
         node.anchor = None;
-    }
-
-    pub(crate) fn set_offset_virtual_items(
-        &mut self,
-        offset: NodeId,
-        count: usize,
-        estimated_height: f32,
-        build: impl Fn(usize) -> NodeId + 'static,
-    ) {
-        let node = self.arena.get_mut_as::<OffsetNode>(offset);
-        if matches!(node.anchor, Some(OffsetAnchor::Node { .. })) {
-            node.anchor = None;
-        }
-        let items = node.items.take_all();
-        for item in items {
-            self.remove_node(item);
-        }
-        let owner = owner_scope();
-        let slot = self.arena.get_mut_as::<OffsetNode>(offset).items.open();
-        self.arena.get_mut_as::<OffsetNode>(offset).virtual_items = Some(VirtualItems {
-            count,
-            estimated: estimated_height.max(0.0),
-            first: 0,
-            slot,
-            rows: Rc::new(KeyedItems::new(build)),
-            owner,
-        });
     }
 
     pub(crate) fn offset_value(&self, offset: NodeId) -> f32 {
@@ -598,30 +500,6 @@ impl Document {
             }
         }
     }
-}
-
-#[component]
-pub fn VirtualOffset(
-    count: Prop<usize>,
-    item_size: Prop<f32>,
-    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(children)] item: Option<RenderFn<usize>>,
-    on_change: Callback<ScrollPosition>,
-) -> NodeId {
-    let offset = create_offset(direction, on_change);
-    let item = item.expect("virtual_offset requires an `item` builder");
-    let (count_read, set_count) = create_signal(0);
-    let (height_read, set_height) = create_signal(0.0);
-    create_effect(move || set_count.set(count.get()));
-    create_effect(move || set_height.set(item_size.get()));
-    create_effect(move || {
-        let (count, height) = (count_read.get(), height_read.get());
-        let item = item.clone();
-        with_document(|document| {
-            document.set_offset_virtual_items(offset, count, height, move |index| item.call(index));
-        });
-    });
-    offset
 }
 
 #[component]

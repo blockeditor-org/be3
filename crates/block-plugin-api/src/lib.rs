@@ -459,6 +459,17 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         editable: bool,
     },
+
+    Content {
+        instance: EditorInstanceId,
+        content_type: [u8; 16],
+        bytes: Vec<u8>,
+        applied: u64,
+    },
+    Operate {
+        instance: EditorInstanceId,
+        operation: Vec<u8>,
+    },
     ViewChanged {
         instance: EditorInstanceId,
         x: f32,
@@ -712,6 +723,8 @@ impl EditorMessage {
         match self {
             Self::Open { instance, .. }
             | Self::EditabilityChanged { instance, .. }
+            | Self::Content { instance, .. }
+            | Self::Operate { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -777,6 +790,23 @@ pub struct FileFilter {
     pub default_file_name: String,
     pub extensions: Vec<String>,
     pub mime_types: Vec<String>,
+}
+
+impl FileFilter {
+    pub fn new(
+        name: &str,
+        default_file_name: &str,
+        extensions: &[&str],
+        mime_types: &[&str],
+    ) -> Self {
+        let owned = |values: &[&str]| values.iter().map(|value| (*value).to_owned()).collect();
+        Self {
+            name: name.to_owned(),
+            default_file_name: default_file_name.to_owned(),
+            extensions: owned(extensions),
+            mime_types: owned(mime_types),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1070,6 +1100,7 @@ impl EditorMessage {
             | Self::Close { .. }
             | Self::Resized { .. }
             | Self::EditabilityChanged { .. }
+            | Self::Content { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1114,6 +1145,7 @@ impl EditorMessage {
             | Self::PasteText { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
+            | Self::Operate { .. }
             | Self::Performance { .. } => Direction::ToHost,
         }
     }

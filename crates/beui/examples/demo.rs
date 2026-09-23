@@ -1,15 +1,15 @@
 use beui::icons::ICON_GRID_VIEW;
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
-    Selector, Show, Spacer, Text, WriteSignal, build, clone, create_memo, create_selector,
-    create_signal, view,
+    Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
+    create_selector, create_signal, view,
 };
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
     Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
     Separator, Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree,
-    TreeRowFace, VirtualList, use_theme,
+    TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
@@ -152,8 +152,9 @@ impl Rows {
 }
 
 #[component]
-fn ScrollRow(index: usize, rows: Rows, compact: bool) -> NodeId {
+fn ScrollRow(index: usize, rows: Rows) -> NodeId {
     let selected = rows.selection.memo(Some(index));
+    let compact = rows.compact.clone();
     let select_rows = rows.clone();
     view! {
         <unstyled::Button
@@ -171,16 +172,18 @@ fn ScrollRowFace(
     handle: unstyled::ButtonHandle,
     selected: Memo<bool>,
     timings: ReadSignal<bool>,
-    compact: bool,
+    compact: ReadSignal<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
         hovered, focused, ..
     } = handle;
-    let vertical = if compact {
-        COMPACT_ROW_PADDING_VERTICAL
-    } else {
-        ROW_PADDING_VERTICAL
-    };
+    let vertical = create_memo(move || {
+        if compact.get() {
+            COMPACT_ROW_PADDING_VERTICAL
+        } else {
+            ROW_PADDING_VERTICAL
+        }
+    });
     let theme = use_theme();
     let value_color = create_memo(clone!(selected theme -> move || {
         let theme = theme.get();
@@ -441,19 +444,19 @@ fn MainPanel(cramped: bool, count: ReadSignal<i64>) -> NodeId {
                         />
                     </List>
                     <Separator />
-                    <VirtualList
-                        @sizing=ItemSize::Percent(100.0)
-                        count=ROW_COUNT
-                        item_size={row_height}
-                    >
-                        {move |index: usize| {
-                            let rows = item_rows.clone();
-                            let compact = rows.compact.get();
-                            view! {
-                                <ScrollRow index rows compact />
-                            }
-                        }}
-                    </VirtualList>
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
+                        <VirtualList
+                            keys={(0..ROW_COUNT).collect::<Vec<usize>>()}
+                            item_size={row_height}
+                        >
+                            {move |index: usize| {
+                                let rows = item_rows.clone();
+                                view! {
+                                    <ScrollRow index rows />
+                                }
+                            }}
+                        </VirtualList>
+                    </Scroll>
                 </List>
             </Card>
         </List>
@@ -713,16 +716,17 @@ fn StripControls() -> NodeId {
                 content="A horizontal list scrolls with Shift+scroll, a sideways trackpad swipe, \
                  a touch drag, or the arrow keys once something in it has focus."
             />
-            <VirtualList
-                @sizing=ItemSize::Fixed(STRIP_HEIGHT)
-                direction=Direction::Horizontal
-                count=STRIP_COUNT
-                item_size=STRIP_ITEM_WIDTH
-            >
-                {move |index: usize| view! {
-                    <StripCard index />
-                }}
-            </VirtualList>
+            <Scroll @sizing=ItemSize::Fixed(STRIP_HEIGHT) direction=Direction::Horizontal>
+                <VirtualList
+                    direction=Direction::Horizontal
+                    keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
+                    item_size=STRIP_ITEM_WIDTH
+                >
+                    {move |index: usize| view! {
+                        <StripCard index />
+                    }}
+                </VirtualList>
+            </Scroll>
         </List>
     }
 }

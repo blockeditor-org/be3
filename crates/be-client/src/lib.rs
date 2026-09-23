@@ -7,6 +7,7 @@ use be_store::{Hash, StoreError};
 pub mod connection;
 pub mod live;
 pub mod peer;
+mod transport;
 
 pub use connection::Connection;
 pub use live::Live;
