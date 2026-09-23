@@ -1524,6 +1524,22 @@ impl Instances {
             })
             .collect();
         placed.sort_by_key(|(instance, _, screen, _)| (instance.0, screen.0));
+        let cycle = context.input_mut(|input| {
+            if input.consume_key(egui::Modifiers::SHIFT, egui::Key::F6) {
+                Some(true)
+            } else if input.consume_key(egui::Modifiers::NONE, egui::Key::F6) {
+                Some(false)
+            } else {
+                None
+            }
+        });
+        if let Some(backward) = cycle {
+            cycle_focus(
+                context,
+                placed.iter().map(|(_, _, _, placement)| placement),
+                backward,
+            );
+        }
         let mut messages = Vec::new();
         for (instance, region, screen, placement) in placed {
             let (_, mut holes) =
@@ -2169,6 +2185,31 @@ fn allowed(url: &str, hosts: &[String]) -> bool {
     };
     let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
     hosts.iter().any(|allowed| allowed == host)
+}
+
+fn cycle_focus<'a>(
+    context: &egui::Context,
+    placements: impl Iterator<Item = &'a Placement>,
+    backward: bool,
+) {
+    let mut order: Vec<_> = placements
+        .filter(|placement| placement.rect.width() > 0.0 && placement.rect.height() > 0.0)
+        .map(|placement| (placement.rect.min, placement.id))
+        .collect();
+    if order.is_empty() {
+        return;
+    }
+    order.sort_by(|(a, _), (b, _)| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)));
+    let focused = context.memory(|memory| memory.focused());
+    let current = order.iter().position(|(_, id)| Some(*id) == focused);
+    let count = order.len();
+    let next = match (current, backward) {
+        (Some(index), false) => (index + 1) % count,
+        (Some(index), true) => (index + count - 1) % count,
+        (None, false) => 0,
+        (None, true) => count - 1,
+    };
+    context.memory_mut(|memory| memory.request_focus(order[next].1));
 }
 
 #[cfg(test)]

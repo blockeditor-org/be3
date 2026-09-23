@@ -578,6 +578,17 @@ pub(crate) fn editor_ui(ui: &mut egui::Ui, slot: EditorSlot<'_>) -> EditorPresen
         }
         let pass = runtime.pass;
         let response = ui.allocate_response(size, egui::Sense::click_and_drag());
+        ui.memory_mut(|memory| {
+            memory.set_focus_lock_filter(
+                response.id,
+                egui::EventFilter {
+                    tab: true,
+                    horizontal_arrows: true,
+                    vertical_arrows: true,
+                    escape: false,
+                },
+            );
+        });
         let cropped = Quad::upright(response.rect).crop_to(ui.clip_rect());
         let visible = cropped.as_ref().map_or(egui::Rect::ZERO, |(_, source)| {
             scale_rect(*source, response.rect.size())
