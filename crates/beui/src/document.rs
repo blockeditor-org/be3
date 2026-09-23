@@ -489,6 +489,8 @@ impl Document {
         self.measurements.remove(&id);
         self.component_states.remove(&id);
         self.placed_children.remove(&id);
+        self.placed_pass.remove(&id);
+        self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
