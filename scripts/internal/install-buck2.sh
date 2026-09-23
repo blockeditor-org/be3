@@ -3,9 +3,8 @@
 # Puts the pinned buck2 in cargo's bin directory.
 #
 # The release upstream publishes is a zstd-compressed bare binary rather than an
-# archive, so this decompresses it straight to where it is going, the way
-# install-nextest.sh untars one binary out of a tarball. The version and the
-# hash it is checked against are both common.sh's.
+# archive, so this decompresses it straight to where it is going. The version
+# and the hash it is checked against are both common.sh's.
 #
 # A buck2 already on PATH is left exactly as it is, whatever version it is: the
 # machine chose it, and replacing it is not this script's business. A version

@@ -145,138 +145,56 @@ jobs:
       - uses: ./.github/actions/sccache-report
         if: always()
 
+  # The tests run through buck2 on BuildBuddy: every test binary is built on a
+  # worker and most tests run there too, so nothing here compiles and this
+  # runner needs no toolchain. What it does need is a graphics device for the
+  # tests that stay on it - beui's renderer - and libvulkan1 and the mesa
+  # drivers are the software one.
   test:
     name: tests
     runs-on: ubuntu-24.04
     steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      #
-      # A pull request is checked out at its head rather than at the merge
-      # GitHub makes of it, because what this job fixes is pushed back to that
-      # head and has to apply there. The merge queue only merges a head that
-      # already contains main, so nothing is tested here that main has not seen.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # block-app links GTK and WebKitGTK for the file picker and the embedded
-      # browser, and ALSA for audio playback, so the workspace does not
-      # compile without their headers. A test that paints needs a real adapter,
-      # which on a runner with no GPU is lavapipe out of mesa.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
             libvulkan1 mesa-vulkan-drivers
 
-      # Each game's build script builds the same crate again as a wasm module
-      # the host loads, so the test build needs the wasm target too.
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: wasm32-unknown-unknown
-
-      # Declared before every other cache in the job; the action says why.
-      - uses: ./.github/actions/cargo-cache
-
-      - uses: ./.github/actions/sccache
-
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
-        with:
-          tool: cargo-nextest
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: x86_64-unknown-linux-gnu
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
+      - uses: ./.github/actions/buck2
 
       - uses: ./.github/actions/verify
         with:
           part: tests
 
-      - uses: ./.github/actions/sccache-report
-        if: always()
-
+  # The plugin tests, which buck2 builds on a worker and runs here: they read
+  # the accepted paintings out of snapshots/ and, on a pull request, write the
+  # ones that changed back for the autofix job to push. A plugin test that
+  # paints through the gpu abi opens the software Vulkan device.
   plugin-tests:
     name: plugin tests
     runs-on: ubuntu-24.04
     steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      #
-      # A pull request is checked out at its head rather than at the merge
-      # GitHub makes of it, because what this job fixes is pushed back to that
-      # head and has to apply there. The merge queue only merges a head that
-      # already contains main, so nothing is tested here that main has not seen.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The test runner is a native binary built out of the workspace, so this
-      # job needs the same headers a native build does, and a plugin's tests
-      # paint through a real adapter, which on a runner with no GPU is lavapipe
-      # out of mesa.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
             libvulkan1 mesa-vulkan-drivers
 
-      # Every plugin's tests are compiled to wasm and run in the plugin host,
-      # which builds the same C dependencies the web bundle does, so this job
-      # needs the same LLVM 19-or-newer as the web job for the same reason.
-      - name: Install LLVM
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-20 llvm-20
-
-      # The plugin tests are wasm, and the runner that hosts them is built with
-      # the rest of the workspace, whose games compile themselves to wasm from
-      # their build scripts, so this needs both wasm targets.
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: wasm32-unknown-unknown, wasm32-wasip1-threads
-
-      # Declared before every other cache in the job; the action says why.
-      - uses: ./.github/actions/cargo-cache
-
-      - uses: ./.github/actions/sccache
-
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
-        with:
-          tool: cargo-nextest
-
-      - uses: ./.github/actions/wasi-sysroot
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: x86_64-unknown-linux-gnu
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
+      - uses: ./.github/actions/buck2
 
       - uses: ./.github/actions/verify
         with:
           part: plugin-tests
-
-      - uses: ./.github/actions/sccache-report
-        if: always()
 
   buck:
     name: buck2
@@ -288,17 +206,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-
-      # Nothing is compiled here: every action runs on BuildBuddy. What still
-      # runs on this machine is the tests that cannot run on a worker, and
-      # those need a graphics device - a plugin test that paints through the
-      # gpu abi, and beui's renderer tests. libvulkan1 and the mesa drivers are
-      # the software one.
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libvulkan1 mesa-vulkan-drivers
 
       # For ./scripts/buckify below, which reads the workspace through cargo
       # metadata, and for the reindeer it runs.
@@ -317,17 +224,10 @@ jobs:
           ./scripts/buckify
           git diff --exit-code third-party/rust/BUCK
 
+      # Everything, on BuildBuddy's workers: the tests jobs above build what
+      # they test, and this is what says the rest - the binaries, the plugin
+      # and game modules - builds too.
       - run: ./scripts/buck build //crates/...
-
-      # One test target is labelled cargo-only: block-plugin-api walks
-      # crates/editors in the source tree, and buck2 compiles a crate against a
-      # staged copy of its own sources. The cargo jobs above run it.
-      #
-      # Everything else is here, the 33 editors included: a plugin's tests are
-      # compiled to wasm and run through the same host block-app runs a plugin
-      # in, which is what makes the paintings they compare the ones the app
-      # would show.
-      - run: ./scripts/buck test //crates/... --exclude cargo-only
 
   web:
     name: web bundle
@@ -783,7 +683,7 @@ jobs:
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
 
   # The merge queue's decision logic is JavaScript rather than Rust, so
-  # ./scripts/verify's three parts do not compile it and cargo nextest does not
+  # ./scripts/verify's three parts do not compile it and buck2 does not
   # run it. It is a few seconds of Node either way, and what it guards is the
   # thing that decides whether a pull request merges, so it gets a job of its
   # own and a place in the gate below.

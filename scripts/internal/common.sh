@@ -256,17 +256,6 @@ workspace_selection() {
     fi
 }
 
-# The same selection without the plugins, whose tests are compiled to wasm and
-# run by internal/test-plugins.sh rather than by the native run.
-native_selection() {
-    load_plugins
-    workspace_selection
-    local plugin
-    for plugin in "${plugins[@]}"; do
-        selection+=(--exclude "$plugin")
-    done
-}
-
 # Builds libghostty-vt, and only when there is a build to link it into. Every
 # script that compiles the app calls this rather than the script itself, so the
 # Zig toolchain and the Ghostty checkout are a cost a full build pays and
@@ -291,20 +280,6 @@ load_plugins() {
         echo 'No plugin manifests were found under crates/editors' >&2
         exit 1
     fi
-}
-
-# Packages that are not plugins themselves but whose tests only exist on wasm,
-# so a native run never builds them and a break in them is invisible until
-# someone compiles a plugin. block-editor-plugin's editor session is the whole
-# guest half of the plugin framework and is behind `cfg(target_arch =
-# "wasm32")`, so its tests belong to the plugin run rather than the native one.
-guest_only_packages=(block-editor-plugin)
-
-# Everything internal/test-plugins.sh compiles to wasm and runs through the
-# plugin host: every plugin, and the guest-only packages beside them.
-load_wasm_tested() {
-    load_plugins
-    wasm_tested=("${plugins[@]}" "${guest_only_packages[@]}")
 }
 
 plugin_manifest() {
@@ -674,16 +649,6 @@ precompile_plugin_wasm() {
     "$precompiler" --target "$triple" "${stale[@]}"
     end_step
 }
-
-# ./scripts/verify runs the tests through nextest, which is not a rustup
-# component. internal/install-nextest.sh fetches this release rather than
-# building it, because `cargo install cargo-nextest` spends around four minutes
-# compiling a test runner nothing in the workspace depends on, which was most of
-# what setting a machine up cost. The musl builds run on any glibc a machine
-# happens to have, which the gnu ones do not.
-nextest_version='0.9.145'
-nextest_sha256_x86_64='cd3c85194e8b28ad26676d287f41f0d6b4d456cef5bd94700def5dea8e328883'
-nextest_sha256_aarch64='103a8f68b20fb01ee5daf2eb4c037b54ace550a04a288ee35761c5e7b0351311'
 
 # sccache stands between cargo and rustc and answers a compilation from a shared
 # object store whenever some other machine has already compiled that crate with

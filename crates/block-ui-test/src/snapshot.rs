@@ -39,14 +39,14 @@ pub fn assert_snapshot(name: &str, snapshot: &Snapshot) {
         .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned());
 
     panic!(
-        "the painting changed: {description}\nto accept it:\n  ./scripts/verify, or scripts/internal/test-plugins.sh\nthen {REVIEW}"
+        "the painting changed: {description}\nto accept it:\n  ./scripts/verify --plugin-tests, or ./scripts/buck test //crates/editors/<plugin>:test -- --env UPDATE_SNAPSHOTS=1\nthen {REVIEW}"
     );
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn only_in_wasm() {
     panic!(
-        "a plugin paints as the wasm guest it ships as, so its tests only run there: ./scripts/verify, or scripts/internal/test-plugins.sh"
+        "a plugin paints as the wasm guest it ships as, so its tests only run there: ./scripts/verify --plugin-tests, or ./scripts/buck test //crates/editors/<plugin>:test"
     );
 }
 

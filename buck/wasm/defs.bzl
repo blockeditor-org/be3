@@ -192,7 +192,9 @@ def _wasi_test_impl(ctx: AnalysisContext) -> list[Provider]:
         ExternalRunnerTestInfo(
             command = [command],
             env = env,
-            labels = ctx.attrs.labels,
+            # What ./scripts/verify tells the plugin tests apart by: they run
+            # here and accept paintings, and the rest run on a worker.
+            labels = ctx.attrs.labels + ["plugin"],
             run_from_project_root = True,
             type = "rust",
             use_project_relative_paths = False,

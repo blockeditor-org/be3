@@ -2,14 +2,19 @@
 #
 # Fixes Rust source layout, strips comments, lints, formats and tests.
 #
-# Runs the Rust source fixer, clippy, rustfmt and the test suite over the whole
-# workspace. This is the one command to run after making changes.
+# Runs the Rust source fixer, clippy and rustfmt over the whole workspace, and
+# the test suite through buck2 on BuildBuddy.
 #
 # By default source layout and comments are fixed, clippy applies the fixes it
-# can, rustfmt rewrites the sources and the tests accept whatever painting they
-# produce. With --check nothing is written and each tool only reports, which is
-# what CI wants. Either way the run fails if a Rust source violation or clippy
-# warning survives.
+# can, rustfmt rewrites the sources and the plugin tests accept whatever
+# painting they produce. With --check nothing is written and each tool only
+# reports, which is what CI wants. Either way the run fails if a Rust source
+# violation or clippy warning survives.
+#
+# The tests are buck2's, so they need BUILDBUDDY_API_KEY: every test binary is
+# built on BuildBuddy's workers and most tests run there too. The lint pass is
+# still cargo's, because it lints the embedded browser, which buck2 does not
+# build. guides/buck2.md says why.
 #
 # A run that writes is a person's, and it is quiet: what they want out of it is
 # the failures, and they can see their own machine working. --check is CI's,
@@ -23,10 +28,11 @@
 # be pushed back to its branch rather than left for its author to go and find.
 #
 # The work splits into three parts that need nothing from one another: the lint
-# pass, the native test run, and the plugin tests that run in wasm. Naming one
-# or more of them runs only those, which is how CI gets them onto three runners
-# at once instead of one runner in sequence. Naming none runs all three, so the
-# command a person types is unchanged.
+# pass, the tests buck2 runs on BuildBuddy's workers, and the plugin tests,
+# which run here because they read and write the accepted paintings in
+# snapshots/. Naming one or more of them runs only those, which is how CI gets
+# them onto three runners at once instead of one runner in sequence. Naming
+# none runs all three, so the command a person types is unchanged.
 #
 # Usage:
 #   ./scripts/verify
@@ -82,31 +88,24 @@ fi
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 cd "$repository"
 
-# A plugin's tests run in wasm rather than natively, so the workspace run skips
-# them and internal/test-plugins.sh runs them afterwards. What a default build
-# leaves out is skipped here as well; --full puts it back.
-native_selection
-native=("${selection[@]}")
+quiet=(--quiet)
+if $ci; then
+    quiet=()
+fi
 
 failed=false
 
-quiet=(--quiet)
-nextest_quiet=(--cargo-quiet --show-progress=none)
-nextest_profile=()
-if $ci; then
-    quiet=()
-    nextest_quiet=()
-    nextest_profile=(--profile ci)
-fi
-
 # block-app links libghostty-vt, the terminal emulator behind the debug
 # terminal window. It is Zig rather than Rust, so nothing cargo does builds it,
-# and clippy and the tests cannot link the app without it. A default build does
-# not compile the terminal at all, so this is a full build's cost alone.
-host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
-if ! ensure_ghostty_vt "$host_triple"; then
-    echo 'Verification failed.'
-    exit 1
+# and clippy cannot link the app without it. A default build does not compile
+# the terminal at all, so this is a full build's cost alone. buck2 builds its
+# own copy on a worker, so the tests need none of this.
+if $lint; then
+    host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
+    if ! ensure_ghostty_vt "$host_triple"; then
+        echo 'Verification failed.'
+        exit 1
+    fi
 fi
 
 # Every command announces itself and says what it cost, the way the build
@@ -176,8 +175,8 @@ fi
 
 if $tests; then
     # The merge queue in .github/merge-queue is the one part of this repository
-    # that is not Rust, so nothing else in this script compiles it and cargo
-    # nextest does not run it. It decides whether a pull request merges, so it
+    # that is not Rust, so nothing else in this script compiles it and buck2
+    # does not run it. It decides whether a pull request merges, so it
     # is worth the second it costs here.
     #
     # Node is not otherwise needed to build or test anything in this project,
@@ -190,29 +189,20 @@ if $tests; then
         echo 'Skipping the merge queue tests: node is not installed.'
     fi
 
-    if $check; then
-        t 'cargo nextest run' cargo nextest run --profile ci "${native[@]}"
-    else
-        # A changed painting is not a failure to fix here: the accepted files
-        # are rewritten, and it is the diff a person reviews.
-        t 'cargo nextest run' env UPDATE_SNAPSHOTS=1 cargo nextest run "${nextest_profile[@]}" "${nextest_quiet[@]}" "${native[@]}"
-    fi
+    # Everything but the plugin tests, which are labelled plugin. Most of it
+    # runs on BuildBuddy's workers; guides/buck2.md says which tests stay here.
+    t 'buck2 test' "$repository/scripts/buck" test //crates/... --exclude plugin
 fi
 
 if $plugin_tests; then
-    # The plugin run builds its test runner the way the native run builds its
-    # own tests, so that everything that run compiled is reused rather than
-    # resolved again with different features. When the native run is not part
-    # of this one there is nothing to reuse, and asking for it that way is a
-    # second build of every test binary in the workspace for the sake of one.
-    alone=()
-    if ! $tests; then
-        alone=(--runner-only)
-    fi
+    # The plugin tests run here rather than on a worker, and a changed painting
+    # is not a failure to fix in a run that writes: the accepted file is
+    # rewritten, and it is the diff a person reviews. The runner passes the
+    # variable on to the guest, which is where the comparison happens.
     if $check; then
-        t 'plugin tests' "$internal/test-plugins.sh" --check "${alone[@]}" --profile ci
+        t 'plugin tests' "$repository/scripts/buck" test //crates/... --include plugin
     else
-        t 'plugin tests' "$internal/test-plugins.sh" "${alone[@]}" "${nextest_profile[@]}" "${nextest_quiet[@]}"
+        t 'plugin tests' "$repository/scripts/buck" test //crates/... --include plugin -- --env UPDATE_SNAPSHOTS=1
     fi
 fi
 

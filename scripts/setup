@@ -4,7 +4,7 @@
 #
 # Everything here is idempotent, so running it again on a machine that is
 # already set up only reports what is already there. It assumes apt and an
-# unrestricted network: the Rust toolchain, cargo-nextest, Zig and Ghostty's
+# unrestricted network: the Rust toolchain, buck2, Zig and Ghostty's
 # dependencies are all fetched from the internet.
 #
 # It installs prerequisites and stops there, so it is minutes rather than the
@@ -195,14 +195,9 @@ rustup show active-toolchain
 step 'Installing rustfmt and clippy'
 rustup component add rustfmt clippy
 
-# ./scripts/verify runs the tests through nextest, which is not a rustup
-# component. The script fetches the pinned release rather than building it.
-step 'Installing cargo-nextest'
-"$internal/install-nextest.sh"
-
-# buck2 builds the half of the workspace it has BUCK files for, and answers most
-# of it out of the shared cache rather than compiling it; guides/buck2.md says
-# what it covers. Both of these are downloads of a pinned release, so they cost
+# buck2 builds and tests the workspace on BuildBuddy's workers, and
+# ./scripts/verify runs the tests through it; guides/buck2.md says what it
+# covers. Both of these are downloads of a pinned release, so they cost
 # seconds. reindeer is not installed here: it builds from source, takes minutes,
 # and only ./scripts/buckify needs it - which is only after a Cargo.toml change.
 step 'Installing buck2'

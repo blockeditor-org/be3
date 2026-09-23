@@ -2,23 +2,18 @@
 #
 # Compiles everything ./scripts/verify needs, without running a test.
 #
-# Verify is only slow the first time. On a machine whose target directory is
-# already populated it finishes in well under a minute; on a fresh checkout it
-# spends over ten minutes compiling before the first test runs, because
-# every phase of it wants a different set of artifacts: clippy wants the
-# workspace checked with every feature on, the test phase wants it built for
-# real, and the plugin phase wants a WASI sysroot and every plugin's tests
-# compiled to wasm and handed to Cranelift. The runner Cranelift comes in is
-# the one thing it does not add to the pile: it is built from what the test
-# phase leaves behind, so it has to be warmed after that phase rather than
-# before it.
+# Verify is only slow the first time. On a fresh checkout its lint pass spends
+# minutes compiling before clippy says anything, because clippy wants the
+# workspace checked with every feature on, and the fixer is a binary of its
+# own. The tests are built on BuildBuddy's workers rather than here, so all
+# that warms for them is the download of what runs locally.
 #
 # This builds all of that and stops there. ./scripts/setup runs it when it is
 # asked for with --warm-cache, for a machine that would rather wait while it is
 # being prepared than in the middle of the first verify; a default setup leaves
 # it out, because the compiling happens either way and most of it comes out of
 # the shared sccache store. Running it again later is cheap: it is the same
-# cargo calls verify makes, so anything still current is left alone.
+# calls verify makes, so anything still current is left alone.
 #
 # Usage:
 #   warm-cache.sh
@@ -39,9 +34,6 @@ cd "$repository"
 # excludes them: their tests are wasm, and the plugin phase below builds those.
 # The selection is otherwise verify's, so what is warmed is what verify asks
 # for rather than something close to it.
-native_selection
-native=("${selection[@]}")
-
 if full_build; then
     echo 'Warming libghostty-vt...'
     host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
