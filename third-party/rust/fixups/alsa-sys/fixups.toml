@@ -1,4 +1,5 @@
-# The build script only asks pkg-config how to link libasound, and the worker
-# has no pkg-config answer to give. third-party/system:asound is the library.
-buildscript.run = false
-extra_deps = ["//third-party/system:asound"]
+# The build script asks pkg-config how to link libasound. It is answered from
+# the sysroot in buck/sysroot, and the -lasound it prints reaches the link.
+[buildscript.run]
+rustc_link_lib = true
+env = { PKG_CONFIG = "$(exe //buck/sysroot:pkg-config)" }

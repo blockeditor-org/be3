@@ -1,0 +1,61 @@
+load(":defs.bzl", "deb_lock", "deb_sysroot", "pkg_config")
+load(":packages.bzl", "packages")
+
+# The Linux the build compiles and links against.
+#
+# A worker is a container of Ubuntu 24.04's buildpack-deps, and what it is for
+# is running tools. What a program is built against - glibc and its headers,
+# libstdc++, and every system library a crate links: ALSA, GTK, WebKitGTK -
+# comes from here instead, as Ubuntu 24.04's own packages, unpacked into a
+# sysroot the toolchain in buck/toolchains/BUCK hands the compiler and the
+# linker with --sysroot. So nothing a build needs has to be installed anywhere,
+# and the worker's image is not part of what a program is made of.
+#
+# The packages come from a snapshot of the archive, which pins every index for
+# good. ./scripts/buckify resolves what is asked for below into its dependency
+# closure and writes packages.bzl; a new system library is a line here and a
+# buckify.
+
+snapshot = "20260915T000000Z"
+
+wanted = [
+    # The C and C++ runtime and the gcc install clang takes them from.
+    "libc6-dev",
+    "libgcc-13-dev",
+    "libstdc++-13-dev",
+    # What third-party crates link.
+    "libasound2-dev",
+    "libgtk-3-dev",
+    "libwebkit2gtk-4.1-dev",
+]
+
+deb_lock(
+    name = "lock",
+    architecture = "amd64",
+    packages = wanted,
+    resolver = "resolve.py",
+    snapshot = snapshot,
+)
+
+[
+    http_file(
+        name = name.replace("+", "p") + ".deb",
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        urls = [url],
+    )
+    for name, url, sha256, size_bytes in packages
+]
+
+deb_sysroot(
+    name = "amd64",
+    packages = [":" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages],
+    visibility = ["PUBLIC"],
+)
+
+pkg_config(
+    name = "pkg-config",
+    sysroot = ":amd64",
+    triple = "x86_64-linux-gnu",
+    visibility = ["PUBLIC"],
+)

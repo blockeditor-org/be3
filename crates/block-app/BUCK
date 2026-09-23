@@ -17,6 +17,12 @@ app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
 
 cargo_library(env = commit, srcs = app_srcs)
 
-cargo_test(env = commit, srcs = app_srcs)
+# The app links system libraries the worker's image does not have - ALSA, and
+# GTK and WebKitGTK when the browser is built - so its tests load them from the
+# sysroot it was linked against.
+cargo_test(
+    env = commit | {"LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu"},
+    srcs = app_srcs,
+)
 
 cargo_binary(env = commit, srcs = app_srcs)

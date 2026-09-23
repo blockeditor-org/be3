@@ -25,9 +25,15 @@ wasm_cxx_tools(
     linker = tools + ":wasm-ld",
 )
 
+# Everything built for the host is compiled and linked against the sysroot in
+# buck/sysroot, not against the worker it runs on: Ubuntu 24.04's glibc,
+# libstdc++ and system libraries, from a pinned snapshot of the archive.
 cxx_tools_info_toolchain(
     name = "host_cxx",
+    c_flags = ["--sysroot=$(location root//buck/sysroot:amd64)"],
+    cxx_flags = ["--sysroot=$(location root//buck/sysroot:amd64)"],
     cxx_tools_info = ":cxx_tools",
+    link_flags = ["--sysroot=$(location root//buck/sysroot:amd64)"],
     visibility = ["PUBLIC"],
 )
 
