@@ -63,6 +63,63 @@ rust_sysroot(
     components = [":rustc-component", ":clippy-component"] + [":rust-std-" + target for target in sorted(rust_std)],
 )
 
+# The targets that are cross-compiled, each with a sysroot of its own: the same
+# rustc with only that target's standard library beside it. Adding one to the
+# sysroot above would change the compiler every existing action names, and so
+# every cache key the host build has.
+cross_rust_std = {
+    "aarch64-apple-darwin": ("48c05269ed36fb5f0a8438065156891fe59fcb868d90cfed9b7209540d54b2ce", 29740736),
+    "x86_64-apple-darwin": ("8923fa9d0e0407b8a492e59d568e7aceff75949e1eee2e3e1b60e174373890cb", 29760212),
+}
+
+[
+    http_archive(
+        name = "rust-std-" + target,
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        strip_prefix = "rust-std-{}-{}/rust-std-{}".format(rust_version, target, target),
+        urls = ["https://static.rust-lang.org/dist/rust-std-{}-{}.tar.xz".format(rust_version, target)],
+    )
+    for target, (sha256, size_bytes) in cross_rust_std.items()
+]
+
+[
+    rust_sysroot(
+        name = "rust-" + target,
+        components = [":rustc-component", ":clippy-component", ":rust-std-" + target],
+    )
+    for target in sorted(cross_rust_std)
+]
+
+# An Apple target's rustc is told where the SDK is, which it otherwise asks
+# xcrun, a program only a Mac has. It only takes an absolute path, and a path
+# in a command line is relative to wherever the action runs.
+[
+    [
+        tool(
+            name = "{}-{}".format(program, target),
+            command = (["sh", "-c", 'SDKROOT="$PWD/$0" exec "$@"', "$(location :macos-sdk)"] if "apple" in target else [])
+            + ["$(location :rust-{})/bin/{}".format(target, program)],
+            visibility = ["PUBLIC"],
+        )
+        for program in ["rustc", "rustdoc", "clippy-driver"]
+    ]
+    for target in sorted(cross_rust_std)
+]
+
+# Apple's SDK: the headers and the .tbd stubs a macOS binary is compiled and
+# linked against. It is a repackaging of the one in Xcode, which Apple's licence
+# only allows on Apple hardware; guides/buck2.md says where that leaves the
+# macOS build.
+http_archive(
+    name = "macos-sdk",
+    sha256 = "c15cf0f3f17d714d1aa5a642da8e118db53d79429eb015771ba816aa7c6c1cbd",
+    size_bytes = 78401020,
+    strip_prefix = "MacOSX15.5.sdk",
+    urls = ["https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz"],
+    visibility = ["PUBLIC"],
+)
+
 # Launchpad's copy of each package rather than the archive's: the archive drops
 # a version once a newer one supersedes it, and Launchpad keeps every one.
 llvm_version = "20.1.2-0ubuntu1~24.04.3"
@@ -71,6 +128,7 @@ llvm_packages = {
     "clang-20": ("d3fec854d8b998510a6f525ba397123563be091939d11131ce2dff02ed9368bc", 77674),
     "libclang-common-20-dev": ("1f50ed5cb36909b83e885e5e507ccb8a54c70816f4f6574d6190cfa5cf95a891", 782474),
     "libclang-cpp20": ("0dc8f6d4cc8588e963fa86414c93f6065766211064cdc766e588c9b882b0714b", 14244738),
+    "libclang1-20": ("a5aed87546aa7b645f06a5269cf1cc190c1b70f6d212b4db49311d6cfc6398e2", 8317988),
     "libllvm20": ("f018e71c72c7a4742fb1aff9dc98b45586f42e6ea464d4918af7e3772b7f0658", 30574382),
     "lld-20": ("50d8db763d3e3526c050d01c2c8c9c94e3f94cca6f7dbdb8f9a4c65aefefcf83", 1488474),
     "llvm-20": ("b7ca50166943d94c786611ebe7a0dd8f5b9a9b1f81025620cf9dfcd8aac84563", 19772486),
@@ -89,6 +147,7 @@ llvm_packages = {
 llvm_tree(
     name = "llvm",
     packages = [":{}.deb".format(package) for package in sorted(llvm_packages)],
+    visibility = ["//third-party/rust/..."],
 )
 
 # What buck/toolchains/BUCK names.
@@ -127,6 +186,25 @@ tool(
     command = ["$(location :llvm)/bin/llvm-ar"],
     visibility = ["PUBLIC"],
 )
+
+# clang for a macOS target. The target is part of the command rather than a
+# toolchain flag because the prelude assembles a .S file with the bare compiler
+# and none of the flags, and an assembly file that asks which platform it is for
+# would otherwise be told Linux.
+[
+    [
+        tool(
+            name = "{}-{}-apple-macosx".format(program, cpu),
+            command = [
+                "$(location :llvm)/bin/" + driver,
+                "--target={}-apple-macosx{}".format(cpu, minimum),
+            ],
+            visibility = ["PUBLIC"],
+        )
+        for program, driver in [("cc", "clang"), ("cxx", "clang++")]
+    ]
+    for cpu, minimum in [("arm64", "11.0"), ("x86_64", "10.12")]
+]
 
 tool(
     name = "wasm-cc",

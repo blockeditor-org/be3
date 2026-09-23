@@ -53,3 +53,31 @@ platform(
     ],
     visibility = ["PUBLIC"],
 )
+
+# The platforms that are cross-compiled from a Linux worker, and a
+# config_setting for each: what the select()s buck/cargo/defs.bzl writes are
+# keyed on, since a select key is one setting and these are two constraints.
+[
+    [
+        platform(
+            name = name,
+            constraint_values = [
+                "prelude//cpu/constraints:cpu[{}]".format(cpu),
+                "prelude//os/constraints:os[{}]".format(os),
+            ],
+            visibility = ["PUBLIC"],
+        ),
+        config_setting(
+            name = name + "_setting",
+            constraint_values = [
+                "prelude//cpu/constraints:cpu[{}]".format(cpu),
+                "prelude//os/constraints:os[{}]".format(os),
+            ],
+            visibility = ["PUBLIC"],
+        ),
+    ]
+    for name, cpu, os in [
+        ("macos_arm64", "arm64", "macos"),
+        ("macos_x86_64", "x86_64", "macos"),
+    ]
+]

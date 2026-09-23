@@ -11,3 +11,20 @@ index ec9f8da..42b7447 100644
          @export(&callocStub, .{
              .name = "calloc",
              .linkage = .weak,
+diff --git a/src/lib_vt.zig b/src/lib_vt.zig
+index a0227ae..6c2c628 100644
+--- a/src/lib_vt.zig
++++ b/src/lib_vt.zig
+@@ -187,7 +187,11 @@ comptime {
+         // emitted. This must stay inside the root guard so that
+         // downstream Zig module consumers don't get the override
+         // injected into their binaries. See quirks_memset.zig.
+-        _ = @import("quirks_memset.zig");
++        //
++        // Not on Darwin: there compiler_rt's memset is not weak, so the
++        // two collide in a static library, and libSystem's is already
++        // vectorized.
++        if (!builtin.os.tag.isDarwin()) _ = @import("quirks_memset.zig");
+ 
+         const c = terminal.c_api;
+         const features = terminal.options;

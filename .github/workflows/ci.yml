@@ -226,6 +226,13 @@ jobs:
       # and game modules - builds too.
       - run: ./scripts/buck build //crates/...
 
+      # The same for both Macs, cross-compiled on the same Linux workers
+      # against Apple's SDK. Nothing runs them yet: a Mac is what can.
+      - name: Build for macOS
+        run: |
+          ./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 //crates/...
+          ./scripts/buck build --target-platforms root//buck/platforms:macos_x86_64 //crates/...
+
   web:
     name: web bundle
     runs-on: ubuntu-24.04

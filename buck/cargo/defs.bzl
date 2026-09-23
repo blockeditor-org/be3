@@ -17,6 +17,8 @@ load(":crates.bzl", "crates")
 # tells them apart by.
 _CONSTRAINTS = {
     "linux-x86_64": "DEFAULT",
+    "macos-arm64": "root//buck/platforms:macos_arm64_setting",
+    "macos-x86_64": "root//buck/platforms:macos_x86_64_setting",
     "wasi": "prelude//os:wasi",
     "wasm32": "prelude//os:none",
 }

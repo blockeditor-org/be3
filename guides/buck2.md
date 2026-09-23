@@ -23,8 +23,10 @@ still cargo's.
   through the host.
 - All thirty-three editors, as the wasm plugins the app loads, and their tests,
   compiled to wasm and run through the same host `block-app` runs a plugin in.
+- All of the above for macOS, arm64 and x86_64, cross-compiled on the same
+  Linux workers (below).
 
-`./scripts/buck test //crates/...` is 71 test targets.
+`./scripts/buck test //crates/...` is 72 test targets.
 
 ## Running it
 
@@ -380,6 +382,50 @@ That replaces the build script under cargo, which shells out to a second cargo
 build for wasm32 and prints the path it wrote to. The plugin tests will want the
 same rule.
 
+## macOS
+
+```
+./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 //crates/block-app:block-app-bin
+./scripts/buck build --target-platforms root//buck/platforms:macos_x86_64 //crates/...
+```
+
+Both Macs are cross-compiled on the Linux workers everything else builds on;
+CI builds the whole workspace for both. What makes that work:
+
+- **Apple's SDK** (`buck/tools:macos-sdk`): the headers and `.tbd` stubs of
+  MacOSX15.5.sdk, a pinned download. It is a repackaging of the one in Xcode,
+  and Apple's licence allows the SDK on Apple hardware only. Building on Linux
+  is for development; before a release ships, the release build moves to a
+  worker that is a Mac or runs Asahi Linux on one.
+- **The compilers**: the same clang with `--target=<cpu>-apple-macosx<min>`
+  as part of the command (the prelude assembles a `.S` file with the bare
+  compiler, so a toolchain flag would not reach it), and lld's `ld64.lld` as
+  the linker. The minimums are rustc's defaults, 11.0 and 10.12.
+- **rustc**: a sysroot per Apple target with only that target's standard
+  library, so the host's cache keys do not change when a target is added.
+  rustc gets `SDKROOT` rather than asking `xcrun`, and
+  `-Csplit-debuginfo=unpacked`, because the default runs `dsymutil`.
+- **reindeer and cargo's plan**: `macos-arm64` and `macos-x86_64` in
+  `reindeer.toml`, and a `cargo test --unit-graph` per triple in
+  `buckify.bxl`, so the Mac gets the dependencies and features cargo would
+  give it. `buck/platforms` has a `config_setting` per Mac that the generated
+  `select()`s key on.
+- **The build scripts**: `coreaudio-sys` runs bindgen against the SDK with
+  `libclang` from `buck/tools:llvm`; `objc2-exception-helper` compiles its
+  Objective-C through its own build script; ring's C and assembly are named
+  per platform in its fixup, each set under a name of its own because reindeer
+  keys a library by name. libghostty-vt is Zig, and Zig cross-compiles, so it
+  is the same genrule with a different triple. Ghostty's `memset` override is
+  patched out on Darwin, where it collides with Zig's own in the archive.
+- **Plugin tests** build for a Mac but are not precompiled: the precompile
+  runs on a Linux worker, whose wasmtime has only cranelift's x86_64 backend,
+  so the runner compiles the module when a Mac runs the test.
+
+A macOS binary links only the system's frameworks, carries lld's ad hoc
+signature, and has not been run from here: nothing in this setup has a Mac to
+run it on. Neither is there a `.app` bundle yet; `./scripts/build` still makes
+the one that ships.
+
 ## The compiler is a stable one, and the build says so
 
 `nightly_features = False` in `buck/toolchains/BUCK`, which is not the prelude's
@@ -547,12 +593,12 @@ target with `--target` is what makes wasmtime stop looking.
 
 ## What is still cargo's
 
-- **Every platform but Linux on x86_64.** `reindeer.toml` configures one
-  platform and a worker is one machine. macOS, Windows and Android builds, the
-  release artifacts CI uploads, and `./scripts/build` and `./scripts/run` are
-  cargo's. Adding a platform here is adding it to `reindeer.toml`, re-running
-  `./scripts/buckify` and fixing what its build scripts need, and a worker pool
-  for it where it cannot be cross-compiled.
+- **Windows, Android and Linux on arm64, and every release artifact.** buck2
+  builds for Linux on x86_64 and for both Macs; the release artifacts CI
+  uploads, the macOS `.app`, and `./scripts/build` and `./scripts/run` are
+  cargo's. Adding a platform is the macOS section above again: a target
+  platform, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain, and
+  whatever its build scripts need.
 - **The GPU tests.** beui's renderer tests and the plugin tests' GPU half
   still run locally. Mesa's software Vulkan is a sysroot package away; what is
   left is pointing the Vulkan loader at it on a worker.

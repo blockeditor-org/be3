@@ -59,12 +59,13 @@ def _impl(ctx):
 
     out = actions.declare_output("generated", dir = True)
 
-    # The three builds buck2 stands in for, as cargo would be asked for them.
+    # The builds buck2 stands in for, as cargo would be asked for them.
     # The host is the workspace with block-app's terminal and without its
     # embedded browser, less the plugins, which are only ever wasm, and the two
     # crates buck2 does not build. The plugins are every editor and
     # block-editor-plugin, for wasm32-wasip1-threads. The games are the three
-    # rule crates, for wasm32-unknown-unknown. `cargo test` rather than `cargo
+    # rule crates, for wasm32-unknown-unknown. macOS is the host's build again,
+    # for its two triples. `cargo test` rather than `cargo
     # build` where there are tests, so that the plan has the dev-dependencies
     # and the features they unify. --unit-graph is nightly's, which is why the
     # nightly reindeer is built with is what runs it.
@@ -109,8 +110,12 @@ plan test --workspace $excluded --exclude block-editor-plugin --exclude block-gp
     --exclude test-third-party --features block-app/full > "$scratch/host.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin > "$scratch/wasi.json"
 plan build --target wasm32-unknown-unknown $games > "$scratch/wasm32.json"
+host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim --exclude test-third-party"
+plan test --target aarch64-apple-darwin $host_packages --features block-app/full > "$scratch/macos-arm64.json"
+plan test --target x86_64-apple-darwin $host_packages --features block-app/full > "$scratch/macos-x86_64.json"
 python3 "$generate" "$scratch/metadata.json" \
     "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasm32=$scratch/wasm32.json" \
+    "macos-arm64=$scratch/macos-arm64.json" "macos-x86_64=$scratch/macos-x86_64.json" \
     > "$out/crates.bzl"
 rm -rf "$scratch"
 """

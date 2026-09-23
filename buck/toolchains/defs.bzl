@@ -33,18 +33,20 @@ def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
             cvtres_compiler = None,
             cxx_compiler = ctx.attrs.cxx_compiler[RunInfo].args,
             linker = ctx.attrs.cxx_compiler[RunInfo].args,
-            linker_type = LinkerType("gnu"),
+            linker_type = LinkerType(ctx.attrs.linker_type),
             rc_compiler = None,
         ),
     ]
 
 # The same tools prelude//toolchains/cxx/clang:path_clang_tools names, as
-# artifacts.
+# artifacts. The linker is the C++ driver, and linker_type is what the prelude
+# shapes its link flags for: "gnu" for an ELF link, "darwin" for ld64.lld.
 host_cxx_tools = rule(
     attrs = {
         "archiver": attrs.exec_dep(providers = [RunInfo]),
         "compiler": attrs.exec_dep(providers = [RunInfo]),
         "cxx_compiler": attrs.exec_dep(providers = [RunInfo]),
+        "linker_type": attrs.string(default = "gnu"),
     },
     impl = _host_cxx_tools_impl,
 )
@@ -187,3 +189,13 @@ remote_linking_cxx_toolchain = rule(
     impl = _remote_linking_cxx_toolchain_impl,
     is_toolchain_rule = True,
 )
+
+# One of buck/tools' Rust programs, from the sysroot the target is built with:
+# the host and wasm targets share one, and a cross-compiled target has its own,
+# which buck/tools/BUCK says why.
+def cross_tool(tools: str, program: str):
+    return select({
+        "DEFAULT": "{}:{}".format(tools, program),
+        "root//buck/platforms:macos_arm64_setting": "{}:{}-aarch64-apple-darwin".format(tools, program),
+        "root//buck/platforms:macos_x86_64_setting": "{}:{}-x86_64-apple-darwin".format(tools, program),
+    })

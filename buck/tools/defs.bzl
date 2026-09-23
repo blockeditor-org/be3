@@ -41,7 +41,8 @@ rust_sysroot = rule(
 
 # Unpacks Ubuntu's clang packages into the part of /usr/lib/llvm-20 a build
 # uses: the binaries, the two shared libraries they load through
-# $ORIGIN/../lib, and clang's resource directory. The packages keep the
+# $ORIGIN/../lib, clang's resource directory, and libclang, which bindgen loads
+# from a build script and which finds the resource directory beside it. The packages keep the
 # libraries in /usr/lib/x86_64-linux-gnu and point at them with symlinks that
 # climb out of llvm-20; copying the files in is what makes the tree
 # self-contained. The symlinks within bin - clang++ to clang, ld.lld to lld -
@@ -58,9 +59,11 @@ for package; do dpkg-deb -x "$package" "$packages"; done
 mkdir -p "$out/bin" "$out/lib"
 cp -P "$packages"/usr/lib/llvm-20/bin/clang "$packages"/usr/lib/llvm-20/bin/clang++ \
     "$packages"/usr/lib/llvm-20/bin/lld "$packages"/usr/lib/llvm-20/bin/ld.lld \
+    "$packages"/usr/lib/llvm-20/bin/ld64.lld "$packages"/usr/lib/llvm-20/bin/lld-link \
     "$packages"/usr/lib/llvm-20/bin/llvm-ar "$out/bin/"
 cp "$packages"/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1 \
     "$packages"/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1 "$out/lib/"
+cp "$packages"/usr/lib/x86_64-linux-gnu/libclang-20.so.20 "$out/lib/libclang.so"
 cp -R "$packages"/usr/lib/llvm-20/lib/clang "$out/lib/"
 rm -rf "$packages"
 """

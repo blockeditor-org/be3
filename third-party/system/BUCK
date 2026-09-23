@@ -13,6 +13,7 @@ prebuilt_cxx_library(
     name = "stdc++",
     exported_linker_flags = select({
         "DEFAULT": ["-lstdc++"],
+        "prelude//os:macos": ["-lc++"],
         "prelude//os:wasi": [
             "-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
             "-lc++",

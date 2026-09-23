@@ -1,11 +1,14 @@
 # ring ships its assembly pregenerated per platform and its C beside it, and
 # the build script picks the set for the target. The archive that produces is
-# not something Buck links, so the same set is named here. Only the x86_64 ELF
-# one is written, because that is the only platform reindeer.toml configures.
+# not something Buck links, so the same set is named here, once per platform
+# reindeer.toml configures that has C in it: the x86_64 ELF set, and the two
+# Mach-O ones, which ring calls macosx for x86_64 and ios64 for arm64. Each has
+# a name of its own: reindeer keys a library on its name alone, so three of the
+# same name would be one library with the last set.
 buildscript.run = true
 
 [['cfg(all(target_arch = "x86_64", target_os = "linux"))'.cxx_library]]
-name = "ring-core"
+name = "ring-core-linux-x86_64"
 srcs = [
   "crypto/crypto.c",
   "crypto/cpu_intel.c",
@@ -35,6 +38,73 @@ srcs = [
   "pregenerated/x86_64-mont-elf.S",
   "pregenerated/x86_64-mont5-elf.S",
   "third_party/fiat/asm/*.S",
+]
+headers = ["crypto/**/*.h", "crypto/**/*.inl", "include/**/*.h", "third_party/**/*.h", "pregenerated/**/*.h"]
+include_paths = ["include", "pregenerated"]
+compiler_flags = ["-w", "-std=c1x", "-fvisibility=hidden", "-DNDEBUG"]
+
+[['cfg(all(target_arch = "x86_64", target_os = "macos"))'.cxx_library]]
+name = "ring-core-macos-x86_64"
+srcs = [
+  "crypto/crypto.c",
+  "crypto/cpu_intel.c",
+  "crypto/curve25519/curve25519_64_adx.c",
+  "crypto/curve25519/curve25519.c",
+  "crypto/fipsmodule/aes/aes_nohw.c",
+  "crypto/fipsmodule/bn/montgomery.c",
+  "crypto/fipsmodule/bn/montgomery_inv.c",
+  "crypto/fipsmodule/ec/ecp_nistz.c",
+  "crypto/fipsmodule/ec/gfp_p256.c",
+  "crypto/fipsmodule/ec/gfp_p384.c",
+  "crypto/fipsmodule/ec/p256.c",
+  "crypto/fipsmodule/ec/p256-nistz.c",
+  "crypto/limbs/limbs.c",
+  "crypto/mem.c",
+  "crypto/poly1305/poly1305.c",
+  "pregenerated/aes-gcm-avx2-x86_64-macosx.S",
+  "pregenerated/aesni-gcm-x86_64-macosx.S",
+  "pregenerated/aesni-x86_64-macosx.S",
+  "pregenerated/chacha-x86_64-macosx.S",
+  "pregenerated/chacha20_poly1305_x86_64-macosx.S",
+  "pregenerated/ghash-x86_64-macosx.S",
+  "pregenerated/p256-x86_64-asm-macosx.S",
+  "pregenerated/sha256-x86_64-macosx.S",
+  "pregenerated/sha512-x86_64-macosx.S",
+  "pregenerated/vpaes-x86_64-macosx.S",
+  "pregenerated/x86_64-mont-macosx.S",
+  "pregenerated/x86_64-mont5-macosx.S",
+  "third_party/fiat/asm/*.S",
+]
+headers = ["crypto/**/*.h", "crypto/**/*.inl", "include/**/*.h", "third_party/**/*.h", "pregenerated/**/*.h"]
+include_paths = ["include", "pregenerated"]
+compiler_flags = ["-w", "-std=c1x", "-fvisibility=hidden", "-DNDEBUG"]
+
+[['cfg(all(target_arch = "aarch64", target_os = "macos"))'.cxx_library]]
+name = "ring-core-macos-arm64"
+srcs = [
+  "crypto/curve25519/curve25519.c",
+  "crypto/fipsmodule/aes/aes_nohw.c",
+  "crypto/fipsmodule/bn/montgomery.c",
+  "crypto/fipsmodule/bn/montgomery_inv.c",
+  "crypto/fipsmodule/ec/ecp_nistz.c",
+  "crypto/fipsmodule/ec/gfp_p256.c",
+  "crypto/fipsmodule/ec/gfp_p384.c",
+  "crypto/fipsmodule/ec/p256.c",
+  "crypto/fipsmodule/ec/p256-nistz.c",
+  "crypto/limbs/limbs.c",
+  "crypto/mem.c",
+  "crypto/poly1305/poly1305.c",
+  "pregenerated/aesv8-armx-ios64.S",
+  "pregenerated/aesv8-gcm-armv8-ios64.S",
+  "pregenerated/armv8-mont-ios64.S",
+  "pregenerated/chacha-armv8-ios64.S",
+  "pregenerated/chacha20_poly1305_armv8-ios64.S",
+  "pregenerated/ghash-neon-armv8-ios64.S",
+  "pregenerated/ghashv8-armx-ios64.S",
+  "pregenerated/p256-armv8-asm-ios64.S",
+  "pregenerated/sha256-armv8-ios64.S",
+  "pregenerated/sha512-armv8-ios64.S",
+  "pregenerated/vpaes-armv8-ios64.S",
 ]
 headers = ["crypto/**/*.h", "crypto/**/*.inl", "include/**/*.h", "third_party/**/*.h", "pregenerated/**/*.h"]
 include_paths = ["include", "pregenerated"]

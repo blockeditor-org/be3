@@ -133,6 +133,11 @@ def plugin_tests(srcs, exports = []):
         name = "test",
         manifest = "Cargo.toml",
         module = ":test_module",
+        precompile = select({
+            "DEFAULT": True,
+            "root//buck/platforms:macos_arm64_setting": False,
+            "root//buck/platforms:macos_x86_64_setting": False,
+        }),
         runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
     )
 
@@ -177,7 +182,14 @@ def plugin_tests(srcs, exports = []):
 # and buck2 does not preserve those. It does not need to: the runner is an
 # input to the action that wrote the artifact, so a runner that could not read
 # what it wrote is not a state that exists.
+#
+# Only for the host. A test built for another platform - a Mac, from a Linux
+# worker - has a runner that cannot run where the compile does, and the
+# worker's wasmtime has only cranelift's x86_64 backend; there the runner
+# compiles the module itself when the test runs.
 def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
+    if not ctx.attrs.precompile:
+        return cmd_args(module)
     runner = ctx.attrs.runner[RunInfo]
     artifact = ctx.actions.declare_output(module.basename.removesuffix(".wasm") + ".cwasm")
     ctx.actions.run(
@@ -213,6 +225,7 @@ wasi_test = rule(
         "labels": attrs.list(attrs.string(), default = []),
         "manifest": attrs.option(attrs.source(), default = None),
         "module": attrs.transition_dep(cfg = wasi_transition),
+        "precompile": attrs.bool(default = True),
         "runner": attrs.dep(providers = [RunInfo]),
         "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
     },

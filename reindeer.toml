@@ -20,6 +20,18 @@ execution-platform = true
 # buck/cargo/buckify.bxl asks cargo to plan the same build.
 features = ["default", "full"]
 
+# macOS, cross-compiled from the same Linux workers, with the host's features.
+# The names are the prelude's.
+[platform.macos-arm64]
+target = "aarch64-apple-darwin"
+execution-platform = false
+features = ["default", "full"]
+
+[platform.macos-x86_64]
+target = "x86_64-apple-darwin"
+execution-platform = false
+features = ["default", "full"]
+
 # The plugins. WASI with threads, which is what the plugin host runs.
 [platform.wasi]
 target = "wasm32-wasip1-threads"

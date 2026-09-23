@@ -9,15 +9,24 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 # Ghostty itself, pinned by hash and by commit, and Zig fetches Ghostty's own
 # dependencies, so this is the one action that needs the network. Its inputs
 # pin everything it downloads, which is what makes its result safe to cache.
+#
+# Zig cross-compiles, so every platform's archive is built on the same Linux
+# worker; the triple is the only thing that differs.
 genrule(
     name = "libghostty-vt.a",
-    cmd = """
+    cmd = "triple="
+    + select({
+        "DEFAULT": "x86_64-unknown-linux-gnu",
+        "root//buck/platforms:macos_arm64_setting": "aarch64-apple-darwin",
+        "root//buck/platforms:macos_x86_64_setting": "x86_64-apple-darwin",
+    })
+    + """
         set -eu
         repository=`mktemp -d`
         cp -RL "$SRCDIR/scripts" "$repository/" || { ls -laR "$SRCDIR" >&2; exit 1; }
         BE3_NO_SCCACHE=1 bash "$repository/scripts/internal/build-ghostty-vt.sh" \\
-            --triple x86_64-unknown-linux-gnu > /dev/null
-        cp "$repository/target/ghostty-vt/x86_64-unknown-linux-gnu/libghostty-vt.a" "$OUT"
+            --triple "$triple" > /dev/null
+        cp "$repository/target/ghostty-vt/$triple/libghostty-vt.a" "$OUT"
         rm -rf "$repository"
     """,
     out = "libghostty-vt.a",

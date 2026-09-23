@@ -26,6 +26,32 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model:be-model",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model:be-model",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -73,6 +99,48 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -87,6 +155,30 @@ crates = {
         "name": "be-commit",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:similar",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:similar",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-store:be-store",
@@ -135,6 +227,30 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -149,6 +265,32 @@ crates = {
         "name": "be-model",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model-derive:be-model-derive",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model-derive:be-model-derive",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
@@ -198,6 +340,28 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -223,6 +387,34 @@ crates = {
         "name": "be-protocol",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
@@ -293,6 +485,84 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {
+                    "be-server": [
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-session:be-session",
+                        "//crates/be-store:be-store",
+                        "//third-party/rust:argon2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:rand",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:sha2",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:tokio-tungstenite",
+                        "//third-party/rust:uuid",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:argon2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "be-server": [
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-session:be-session",
+                        "//crates/be-store:be-store",
+                        "//third-party/rust:argon2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:rand",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:sha2",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:tokio-tungstenite",
+                        "//third-party/rust:uuid",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:argon2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -319,6 +589,32 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -333,6 +629,34 @@ crates = {
         "name": "be-store",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:chacha20poly1305",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:chacha20poly1305",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305",
@@ -374,6 +698,64 @@ crates = {
         "name": "beui",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui_macros:beui_macros",
+                    "//crates/reactive:reactive",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:accesskit",
+                    "//third-party/rust:accesskit_winit",
+                    "//third-party/rust:arboard",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:freetype",
+                    "//third-party/rust:harfbuzz_rs",
+                    "//third-party/rust:pollster",
+                    "//third-party/rust:unicode-script",
+                    "//third-party/rust:wgpu",
+                    "//third-party/rust:winit",
+                ],
+                "features": [
+                    "default",
+                    "render",
+                    "window",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "default",
+                    "render",
+                    "window",
+                ],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui_macros:beui_macros",
+                    "//crates/reactive:reactive",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:accesskit",
+                    "//third-party/rust:accesskit_winit",
+                    "//third-party/rust:arboard",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:freetype",
+                    "//third-party/rust:harfbuzz_rs",
+                    "//third-party/rust:pollster",
+                    "//third-party/rust:unicode-script",
+                    "//third-party/rust:wgpu",
+                    "//third-party/rust:winit",
+                ],
+                "features": [
+                    "default",
+                    "render",
+                    "window",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "default",
+                    "render",
+                    "window",
+                ],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui_macros:beui_macros",
@@ -445,6 +827,28 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -470,6 +874,26 @@ crates = {
         "name": "block",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:serde",
@@ -508,6 +932,188 @@ crates = {
         "name": "block-app",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {
+                    "block-app": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/beui:beui",
+                        "//crates/block-client:block-client",
+                        "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-server:block-server",
+                        "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/block:block",
+                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/logicgame:logicgame",
+                        "//crates/reactive:reactive",
+                        "//crates/tabletop_games/host:game-host",
+                        "//crates/wasi-threads:wasi-threads",
+                        "//third-party/rust:arboard",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:directories-next",
+                        "//third-party/rust:flate2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:image",
+                        "//third-party/rust:libc",
+                        "//third-party/rust:rfd",
+                        "//third-party/rust:rodio",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:serde_json",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:ureq",
+                        "//third-party/rust:uuid",
+                        "//third-party/rust:wgpu",
+                        "//third-party/rust:winit",
+                        "//third-party/rust:wry",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-server:block-server",
+                    "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/block:block",
+                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/logicgame:logicgame",
+                    "//crates/reactive:reactive",
+                    "//crates/tabletop_games/host:game-host",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:arboard",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:directories-next",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:image",
+                    "//third-party/rust:libc",
+                    "//third-party/rust:rfd",
+                    "//third-party/rust:rodio",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:ureq",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wgpu",
+                    "//third-party/rust:winit",
+                    "//third-party/rust:wry",
+                ],
+                "features": [
+                    "default",
+                    "full",
+                    "terminal",
+                    "web-view",
+                ],
+                "test_deps": [
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                ],
+                "test_features": [
+                    "default",
+                    "full",
+                    "terminal",
+                    "web-view",
+                ],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "block-app": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/beui:beui",
+                        "//crates/block-client:block-client",
+                        "//crates/block-plugin-api:block-plugin-api",
+                        "//crates/block-server:block-server",
+                        "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/block:block",
+                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/logicgame:logicgame",
+                        "//crates/reactive:reactive",
+                        "//crates/tabletop_games/host:game-host",
+                        "//crates/wasi-threads:wasi-threads",
+                        "//third-party/rust:arboard",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:directories-next",
+                        "//third-party/rust:flate2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:image",
+                        "//third-party/rust:libc",
+                        "//third-party/rust:rfd",
+                        "//third-party/rust:rodio",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:serde_json",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:ureq",
+                        "//third-party/rust:uuid",
+                        "//third-party/rust:wgpu",
+                        "//third-party/rust:winit",
+                        "//third-party/rust:wry",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-server:block-server",
+                    "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/block:block",
+                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/logicgame:logicgame",
+                    "//crates/reactive:reactive",
+                    "//crates/tabletop_games/host:game-host",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:arboard",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:directories-next",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:image",
+                    "//third-party/rust:libc",
+                    "//third-party/rust:rfd",
+                    "//third-party/rust:rodio",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:ureq",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wgpu",
+                    "//third-party/rust:winit",
+                    "//third-party/rust:wry",
+                ],
+                "features": [
+                    "default",
+                    "full",
+                    "terminal",
+                    "web-view",
+                ],
+                "test_deps": [
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                ],
+                "test_features": [
+                    "default",
+                    "full",
+                    "terminal",
+                    "web-view",
+                ],
+            },
+            "macos-x86_64": {
                 "binaries": {
                     "block-app": [
                         "//crates/be-block:be-block",
@@ -638,6 +1244,60 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block:block",
+                    "//crates/logicgame:logicgame",
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:base64",
+                    "//third-party/rust:chacha20poly1305",
+                    "//third-party/rust:eips",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:futures-channel",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:parking_lot",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:ureq",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-server:block-server",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block:block",
+                    "//crates/logicgame:logicgame",
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:base64",
+                    "//third-party/rust:chacha20poly1305",
+                    "//third-party/rust:eips",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:futures-channel",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:parking_lot",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:ureq",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-server:block-server",
+                ],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -694,6 +1354,34 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-client:block-client",
+                    "//crates/block-server:block-server",
+                    "//crates/block:block",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-client:block-client",
+                    "//crates/block-server:block-server",
+                    "//crates/block:block",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -708,6 +1396,44 @@ crates = {
         "name": "block-editor-plugin",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-reactive:block-reactive",
+                    "//crates/block-ui:block-ui",
+                    "//crates/block:block",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-reactive:block-reactive",
+                    "//crates/block-ui:block-ui",
+                    "//crates/block:block",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
@@ -772,6 +1498,26 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:serde",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:serde",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -796,6 +1542,28 @@ crates = {
         "name": "block-gpu-guest",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
@@ -832,6 +1600,26 @@ crates = {
         "name": "block-gpu-host",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
@@ -879,6 +1667,32 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:libc",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:libc",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -905,6 +1719,30 @@ crates = {
         "name": "block-reactive",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-client:block-client",
+                    "//crates/block:block",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-client:block-client",
+                    "//crates/block:block",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-client:block-client",
@@ -991,6 +1829,96 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {
+                    "block-server": [
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-server:be-server",
+                        "//crates/block:block",
+                        "//third-party/rust:argon2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:httparse",
+                        "//third-party/rust:indexmap",
+                        "//third-party/rust:rand",
+                        "//third-party/rust:rpassword",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:serde_json",
+                        "//third-party/rust:sha2",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:tokio-tungstenite",
+                        "//third-party/rust:uuid",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/block:block",
+                    "//third-party/rust:argon2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:httparse",
+                    "//third-party/rust:indexmap",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rpassword",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:ureq",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "block-server": [
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-server:be-server",
+                        "//crates/block:block",
+                        "//third-party/rust:argon2",
+                        "//third-party/rust:futures-util",
+                        "//third-party/rust:httparse",
+                        "//third-party/rust:indexmap",
+                        "//third-party/rust:rand",
+                        "//third-party/rust:rpassword",
+                        "//third-party/rust:rusqlite",
+                        "//third-party/rust:serde",
+                        "//third-party/rust:serde_json",
+                        "//third-party/rust:sha2",
+                        "//third-party/rust:tokio",
+                        "//third-party/rust:tokio-tungstenite",
+                        "//third-party/rust:uuid",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/block:block",
+                    "//third-party/rust:argon2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:httparse",
+                    "//third-party/rust:indexmap",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rpassword",
+                    "//third-party/rust:rusqlite",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:tokio-tungstenite",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:ureq",
+                ],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -1005,6 +1933,30 @@ crates = {
         "name": "block-ui",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block:block",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block:block",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -1042,6 +1994,34 @@ crates = {
         "name": "block-ui-test",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-client:block-client",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-client:block-client",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -1108,6 +2088,52 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {
+                    "precompile": [
+                        "//crates/block-gpu-abi:block-gpu-abi",
+                        "//crates/block-gpu-host:block-gpu-host",
+                        "//third-party/rust:wasmtime",
+                        "//third-party/rust:wasmtime-wasi",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//crates/block-gpu-host:block-gpu-host",
+                    "//third-party/rust:wasmtime",
+                    "//third-party/rust:wasmtime-wasi",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "precompile": [
+                        "//crates/block-gpu-abi:block-gpu-abi",
+                        "//crates/block-gpu-host:block-gpu-host",
+                        "//third-party/rust:wasmtime",
+                        "//third-party/rust:wasmtime-wasi",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//crates/block-gpu-host:block-gpu-host",
+                    "//third-party/rust:wasmtime",
+                    "//third-party/rust:wasmtime-wasi",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -1127,6 +2153,24 @@ crates = {
         "name": "cvl2",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {
+                    "cvl2": [],
+                },
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "cvl2": [],
+                },
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {
                     "cvl2": [],
                 },
@@ -2103,6 +3147,32 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {
+                    "fix-rust-source": [
+                        "//third-party/rust:ra_ap_syntax",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:ra_ap_syntax",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "fix-rust-source": [
+                        "//third-party/rust:ra_ap_syntax",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:ra_ap_syntax",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -2125,6 +3195,24 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -2139,6 +3227,34 @@ crates = {
         "name": "logicgame",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rand_chacha",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rand_chacha",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:rand",
@@ -2178,6 +3294,32 @@ crates = {
         "name": "paint-snapshot",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:image",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:image",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:bincode",
@@ -2230,6 +3372,32 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {
+                    "plugin-test-runner": [
+                        "//crates/block-wasm-host:block-wasm-host",
+                        "//third-party/rust:pollster",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "plugin-test-runner": [
+                        "//crates/block-wasm-host:block-wasm-host",
+                        "//third-party/rust:pollster",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
         },
         "version": "0.1.0",
     },
@@ -2244,6 +3412,24 @@ crates = {
         "name": "reactive",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/reactive_macros:reactive_macros",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/reactive_macros:reactive_macros",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive_macros:reactive_macros",
@@ -2285,6 +3471,28 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -2310,6 +3518,32 @@ crates = {
         "name": "game-api",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rand_chacha",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rand_chacha",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:bincode",
@@ -2373,6 +3607,30 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wasmi",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wasmi",
+                ],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -2399,6 +3657,32 @@ crates = {
         "name": "connect_four",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:bincode",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:bincode",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/tabletop_games/api:game-api",
@@ -2446,6 +3730,30 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:uuid",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:uuid",
+                ],
+                "test_features": [],
+            },
             "wasm32": {
                 "binaries": {},
                 "deps": [
@@ -2469,6 +3777,32 @@ crates = {
         "name": "tic_tac_toe",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:bincode",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//crates/tabletop_games/host:game-host",
+                    "//third-party/rust:bincode",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [
                     "//crates/tabletop_games/api:game-api",
@@ -2534,6 +3868,42 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde",
+                    "//third-party/rust:similar",
+                    "//third-party/rust:tree-sitter",
+                    "//third-party/rust:tree-sitter-md",
+                    "//third-party/rust:tree-sitter-rust",
+                    "//third-party/rust:tree-sitter-zig",
+                    "//third-party/rust:unicode-segmentation",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde",
+                    "//third-party/rust:similar",
+                    "//third-party/rust:tree-sitter",
+                    "//third-party/rust:tree-sitter-md",
+                    "//third-party/rust:tree-sitter-rust",
+                    "//third-party/rust:tree-sitter-zig",
+                    "//third-party/rust:unicode-segmentation",
+                    "//third-party/rust:uuid",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:serde_json",
+                ],
+                "test_features": [],
+            },
             "wasi": {
                 "binaries": {},
                 "deps": [
@@ -2564,6 +3934,20 @@ crates = {
         "name": "wasi-threads",
         "platforms": {
             "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
                 "binaries": {},
                 "deps": [],
                 "features": [],
