@@ -1,9 +1,16 @@
-# With no pkg-config to find a system harfbuzz, the build script compiles the
-# amalgamation the crate vendors. Buck does not link what a build script builds,
-# so the same one file is compiled here.
-buildscript.run = true
+# The build script compiles the amalgamation the crate vendors unless
+# pkg-config finds a harfbuzz. Buck does not link what a build script builds, so
+# the same one file is compiled here instead, and the build script is answered
+# by a pkg-config that finds one and asks for nothing (buck/tools'
+# pkg-config-provided): harfbuzz is this library. Compiled by the build script it would be compiled twice, and on
+# Windows it cannot be, since the build script asks for C++11 and MSVC's
+# standard library is not C++11's.
+[buildscript.run]
+env = { PKG_CONFIG = "$(exe //buck/tools:pkg-config-provided)", PKG_CONFIG_ALLOW_CROSS = "1" }
 
-[[cxx_library]]
+# With pthreads everywhere but Windows, where harfbuzz takes Windows' own
+# critical sections; two libraries, since reindeer keys one by its name.
+[['cfg(not(target_os = "windows"))'.cxx_library]]
 name = "harfbuzz"
 srcs = ["harfbuzz/src/harfbuzz.cc"]
 headers = ["harfbuzz/src/**/*.h", "harfbuzz/src/**/*.hh", "harfbuzz/src/**/*.cc"]
@@ -13,9 +20,10 @@ compiler_flags = ["-std=c++11", "-w", "-DHAVE_PTHREAD=1"]
 # runtime of its own.
 deps = ["//third-party/system:stdc++"]
 
-# On wasm the [[cxx_library]] above is the only thing that compiles this, so the
-# build script has nothing left to do. Running it anyway would compile the same
-# C a second time, with cc-rs choosing its own flags for a target it names
-# differently, and fail.
-['cfg(target_family = "wasm")']
-buildscript.run = false
+[['cfg(target_os = "windows")'.cxx_library]]
+name = "harfbuzz-windows"
+srcs = ["harfbuzz/src/harfbuzz.cc"]
+headers = ["harfbuzz/src/**/*.h", "harfbuzz/src/**/*.hh", "harfbuzz/src/**/*.cc"]
+include_paths = ["harfbuzz/src"]
+# MSVC's standard library is not C++11's.
+compiler_flags = ["-std=c++17", "-w"]

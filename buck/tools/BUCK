@@ -69,8 +69,10 @@ rust_sysroot(
 # every cache key the host build has.
 cross_rust_std = {
     "aarch64-apple-darwin": ("48c05269ed36fb5f0a8438065156891fe59fcb868d90cfed9b7209540d54b2ce", 29740736),
+    "aarch64-pc-windows-msvc": ("df28cbf39697dfbfac0633814b56c1ca6f07fd32a70ab2074cb095f3871ae338", 23048684),
     "aarch64-unknown-linux-gnu": ("a36f7ac98af20ef0ba6368aace0345efabbebaef7962eba99f47190fd256162d", 30768752),
     "x86_64-apple-darwin": ("8923fa9d0e0407b8a492e59d568e7aceff75949e1eee2e3e1b60e174373890cb", 29760212),
+    "x86_64-pc-windows-msvc": ("81d123f834111ebeaf8b1eed0e93b0b66ea4bcf4cc1d3836d9a0314d4ea94a73", 23061408),
 }
 
 [
@@ -182,11 +184,73 @@ tool(
     visibility = ["PUBLIC"],
 )
 
+# llvm-ar under the name that makes it take lib.exe's flags, which is how cc-rs
+# and the prelude archive for an MSVC target.
+tool(
+    name = "lib",
+    command = ["$(location :llvm)/bin/llvm-lib"],
+    visibility = ["PUBLIC"],
+)
+
+tool(
+    name = "lld-link",
+    command = ["$(location :llvm)/bin/lld-link"],
+    visibility = ["PUBLIC"],
+)
+
 tool(
     name = "ar",
     command = ["$(location :llvm)/bin/llvm-ar"],
     visibility = ["PUBLIC"],
 )
+
+# The MSVC C runtime and the Windows SDK: headers and import libraries, which
+# xwin downloads from Microsoft and lays out, one architecture per action. The
+# channel manifest is pinned, and it pins every package xwin fetches by hash,
+# so the result is the same wherever it is made; it is the one download here
+# that happens inside an action, because the packages are MSIs and VSIXs xwin
+# has to take apart. Downloading them means accepting Microsoft's licence for
+# the Visual Studio Build Tools, which --accept-license does, and
+# guides/buck2.md says so.
+http_archive(
+    name = "xwin",
+    sha256 = "d870eb4b2f390878af6da1ccd3cf321d22fcb72720984853b4be732ae597fc88",
+    size_bytes = 3416863,
+    strip_prefix = "xwin-0.10.0-x86_64-unknown-linux-musl",
+    urls = ["https://github.com/Jake-Shadle/xwin/releases/download/0.10.0/xwin-0.10.0-x86_64-unknown-linux-musl.tar.gz"],
+)
+
+# Visual Studio 17.14.41, September 2026.
+http_file(
+    name = "vs-channel-manifest",
+    sha256 = "fca418ba94ffbcfb7a2b25f10f16f39dd09660568d21eef4bd3f274cb0b27b8c",
+    size_bytes = 91781,
+    urls = [
+        "https://download.visualstudio.microsoft.com/download/pr/bc92e2cb-33de-4a0c-995d-efa817f16b16/0dbdfd40c17757e64fc9f72cd9954ec8471c04fd8461a77806e5291e23239ac0/VisualStudio.17.Release.chman"
+    ],
+)
+
+[
+    genrule(
+        name = "windows-sdk-" + arch,
+        # The cache is beside the output rather than in /tmp: xwin moves what
+        # it unpacks into place, and a move cannot cross filesystems.
+        cmd = " ".join([
+            "$(location :xwin)/xwin",
+            "--accept-license",
+            "--manifest $(location :vs-channel-manifest)",
+            "--arch " + arch,
+            "--cache-dir $OUT.cache",
+            "--http-retry 3",
+            "--log-level warn",
+            "splat --output $OUT",
+            "&& rm -rf $OUT.cache",
+        ]),
+        out = "sdk",
+        visibility = ["PUBLIC"],
+    )
+    for arch in ["x86_64", "aarch64"]
+]
 
 # clang for each cross-compiled platform. The target is part of the command
 # rather than a toolchain flag because the prelude assembles a .S file with the
@@ -197,6 +261,8 @@ clang_targets = {
     "linux_arm64": "aarch64-linux-gnu",
     "macos_arm64": "arm64-apple-macosx11.0",
     "macos_x86_64": "x86_64-apple-macosx10.12",
+    "windows_arm64": "aarch64-pc-windows-msvc",
+    "windows_x86_64": "x86_64-pc-windows-msvc",
 }
 
 [
@@ -252,5 +318,11 @@ export_file(
 script(
     name = "python3",
     src = "python3",
+    visibility = ["PUBLIC"],
+)
+
+script(
+    name = "pkg-config-provided",
+    src = "pkg-config-provided",
     visibility = ["PUBLIC"],
 )

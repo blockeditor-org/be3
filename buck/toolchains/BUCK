@@ -41,29 +41,57 @@ cxx_tools_info_toolchain(
 # The cross-compiled platforms: the same clang, for the target (buck/tools
 # says why that is part of the command). Linux on arm64 compiles and links
 # against buck/sysroot's arm64 packages the way the host does against amd64's;
-# a Mac against Apple's SDK, linked by lld's ld64.lld.
+# a Mac against Apple's SDK, linked by lld's ld64.lld; Windows against the MSVC
+# runtime and the Windows SDK that xwin lays out, linked by lld-link. Those go
+# after clang's own headers rather than before, as -isystem would put them:
+# MSVC's intrinsics headers declare what clang's define.
 [
     [
         host_cxx_tools(
             name = name + "_cxx_tools",
-            archiver = tools + ":ar",
+            archiver = tools + (":lib" if name.startswith("windows") else ":ar"),
+            archiver_type = "windows_clang" if name.startswith("windows") else "gnu",
             compiler = "{}:cc-{}".format(tools, name),
             cxx_compiler = "{}:cxx-{}".format(tools, name),
-            linker_type = "darwin" if name.startswith("macos") else "gnu",
+            linker = tools + ":lld-link" if name.startswith("windows") else None,
+            linker_type = "darwin" if name.startswith("macos") else "windows" if name.startswith("windows") else "gnu",
         ),
         cxx_tools_info_toolchain(
             name = name + "_cxx",
             c_flags = flags,
             cxx_flags = flags,
             cxx_tools_info = ":{}_cxx_tools".format(name),
-            link_flags = flags + (["-fuse-ld=lld"] if name.startswith("macos") else []),
+            link_flags = link_flags,
             visibility = ["PUBLIC"],
         ),
     ]
-    for name, flags in [
-        ("linux_arm64", ["--sysroot=$(location root//buck/sysroot:arm64)"]),
-        ("macos_arm64", ["-isysroot", "$(location root//buck/tools:macos-sdk)"]),
-        ("macos_x86_64", ["-isysroot", "$(location root//buck/tools:macos-sdk)"]),
+    for name, flags, link_flags in [
+        (
+            "linux_arm64",
+            ["--sysroot=$(location root//buck/sysroot:arm64)"],
+            ["--sysroot=$(location root//buck/sysroot:arm64)"],
+        ),
+        (
+            "macos_arm64",
+            ["-isysroot", "$(location root//buck/tools:macos-sdk)"],
+            ["-isysroot", "$(location root//buck/tools:macos-sdk)", "-fuse-ld=lld"],
+        ),
+        (
+            "macos_x86_64",
+            ["-isysroot", "$(location root//buck/tools:macos-sdk)"],
+            ["-isysroot", "$(location root//buck/tools:macos-sdk)", "-fuse-ld=lld"],
+        ),
+    ]
+    + [
+        (
+            "windows_" + cpu,
+            [
+                "-idirafter$(location root//buck/tools:windows-sdk-{})/{}".format(arch, include)
+                for include in ["crt/include", "sdk/include/ucrt", "sdk/include/um", "sdk/include/shared", "sdk/include/winrt"]
+            ],
+            ["/libpath:$(location root//buck/tools:windows-sdk-{})/{}/{}".format(arch, lib, arch) for lib in ["crt/lib", "sdk/lib/um", "sdk/lib/ucrt"]],
+        )
+        for cpu, arch in [("arm64", "aarch64"), ("x86_64", "x86_64")]
     ]
 ]
 

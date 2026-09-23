@@ -22,6 +22,8 @@ _CONSTRAINTS = {
     "macos-x86_64": "root//buck/platforms:macos_x86_64_setting",
     "wasi": "prelude//os:wasi",
     "wasm32": "prelude//os:none",
+    "windows-arm64": "root//buck/platforms:windows_arm64_setting",
+    "windows-x86_64": "root//buck/platforms:windows_x86_64_setting",
 }
 
 def _crate():

@@ -23,8 +23,8 @@ still cargo's.
   through the host.
 - All thirty-three editors, as the wasm plugins the app loads, and their tests,
   compiled to wasm and run through the same host `block-app` runs a plugin in.
-- All of the above for Linux on arm64 and for macOS on arm64 and x86_64,
-  cross-compiled on the same Linux workers (below).
+- All of the above for Linux on arm64, macOS on arm64 and x86_64, and Windows
+  on arm64 and x86_64, cross-compiled on the same Linux workers (below).
 
 `./scripts/buck test //crates/...` is 72 test targets.
 
@@ -388,17 +388,20 @@ same rule.
 ./scripts/buck build --target-platforms root//buck/platforms:linux_arm64 //crates/block-app:block-app-bin
 ./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 //crates/...
 ./scripts/buck build --target-platforms root//buck/platforms:macos_x86_64 //crates/...
+./scripts/buck build --target-platforms root//buck/platforms:windows_x86_64 //crates/...
 ```
 
-Linux on arm64 and both Macs are built on the Linux workers everything else
-builds on; CI builds the whole workspace for each. `buck/platforms/cross.bzl`
+Linux on arm64, both Macs and both Windows are built on the Linux workers
+everything else builds on; CI builds the whole workspace for each. `buck/platforms/cross.bzl`
 lists them, and every rule that differs between platforms selects over that
 list with `per_cross_platform`.
 
 - **Compilers**: the same clang with `--target=` as part of the command (the
   prelude assembles a `.S` file with the bare compiler, so a toolchain flag
   would not reach it). Linux on arm64 links with lld like the host; a Mac with
-  lld's `ld64.lld`. The macOS minimums are rustc's defaults, 11.0 and 10.12.
+  lld's `ld64.lld`; Windows with `lld-link` directly, since rustc speaks
+  `link.exe`'s flags, and archives with `llvm-lib`. The macOS minimums are
+  rustc's defaults, 11.0 and 10.12.
 - **rustc**: a sysroot per cross target with only that target's standard
   library, so the host's cache keys do not change when a target is added.
 - **Linux on arm64** compiles and links against `buck/sysroot:arm64`, Ubuntu
@@ -416,16 +419,38 @@ list with `per_cross_platform`.
   the release build moves to a worker that is a Mac or runs Asahi Linux on
   one. rustc gets `SDKROOT` rather than asking `xcrun`, and
   `-Csplit-debuginfo=unpacked`, because the default runs `dsymutil`.
+- **Windows** (MSVC, as what ships is) compiles and links against the MSVC C
+  runtime and the Windows SDK, which `buck/tools:windows-sdk-<arch>` has xwin
+  download from Microsoft and lay out on a worker, from a pinned Visual Studio
+  channel manifest that pins every package by hash. It is the one download
+  that happens inside an action, because the packages are MSIs and VSIXs xwin
+  has to take apart, and it means accepting Microsoft's licence for the Visual
+  Studio Build Tools (`--accept-license`). The SDK's headers go after clang's
+  own (`-idirafter`), since MSVC's intrinsics headers only declare what
+  clang's define. The Windows API is imported as raw-dylib
+  (`--cfg=windows_raw_dylib` on windows-targets), so no import library has to
+  reach a link. The app starts under Wine as far as asking for a GPU.
 - **reindeer and cargo's plan**: a platform per target in `reindeer.toml`, and
   a `cargo test --unit-graph` per triple in `buckify.bxl`, so each gets the
   dependencies and features cargo would give it.
 - **Build scripts**: `coreaudio-sys` runs bindgen against the SDK with
-  `libclang` from `buck/tools:llvm`; `objc2-exception-helper` compiles its
-  Objective-C through its own build script; ring's C and assembly are named
-  per platform in its fixup, each set under a name of its own because reindeer
-  keys a library by name. libghostty-vt is Zig, and Zig cross-compiles, so it
-  is the same genrule with a different triple. Ghostty's `memset` override is
-  patched out on Darwin, where it collides with Zig's own in the archive.
+  `libclang` from `buck/tools:llvm`. ring, `objc2-exception-helper` and, on
+  Windows, wasmtime's fiber compile their C and assembly through their own
+  build scripts, whose archives reach the link (`rustc_link_lib` and
+  `rustc_link_search`); ring picks its per-platform set itself, including the
+  pre-assembled objects it ships for Windows. harfbuzz and SQLite are
+  `cxx_library`s with a Windows variant each, under a name of its own because
+  reindeer keys a library by name, and harfbuzz's build script is told by
+  `buck/tools:pkg-config-provided` that there is nothing left for it to
+  compile. khronos_api's build script is replaced by an overlay that copies
+  what it includes into `OUT_DIR`, since the original includes it from where
+  the build script ran.
+- **libghostty-vt** is Zig, and Zig cross-compiles, so it is the same genrule
+  with a different triple; for Windows it is handed a libc file naming the
+  xwin layout. `scripts/internal/ghostty-vt.patch` drops Ghostty's `memset`
+  override on Darwin and its bundled compiler_rt on Windows, where each
+  collides with the program's own copy, and gives wuffs its minimal libc
+  headers on Windows too.
 - **Plugin tests** build for every platform but are only precompiled for the
   host: the precompile runs on a Linux worker, whose wasmtime has only
   cranelift's x86_64 backend, so elsewhere the runner compiles the module when
@@ -603,9 +628,9 @@ target with `--target` is what makes wasmtime stop looking.
 
 ## What is still cargo's
 
-- **Windows and Android, and every release artifact.** buck2 builds for Linux
-  on both architectures and for both Macs; the release artifacts CI uploads,
-  the macOS `.app`, and `./scripts/build` and `./scripts/run` are cargo's.
+- **Android, and every release artifact.** buck2 builds for Linux, macOS and
+  Windows on both architectures; the release artifacts CI uploads, the macOS
+  `.app`, and `./scripts/build` and `./scripts/run` are cargo's.
   Adding a platform is the cross-compiling section above again: an entry in
   `cross.bzl`, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain,
   and whatever its build scripts need.

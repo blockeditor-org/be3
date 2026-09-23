@@ -20,6 +20,8 @@ prebuilt_cxx_library(
             "-lc++abi",
             "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
         ],
+        # MSVC's objects name the C++ runtime they need themselves.
+        "prelude//os:windows": [],
     }),
     visibility = ["PUBLIC"],
 )

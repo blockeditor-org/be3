@@ -12,18 +12,42 @@ load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 # pin everything it downloads, which is what makes its result safe to cache.
 #
 # Zig cross-compiles, so every platform's archive is built on the same Linux
-# worker; the triple is the only thing that differs.
+# worker; the triple is the only thing that differs, and the archive's name,
+# which is MSVC's convention on Windows. Whatever it is called, it is the one
+# archive in the directory, and the linker takes it by path. For Windows, Zig is
+# pointed at the MSVC runtime and SDK buck/tools lays out, with a libc file.
 genrule(
     name = "libghostty-vt.a",
     cmd = "triple="
     + per_cross_platform("x86_64-unknown-linux-gnu", cross_triple)
+    + "\nwindows_sdk="
+    + per_cross_platform(
+        "",
+        lambda name: (
+            "$(location //buck/tools:windows-sdk-{})".format("aarch64" if name == "windows_arm64" else "x86_64") if name.startswith("windows") else None
+        ),
+    )
     + """
         set -eu
         repository=`mktemp -d`
+        if [ -n "$windows_sdk" ]; then
+            sdk=`cd "$windows_sdk" && pwd`
+            arch="${triple%%-*}"
+            GHOSTTY_ZIG_LIBC="$repository/libc.txt"
+            export GHOSTTY_ZIG_LIBC
+            {
+                echo "include_dir=$sdk/sdk/include/ucrt"
+                echo "sys_include_dir=$sdk/crt/include"
+                echo "crt_dir=$sdk/sdk/lib/ucrt/$arch"
+                echo "msvc_lib_dir=$sdk/crt/lib/$arch"
+                echo "kernel32_lib_dir=$sdk/sdk/lib/um/$arch"
+                echo "gcc_dir="
+            } > "$GHOSTTY_ZIG_LIBC"
+        fi
         cp -RL "$SRCDIR/scripts" "$repository/" || { ls -laR "$SRCDIR" >&2; exit 1; }
         BE3_NO_SCCACHE=1 bash "$repository/scripts/internal/build-ghostty-vt.sh" \\
             --triple "$triple" > /dev/null
-        cp "$repository/target/ghostty-vt/$triple/libghostty-vt.a" "$OUT"
+        cp "$repository/target/ghostty-vt/$triple/"*ghostty-vt*.* "$OUT"
         rm -rf "$repository"
     """,
     out = "libghostty-vt.a",

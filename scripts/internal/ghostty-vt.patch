@@ -1,3 +1,37 @@
+diff --git a/pkg/wuffs/build.zig b/pkg/wuffs/build.zig
+index 82cfec3..960af51 100644
+--- a/pkg/wuffs/build.zig
++++ b/pkg/wuffs/build.zig
+@@ -35,8 +35,11 @@ pub fn build(b: *std.Build) !void {
+ 
+     translate: {
+         const wuffs_dep = b.lazyDependency("wuffs", .{}) orelse break :translate;
++        // The minimal headers on Windows too: a build for an MSVC target
++        // from anywhere but Windows has no MSVC headers for translate-c to
++        // find, and wuffs needs no more of them there than anywhere else.
+         const include_paths: []const std.Build.LazyPath = switch (windows) {
+-            true => &.{wuffs_dep.path("release/c")},
++            true => &.{ b.path("include"), wuffs_dep.path("release/c") },
+ 
+             // Wuffs only needs stdlib.h and string.h from libc, and only for
+             // a handful of declarations. We provide minimal versions of these
+diff --git a/pkg/wuffs/include/stdlib.h b/pkg/wuffs/include/stdlib.h
+index 5c05074..320052a 100644
+--- a/pkg/wuffs/include/stdlib.h
++++ b/pkg/wuffs/include/stdlib.h
+@@ -10,4 +10,12 @@ void *calloc(size_t count, size_t size);
+ void *realloc(void *ptr, size_t size);
+ void free(void *ptr);
+ 
++// What MSVC's stdlib.h declares and wuffs uses when _MSC_VER says it is
++// being compiled for MSVC; clang provides them as builtins.
++#if defined(_MSC_VER)
++unsigned short _byteswap_ushort(unsigned short value);
++unsigned long _byteswap_ulong(unsigned long value);
++unsigned long long _byteswap_uint64(unsigned long long value);
++#endif
++
+ #endif
 diff --git a/pkg/wuffs/src/main.zig b/pkg/wuffs/src/main.zig
 index ec9f8da..42b7447 100644
 --- a/pkg/wuffs/src/main.zig
@@ -11,6 +45,23 @@ index ec9f8da..42b7447 100644
          @export(&callocStub, .{
              .name = "calloc",
              .linkage = .weak,
+diff --git a/src/build/GhosttyLibVt.zig b/src/build/GhosttyLibVt.zig
+index 690f864..c675721 100644
+--- a/src/build/GhosttyLibVt.zig
++++ b/src/build/GhosttyLibVt.zig
+@@ -241,7 +241,11 @@ fn initLib(
+         // Otherwise, you get undefined symbol errors. This could cause
+         // problems if you're linking multiple static Zig libraries but
+         // we'll cross that bridge when we get to it.
+-        lib.bundle_compiler_rt = true;
++        //
++        // Not on Windows, where the program linking the library brings its
++        // own - Rust's compiler_builtins, or MSVC's runtime - and COFF has no
++        // weak definitions to let two copies of one routine coexist.
++        lib.bundle_compiler_rt = target.result.os.tag != .windows;
+         lib.bundle_ubsan_rt = true;
+ 
+         // Enable PIC so the static library can be linked into PIE
 diff --git a/src/lib_vt.zig b/src/lib_vt.zig
 index a0227ae..6c2c628 100644
 --- a/src/lib_vt.zig

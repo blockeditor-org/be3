@@ -228,10 +228,11 @@ jobs:
 
       # The same for the platforms buck/platforms/cross.bzl cross-compiles on
       # the same Linux workers: Linux on arm64, against Ubuntu's arm64
-      # packages, and both Macs, against Apple's SDK. Nothing runs them here.
+      # packages, both Macs, against Apple's SDK, and both Windows, against
+      # the MSVC runtime and Windows SDK. Nothing runs them here.
       - name: Build for the cross-compiled platforms
         run: |
-          for platform in linux_arm64 macos_arm64 macos_x86_64; do
+          for platform in linux_arm64 macos_arm64 macos_x86_64 windows_arm64 windows_x86_64; do
             ./scripts/buck build --target-platforms "root//buck/platforms:$platform" //crates/...
           done
 

@@ -26,27 +26,31 @@ def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
         DefaultInfo(),
         CxxToolsInfo(
             archiver = ctx.attrs.archiver[RunInfo].args,
-            archiver_type = "gnu",
+            archiver_type = ctx.attrs.archiver_type,
             asm_compiler = ctx.attrs.compiler[RunInfo].args,
             asm_compiler_type = "clang",
             compiler = ctx.attrs.compiler[RunInfo].args,
             compiler_type = "clang",
             cvtres_compiler = None,
             cxx_compiler = ctx.attrs.cxx_compiler[RunInfo].args,
-            linker = ctx.attrs.cxx_compiler[RunInfo].args,
+            linker = (ctx.attrs.linker or ctx.attrs.cxx_compiler)[RunInfo].args,
             linker_type = LinkerType(ctx.attrs.linker_type),
             rc_compiler = None,
         ),
     ]
 
 # The same tools prelude//toolchains/cxx/clang:path_clang_tools names, as
-# artifacts. The linker is the C++ driver, and linker_type is what the prelude
-# shapes its link flags for: "gnu" for an ELF link, "darwin" for ld64.lld.
+# artifacts. The linker is the C++ driver unless one is named, and linker_type
+# is what the prelude shapes its link flags for: "gnu" for an ELF link,
+# "darwin" for ld64.lld, "windows" for lld-link, which Windows links with
+# directly, since rustc speaks link.exe's flags to it.
 host_cxx_tools = rule(
     attrs = {
         "archiver": attrs.exec_dep(providers = [RunInfo]),
+        "archiver_type": attrs.string(default = "gnu"),
         "compiler": attrs.exec_dep(providers = [RunInfo]),
         "cxx_compiler": attrs.exec_dep(providers = [RunInfo]),
+        "linker": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "linker_type": attrs.string(default = "gnu"),
     },
     impl = _host_cxx_tools_impl,
