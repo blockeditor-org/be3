@@ -17,6 +17,7 @@ mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
+mod a_docked_pane_lays_its_content_inside_its_border;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_dynamic_child_can_fill_its_available_height;
@@ -512,6 +513,24 @@ impl Harness {
 
     pub(crate) fn close_button_center(&self) -> Pos2 {
         self.inspector_center("inspector.close")
+    }
+
+    pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {
+        self.bar_option_rect(index).center()
+    }
+
+    pub(crate) fn bar_option_rect(&self, index: usize) -> Rect {
+        self.inspector()
+            .bar_option_rect(index)
+            .expect("the inspector has no tab bar")
+            .scaled(crate::inspector::scale(&self.context))
+    }
+
+    pub(crate) fn inspector_panel_rect(&self) -> Rect {
+        self.inspector()
+            .panel_rect()
+            .expect("the inspector panel was not laid out")
+            .scaled(crate::inspector::scale(&self.context))
     }
 
     pub(crate) fn mouse_simulation(&self) -> bool {
@@ -1159,6 +1178,12 @@ mod unchanged_input_reuses_layout_and_paint;
 
 mod a_bare_separator_rules_across_the_column_it_sits_in;
 mod a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears;
+mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
+mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
+mod open_inspector_opens_the_inspector_from_inside_the_document;
+mod picking_in_a_narrow_window_returns_to_the_inspector;
+mod the_app_tab_shows_the_document_below_the_tab_bar;
+mod the_inspector_shows_the_renderer_the_host_reports;
 mod unused_navigation_keys_scroll_the_nearest_ancestor;

@@ -15,6 +15,7 @@ use crate::mouse_simulation::MouseSimulation;
 use crate::node::NodeId;
 use crate::paint::Painted;
 use crate::painter::{Painter, Shape};
+use crate::renderer::RendererInfo;
 
 #[derive(Clone)]
 pub struct Context {
@@ -48,6 +49,7 @@ struct Inner {
     accessibility_actions: RefCell<Vec<ActionRequest>>,
     accessibility_active: Cell<bool>,
     test_ids_published: Cell<bool>,
+    renderer_info: RefCell<Option<RendererInfo>>,
 }
 
 pub struct FrameOutput {
@@ -135,8 +137,17 @@ impl Context {
                 accessibility_actions: RefCell::new(Vec::new()),
                 accessibility_active: Cell::new(true),
                 test_ids_published: Cell::new(true),
+                renderer_info: RefCell::new(None),
             }),
         }
+    }
+
+    pub fn set_renderer_info(&self, info: RendererInfo) {
+        *self.inner.renderer_info.borrow_mut() = Some(info);
+    }
+
+    pub(crate) fn renderer_info(&self) -> Option<RendererInfo> {
+        self.inner.renderer_info.borrow().clone()
     }
 
     pub fn set_accessibility_active(&self, active: bool) {

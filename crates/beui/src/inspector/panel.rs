@@ -41,6 +41,9 @@ const CLOSE_ICON_SIZE: f32 = 16.0;
 const PERFORMANCE_SPACING: f32 = 10.0;
 const TIMING_SPACING: f32 = 4.0;
 const BLUR_MIDPOINT: f32 = 12.0;
+const RENDERER_LABEL_WIDTH: f32 = 104.0;
+const BAR_PADDING_HORIZONTAL: f32 = 8.0;
+const BAR_PADDING_VERTICAL: f32 = 6.0;
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("Native", None),
     ("1x", Some(1.0)),
@@ -157,6 +160,7 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
 }
 
 type Entries = ReadSignal<HashMap<Key, Entry>>;
+pub(crate) type RendererRows = Vec<(&'static str, String)>;
 
 pub(crate) struct Panel {
     pub(crate) document: Document,
@@ -164,6 +168,7 @@ pub(crate) struct Panel {
     pub(crate) set_entries: WriteSignal<HashMap<Key, Entry>>,
     pub(crate) set_summary: WriteSignal<Summary>,
     pub(crate) set_performance: WriteSignal<PerformanceSummary>,
+    pub(crate) set_renderer: WriteSignal<RendererRows>,
     pub(crate) set_selection: WriteSignal<Option<Key>>,
     pub(crate) set_reveal: WriteSignal<Option<Key>>,
     pub(crate) tree: NodeRef,
@@ -174,6 +179,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let (entries, set_entries) = create_signal(HashMap::<Key, Entry>::new());
     let (summary, set_summary) = create_signal(Summary::default());
     let (performance, set_performance) = create_signal(PerformanceSummary::default());
+    let (renderer, set_renderer) = create_signal(RendererRows::new());
     let (tab, set_tab) = create_signal(InspectorTab::default());
     let (selection, set_selection) = create_signal(None);
     let (reveal, set_reveal) = create_signal(None);
@@ -309,6 +315,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                         @sizing=ItemSize::Percent(100.0)
                                         @test_id={"inspector.performance"}
                                         performance={performance.clone()}
+                                        renderer={renderer.clone()}
                                         state={performance_state.clone()}
                                     />
                                 </Show>
@@ -357,9 +364,49 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         set_entries,
         set_summary,
         set_performance,
+        set_renderer,
         set_selection,
         set_reveal,
         tree,
+    }
+}
+
+pub(crate) struct Bar {
+    pub(crate) document: Document,
+    pub(crate) set_selected: WriteSignal<usize>,
+}
+
+pub(crate) fn build_bar(state: &Rc<State>) -> Bar {
+    let (selected, set_selected) = create_signal(1);
+    let state = state.clone();
+    let mut document = crate::reactive::build(|| {
+        view! {
+            <Frame color={THEME.surface} radius=0>
+                <List spacing=0.0>
+                    <Frame
+                        @sizing=ItemSize::Percent(100.0)
+                        padding_horizontal=BAR_PADDING_HORIZONTAL
+                        padding_vertical=BAR_PADDING_VERTICAL
+                    >
+                        <Tabs
+                            @test_id={"inspector.bar"}
+                            options={view! {
+                                <ChoiceOption label="App" />
+                                <ChoiceOption label="Inspector" />
+                            }}
+                            selected
+                            on_change={move |index| state.show_app(index == 0)}
+                        />
+                    </Frame>
+                    <Separator />
+                </List>
+            </Frame>
+        }
+    });
+    document.inspectable = false;
+    Bar {
+        document,
+        set_selected,
     }
 }
 
@@ -586,7 +633,11 @@ pub(crate) fn total_label(total: usize) -> String {
 }
 
 #[component]
-fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State>) -> NodeId {
+fn PerformancePanel(
+    performance: ReadSignal<PerformanceSummary>,
+    renderer: ReadSignal<RendererRows>,
+    state: Rc<State>,
+) -> NodeId {
     let (change_state, damage_state) = (state.clone(), state.clone());
     let latest_work = performance_text(&performance, |summary| &summary.latest_work);
     let scene = performance_text(&performance, |summary| &summary.scene);
@@ -641,8 +692,43 @@ fn PerformancePanel(performance: ReadSignal<PerformanceSummary>, state: Rc<State
                         on_change={move |enabled| damage_state.flash_damage.set(enabled)}
                     />
                 </List>
+                <Separator />
+                <RendererSection @test_id={"inspector.performance.renderer"} rows={renderer} />
             </List>
         </Scroll>
+    }
+}
+
+#[component]
+fn RendererSection(rows: ReadSignal<RendererRows>) -> NodeId {
+    let missing = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
+    view! {
+        <List spacing=TIMING_SPACING>
+            <Heading content="Renderer" />
+            <Show condition={missing}>
+                <Caption content="Not reported by this host" />
+            </Show>
+            <ForEach keys={rows}>
+                {|(label, value): (&'static str, String)| view! {
+                    <RendererRow label value />
+                }}
+            </ForEach>
+        </List>
+    }
+}
+
+#[component]
+fn RendererRow(label: &'static str, value: String) -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal spacing=TIMING_SPACING>
+            <Caption @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH) content={label.to_owned()} />
+            <Caption
+                @sizing=ItemSize::Percent(100.0)
+                content={value}
+                color={THEME.text}
+                wrap=true
+            />
+        </List>
     }
 }
 

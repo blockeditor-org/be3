@@ -1377,6 +1377,8 @@ impl EditorSession {
                     state.emulate_touch(beui::TouchPhase::Move);
                 }
             }
+            InputEvent::PointerLeft if !emulating => state.events.push(beui::Event::PointerGone),
+            InputEvent::PointerLeft => {}
             InputEvent::PointerButton {
                 button: PointerButton::Primary,
                 pressed,
@@ -1492,6 +1494,7 @@ impl EditorSession {
                 .input
                 .events
                 .push(egui::Event::PointerMoved(egui::pos2(*x, *y) + origin)),
+            InputEvent::PointerLeft => state.input.events.push(egui::Event::PointerGone),
             InputEvent::PointerMotion { x, y } => state
                 .input
                 .events
