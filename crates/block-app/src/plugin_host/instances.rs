@@ -1,4 +1,6 @@
+use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_client::{BlockClient, BlockHandleAccess, Tunnel, blocks::audio::Audio};
+use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
@@ -7,8 +9,6 @@ use block_plugin_api::{
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, TunnelMessage, ViewChange,
 };
-use beui::{ImeArea, Rect, Vec2, pos2, vec2};
-use block_plugin_api::ImeArea as PluginImeArea;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -1040,9 +1040,7 @@ impl Instances {
                 clip: child_clip,
                 layer: child.layer,
                 mode,
-                intrinsic: child
-                    .intrinsic
-                    .map(|size| vec2(size.width, size.height)),
+                intrinsic: child.intrinsic.map(|size| vec2(size.width, size.height)),
                 rotation: child.rotation,
                 opacity: child.opacity,
             });
@@ -1516,7 +1514,10 @@ impl Instances {
             None
         };
         if let Some(backward) = cycle {
-            cycle_focus(placed.iter().map(|(_, _, _, placement)| placement), backward);
+            cycle_focus(
+                placed.iter().map(|(_, _, _, placement)| placement),
+                backward,
+            );
         }
         let mut messages = Vec::new();
         for (instance, region, screen, placement) in placed {
@@ -2104,11 +2105,7 @@ impl Instances {
     }
 }
 
-fn host_rect(
-    rect: block_plugin_api::ChildRect,
-    origin: Vec2,
-    stretch: Vec2,
-) -> Rect {
+fn host_rect(rect: block_plugin_api::ChildRect, origin: Vec2, stretch: Vec2) -> Rect {
     Rect::from_min_size(
         pos2(rect.x * stretch.x, rect.y * stretch.y) + origin,
         vec2(rect.width * stretch.x, rect.height * stretch.y),
@@ -2164,7 +2161,9 @@ fn cycle_focus<'a>(placements: impl Iterator<Item = &'a Placement>, backward: bo
     }
     order.sort_by(|(a, _), (b, _)| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)));
     let focused = host::focus();
-    let current = order.iter().position(|(_, target)| Some(*target) == focused);
+    let current = order
+        .iter()
+        .position(|(_, target)| Some(*target) == focused);
     let count = order.len();
     let next = match (current, backward) {
         (Some(index), false) => (index + 1) % count,

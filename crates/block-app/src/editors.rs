@@ -193,9 +193,11 @@ fn paint_block_fallback(
         .client
         .cached_block(block_id)
         .map(|cached| BlockLabel::for_cached(editors.registry(), &cached));
-    let (name, automatic) = label.as_ref().map_or(("Loading…".to_owned(), false), |label| {
-        (label.name.clone(), label.automatic)
-    });
+    let (name, automatic) = label
+        .as_ref()
+        .map_or(("Loading…".to_owned(), false), |label| {
+            (label.name.clone(), label.automatic)
+        });
     ui.item(
         ("fallback", key),
         rect,
@@ -685,7 +687,9 @@ pub(crate) fn direct_editor_frame_ui(
     };
     let band = match owns_frame {
         true => slot.frame,
-        false => slot.content.map_or(slot.frame, |content| content.intersect(slot.frame)),
+        false => slot
+            .content
+            .map_or(slot.frame, |content| content.intersect(slot.frame)),
     };
     let mut host = ui.child(band, slot.clip);
     bands.content_ui(&mut host);

@@ -1,7 +1,7 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use block_plugin_api::{WebViewCommand, WebViewEvent};
 use beui::Rect;
+use block_plugin_api::{WebViewCommand, WebViewEvent};
 
 #[cfg(all(
     feature = "web-view",
@@ -76,11 +76,7 @@ impl WebViewHost {
         self.pending.push(command);
     }
 
-    pub(super) fn drive(
-        &mut self,
-        rect: Option<Rect>,
-        events: &mut Vec<WebViewEvent>,
-    ) {
+    pub(super) fn drive(&mut self, rect: Option<Rect>, events: &mut Vec<WebViewEvent>) {
         for command in std::mem::take(&mut self.pending) {
             self.apply(command, events);
         }

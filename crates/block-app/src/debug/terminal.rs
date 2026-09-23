@@ -331,8 +331,9 @@ impl Session {
             .map(|(y, row)| {
                 let mut spans: Vec<TerminalSpan> = Vec::new();
                 for (x, cell) in row.cells.iter().enumerate() {
-                    let at_cursor = cursor
-                        .is_some_and(|cursor| usize::from(cursor.x) == x && usize::from(cursor.y) == y);
+                    let at_cursor = cursor.is_some_and(|cursor| {
+                        usize::from(cursor.x) == x && usize::from(cursor.y) == y
+                    });
                     let background = match at_cursor {
                         true => cursor.map(|cursor| half(color(cursor.color))),
                         false => cell.background.map(color),

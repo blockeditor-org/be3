@@ -549,10 +549,23 @@ pub(crate) fn pointer_button_index(button: PointerButton) -> u8 {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum HostItem {
-    Notice { text: String, spinner: bool },
-    Error { text: String, restart: Option<String> },
-    Fallback { name: String, automatic: bool, icon: Option<String> },
-    Unsupported { block: Uuid, block_type: Uuid },
+    Notice {
+        text: String,
+        spinner: bool,
+    },
+    Error {
+        text: String,
+        restart: Option<String>,
+    },
+    Fallback {
+        name: String,
+        automatic: bool,
+        icon: Option<String>,
+    },
+    Unsupported {
+        block: Uuid,
+        block_type: Uuid,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -620,7 +633,12 @@ impl<'a> Ui<'a> {
             key.hash(&mut hasher);
             hasher.finish()
         };
-        if self.output.items.iter().any(|(existing, _)| *existing == key) {
+        if self
+            .output
+            .items
+            .iter()
+            .any(|(existing, _)| *existing == key)
+        {
             return;
         }
         self.output.items.push((key, PlacedItem { rect, item }));

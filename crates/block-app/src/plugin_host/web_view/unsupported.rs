@@ -7,10 +7,7 @@ use super::Bounds;
 pub(super) enum WebView {}
 
 impl WebView {
-    pub(super) fn new(
-        _url: &str,
-        _events: &Sender<WebViewEvent>,
-    ) -> Result<Self, String> {
+    pub(super) fn new(_url: &str, _events: &Sender<WebViewEvent>) -> Result<Self, String> {
         Err("The embedded browser is not supported on this platform.".to_owned())
     }
 

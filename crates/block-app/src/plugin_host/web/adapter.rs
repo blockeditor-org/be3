@@ -104,10 +104,7 @@ pub(super) struct WebProtocolAdapter {
 }
 
 impl WebProtocolAdapter {
-    pub(super) fn start(
-        url: &str,
-        canvas: &web_sys::HtmlCanvasElement,
-    ) -> Result<Self, String> {
+    pub(super) fn start(url: &str, canvas: &web_sys::HtmlCanvasElement) -> Result<Self, String> {
         let offscreen = canvas
             .transfer_control_to_offscreen()
             .map_err(|_| "the plugin canvas could not be handed to its worker".to_owned())?;

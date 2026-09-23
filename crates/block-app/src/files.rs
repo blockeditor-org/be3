@@ -1,6 +1,6 @@
+use crate::BlockApp;
 use block::Block;
 use block_client::blocks::settings::Settings;
-use crate::BlockApp;
 
 impl BlockApp {
     pub(crate) fn open_settings(&mut self) {

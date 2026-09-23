@@ -545,9 +545,7 @@ impl Viewport {
                 self.fitting = false;
             }
             match change {
-                block_editor_plugin::ViewChange::Pan { x, y } => {
-                    self.pan = self.pan + Vec2::new(x, y)
-                }
+                block_editor_plugin::ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
                 block_editor_plugin::ViewChange::Zoom { factor, anchor } => {
                     let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
                     let anchor =

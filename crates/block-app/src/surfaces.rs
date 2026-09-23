@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use beui::reactive::{
-    Canvas, CanvasItem, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, ReadSignal,
-    Show, Text, Viewport, WriteSignal, component, create_memo, create_signal, view,
+    Canvas, CanvasItem, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, ReadSignal, Show,
+    Text, Viewport, WriteSignal, component, create_memo, create_signal, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_theme};
 use beui::{Align, Color32, Drawing, NodeId, Rect, TextAlign, Vec2};
@@ -146,8 +146,7 @@ pub(crate) fn commit() {
         let handle = handle(id);
         let (output, used, origin, height, placement, changed) = with_state(id, |state| {
             let output = std::mem::take(&mut state.output);
-            let changed = output.blits != state.blits
-                || output.blits.iter().any(Blit::pending);
+            let changed = output.blits != state.blits || output.blits.iter().any(Blit::pending);
             state.blits.clone_from(&output.blits);
             let used = std::mem::take(&mut state.used);
             (
@@ -171,15 +170,17 @@ pub(crate) fn commit() {
             handle.set_drawing.set(drawing);
         }
         let origin = origin.map_or(beui::Pos2::ZERO, |rect| rect.min);
-        handle.items.reconcile_owned(output.items.into_iter().map(|(key, placed)| {
-            (
-                key,
-                PlacedItem {
-                    rect: placed.rect.translate(beui::Pos2::ZERO - origin),
-                    item: placed.item,
-                },
-            )
-        }));
+        handle
+            .items
+            .reconcile_owned(output.items.into_iter().map(|(key, placed)| {
+                (
+                    key,
+                    PlacedItem {
+                        rect: placed.rect.translate(beui::Pos2::ZERO - origin),
+                        item: placed.item,
+                    },
+                )
+            }));
     }
 }
 
@@ -222,7 +223,9 @@ pub(crate) fn HostSurface(id: SurfaceId) -> NodeId {
                 <ForEach keys={items.keys()}>
                     {move |key: u64| {
                         let item = items.get(&key);
-                        view! { <HostItemView item /> }
+                        view! {
+                            <HostItemView item />
+                        }
                     }}
                 </ForEach>
             </Canvas>
@@ -276,7 +279,15 @@ fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     });
     let italic = create_memo({
         let content = content.clone();
-        move || matches!(content.get(), HostItem::Fallback { automatic: true, .. })
+        move || {
+            matches!(
+                content.get(),
+                HostItem::Fallback {
+                    automatic: true,
+                    ..
+                }
+            )
+        }
     });
     let spinning = create_memo({
         let content = content.clone();

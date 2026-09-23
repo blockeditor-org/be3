@@ -3,12 +3,12 @@ use beui::icons::{
     ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
 };
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone,
-    component, create_effect, create_memo, create_signal, untrack, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
+    create_effect, create_memo, create_signal, untrack, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Card, Dialog, Heading, Icon, IconButton, MenuButton,
-    Paragraph, Scroll, Spinner, Tabs, TextInput, Title, Tooltip, use_theme,
+    Button, ButtonVariant, Caption, Card, Dialog, Heading, Icon, IconButton, MenuButton, Paragraph,
+    Scroll, Spinner, Tabs, TextInput, Title, Tooltip, use_theme,
 };
 use beui::unstyled::{ChoiceOption, MenuItem};
 use beui::{NodeId, TextAlign};
@@ -57,7 +57,8 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
         Some(ErrorAction::DeleteServerDatabase) => "Delete local server database?".to_owned(),
         None => String::new(),
     }));
-    let confirmation = create_memo(move || match pending.get() {
+    let confirmation = create_memo(move || {
+        match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => {
             "This removes every saved account on this device. You will need to sign in again."
                 .to_owned()
@@ -68,6 +69,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
                 .to_owned()
         }
         None => String::new(),
+    }
     });
     view! {
         <Column>
@@ -98,13 +100,13 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
                         }}
                     />
                 </Show>
-                <Button label="Exit" variant=ButtonVariant::Ghost on_click={|| send(UiCommand::Exit)} />
+                <Button
+                    label="Exit"
+                    variant=ButtonVariant::Ghost
+                    on_click={|| send(UiCommand::Exit)}
+                />
             </List>
-            <Dialog
-                open={asking}
-                title={title}
-                on_dismiss={|| send(UiCommand::CancelErrorAction)}
-            >
+            <Dialog open={asking} title={title} on_dismiss={|| send(UiCommand::CancelErrorAction)}>
                 <List spacing=12.0>
                     <Paragraph content={confirmation} />
                     <List direction=Direction::Horizontal spacing=8.0>
@@ -156,7 +158,9 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
                             .find(|account| account.key == key)
                             .unwrap_or_default()
                     });
-                    view! { <AccountCard account /> }
+                    view! {
+                        <AccountCard account />
+                    }
                 }}
             </ForEach>
             <Show condition={empty}>
@@ -272,12 +276,14 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
             });
         }
     ));
-    let ready = create_memo(clone!(pending register email password display_name -> move || {
-        !pending.get()
-            && !email.get().trim().is_empty()
-            && !password.get().is_empty()
-            && (!register.get() || !display_name.get().trim().is_empty())
-    }));
+    let ready = create_memo(
+        clone!(pending register email password display_name -> move || {
+            !pending.get()
+                && !email.get().trim().is_empty()
+                && !password.get().is_empty()
+                && (!register.get() || !display_name.get().trim().is_empty())
+        }),
+    );
     let not_ready = create_memo(clone!(ready -> move || !ready.get()));
     let submit_label = create_memo(clone!(register -> move || match register.get() {
         true => "Register".to_owned(),
@@ -405,7 +411,8 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
             .map(|invitation| invitation.id)
             .collect::<Vec<_>>()
     }));
-    let has_invitations = create_memo(clone!(invitation_keys -> move || !invitation_keys.get().is_empty()));
+    let has_invitations =
+        create_memo(clone!(invitation_keys -> move || !invitation_keys.get().is_empty()));
     let empty = create_memo(clone!(keys -> move || keys.get().is_empty()));
     let state = create_memo(clone!(workspaces -> move || workspaces.get().state));
     let error = create_memo(clone!(workspaces -> move || workspaces.get().error));
@@ -571,7 +578,8 @@ fn CreateWorkspace(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
         created.get();
         untrack(|| set_name.set(String::new()));
     }));
-    let cannot = create_memo(clone!(busy name -> move || busy.get() || name.get().trim().is_empty()));
+    let cannot =
+        create_memo(clone!(busy name -> move || busy.get() || name.get().trim().is_empty()));
     let create = clone!(name cannot -> move || {
         if !cannot.get_untracked() {
             send(UiCommand::CreateWorkspace(name.get_untracked()));
@@ -602,7 +610,8 @@ fn CreateWorkspace(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
 fn ReauthDialog(view: AppViewStore) -> NodeId {
     let reauth = view.reauth.clone();
     let open = create_memo(clone!(reauth -> move || reauth.get().is_some()));
-    let busy = create_memo(clone!(reauth -> move || reauth.get().is_some_and(|reauth| reauth.busy)));
+    let busy =
+        create_memo(clone!(reauth -> move || reauth.get().is_some_and(|reauth| reauth.busy)));
     let error = create_memo(clone!(reauth -> move || reauth.get().and_then(|reauth| reauth.error)));
     let message = create_memo(move || {
         format!(
@@ -617,7 +626,8 @@ fn ReauthDialog(view: AppViewStore) -> NodeId {
             untrack(|| set_password.set(String::new()));
         }
     }));
-    let cannot = create_memo(clone!(busy password -> move || busy.get() || password.get().is_empty()));
+    let cannot =
+        create_memo(clone!(busy password -> move || busy.get() || password.get().is_empty()));
     let submit = clone!(password cannot -> move || {
         if !cannot.get_untracked() {
             send(UiCommand::ReauthSubmit(password.get_untracked()));

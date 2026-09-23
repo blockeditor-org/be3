@@ -262,12 +262,7 @@ fn open(host: &Host, module: &Module) -> Result<Plugin, String> {
     }
 }
 
-fn run(
-    host: Host,
-    module: Module,
-    orders: Receiver<Command>,
-    reports: Sender<Event>,
-) {
+fn run(host: Host, module: Module, orders: Receiver<Command>, reports: Sender<Event>) {
     let mut plugin = match open(&host, &module) {
         Ok(plugin) => plugin,
         Err(error) => {
@@ -282,11 +277,7 @@ fn run(
         crate::host::wake();
         return;
     }
-    if !report(
-        &reports,
-        Event::Ready(produced(&mut plugin)),
-        true,
-    ) {
+    if !report(&reports, Event::Ready(produced(&mut plugin)), true) {
         return;
     }
     for order in orders {

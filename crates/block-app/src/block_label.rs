@@ -12,7 +12,11 @@ pub(crate) struct BlockLabel {
 }
 
 impl BlockLabel {
-    pub(crate) fn new(registry: &EditorRegistry, block_type: Uuid, name: Option<&BlockName>) -> Self {
+    pub(crate) fn new(
+        registry: &EditorRegistry,
+        block_type: Uuid,
+        name: Option<&BlockName>,
+    ) -> Self {
         let (name, automatic) = match name.filter(|name| !name.value.is_empty()) {
             Some(name) => (name.value.clone(), !name.manual),
             None => (

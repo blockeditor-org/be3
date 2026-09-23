@@ -109,7 +109,6 @@ impl WebSurfacePresenter {
             copy_size,
         );
     }
-
 }
 
 impl SurfacePresenter for WebSurfacePresenter {

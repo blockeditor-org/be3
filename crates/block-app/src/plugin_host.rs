@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use beui::{Pos2, Rect, Vec2, vec2};
 use block_client::BlockClient;
 use block_plugin_api::{
     BlockTypeDescriptor, ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ScreenId,
 };
-use beui::{Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
 
 mod audio;
@@ -24,12 +24,6 @@ mod web_view;
 
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::{Blit, PluginDrawing};
-#[cfg(all(
-    feature = "web-view",
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
-))]
-pub(crate) use web_view::install as install_web_view;
 pub(crate) use runtime::{
     artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, cover_frame,
     creation, creation_ready, editor_ui, flush, frame_child, frame_rects, hold, install,
@@ -39,6 +33,12 @@ pub(crate) use runtime::{
     take_artifact_watch, take_block_pick, take_created, take_focus_report, take_leaving,
     take_view_changes,
 };
+#[cfg(all(
+    feature = "web-view",
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
+pub(crate) use web_view::install as install_web_view;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn cache_in(directory: std::path::PathBuf) {

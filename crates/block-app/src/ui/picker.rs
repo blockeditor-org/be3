@@ -3,8 +3,8 @@ use beui::reactive::{
     create_memo, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Dialog, Icon, Scroll, Separator, Spinner, Tabs,
-    TextInput, use_theme,
+    Button, ButtonVariant, Caption, Dialog, Icon, Scroll, Separator, Spinner, Tabs, TextInput,
+    use_theme,
 };
 use beui::unstyled::{self, ButtonHandle, ChoiceOption};
 use beui::{NodeId, TextAlign};
@@ -29,9 +29,13 @@ fn act(picker: Uuid, action: PickerAction) {
 #[component]
 pub(super) fn PickerDialogs(view: AppViewStore) -> NodeId {
     let picker = view.picker.clone();
-    let id = create_memo(clone!(picker -> move || picker.get().map(|picker| picker.id).unwrap_or_default()));
-    let choose = create_memo(clone!(picker -> move || picker.get().and_then(|picker| picker.choose)));
-    let create = create_memo(clone!(picker -> move || picker.get().and_then(|picker| picker.create)));
+    let id = create_memo(
+        clone!(picker -> move || picker.get().map(|picker| picker.id).unwrap_or_default()),
+    );
+    let choose =
+        create_memo(clone!(picker -> move || picker.get().and_then(|picker| picker.choose)));
+    let create =
+        create_memo(clone!(picker -> move || picker.get().and_then(|picker| picker.create)));
     let error = create_memo(move || picker.get().and_then(|picker| picker.error));
     view! {
         <List spacing=0.0>
@@ -109,7 +113,9 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
                                             let tile = create_memo(move || {
                                                 tiles.get().into_iter().find(|tile| tile.key == key)
                                             });
-                                            view! { <TileButton id={tile_id.clone()} tile /> }
+                                            view! {
+                                                <TileButton id={tile_id.clone()} tile />
+                                            }
                                         }}
                                     </ForEach>
                                 </List>
@@ -136,7 +142,9 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
                                         let link = create_memo(move || {
                                             links.get().into_iter().find(|link| link.id == block)
                                         });
-                                        view! { <LinkButton id={link_id.clone()} link /> }
+                                        view! {
+                                            <LinkButton id={link_id.clone()} link />
+                                        }
                                     }}
                                 </ForEach>
                             </Scroll>
@@ -159,8 +167,10 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
 
 #[component]
 fn TileButton(id: Memo<Uuid>, tile: Memo<Option<Tile>>) -> NodeId {
-    let label = create_memo(clone!(tile -> move || tile.get().map(|tile| tile.label).unwrap_or_default()));
-    let glyph = create_memo(clone!(tile -> move || tile.get().map(|tile| tile.icon).unwrap_or_default()));
+    let label =
+        create_memo(clone!(tile -> move || tile.get().map(|tile| tile.label).unwrap_or_default()));
+    let glyph =
+        create_memo(clone!(tile -> move || tile.get().map(|tile| tile.icon).unwrap_or_default()));
     let pick = move || {
         let Some(tile) = tile.get_untracked() else {
             return;
@@ -174,7 +184,9 @@ fn TileButton(id: Memo<Uuid>, tile: Memo<Option<Tile>>) -> NodeId {
     view! {
         <unstyled::Button
             on_click={pick}
-            content={move |handle: ButtonHandle| view! { <TileFace handle label glyph /> }}
+            content={move |handle: ButtonHandle| view! {
+                <TileFace handle label glyph />
+            }}
         />
     }
 }
@@ -220,8 +232,10 @@ fn TileFace(handle: ButtonHandle, label: Memo<String>, glyph: Memo<String>) -> N
 
 #[component]
 fn LinkButton(id: Memo<Uuid>, link: Memo<Option<LinkRow>>) -> NodeId {
-    let label = create_memo(clone!(link -> move || link.get().map(|link| link.name).unwrap_or_default()));
-    let glyph = create_memo(clone!(link -> move || link.get().map(|link| link.icon).unwrap_or_default()));
+    let label =
+        create_memo(clone!(link -> move || link.get().map(|link| link.name).unwrap_or_default()));
+    let glyph =
+        create_memo(clone!(link -> move || link.get().map(|link| link.icon).unwrap_or_default()));
     view! {
         <Button
             label={label}
@@ -245,7 +259,8 @@ fn CreateDialog(id: Memo<Uuid>, create: Memo<Option<CreateView>>) -> NodeId {
             create.get().map(|create| create.title).unwrap_or_default()
         )
     }));
-    let working = create_memo(clone!(create -> move || create.get().is_some_and(|create| create.working)));
+    let working =
+        create_memo(clone!(create -> move || create.get().is_some_and(|create| create.working)));
     let waiting_label = create_memo(clone!(create -> move || {
         format!(
             "Creating {}...",
@@ -253,7 +268,8 @@ fn CreateDialog(id: Memo<Uuid>, create: Memo<Option<CreateView>>) -> NodeId {
         )
     }));
     let options = create_memo(clone!(working -> move || !working.get()));
-    let not_ready = create_memo(clone!(create -> move || !create.get().is_some_and(|create| create.ready)));
+    let not_ready =
+        create_memo(clone!(create -> move || !create.get().is_some_and(|create| create.ready)));
     let dialog = create_memo(move || create.get().is_some_and(|create| create.dialog));
     let height = surfaces::handle(SurfaceId::Creation).height();
     let (create_id, cancel_id) = (id.clone(), id.clone());

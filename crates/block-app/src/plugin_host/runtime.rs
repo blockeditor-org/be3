@@ -5,13 +5,13 @@ use std::{
     time::Duration,
 };
 
+use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockCommand, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId,
     EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest,
     ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec, Theme,
     ViewChange,
 };
-use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use uuid::Uuid;
 
 use crate::host::{self, HostItem, Target, Ui};
@@ -421,11 +421,7 @@ pub(crate) fn install(setup: &beui::Setup) {
     });
 }
 
-fn plugin_loading_rect(
-    layout: &ScreenLayout,
-    screen: ScreenId,
-    rect: Rect,
-) -> Option<Rect> {
+fn plugin_loading_rect(layout: &ScreenLayout, screen: ScreenId, rect: Rect) -> Option<Rect> {
     layout.placement(screen).is_none().then_some(rect)
 }
 
@@ -1100,10 +1096,7 @@ pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option
     with(plugin_id, |runtime| {
         runtime.instances.frame_report(instance).map(|report| {
             let rect = |rect: &block_plugin_api::ChildRect| {
-                Rect::from_min_size(
-                    pos2(rect.x, rect.y),
-                    vec2(rect.width, rect.height),
-                )
+                Rect::from_min_size(pos2(rect.x, rect.y), vec2(rect.width, rect.height))
             };
             HostFrame {
                 content: rect(&report.content),
@@ -1117,11 +1110,7 @@ pub(crate) fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {
     with(plugin_id, |runtime| runtime.instances.presenting(instance)).unwrap_or_default()
 }
 
-pub(crate) fn present(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    presenting: bool,
-) {
+pub(crate) fn present(plugin_id: &str, instance: EditorInstanceId, presenting: bool) {
     with(plugin_id, |runtime| {
         if runtime.instances.set_presenting(instance, presenting) {
             host::request_repaint();
@@ -1209,9 +1198,7 @@ fn session() -> HostSession {
 }
 
 fn theme() -> Theme {
-    Theme {
-        dark: host::dark(),
-    }
+    Theme { dark: host::dark() }
 }
 
 pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {

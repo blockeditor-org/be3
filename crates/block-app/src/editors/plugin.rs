@@ -1,9 +1,9 @@
+use beui::{Pos2, Rect, Vec2, vec2};
 use block_client::{BlockClient, BlockHandleAccess, blocks, blocks::workspace_index::BlockEntry};
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, ChildRect, CreationMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ViewChange,
 };
-use beui::{Pos2, Rect, Vec2, vec2};
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
@@ -193,11 +193,11 @@ impl PendingCreation for PluginCreation {
             return CreationStep::Options(ready);
         }
         self.state = crate::plugin_host::creation(CreationSlot {
-                plugin: &self.plugin,
-                block_types: editors.registry().plugin_block_types(),
-                client: editors.client_handle(),
-                client_id: editors.client_id(),
-                instance: self.instance,
+            plugin: &self.plugin,
+            block_types: editors.registry().plugin_block_types(),
+            client: editors.client_handle(),
+            client_id: editors.client_id(),
+            instance: self.instance,
         });
         CreationStep::Working
     }
@@ -823,13 +823,7 @@ impl PluginEditor {
                 opacity: context.opacity,
             },
         );
-        self.preview_children_ui(
-            ui,
-            editors,
-            &presentation,
-            context.corners,
-            context.opacity,
-        );
+        self.preview_children_ui(ui, editors, &presentation, context.corners, context.opacity);
         presentation.drawn
     }
 
@@ -1115,14 +1109,14 @@ impl ArtifactSession for PluginArtifact {
     ) -> ArtifactStatus {
         self.opened = true;
         let state = crate::plugin_host::artifact(ArtifactSlot {
-                plugin: &self.plugin,
-                block_types: registry.plugin_block_types(),
-                client: Arc::clone(client),
-                client_id: self.client_id,
-                instance: self.instance,
-                block: self.block,
-                data,
-                resync: std::mem::take(&mut self.resync),
+            plugin: &self.plugin,
+            block_types: registry.plugin_block_types(),
+            client: Arc::clone(client),
+            client_id: self.client_id,
+            instance: self.instance,
+            block: self.block,
+            data,
+            resync: std::mem::take(&mut self.resync),
         });
         if let Some(outcome) =
             crate::plugin_host::take_artifact_outcome(&self.plugin.identity.id, self.instance)

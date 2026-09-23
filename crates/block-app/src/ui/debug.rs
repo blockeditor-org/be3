@@ -1,12 +1,14 @@
-use beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_PAUSE, ICON_PLAY_ARROW, ICON_SKIP_NEXT};
+use beui::icons::{
+    ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_PAUSE, ICON_PLAY_ARROW, ICON_SKIP_NEXT,
+};
 use beui::reactive::{
     Align, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize, List, Memo, Show, Spacer,
     Text, VirtualList, clone, component, component_size, create_effect, create_memo, layout_text,
     untrack, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Heading, Icon, IconButton, Link, Scroll,
-    Spinner, Window, use_theme,
+    Button, ButtonVariant, Caption, Code, Heading, Icon, IconButton, Link, Scroll, Spinner, Window,
+    use_theme,
 };
 use beui::{
     Color32, FontId, Key, KeyPress, Modifiers, NodeId, ScrollGesture, TextLayout, pos2, vec2,
@@ -222,7 +224,9 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
                 {move |index: usize| {
                     let lines = lines.clone();
                     let line = create_memo(move || lines.get().get(index).cloned());
-                    view! { <LineView line /> }
+                    view! {
+                        <LineView line />
+                    }
                 }}
             </VirtualList>
         </Scroll>
@@ -235,8 +239,10 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
     let indent = create_memo(clone!(line -> move || {
         ItemSize::Fixed(line.get().map_or(0.0, |line| f32::from(line.indent) * INDENT))
     }));
-    let text = create_memo(clone!(line -> move || line.get().map(|line| line.text).unwrap_or_default()));
-    let style = create_memo(clone!(line -> move || line.get().map_or(LineStyle::Body, |line| line.style)));
+    let text =
+        create_memo(clone!(line -> move || line.get().map(|line| line.text).unwrap_or_default()));
+    let style =
+        create_memo(clone!(line -> move || line.get().map_or(LineStyle::Body, |line| line.style)));
     let color = create_memo(clone!(theme style -> move || match style.get() {
         LineStyle::Heading | LineStyle::Body | LineStyle::Code => theme.text.get(),
         LineStyle::Muted => theme.text_muted.get(),
@@ -284,15 +290,23 @@ fn ClientWindow(client: Memo<Option<Vec<Line>>>) -> NodeId {
 #[component]
 fn NetworkWindow(network: Memo<Option<NetworkView>>) -> NodeId {
     let open = create_memo(clone!(network -> move || network.get().is_some()));
-    let paused = create_memo(clone!(network -> move || network.get().is_some_and(|network| network.paused)));
+    let paused =
+        create_memo(clone!(network -> move || network.get().is_some_and(|network| network.paused)));
     let sending = create_memo(clone!(paused -> move || !paused.get()));
-    let queued = create_memo(clone!(network -> move || network.get().map_or(0, |network| network.queued)));
-    let cannot_step = create_memo(clone!(paused queued -> move || !paused.get() || queued.get() == 0));
+    let queued =
+        create_memo(clone!(network -> move || network.get().map_or(0, |network| network.queued)));
+    let cannot_step =
+        create_memo(clone!(paused queued -> move || !paused.get() || queued.get() == 0));
     let summary = create_memo(clone!(paused queued -> move || match paused.get() {
         true => format!("Paused, {} queued", queued.get()),
         false => format!("Sending, {} queued", queued.get()),
     }));
-    let entries = create_memo(move || network.get().map(|network| network.entries).unwrap_or_default());
+    let entries = create_memo(move || {
+        network
+            .get()
+            .map(|network| network.entries)
+            .unwrap_or_default()
+    });
     let keys = create_memo(clone!(entries -> move || {
         entries.get().into_iter().map(|entry| entry.index).collect::<Vec<_>>()
     }));
@@ -342,7 +356,9 @@ fn NetworkWindow(network: Memo<Option<NetworkView>>) -> NodeId {
                             let entry = create_memo(move || {
                                 entries.get().into_iter().find(|entry| entry.index == index)
                             });
-                            view! { <TrafficEntry entry /> }
+                            view! {
+                                <TrafficEntry entry />
+                            }
                         }}
                     </VirtualList>
                 </Scroll>
@@ -363,9 +379,18 @@ fn TrafficEntry(entry: Memo<Option<TrafficRow>>) -> NodeId {
         true => theme.accent.get(),
         false => theme.warning.get(),
     }));
-    let timestamp = create_memo(clone!(entry -> move || entry.get().map(|entry| entry.timestamp).unwrap_or_default()));
-    let payload = create_memo(clone!(entry -> move || entry.get().map(|entry| entry.payload).unwrap_or_default()));
-    let decoded = create_memo(move || entry.get().map(|entry| entry.decoded.join("\n")).unwrap_or_default());
+    let timestamp = create_memo(
+        clone!(entry -> move || entry.get().map(|entry| entry.timestamp).unwrap_or_default()),
+    );
+    let payload = create_memo(
+        clone!(entry -> move || entry.get().map(|entry| entry.payload).unwrap_or_default()),
+    );
+    let decoded = create_memo(move || {
+        entry
+            .get()
+            .map(|entry| entry.decoded.join("\n"))
+            .unwrap_or_default()
+    });
     let has_decoded = create_memo(clone!(decoded -> move || !decoded.get().is_empty()));
     view! {
         <Frame padding_vertical=3.0>
@@ -412,18 +437,22 @@ fn PerformanceWindow(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
             on_close={|| debug(DebugCommand::Close(DebugWindow::Performance))}
         >
             <Scroll>
-                <PerformanceLine row={create_memo(|| Some(PerformanceRow {
-                    heading: true,
-                    name: "Measurement".to_owned(),
-                    current: "Current".to_owned(),
-                    average: "Average".to_owned(),
-                    peak: "Peak".to_owned(),
-                }))} />
+                <PerformanceLine
+                    row={create_memo(|| Some(PerformanceRow {
+                        heading: true,
+                        name: "Measurement".to_owned(),
+                        current: "Current".to_owned(),
+                        average: "Average".to_owned(),
+                        peak: "Peak".to_owned(),
+                    }))}
+                />
                 <ForEach keys={keys}>
                     {move |index: usize| {
                         let rows = rows.clone();
                         let row = create_memo(move || rows.get().get(index).cloned());
-                        view! { <PerformanceLine row /> }
+                        view! {
+                            <PerformanceLine row />
+                        }
                     }}
                 </ForEach>
             </Scroll>
@@ -445,10 +474,37 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
     let bold = create_memo(move || row.get().is_some_and(|row| row.heading));
     view! {
         <List direction=Direction::Horizontal spacing=8.0>
-            <Text @sizing=ItemSize::Percent(100.0) string={name} font_size=12.0 color={theme.text.clone()} bold={bold.clone()} />
-            <Text @sizing=ItemSize::Fixed(90.0) string={current} font_size=12.0 color={theme.text.clone()} monospace=true bold={bold.clone()} />
-            <Text @sizing=ItemSize::Fixed(90.0) string={average} font_size=12.0 color={theme.text.clone()} monospace=true bold={bold.clone()} />
-            <Text @sizing=ItemSize::Fixed(90.0) string={peak} font_size=12.0 color={theme.text.clone()} monospace=true bold />
+            <Text
+                @sizing=ItemSize::Percent(100.0)
+                string={name}
+                font_size=12.0
+                color={theme.text.clone()}
+                bold={bold.clone()}
+            />
+            <Text
+                @sizing=ItemSize::Fixed(90.0)
+                string={current}
+                font_size=12.0
+                color={theme.text.clone()}
+                monospace=true
+                bold={bold.clone()}
+            />
+            <Text
+                @sizing=ItemSize::Fixed(90.0)
+                string={average}
+                font_size=12.0
+                color={theme.text.clone()}
+                monospace=true
+                bold={bold.clone()}
+            />
+            <Text
+                @sizing=ItemSize::Fixed(90.0)
+                string={peak}
+                font_size=12.0
+                color={theme.text.clone()}
+                monospace=true
+                bold
+            />
         </List>
     }
 }
@@ -456,14 +512,24 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
 #[component]
 fn PluginsWindow(plugins: Memo<Option<PluginsView>>) -> NodeId {
     let open = create_memo(clone!(plugins -> move || plugins.get().is_some()));
-    let lines = create_memo(clone!(plugins -> move || plugins.get().map(|plugins| plugins.lines).unwrap_or_default()));
-    let line_keys = create_memo(clone!(lines -> move || (0..lines.get().len()).collect::<Vec<_>>()));
-    let runtimes = create_memo(move || plugins.get().map(|plugins| plugins.runtimes).unwrap_or_default());
+    let lines = create_memo(
+        clone!(plugins -> move || plugins.get().map(|plugins| plugins.lines).unwrap_or_default()),
+    );
+    let line_keys =
+        create_memo(clone!(lines -> move || (0..lines.get().len()).collect::<Vec<_>>()));
+    let runtimes = create_memo(move || {
+        plugins
+            .get()
+            .map(|plugins| plugins.runtimes)
+            .unwrap_or_default()
+    });
     let runtime_keys = create_memo(clone!(runtimes -> move || {
         runtimes.get().into_iter().map(|runtime| runtime.id).collect::<Vec<_>>()
     }));
     let idle = create_memo(clone!(runtime_keys -> move || runtime_keys.get().is_empty()));
-    let running = create_memo(clone!(runtime_keys -> move || format!("Running ({})", runtime_keys.get().len())));
+    let running = create_memo(
+        clone!(runtime_keys -> move || format!("Running ({})", runtime_keys.get().len())),
+    );
     view! {
         <Window
             open={open}
@@ -477,7 +543,9 @@ fn PluginsWindow(plugins: Memo<Option<PluginsView>>) -> NodeId {
                     {move |index: usize| {
                         let lines = lines.clone();
                         let line = create_memo(move || lines.get().get(index).cloned());
-                        view! { <LineView line /> }
+                        view! {
+                            <LineView line />
+                        }
                     }}
                 </ForEach>
                 <Heading content={running} />
@@ -491,7 +559,9 @@ fn PluginsWindow(plugins: Memo<Option<PluginsView>>) -> NodeId {
                         let runtime = create_memo(move || {
                             runtimes.get().into_iter().find(|runtime| runtime.id == key)
                         });
-                        view! { <RuntimeBlock id runtime /> }
+                        view! {
+                            <RuntimeBlock id runtime />
+                        }
                     }}
                 </ForEach>
             </Scroll>
@@ -501,8 +571,15 @@ fn PluginsWindow(plugins: Memo<Option<PluginsView>>) -> NodeId {
 
 #[component]
 fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
-    let state = create_memo(clone!(runtime -> move || runtime.get().map(|runtime| runtime.state).unwrap_or_default()));
-    let lines = create_memo(move || runtime.get().map(|runtime| runtime.lines).unwrap_or_default());
+    let state = create_memo(
+        clone!(runtime -> move || runtime.get().map(|runtime| runtime.state).unwrap_or_default()),
+    );
+    let lines = create_memo(move || {
+        runtime
+            .get()
+            .map(|runtime| runtime.lines)
+            .unwrap_or_default()
+    });
     let keys = create_memo(clone!(lines -> move || (0..lines.get().len()).collect::<Vec<_>>()));
     let kill = id.clone();
     view! {
@@ -521,7 +598,9 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                     {move |index: usize| {
                         let lines = lines.clone();
                         let line = create_memo(move || lines.get().get(index).cloned());
-                        view! { <LineView line /> }
+                        view! {
+                            <LineView line />
+                        }
                     }}
                 </ForEach>
             </List>
@@ -532,10 +611,15 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
 #[component]
 fn VersionWindow(version: Memo<Option<VersionView>>) -> NodeId {
     let open = create_memo(clone!(version -> move || version.get().is_some()));
-    let commit = create_memo(clone!(version -> move || version.get().map(|version| version.commit).unwrap_or_default()));
-    let can_install = create_memo(clone!(version -> move || version.get().is_some_and(|version| version.can_install)));
+    let commit = create_memo(
+        clone!(version -> move || version.get().map(|version| version.commit).unwrap_or_default()),
+    );
+    let can_install = create_memo(
+        clone!(version -> move || version.get().is_some_and(|version| version.can_install)),
+    );
     let runs = create_memo(move || version.get().map(|version| version.runs));
-    let loading = create_memo(clone!(runs -> move || matches!(runs.get(), Some(VersionRuns::Loading))));
+    let loading =
+        create_memo(clone!(runs -> move || matches!(runs.get(), Some(VersionRuns::Loading))));
     let error = create_memo(clone!(runs -> move || match runs.get() {
         Some(VersionRuns::Failed(error)) => Some(error),
         _ => None,
@@ -544,8 +628,12 @@ fn VersionWindow(version: Memo<Option<VersionView>>) -> NodeId {
         Some(VersionRuns::Loaded(runs)) => runs,
         _ => Vec::new(),
     }));
-    let none = create_memo(clone!(runs -> move || matches!(runs.get(), Some(VersionRuns::Loaded(runs)) if runs.is_empty())));
-    let keys = create_memo(clone!(loaded -> move || loaded.get().into_iter().map(|run| run.id).collect::<Vec<_>>()));
+    let none = create_memo(
+        clone!(runs -> move || matches!(runs.get(), Some(VersionRuns::Loaded(runs)) if runs.is_empty())),
+    );
+    let keys = create_memo(
+        clone!(loaded -> move || loaded.get().into_iter().map(|run| run.id).collect::<Vec<_>>()),
+    );
     view! {
         <Window
             open={open}
@@ -576,7 +664,9 @@ fn VersionWindow(version: Memo<Option<VersionView>>) -> NodeId {
                         {move |id: u64| {
                             let loaded = loaded.clone();
                             let run = create_memo(move || loaded.get().into_iter().find(|run| run.id == id));
-                            view! { <RunCard run can_install={can_install.clone()} /> }
+                            view! {
+                                <RunCard run can_install={can_install.clone()} />
+                            }
                         }}
                     </ForEach>
                 </Scroll>
@@ -650,7 +740,8 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
 #[component]
 fn TerminalWindow(terminal: Memo<Option<TerminalView>>) -> NodeId {
     let open = create_memo(clone!(terminal -> move || terminal.get().is_some()));
-    let error = create_memo(clone!(terminal -> move || terminal.get().and_then(|terminal| terminal.error)));
+    let error =
+        create_memo(clone!(terminal -> move || terminal.get().and_then(|terminal| terminal.error)));
     let failed = create_memo(clone!(error -> move || error.get().is_some()));
     view! {
         <Window
@@ -680,16 +771,23 @@ fn TerminalScreen(terminal: Memo<Option<TerminalView>>) -> NodeId {
     let size = component_size();
     create_effect(move || {
         let size = size.get();
-        let Some(cell) = layout_text("M", FontId::monospace(TERMINAL_FONT_SIZE), TextLayout::DEFAULT)
-            .map(|galley| galley.size())
-        else {
+        let Some(cell) = layout_text(
+            "M",
+            FontId::monospace(TERMINAL_FONT_SIZE),
+            TextLayout::DEFAULT,
+        )
+        .map(|galley| galley.size()) else {
             return;
         };
         if cell.x <= 0.0 || cell.y <= 0.0 {
             return;
         }
-        let cols = ((size.x - 2.0 * TERMINAL_PADDING) / cell.x).floor().max(1.0) as u16;
-        let rows = ((size.y - 2.0 * TERMINAL_PADDING) / cell.y).floor().max(1.0) as u16;
+        let cols = ((size.x - 2.0 * TERMINAL_PADDING) / cell.x)
+            .floor()
+            .max(1.0) as u16;
+        let rows = ((size.y - 2.0 * TERMINAL_PADDING) / cell.y)
+            .floor()
+            .max(1.0) as u16;
         untrack(|| {
             debug(DebugCommand::Terminal(TerminalInput::Resize {
                 cols,
@@ -702,7 +800,12 @@ fn TerminalScreen(terminal: Memo<Option<TerminalView>>) -> NodeId {
     let background = create_memo(clone!(terminal -> move || {
         terminal.get().map_or(Color32::BLACK, |terminal| terminal.background)
     }));
-    let rows = create_memo(move || terminal.get().map(|terminal| terminal.rows).unwrap_or_default());
+    let rows = create_memo(move || {
+        terminal
+            .get()
+            .map(|terminal| terminal.rows)
+            .unwrap_or_default()
+    });
     let keys = create_memo(clone!(rows -> move || (0..rows.get().len()).collect::<Vec<_>>()));
     view! {
         <Focusable
@@ -732,7 +835,9 @@ fn TerminalScreen(terminal: Memo<Option<TerminalView>>) -> NodeId {
                             {move |index: usize| {
                                 let rows = rows.clone();
                                 let row = create_memo(move || rows.get().get(index).cloned());
-                                view! { <TerminalLine row /> }
+                                view! {
+                                    <TerminalLine row />
+                                }
                             }}
                         </ForEach>
                     </List>
@@ -753,7 +858,9 @@ fn TerminalLine(row: Memo<Option<TerminalRow>>) -> NodeId {
                 {move |index: usize| {
                     let row = row.clone();
                     let span = create_memo(move || row.get().and_then(|row| row.spans.get(index).cloned()));
-                    view! { <TerminalCell span /> }
+                    view! {
+                        <TerminalCell span />
+                    }
                 }}
             </ForEach>
         </List>
@@ -769,8 +876,10 @@ fn TerminalCell(span: Memo<Option<TerminalSpan>>) -> NodeId {
     let bold = field(|span| span.bold);
     let italic = field(|span| span.italic);
     let underline = field(|span| span.underline);
-    let text = create_memo(clone!(span -> move || span.get().map(|span| span.text).unwrap_or_default()));
-    let color = create_memo(clone!(span -> move || span.get().map_or(Color32::WHITE, |span| span.color)));
+    let text =
+        create_memo(clone!(span -> move || span.get().map(|span| span.text).unwrap_or_default()));
+    let color =
+        create_memo(clone!(span -> move || span.get().map_or(Color32::WHITE, |span| span.color)));
     let background = create_memo(move || {
         span.get()
             .and_then(|span| span.background)

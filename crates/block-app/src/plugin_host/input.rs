@@ -103,8 +103,8 @@ impl InputAdapter {
         screen: ScreenId,
         holes: &Holes,
     ) -> Vec<Message> {
-        self.over_hole = !self.captured
-            && host::pointer().is_some_and(|position| holes.contains(position));
+        self.over_hole =
+            !self.captured && host::pointer().is_some_and(|position| holes.contains(position));
         let (events, modifiers) = host::input(|input| (input.events.clone(), input.modifiers));
         let mut normalized = Vec::new();
         if focused != self.focused {
@@ -443,4 +443,3 @@ pub(super) fn protocol_key(key: beui::Key) -> Key {
         beui::Key::F24 => Key::F24,
     }
 }
-

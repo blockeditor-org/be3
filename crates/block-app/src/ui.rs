@@ -7,9 +7,9 @@ mod workspace;
 
 use std::cell::RefCell;
 
-use beui::{ItemSize, NodeId};
 use beui::reactive::{Dynamic, Frame, List, Store, component, view};
 use beui::styled::use_theme;
+use beui::{ItemSize, NodeId};
 use block::WorkspaceRole;
 use uuid::Uuid;
 
@@ -18,8 +18,8 @@ use crate::block_picker::{PickerCommand, PickerView};
 use crate::share::{ShareCommand, ShareView};
 
 pub(crate) use debug::{
-    DebugCommand, DebugView, DebugWindow, Line, LineStyle, NetworkView, PerformanceRow, PluginsView,
-    RunView, RuntimeView, TrafficRow, VersionRuns, VersionView,
+    DebugCommand, DebugView, DebugWindow, Line, LineStyle, NetworkView, PerformanceRow,
+    PluginsView, RunView, RuntimeView, TrafficRow, VersionRuns, VersionView,
 };
 #[cfg(feature = "terminal")]
 pub(crate) use debug::{TerminalInput, TerminalRow, TerminalSpan, TerminalView};
@@ -245,7 +245,9 @@ pub(crate) enum UiCommand {
 }
 
 pub(crate) fn root(view: AppViewStore) -> NodeId {
-    view! { <Root view /> }
+    view! {
+        <Root view />
+    }
 }
 
 #[component]
@@ -266,7 +268,10 @@ fn Root(view: AppViewStore) -> NodeId {
                                 <onboarding::AccountsScreen @sizing=ItemSize::Percent(100.0) view />
                             },
                             Screen::Workspaces => view! {
-                                <onboarding::WorkspacesScreen @sizing=ItemSize::Percent(100.0) view />
+                                <onboarding::WorkspacesScreen
+                                    @sizing=ItemSize::Percent(100.0)
+                                    view
+                                />
                             },
                             Screen::Workspace => view! {
                                 <workspace::WorkspaceScreen @sizing=ItemSize::Percent(100.0) view />

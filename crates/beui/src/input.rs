@@ -318,7 +318,7 @@ impl InputState {
             }
         }
         input.pointer.pos = input.pointer.pos.map(scale);
-        input.pointer.motion = input.pointer.motion * factor;
+        input.pointer.motion *= factor;
         input.pointer.last_click = input
             .pointer
             .last_click
@@ -329,14 +329,14 @@ impl InputState {
         }
         touch.start = touch.start.map(scale);
         touch.previous = touch.previous.map(scale);
-        touch.scroll_delta = touch.scroll_delta * factor;
-        touch.pinch_pan = touch.pinch_pan * factor;
+        touch.scroll_delta *= factor;
+        touch.pinch_pan *= factor;
         touch.pinch_center = touch.pinch_center.map(scale);
         touch.pinch_span = touch.pinch_span.map(|span| span * factor);
         for (_, pos) in &mut touch.samples {
             *pos = scale(*pos);
         }
-        touch.velocity = touch.velocity * factor;
+        touch.velocity *= factor;
         input
     }
 
@@ -354,7 +354,7 @@ impl InputState {
             match event {
                 Event::PointerMoved(pos) if !suppress_mouse => self.pointer.pos = Some(*pos),
                 Event::PointerMotion(delta) => {
-                    self.pointer.motion = self.pointer.motion + *delta;
+                    self.pointer.motion += *delta;
                 }
                 Event::PointerGone if !suppress_mouse => {
                     self.pointer.pos = None;
@@ -406,7 +406,7 @@ impl InputState {
                         PointerButton::Back | PointerButton::Forward => {}
                     }
                 }
-                Event::Scroll(delta) => self.scroll_delta = self.scroll_delta + *delta,
+                Event::Scroll(delta) => self.scroll_delta += *delta,
                 Event::Zoom(factor) => self.zoom_factor *= *factor,
                 Event::Key { modifiers, .. } | Event::Modifiers(modifiers) => {
                     self.modifiers = *modifiers;
@@ -590,9 +590,9 @@ impl TouchState {
             } else {
                 TouchDirection::Horizontal
             };
-            self.scroll_delta = self.scroll_delta + self.along(movement);
+            self.scroll_delta += self.along(movement);
         } else if self.direction != TouchDirection::Undecided {
-            self.scroll_delta = self.scroll_delta + self.along(pos - previous);
+            self.scroll_delta += self.along(pos - previous);
         }
         self.sample(pos);
     }
@@ -639,7 +639,7 @@ impl TouchState {
             && span > 0.0
         {
             self.pinch *= span / previous_span;
-            self.pinch_pan = self.pinch_pan + (center - previous_center);
+            self.pinch_pan += center - previous_center;
         }
         self.pinch_span = Some(span);
         self.pinch_center = Some(center);

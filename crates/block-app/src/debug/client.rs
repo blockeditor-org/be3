@@ -219,10 +219,5 @@ fn be_stack(lines: &mut Vec<Line>, status: &crate::be::Status) {
             format!("{} block(s) unsealed", status.unsealed)
         },
     );
-    field(
-        lines,
-        1,
-        "Error",
-        status.error.as_deref().unwrap_or("None"),
-    );
+    field(lines, 1, "Error", status.error.as_deref().unwrap_or("None"));
 }

@@ -38,7 +38,8 @@ fn InviteWindow(view: AppViewStore) -> NodeId {
             invite.get().map(|invite| invite.workspace).unwrap_or_default()
         )
     }));
-    let busy = create_memo(clone!(invite -> move || invite.get().is_some_and(|invite| invite.busy)));
+    let busy =
+        create_memo(clone!(invite -> move || invite.get().is_some_and(|invite| invite.busy)));
     let error = create_memo(clone!(invite -> move || invite.get().and_then(|invite| invite.error)));
     let sent = create_memo(move || invite.get().map(|invite| invite.sent));
     let (email, set_email) = create_signal(String::new());
@@ -56,7 +57,8 @@ fn InviteWindow(view: AppViewStore) -> NodeId {
         WorkspaceRole::Administrator => "Can open every block in the workspace.".to_owned(),
         WorkspaceRole::Editor => "Can only open blocks they create or are given access to.".to_owned(),
     }));
-    let cannot = create_memo(clone!(email busy -> move || busy.get() || email.get().trim().is_empty()));
+    let cannot =
+        create_memo(clone!(email busy -> move || busy.get() || email.get().trim().is_empty()));
     view! {
         <Window
             open={open}
@@ -128,9 +130,18 @@ fn AboutWindow(view: AppViewStore) -> NodeId {
 fn DiscardDialog(view: AppViewStore) -> NodeId {
     let discard = view.discard.clone();
     let open = create_memo(clone!(discard -> move || discard.get().is_some()));
-    let title = create_memo(clone!(discard -> move || discard.get().map(|discard| discard.title).unwrap_or_default()));
-    let message = create_memo(clone!(discard -> move || discard.get().map(|discard| discard.message).unwrap_or_default()));
-    let button = create_memo(move || discard.get().map(|discard| discard.button).unwrap_or_default());
+    let title = create_memo(
+        clone!(discard -> move || discard.get().map(|discard| discard.title).unwrap_or_default()),
+    );
+    let message = create_memo(
+        clone!(discard -> move || discard.get().map(|discard| discard.message).unwrap_or_default()),
+    );
+    let button = create_memo(move || {
+        discard
+            .get()
+            .map(|discard| discard.button)
+            .unwrap_or_default()
+    });
     view! {
         <Dialog open={open} title={title} on_dismiss={|| send(UiCommand::CancelDiscard)}>
             <List spacing=12.0>
@@ -206,7 +217,9 @@ fn RenameDialog(view: AppViewStore) -> NodeId {
 fn ArtifactSettingsDialog(view: AppViewStore) -> NodeId {
     let settings = view.artifact_settings.clone();
     let open = create_memo(clone!(settings -> move || settings.get().is_some()));
-    let unchanged = create_memo(clone!(settings -> move || !settings.get().is_some_and(|settings| settings.changed)));
+    let unchanged = create_memo(
+        clone!(settings -> move || !settings.get().is_some_and(|settings| settings.changed)),
+    );
     let summary = create_memo(move || settings.get().and_then(|settings| settings.summary));
     let has_summary = create_memo(clone!(summary -> move || summary.get().is_some()));
     let summary_text = create_memo(move || summary.get().unwrap_or_default());
@@ -254,7 +267,9 @@ fn UnlinkDialog(view: AppViewStore) -> NodeId {
             on_dismiss={|| send(UiCommand::CancelUnlink)}
         >
             <List spacing=12.0>
-                <Paragraph content="This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable." />
+                <Paragraph
+                    content="This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
+                />
                 <Paragraph content="The link and its settings cannot be restored." />
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Button

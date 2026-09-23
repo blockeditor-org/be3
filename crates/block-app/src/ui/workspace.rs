@@ -130,7 +130,9 @@ fn StatusBar(status: Memo<StatusView>) -> NodeId {
                                             })
                                             .unwrap_or_default()
                                     });
-                                    view! { <MenuItem label={label} /> }
+                                    view! {
+                                        <MenuItem label={label} />
+                                    }
                                 }}
                             </ForEach>
                             <MenuItem label="Manage accounts" disabled={unsaved.clone()} />

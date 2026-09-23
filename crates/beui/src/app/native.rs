@@ -215,10 +215,9 @@ impl Runner {
             .surface
             .as_ref()
             .map_or(1.0, |surface| surface.window.scale_factor());
-        self.context.simulated_pixels_per_point().map_or(
-            native * f64::from(self.context.zoom_factor()),
-            f64::from,
-        )
+        self.context
+            .simulated_pixels_per_point()
+            .map_or(native * f64::from(self.context.zoom_factor()), f64::from)
     }
 
     fn logical(&self, position: PhysicalPosition<f64>) -> Pos2 {

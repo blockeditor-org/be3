@@ -455,7 +455,9 @@ impl beui::Draw for PluginDrawing {
                     None if presenter.platform.is_some() => {
                         blit.status.set(PresenterState::Presenting);
                     }
-                    None => blit.status.set(PresenterState::Unsupported(UNSUPPORTED.to_owned())),
+                    None => blit
+                        .status
+                        .set(PresenterState::Unsupported(UNSUPPORTED.to_owned())),
                 }
                 placed.push(region.map(|region| {
                     let offset = presenter.pipeline.stride * index as u32;

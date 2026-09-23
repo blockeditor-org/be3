@@ -79,7 +79,8 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     wasi_threads::initialize_main_thread();
     panic_guard::install();
     editors::plugin::discovery::load().await;
-    let app = BlockApp::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
+    let app =
+        BlockApp::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
     beui::run_web(&canvas_id, run_options(), Shell::new(app))
         .await
         .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
@@ -337,7 +338,6 @@ struct RenameState {
     id: Uuid,
     name: String,
 }
-
 
 impl BlockApp {
     #[cfg(not(target_arch = "wasm32"))]
@@ -1219,7 +1219,6 @@ impl BlockApp {
         }
     }
 
-
     fn show_shell(&mut self) {
         let Some(shell) = self.ensure_shell() else {
             return;
@@ -1357,10 +1356,7 @@ impl BlockApp {
             .dynamic_artifact_settings
             .entry(id)
             .or_insert_with(|| descriptor.data.clone());
-        surfaces::set_height(
-            SurfaceId::ArtifactSettings,
-            Some(session.settings_height()),
-        );
+        surfaces::set_height(SurfaceId::ArtifactSettings, Some(session.settings_height()));
         let registry = &self.registry;
         let client = &self.client;
         surfaces::with(SurfaceId::ArtifactSettings, |ui| {
@@ -1502,7 +1498,6 @@ impl BlockApp {
             ),
         }
     }
-
 
     fn frame(&mut self, context: &beui::Context) {
         if self.error.is_none() {
@@ -1831,10 +1826,7 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
-            discard: self
-                .pending_destructive_action
-                .as_ref()
-                .map(|action| discard_view(action)),
+            discard: self.pending_destructive_action.as_ref().map(discard_view),
             rename: self.rename.as_ref().map(|rename| ui::RenameView {
                 id: rename.id,
                 name: rename.name.clone(),
@@ -1854,7 +1846,9 @@ impl BlockApp {
             unlink: self.dynamic_artifact_unlink.is_some(),
             share: self.share.view(&self.client),
             picker: block_picker::view(),
-            presenting: surfaces::handle(SurfaceId::Presenting).shown().get_untracked(),
+            presenting: surfaces::handle(SurfaceId::Presenting)
+                .shown()
+                .get_untracked(),
             debug: debug::view(&self.client),
         }
     }

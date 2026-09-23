@@ -1,3 +1,4 @@
+use beui::NodeId;
 use beui::icons::{ICON_CLOSE, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD, ICON_REFRESH};
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
@@ -8,7 +9,6 @@ use beui::styled::{
     Scroll, Select, Spinner, TextInput,
 };
 use beui::unstyled::ChoiceOption;
-use beui::NodeId;
 use block::BlockAccess;
 use uuid::Uuid;
 
@@ -40,7 +40,9 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
     let refreshing = field(|share| share.refreshing);
     let nobody = field(|share| share.nobody);
     let error = create_memo(clone!(state -> move || state.get().and_then(|share| share.error)));
-    let query = create_memo(clone!(state -> move || state.get().map(|share| share.query).unwrap_or_default()));
+    let query = create_memo(
+        clone!(state -> move || state.get().map(|share| share.query).unwrap_or_default()),
+    );
     let suggestions = create_memo(clone!(state -> move || {
         state.get().and_then(|share| share.suggestions)
     }));
@@ -56,7 +58,9 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
             .map(|suggestion| suggestion.id)
             .collect::<Vec<_>>()
     }));
-    let pending = create_memo(clone!(state -> move || state.get().map(|share| share.pending).unwrap_or_default()));
+    let pending = create_memo(
+        clone!(state -> move || state.get().map(|share| share.pending).unwrap_or_default()),
+    );
     let pending_keys = create_memo(clone!(pending -> move || {
         pending.get().into_iter().map(|account| account.id).collect::<Vec<_>>()
     }));
@@ -68,7 +72,9 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
                 .position(|access| *access == share.pending_access)
         })
     }));
-    let members = create_memo(clone!(state -> move || state.get().map(|share| share.members).unwrap_or_default()));
+    let members = create_memo(
+        clone!(state -> move || state.get().map(|share| share.members).unwrap_or_default()),
+    );
     let member_keys = create_memo(clone!(members -> move || {
         members.get().into_iter().map(|member| member.id).collect::<Vec<_>>()
     }));
@@ -105,7 +111,9 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
                                             .into_iter()
                                             .find(|suggestion| suggestion.id == id)
                                     });
-                                    view! { <SuggestionButton suggestion /> }
+                                    view! {
+                                        <SuggestionButton suggestion />
+                                    }
                                 }}
                             </ForEach>
                         </List>
@@ -126,7 +134,11 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
                                             .unwrap_or_default()
                                     });
                                     view! {
-                                        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                                        <List
+                                            direction=Direction::Horizontal
+                                            align=Align::Center
+                                            spacing=2.0
+                                        >
                                             <Chip label={name} />
                                             <IconButton
                                                 glyph={ICON_CLOSE.to_owned()}
@@ -176,7 +188,9 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
                                 let member = create_memo(move || {
                                     members.get().into_iter().find(|member| member.id == id)
                                 });
-                                view! { <MemberRow member /> }
+                                view! {
+                                    <MemberRow member />
+                                }
                             }}
                         </ForEach>
                     </Scroll>
@@ -225,8 +239,12 @@ fn SuggestionButton(suggestion: Memo<Option<Suggestion>>) -> NodeId {
 
 #[component]
 fn MemberRow(member: Memo<Option<Member>>) -> NodeId {
-    let name = create_memo(clone!(member -> move || member.get().map(|member| member.name).unwrap_or_default()));
-    let email = create_memo(clone!(member -> move || member.get().map(|member| member.email).unwrap_or_default()));
+    let name = create_memo(
+        clone!(member -> move || member.get().map(|member| member.name).unwrap_or_default()),
+    );
+    let email = create_memo(
+        clone!(member -> move || member.get().map(|member| member.email).unwrap_or_default()),
+    );
     let fixed = create_memo(clone!(member -> move || member.get().and_then(|member| member.fixed)));
     let is_fixed = create_memo(clone!(fixed -> move || fixed.get().is_some()));
     let editable = create_memo(clone!(is_fixed -> move || !is_fixed.get()));
@@ -244,7 +262,8 @@ fn MemberRow(member: Memo<Option<Member>>) -> NodeId {
     let selected = create_memo(clone!(member -> move || {
         member.get().and_then(|member| GRANTABLE.iter().position(|access| *access == member.access))
     }));
-    let removable = create_memo(clone!(member -> move || member.get().is_some_and(|member| member.removable)));
+    let removable =
+        create_memo(clone!(member -> move || member.get().is_some_and(|member| member.removable)));
     let chosen = member.clone();
     view! {
         <Frame padding_vertical=4.0>

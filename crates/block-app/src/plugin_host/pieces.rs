@@ -33,10 +33,7 @@ pub(super) fn subtract(area: Rect, holes: &[Rect]) -> Vec<Rect> {
     for row in rows.windows(2) {
         let mut open: Option<Rect> = None;
         for column in columns.windows(2) {
-            let cell = Rect::from_min_max(
-                pos2(column[0], row[0]),
-                pos2(column[1], row[1]),
-            );
+            let cell = Rect::from_min_max(pos2(column[0], row[0]), pos2(column[1], row[1]));
             if !cell.is_positive() {
                 continue;
             }

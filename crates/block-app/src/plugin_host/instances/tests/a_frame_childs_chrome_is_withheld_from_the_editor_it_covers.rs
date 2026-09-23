@@ -40,7 +40,12 @@ fn active_child(instances: &mut Instances) {
 }
 
 fn press(at: Pos2) {
-    host::register(TARGET, Rect::from_min_size(pos2(10.0, 10.0), SIZE), Rect::EVERYTHING, 0);
+    host::register(
+        TARGET,
+        Rect::from_min_size(pos2(10.0, 10.0), SIZE),
+        Rect::EVERYTHING,
+        0,
+    );
     host::test_frame(
         vec![
             beui::Event::PointerMoved(at),

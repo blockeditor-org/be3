@@ -338,7 +338,9 @@ pub async fn run_web(
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let window = web_sys::window().ok_or("no browser window is available")?;
-    let document = window.document().ok_or("no browser document is available")?;
+    let document = window
+        .document()
+        .ok_or("no browser document is available")?;
     let canvas = document
         .get_element_by_id(canvas_id)
         .ok_or_else(|| format!("no element has the id {canvas_id}"))?
@@ -439,7 +441,9 @@ pub async fn run_web(
     Ok(())
 }
 
-fn text_agent(document: &web_sys::Document) -> Result<web_sys::HtmlTextAreaElement, Box<dyn Error>> {
+fn text_agent(
+    document: &web_sys::Document,
+) -> Result<web_sys::HtmlTextAreaElement, Box<dyn Error>> {
     let agent = document
         .create_element("textarea")
         .map_err(|_| "could not create the text input")?
@@ -535,8 +539,12 @@ fn listen(
             event.prevent_default();
             let _ = agent.focus();
             let _ = canvas.set_pointer_capture(event.pointer_id());
-            let modifiers =
-                modifiers_of(event.alt_key(), event.ctrl_key(), event.meta_key(), event.shift_key());
+            let modifiers = modifiers_of(
+                event.alt_key(),
+                event.ctrl_key(),
+                event.meta_key(),
+                event.shift_key(),
+            );
             let pos = position(&canvas, event.client_x(), event.client_y());
             if event.pointer_type() == "touch" {
                 push(touch(&event, TouchPhase::Start, pos));
@@ -606,11 +614,15 @@ fn listen(
             }
         })?;
     }
-    on(canvas_target, "pointerleave", |event: web_sys::PointerEvent| {
-        if event.pointer_type() != "touch" && INPUT.with(|input| input.buttons.get()) == 0 {
-            push(Event::PointerGone);
-        }
-    })?;
+    on(
+        canvas_target,
+        "pointerleave",
+        |event: web_sys::PointerEvent| {
+            if event.pointer_type() != "touch" && INPUT.with(|input| input.buttons.get()) == 0 {
+                push(Event::PointerGone);
+            }
+        },
+    )?;
     on(canvas_target, "wheel", |event: web_sys::WheelEvent| {
         event.prevent_default();
         let unit = match event.delta_mode() {
@@ -625,9 +637,13 @@ fn listen(
         }
         push(Event::Scroll(-delta));
     })?;
-    on(canvas_target, "contextmenu", |event: web_sys::MouseEvent| {
-        event.prevent_default();
-    })?;
+    on(
+        canvas_target,
+        "contextmenu",
+        |event: web_sys::MouseEvent| {
+            event.prevent_default();
+        },
+    )?;
     on(canvas_target, "dragover", |event: web_sys::DragEvent| {
         event.prevent_default();
         push(Event::FileHovered);
@@ -663,8 +679,12 @@ fn listen(
     })?;
 
     on(agent_target, "keydown", |event: web_sys::KeyboardEvent| {
-        let modifiers =
-            modifiers_of(event.alt_key(), event.ctrl_key(), event.meta_key(), event.shift_key());
+        let modifiers = modifiers_of(
+            event.alt_key(),
+            event.ctrl_key(),
+            event.meta_key(),
+            event.shift_key(),
+        );
         let key = key(&event.code());
         if let Some(key) = key {
             push(Event::Key {
@@ -681,8 +701,12 @@ fn listen(
         }
     })?;
     on(agent_target, "keyup", |event: web_sys::KeyboardEvent| {
-        let modifiers =
-            modifiers_of(event.alt_key(), event.ctrl_key(), event.meta_key(), event.shift_key());
+        let modifiers = modifiers_of(
+            event.alt_key(),
+            event.ctrl_key(),
+            event.meta_key(),
+            event.shift_key(),
+        );
         if let Some(key) = key(&event.code()) {
             push(Event::Key {
                 key,
@@ -705,17 +729,29 @@ fn listen(
             }
         }
     })?;
-    on(agent_target, "compositionstart", |_event: web_sys::CompositionEvent| {
-        push(Event::Ime(ImeEvent::Enabled));
-    })?;
-    on(agent_target, "compositionupdate", |event: web_sys::CompositionEvent| {
-        push(Event::Ime(ImeEvent::Preedit(event.data().unwrap_or_default())));
-    })?;
+    on(
+        agent_target,
+        "compositionstart",
+        |_event: web_sys::CompositionEvent| {
+            push(Event::Ime(ImeEvent::Enabled));
+        },
+    )?;
+    on(
+        agent_target,
+        "compositionupdate",
+        |event: web_sys::CompositionEvent| {
+            push(Event::Ime(ImeEvent::Preedit(
+                event.data().unwrap_or_default(),
+            )));
+        },
+    )?;
     on(agent_target, "compositionend", {
         let agent = agent.clone();
         move |event: web_sys::CompositionEvent| {
             agent.set_value("");
-            push(Event::Ime(ImeEvent::Commit(event.data().unwrap_or_default())));
+            push(Event::Ime(ImeEvent::Commit(
+                event.data().unwrap_or_default(),
+            )));
             push(Event::Ime(ImeEvent::Disabled));
         }
     })?;
