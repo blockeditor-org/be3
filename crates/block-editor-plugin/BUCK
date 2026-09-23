@@ -8,6 +8,7 @@ rust_library(
         # The guest half of the plugin framework, which is the half that
         # exists on wasm: the gpu abi and the threads it spawns.
         "DEFAULT": [
+            "//crates/be-block:be-block",
             "//crates/beui:beui",
             "//crates/block:block",
             "//crates/block-client:block-client",
@@ -22,6 +23,7 @@ rust_library(
             "//third-party/rust:uuid",
         ],
         "prelude//cpu:wasm32": [
+            "//crates/be-block:be-block",
             "//crates/beui:beui",
             "//crates/block:block",
             "//crates/block-client:block-client",
@@ -59,6 +61,7 @@ rust_binary(
     crate = "block_editor_plugin",
     crate_root = "src/lib.rs",
     deps = [
+        "//crates/be-block:be-block",
         "//crates/beui:beui",
         "//crates/block:block",
         "//crates/block-client:block-client",
