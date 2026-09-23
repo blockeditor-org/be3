@@ -51,7 +51,7 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
                     width: 120.0,
                     height: 90.0,
                 }),
-                trail: vec!["Canvas".to_owned(), "Pan and Zoom".to_owned()],
+                top_bar: true,
             }),
             ..Default::default()
         },

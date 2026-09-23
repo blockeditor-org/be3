@@ -24,7 +24,7 @@ use block_editor_plugin::{
 use uuid::Uuid;
 
 use super::panel::BlockPanel;
-use super::tab::{BlockTab, Navigation, TabItem};
+use super::tab::TabItem;
 
 pub(crate) const FILES: TabId = TabId::new(1);
 pub(crate) const EMPTY: TabId = TabId::new(2);
@@ -36,7 +36,7 @@ const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
 
-type Tabs = HashMap<TabId, BlockTab>;
+type Tabs = HashMap<TabId, TabItem>;
 
 pub(crate) struct Workspace {
     editor: Editor,
@@ -120,8 +120,8 @@ impl Workspace {
         self.editor.block_types()
     }
 
-    pub(crate) fn tab(&self, tab: TabId) -> Option<BlockTab> {
-        self.tabs.with(|tabs| tabs.get(&tab).cloned())
+    pub(crate) fn tab(&self, tab: TabId) -> Option<TabItem> {
+        self.tabs.with(|tabs| tabs.get(&tab).copied())
     }
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<AccessLevel> {
@@ -140,7 +140,6 @@ impl Workspace {
                     block_type: request.block_type,
                 },
                 request.via,
-                request.from,
             );
         }
         let files = self
@@ -159,8 +158,7 @@ impl Workspace {
         let types = self.types();
         let titles = self.tabs.with_untracked(|tabs| {
             tabs.iter()
-                .map(|(tab, block)| {
-                    let item = block.current();
+                .map(|(tab, item)| {
                     let label = self.client().cached_block(item.id).map_or_else(
                         || BlockLabel::new(types.as_ref(), item.block_type, None),
                         |cached| BlockLabel::for_cached(types.as_ref(), &cached),
@@ -175,8 +173,8 @@ impl Workspace {
     fn report_focus(&self) {
         let shown = self.layout.with_untracked(DockState::focused_tab);
         let current = shown
-            .and_then(|tab| self.tabs.with_untracked(|tabs| tabs.get(&tab).cloned()))
-            .map(|tab| tab.current().id);
+            .and_then(|tab| self.tabs.with_untracked(|tabs| tabs.get(&tab).copied()))
+            .map(|item| item.id);
         let active = current.or_else(|| self.active.get());
         self.active.set(active);
         let focused = active.and_then(|id| {
@@ -193,7 +191,7 @@ impl Workspace {
     fn watch_artifacts(&self) {
         let watched = self.tabs.with_untracked(|tabs| {
             tabs.values()
-                .map(|tab| tab.current().id)
+                .map(|item| item.id)
                 .filter(|id| self.client().is_dynamic_artifact(*id))
                 .collect::<Vec<_>>()
         });
@@ -201,25 +199,10 @@ impl Workspace {
     }
 
     fn watch_history(&self) {
-        let watched = self.tabs.with_untracked(|tabs| {
-            tabs.values()
-                .map(|tab| tab.current().id)
-                .collect::<Vec<_>>()
-        });
+        let watched = self
+            .tabs
+            .with_untracked(|tabs| tabs.values().map(|item| item.id).collect::<Vec<_>>());
         self.host().watch_history(watched);
-    }
-
-    pub(crate) fn history(&self, item: TabItem) -> (bool, bool) {
-        self.read_handle(item, |handle| {
-            handle
-                .history()
-                .map(|history| (history.can_undo(), history.can_redo()))
-        })
-        .flatten()
-        .unwrap_or_else(|| {
-            let history = self.host().history(item.id);
-            (history.can_undo, history.can_redo)
-        })
     }
 
     pub(crate) fn step_history(&self, item: TabItem, redo: bool) -> bool {
@@ -307,14 +290,7 @@ impl Workspace {
         }
     }
 
-    fn open(&self, item: TabItem, via: Option<Uuid>, from: Option<Uuid>) {
-        if let Some(from) = from.filter(|from| *from != item.id)
-            && let Some(tab) = self.tab_showing(from)
-        {
-            self.record_via(item.id, via);
-            self.navigate(tab, Navigation::Open(item));
-            return;
-        }
+    pub(crate) fn open(&self, item: TabItem, via: Option<Uuid>) {
         self.record_via(item.id, via);
         self.record_type(item.id, item.block_type);
         if let Some(tab) = self.tab_showing(item.id) {
@@ -327,7 +303,7 @@ impl Workspace {
         let tab = TabId::new(self.next_tab.get());
         self.next_tab.set(self.next_tab.get() + 1);
         let mut tabs = self.tabs.get_untracked();
-        tabs.insert(tab, BlockTab::new(item));
+        tabs.insert(tab, item);
         self.set_tabs.set(tabs);
         let mut layout = self.layout.get_untracked();
         place_tab(&mut layout, tab);
@@ -338,26 +314,9 @@ impl Workspace {
     fn tab_showing(&self, id: Uuid) -> Option<TabId> {
         self.tabs.with_untracked(|tabs| {
             tabs.iter()
-                .find(|(_, tab)| tab.current().id == id)
+                .find(|(_, item)| item.id == id)
                 .map(|(tab, _)| *tab)
         })
-    }
-
-    pub(crate) fn navigate(&self, tab: TabId, navigation: Navigation) {
-        let mut tabs = self.tabs.get_untracked();
-        let Some(block) = tabs.get_mut(&tab) else {
-            return;
-        };
-        match navigation {
-            Navigation::Back if block.can_go_back() => block.index -= 1,
-            Navigation::Forward if block.can_go_forward() => block.index += 1,
-            Navigation::Open(item) => block.navigate(item),
-            Navigation::Back | Navigation::Forward => {}
-        }
-        let current = block.current();
-        self.record_type(current.id, current.block_type);
-        self.set_tabs.set(tabs);
-        self.active.set(Some(current.id));
     }
 
     fn close(&self, tab: TabId) {
@@ -365,12 +324,10 @@ impl Workspace {
         let Some(closed) = tabs.remove(&tab) else {
             return;
         };
-        let still_open: HashSet<Uuid> = tabs.values().flat_map(BlockTab::blocks).collect();
+        let still_open = tabs.values().any(|item| item.id == closed.id);
         self.set_tabs.set(tabs);
-        for id in closed.blocks() {
-            if !still_open.contains(&id) {
-                self.forget(id);
-            }
+        if !still_open {
+            self.forget(closed.id);
         }
     }
 
@@ -465,10 +422,9 @@ impl Workspace {
         let Some(tab) = self.layout.with_untracked(DockState::focused_tab) else {
             return false;
         };
-        let Some(block) = self.tabs.with_untracked(|tabs| tabs.get(&tab).cloned()) else {
+        let Some(item) = self.tabs.with_untracked(|tabs| tabs.get(&tab).copied()) else {
             return false;
         };
-        let item = block.current();
         if !self.access(item.id).can_edit() {
             return false;
         }

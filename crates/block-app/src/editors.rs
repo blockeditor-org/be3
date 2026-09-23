@@ -28,7 +28,6 @@ pub enum EditorAction {
         id: Uuid,
         block_type: Uuid,
         via: Option<Uuid>,
-        from: Option<Uuid>,
     },
     DragBlock {
         id: Uuid,
@@ -420,13 +419,6 @@ impl<'a> EditorAccess<'a> {
         })?
     }
 
-    pub fn block_label(&self, id: Uuid) -> String {
-        self.client
-            .cached_block(id)
-            .map(|cached| BlockLabel::for_cached(self.registry, &cached).name)
-            .unwrap_or_else(|| "Block".to_owned())
-    }
-
     pub fn direct_editor_frame_child(&mut self, id: Uuid) -> Option<Uuid> {
         self.with_editor(id, |editor, _| editor.direct_editor_frame_child())?
     }
@@ -486,7 +478,7 @@ pub struct FrameSlot {
     pub clip: Rect,
     pub content: Option<Rect>,
     pub chrome: Chrome,
-    pub trail: Vec<String>,
+    pub top_bar: bool,
 }
 
 #[derive(Clone)]
@@ -494,7 +486,7 @@ struct TabFrame {
     frame: Rect,
     clip: Rect,
     stack: Vec<Uuid>,
-    trail: Vec<String>,
+    top_bar: bool,
 }
 
 thread_local! {
@@ -528,14 +520,12 @@ pub fn direct_editor_tab_ui(
     let frame = ui.rect();
     let clip = frame.intersect(ui.clip());
     let mut stack = Vec::new();
-    let mut trail = vec![editors.block_label(editor.id())];
     let mut child = editor.direct_editor_frame_child();
     while let Some(id) = child {
         if stack.contains(&id) {
             break;
         }
         stack.push(id);
-        trail.push(editors.block_label(id));
         child = editors.direct_editor_frame_child(id);
     }
     let owner = stack.last().copied();
@@ -543,7 +533,7 @@ pub fn direct_editor_tab_ui(
         frame,
         clip,
         stack: stack.clone(),
-        trail,
+        top_bar: false,
     }));
     let slot = FrameSlot {
         frame,
@@ -553,7 +543,7 @@ pub fn direct_editor_tab_ui(
             Some(_) => Chrome::None,
             None => Chrome::Drawn,
         },
-        trail: Vec::new(),
+        top_bar: false,
     };
     let (action, own_exit) = direct_editor_frame_ui(editor, ui, editors, &slot, None);
     let exit = own_exit || take_frame_exit();
@@ -574,20 +564,19 @@ pub fn own_frame_child_ui(
     ui: &mut Ui,
     editors: &mut EditorAccess<'_>,
     block_id: Uuid,
+    top_bar: bool,
     frame: Rect,
     clip_rect: Rect,
     viewport: &mut DirectEditorViewport,
 ) -> Option<EditorAction> {
     let clip = frame.intersect(clip_rect);
     let mut stack = Vec::new();
-    let mut trail = vec![editors.block_label(block_id)];
     let mut child = editors.direct_editor_frame_child(block_id);
     while let Some(id) = child {
         if id == block_id || stack.contains(&id) {
             break;
         }
         stack.push(id);
-        trail.push(editors.block_label(id));
         child = editors.direct_editor_frame_child(id);
     }
     let owner = stack.last().copied();
@@ -597,7 +586,7 @@ pub fn own_frame_child_ui(
         frame,
         clip,
         stack: stack.clone(),
-        trail,
+        top_bar,
     }));
     let slot = FrameSlot {
         frame,
@@ -607,7 +596,7 @@ pub fn own_frame_child_ui(
             Some(_) => Chrome::None,
             None => Chrome::Drawn,
         },
-        trail: Vec::new(),
+        top_bar,
     };
     let action = editors.direct_editor_frame_ui(block_id, ui, &slot, viewport);
     if take_frame_exit() {
@@ -648,7 +637,7 @@ pub fn frame_child_ui(
             true => Chrome::Drawn,
             false => Chrome::None,
         },
-        trail: tab.trail[..depth + 2].to_vec(),
+        top_bar: tab.top_bar,
     };
     let previous = viewport.replace_content_rect(Some(content));
     let previous_scale = viewport.replace_scale(embedded_scale(editors, block_id, content));

@@ -13,7 +13,8 @@ use block_ui::BlockCatalog;
 use std::{collections::HashMap, marker::PhantomData, rc::Rc, sync::Arc};
 use uuid::Uuid;
 
-use crate::{EditorHost, Waker, beui_frame, beui_frame::BeuiFrame, host::BlockDrag};
+use crate::beui_frame::{BeuiFrame, FrameBar};
+use crate::{EditorHost, Waker, beui_frame, host::BlockDrag};
 
 const WHEEL_LINE: f32 = 40.0;
 const WHEEL_PAGE: f32 = 400.0;
@@ -118,6 +119,7 @@ struct RegionState {
 }
 
 trait AppUi {
+    fn editor(&self) -> Option<crate::Editor>;
     fn view(&mut self) -> beui::NodeId;
     fn update(&mut self);
     fn after_layout(&mut self, document: &beui::Document);
@@ -170,6 +172,10 @@ impl<A: crate::BeuiApp> BeuiHolder<A> {
 }
 
 impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
+    fn editor(&self) -> Option<crate::Editor> {
+        self.editor.clone()
+    }
+
     fn view(&mut self) -> beui::NodeId {
         let editor = self
             .editor
@@ -373,14 +379,8 @@ impl EditorSession {
         self.host.set_focused_block(focused);
     }
 
-    pub(crate) fn show_block(
-        &self,
-        block_id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
-        from: Option<Uuid>,
-    ) {
-        self.host.show_block(block_id, block_type, via, from);
+    pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+        self.host.show_block(block_id, block_type, via);
     }
 
     pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
@@ -453,6 +453,7 @@ impl EditorSession {
     }
 
     pub(crate) fn connect(&mut self, client: Arc<BlockClient>, block_id: Uuid, block_type: Uuid) {
+        self.host.set_block_type(block_type);
         if block_client::blocks::watch(&client, block_id, block_type) {
             self.block = Some((Arc::clone(&client), block_id));
         }
@@ -926,7 +927,10 @@ impl EditorSession {
         let frame = scaled(host, ratio);
         let drawn = spec.chrome == FrameChrome::Drawn;
         if region == EditorRegion::Frame && !creating && state.chrome.is_none() {
-            state.chrome = Some(BeuiFrame::build(|| app.view()));
+            let editor = app
+                .editor()
+                .expect("connect is called before the view is built");
+            state.chrome = Some(BeuiFrame::build(&editor, || app.view()));
         }
         let mut exit = false;
         let mut content_rect = None;
@@ -939,12 +943,13 @@ impl EditorSession {
                     .chrome
                     .as_mut()
                     .expect("the frame chrome was just built");
-                let set_trail = chrome.set_trail();
-                let set_shown = chrome.set_shown();
-                let trail = spec.trail.clone();
+                let set_bar = chrome.set_bar();
+                let bar = FrameBar {
+                    shown: drawn && (spec.top_bar || spec.content.is_some()),
+                    closable: spec.content.is_some(),
+                };
                 beui::reactive::with_reactive_scope(chrome.document_mut(), || {
-                    set_trail.set(trail);
-                    set_shown.set(drawn);
+                    set_bar.set(bar);
                     app.update();
                 });
                 chrome.document_mut().show(context, frame);

@@ -28,6 +28,7 @@ fn active_child(instances: &mut Instances) {
                 height: 100.0,
             },
             own_frame: false,
+            top_bar: false,
             corner_radius: 0.0,
             layer: ChildLayer::Below,
             mode: ChildMode::Active,

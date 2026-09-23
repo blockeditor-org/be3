@@ -11,7 +11,7 @@ fn frame_screens_and_reports_round_trip() {
             width: 300.0,
             height: 200.0,
         }),
-        trail: vec!["Canvas".to_owned(), "Spreadsheet".to_owned()],
+        top_bar: true,
     });
     let screens = Message::Screens(ScreenSet {
         request_id: 3,

@@ -3,11 +3,11 @@ use std::rc::Rc;
 use block::{BlockParent, BlockReference};
 use block_editor_plugin::BlockSource;
 use block_editor_plugin::beui::reactive::{Memo, clone, component, create_memo, view};
-use block_editor_plugin::beui::unstyled::{MenuItem, TabId};
+use block_editor_plugin::beui::unstyled::MenuItem;
 use block_editor_plugin::block_ui::{BlockLabel, BlockTypes};
 use uuid::Uuid;
 
-use super::tab::{Navigation, TabItem};
+use super::tab::TabItem;
 use super::workspace::Workspace;
 
 #[derive(Clone, Copy)]
@@ -106,19 +106,18 @@ pub(crate) fn permissions(
 
 pub(crate) fn apply(
     workspace: &Rc<Workspace>,
-    tab: TabId,
     reference: &BlockReference,
     containing: Option<Uuid>,
     action: Action,
 ) {
     let permissions = permissions(workspace, reference, containing);
     match action {
-        Action::Open => workspace.navigate(
-            tab,
-            Navigation::Open(TabItem {
+        Action::Open => workspace.open(
+            TabItem {
                 id: reference.id,
                 block_type: reference.block_type,
-            }),
+            },
+            None,
         ),
         Action::Picker => workspace.open_picker(reference.id),
         Action::SetParent(parent) => workspace.client().set_block_parent(reference.id, parent),

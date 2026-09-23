@@ -11,7 +11,6 @@ use block_editor_plugin::beui::styled::theme::FONT_SMALL;
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Caption, IconSized, use_theme,
 };
-use block_editor_plugin::beui::unstyled::TabId;
 
 use super::menu::unlink_permission;
 use super::panel::Info;
@@ -23,11 +22,7 @@ const PADDING_VERTICAL: f32 = 5.0;
 const SPACING: f32 = 8.0;
 
 #[component]
-pub(crate) fn LinkedBar(
-    workspace: Rc<Workspace>,
-    tab: TabId,
-    info: ReadSignal<Option<Info>>,
-) -> NodeId {
+pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
     let shown = create_memo(clone!(info -> move || {
         info.with(|info| {
             info.as_ref().is_some_and(|info| {
@@ -139,7 +134,6 @@ pub(crate) fn LinkedBar(
                         <Caption content={everywhere} />
                         <ReferenceMenu
                             workspace={workspace}
-                            tab={tab}
                             name="Show references"
                             empty="No backrefs"
                             refs={backrefs}

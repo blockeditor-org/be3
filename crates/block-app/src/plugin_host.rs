@@ -51,6 +51,7 @@ pub(crate) struct HostChild {
     pub(crate) child: ChildId,
     pub(crate) frame_owner: bool,
     pub(crate) own_frame: bool,
+    pub(crate) top_bar: bool,
     pub(crate) block_id: Uuid,
     pub(crate) block_type: Uuid,
     pub(crate) rect: Rect,

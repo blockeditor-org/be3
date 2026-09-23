@@ -11,13 +11,12 @@ use uuid::Uuid;
 
 use crate::app::WorkspaceUiApp;
 
-mod a_block_opened_from_a_tab_replaces_it;
+mod a_block_opened_while_another_is_shown_gets_its_own_tab;
+mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_narrow_workspace_folds_files_into_the_pane_beside_it;
 mod a_shown_block_is_reported_as_focused;
-mod a_tab_walks_back_and_forward_through_its_history;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;
-mod undo_on_a_migrated_block_asks_the_host;
 
 const SETTLE_FRAMES: usize = 8;
 
@@ -50,6 +49,14 @@ impl Fixture {
         document
             .root()
             .is_some_and(|root| text_within(document, root, words).is_some())
+    }
+
+    fn open_tabs(&self) -> usize {
+        let document = self.test.document();
+        let root = document.root().expect("the workspace built a root");
+        let mut crosses = Vec::new();
+        collect_crosses(document, root, &mut crosses);
+        crosses.len()
     }
 
     fn close_active_tab(&mut self) {
@@ -101,9 +108,9 @@ fn editor() -> (Fixture, Uuid) {
     (fixture, opened.id())
 }
 
-fn show(fixture: &mut Fixture, id: Uuid, via: Option<Uuid>, from: Option<Uuid>) {
+fn show(fixture: &mut Fixture, id: Uuid, via: Option<Uuid>) {
     fixture
         .host
-        .show_block(id, <FileTree as Block>::TYPE_ID, via, from);
+        .show_block(id, <FileTree as Block>::TYPE_ID, via);
     fixture.settle();
 }

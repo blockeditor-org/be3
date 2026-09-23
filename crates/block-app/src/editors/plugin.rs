@@ -455,7 +455,7 @@ impl PluginEditor {
                 false => FrameChrome::None,
             },
             content: None,
-            trail: Vec::new(),
+            top_bar: false,
         };
         let action = self.frame_ui(ui, editors, frame, rect.size(), view);
         self.take_view_changes(rect, viewport);
@@ -523,7 +523,6 @@ impl PluginEditor {
                         id,
                         block_type,
                         via,
-                        from: Some(self.block.id()),
                     })
             });
         let mut statuses = Vec::new();
@@ -625,6 +624,7 @@ impl PluginEditor {
                 ui,
                 editors,
                 child.block_id,
+                child.top_bar,
                 child.rect,
                 child.clip,
                 viewport,
@@ -898,24 +898,11 @@ impl PluginEditor {
         self.plugin.is_some()
     }
 
-    pub(crate) fn show_block(
-        &self,
-        id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
-        from: Option<Uuid>,
-    ) {
+    pub(crate) fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         let Some(plugin) = &self.plugin else {
             return;
         };
-        crate::plugin_host::show_block(
-            &plugin.identity.id,
-            self.instance,
-            id,
-            block_type,
-            via,
-            from,
-        );
+        crate::plugin_host::show_block(&plugin.identity.id, self.instance, id, block_type, via);
     }
 
     pub(crate) fn take_focus_report(&self) -> Option<FocusReport> {
@@ -998,7 +985,7 @@ impl PluginEditor {
                     height: content.height(),
                 }
             }),
-            trail: slot.trail.clone(),
+            top_bar: slot.top_bar,
         };
         let action = self.frame_ui(ui, editors, frame, rect.size(), view);
         self.take_view_changes(rect, viewport);
