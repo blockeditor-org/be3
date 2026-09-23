@@ -107,6 +107,13 @@ pub(crate) fn interact(
         ..input
     };
 
+    if let Some(pos) = input.pointer_pos {
+        let drags = doc.drag_board();
+        drags.track(crate::unstyled::DragPoint {
+            pos,
+            modifiers: input.modifiers,
+        });
+    }
     let mut focus_target = None;
     let covered = input
         .pointer_pos

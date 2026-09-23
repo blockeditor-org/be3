@@ -297,7 +297,7 @@ horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`,
-`PanZoom`, `PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
+`PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
 and `Stack`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
@@ -630,6 +630,61 @@ the panel keeps its nodes, its scroll position, its caret and its state when
 the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
+
+### Drag and drop
+
+Moving something from one place in a document to another is
+`unstyled::Draggable` on the thing being moved and `unstyled::DropTarget` on
+each place it may land. Nothing else is needed to wire them together: every
+document keeps one drag board, a draggable puts its payload on it, and the
+targets whose payload type matches hear about it.
+
+```rust
+view! {
+    <Draggable
+        payload={card_id}
+        preview={move |card: CardId| view! { <CardGhost card /> }}
+        on_click={select}
+    >
+        {move |handle: DragHandle| view! { <CardFace card_id dragging={handle.dragging} /> }}
+    </Draggable>
+    <DropTarget on_drop={move |(card, _): (CardId, DragPoint)| move_card(card, column)}>
+        {move |handle: DropHandle| view! { <ColumnFace column over={handle.over} /> }}
+    </DropTarget>
+}
+```
+
+The payload is a `Prop<Option<P>>`, so a source that may not be moved right now
+- a read-only block, a disabled slot - binds a memo that answers `None`. A
+press only becomes a drag once the pointer has travelled `threshold` from where
+it went down, and a press that never does is reported through `on_click`
+instead, so a row that is both clickable and draggable does not select itself
+at the end of a drag. `on_drag_change` says when a drag starts and ends, which
+is what a source that dims itself while it is being carried binds.
+
+While a drag is under way the `preview` is shown beside the pointer in a
+passive overlay, so it paints above everything and takes no input. The pointer
+it follows is the one the document saw, not the one the draggable's own
+catcher saw: the board is fed the pointer at the start of every frame, even
+where a floating overlay covers the source, so a drag carried over a floating
+window keeps going.
+
+A `DropTarget` is registered by the rectangle its content was laid out at. The
+target under the pointer that accepts the payload takes the drop - `accepts`
+filters by value, and a target of another payload type never sees the drag at
+all - and when targets nest, the innermost one wins, so a slot inside a column
+inside a sidebar can each take a drop of its own. Its `DropHandle` carries
+`carrying`, true for every target that would accept what is being dragged, and
+`over`, true for the one that would take it now; `on_over` reports the payload
+and the pointer as it moves, which is how a target that works out where inside
+itself the drop lands - the dock's tab bars and split zones, a timeline's
+insertion point - draws its marker, and how a filmstrip reorders live. The drop
+is handed over before the source hears `on_drag_change(false)`, so a source can
+keep whatever it set up for the drag until the drop has used it.
+
+A drag between editors is not this: a block dragged from the file tree to
+another editor crosses plugins, so it goes through the host with
+`Editor::drag` and `accept_drag` (guides/adding_a_plugin_editor.md).
 
 ### Pan and zoom
 

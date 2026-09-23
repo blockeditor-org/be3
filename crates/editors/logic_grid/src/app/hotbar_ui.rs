@@ -1,17 +1,18 @@
-use std::cell::{Cell, RefCell};
-
 use beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
+use beui::reactive::Func;
 use beui::reactive::{
     Align, Canvas, CanvasItem, Child, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize,
-    List, Memo, Picture, ReadSignal, Show, Spacer, Text, clone, component, component_rect,
-    create_memo, create_signal, on_cleanup, view,
+    List, Memo, Picture, ReadSignal, Show, Spacer, Text, clone, component, create_memo,
+    create_signal, view,
 };
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, MenuButton, Tabs,
     TextInput, Tooltip, use_theme,
 };
-use beui::unstyled::{ChoiceOption, MenuItem};
-use beui::{CursorIcon, ImageFit, NodeId, PointerPress, TextAlign};
+use beui::unstyled::{
+    ChoiceOption, DragHandle, DragPoint, Draggable, DropHandle, DropTarget, MenuItem,
+};
+use beui::{CursorIcon, ImageFit, NodeId, TextAlign};
 
 use super::glyph::{GLYPH_HEIGHT, GLYPH_WIDTH, Glyph};
 use super::session::Session;
@@ -24,7 +25,6 @@ const SLOT_FONT: f32 = 9.0;
 const COLUMN_WIDTH: f32 = 84.0;
 const COLUMN_GAP: f32 = 8.0;
 const COLUMN_PADDING: f32 = 6.0;
-const DRAG_DISTANCE: f32 = 4.0;
 const SPACING: f32 = 8.0;
 const DIALOG_WIDTH: f32 = 300.0;
 pub(super) const HOTBAR_WIDTH: f32 = COLUMN_WIDTH * 2.0 + COLUMN_GAP + 28.0;
@@ -96,57 +96,8 @@ impl LogicGridEditor {
     }
 }
 
-struct Zone {
-    id: u64,
-    rect: ReadSignal<Rect>,
-    priority: u8,
-    target: Rc<dyn Fn() -> Option<HotbarDropTarget>>,
-}
-
-#[derive(Default)]
-pub(super) struct DropZones {
-    zones: RefCell<Vec<Zone>>,
-    next: Cell<u64>,
-}
-
-impl DropZones {
-    fn register(
-        self: &Rc<Self>,
-        priority: u8,
-        target: impl Fn() -> Option<HotbarDropTarget> + 'static,
-    ) {
-        let id = self.next.get();
-        self.next.set(id + 1);
-        self.zones.borrow_mut().push(Zone {
-            id,
-            rect: component_rect(),
-            priority,
-            target: Rc::new(target),
-        });
-        let zones = Rc::downgrade(self);
-        on_cleanup(move || {
-            if let Some(zones) = zones.upgrade() {
-                zones.zones.borrow_mut().retain(|zone| zone.id != id);
-            }
-        });
-    }
-
-    fn target_at(&self, at: Pos2) -> Option<HotbarDropTarget> {
-        let target = self
-            .zones
-            .borrow()
-            .iter()
-            .filter(|zone| zone.rect.get_untracked().contains(at))
-            .max_by_key(|zone| zone.priority)
-            .map(|zone| Rc::clone(&zone.target))?;
-        target()
-    }
-}
-
 #[component]
 pub(super) fn Hotbar(session: Rc<Session>) -> NodeId {
-    let zones = Rc::new(DropZones::default());
-    let header_zones = Rc::clone(&zones);
     let nested = create_memo(clone!(session -> move || {
         session.read(|model| !model.active_hotbar_folder.is_empty())
     }));
@@ -172,18 +123,27 @@ pub(super) fn Hotbar(session: Rc<Session>) -> NodeId {
         _ => {}
     });
     let column_session = Rc::clone(&session);
-    let column_zones = Rc::clone(&zones);
+    let parent = create_memo(clone!(session -> move || {
+        session.read(|model| {
+            let mut parent = model.active_hotbar_folder.clone();
+            parent.pop();
+            parent
+        })
+    }));
+    let up_session = Rc::clone(&session);
     view! {
         <List spacing=SPACING>
-            <HotbarHeader session={Rc::clone(&session)} zones={header_zones}>
+            <HotbarHeader session={Rc::clone(&session)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                    <IconButton
-                        glyph={ICON_ARROW_UPWARD.to_owned()}
-                        label="Up to the parent folder"
-                        disabled={top}
-                        @test_id={"logic-grid.hotbar-up"}
-                        on_click={up}
-                    />
+                    <SlotDrop session={up_session} target={parent} folder=true>
+                        <IconButton
+                            glyph={ICON_ARROW_UPWARD.to_owned()}
+                            label="Up to the parent folder"
+                            disabled={top}
+                            @test_id={"logic-grid.hotbar-up"}
+                            on_click={up}
+                        />
+                    </SlotDrop>
                     <Caption @sizing=ItemSize::Percent(100.0) content={title} />
                     <MenuButton
                         label="Hotbar actions"
@@ -203,12 +163,10 @@ pub(super) fn Hotbar(session: Rc<Session>) -> NodeId {
                 <ForEach keys={columns}>
                     {move |column: usize| {
                         let session = Rc::clone(&column_session);
-                        let zones = Rc::clone(&column_zones);
                         view! {
                             <HotbarColumn
                                 @sizing=ItemSize::Fixed(COLUMN_WIDTH)
                                 session={session}
-                                zones={zones}
                                 column={column}
                             />
                         }
@@ -222,30 +180,63 @@ pub(super) fn Hotbar(session: Rc<Session>) -> NodeId {
 }
 
 #[component]
-fn HotbarHeader(session: Rc<Session>, zones: Rc<DropZones>, children: Child) -> NodeId {
-    zones.register(
-        0,
-        clone!(session -> move || {
-            Some(HotbarDropTarget::Folder(
-                session.peek(|model| model.active_hotbar_folder.clone()),
-            ))
-        }),
-    );
+fn SlotDrop(
+    session: Rc<Session>,
+    target: Memo<Vec<usize>>,
+    folder: bool,
+    children: Child,
+) -> NodeId {
+    let accepts = Func::new(clone!(target -> move |source: Vec<usize>| {
+        let target = target.get_untracked();
+        source != target && !target.starts_with(&source)
+    }));
+    let dropped = move |(source, _): (Vec<usize>, DragPoint)| {
+        let target = target.get_untracked();
+        let target = match folder {
+            true => HotbarDropTarget::Folder(target),
+            false => HotbarDropTarget::Slot(target),
+        };
+        session.update(|model| {
+            model.hotbar_drag = Some(source);
+            model.drop_hotbar_slot(Some(target));
+        });
+    };
+    let theme = use_theme();
     view! {
-        <Frame>{children}</Frame>
+        <DropTarget accepts={accepts} on_drop={dropped}>
+            {move |handle: DropHandle| {
+                let DropHandle { over, .. } = handle;
+                view! {
+                    <Frame
+                        outline={theme.accent.clone()}
+                        outline_width=2.0
+                        outline_offset=2.0
+                        outline_visible={over}
+                        radius=4
+                    >
+                        {children}
+                    </Frame>
+                }
+            }}
+        </DropTarget>
     }
 }
 
 #[component]
-fn HotbarColumn(session: Rc<Session>, zones: Rc<DropZones>, column: usize) -> NodeId {
-    zones.register(
-        1,
-        clone!(session -> move || {
-            Some(HotbarDropTarget::Folder(
-                session.peek(|model| model.column_folder(column)),
-            ))
-        }),
-    );
+fn HotbarHeader(session: Rc<Session>, children: Child) -> NodeId {
+    let folder = create_memo(clone!(session -> move || {
+        session.read(|model| model.active_hotbar_folder.clone())
+    }));
+    view! {
+        <SlotDrop session={session} target={folder} folder=true>{children}</SlotDrop>
+    }
+}
+
+#[component]
+fn HotbarColumn(session: Rc<Session>, column: usize) -> NodeId {
+    let folder = create_memo(clone!(session -> move || {
+        session.read(|model| model.column_folder(column))
+    }));
     let shown = create_memo(clone!(session -> move || {
         session.read(|model| model.column_view(column))
     }));
@@ -257,41 +248,37 @@ fn HotbarColumn(session: Rc<Session>, zones: Rc<DropZones>, column: usize) -> No
         true => theme.accent_soft.get(),
         false => theme.surface_raised.get(),
     }));
+    let slots = Rc::clone(&session);
     view! {
-        <Frame
-            @test_id={format!("logic-grid.column.{column}")}
-            color={fill}
-            radius=4
-            padding_horizontal=COLUMN_PADDING
-            padding_vertical=COLUMN_PADDING
-        >
-            <List align=Align::Center spacing=4.0>
-                <Caption content={title} align=TextAlign::Center />
-                <Show condition={empty}>
-                    <Frame width=SLOT_SIZE height=SLOT_SIZE />
-                </Show>
-                <ForEach keys={entries}>
-                    {move |path: Vec<usize>| {
-                        let session = Rc::clone(&session);
-                        let zones = Rc::clone(&zones);
-                        view! {
-                            <HotbarSlotButton session={session} zones={zones} path={path} />
-                        }
-                    }}
-                </ForEach>
-            </List>
-        </Frame>
+        <SlotDrop session={session} target={folder} folder=true>
+            <Frame
+                @test_id={format!("logic-grid.column.{column}")}
+                color={fill}
+                radius=4
+                padding_horizontal=COLUMN_PADDING
+                padding_vertical=COLUMN_PADDING
+            >
+                <List align=Align::Center spacing=4.0>
+                    <Caption content={title} align=TextAlign::Center />
+                    <Show condition={empty}>
+                        <Frame width=SLOT_SIZE height=SLOT_SIZE />
+                    </Show>
+                    <ForEach keys={entries}>
+                        {move |path: Vec<usize>| {
+                            let session = Rc::clone(&slots);
+                            view! {
+                                <HotbarSlotButton session={session} path={path} />
+                            }
+                        }}
+                    </ForEach>
+                </List>
+            </Frame>
+        </SlotDrop>
     }
 }
 
 #[component]
-fn HotbarSlotButton(session: Rc<Session>, zones: Rc<DropZones>, path: Vec<usize>) -> NodeId {
-    zones.register(
-        2,
-        clone!(session path -> move || {
-            session.peek(|model| hotbar_slot_drop_target(&model.hotbar, &path))
-        }),
-    );
+fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
     let shown = create_memo(clone!(session path -> move || {
         session.read(|model| model.slot_view(&path))
     }));
@@ -323,51 +310,37 @@ fn HotbarSlotButton(session: Rc<Session>, zones: Rc<DropZones>, path: Vec<usize>
     };
 
     let (hovered, set_hovered) = create_signal(false);
-    let on_hover_change = move |over: bool| set_hovered.set(over);
-    let pressed_at = Rc::new(Cell::new(None::<Pos2>));
-    let dragged_to = Rc::new(Cell::new(None::<Pos2>));
     let disabled = create_memo(clone!(shown -> move || {
         shown.get().is_none_or(|slot| slot.disabled)
     }));
-    let on_press = clone!(pressed_at dragged_to -> move |press: PointerPress| {
-        pressed_at.set(Some(press.pos));
-        dragged_to.set(None);
-    });
-    let on_drag = clone!(session path pressed_at dragged_to disabled -> move |press: PointerPress| {
-        let Some(start) = pressed_at.get() else {
-            return;
-        };
-        if dragged_to.get().is_none()
-            && (disabled.get_untracked() || (press.pos - start).length() < DRAG_DISTANCE)
-        {
-            return;
-        }
-        let started = dragged_to.replace(Some(press.pos)).is_none();
-        if started {
-            session.update(|model| model.hotbar_drag = Some(path.clone()));
-        }
-    });
-    let on_click_at = clone!(session path dragged_to disabled -> move |_: PointerPress| {
-        if dragged_to.get().is_none() && !disabled.get_untracked() {
-            session.update(|model| model.click_hotbar_slot(path.clone()));
-        }
-    });
-    let on_active_change = clone!(session zones pressed_at dragged_to -> move |active: bool| {
-        if active {
-            return;
-        }
-        pressed_at.set(None);
-        let Some(dropped) = dragged_to.take() else {
-            return;
-        };
-        let target = zones.target_at(dropped);
-        session.update(|model| model.drop_hotbar_slot(target));
-    });
-    let on_activate = clone!(session path disabled -> move || {
+    let payload = create_memo(clone!(path disabled -> move || {
+        (!disabled.get()).then(|| path.clone())
+    }));
+    let clicked = clone!(session path disabled -> move || {
         if !disabled.get_untracked() {
             session.update(|model| model.click_hotbar_slot(path.clone()));
         }
     });
+    let carried = clone!(session path -> move |dragging: bool| {
+        session.update(|model| model.hotbar_drag = dragging.then(|| path.clone()));
+    });
+    let on_activate = clicked.clone();
+    let ghost = clone!(session -> move |dragged: Vec<usize>| {
+        let shown = create_memo(clone!(session -> move || {
+            session.read(|model| model.slot_view(&dragged)).map(|slot| SlotView {
+                dragging: false,
+                droppable: false,
+                ..slot
+            })
+        }));
+        let (hovered, _) = create_signal(false);
+        view! {
+            <Frame @test_id="logic-grid.slot-ghost">
+                <SlotFace shown={shown} hovered={hovered} />
+            </Frame>
+        }
+    });
+    let target = create_memo(clone!(path -> move || path.clone()));
     let test_id = format!(
         "logic-grid.slot.{}",
         path.iter()
@@ -376,23 +349,28 @@ fn HotbarSlotButton(session: Rc<Session>, zones: Rc<DropZones>, path: Vec<usize>
             .join(".")
     );
     view! {
-        <ContextMenu items={items} disabled={menu_disabled} on_select={chose}>
-            <Tooltip label={label}>
-                <Focusable on_activate={on_activate}>
-                    <ClickCatcher
-                        cursor=CursorIcon::PointingHand
-                        @test_id={test_id}
-                        on_press={on_press}
-                        on_drag={on_drag}
-                        on_click_at={on_click_at}
-                        on_active_change={on_active_change}
-                        on_hover_change={on_hover_change}
-                    >
-                        <SlotFace shown={shown} hovered={hovered} />
-                    </ClickCatcher>
-                </Focusable>
-            </Tooltip>
-        </ContextMenu>
+        <SlotDrop session={session} target={target} folder=false>
+            <ContextMenu items={items} disabled={menu_disabled} on_select={chose}>
+                <Tooltip label={label}>
+                    <Focusable on_activate={on_activate}>
+                        <ClickCatcher on_hover_change={move |over: bool| set_hovered.set(over)}>
+                            <Draggable
+                                @test_id={test_id}
+                                payload={payload}
+                                cursor=CursorIcon::PointingHand
+                                preview={ghost}
+                                on_click={clicked}
+                                on_drag_change={carried}
+                            >
+                                {move |_: DragHandle| view! {
+                                    <SlotFace shown={shown} hovered={hovered} />
+                                }}
+                            </Draggable>
+                        </ClickCatcher>
+                    </Focusable>
+                </Tooltip>
+            </ContextMenu>
+        </SlotDrop>
     }
 }
 

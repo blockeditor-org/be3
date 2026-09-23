@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::app::LogicGridApp;
 
+mod a_dragged_hotbar_slot_follows_the_pointer;
 mod a_number_key_picks_a_tool_and_a_click_places_a_gate;
 mod dragging_a_hotbar_slot_onto_another_moves_it_there;
 mod dragging_with_the_wire_tool_draws_a_wire;
