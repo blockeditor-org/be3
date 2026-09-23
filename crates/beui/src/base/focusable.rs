@@ -145,6 +145,15 @@ impl Document {
         }
     }
 
+    pub fn blur(&mut self) {
+        if self.focused.is_none() {
+            return;
+        }
+        crate::reactive::with_reactive_scope(self, || {
+            crate::reactive::with_document(|document| document.update_focus(None));
+        });
+    }
+
     pub fn focus_takes_text(&self) -> bool {
         self.focused.is_some_and(|focused| {
             self.arena

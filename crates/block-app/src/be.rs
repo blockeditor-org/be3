@@ -30,7 +30,6 @@ pub(crate) struct Config {
     pub(crate) workspace: Uuid,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
-    pub(crate) context: eframe::egui::Context,
 }
 
 impl Config {

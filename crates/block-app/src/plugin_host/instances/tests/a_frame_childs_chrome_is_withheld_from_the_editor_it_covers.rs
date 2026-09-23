@@ -4,8 +4,7 @@ use block_plugin_api::{
 };
 
 const CHILD: ChildId = ChildId(1);
-const SIDEBAR: egui::Rect =
-    egui::Rect::from_min_max(egui::pos2(10.0, 10.0), egui::pos2(60.0, 110.0));
+const SIDEBAR: Rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(60.0, 110.0));
 
 fn active_child(instances: &mut Instances) {
     instances.set_children(ChildPlacements {
@@ -40,27 +39,30 @@ fn active_child(instances: &mut Instances) {
     });
 }
 
-fn press(context: &egui::Context, id: egui::Id, at: egui::Pos2) {
-    let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), SIZE);
-    let input = egui::RawInput {
-        events: vec![
-            egui::Event::PointerMoved(at),
-            egui::Event::PointerButton {
+fn press(at: Pos2) {
+    host::register(
+        TARGET,
+        Rect::from_min_size(pos2(10.0, 10.0), SIZE),
+        Rect::EVERYTHING,
+        0,
+    );
+    host::test_frame(
+        vec![
+            beui::Event::PointerMoved(at),
+            beui::Event::PointerButton {
                 pos: at,
-                button: egui::PointerButton::Primary,
+                button: beui::PointerButton::Primary,
                 pressed: true,
-                modifiers: egui::Modifiers::NONE,
+                modifiers: beui::Modifiers::NONE,
             },
         ],
-        ..egui::RawInput::default()
-    };
-    let _ = context.run_ui(input, |ui| {
-        ui.interact(rect, id, egui::Sense::click_and_drag());
-    });
+        Some(at),
+        true,
+    );
 }
 
 fn still_active(instances: &Instances) -> bool {
-    let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), SIZE);
+    let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let (children, _) = instances.host_children(INSTANCE, REGION, rect, rect);
     children.iter().any(|child| child.is_active())
 }
@@ -77,7 +79,7 @@ fn pressed(messages: &[Message]) -> bool {
 
 #[test]
 fn a_frame_childs_chrome_is_withheld_from_the_editor_it_covers() {
-    let (mut instances, context, id) = placed();
+    let mut instances = placed();
     let screens = instances.next_screens(PASS).screens;
     instances.screen_set(screens);
     active_child(&mut instances);
@@ -86,14 +88,14 @@ fn a_frame_childs_chrome_is_withheld_from_the_editor_it_covers() {
         rects: vec![SIDEBAR],
     };
 
-    press(&context, id, egui::pos2(20.0, 80.0));
-    let messages = instances.frame_input(&context, PASS, &overlay);
+    press(pos2(20.0, 80.0));
+    let messages = instances.frame_input(PASS, &overlay);
 
     assert!(!pressed(&messages));
     assert!(still_active(&instances));
 
-    press(&context, id, egui::pos2(80.0, 80.0));
-    let messages = instances.frame_input(&context, PASS, &overlay);
+    press(pos2(80.0, 80.0));
+    let messages = instances.frame_input(PASS, &overlay);
 
     assert!(pressed(&messages));
     assert!(!still_active(&instances));

@@ -34,7 +34,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     let harness = crate::be::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    let (mut instances, ..) = placed_on(block, block_client::blocks::counter::Counter::TYPE_ID);
+    let mut instances = placed_on(block, block_client::blocks::counter::Counter::TYPE_ID);
     instances.next_screens(PASS);
     counted(block, 0);
     assert!(matches!(

@@ -73,6 +73,7 @@ impl<T: Block + Default> RootSetting<T> {
             return self.block.as_ref();
         }
         let settings = self.settings.ensure(client)?;
+        settings.read()?;
         let block = client.create_block(T::default());
         settings.operate(SettingsOperation::SetEntry {
             block_type: T::TYPE_ID,

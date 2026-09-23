@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use block_plugin_api::{Message, PluginManifest, ScreenLayout};
-use eframe::egui;
 use wasm_bindgen::JsCast;
 
 mod adapter;
@@ -21,7 +20,7 @@ pub(super) struct Web {
 impl Backend for Web {
     type Frame = renderer::WebFrame;
 
-    fn new(plugin: &PluginManifest, _context: &egui::Context) -> Self {
+    fn new(plugin: &PluginManifest) -> Self {
         Self {
             canvas_id: format!("plugin-canvas-{}", plugin.identity.id),
             url: crate::editors::plugin::discovery::entry_point(
@@ -35,7 +34,7 @@ impl Backend for Web {
         }
     }
 
-    fn start(&mut self, _plugin: &PluginManifest, context: &egui::Context) {
+    fn start(&mut self, _plugin: &PluginManifest) {
         self.shutdown();
         self.started = now();
         self.error = None;
@@ -43,7 +42,7 @@ impl Backend for Web {
             self.error = Some("The plugin canvas could not be created.".to_owned());
             return;
         };
-        match WebProtocolAdapter::start(&self.url, &canvas, context) {
+        match WebProtocolAdapter::start(&self.url, &canvas) {
             Ok(adapter) => self.adapter = Some(adapter),
             Err(error) => {
                 self.error = Some(error);

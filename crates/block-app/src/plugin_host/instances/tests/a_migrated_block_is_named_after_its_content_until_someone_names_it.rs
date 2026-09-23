@@ -29,7 +29,7 @@ fn a_migrated_block_is_named_after_its_content_until_someone_names_it() {
     harness.connect();
     let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
     let old = client.create_block(WebBrowserTab::new());
-    let (mut instances, ..) = placed_with(&client, old.id(), WebBrowserTab::TYPE_ID);
+    let mut instances = placed_with(&client, old.id(), WebBrowserTab::TYPE_ID);
     instances.next_screens(PASS);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         shared.blocks.contains_key(&old.id()).then_some(())

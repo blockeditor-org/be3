@@ -10,8 +10,6 @@ use std::{
     time::Duration,
 };
 
-use eframe::egui;
-
 #[cfg(target_os = "android")]
 use android::open;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -49,21 +47,21 @@ pub(crate) struct FilePicker {
 }
 
 impl FilePicker {
-    pub(crate) fn open(&mut self, context: &egui::Context, filter: &FileFilter) {
+    pub(crate) fn open(&mut self, filter: &FileFilter) {
         self.pending = Some(open(filter));
         self.default_file_name.clone_from(&filter.default_file_name);
-        context.request_repaint_after(POLL_INTERVAL);
+        crate::host::request_repaint_after(POLL_INTERVAL);
     }
 
     pub(crate) fn is_open(&self) -> bool {
         self.pending.is_some()
     }
 
-    pub(crate) fn poll(&mut self, context: &egui::Context) -> Option<Result<PickedFile, String>> {
+    pub(crate) fn poll(&mut self) -> Option<Result<PickedFile, String>> {
         let result = match self.pending.as_ref()?.try_recv() {
             Ok(result) => result,
             Err(TryRecvError::Empty) => {
-                context.request_repaint_after(POLL_INTERVAL);
+                crate::host::request_repaint_after(POLL_INTERVAL);
                 return None;
             }
             Err(TryRecvError::Disconnected) => Ok(None),

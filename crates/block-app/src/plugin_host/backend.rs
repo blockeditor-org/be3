@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use block_plugin_api::{Message, PluginManifest, ScreenLayout};
-use eframe::egui;
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::wasm::Wasm;
@@ -13,9 +12,9 @@ pub(super) const NOT_INSTALLED: &str = "The plugin host is not installed.";
 pub(super) trait Backend: Sized {
     type Frame;
 
-    fn new(plugin: &PluginManifest, context: &egui::Context) -> Self;
+    fn new(plugin: &PluginManifest) -> Self;
 
-    fn start(&mut self, plugin: &PluginManifest, context: &egui::Context);
+    fn start(&mut self, plugin: &PluginManifest);
 
     fn send(&mut self, messages: Vec<Message>);
 

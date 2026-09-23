@@ -22,7 +22,7 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     let harness = crate::be::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    let (mut instances, ..) = placed();
+    let mut instances = placed();
     instances.next_screens(PASS);
     assert!(instances.editor_message(EditorMessage::WatchHistory {
         instance: INSTANCE,
