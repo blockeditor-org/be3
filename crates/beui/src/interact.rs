@@ -326,13 +326,24 @@ fn target(
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
 ) -> Option<NodeId> {
     let pos = pos?;
-    if doc.overlay_stack.is_empty() {
-        return deepest(doc, rects, root, pos, wants);
-    }
-    doc.overlay_stack
-        .iter()
+    let under: Vec<NodeId> = match doc.overlay_stack.is_empty() {
+        true => vec![root],
+        false => doc.overlay_stack.iter().rev().copied().collect(),
+    };
+    doc.floating_overlays()
+        .into_iter()
         .rev()
-        .find_map(|overlay| deepest(doc, rects, *overlay, pos, wants))
+        .chain(under)
+        .find_map(|layer| match layer == root {
+            true => deepest(doc, rects, root, pos, wants),
+            false => doc
+                .arena
+                .get(layer)
+                .children()
+                .into_iter()
+                .rev()
+                .find_map(|child| deepest(doc, rects, child, pos, wants)),
+        })
 }
 
 fn deepest(

@@ -1,17 +1,14 @@
+use beui::icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE};
+use beui::{Vec2, vec2};
 use block::Block;
 use block_client::blocks::infinite_canvas::{
     CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
     CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform, InfiniteCanvas,
     InfiniteCanvasOperation,
 };
-use eframe::egui::Vec2;
-use egui_material_icons::{
-    MaterialIcon,
-    icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE},
-};
 use uuid::Uuid;
 
-pub const DEFAULT_SLIDE_SIZE: Vec2 = eframe::egui::vec2(960.0, 540.0);
+pub const DEFAULT_SLIDE_SIZE: Vec2 = vec2(960.0, 540.0);
 
 const TITLE_FONT_SIZE: f32 = 54.0;
 const SUBTITLE_FONT_SIZE: f32 = 26.0;
@@ -36,7 +33,7 @@ impl SlideTemplate {
         }
     }
 
-    pub fn icon(self) -> MaterialIcon {
+    pub fn icon(self) -> &'static str {
         match self {
             Self::Title => ICON_TITLE,
             Self::Regular => ICON_SUBJECT,

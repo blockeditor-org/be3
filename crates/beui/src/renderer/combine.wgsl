@@ -41,12 +41,12 @@ fn to_linear(gamma: vec3<f32>) -> vec3<f32> {
 @fragment
 fn compose(input: Full) -> @location(0) vec4<f32> {
     let region = combine.region;
-    let untouched = textureSample(scene, scene_sampler, input.uv);
+    let untouched = textureSampleLevel(scene, scene_sampler, input.uv, 0.0);
     if input.uv.x < region.x || input.uv.y < region.y
         || input.uv.x > region.z || input.uv.y > region.w {
         return untouched;
     }
-    let spread = textureSample(blurred, scene_sampler, clamp(input.uv, region.xy, region.zw));
+    let spread = textureSampleLevel(blurred, scene_sampler, clamp(input.uv, region.xy, region.zw), 0.0);
     let sampled = mix(untouched, spread, combine.params.z);
     let stored_linear = combine.params.y > 0.5;
     var linear = clamp(sampled.rgb, vec3<f32>(0.0), vec3<f32>(1.0));

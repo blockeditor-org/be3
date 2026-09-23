@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn plugin_loading_rect_disappears_when_the_screen_is_presented() {
     let screen = ScreenId(7);
-    let rect = egui::Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(30.0, 40.0));
+    let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(30.0, 40.0));
     let mut layout = ScreenLayout::default();
 
     assert_eq!(plugin_loading_rect(&layout, screen, rect), Some(rect));

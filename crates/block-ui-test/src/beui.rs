@@ -236,7 +236,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         if let Some(viewport) = &mut self.viewport {
             viewport.place(&host, rect, intrinsic);
         }
-        host.begin_region(placement, block_editor_plugin::egui::Vec2::ZERO);
+        host.begin_region(placement, beui::Vec2::ZERO);
         let region = &mut self.region;
         match region {
             Region::Frame(editor, frame) => {
@@ -545,9 +545,7 @@ impl Viewport {
                 self.fitting = false;
             }
             match change {
-                block_editor_plugin::ViewChange::Pan { x, y } => {
-                    self.pan = self.pan + Vec2::new(x, y)
-                }
+                block_editor_plugin::ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
                 block_editor_plugin::ViewChange::Zoom { factor, anchor } => {
                     let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
                     let anchor =

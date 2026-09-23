@@ -631,6 +631,13 @@ the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
 
+### Spinners
+
+`styled::Spinner` is an indeterminate progress bar. It animates only while it is
+laid out: a spinner behind a `Show` that is false, or in a tab nobody is
+looking at, asks for no frames. It uses `node_placed`, which works for any
+component that should only work while it is on screen.
+
 ### Drag and drop
 
 Moving something from one place in a document to another is
@@ -874,6 +881,39 @@ Beui has three feature levels:
 - `render` adds the wgpu renderer without creating a window. Embedded hosts use
   this level.
 - `window` adds the desktop runner and enables `render`; it is the default.
+- `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
+  and enables `render`.
+
+`beui::run_with` takes `RunOptions` (title, app id, starting size, and on
+Android the `AndroidApp`) where `beui::run` takes only a title. The rest of
+`App` is optional:
+
+- `setup(&Setup)` runs once, after the gpu exists and before the first frame.
+  `Setup` hands over the wgpu device, queue and surface format, for an app that
+  paints with the gpu itself through a `Viewport`, and a `Waker`. `Waker::wake`
+  can be called from any thread, and asks the runner for another frame: it is
+  how work finishing elsewhere is pushed to the ui instead of polled for.
+- `close_requested` is asked when the window is closed, and can refuse by
+  returning `false` (to ask about unsaved work first, then call
+  `Context::close_window`). `exiting` runs once on the way out.
+
+From inside a frame the app can also ask the window for things through the
+`Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,
+`set_zoom_factor`, `close_window`, and `retain_events` to take events away from
+the document before it sees them, which is how an app that hosts its own
+surfaces (block-app hosting plugins) keeps a key meant for a plugin away from
+the focused beui control.
+
+A runner hands the document its events in batches, one per frame. A press that
+follows typing waits for the next frame, so text typed before a click always
+reaches the field it was typed into, however many events arrive between two
+frames.
+
+The web runner draws into the canvas it is given with WebGPU, or WebGL where
+the browser has no WebGPU. It reads the keyboard through a hidden text area,
+so pasting and composition behave like any other input on the page. Like the
+desktop runner, it only asks the browser for a frame when an event arrived,
+something asked for a repaint, or a `Waker` was woken.
 
 ### The inspector
 
@@ -1115,8 +1155,8 @@ document to display new data.
 ## Use beui in a block editor plugin
 
 A beui editor is a `#[component]` function. It implements
-`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`
-instead of the egui `App` and `plugin!`. The type it names holds no state: the
+`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`.
+The type it names holds no state: the
 framework builds the view once, keeps the `Document` it produced, and shows it
 every frame.
 
@@ -1168,8 +1208,8 @@ A plugin with `"creation": "Dialog"` implements `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
 and shows in the host's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
-filled in. Host services such as `BlockPicker` work there in the same way they
-do from an egui creation UI, polled from `creation.each_frame(...)`.
+filled in. Host services such as `BlockPicker` work there too, polled from
+`creation.each_frame(...)`.
 
 ## Develop an unstyled component
 

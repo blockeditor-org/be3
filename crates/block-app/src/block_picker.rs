@@ -1,31 +1,135 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
 
+use beui::Rect;
 use block::{Block, BlockParent};
-use block_client::{BlockClient, CachedBlock, blocks::infinite_canvas::InfiniteCanvas};
-use eframe::egui;
-use egui_material_icons::MaterialIcon;
+use block_client::blocks::infinite_canvas::InfiniteCanvas;
 use uuid::Uuid;
 
 use crate::{
-    editors::{
-        BlockLabel, CreationStep, EditorAccess, EditorRegistry, PendingCreation, PluginEditor,
-    },
+    editors::{BlockLabel, CreationStep, EditorAccess, PendingCreation, PluginEditor},
+    host::{SurfaceOutput, Ui},
     slide_templates::SlideTemplate,
+    surfaces::{self, SurfaceId},
 };
 
-const ADD_TILE_SIZE: egui::Vec2 = egui::vec2(132.0, 124.0);
-
-#[derive(PartialEq, Eq, Clone, Copy)]
-enum BlockPickerTab {
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub(crate) enum PickerTab {
     Add,
     Templates,
     LinkExisting,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum PickerAction {
+    Tab(PickerTab),
+    Search(String),
+    Add(Uuid),
+    Template(usize),
+    Link(Uuid),
+    Close,
+    Create,
+    CancelCreation,
+    DismissError,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PickerCommand {
+    pub(crate) picker: Uuid,
+    pub(crate) action: PickerAction,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Tile {
+    pub(crate) key: String,
+    pub(crate) label: String,
+    pub(crate) icon: String,
+    pub(crate) important: bool,
+    pub(crate) action: TileAction,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum TileAction {
+    Add(Uuid),
+    Template(usize),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LinkRow {
+    pub(crate) id: Uuid,
+    pub(crate) name: String,
+    pub(crate) automatic: bool,
+    pub(crate) icon: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ChooseView {
+    pub(crate) tab: PickerTab,
+    pub(crate) search: String,
+    pub(crate) tiles: Vec<Tile>,
+    pub(crate) links: Vec<LinkRow>,
+    pub(crate) empty: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct CreateView {
+    pub(crate) title: String,
+    pub(crate) working: bool,
+    pub(crate) ready: bool,
+    pub(crate) dialog: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PickerView {
+    pub(crate) id: Uuid,
+    pub(crate) choose: Option<ChooseView>,
+    pub(crate) create: Option<CreateView>,
+    pub(crate) error: Option<String>,
+}
+
+#[derive(Default)]
+struct Board {
+    inbox: Vec<PickerCommand>,
+    view: Option<PickerView>,
+}
+
+thread_local! {
+    static BOARD: RefCell<Board> = RefCell::new(Board::default());
+}
+
+pub(crate) fn deliver(command: PickerCommand) {
+    BOARD.with(|board| board.borrow_mut().inbox.push(command));
+}
+
+pub(crate) fn view() -> Option<PickerView> {
+    BOARD.with(|board| board.borrow_mut().view.take())
+}
+
+fn take_actions(picker: Uuid) -> Vec<PickerAction> {
+    BOARD.with(|board| {
+        let mut board = board.borrow_mut();
+        let (mine, rest) = std::mem::take(&mut board.inbox)
+            .into_iter()
+            .partition::<Vec<_>, _>(|command| command.picker == picker);
+        board.inbox = rest;
+        mine.into_iter().map(|command| command.action).collect()
+    })
+}
+
+fn publish(view: PickerView) {
+    BOARD.with(|board| {
+        let mut board = board.borrow_mut();
+        if board.view.is_none() {
+            board.view = Some(view);
+        }
+    });
 }
 
 struct PendingBlock {
     block_type: Uuid,
     creation: Box<dyn PendingCreation>,
     creating: bool,
+    step: Option<CreationStep>,
 }
 
 pub struct BlockPickerResult {
@@ -37,7 +141,7 @@ pub struct BlockPickerResult {
 pub struct BlockPicker {
     id: Uuid,
     open: bool,
-    tab: BlockPickerTab,
+    tab: PickerTab,
     search: String,
     excluded: HashSet<Uuid>,
     allowed: HashSet<Uuid>,
@@ -50,7 +154,7 @@ impl Default for BlockPicker {
         Self {
             id: Uuid::new_v4(),
             open: false,
-            tab: BlockPickerTab::Add,
+            tab: PickerTab::Add,
             search: String::new(),
             excluded: HashSet::new(),
             allowed: HashSet::new(),
@@ -67,7 +171,7 @@ impl BlockPicker {
         allowed: impl IntoIterator<Item = Uuid>,
     ) {
         self.allowed = allowed.into_iter().collect();
-        self.open_on_tab(excluded, BlockPickerTab::Add);
+        self.open_on_tab(excluded, PickerTab::Add);
     }
 
     pub fn open_templates_for_types(
@@ -76,10 +180,10 @@ impl BlockPicker {
         allowed: impl IntoIterator<Item = Uuid>,
     ) {
         self.allowed = allowed.into_iter().collect();
-        self.open_on_tab(excluded, BlockPickerTab::Templates);
+        self.open_on_tab(excluded, PickerTab::Templates);
     }
 
-    fn open_on_tab(&mut self, excluded: impl IntoIterator<Item = Uuid>, tab: BlockPickerTab) {
+    fn open_on_tab(&mut self, excluded: impl IntoIterator<Item = Uuid>, tab: PickerTab) {
         self.open = true;
         self.tab = tab;
         self.search.clear();
@@ -87,115 +191,142 @@ impl BlockPicker {
     }
 
     pub fn is_open(&self) -> bool {
-        self.open || self.pending_block.is_some()
-    }
-
-    fn show_modal(
-        &mut self,
-        context: &egui::Context,
-        client: &BlockClient,
-        registry: &EditorRegistry,
-    ) -> (Option<Uuid>, Option<SlideTemplate>, Option<CachedBlock>) {
-        const FOOTER_RESERVE: f32 = 44.0;
-
-        let mut new_type = None;
-        let mut template = None;
-        let mut linked = None;
-        let mut close = false;
-        let screen = context.content_rect();
-        let modal_width = (screen.width() - 32.0).clamp(280.0, 640.0);
-        let modal_height = (screen.height() - 32.0).clamp(320.0, 720.0);
-        let stacked_tabs = modal_width < 480.0;
-        let response =
-            egui::Modal::new(egui::Id::new(("block-picker", self.id))).show(context, |ui| {
-                ui.set_width(modal_width);
-                ui.set_height(modal_height);
-                ui.heading("Add block");
-                ui.add_space(8.0);
-                if stacked_tabs {
-                    ui.horizontal(|ui| show_tabs(ui, &mut self.tab));
-                    ui.add_space(4.0);
-                    ui.separator();
-                }
-                let content_height = (ui.available_height() - FOOTER_RESERVE).max(120.0);
-                ui.horizontal_top(|ui| {
-                    if !stacked_tabs {
-                        ui.vertical(|ui| {
-                            ui.set_width(140.0);
-                            show_tabs(ui, &mut self.tab);
-                        });
-                        ui.separator();
-                    }
-                    ui.vertical(|ui| {
-                        ui.set_min_width(ui.available_width());
-                        match self.tab {
-                            BlockPickerTab::Add => {
-                                new_type =
-                                    show_add_grid(ui, registry, &self.allowed, content_height);
-                            }
-                            BlockPickerTab::Templates => {
-                                template = show_templates_grid(ui, content_height);
-                            }
-                            BlockPickerTab::LinkExisting => {
-                                linked = show_link_content(
-                                    ui,
-                                    &mut self.search,
-                                    &self.excluded,
-                                    &self.allowed,
-                                    client,
-                                    registry,
-                                    content_height,
-                                );
-                            }
-                        }
-                    });
-                });
-                ui.add_space(8.0);
-                ui.separator();
-                egui::Sides::new().show(
-                    ui,
-                    |_ui| {},
-                    |ui| {
-                        close = ui.button("Close").clicked();
-                    },
-                );
-            });
-        if close
-            || new_type.is_some()
-            || template.is_some()
-            || linked.is_some()
-            || response.should_close()
-        {
-            self.open = false;
-        }
-        (new_type, template, linked)
+        self.open || self.pending_block.is_some() || self.error.is_some()
     }
 
     pub fn handle(
         &mut self,
-        context: &egui::Context,
         editors: &mut EditorAccess<'_>,
         created_parent: BlockParent,
     ) -> Option<BlockPickerResult> {
-        let mut result = self.show_creation_options(context, editors, created_parent);
-        if result.is_none() && self.open {
-            let (new_type, template, linked) =
-                self.show_modal(context, editors.client(), editors.registry());
-            if let Some(block_type) = new_type {
-                result = self.create_registered_block(editors, block_type);
-            } else if let Some(template) = template {
-                result = Some(Self::finish_template(editors, template, created_parent));
-            } else if let Some(block) = linked {
-                editors.ensure(block.id, block.block_type);
-                result = Some(BlockPickerResult {
-                    id: block.id,
-                    block_type: block.block_type,
-                    linked: true,
-                });
+        let mut result = None;
+        for action in take_actions(self.id) {
+            match action {
+                PickerAction::Tab(tab) => self.tab = tab,
+                PickerAction::Search(search) => self.search = search,
+                PickerAction::Close => self.open = false,
+                PickerAction::Add(block_type) => {
+                    self.open = false;
+                    result = result.or_else(|| self.create_registered_block(editors, block_type));
+                }
+                PickerAction::Template(index) => {
+                    self.open = false;
+                    if let Some(template) = SlideTemplate::ALL.get(index).copied() {
+                        result = Some(Self::finish_template(editors, template, created_parent));
+                    }
+                }
+                PickerAction::Link(id) => {
+                    self.open = false;
+                    if let Some(block) = editors.client().cached_block(id) {
+                        editors.ensure(block.id, block.block_type);
+                        result = Some(BlockPickerResult {
+                            id: block.id,
+                            block_type: block.block_type,
+                            linked: true,
+                        });
+                    }
+                }
+                PickerAction::Create => {
+                    if let Some(pending) = &mut self.pending_block {
+                        pending.creating = true;
+                    }
+                }
+                PickerAction::CancelCreation => self.pending_block = None,
+                PickerAction::DismissError => self.error = None,
             }
         }
-        self.show_error(context);
+        if result.is_none() {
+            result = self.run_creation(editors, created_parent);
+        }
+        publish(self.view(editors));
         result
+    }
+
+    fn view(&self, editors: &EditorAccess<'_>) -> PickerView {
+        let registry = editors.registry();
+        PickerView {
+            id: self.id,
+            choose: self.open.then(|| {
+                let mut tiles: Vec<Tile> = match self.tab {
+                    PickerTab::Add => registry
+                        .new_block_actions()
+                        .iter()
+                        .filter(|(_, block_type, _)| {
+                            self.allowed.is_empty() || self.allowed.contains(block_type)
+                        })
+                        .map(|&(label, block_type, important)| Tile {
+                            key: block_type.to_string(),
+                            label: label.to_owned(),
+                            icon: registry.icon(block_type).unwrap_or_default().to_owned(),
+                            important,
+                            action: TileAction::Add(block_type),
+                        })
+                        .collect(),
+                    PickerTab::Templates => SlideTemplate::ALL
+                        .iter()
+                        .enumerate()
+                        .map(|(index, template)| Tile {
+                            key: format!("template-{index}"),
+                            label: template.label().to_owned(),
+                            icon: template.icon().to_owned(),
+                            important: true,
+                            action: TileAction::Template(index),
+                        })
+                        .collect(),
+                    PickerTab::LinkExisting => Vec::new(),
+                };
+                tiles.sort_by_key(|tile| !tile.important);
+                let query = self.search.trim().to_lowercase();
+                let links: Vec<LinkRow> = match self.tab {
+                    PickerTab::LinkExisting => editors
+                        .client()
+                        .cached_blocks()
+                        .into_iter()
+                        .filter(|block| !self.excluded.contains(&block.id))
+                        .filter(|block| {
+                            self.allowed.is_empty() || self.allowed.contains(&block.block_type)
+                        })
+                        .map(|block| (BlockLabel::for_cached(registry, &block), block.id))
+                        .filter(|(label, id)| {
+                            query.is_empty()
+                                || label.name.to_lowercase().contains(&query)
+                                || id.to_string().contains(&query)
+                        })
+                        .map(|(label, id)| LinkRow {
+                            id,
+                            name: label.name,
+                            automatic: label.automatic,
+                            icon: label.icon.unwrap_or_default().to_owned(),
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                ChooseView {
+                    tab: self.tab,
+                    search: self.search.clone(),
+                    tiles,
+                    links,
+                    empty: match query.is_empty() {
+                        true => "No blocks are available to link.".to_owned(),
+                        false => "No matching blocks.".to_owned(),
+                    },
+                }
+            }),
+            create: self.pending_block.as_ref().map(|pending| {
+                let title = registry.display_name(pending.block_type).unwrap_or("block");
+                let (working, ready) = match pending.step {
+                    Some(CreationStep::Working) | None => (true, false),
+                    Some(CreationStep::Options(ready)) => (false, ready),
+                };
+                CreateView {
+                    title: title.to_owned(),
+                    working,
+                    ready: ready && !pending.creating,
+                    dialog: pending.creation.height().is_some(),
+                }
+            }),
+            error: self.error.clone(),
+        }
     }
 
     fn create_registered_block(
@@ -209,6 +340,7 @@ impl BlockPicker {
                     block_type,
                     creation,
                     creating: false,
+                    step: None,
                 });
                 None
             }
@@ -219,66 +351,43 @@ impl BlockPicker {
         }
     }
 
-    fn show_creation_options(
+    fn run_creation(
         &mut self,
-        context: &egui::Context,
         editors: &mut EditorAccess<'_>,
         parent: BlockParent,
     ) -> Option<BlockPickerResult> {
         let mut pending = self.pending_block.take()?;
-        let title = editors
-            .registry()
-            .display_name(pending.block_type)
-            .unwrap_or("block");
-        let mut create = false;
-        let mut cancel = false;
-        let response =
-            egui::Modal::new(egui::Id::new(("block-picker-create", self.id))).show(context, |ui| {
-                ui.set_min_width(320.0);
-                ui.heading(format!("New {title}"));
-                ui.add_space(8.0);
-                let step = pending.creation.ui(ui, editors);
-                ui.separator();
-                ui.horizontal(|ui| {
-                    match step {
-                        CreationStep::Options(ready) => {
-                            create = ui
-                                .add_enabled(
-                                    ready && !pending.creating,
-                                    egui::Button::new("Create"),
-                                )
-                                .on_disabled_hover_text("Fill in the options first")
-                                .clicked();
-                        }
-                        CreationStep::Working => {
-                            ui.spinner();
-                            ui.label(format!("Creating {title}..."));
-                            create = true;
-                        }
-                    }
-                    cancel = ui.button("Cancel").clicked();
-                });
+        surfaces::set_height(SurfaceId::Creation, pending.creation.height());
+        let step = surfaces::with(SurfaceId::Creation, |ui| pending.creation.ui(ui, editors))
+            .unwrap_or_else(|| {
+                let mut scratch = SurfaceOutput::default();
+                let mut ui = Ui::new(&mut scratch, Rect::ZERO, Rect::ZERO, 1);
+                pending.creation.ui(&mut ui, editors)
             });
-        if cancel || response.should_close() {
-            return None;
+        if matches!(step, CreationStep::Working) {
+            pending.creating = true;
         }
-        if !create && !pending.creating {
+        pending.step = Some(step);
+        if !pending.creating {
             self.pending_block = Some(pending);
             return None;
         }
-        pending.creating = true;
         match pending.creation.create(editors.client()) {
-            Ok(Some(editor)) => Some(Self::finish_creation(
-                editors,
-                editor,
-                pending.block_type,
-                parent,
-            )),
+            Ok(Some(editor)) => {
+                surfaces::set_height(SurfaceId::Creation, None);
+                Some(Self::finish_creation(
+                    editors,
+                    editor,
+                    pending.block_type,
+                    parent,
+                ))
+            }
             Ok(None) => {
                 self.pending_block = Some(pending);
                 None
             }
             Err(error) => {
+                surfaces::set_height(SurfaceId::Creation, None);
                 self.error = Some(error);
                 None
             }
@@ -317,186 +426,4 @@ impl BlockPicker {
             linked: false,
         }
     }
-
-    fn show_error(&mut self, context: &egui::Context) {
-        let Some(error) = self.error.clone() else {
-            return;
-        };
-        let response =
-            egui::Modal::new(egui::Id::new(("block-picker-error", self.id))).show(context, |ui| {
-                ui.set_min_width(280.0);
-                ui.heading("Block picker error");
-                ui.add_space(8.0);
-                ui.colored_label(ui.visuals().error_fg_color, error);
-                ui.add_space(8.0);
-                ui.button("Dismiss").clicked()
-            });
-        if response.inner || response.should_close() {
-            self.error = None;
-        }
-    }
-}
-
-fn show_tabs(ui: &mut egui::Ui, tab: &mut BlockPickerTab) {
-    if ui
-        .selectable_label(*tab == BlockPickerTab::Add, "Add")
-        .clicked()
-    {
-        *tab = BlockPickerTab::Add;
-    }
-    if ui
-        .selectable_label(*tab == BlockPickerTab::Templates, "Templates")
-        .clicked()
-    {
-        *tab = BlockPickerTab::Templates;
-    }
-    if ui
-        .selectable_label(*tab == BlockPickerTab::LinkExisting, "Link existing")
-        .clicked()
-    {
-        *tab = BlockPickerTab::LinkExisting;
-    }
-}
-
-fn show_templates_grid(ui: &mut egui::Ui, max_height: f32) -> Option<SlideTemplate> {
-    let mut selected = None;
-    egui::ScrollArea::vertical()
-        .max_height(max_height)
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                for template in SlideTemplate::ALL {
-                    let label = template.label();
-                    let response =
-                        show_add_tile(ui, Some(template.icon()), label).on_hover_text(label);
-                    if response.clicked() {
-                        selected = Some(template);
-                    }
-                }
-            });
-        });
-    selected
-}
-
-fn show_add_grid(
-    ui: &mut egui::Ui,
-    registry: &EditorRegistry,
-    allowed: &HashSet<Uuid>,
-    max_height: f32,
-) -> Option<Uuid> {
-    let mut selected = None;
-    egui::ScrollArea::vertical()
-        .max_height(max_height)
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            let mut show_section = |ui: &mut egui::Ui, default: bool| {
-                ui.horizontal_wrapped(|ui| {
-                    for &(label, block_type, is_default) in registry.new_block_actions() {
-                        if is_default != default
-                            || !(allowed.is_empty() || allowed.contains(&block_type))
-                        {
-                            continue;
-                        }
-                        let response = show_add_tile(ui, registry.icon(block_type), label)
-                            .on_hover_text(label);
-                        if response.clicked() {
-                            selected = Some(block_type);
-                        }
-                    }
-                });
-            };
-            show_section(ui, true);
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(8.0);
-            show_section(ui, false);
-        });
-    selected
-}
-
-fn show_add_tile(ui: &mut egui::Ui, icon: Option<MaterialIcon>, label: &str) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(ADD_TILE_SIZE, egui::Sense::click());
-    let visuals = ui.style().interact(&response);
-    let painter = ui.painter();
-    painter.rect(
-        rect,
-        5.0,
-        visuals.bg_fill,
-        visuals.bg_stroke,
-        egui::StrokeKind::Inside,
-    );
-    let preview_center = egui::pos2(rect.center().x, rect.top() + (rect.height() - 28.0) / 2.0);
-    if let Some(icon) = icon {
-        painter.text(
-            preview_center,
-            egui::Align2::CENTER_CENTER,
-            icon.codepoint,
-            egui::FontId::new(40.0, icon.font_family()),
-            visuals.text_color(),
-        );
-    }
-    let caption = icon.map_or_else(
-        || label.to_owned(),
-        |icon| format!("{} {label}", icon.codepoint),
-    );
-    painter.text(
-        egui::pos2(rect.center().x, rect.bottom() - 14.0),
-        egui::Align2::CENTER_CENTER,
-        caption,
-        egui::FontId::proportional(13.0),
-        visuals.text_color(),
-    );
-    response
-}
-
-fn show_link_content(
-    ui: &mut egui::Ui,
-    search: &mut String,
-    excluded: &HashSet<Uuid>,
-    allowed: &HashSet<Uuid>,
-    client: &BlockClient,
-    registry: &EditorRegistry,
-    max_height: f32,
-) -> Option<CachedBlock> {
-    ui.add(egui::TextEdit::singleline(search).hint_text("Search by name or UUID"));
-    ui.separator();
-    let query = search.trim().to_lowercase();
-    let blocks: Vec<_> = client
-        .cached_blocks()
-        .into_iter()
-        .filter(|block| !excluded.contains(&block.id))
-        .filter(|block| allowed.is_empty() || allowed.contains(&block.block_type))
-        .filter(|block| {
-            query.is_empty()
-                || BlockLabel::for_cached(registry, block)
-                    .name
-                    .to_lowercase()
-                    .contains(&query)
-                || block.id.to_string().contains(&query)
-        })
-        .collect();
-    let mut selected = None;
-    egui::ScrollArea::vertical()
-        .max_height(max_height)
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            if blocks.is_empty() {
-                ui.weak(if query.is_empty() {
-                    "No blocks are available to link."
-                } else {
-                    "No matching blocks."
-                });
-            }
-            for block in &blocks {
-                let label = BlockLabel::for_cached(registry, block).widget_text(ui.style());
-                if ui
-                    .button(label)
-                    .on_hover_text(block.id.to_string())
-                    .clicked()
-                {
-                    selected = Some(block.clone());
-                }
-            }
-        });
-    selected
 }

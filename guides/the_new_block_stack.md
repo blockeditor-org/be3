@@ -2,10 +2,10 @@
 
 The `be-*` crates are a replacement for `block`, `block-server` and
 `block-client`. They live beside the old stack rather than inside it: the old
-stack still runs the application, and four editors - the counter, the
-checklist, the browser tab and the UI settings - keep their content in the new
-one. Work on them
-by migrating one thing at a time, not by rewriting the app around them.
+stack still runs the application, and five editors - the counter, the
+checklist, the browser tab, the UI settings and the calendar - keep their
+content in the new one. Work on them by migrating one thing at a time, not by
+rewriting the app around them.
 
 If you are changing an existing editor or block type today, you want
 `guides/adding_a_block.md` and the `block` crate. This guide is for work on the
@@ -60,6 +60,7 @@ be-commit    commit DAG, retention, merge         client + server
 be-session   ownership lease, sequencer, resume   client + server
 be-graph     parents, edges, access, refcounts    server
 be-protocol  the wire format                      client + server
+be-model     objects with ids, merge, undo, derive client
 be-block     content traits and content types     client
 be-client    a peer: local store, blocks, Live    client
 be-server    the always-online peer               server
@@ -170,6 +171,13 @@ trait LiveEdit: BlockContent {          // optional: what a session carries
 trait Merge: BlockContent {             // required for offline editing
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self>;
 }
+trait Undo: LiveEdit {                  // optional: client-local undo
+    type Step;
+    fn step(&self, operation: &Self::Op) -> Option<Self::Step>;
+    fn absorb(previous: &mut Self::Step, next: Self::Step) -> Result<(), Self::Step>;
+    fn revert(&self, step: &Self::Step) -> Vec<Self::Op>;
+    fn reapply(&self, step: &Self::Step) -> Vec<Self::Op>;
+}
 trait Streamed: BlockContent {          // optional: header plus payload
     type Header;
     fn header(&self) -> Self::Header;
@@ -180,7 +188,11 @@ trait Streamed: BlockContent {          // optional: header plus payload
 
 History and child manipulation are gone from the trait. Undo is client-local and
 against a sequencer it emits an inverse operation rather than rewinding state;
-children are graph operations.
+children are graph operations. `Undo::step` is taken from the state before an
+operation, and `revert` and `reapply` turn a step into operations against the
+state as it is *now*, so an undo leaves alone whatever someone else changed
+since: the calendar undoes a rename without moving an event another peer
+rescheduled.
 
 `Streamed` types encode as `[u32 header length][header][payload]`, which is what
 lets a reader take the header and then a byte range. `ImageContent` and
@@ -228,17 +240,76 @@ in the app's worker: a follower's edits are the owner's to save.
 
 ## Adding a content type
 
-1. Implement `BlockContent` in `crates/be-block/src/`. Derive the edges from the
-   converged state in `references`; they are recorded per commit.
-2. Implement `Merge`. A keyed structure can usually use `be_commit::merge_map`;
-   text-shaped content can use `merge_lines`. The default for anything opaque is
-   a conflict, never a silent pick.
-3. Implement `LiveEdit` only if the type is edited live. `rebase` transforms an
-   operation against operations the sequencer already accepted; returning `None`
-   means the operation no longer means anything and is dropped.
-4. Implement `Streamed` if the payload is large or the header is useful alone.
-5. Test the transform and the merge in `crates/be-block/src/tests/`, and the
-   round trip through a real server in `crates/be-client/src/tests/`.
+Describe the content as structs and derive `be_model::Model`; do not write a
+merge, a rebase or an undo.
+
+```rust
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+pub struct Calendar {
+    pub events: List<CalendarEvent>,
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+pub struct CalendarEvent {
+    pub title: String,
+    pub start: i64,
+    pub end: i64,
+}
+
+impl Root for Calendar {
+    const CONTENT_TYPE: Uuid = ...;
+}
+
+pub type CalendarContent = Document<Calendar>;
+```
+
+A field is one of three things. A `Count` is a counter whose concurrent changes
+add up. A `List<T>` holds objects of a `Model` type `T`. Anything else that is
+`Serialize + DeserializeOwned + Clone + PartialEq + Default` is a register: it is
+set as a whole, and setting it on both sides of an offline merge is a conflict.
+`Root` names the content type and, optionally, the block's name.
+
+`be-model` stores a document as a table of objects with ids, not as a tree of
+values, and every algorithm is written once against that table:
+
+- **Identity.** Every object in a `List` has an `ObjectId` (the `id` of the
+  `Item` the list reads back as), and edits name the object, not a position.
+  An edit to an object that has since moved into another list still lands on
+  it, and a `move_into` carries an object and everything under it from one list
+  to another.
+- **Edits.** The derive gives each field a typed constant, `CalendarEvent::TITLE`,
+  that builds the changes an `Edit` is made of: `set` for a register, `add` for a
+  `Count`, `insert` and `move_into` for a `List`, and `Change::remove` for any
+  object. A content type usually wraps these in helpers the editor calls, like
+  `Calendar::update`, which only writes the fields that changed.
+- **Live editing.** Edits address objects by id and anchor inserts to a sibling,
+  so they mean the same thing whatever the sequencer put before them: there is
+  nothing to rebase.
+- **Offline merge.** `Document::merge` matches objects by id across the three
+  versions and merges each field on its own: registers take whichever side
+  changed, counts add both sides, lists merge their order the way `merge_slices`
+  merges lines, and an object that moved on one side and was edited on the other
+  keeps both. Deleting an object that the other side edited, or that the other
+  side put something into, keeps it and counts a conflict rather than losing the
+  edit.
+- **Undo.** `Document::step` records, for each change, the change that undoes it
+  and the one that redoes it, both taken against the state before the edit. A
+  register's undo is conditional (`Change::SetIf`): it only puts the old value
+  back if nobody has changed the field since, which is how undo leaves other
+  people's edits alone. A removed object is put back with everything under it,
+  after the sibling it followed. Consecutive sets of the same fields absorb into
+  one step.
+
+`Document<R>` implements `BlockContent`, `LiveEdit`, `Merge` and `Undo` in
+`be-block` (`model.rs`), so a type built this way is registered with
+`migrated_with_history` and has undo from the start. The counter, the checklist
+and the calendar are built this way. The browser tab, the UI settings, text and
+images still implement the traits by hand, which remains possible for content
+that does not fit, such as a byte payload or a type that is better as a CRDT.
+
+Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
+tested in `crates/be-model/src/tests/`, and the round trip through a real server
+in `crates/be-client/src/tests/`.
 
 ## Running it
 
@@ -272,30 +343,55 @@ the loop never names a content type; `be/native.rs` runs it on a
 thread of its own with a `FileStore` under it, and `be/web.rs` runs it on the
 browser's own executor with a `MemoryStore`, because there is no file system to
 keep objects in there and every open fetches what it needs. The plugin never
-sees the content key or the connection: it is handed content bytes and hands
-back operation bytes, through two messages on the plugin protocol.
+sees the content key or the connection: it is handed content and hands back
+operation bytes, through three messages on the plugin protocol.
 
-- `EditorMessage::Content { content_type, bytes, applied }` - host to plugin.
-  `applied` counts the operations *this instance* sent that the stack has taken,
-  which is what lets a plugin tell its own unacknowledged edits from everyone
-  else's.
+- `EditorMessage::Content { content_type, bytes, applied }` - host to plugin, a
+  snapshot. `applied` counts the operations *this instance* sent that the
+  snapshot already contains, which is what lets a plugin tell its own
+  unacknowledged edits from everyone else's.
+- `EditorMessage::ContentOperations { operations }` - host to plugin, every
+  operation since the last thing the instance was sent, in order, each marked
+  `mine` when this instance is the one that sent it.
 - `EditorMessage::Operate { operation }` - plugin to host.
 
+Operations, not snapshots, are the normal case. `Live` journals how its visible
+content changed (`Journaled::Edited`, `Applied` or `Replaced`), the worker tags
+each edit with the origin the host gave the instance that sent it
+(`be::operate_from`), and each block's `Content` keeps the last few hundred
+operations beside its bytes. `be::update_since` sends an instance the operations
+it has not seen, and falls back to a snapshot only when it is further behind
+than the log reaches or the content was replaced outright: a join, a reconcile
+or a merge. The worker only re-encodes a block when its journal says it changed.
+
 On the plugin side that is `editor.block_content::<C>()`, the `ContentProjection`
-beside `BlockProjection`: `project` registers a reader, `operate` applies the
-operation to what the view sees and queues it for the host, and each echo
-replaces the confirmed state and replays whatever is still pending on top.
+beside `BlockProjection`, one per editor. `operate` applies an operation to what
+the view sees and queues it for the host. An operation that comes back `mine`
+only confirms what is already shown; one from anyone else is applied on top of
+it, unless an edit of this instance's is still in flight, in which case the
+visible state is rebuilt from the confirmed state and the pending edits.
+
+Applying an operation reports what it touched (`LiveEdit::apply_touching`), and
+a projection only runs when something it watches was touched. `project` watches
+everything; `project_on(key, ...)` watches one key. A hand-written content type
+reports `Touched::Everything`; a `be-model` document reports the field it
+changed and every object that contains it, so `ContentProjection<Document<R>>`
+can offer `field(object, FIELD)`, `ids(owner, LIST)` and `object::<T>(id)`,
+which run only for the field, the list or the object (and what is inside it)
+they name. The checklist's rows each watch their own item and its list watches
+only its order, so ticking one item runs one row. A watcher is dropped with the
+reactive scope that made it.
+
 `block_editor_plugin` re-exports `be_block`, so an editor names its content type
 without depending on the crate itself.
 
 Migrating another self-contained editor is now four steps: a content type in
-`be-block` with its merge, an entry in `MIGRATED`, the editor reading
-`editor.block_content::<C>()` instead of `editor.block::<B>()`, and the old block
-type emptied the way `Counter` and `Checklist` are. The checklist is the example
-to follow for a list of items: `ContentProjection::project_keyed` keeps a row
-from being rebuilt when another row changes. The browser tab is the example for
-an editor that reads its content outside a projection: `ContentProjection::read`
-answers `None` until the host has sent the content once.
+`be-block` (see Adding a content type), an entry in `MIGRATED`, the editor
+reading `editor.block_content::<C>()` instead of `editor.block::<B>()`, and the
+old block type emptied the way `Counter` and `Checklist` are. The browser tab is
+the example for an editor that reads its content outside a projection:
+`ContentProjection::read` answers `None` until the host has sent the content
+once.
 
 A migrated block is still named in the old stack, because that is where the file
 tree, the block picker and search look. `BlockContent::name` is the name, and
@@ -317,6 +413,19 @@ in `sync_ui_settings` comes from the UI settings block's content. `be::hold`
 opens a block for the app and keeps it open when the last editor showing it
 closes, because `be::close` leaves a held block alone. Nothing releases a held
 block before the stack stops, which is when the workspace changes.
+
+Undo lives in the app's peer, not in an editor, because it is the one place that
+sees every edit to a block from this device, whichever editor made it. A content
+type that implements `Undo` is registered with `migrated_with_history`, and its
+session keeps an undo and a redo stack: every operation an editor sends records
+a step, a step that arrives within 750 ms of the last one may be absorbed into
+it, and `be::undo` and `be::redo` turn a step into operations the session
+applies like any other edit. Plugins reach it without knowing about the new
+stack: a plugin asks with `BlockCommand::Undo` and `BlockCommand::Redo`, and
+watches whether either is possible with `EditorMessage::WatchHistory`, which the
+host answers with `HistoryStates` whenever they change. The workspace falls back
+to that whenever the old block's handle has no history of its own, which is
+true of every migrated block.
 
 Four things are worth copying. A migrated editor's block type keeps its old
 entry in `block_types!` with no state in it, rather than disappearing: the graph

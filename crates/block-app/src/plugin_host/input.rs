@@ -1,84 +1,81 @@
+use beui::{Event, Pos2, Rect, Vec2};
 use block_plugin_api::{
     DroppedFile, ImeInput, InputBatch, InputEvent, Key, Message, Modifiers, PointerButton,
     ScreenId, ViewportMetrics, WheelUnit,
 };
-use eframe::egui;
 use std::collections::HashSet;
 use uuid::Uuid;
 
 use super::instances::Holes;
-use crate::editors::SidebarDragPayload;
+use crate::host::{self, Target};
 
 pub(super) struct BlockDragEvent {
-    pub(super) position: egui::Vec2,
+    pub(super) position: Vec2,
     pub(super) block_id: Uuid,
     pub(super) block_type: Uuid,
     pub(super) dropped: bool,
 }
 
-pub(super) fn block_drag(response: &egui::Response) -> Option<BlockDragEvent> {
-    let (payload, dropped) = match response.dnd_release_payload::<SidebarDragPayload>() {
-        Some(payload) => (payload, true),
-        None => (response.dnd_hover_payload::<SidebarDragPayload>()?, false),
-    };
-    let pointer = response
-        .ctx
-        .pointer_interact_pos()
-        .unwrap_or_else(|| response.rect.center());
+pub(super) fn block_drag(rect: Rect) -> Option<BlockDragEvent> {
+    let payload = host::drag()?;
+    let pointer = host::pointer().filter(|position| rect.contains(*position))?;
+    if host::claimed(pointer) {
+        return None;
+    }
     Some(BlockDragEvent {
-        position: pointer - response.rect.min,
+        position: pointer - rect.min,
         block_id: payload.block_id,
         block_type: payload.block_type,
-        dropped,
+        dropped: host::drag_released(),
     })
 }
 
 pub(super) struct FileDropEvent {
-    pub(super) position: egui::Vec2,
+    pub(super) position: Vec2,
     pub(super) files: Vec<DroppedFile>,
     pub(super) dropped: bool,
 }
 
-pub(super) fn file_drop(response: &egui::Response) -> Option<FileDropEvent> {
-    let (hovering, dropped) = response.ctx.input(|input| {
-        (
-            !input.raw.hovered_files.is_empty(),
-            input.raw.dropped_files.clone(),
-        )
-    });
-    let pointer = response
-        .ctx
-        .pointer_latest_pos()
-        .filter(|position| response.rect.contains(*position))?;
+pub(super) fn file_drop(rect: Rect) -> Option<FileDropEvent> {
+    let (hovering, dropped) =
+        host::input(|input| (input.files_hovered, input.files_dropped.clone()));
+    if !hovering && dropped.is_empty() {
+        return None;
+    }
+    let pointer = host::pointer().filter(|position| rect.contains(*position))?;
     if !dropped.is_empty() {
         return Some(FileDropEvent {
-            position: pointer - response.rect.min,
+            position: pointer - rect.min,
             files: dropped.into_iter().filter_map(read_dropped).collect(),
             dropped: true,
         });
     }
-    hovering.then(|| FileDropEvent {
-        position: pointer - response.rect.min,
+    Some(FileDropEvent {
+        position: pointer - rect.min,
         files: Vec::new(),
         dropped: false,
     })
 }
 
-fn read_dropped(file: egui::DroppedFile) -> Option<DroppedFile> {
-    let name = file
-        .path
-        .as_ref()
-        .and_then(|path| path.file_name())
-        .and_then(|name| name.to_str())
+fn read_dropped(file: beui::DroppedFile) -> Option<DroppedFile> {
+    let name = Some(file.name.clone())
         .filter(|name| !name.is_empty())
-        .map(str::to_owned)
-        .or_else(|| (!file.name.is_empty()).then(|| file.name.clone()))
         .unwrap_or_else(|| "File".to_owned());
     let data = match file.bytes {
         Some(bytes) => bytes.to_vec(),
-        None => std::fs::read(file.path.as_ref()?).ok()?,
+        None => read_path(file.path.as_ref()?)?,
     };
     Some(DroppedFile { name, data })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
+    std::fs::read(path).ok()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn read_path(_path: &std::path::Path) -> Option<Vec<u8>> {
+    None
 }
 
 #[derive(Default)]
@@ -100,18 +97,16 @@ impl InputAdapter {
 
     pub(super) fn update(
         &mut self,
-        context: &egui::Context,
-        rect: egui::Rect,
+        target: Target,
+        rect: Rect,
         hovered: bool,
         focused: bool,
         screen: ScreenId,
         holes: &Holes,
     ) -> Vec<Message> {
-        self.over_hole = !self.captured
-            && context
-                .pointer_latest_pos()
-                .is_some_and(|position| holes.contains(position));
-        let events = context.input(|input| input.events.clone());
+        self.over_hole =
+            !self.captured && host::pointer().is_some_and(|position| holes.contains(position));
+        let (events, modifiers) = host::input(|input| (input.events.clone(), input.modifiers));
         let mut normalized = Vec::new();
         if focused != self.focused {
             normalized.push(InputEvent::Focus(focused));
@@ -125,7 +120,16 @@ impl InputAdapter {
 
         if rect.width() > 0.0 && rect.height() > 0.0 {
             for event in events {
-                self.normalize_event(event, rect, hovered, focused, holes, &mut normalized);
+                self.normalize_event(
+                    event,
+                    target,
+                    rect,
+                    hovered,
+                    focused,
+                    modifiers,
+                    holes,
+                    &mut normalized,
+                );
             }
         }
 
@@ -152,20 +156,26 @@ impl InputAdapter {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn normalize_event(
         &mut self,
-        event: egui::Event,
-        rect: egui::Rect,
+        event: Event,
+        target: Target,
+        rect: Rect,
         hovered: bool,
         focused: bool,
+        modifiers: beui::Modifiers,
         holes: &Holes,
         output: &mut Vec<InputEvent>,
     ) {
-        let pointer = |position: egui::Pos2, captured: bool| {
-            (rect.contains(position) && !holes.contains(position)) || captured
+        let pointer = |position: Pos2, captured: bool| {
+            (rect.contains(position)
+                && !holes.contains(position)
+                && host::reaches(target, position))
+                || captured
         };
         match event {
-            egui::Event::PointerMoved(position) if pointer(position, self.captured) => {
+            Event::PointerMoved(position) if pointer(position, self.captured) => {
                 self.pointer_inside = true;
                 let position = position - rect.min;
                 output.push(InputEvent::PointerMoved {
@@ -173,20 +183,20 @@ impl InputAdapter {
                     y: position.y,
                 });
             }
-            egui::Event::PointerMoved(_) | egui::Event::PointerGone => self.leave(output),
-            egui::Event::MouseMoved(delta) if focused => {
+            Event::PointerMoved(_) | Event::PointerGone => self.leave(output),
+            Event::PointerMotion(delta) if focused => {
                 output.push(InputEvent::PointerMotion {
                     x: delta.x,
                     y: delta.y,
                 });
             }
-            egui::Event::PointerButton {
+            Event::PointerButton {
                 pos,
                 button,
                 pressed,
                 modifiers,
             } if pointer(pos, self.captured) => {
-                let button_mask = 1 << pointer_button_index(button);
+                let button_mask = 1 << host::pointer_button_index(button);
                 self.pressed_buttons = if pressed {
                     self.pressed_buttons | button_mask
                 } else {
@@ -194,16 +204,6 @@ impl InputAdapter {
                 };
                 self.captured = self.pressed_buttons != 0;
                 let position = pos - rect.min;
-                #[cfg(target_os = "windows")]
-                eprintln!(
-                    "plugin input host pointer button={button:?} pressed={pressed} window=({:.1},{:.1}) local=({:.1},{:.1}) viewport=({:.1},{:.1})",
-                    pos.x,
-                    pos.y,
-                    position.x,
-                    position.y,
-                    rect.width(),
-                    rect.height()
-                );
                 push_modifiers(&mut self.modifiers, modifiers, output);
                 output.push(InputEvent::PointerButton {
                     button: pointer_button(button),
@@ -215,57 +215,50 @@ impl InputAdapter {
                     self.leave(output);
                 }
             }
-            egui::Event::MouseWheel {
-                unit,
-                delta,
-                modifiers,
-                ..
-            } if hovered && !self.over_hole => {
+            Event::Scroll(delta) if hovered && !self.over_hole => {
                 push_modifiers(&mut self.modifiers, modifiers, output);
                 output.push(InputEvent::Wheel {
                     x: delta.x,
                     y: delta.y,
-                    unit: wheel_unit(unit),
+                    unit: WheelUnit::Pixels,
                 });
             }
-            egui::Event::Zoom(factor) if hovered && !self.over_hole => {
+            Event::Zoom(factor) if hovered && !self.over_hole => {
                 output.push(InputEvent::Zoom { factor });
             }
-            egui::Event::Touch {
-                device_id,
+            Event::Touch {
                 id,
                 phase,
                 pos,
                 force,
             } => {
-                let touch = (device_id.0, id.0);
+                let touch = (id.device, id.finger);
                 let accepted = match phase {
-                    egui::TouchPhase::Start => pointer(pos, false),
-                    egui::TouchPhase::Move | egui::TouchPhase::End | egui::TouchPhase::Cancel => {
+                    beui::TouchPhase::Start => pointer(pos, false),
+                    beui::TouchPhase::Move | beui::TouchPhase::End | beui::TouchPhase::Cancel => {
                         self.captured_touches.contains(&touch)
                     }
                 };
                 if !accepted {
                     return;
                 }
-                if phase == egui::TouchPhase::Start {
+                if phase == beui::TouchPhase::Start {
                     self.captured_touches.insert(touch);
                 }
                 let position = pos - rect.min;
                 output.push(InputEvent::Touch {
-                    device: device_id.0,
-                    finger: id.0,
+                    device: id.device,
+                    finger: id.finger,
                     phase: touch_phase(phase),
                     x: position.x,
                     y: position.y,
                     force,
                 });
-                if matches!(phase, egui::TouchPhase::End | egui::TouchPhase::Cancel) {
+                if matches!(phase, beui::TouchPhase::End | beui::TouchPhase::Cancel) {
                     self.captured_touches.remove(&touch);
                 }
-                if phase == egui::TouchPhase::Cancel && self.pressed_buttons & 1 != 0 {
-                    self.pressed_buttons &=
-                        !(1 << pointer_button_index(egui::PointerButton::Primary));
+                if phase == beui::TouchPhase::Cancel && self.pressed_buttons & 1 != 0 {
+                    self.pressed_buttons &= !1;
                     self.captured = self.pressed_buttons != 0;
                     output.push(InputEvent::PointerButton {
                         button: PointerButton::Primary,
@@ -275,12 +268,11 @@ impl InputAdapter {
                     });
                 }
             }
-            egui::Event::Key {
+            Event::Key {
                 key,
                 pressed,
                 repeat,
                 modifiers,
-                ..
             } if focused => {
                 push_modifiers(&mut self.modifiers, modifiers, output);
                 output.push(InputEvent::Key {
@@ -289,21 +281,21 @@ impl InputAdapter {
                     repeat,
                 });
             }
-            egui::Event::Text(text) if focused => {
+            Event::Modifiers(modifiers) if focused => {
+                push_modifiers(&mut self.modifiers, modifiers, output);
+            }
+            Event::Text(text) if focused => {
                 output.push(InputEvent::Text(text));
             }
-            egui::Event::Paste(text) if focused => {
-                output.push(InputEvent::Paste(text));
-            }
-            egui::Event::Ime(ime) if focused => {
+            Event::Ime(ime) if focused => {
                 output.push(InputEvent::Ime(match ime {
-                    egui::ImeEvent::Enabled => ImeInput::Enabled,
-                    egui::ImeEvent::Preedit(text) => ImeInput::Preedit(text),
-                    egui::ImeEvent::Commit(text) => ImeInput::Commit(text),
-                    egui::ImeEvent::Disabled => ImeInput::Disabled,
+                    beui::ImeEvent::Enabled => ImeInput::Enabled,
+                    beui::ImeEvent::Preedit(text) => ImeInput::Preedit(text),
+                    beui::ImeEvent::Commit(text) => ImeInput::Commit(text),
+                    beui::ImeEvent::Disabled => ImeInput::Disabled,
                 }));
             }
-            egui::Event::WindowFocused(window_focused) if !window_focused && self.focused => {
+            Event::Focus(false) if self.focused => {
                 self.focused = false;
                 self.captured = false;
                 self.pressed_buttons = 0;
@@ -315,14 +307,10 @@ impl InputAdapter {
     }
 }
 
-pub(super) fn viewport_metrics(
-    size: egui::Vec2,
-    visible: egui::Rect,
-    scale_factor: f32,
-) -> ViewportMetrics {
+pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> ViewportMetrics {
     let logical_width = size.x.max(0.0);
     let logical_height = size.y.max(0.0);
-    let visible = visible.intersect(egui::Rect::from_min_size(egui::Pos2::ZERO, size));
+    let visible = visible.intersect(Rect::from_min_size(Pos2::ZERO, size));
     ViewportMetrics {
         logical_width,
         logical_height,
@@ -336,14 +324,14 @@ pub(super) fn viewport_metrics(
 
 fn push_modifiers(
     previous: &mut Modifiers,
-    modifiers: egui::Modifiers,
+    modifiers: beui::Modifiers,
     output: &mut Vec<InputEvent>,
 ) {
     let modifiers = Modifiers {
         alt: modifiers.alt,
         control: modifiers.ctrl,
         shift: modifiers.shift,
-        command: modifiers.command,
+        command: modifiers.ctrl,
     };
     if *previous != modifiers {
         *previous = modifiers;
@@ -351,155 +339,113 @@ fn push_modifiers(
     }
 }
 
-fn pointer_button(button: egui::PointerButton) -> PointerButton {
+fn pointer_button(button: beui::PointerButton) -> PointerButton {
     match button {
-        egui::PointerButton::Primary => PointerButton::Primary,
-        egui::PointerButton::Secondary => PointerButton::Secondary,
-        egui::PointerButton::Middle => PointerButton::Middle,
-        egui::PointerButton::Extra1 => PointerButton::Back,
-        egui::PointerButton::Extra2 => PointerButton::Forward,
+        beui::PointerButton::Primary => PointerButton::Primary,
+        beui::PointerButton::Secondary => PointerButton::Secondary,
+        beui::PointerButton::Middle => PointerButton::Middle,
+        beui::PointerButton::Back => PointerButton::Back,
+        beui::PointerButton::Forward => PointerButton::Forward,
     }
 }
 
-fn pointer_button_index(button: egui::PointerButton) -> u8 {
-    match button {
-        egui::PointerButton::Primary => 0,
-        egui::PointerButton::Secondary => 1,
-        egui::PointerButton::Middle => 2,
-        egui::PointerButton::Extra1 => 3,
-        egui::PointerButton::Extra2 => 4,
-    }
-}
-
-fn wheel_unit(unit: egui::MouseWheelUnit) -> WheelUnit {
-    match unit {
-        egui::MouseWheelUnit::Point => WheelUnit::Pixels,
-        egui::MouseWheelUnit::Line => WheelUnit::Lines,
-        egui::MouseWheelUnit::Page => WheelUnit::Pages,
-    }
-}
-
-fn touch_phase(phase: egui::TouchPhase) -> block_plugin_api::TouchPhase {
+fn touch_phase(phase: beui::TouchPhase) -> block_plugin_api::TouchPhase {
     match phase {
-        egui::TouchPhase::Start => block_plugin_api::TouchPhase::Start,
-        egui::TouchPhase::Move => block_plugin_api::TouchPhase::Move,
-        egui::TouchPhase::End => block_plugin_api::TouchPhase::End,
-        egui::TouchPhase::Cancel => block_plugin_api::TouchPhase::Cancel,
+        beui::TouchPhase::Start => block_plugin_api::TouchPhase::Start,
+        beui::TouchPhase::Move => block_plugin_api::TouchPhase::Move,
+        beui::TouchPhase::End => block_plugin_api::TouchPhase::End,
+        beui::TouchPhase::Cancel => block_plugin_api::TouchPhase::Cancel,
     }
 }
 
-pub(super) fn protocol_key(key: egui::Key) -> Key {
+pub(super) fn protocol_key(key: beui::Key) -> Key {
     match key {
-        egui::Key::ArrowDown => Key::ArrowDown,
-        egui::Key::ArrowLeft => Key::ArrowLeft,
-        egui::Key::ArrowRight => Key::ArrowRight,
-        egui::Key::ArrowUp => Key::ArrowUp,
-        egui::Key::Escape => Key::Escape,
-        egui::Key::Tab => Key::Tab,
-        egui::Key::Backspace => Key::Backspace,
-        egui::Key::Enter => Key::Enter,
-        egui::Key::Space => Key::Space,
-        egui::Key::Insert => Key::Insert,
-        egui::Key::Delete => Key::Delete,
-        egui::Key::Home => Key::Home,
-        egui::Key::End => Key::End,
-        egui::Key::PageUp => Key::PageUp,
-        egui::Key::PageDown => Key::PageDown,
-        egui::Key::Copy => Key::Copy,
-        egui::Key::Cut => Key::Cut,
-        egui::Key::Paste => Key::Paste,
-        egui::Key::Colon => Key::Colon,
-        egui::Key::Comma => Key::Comma,
-        egui::Key::Backslash => Key::Backslash,
-        egui::Key::Slash => Key::Slash,
-        egui::Key::Pipe => Key::Pipe,
-        egui::Key::Questionmark => Key::Questionmark,
-        egui::Key::Exclamationmark => Key::Exclamationmark,
-        egui::Key::OpenBracket => Key::OpenBracket,
-        egui::Key::CloseBracket => Key::CloseBracket,
-        egui::Key::OpenCurlyBracket => Key::OpenCurlyBracket,
-        egui::Key::CloseCurlyBracket => Key::CloseCurlyBracket,
-        egui::Key::Backtick => Key::Backtick,
-        egui::Key::Minus => Key::Minus,
-        egui::Key::Period => Key::Period,
-        egui::Key::Plus => Key::Plus,
-        egui::Key::Equals => Key::Equals,
-        egui::Key::Semicolon => Key::Semicolon,
-        egui::Key::Quote => Key::Quote,
-        egui::Key::Num0 => Key::Num0,
-        egui::Key::Num1 => Key::Num1,
-        egui::Key::Num2 => Key::Num2,
-        egui::Key::Num3 => Key::Num3,
-        egui::Key::Num4 => Key::Num4,
-        egui::Key::Num5 => Key::Num5,
-        egui::Key::Num6 => Key::Num6,
-        egui::Key::Num7 => Key::Num7,
-        egui::Key::Num8 => Key::Num8,
-        egui::Key::Num9 => Key::Num9,
-        egui::Key::A => Key::A,
-        egui::Key::B => Key::B,
-        egui::Key::C => Key::C,
-        egui::Key::D => Key::D,
-        egui::Key::E => Key::E,
-        egui::Key::F => Key::F,
-        egui::Key::G => Key::G,
-        egui::Key::H => Key::H,
-        egui::Key::I => Key::I,
-        egui::Key::J => Key::J,
-        egui::Key::K => Key::K,
-        egui::Key::L => Key::L,
-        egui::Key::M => Key::M,
-        egui::Key::N => Key::N,
-        egui::Key::O => Key::O,
-        egui::Key::P => Key::P,
-        egui::Key::Q => Key::Q,
-        egui::Key::R => Key::R,
-        egui::Key::S => Key::S,
-        egui::Key::T => Key::T,
-        egui::Key::U => Key::U,
-        egui::Key::V => Key::V,
-        egui::Key::W => Key::W,
-        egui::Key::X => Key::X,
-        egui::Key::Y => Key::Y,
-        egui::Key::Z => Key::Z,
-        egui::Key::F1 => Key::F1,
-        egui::Key::F2 => Key::F2,
-        egui::Key::F3 => Key::F3,
-        egui::Key::F4 => Key::F4,
-        egui::Key::F5 => Key::F5,
-        egui::Key::F6 => Key::F6,
-        egui::Key::F7 => Key::F7,
-        egui::Key::F8 => Key::F8,
-        egui::Key::F9 => Key::F9,
-        egui::Key::F10 => Key::F10,
-        egui::Key::F11 => Key::F11,
-        egui::Key::F12 => Key::F12,
-        egui::Key::F13 => Key::F13,
-        egui::Key::F14 => Key::F14,
-        egui::Key::F15 => Key::F15,
-        egui::Key::F16 => Key::F16,
-        egui::Key::F17 => Key::F17,
-        egui::Key::F18 => Key::F18,
-        egui::Key::F19 => Key::F19,
-        egui::Key::F20 => Key::F20,
-        egui::Key::F21 => Key::F21,
-        egui::Key::F22 => Key::F22,
-        egui::Key::F23 => Key::F23,
-        egui::Key::F24 => Key::F24,
-        egui::Key::F25 => Key::F25,
-        egui::Key::F26 => Key::F26,
-        egui::Key::F27 => Key::F27,
-        egui::Key::F28 => Key::F28,
-        egui::Key::F29 => Key::F29,
-        egui::Key::F30 => Key::F30,
-        egui::Key::F31 => Key::F31,
-        egui::Key::F32 => Key::F32,
-        egui::Key::F33 => Key::F33,
-        egui::Key::F34 => Key::F34,
-        egui::Key::F35 => Key::F35,
-        egui::Key::BrowserBack => Key::BrowserBack,
+        beui::Key::ArrowDown => Key::ArrowDown,
+        beui::Key::ArrowLeft => Key::ArrowLeft,
+        beui::Key::ArrowRight => Key::ArrowRight,
+        beui::Key::ArrowUp => Key::ArrowUp,
+        beui::Key::Backspace => Key::Backspace,
+        beui::Key::BracketLeft => Key::OpenBracket,
+        beui::Key::BracketRight => Key::CloseBracket,
+        beui::Key::Delete => Key::Delete,
+        beui::Key::End => Key::End,
+        beui::Key::Enter => Key::Enter,
+        beui::Key::Escape => Key::Escape,
+        beui::Key::Home => Key::Home,
+        beui::Key::Minus => Key::Minus,
+        beui::Key::PageDown => Key::PageDown,
+        beui::Key::PageUp => Key::PageUp,
+        beui::Key::Plus => Key::Plus,
+        beui::Key::Space => Key::Space,
+        beui::Key::Tab => Key::Tab,
+        beui::Key::Zero => Key::Num0,
+        beui::Key::One => Key::Num1,
+        beui::Key::Two => Key::Num2,
+        beui::Key::Three => Key::Num3,
+        beui::Key::Four => Key::Num4,
+        beui::Key::Five => Key::Num5,
+        beui::Key::Six => Key::Num6,
+        beui::Key::Seven => Key::Num7,
+        beui::Key::Eight => Key::Num8,
+        beui::Key::Nine => Key::Num9,
+        beui::Key::Backtick => Key::Backtick,
+        beui::Key::Insert => Key::Insert,
+        beui::Key::Comma => Key::Comma,
+        beui::Key::Period => Key::Period,
+        beui::Key::Slash => Key::Slash,
+        beui::Key::Backslash => Key::Backslash,
+        beui::Key::Semicolon => Key::Semicolon,
+        beui::Key::Quote => Key::Quote,
+        beui::Key::BrowserBack => Key::BrowserBack,
+        beui::Key::A => Key::A,
+        beui::Key::B => Key::B,
+        beui::Key::C => Key::C,
+        beui::Key::D => Key::D,
+        beui::Key::E => Key::E,
+        beui::Key::F => Key::F,
+        beui::Key::G => Key::G,
+        beui::Key::H => Key::H,
+        beui::Key::I => Key::I,
+        beui::Key::J => Key::J,
+        beui::Key::K => Key::K,
+        beui::Key::L => Key::L,
+        beui::Key::M => Key::M,
+        beui::Key::N => Key::N,
+        beui::Key::O => Key::O,
+        beui::Key::P => Key::P,
+        beui::Key::Q => Key::Q,
+        beui::Key::R => Key::R,
+        beui::Key::S => Key::S,
+        beui::Key::T => Key::T,
+        beui::Key::U => Key::U,
+        beui::Key::V => Key::V,
+        beui::Key::W => Key::W,
+        beui::Key::X => Key::X,
+        beui::Key::Y => Key::Y,
+        beui::Key::Z => Key::Z,
+        beui::Key::F1 => Key::F1,
+        beui::Key::F2 => Key::F2,
+        beui::Key::F3 => Key::F3,
+        beui::Key::F4 => Key::F4,
+        beui::Key::F5 => Key::F5,
+        beui::Key::F6 => Key::F6,
+        beui::Key::F7 => Key::F7,
+        beui::Key::F8 => Key::F8,
+        beui::Key::F9 => Key::F9,
+        beui::Key::F10 => Key::F10,
+        beui::Key::F11 => Key::F11,
+        beui::Key::F12 => Key::F12,
+        beui::Key::F13 => Key::F13,
+        beui::Key::F14 => Key::F14,
+        beui::Key::F15 => Key::F15,
+        beui::Key::F16 => Key::F16,
+        beui::Key::F17 => Key::F17,
+        beui::Key::F18 => Key::F18,
+        beui::Key::F19 => Key::F19,
+        beui::Key::F20 => Key::F20,
+        beui::Key::F21 => Key::F21,
+        beui::Key::F22 => Key::F22,
+        beui::Key::F23 => Key::F23,
+        beui::Key::F24 => Key::F24,
     }
 }
-
-#[cfg(test)]
-mod tests;

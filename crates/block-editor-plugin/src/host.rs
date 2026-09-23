@@ -1,6 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     rc::Rc,
     sync::{
         Arc, Mutex,
@@ -12,20 +12,18 @@ use std::{
 use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
-    EditorBand, EditorCapabilities, EditorRegion, FetchResult, FilePick, HostReply, HostRequest,
-    InteractionMode, Occluder, PerformanceMeasurement, ResizeMode, Size, ViewChange,
-    WebViewCommand, WebViewEvent,
+    EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder, PerformanceMeasurement,
+    Size, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter};
 use block_ui::BlockCatalog;
-use eframe::egui;
 use uuid::Uuid;
 
 pub type WebViewPlacement = (EditorRegion, Option<ChildRect>);
 
 #[derive(Clone, Copy)]
 pub struct BlockDrag {
-    pub position: egui::Pos2,
+    pub position: beui::Pos2,
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub dropped: bool,
@@ -36,12 +34,17 @@ pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
     pub applied: u64,
-    pub revision: u64,
+}
+
+#[derive(Clone)]
+pub enum ContentUpdate {
+    Snapshot(HostContent),
+    Operations(Vec<(Vec<u8>, bool)>),
 }
 
 #[derive(Clone)]
 pub struct FileDrop {
-    pub position: egui::Pos2,
+    pub position: beui::Pos2,
     pub files: Vec<PickedFile>,
     pub dropped: bool,
 }
@@ -54,6 +57,12 @@ pub struct ShowRequest {
     pub block_type: Uuid,
     pub via: Option<Uuid>,
     pub from: Option<Uuid>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BlockHistory {
+    pub can_undo: bool,
+    pub can_redo: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -247,7 +256,7 @@ impl Drop for PerformanceMeasurementGuard {
 #[derive(Clone, Copy, Default)]
 struct Region {
     region: Option<EditorRegion>,
-    origin: egui::Vec2,
+    origin: beui::Vec2,
 }
 
 type ChildKey = (EditorRegion, Uuid, u32);
@@ -285,137 +294,9 @@ impl Children {
     }
 }
 
-pub struct ChildHandle {
-    host: EditorHost,
-    index: usize,
-    child: ChildId,
-    painter: egui::Painter,
-    shape: egui::layers::ShapeIdx,
-    rect: egui::Rect,
-    status: Option<ChildStatus>,
-    pub response: egui::Response,
-}
-
-impl ChildHandle {
-    pub fn id(&self) -> ChildId {
-        self.child
-    }
-
-    pub fn rect(&self) -> egui::Rect {
-        self.rect
-    }
-
-    pub fn available(&self) -> bool {
-        self.status.as_ref().is_some_and(|status| status.available)
-    }
-
-    pub fn hovered(&self) -> bool {
-        self.status.as_ref().is_some_and(|status| status.hovered)
-    }
-
-    pub fn active(&self) -> bool {
-        self.status.as_ref().is_some_and(|status| status.active)
-    }
-
-    pub fn reported(&self) -> bool {
-        self.status.is_some()
-    }
-
-    pub fn interaction(&self) -> InteractionMode {
-        self.status
-            .as_ref()
-            .map_or(InteractionMode::Preview, |status| status.interaction)
-    }
-
-    pub fn capabilities(&self) -> EditorCapabilities {
-        self.status
-            .as_ref()
-            .map_or_else(EditorCapabilities::default, |status| status.capabilities)
-    }
-
-    pub fn resize(&self) -> ResizeMode {
-        self.status
-            .as_ref()
-            .map_or(ResizeMode::None, |status| status.resize)
-    }
-
-    pub fn set_intrinsic_size(&self, size: egui::Vec2) {
-        self.host.update_child(self.index, |placement| {
-            placement.intrinsic = Some(Size {
-                width: size.x.max(0.0),
-                height: size.y.max(0.0),
-            });
-        });
-    }
-
-    pub fn take_view_changes(&self) -> Vec<ViewChange> {
-        self.host.take_child_view_changes(self.child)
-    }
-
-    pub fn set_rotation(&self, radians: f32) {
-        self.host.update_child(self.index, |placement| {
-            placement.rotation = radians;
-        });
-    }
-
-    pub fn set_opacity(&self, opacity: f32) {
-        self.host.update_child(self.index, |placement| {
-            placement.opacity = opacity.clamp(0.0, 1.0);
-        });
-    }
-
-    pub fn error(&self) -> Option<&str> {
-        self.status.as_ref()?.error.as_deref()
-    }
-
-    pub fn intrinsic_size(&self) -> Option<egui::Vec2> {
-        let status = self.status.as_ref()?;
-        status
-            .intrinsic
-            .map(|size| egui::vec2(size.width, size.height))
-    }
-
-    pub fn aspect_ratio(&self) -> Option<f32> {
-        let status = self.status.as_ref()?;
-        status.aspect_ratio
-    }
-
-    pub fn set_mode(&self, mode: ChildMode) {
-        self.host.update_child(self.index, |placement| {
-            placement.mode = mode;
-        });
-    }
-
-    pub fn activate(&self) {
-        self.set_mode(ChildMode::Active);
-    }
-
-    pub fn keep_active(&self) {
-        self.set_mode(ChildMode::Live);
-    }
-
-    pub fn own_frame(&self) {
-        self.host.update_child(self.index, |placement| {
-            placement.own_frame = true;
-        });
-    }
-
-    pub fn set_corner_radius(&self, radius: f32) {
-        let layer = self.host.update_child(self.index, |placement| {
-            placement.corner_radius = radius;
-            placement.layer
-        });
-        let Some(layer) = layer else {
-            return;
-        };
-        self.painter
-            .set(self.shape, self.host.child_shape(self.rect, radius, layer));
-    }
-}
-
 #[derive(Clone, Copy)]
 struct View {
-    rect: egui::Rect,
+    rect: beui::Rect,
     scale: f32,
 }
 
@@ -462,14 +343,14 @@ impl BeuiView {
     pub fn pan(&self, delta: beui::Vec2) {
         let ratio = self.host.beui.get().ratio;
         self.host
-            .pan_view(egui::vec2(delta.x / ratio, delta.y / ratio));
+            .pan_view(beui::vec2(delta.x / ratio, delta.y / ratio));
     }
 
     pub fn zoom(&self, factor: f32, anchor: Option<beui::Pos2>) {
         let ratio = self.host.beui.get().ratio;
         self.host.zoom_view(
             factor,
-            anchor.map(|anchor| egui::pos2(anchor.x / ratio, anchor.y / ratio)),
+            anchor.map(|anchor| beui::pos2(anchor.x / ratio, anchor.y / ratio)),
         );
     }
 
@@ -484,21 +365,21 @@ impl BeuiView {
     }
 }
 
-fn swept(rect: egui::Rect, rotation: f32) -> egui::Rect {
+fn swept(rect: beui::Rect, rotation: f32) -> beui::Rect {
     if rotation == 0.0 {
         return rect;
     }
     let center = rect.center();
     let (sin, cos) = rotation.sin_cos();
-    let turned = |corner: egui::Pos2| {
+    let turned = |corner: beui::Pos2| {
         let offset = corner - center;
         center
-            + egui::vec2(
+            + beui::vec2(
                 offset.x * cos - offset.y * sin,
                 offset.x * sin + offset.y * cos,
             )
     };
-    egui::Rect::from_points(&[
+    beui::Rect::from_points(&[
         turned(rect.left_top()),
         turned(rect.right_top()),
         turned(rect.right_bottom()),
@@ -506,14 +387,15 @@ fn swept(rect: egui::Rect, rotation: f32) -> egui::Rect {
     ])
 }
 
-fn host_rect(rect: beui::Rect, ratio: f32) -> egui::Rect {
-    egui::Rect::from_min_max(
-        egui::pos2(rect.min.x / ratio, rect.min.y / ratio),
-        egui::pos2(rect.max.x / ratio, rect.max.y / ratio),
-    )
+fn host_rect(rect: beui::Rect, ratio: f32) -> beui::Rect {
+    scaled(rect, ratio.recip())
 }
 
-fn beui_rect(rect: egui::Rect, ratio: f32) -> beui::Rect {
+fn beui_rect(rect: beui::Rect, ratio: f32) -> beui::Rect {
+    scaled(rect, ratio)
+}
+
+fn scaled(rect: beui::Rect, ratio: f32) -> beui::Rect {
     beui::Rect::from_min_max(
         beui::pos2(rect.min.x * ratio, rect.min.y * ratio),
         beui::pos2(rect.max.x * ratio, rect.max.y * ratio),
@@ -532,6 +414,10 @@ pub struct EditorHost {
     watched_artifacts: Rc<RefCell<Vec<Uuid>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_artifacts: Rc<RefCell<Option<Vec<Uuid>>>>,
+    histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
+    watched_history: Rc<RefCell<Vec<Uuid>>>,
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
@@ -561,10 +447,9 @@ pub struct EditorHost {
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
-    hidden_bands: Rc<RefCell<HashSet<EditorBand>>>,
     beui: Rc<Cell<BeuiFrame>>,
     next_frame: Rc<Cell<Option<Duration>>>,
-    content: Rc<RefCell<Option<HostContent>>>,
+    content_updates: Rc<RefCell<Vec<ContentUpdate>>>,
     content_operations: Rc<RefCell<Vec<Vec<u8>>>>,
 }
 
@@ -662,6 +547,48 @@ impl EditorHost {
         }
         *reported = Some(blocks.clone());
         Some(blocks)
+    }
+
+    pub fn watch_history(&self, blocks: impl IntoIterator<Item = Uuid>) {
+        let mut blocks: Vec<Uuid> = blocks.into_iter().collect();
+        blocks.sort();
+        blocks.dedup();
+        *self.watched_history.borrow_mut() = blocks;
+    }
+
+    pub fn history(&self, block_id: Uuid) -> BlockHistory {
+        self.histories
+            .borrow()
+            .get(&block_id)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_history_watch(&self) -> Option<Vec<Uuid>> {
+        let blocks = self.watched_history.borrow().clone();
+        let mut reported = self.reported_history.borrow_mut();
+        if reported.as_ref() == Some(&blocks) {
+            return None;
+        }
+        *reported = Some(blocks.clone());
+        Some(blocks)
+    }
+
+    pub fn set_histories(&self, states: impl IntoIterator<Item = (Uuid, BlockHistory)>) {
+        *self.histories.borrow_mut() = states.into_iter().collect();
+    }
+
+    pub fn undo(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Undo));
+    }
+
+    pub fn redo(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Redo));
     }
 
     pub fn set_artifacts(&self, states: Vec<ArtifactState>) {
@@ -783,8 +710,7 @@ impl EditorHost {
         ));
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
+    pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
         std::mem::take(&mut self.block_commands.borrow_mut())
     }
 
@@ -796,19 +722,24 @@ impl EditorHost {
         self.editable.get()
     }
 
-    pub fn block_content(&self) -> Option<HostContent> {
-        self.content.borrow().clone()
+    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
+        self.content_updates
+            .borrow_mut()
+            .push(ContentUpdate::Snapshot(HostContent {
+                content_type,
+                bytes,
+                applied,
+            }));
     }
 
-    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        let mut held = self.content.borrow_mut();
-        let revision = held.as_ref().map_or(1, |content| content.revision + 1);
-        *held = Some(HostContent {
-            content_type,
-            bytes,
-            applied,
-            revision,
-        });
+    pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
+        self.content_updates
+            .borrow_mut()
+            .push(ContentUpdate::Operations(operations));
+    }
+
+    pub(crate) fn take_content_updates(&self) -> Vec<ContentUpdate> {
+        std::mem::take(&mut self.content_updates.borrow_mut())
     }
 
     pub fn operate_content(&self, operation: Vec<u8>) {
@@ -823,7 +754,7 @@ impl EditorHost {
         self.client_id.get()
     }
 
-    pub fn view(&self) -> Option<egui::Rect> {
+    pub fn view(&self) -> Option<beui::Rect> {
         let origin = self.region.get().origin;
         self.view.get().map(|view| view.rect.translate(origin))
     }
@@ -832,14 +763,14 @@ impl EditorHost {
         self.view.get().map(|view| view.scale)
     }
 
-    pub fn pan_view(&self, delta: egui::Vec2) {
+    pub fn pan_view(&self, delta: beui::Vec2) {
         self.view_changes.borrow_mut().push(ViewChange::Pan {
             x: delta.x,
             y: delta.y,
         });
     }
 
-    pub fn zoom_view(&self, factor: f32, anchor: Option<egui::Pos2>) {
+    pub fn zoom_view(&self, factor: f32, anchor: Option<beui::Pos2>) {
         let origin = self.region.get().origin;
         self.view_changes.borrow_mut().push(ViewChange::Zoom {
             factor,
@@ -982,7 +913,7 @@ impl EditorHost {
         self.replies.borrow_mut().remove(&request);
     }
 
-    pub fn place_web_view(&self, rect: Option<egui::Rect>) {
+    pub fn place_web_view(&self, rect: Option<beui::Rect>) {
         let state = self.region.get();
         let region = state.region.unwrap_or(EditorRegion::Frame);
         let rect = rect.map(|rect| child_rect(rect.translate(-state.origin)));
@@ -1061,38 +992,6 @@ impl EditorHost {
             .then(|| self.cursor_grabbed.get())
     }
 
-    pub fn child(&self, ui: &mut egui::Ui, block_id: Uuid, block_type: Uuid) -> ChildHandle {
-        let size = ui.available_size_before_wrap();
-        self.place_child(ui, size, block_id, block_type, ChildLayer::Below)
-    }
-
-    pub fn child_sized(
-        &self,
-        ui: &mut egui::Ui,
-        size: egui::Vec2,
-        block_id: Uuid,
-        block_type: Uuid,
-    ) -> ChildHandle {
-        self.place_child(ui, size, block_id, block_type, ChildLayer::Below)
-    }
-
-    pub fn child_above(&self, ui: &mut egui::Ui, block_id: Uuid, block_type: Uuid) -> ChildHandle {
-        let size = ui.available_size_before_wrap();
-        self.place_child(ui, size, block_id, block_type, ChildLayer::Above)
-    }
-
-    pub fn show_band(&self, band: EditorBand, shown: bool) {
-        let mut hidden = self.hidden_bands.borrow_mut();
-        match shown {
-            true => hidden.remove(&band),
-            false => hidden.insert(band),
-        };
-    }
-
-    pub fn band_shown(&self, band: EditorBand) -> bool {
-        !self.hidden_bands.borrow().contains(&band)
-    }
-
     pub fn beui_view(&self) -> BeuiView {
         BeuiView { host: self.clone() }
     }
@@ -1118,7 +1017,7 @@ impl EditorHost {
         self.present_requests.borrow_mut().push(presenting);
     }
 
-    pub fn occlude(&self, rect: egui::Rect) {
+    pub fn occlude(&self, rect: beui::Rect) {
         let origin = self.region.get().origin;
         let mut children = self.children.borrow_mut();
         let after = children.placements.len() as u32;
@@ -1176,64 +1075,6 @@ impl EditorHost {
         self.child_statuses.borrow().get(&child).cloned()
     }
 
-    fn place_child(
-        &self,
-        ui: &mut egui::Ui,
-        size: egui::Vec2,
-        block_id: Uuid,
-        block_type: Uuid,
-        layer: ChildLayer,
-    ) -> ChildHandle {
-        let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
-        let painter = ui.painter().clone();
-        let state = self.region.get();
-        let region = state.region.unwrap_or(EditorRegion::Frame);
-        let mut children = self.children.borrow_mut();
-        let child = children.identify(region, block_id);
-        let shape = painter.add(self.child_shape(rect, 0.0, layer));
-        let index = children.placements.len();
-        children.placements.push(ChildPlacement {
-            child,
-            block_id: block_id.into_bytes(),
-            block_type: block_type.into_bytes(),
-            rect: child_rect(rect.translate(-state.origin)),
-            clip: child_rect(ui.clip_rect().intersect(rect).translate(-state.origin)),
-            own_frame: false,
-            corner_radius: 0.0,
-            layer,
-            mode: ChildMode::Passive,
-            intrinsic: None,
-            rotation: 0.0,
-            opacity: 1.0,
-        });
-        drop(children);
-        ChildHandle {
-            host: self.clone(),
-            index,
-            child,
-            painter,
-            shape,
-            rect,
-            status: self.child_statuses.borrow().get(&child).cloned(),
-            response,
-        }
-    }
-
-    fn child_shape(&self, rect: egui::Rect, radius: f32, layer: ChildLayer) -> egui::Shape {
-        match layer {
-            ChildLayer::Below => punch_shape(rect, radius),
-            ChildLayer::Above => egui::Shape::Noop,
-        }
-    }
-
-    fn update_child<T>(
-        &self,
-        index: usize,
-        edit: impl FnOnce(&mut ChildPlacement) -> T,
-    ) -> Option<T> {
-        Some(edit(self.children.borrow_mut().placements.get_mut(index)?))
-    }
-
     pub fn set_creation_ready(&self, ready: bool) {
         if self.creation_ready.get() == ready {
             return;
@@ -1259,18 +1100,14 @@ impl EditorHost {
         self.editable.set(editable);
     }
 
-    pub fn set_view(&self, view: egui::Rect, scale: f32) {
+    pub fn set_view(&self, view: beui::Rect, scale: f32) {
         self.view.set(Some(View { rect: view, scale }));
     }
 
     pub fn set_beui_view(&self, view: beui::Rect, scale: f32) {
         let ratio = self.beui.get().ratio;
         let origin = self.region.get().origin;
-        let rect = egui::Rect::from_min_max(
-            egui::pos2(view.min.x / ratio, view.min.y / ratio),
-            egui::pos2(view.max.x / ratio, view.max.y / ratio),
-        );
-        self.set_view(rect.translate(-origin), scale);
+        self.set_view(host_rect(view, ratio).translate(-origin), scale);
     }
 
     pub fn begin_beui_frame(&self, ratio: f32, pixels_per_point: f32, chrome: bool) {
@@ -1304,7 +1141,7 @@ impl EditorHost {
     pub fn set_beui_drag(&self, drag: Option<crate::editor::Drag>) {
         let ratio = self.beui.get().ratio;
         self.drag.set(drag.map(|drag| BlockDrag {
-            position: egui::pos2(drag.position.x / ratio, drag.position.y / ratio),
+            position: beui::pos2(drag.position.x / ratio, drag.position.y / ratio),
             block_id: drag.block_id,
             block_type: drag.block_type,
             dropped: drag.dropped,
@@ -1316,7 +1153,7 @@ impl EditorHost {
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub fn begin_region(&self, region: EditorRegion, origin: egui::Vec2) {
+    pub fn begin_region(&self, region: EditorRegion, origin: beui::Vec2) {
         self.region.set(Region {
             region: Some(region),
             origin,
@@ -1439,15 +1276,7 @@ pub struct ImagePaster {
 }
 
 impl ImagePaster {
-    pub fn poll(&mut self, ui: &egui::Ui, host: &EditorHost, enabled: bool) -> Option<PastedImage> {
-        self.settle(host, enabled && pasted(ui))
-    }
-
     pub fn paste(&mut self, host: &EditorHost, asked: bool) -> Option<PastedImage> {
-        self.settle(host, asked)
-    }
-
-    fn settle(&mut self, host: &EditorHost, asked: bool) -> Option<PastedImage> {
         if let Some(request) = self.request {
             return match host.take_pasted_image(request)? {
                 ClipboardImage::Pasted { name, data } => {
@@ -1478,35 +1307,12 @@ pub enum PastedImage {
     Failed(String),
 }
 
-fn pasted(ui: &egui::Ui) -> bool {
-    ui.input(|input| {
-        input
-            .raw
-            .events
-            .iter()
-            .any(|event| matches!(event, egui::Event::Paste(_)))
-            || (input.modifiers.command && input.key_pressed(egui::Key::V))
-    })
-}
-
-fn child_rect(rect: egui::Rect) -> ChildRect {
+fn child_rect(rect: beui::Rect) -> ChildRect {
     ChildRect {
         x: rect.min.x,
         y: rect.min.y,
         width: rect.width().max(0.0),
         height: rect.height().max(0.0),
-    }
-}
-
-fn punch_shape(rect: egui::Rect, radius: f32) -> egui::Shape {
-    #[cfg(target_arch = "wasm32")]
-    {
-        crate::panes::punch(rect, radius)
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let _ = (rect, radius);
-        egui::Shape::Noop
     }
 }
 

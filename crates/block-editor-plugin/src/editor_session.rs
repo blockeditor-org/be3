@@ -4,13 +4,12 @@ use block_client::{
 };
 use block_plugin_api::{
     ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
-    CreationOutcome, CursorIcon, EditorBand, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameChrome, FrameReport, FrameSpec, HostReply, ImeArea, ImeInput, InputEvent, Key,
-    MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize,
-    ScreenPlacement, ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
+    CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
+    FrameReport, FrameSpec, HostReply, ImeArea, InputEvent, Key, MAX_CHILDREN,
+    MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize, ScreenPlacement,
+    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
 };
 use block_ui::BlockCatalog;
-use eframe::egui;
 use std::{collections::HashMap, marker::PhantomData, rc::Rc, sync::Arc};
 use uuid::Uuid;
 
@@ -21,15 +20,14 @@ const WHEEL_PAGE: f32 = 400.0;
 
 pub(crate) struct EditorSession {
     app: Box<dyn AppUi>,
-    beui: Option<HashMap<EditorRegion, BeuiRegion>>,
-    chrome: Rc<Vec<EditorBand>>,
+    beui: HashMap<EditorRegion, BeuiRegion>,
     instance: EditorInstanceId,
     regions: HashMap<EditorRegion, RegionState>,
     host: EditorHost,
     block: Option<(Arc<BlockClient>, Uuid)>,
     drag: Option<(EditorRegion, BlockDrag)>,
     files: Option<(EditorRegion, crate::host::FileDrop)>,
-    intrinsic: Option<egui::Vec2>,
+    intrinsic: Option<beui::Vec2>,
     aspect_ratio: Option<f32>,
     creating: bool,
     leaving: bool,
@@ -103,12 +101,11 @@ impl BeuiRegion {
 
 #[derive(Default)]
 struct RegionState {
-    input: egui::RawInput,
     placement: Option<ScreenPlacement>,
     metrics: Option<ViewportMetrics>,
     frame: Option<FrameSpec>,
-    used: Option<egui::Vec2>,
-    reported: Option<egui::Vec2>,
+    used: Option<beui::Vec2>,
+    reported: Option<beui::Vec2>,
     report: Option<FrameReport>,
     reported_frame: Option<FrameReport>,
     cursor: CursorIcon,
@@ -121,24 +118,15 @@ struct RegionState {
 }
 
 trait AppUi {
-    fn beui_view(&mut self) -> beui::NodeId {
-        unreachable!("beui_view is only called on a BeuiApp instance")
-    }
-    fn beui_update(&mut self) {}
-    fn beui_after_layout(&mut self, _document: &beui::Document) {}
-    fn beui_creation(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
-    fn beui_preview(&mut self, _context: &beui::Context, _rect: beui::Rect) {}
-    fn beui_artifact_settings(
-        &mut self,
-        _context: &beui::Context,
-        _rect: beui::Rect,
-        _draft: &mut Vec<u8>,
-    ) {
-    }
+    fn view(&mut self) -> beui::NodeId;
+    fn update(&mut self);
+    fn after_layout(&mut self, document: &beui::Document);
+    fn creation(&mut self, context: &beui::Context, rect: beui::Rect);
+    fn preview(&mut self, context: &beui::Context, rect: beui::Rect);
+    fn artifact_settings(&mut self, context: &beui::Context, rect: beui::Rect, draft: &mut Vec<u8>);
     fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid);
     fn connect_creation(&mut self, host: EditorHost, client: Arc<BlockClient>);
     fn create_block(&mut self) -> Result<Uuid, String>;
-    fn creation_ui(&mut self, ui: &mut egui::Ui);
     fn connect_artifact(
         &mut self,
         host: EditorHost,
@@ -146,113 +134,13 @@ trait AppUi {
         artifact: crate::Artifact,
     );
     fn describe_artifact(&mut self, data: &[u8]) -> ArtifactDescription;
-    fn artifact_settings_ui(&mut self, ui: &mut egui::Ui, data: &mut Vec<u8>);
     fn regenerate_artifact(&mut self, data: &[u8]);
     fn poll_artifact(&mut self) -> Option<Result<(), String>>;
-    fn main_ui(&mut self, ui: &mut egui::Ui);
-    fn toolbar_ui(&mut self, ui: &mut egui::Ui);
-    fn left_sidebar_ui(&mut self, ui: &mut egui::Ui);
-    fn right_sidebar_ui(&mut self, ui: &mut egui::Ui);
-    fn preview_ui(&mut self, ui: &mut egui::Ui);
-    fn intrinsic_size(&mut self) -> Option<egui::Vec2>;
-    fn set_intrinsic_size(&mut self, size: egui::Vec2);
+    fn intrinsic_size(&mut self) -> Option<beui::Vec2>;
+    fn set_intrinsic_size(&mut self, size: beui::Vec2);
     fn aspect_ratio(&mut self) -> Option<f32>;
     fn presence_visible(&mut self, visible: bool);
-    fn reveal_presence(&mut self, client_id: u64);
     fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool;
-}
-
-impl<A: crate::App> AppUi for A {
-    fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid) {
-        crate::App::connect(self, host, client, block_id);
-    }
-
-    fn connect_creation(&mut self, host: EditorHost, client: Arc<BlockClient>) {
-        crate::App::connect_creation(self, host, client);
-    }
-
-    fn create_block(&mut self) -> Result<Uuid, String> {
-        crate::App::create_block(self)
-    }
-
-    fn creation_ui(&mut self, ui: &mut egui::Ui) {
-        crate::App::creation_ui(self, ui);
-    }
-
-    fn connect_artifact(
-        &mut self,
-        host: EditorHost,
-        client: Arc<BlockClient>,
-        artifact: crate::Artifact,
-    ) {
-        crate::App::connect_artifact(self, host, client, artifact);
-    }
-
-    fn describe_artifact(&mut self, data: &[u8]) -> ArtifactDescription {
-        match crate::App::describe_artifact(self, data) {
-            Ok(description) => ArtifactDescription::Described {
-                source: description.source.into_bytes(),
-                summary: description.summary,
-            },
-            Err(error) => ArtifactDescription::Unreadable(error),
-        }
-    }
-
-    fn artifact_settings_ui(&mut self, ui: &mut egui::Ui, data: &mut Vec<u8>) {
-        crate::App::artifact_settings_ui(self, ui, data);
-    }
-
-    fn regenerate_artifact(&mut self, data: &[u8]) {
-        crate::App::regenerate_artifact(self, data);
-    }
-
-    fn poll_artifact(&mut self) -> Option<Result<(), String>> {
-        crate::App::poll_artifact(self)
-    }
-
-    fn main_ui(&mut self, ui: &mut egui::Ui) {
-        crate::App::ui(self, ui);
-    }
-
-    fn toolbar_ui(&mut self, ui: &mut egui::Ui) {
-        crate::App::toolbar_ui(self, ui);
-    }
-
-    fn left_sidebar_ui(&mut self, ui: &mut egui::Ui) {
-        crate::App::left_sidebar_ui(self, ui);
-    }
-
-    fn right_sidebar_ui(&mut self, ui: &mut egui::Ui) {
-        crate::App::right_sidebar_ui(self, ui);
-    }
-
-    fn preview_ui(&mut self, ui: &mut egui::Ui) {
-        crate::App::preview_ui(self, ui);
-    }
-
-    fn intrinsic_size(&mut self) -> Option<egui::Vec2> {
-        crate::App::intrinsic_size(self)
-    }
-
-    fn set_intrinsic_size(&mut self, size: egui::Vec2) {
-        crate::App::set_intrinsic_size(self, size);
-    }
-
-    fn aspect_ratio(&mut self) -> Option<f32> {
-        crate::App::aspect_ratio(self)
-    }
-
-    fn presence_visible(&mut self, visible: bool) {
-        crate::App::presence_visible(self, visible);
-    }
-
-    fn reveal_presence(&mut self, client_id: u64) {
-        crate::App::reveal_presence(self, client_id);
-    }
-
-    fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        crate::App::replace_child(self, old, new)
-    }
 }
 
 struct BeuiHolder<A: crate::BeuiApp> {
@@ -282,7 +170,7 @@ impl<A: crate::BeuiApp> BeuiHolder<A> {
 }
 
 impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
-    fn beui_view(&mut self) -> beui::NodeId {
+    fn view(&mut self) -> beui::NodeId {
         let editor = self
             .editor
             .clone()
@@ -290,19 +178,19 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         A::view(editor)
     }
 
-    fn beui_update(&mut self) {
+    fn update(&mut self) {
         if let Some(editor) = &self.editor {
             editor.begin_frame();
         }
     }
 
-    fn beui_after_layout(&mut self, document: &beui::Document) {
+    fn after_layout(&mut self, document: &beui::Document) {
         if let Some(editor) = &self.editor {
             editor.end_frame(document);
         }
     }
 
-    fn beui_preview(&mut self, context: &beui::Context, rect: beui::Rect) {
+    fn preview(&mut self, context: &beui::Context, rect: beui::Rect) {
         let Some(editor) = self.preview.clone() else {
             return;
         };
@@ -316,7 +204,7 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         editor.end_frame(document);
     }
 
-    fn beui_creation(&mut self, context: &beui::Context, rect: beui::Rect) {
+    fn creation(&mut self, context: &beui::Context, rect: beui::Rect) {
         let (Some(creation), Some(dialog)) = (self.creation.as_ref(), self.dialog.as_mut()) else {
             return;
         };
@@ -350,8 +238,6 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         A::create_block(creation)
     }
 
-    fn creation_ui(&mut self, _ui: &mut egui::Ui) {}
-
     fn connect_artifact(
         &mut self,
         host: EditorHost,
@@ -373,9 +259,7 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         }
     }
 
-    fn artifact_settings_ui(&mut self, _ui: &mut egui::Ui, _data: &mut Vec<u8>) {}
-
-    fn beui_artifact_settings(
+    fn artifact_settings(
         &mut self,
         context: &beui::Context,
         rect: beui::Rect,
@@ -407,27 +291,16 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         self.artifacts.as_ref()?.poll()
     }
 
-    fn main_ui(&mut self, _ui: &mut egui::Ui) {}
-
-    fn toolbar_ui(&mut self, _ui: &mut egui::Ui) {}
-
-    fn left_sidebar_ui(&mut self, _ui: &mut egui::Ui) {}
-
-    fn right_sidebar_ui(&mut self, _ui: &mut egui::Ui) {}
-
-    fn preview_ui(&mut self, _ui: &mut egui::Ui) {}
-
-    fn intrinsic_size(&mut self) -> Option<egui::Vec2> {
+    fn intrinsic_size(&mut self) -> Option<beui::Vec2> {
         self.editor
             .as_ref()
             .and_then(crate::Editor::intrinsic_size)
             .or_else(A::intrinsic_size)
-            .map(|size| egui::vec2(size.x, size.y))
     }
 
-    fn set_intrinsic_size(&mut self, size: egui::Vec2) {
+    fn set_intrinsic_size(&mut self, size: beui::Vec2) {
         if let Some(editor) = &self.editor {
-            editor.report_resize(beui::Vec2::new(size.x, size.y));
+            editor.report_resize(size);
         }
     }
 
@@ -441,12 +314,6 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         }
     }
 
-    fn reveal_presence(&mut self, client_id: u64) {
-        if let Some(editor) = &self.editor {
-            editor.report_reveal(client_id);
-        }
-    }
-
     fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
         self.editor
             .as_ref()
@@ -455,39 +322,10 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
 }
 
 impl EditorSession {
-    pub(crate) fn new<A: crate::App>(
-        chrome: Rc<Vec<EditorBand>>,
-        instance: EditorInstanceId,
-        waker: Waker,
-    ) -> Self {
-        Self::of(Box::new(A::default()), None, chrome, instance, waker)
-    }
-
-    pub(crate) fn beui<A: crate::BeuiApp>(
-        chrome: Rc<Vec<EditorBand>>,
-        instance: EditorInstanceId,
-        waker: Waker,
-    ) -> Self {
-        Self::of(
-            Box::new(BeuiHolder::<A>::new()),
-            Some(HashMap::new()),
-            chrome,
-            instance,
-            waker,
-        )
-    }
-
-    fn of(
-        app: Box<dyn AppUi>,
-        beui: Option<HashMap<EditorRegion, BeuiRegion>>,
-        chrome: Rc<Vec<EditorBand>>,
-        instance: EditorInstanceId,
-        waker: Waker,
-    ) -> Self {
+    pub(crate) fn new<A: crate::BeuiApp>(instance: EditorInstanceId, waker: Waker) -> Self {
         Self {
-            app,
-            beui,
-            chrome,
+            app: Box::new(BeuiHolder::<A>::new()),
+            beui: HashMap::new(),
             instance,
             regions: HashMap::new(),
             host: EditorHost::new(waker),
@@ -527,6 +365,10 @@ impl EditorSession {
         self.host.set_block_content(content_type, bytes, applied);
     }
 
+    pub(crate) fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
+        self.host.push_content_operations(operations);
+    }
+
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
         self.host.set_focused_block(focused);
     }
@@ -545,11 +387,23 @@ impl EditorSession {
         self.host.set_artifacts(states);
     }
 
-    pub(crate) fn set_view(&self, view: egui::Rect, scale: f32) {
+    pub(crate) fn set_histories(&self, states: &[block_plugin_api::HistoryState]) {
+        self.host.set_histories(states.iter().map(|state| {
+            (
+                Uuid::from_bytes(state.block_id),
+                crate::host::BlockHistory {
+                    can_undo: state.can_undo,
+                    can_redo: state.can_redo,
+                },
+            )
+        }));
+    }
+
+    pub(crate) fn set_view(&self, view: beui::Rect, scale: f32) {
         self.host.set_view(view, scale);
     }
 
-    pub(crate) fn resized(&mut self, size: egui::Vec2) {
+    pub(crate) fn resized(&mut self, size: beui::Vec2) {
         self.app.set_intrinsic_size(size);
     }
 
@@ -570,27 +424,10 @@ impl EditorSession {
         self.app.presence_visible(visible);
     }
 
-    fn viewers(&self) -> Vec<block_ui::frame::Viewer> {
-        let Some((client, block_id)) = &self.block else {
-            return Vec::new();
-        };
-        let mut viewers: Vec<_> = client
-            .presence::<UserActive>(*block_id)
-            .into_iter()
-            .map(|(client_id, user)| block_ui::frame::Viewer {
-                client_id,
-                color: user.color,
-            })
-            .collect();
-        viewers.sort_by_key(|viewer| viewer.client_id);
-        viewers
-    }
-
     pub(crate) fn replace_child(&mut self, request_id: u64, old: Uuid, new: Uuid) {
         let document = self
             .beui
-            .as_mut()
-            .and_then(|regions| regions.get_mut(&EditorRegion::Frame))
+            .get_mut(&EditorRegion::Frame)
             .and_then(|region| region.chrome.as_mut())
             .map(BeuiFrame::document_mut);
         let app = &mut self.app;
@@ -890,6 +727,12 @@ impl EditorSession {
                 blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
             }));
         }
+        if let Some(blocks) = self.host.take_history_watch() {
+            messages.push(Message::Editor(EditorMessage::WatchHistory {
+                instance,
+                blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
+            }));
+        }
         messages
     }
 
@@ -951,13 +794,13 @@ impl EditorSession {
         sizes
     }
 
-    fn used(&mut self, region: EditorRegion, content: egui::Rect) {
+    fn used(&mut self, region: EditorRegion, content: beui::Rect) {
         let origin = self.rect(region).min;
         let Some(state) = self.regions.get_mut(&region) else {
             return;
         };
-        let used = (content.max - origin).max(egui::Vec2::ZERO);
-        state.used = Some(egui::vec2(used.x.round(), used.y.round()));
+        let used = (content.max - origin).max(beui::Vec2::ZERO);
+        state.used = Some(beui::vec2(used.x.round(), used.y.round()));
     }
 
     pub(crate) fn replied(&self, request_id: u64, reply: HostReply) {
@@ -1007,176 +850,7 @@ impl EditorSession {
         self.host.retain_child_statuses(&live);
     }
 
-    pub(crate) fn run(
-        &mut self,
-        region: EditorRegion,
-        context: &egui::Context,
-        time: f64,
-        generation: u64,
-    ) -> egui::FullOutput {
-        self.generation = generation;
-        let scale_factor = self.scale_factor(region);
-        let rect = self.rect(region);
-        let visible_rect = self.visible_rect(region);
-        let state = self.regions.entry(region).or_default();
-        state.input.screen_rect = Some(rect);
-        state.input.time = Some(time);
-        let mut input = std::mem::take(&mut state.input);
-        input.viewport_id = viewport_id(region);
-        input
-            .viewports
-            .entry(input.viewport_id)
-            .or_default()
-            .native_pixels_per_point = Some(scale_factor);
-        state.input.focused = input.focused;
-        state.input.modifiers = input.modifiers;
-        let drag = self.drag.and_then(|(dragged, drag)| {
-            (dragged == region).then(|| BlockDrag {
-                position: drag.position + rect.min.to_vec2(),
-                ..drag
-            })
-        });
-        self.host.set_drag(drag);
-        let files = self.files.as_ref().and_then(|(dropped, files)| {
-            (*dropped == region).then(|| crate::host::FileDrop {
-                position: files.position + rect.min.to_vec2(),
-                ..files.clone()
-            })
-        });
-        let delivered_files = files.as_ref().is_some_and(|files| files.dropped);
-        self.host.set_files(files);
-        let delivered_drop = drag.is_some_and(|drag| drag.dropped);
-        let viewers = self.viewers();
-        let app = &mut self.app;
-        let plain =
-            egui::Frame::central_panel(&context.global_style()).inner_margin(egui::Margin::ZERO);
-        let creating = self.creating;
-        let artifact = &mut self.artifact;
-        let mut draft = artifact
-            .as_mut()
-            .filter(|_| region == EditorRegion::ArtifactSettings)
-            .map(|artifact| artifact.draft.clone());
-        let spec = self
-            .regions
-            .get(&region)
-            .and_then(|state| state.frame.clone())
-            .unwrap_or_default();
-        let chrome = Rc::clone(&self.chrome);
-        let host = self.host.clone();
-        self.host.begin_region(region, rect.min.to_vec2());
-        let mut content = rect;
-        let mut painted = Vec::new();
-        let mut leaving = false;
-        let mut reveal = None;
-        let mut content_band = rect;
-        let output = context.run_ui(input, |ui| {
-            ui.set_clip_rect(ui.clip_rect().intersect(visible_rect));
-            match (&mut draft, creating, region) {
-                (Some(draft), _, _) => {
-                    egui::CentralPanel::default()
-                        .frame(plain)
-                        .show_inside(ui, |ui| app.artifact_settings_ui(ui, draft));
-                }
-                (None, true, _) => {
-                    egui::CentralPanel::default()
-                        .frame(plain)
-                        .show_inside(ui, |ui| app.creation_ui(ui));
-                }
-                (None, false, EditorRegion::Frame) => {
-                    let band = |band| chrome.contains(&band) && host.band_shown(band);
-                    let mut bands = AppBands {
-                        app,
-                        background: plain.fill,
-                    };
-                    let outcome = block_ui::frame::Frame::new(egui::Id::new("plugin frame"))
-                        .chrome(match spec.chrome {
-                            FrameChrome::Drawn => block_ui::frame::Chrome::Drawn,
-                            FrameChrome::None => block_ui::frame::Chrome::None,
-                        })
-                        .toolbar(band(EditorBand::Toolbar))
-                        .left_sidebar(band(EditorBand::LeftSidebar))
-                        .right_sidebar(band(EditorBand::RightSidebar))
-                        .content(
-                            spec.content
-                                .map(|content| host_rect(content, rect.min.to_vec2())),
-                        )
-                        .trail(spec.trail.clone())
-                        .viewers(viewers.clone())
-                        .show(ui, &mut bands);
-                    leaving |= outcome.exit;
-                    reveal = outcome.reveal;
-                    content_band = outcome.rects.content;
-                    painted = outcome.rects.painted().collect();
-                }
-                (None, false, EditorRegion::Preview) => {
-                    egui::CentralPanel::default()
-                        .frame(egui::Frame::NONE)
-                        .show_inside(ui, |ui| app.preview_ui(ui));
-                }
-                (None, false, EditorRegion::ArtifactSettings) => {}
-            }
-            content = ui.min_rect();
-        });
-        if let (Some(artifact), Some(draft)) = (artifact.as_mut(), draft) {
-            artifact.edited |= artifact.draft != draft;
-            artifact.draft = draft;
-        }
-        let floating = floating_rects(context, visible_rect);
-        for occluder in &floating {
-            self.host.occlude(*occluder);
-        }
-        let (children, occluders) = self.host.end_region(region);
-        let origin = rect.min.to_vec2();
-        let screen = self.placement(region).map(|placement| placement.screen);
-        if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
-            state.children = children;
-            state.occluders = occluders;
-            state.report = (region == EditorRegion::Frame).then(|| FrameReport {
-                screen,
-                content: plugin_rect(content_band, origin),
-                painted: painted
-                    .iter()
-                    .map(|rect| plugin_rect(*rect, origin))
-                    .collect(),
-                floating: floating
-                    .iter()
-                    .map(|rect| plugin_rect(*rect, origin))
-                    .collect(),
-            });
-        }
-        self.host.set_drag(None);
-        self.host.set_files(None);
-        if delivered_drop {
-            self.drag = None;
-        }
-        if delivered_files {
-            self.files = None;
-        }
-        self.leaving |= leaving;
-        if let Some(client_id) = reveal {
-            self.app.reveal_presence(client_id);
-        }
-        self.used(region, content);
-        for command in &output.platform_output.commands {
-            if let egui::OutputCommand::CopyText(text) = command {
-                if !text.is_empty() {
-                    self.copied.push(text.clone());
-                }
-            }
-        }
-        let cursor = cursor_icon(output.platform_output.cursor_icon);
-        let ime = output.platform_output.ime.map(|ime| ImeArea {
-            rect: plugin_rect(ime.rect, origin),
-            cursor: plugin_rect(ime.cursor_rect, origin),
-        });
-        if let Some(state) = self.regions.get_mut(&region) {
-            state.cursor = cursor;
-            state.ime = ime;
-        }
-        output
-    }
-
-    pub(crate) fn scale_factor(&self, region: EditorRegion) -> f32 {
+    fn scale_factor(&self, region: EditorRegion) -> f32 {
         self.placement(region)
             .map_or(1.0, |placement| placement.scale_factor())
     }
@@ -1187,47 +861,25 @@ impl EditorSession {
             .and_then(|state| state.placement.as_ref())
     }
 
-    pub(crate) fn visible_rect(&self, region: EditorRegion) -> egui::Rect {
-        let Some(placement) = self.placement(region) else {
-            return egui::Rect::ZERO;
-        };
-        let scale = placement.scale_factor();
-        egui::Rect::from_min_size(
-            egui::pos2(placement.x as f32 / scale, placement.y as f32 / scale),
-            egui::vec2(
-                placement.width as f32 / scale,
-                placement.height as f32 / scale,
-            ),
-        )
-    }
-
-    fn rect(&self, region: EditorRegion) -> egui::Rect {
+    fn rect(&self, region: EditorRegion) -> beui::Rect {
         let state = self.regions.get(&region);
         let (Some(placement), Some(metrics)) = (
             state.and_then(|state| state.placement.as_ref()),
             state.and_then(|state| state.metrics.as_ref()),
         ) else {
-            return egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::ZERO);
+            return beui::Rect::ZERO;
         };
         let scale = placement.scale_factor();
-        egui::Rect::from_min_size(
-            egui::pos2(
+        beui::Rect::from_min_size(
+            beui::pos2(
                 placement.x as f32 / scale - metrics.visible_x,
                 placement.y as f32 / scale - metrics.visible_y,
             ),
-            egui::vec2(metrics.logical_width, metrics.logical_height),
+            beui::vec2(metrics.logical_width, metrics.logical_height),
         )
     }
 
-    pub(crate) fn is_beui(&self) -> bool {
-        self.beui.is_some()
-    }
-
-    pub(crate) fn run_beui(
-        &mut self,
-        region: EditorRegion,
-        generation: u64,
-    ) -> Option<beui::FrameOutput> {
+    pub(crate) fn run(&mut self, region: EditorRegion, generation: u64) -> beui::FrameOutput {
         self.generation = generation;
         let scale_factor = self.scale_factor(region);
         let host = self.rect(region);
@@ -1243,8 +895,7 @@ impl EditorSession {
             .filter(|_| region == EditorRegion::ArtifactSettings)
             .map(|artifact| artifact.draft.clone());
         let (ratio, pixels_per_point) = {
-            let beui = self.beui.as_mut()?;
-            let state = beui.entry(region).or_insert_with(BeuiRegion::new);
+            let state = self.beui.entry(region).or_insert_with(BeuiRegion::new);
             state.context.set_pixels_per_point(scale_factor);
             let pixels_per_point = state.context.pixels_per_point();
             (scale_factor / pixels_per_point, pixels_per_point)
@@ -1252,27 +903,37 @@ impl EditorSession {
         self.host.begin_region(region, host.min.to_vec2());
         self.host
             .begin_beui_frame(ratio, pixels_per_point, spec.chrome == FrameChrome::Drawn);
+        let drag = self.drag.and_then(|(dragged, drag)| {
+            (dragged == region).then(|| BlockDrag {
+                position: drag.position + host.min.to_vec2(),
+                ..drag
+            })
+        });
+        self.host.set_drag(drag);
+        let files = self.files.as_ref().and_then(|(dropped, files)| {
+            (*dropped == region).then(|| crate::host::FileDrop {
+                position: files.position + host.min.to_vec2(),
+                ..files.clone()
+            })
+        });
+        let delivered_drop = drag.is_some_and(|drag| drag.dropped);
+        let delivered_files = files.as_ref().is_some_and(|files| files.dropped);
+        self.host.set_files(files);
         let app = &mut self.app;
-        let beui = self.beui.as_mut()?;
-        let state = beui.entry(region).or_insert_with(BeuiRegion::new);
+        let state = self.beui.entry(region).or_insert_with(BeuiRegion::new);
         let events = std::mem::take(&mut state.events);
         let context = state.context.clone();
-        let rect = scaled(host, ratio);
-
-        let frame = beui::Rect::from_min_max(
-            beui::pos2(rect.min.x, rect.min.y),
-            beui::pos2(rect.max.x, rect.max.y),
-        );
+        let frame = scaled(host, ratio);
         let drawn = spec.chrome == FrameChrome::Drawn;
         if region == EditorRegion::Frame && !creating && state.chrome.is_none() {
-            state.chrome = Some(BeuiFrame::build(|| app.beui_view()));
+            state.chrome = Some(BeuiFrame::build(|| app.view()));
         }
         let mut exit = false;
         let mut content_rect = None;
         let mut painted = Vec::new();
         let mut floating = Vec::new();
         let output = context.run(beui::RawInput { events }, |context| match region {
-            EditorRegion::Frame if creating => app.beui_creation(context, frame),
+            EditorRegion::Frame if creating => app.creation(context, frame),
             EditorRegion::Frame => {
                 let chrome = state
                     .chrome
@@ -1284,19 +945,19 @@ impl EditorSession {
                 beui::reactive::with_reactive_scope(chrome.document_mut(), || {
                     set_trail.set(trail);
                     set_shown.set(drawn);
-                    app.beui_update();
+                    app.update();
                 });
                 chrome.document_mut().show(context, frame);
-                app.beui_after_layout(chrome.document());
+                app.after_layout(chrome.document());
                 content_rect = chrome.document().node_rect(chrome.content());
                 exit = chrome.exit().get() || beui_frame::escaped(context);
                 painted = vec![frame];
                 floating = chrome.document().overlay_rects();
             }
-            EditorRegion::Preview => app.beui_preview(context, frame),
+            EditorRegion::Preview => app.preview(context, frame),
             EditorRegion::ArtifactSettings => {
                 if let Some(draft) = draft.as_mut() {
-                    app.beui_artifact_settings(context, frame, draft);
+                    app.artifact_settings(context, frame, draft);
                 }
             }
         });
@@ -1310,13 +971,20 @@ impl EditorSession {
             artifact.draft = draft;
         }
         let (placed, occluders) = self.host.end_region(region);
+        self.host.set_drag(None);
+        self.host.set_files(None);
+        if delivered_drop {
+            self.drag = None;
+        }
+        if delivered_files {
+            self.files = None;
+        }
         let origin = host.min.to_vec2();
         let screen = self.placement(region).map(|placement| placement.screen);
         let content = content_rect.unwrap_or(frame);
         self.leaving |= exit;
         self.used(region, host);
-        let reported =
-            |rect: beui::Rect| plugin_rect(scaled(egui_rect(rect), ratio.recip()), origin);
+        let reported = |rect: beui::Rect| plugin_rect(scaled(rect, ratio.recip()), origin);
         let reported_content = self
             .host
             .take_beui_content()
@@ -1337,27 +1005,24 @@ impl EditorSession {
                 floating: floating.iter().map(|rect| reported(*rect)).collect(),
             });
         }
-        self.host.grab_cursor(self.beui_pointer_locked());
+        self.host.grab_cursor(self.pointer_locked());
         if let Some(text) = &output.copied_text {
             self.copied.push(text.clone());
         }
         self.paste_requested |= output.paste_requested;
-        Some(output)
+        output
     }
 
-    fn beui_pointer_locked(&self) -> bool {
+    fn pointer_locked(&self) -> bool {
         self.beui
-            .as_ref()
-            .is_some_and(|beui| beui.values().any(|region| region.context.pointer_locked()))
+            .values()
+            .any(|region| region.context.pointer_locked())
     }
 
-    fn beui_input(&mut self, region: EditorRegion, event: &InputEvent) {
+    pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
         let scale_factor = self.scale_factor(region);
         let origin = self.rect(region).min.to_vec2();
-        let Some(beui) = self.beui.as_mut() else {
-            return;
-        };
-        let state = beui.entry(region).or_insert_with(BeuiRegion::new);
+        let state = self.beui.entry(region).or_insert_with(BeuiRegion::new);
         let ratio = state
             .context
             .simulated_pixels_per_point()
@@ -1480,124 +1145,6 @@ impl EditorSession {
             InputEvent::Ime(_) | InputEvent::Focus(_) => {}
         }
     }
-
-    pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
-        if self.beui.is_some() {
-            return self.beui_input(region, event);
-        }
-        let origin = self.rect(region).min.to_vec2();
-        let Some(state) = self.regions.get_mut(&region) else {
-            return;
-        };
-        match event {
-            InputEvent::PointerMoved { x, y } => state
-                .input
-                .events
-                .push(egui::Event::PointerMoved(egui::pos2(*x, *y) + origin)),
-            InputEvent::PointerLeft => state.input.events.push(egui::Event::PointerGone),
-            InputEvent::PointerMotion { x, y } => state
-                .input
-                .events
-                .push(egui::Event::MouseMoved(egui::vec2(*x, *y))),
-            InputEvent::PointerButton {
-                button,
-                pressed,
-                x,
-                y,
-            } => {
-                state.input.events.push(egui::Event::PointerButton {
-                    pos: egui::pos2(*x, *y) + origin,
-                    button: pointer_button(*button),
-                    pressed: *pressed,
-                    modifiers: state.input.modifiers,
-                });
-            }
-            InputEvent::Wheel { x, y, unit } => {
-                state.input.events.push(egui::Event::MouseWheel {
-                    unit: wheel_unit(*unit),
-                    delta: egui::vec2(*x, *y),
-                    phase: egui::TouchPhase::Move,
-                    modifiers: state.input.modifiers,
-                });
-            }
-            InputEvent::Touch {
-                device,
-                finger,
-                phase,
-                x,
-                y,
-                force,
-            } => state.input.events.push(egui::Event::Touch {
-                device_id: egui::TouchDeviceId(*device),
-                id: egui::TouchId(*finger),
-                phase: egui_touch_phase(*phase),
-                pos: egui::pos2(*x, *y) + origin,
-                force: *force,
-            }),
-            InputEvent::Zoom { factor } => state.input.events.push(egui::Event::Zoom(*factor)),
-            InputEvent::Key {
-                key,
-                pressed,
-                repeat,
-            } => state.input.events.push(egui::Event::Key {
-                key: egui_key(*key),
-                physical_key: None,
-                pressed: *pressed,
-                repeat: *repeat,
-                modifiers: state.input.modifiers,
-            }),
-            InputEvent::Text(text) => state.input.events.push(egui::Event::Text(text.clone())),
-            InputEvent::Paste(text) => state.input.events.push(egui::Event::Paste(text.clone())),
-            InputEvent::Modifiers(modifiers) => {
-                state.input.modifiers = egui::Modifiers {
-                    alt: modifiers.alt,
-                    ctrl: modifiers.control,
-                    shift: modifiers.shift,
-                    mac_cmd: false,
-                    command: modifiers.command,
-                };
-            }
-            InputEvent::Ime(ime) => state.input.events.push(egui::Event::Ime(match ime {
-                ImeInput::Enabled => egui::ImeEvent::Enabled,
-                ImeInput::Preedit(text) => egui::ImeEvent::Preedit(text.clone()),
-                ImeInput::Commit(text) => egui::ImeEvent::Commit(text.clone()),
-                ImeInput::Disabled => egui::ImeEvent::Disabled,
-            })),
-            InputEvent::Focus(focused) => state.input.focused = *focused,
-        }
-    }
-}
-
-struct AppBands<'a> {
-    app: &'a mut Box<dyn AppUi>,
-    background: egui::Color32,
-}
-
-impl block_ui::frame::FrameBands for AppBands<'_> {
-    fn toolbar_ui(&mut self, ui: &mut egui::Ui) {
-        self.app.toolbar_ui(ui);
-    }
-
-    fn left_sidebar_ui(&mut self, ui: &mut egui::Ui) {
-        self.app.left_sidebar_ui(ui);
-    }
-
-    fn right_sidebar_ui(&mut self, ui: &mut egui::Ui) {
-        self.app.right_sidebar_ui(ui);
-    }
-
-    fn content_ui(&mut self, ui: &mut egui::Ui) {
-        let rect = ui.max_rect();
-        ui.painter().rect_filled(rect, 0.0, self.background);
-        self.app.main_ui(ui);
-    }
-}
-
-fn egui_rect(rect: beui::Rect) -> egui::Rect {
-    egui::Rect::from_min_max(
-        egui::pos2(rect.min.x, rect.min.y),
-        egui::pos2(rect.max.x, rect.max.y),
-    )
 }
 
 fn beui_button(button: PointerButton) -> Option<beui::PointerButton> {
@@ -1615,15 +1162,6 @@ fn beui_touch_phase(phase: block_plugin_api::TouchPhase) -> beui::TouchPhase {
         block_plugin_api::TouchPhase::Move => beui::TouchPhase::Move,
         block_plugin_api::TouchPhase::End => beui::TouchPhase::End,
         block_plugin_api::TouchPhase::Cancel => beui::TouchPhase::Cancel,
-    }
-}
-
-fn egui_touch_phase(phase: block_plugin_api::TouchPhase) -> egui::TouchPhase {
-    match phase {
-        block_plugin_api::TouchPhase::Start => egui::TouchPhase::Start,
-        block_plugin_api::TouchPhase::Move => egui::TouchPhase::Move,
-        block_plugin_api::TouchPhase::End => egui::TouchPhase::End,
-        block_plugin_api::TouchPhase::Cancel => egui::TouchPhase::Cancel,
     }
 }
 
@@ -1703,24 +1241,22 @@ fn beui_cursor(cursor: beui::CursorIcon) -> CursorIcon {
         beui::CursorIcon::ResizeNwSe => CursorIcon::ResizeNwSe,
         beui::CursorIcon::Text => CursorIcon::Text,
         beui::CursorIcon::Wait => CursorIcon::Wait,
+        beui::CursorIcon::None => CursorIcon::None,
+        beui::CursorIcon::Move => CursorIcon::Move,
+        beui::CursorIcon::Progress => CursorIcon::Progress,
+        beui::CursorIcon::Help => CursorIcon::Help,
+        beui::CursorIcon::Alias => CursorIcon::Pointer,
     }
 }
 
-fn scaled(rect: egui::Rect, ratio: f32) -> egui::Rect {
-    egui::Rect::from_min_max(
-        egui::pos2(rect.min.x * ratio, rect.min.y * ratio),
-        egui::pos2(rect.max.x * ratio, rect.max.y * ratio),
+fn scaled(rect: beui::Rect, ratio: f32) -> beui::Rect {
+    beui::Rect::from_min_max(
+        beui::pos2(rect.min.x * ratio, rect.min.y * ratio),
+        beui::pos2(rect.max.x * ratio, rect.max.y * ratio),
     )
 }
 
-fn host_rect(rect: ChildRect, origin: egui::Vec2) -> egui::Rect {
-    egui::Rect::from_min_size(
-        egui::pos2(rect.x, rect.y) + origin,
-        egui::vec2(rect.width, rect.height),
-    )
-}
-
-fn plugin_rect(rect: egui::Rect, origin: egui::Vec2) -> ChildRect {
+fn plugin_rect(rect: beui::Rect, origin: beui::Vec2) -> ChildRect {
     let rect = rect.translate(-origin);
     ChildRect {
         x: rect.min.x,
@@ -1728,10 +1264,6 @@ fn plugin_rect(rect: egui::Rect, origin: egui::Vec2) -> ChildRect {
         width: rect.width(),
         height: rect.height(),
     }
-}
-
-pub(crate) fn viewport_id(region: EditorRegion) -> egui::ViewportId {
-    egui::ViewportId(egui::Id::new(("plugin editor region", region)))
 }
 
 fn bounded(
@@ -1752,178 +1284,5 @@ fn bounded(
     )
 }
 
-fn floating_rects(context: &egui::Context, visible: egui::Rect) -> Vec<egui::Rect> {
-    context.memory(|memory| {
-        memory
-            .layer_ids()
-            .filter(|layer| layer.order >= egui::Order::Middle)
-            .filter_map(|layer| memory.area_rect(layer.id))
-            .filter(|rect| rect.intersects(visible))
-            .collect()
-    })
-}
-
-fn cursor_icon(cursor: egui::CursorIcon) -> CursorIcon {
-    match cursor {
-        egui::CursorIcon::None => CursorIcon::None,
-        egui::CursorIcon::PointingHand => CursorIcon::Pointer,
-        egui::CursorIcon::Text | egui::CursorIcon::VerticalText => CursorIcon::Text,
-        egui::CursorIcon::Crosshair | egui::CursorIcon::Cell => CursorIcon::Crosshair,
-        egui::CursorIcon::Grab => CursorIcon::Grab,
-        egui::CursorIcon::Grabbing => CursorIcon::Grabbing,
-        egui::CursorIcon::Move | egui::CursorIcon::AllScroll => CursorIcon::Move,
-        egui::CursorIcon::NotAllowed | egui::CursorIcon::NoDrop => CursorIcon::NotAllowed,
-        egui::CursorIcon::Wait => CursorIcon::Wait,
-        egui::CursorIcon::Progress => CursorIcon::Progress,
-        egui::CursorIcon::Help => CursorIcon::Help,
-        egui::CursorIcon::ResizeHorizontal
-        | egui::CursorIcon::ResizeColumn
-        | egui::CursorIcon::ResizeEast
-        | egui::CursorIcon::ResizeWest => CursorIcon::ResizeHorizontal,
-        egui::CursorIcon::ResizeVertical
-        | egui::CursorIcon::ResizeRow
-        | egui::CursorIcon::ResizeNorth
-        | egui::CursorIcon::ResizeSouth => CursorIcon::ResizeVertical,
-        egui::CursorIcon::ResizeNeSw
-        | egui::CursorIcon::ResizeNorthEast
-        | egui::CursorIcon::ResizeSouthWest => CursorIcon::ResizeNeSw,
-        egui::CursorIcon::ResizeNwSe
-        | egui::CursorIcon::ResizeNorthWest
-        | egui::CursorIcon::ResizeSouthEast => CursorIcon::ResizeNwSe,
-        _ => CursorIcon::Default,
-    }
-}
-
-fn pointer_button(button: PointerButton) -> egui::PointerButton {
-    match button {
-        PointerButton::Primary => egui::PointerButton::Primary,
-        PointerButton::Secondary => egui::PointerButton::Secondary,
-        PointerButton::Middle => egui::PointerButton::Middle,
-        PointerButton::Back => egui::PointerButton::Extra1,
-        PointerButton::Forward | PointerButton::Other(_) => egui::PointerButton::Extra2,
-    }
-}
-
-fn wheel_unit(unit: WheelUnit) -> egui::MouseWheelUnit {
-    match unit {
-        WheelUnit::Pixels => egui::MouseWheelUnit::Point,
-        WheelUnit::Lines => egui::MouseWheelUnit::Line,
-        WheelUnit::Pages => egui::MouseWheelUnit::Page,
-    }
-}
-
 #[cfg(test)]
 mod tests;
-
-fn egui_key(key: Key) -> egui::Key {
-    match key {
-        Key::ArrowDown => egui::Key::ArrowDown,
-        Key::ArrowLeft => egui::Key::ArrowLeft,
-        Key::ArrowRight => egui::Key::ArrowRight,
-        Key::ArrowUp => egui::Key::ArrowUp,
-        Key::Escape => egui::Key::Escape,
-        Key::Tab => egui::Key::Tab,
-        Key::Backspace => egui::Key::Backspace,
-        Key::Enter => egui::Key::Enter,
-        Key::Space => egui::Key::Space,
-        Key::Insert => egui::Key::Insert,
-        Key::Delete => egui::Key::Delete,
-        Key::Home => egui::Key::Home,
-        Key::End => egui::Key::End,
-        Key::PageUp => egui::Key::PageUp,
-        Key::PageDown => egui::Key::PageDown,
-        Key::Copy => egui::Key::Copy,
-        Key::Cut => egui::Key::Cut,
-        Key::Paste => egui::Key::Paste,
-        Key::Colon => egui::Key::Colon,
-        Key::Comma => egui::Key::Comma,
-        Key::Backslash => egui::Key::Backslash,
-        Key::Slash => egui::Key::Slash,
-        Key::Pipe => egui::Key::Pipe,
-        Key::Questionmark => egui::Key::Questionmark,
-        Key::Exclamationmark => egui::Key::Exclamationmark,
-        Key::OpenBracket => egui::Key::OpenBracket,
-        Key::CloseBracket => egui::Key::CloseBracket,
-        Key::OpenCurlyBracket => egui::Key::OpenCurlyBracket,
-        Key::CloseCurlyBracket => egui::Key::CloseCurlyBracket,
-        Key::Backtick => egui::Key::Backtick,
-        Key::Minus => egui::Key::Minus,
-        Key::Period => egui::Key::Period,
-        Key::Plus => egui::Key::Plus,
-        Key::Equals => egui::Key::Equals,
-        Key::Semicolon => egui::Key::Semicolon,
-        Key::Quote => egui::Key::Quote,
-        Key::Num0 => egui::Key::Num0,
-        Key::Num1 => egui::Key::Num1,
-        Key::Num2 => egui::Key::Num2,
-        Key::Num3 => egui::Key::Num3,
-        Key::Num4 => egui::Key::Num4,
-        Key::Num5 => egui::Key::Num5,
-        Key::Num6 => egui::Key::Num6,
-        Key::Num7 => egui::Key::Num7,
-        Key::Num8 => egui::Key::Num8,
-        Key::Num9 => egui::Key::Num9,
-        Key::A => egui::Key::A,
-        Key::B => egui::Key::B,
-        Key::C => egui::Key::C,
-        Key::D => egui::Key::D,
-        Key::E => egui::Key::E,
-        Key::F => egui::Key::F,
-        Key::G => egui::Key::G,
-        Key::H => egui::Key::H,
-        Key::I => egui::Key::I,
-        Key::J => egui::Key::J,
-        Key::K => egui::Key::K,
-        Key::L => egui::Key::L,
-        Key::M => egui::Key::M,
-        Key::N => egui::Key::N,
-        Key::O => egui::Key::O,
-        Key::P => egui::Key::P,
-        Key::Q => egui::Key::Q,
-        Key::R => egui::Key::R,
-        Key::S => egui::Key::S,
-        Key::T => egui::Key::T,
-        Key::U => egui::Key::U,
-        Key::V => egui::Key::V,
-        Key::W => egui::Key::W,
-        Key::X => egui::Key::X,
-        Key::Y => egui::Key::Y,
-        Key::Z => egui::Key::Z,
-        Key::F1 => egui::Key::F1,
-        Key::F2 => egui::Key::F2,
-        Key::F3 => egui::Key::F3,
-        Key::F4 => egui::Key::F4,
-        Key::F5 => egui::Key::F5,
-        Key::F6 => egui::Key::F6,
-        Key::F7 => egui::Key::F7,
-        Key::F8 => egui::Key::F8,
-        Key::F9 => egui::Key::F9,
-        Key::F10 => egui::Key::F10,
-        Key::F11 => egui::Key::F11,
-        Key::F12 => egui::Key::F12,
-        Key::F13 => egui::Key::F13,
-        Key::F14 => egui::Key::F14,
-        Key::F15 => egui::Key::F15,
-        Key::F16 => egui::Key::F16,
-        Key::F17 => egui::Key::F17,
-        Key::F18 => egui::Key::F18,
-        Key::F19 => egui::Key::F19,
-        Key::F20 => egui::Key::F20,
-        Key::F21 => egui::Key::F21,
-        Key::F22 => egui::Key::F22,
-        Key::F23 => egui::Key::F23,
-        Key::F24 => egui::Key::F24,
-        Key::F25 => egui::Key::F25,
-        Key::F26 => egui::Key::F26,
-        Key::F27 => egui::Key::F27,
-        Key::F28 => egui::Key::F28,
-        Key::F29 => egui::Key::F29,
-        Key::F30 => egui::Key::F30,
-        Key::F31 => egui::Key::F31,
-        Key::F32 => egui::Key::F32,
-        Key::F33 => egui::Key::F33,
-        Key::F34 => egui::Key::F34,
-        Key::F35 => egui::Key::F35,
-        Key::BrowserBack => egui::Key::BrowserBack,
-    }
-}

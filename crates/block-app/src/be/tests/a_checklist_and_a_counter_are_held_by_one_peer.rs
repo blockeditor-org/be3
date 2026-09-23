@@ -12,7 +12,7 @@ fn a_checklist_and_a_counter_are_held_by_one_peer() {
     add(counter, 3);
     operate(
         checklist,
-        ChecklistContent::encode_operation(&ChecklistOp::add("buy milk")),
+        ChecklistContent::encode_operation(&Checklist::add("buy milk").1),
     );
     wait_for_count(counter, 3);
     let listed = |shared: &Shared| {
@@ -22,7 +22,8 @@ fn a_checklist_and_a_counter_are_held_by_one_peer() {
             .flatten()
             .map(|content| {
                 content
-                    .items()
+                    .root()
+                    .items
                     .iter()
                     .map(|item| item.text.clone())
                     .collect::<Vec<_>>()

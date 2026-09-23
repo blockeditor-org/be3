@@ -4,16 +4,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-use eframe::egui;
+use crate::ui::PerformanceRow;
 
 const SAMPLE_CAPACITY: usize = 120;
-const CAUSE_CAPACITY: usize = 8;
 
 #[derive(Clone)]
 pub struct LastFrame {
     pub number: u64,
     pub duration: Duration,
-    pub causes: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -36,10 +34,8 @@ struct Group {
 
 #[derive(Default)]
 struct PerformanceState {
-    open: bool,
     frame: u64,
     frame_start: Option<Instant>,
-    frame_causes: Vec<String>,
     last_frame: Option<LastFrame>,
     frame_times: VecDeque<Duration>,
     groups: BTreeMap<String, Group>,
@@ -53,12 +49,10 @@ fn state() -> MutexGuard<'static, PerformanceState> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-pub fn begin_frame(context: &egui::Context) {
-    let causes = repaint_causes(context);
+pub fn begin_frame() {
     let mut state = state();
     state.frame = state.frame.wrapping_add(1);
     state.frame_start = Some(Instant::now());
-    state.frame_causes = causes;
 }
 
 pub fn end_frame() {
@@ -68,7 +62,6 @@ pub fn end_frame() {
         state.last_frame = Some(LastFrame {
             number: state.frame,
             duration: elapsed,
-            causes: state.frame_causes.clone(),
         });
         push_sample(&mut state.frame_times, elapsed);
     }
@@ -76,42 +69,6 @@ pub fn end_frame() {
 
 pub fn last_frame() -> Option<LastFrame> {
     state().last_frame.clone()
-}
-
-fn repaint_causes(context: &egui::Context) -> Vec<String> {
-    let mut causes: Vec<String> = Vec::new();
-    for cause in context.repaint_causes() {
-        let cause = format_cause(&cause);
-        if !causes.contains(&cause) {
-            causes.push(cause);
-        }
-        if causes.len() == CAUSE_CAPACITY {
-            break;
-        }
-    }
-    causes
-}
-
-fn format_cause(cause: &egui::RepaintCause) -> String {
-    let file = shorten_path(cause.file);
-    let line = cause.line;
-    if cause.reason.is_empty() {
-        format!("{file}:{line}")
-    } else {
-        format!("{file}:{line} ({})", cause.reason)
-    }
-}
-
-fn shorten_path(path: &str) -> String {
-    let mut components: Vec<&str> = path.split(['/', '\\']).collect();
-    if components.len() > 3 {
-        components = components.split_off(components.len() - 3);
-    }
-    components.join("/")
-}
-
-pub fn open() {
-    state().open = true;
 }
 
 pub fn record_group_duration(group: &str, id: &str, duration: Duration) {
@@ -147,69 +104,40 @@ fn push_sample(samples: &mut VecDeque<Duration>, duration: Duration) {
     samples.push_back(duration);
 }
 
-pub fn show(context: &egui::Context) {
-    let mut state = state();
-    if !state.open {
-        return;
-    }
+pub fn rows() -> Vec<PerformanceRow> {
+    let state = state();
     let frame = state.frame;
-    let mut open = state.open;
-    egui::Window::new("Performance")
-        .open(&mut open)
-        .resizable(true)
-        .default_width(480.0)
-        .show(context, |ui| {
-            timing_grid(ui, "performance-frame", |ui| {
-                timing_row(ui, "Full frame", &state.frame_times);
-            });
-            for (id, group) in state
-                .groups
-                .iter()
-                .filter(|(_, group)| group.seen_frame == frame)
-            {
-                egui::CollapsingHeader::new(id)
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        timing_grid(ui, ("performance-group", id), |ui| {
-                            for (id, measurement) in &group.measurements {
-                                measurement_row(ui, id, measurement);
-                            }
-                        });
-                    });
+    let mut rows = vec![timing_row("Full frame", &state.frame_times)];
+    for (id, group) in state
+        .groups
+        .iter()
+        .filter(|(_, group)| group.seen_frame == frame)
+    {
+        rows.push(PerformanceRow {
+            heading: true,
+            name: id.clone(),
+            current: String::new(),
+            average: String::new(),
+            peak: String::new(),
+        });
+        for (id, measurement) in &group.measurements {
+            match measurement.value {
+                Some(Value::Duration) => rows.push(timing_row(id, &measurement.samples)),
+                Some(Value::Count(count)) => rows.push(PerformanceRow {
+                    heading: false,
+                    name: id.clone(),
+                    current: count.to_string(),
+                    average: "-".to_owned(),
+                    peak: "-".to_owned(),
+                }),
+                None => {}
             }
-        });
-    state.open = open;
-}
-
-fn timing_grid(ui: &mut egui::Ui, id: impl std::hash::Hash, rows: impl FnOnce(&mut egui::Ui)) {
-    egui::Grid::new(id)
-        .num_columns(4)
-        .striped(true)
-        .show(ui, |ui| {
-            ui.strong("Measurement");
-            ui.strong("Current");
-            ui.strong("Average");
-            ui.strong("Peak");
-            ui.end_row();
-            rows(ui);
-        });
-}
-
-fn measurement_row(ui: &mut egui::Ui, id: &str, measurement: &Measurement) {
-    match measurement.value {
-        Some(Value::Duration) => timing_row(ui, id, &measurement.samples),
-        Some(Value::Count(count)) => {
-            ui.label(id);
-            ui.monospace(count.to_string());
-            ui.monospace("-");
-            ui.monospace("-");
-            ui.end_row();
         }
-        None => {}
     }
+    rows
 }
 
-fn timing_row(ui: &mut egui::Ui, id: &str, samples: &VecDeque<Duration>) {
+fn timing_row(id: &str, samples: &VecDeque<Duration>) -> PerformanceRow {
     let current = samples.back().copied().unwrap_or_default();
     let total = samples.iter().copied().sum::<Duration>();
     let average = if samples.is_empty() {
@@ -218,11 +146,13 @@ fn timing_row(ui: &mut egui::Ui, id: &str, samples: &VecDeque<Duration>) {
         total / samples.len() as u32
     };
     let peak = samples.iter().copied().max().unwrap_or_default();
-    ui.label(id);
-    ui.monospace(format_duration(current));
-    ui.monospace(format_duration(average));
-    ui.monospace(format_duration(peak));
-    ui.end_row();
+    PerformanceRow {
+        heading: false,
+        name: id.to_owned(),
+        current: format_duration(current),
+        average: format_duration(average),
+        peak: format_duration(peak),
+    }
 }
 
 fn format_duration(duration: Duration) -> String {

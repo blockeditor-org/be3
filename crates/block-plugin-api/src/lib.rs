@@ -466,6 +466,10 @@ pub enum EditorMessage {
         bytes: Vec<u8>,
         applied: u64,
     },
+    ContentOperations {
+        instance: EditorInstanceId,
+        operations: Vec<ContentOperation>,
+    },
     Operate {
         instance: EditorInstanceId,
         operation: Vec<u8>,
@@ -664,6 +668,14 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         states: Vec<ArtifactState>,
     },
+    WatchHistory {
+        instance: EditorInstanceId,
+        blocks: Vec<[u8; 16]>,
+    },
+    HistoryStates {
+        instance: EditorInstanceId,
+        states: Vec<HistoryState>,
+    },
     Cursor {
         instance: EditorInstanceId,
         region: EditorRegion,
@@ -724,6 +736,7 @@ impl EditorMessage {
             Self::Open { instance, .. }
             | Self::EditabilityChanged { instance, .. }
             | Self::Content { instance, .. }
+            | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
@@ -763,6 +776,8 @@ impl EditorMessage {
             | Self::ArtifactRegenerated { instance, .. }
             | Self::WatchArtifacts { instance, .. }
             | Self::ArtifactStates { instance, .. }
+            | Self::WatchHistory { instance, .. }
+            | Self::HistoryStates { instance, .. }
             | Self::Cursor { instance, .. }
             | Self::Ime { instance, .. }
             | Self::Presence { instance, .. }
@@ -881,10 +896,25 @@ pub struct ArtifactState {
     pub regenerating: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContentOperation {
+    pub operation: Vec<u8>,
+    pub mine: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HistoryState {
+    pub block_id: [u8; 16],
+    pub can_undo: bool,
+    pub can_redo: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockCommand {
     Share,
     Rename,
+    Undo,
+    Redo,
     Artifact {
         action: ArtifactAction,
     },
@@ -1101,6 +1131,7 @@ impl EditorMessage {
             | Self::Resized { .. }
             | Self::EditabilityChanged { .. }
             | Self::Content { .. }
+            | Self::ContentOperations { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1117,6 +1148,7 @@ impl EditorMessage {
             | Self::ArtifactSettings { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactStates { .. }
+            | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
             | Self::ChildView { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
@@ -1138,6 +1170,7 @@ impl EditorMessage {
             | Self::ArtifactEdited { .. }
             | Self::ArtifactRegenerated { .. }
             | Self::WatchArtifacts { .. }
+            | Self::WatchHistory { .. }
             | Self::Cursor { .. }
             | Self::Ime { .. }
             | Self::ChildReplaced { .. }
@@ -1747,7 +1780,10 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::Focused { via, .. } | EditorMessage::FocusChanged { via, .. } => {
             collection(via.len())
         }
-        EditorMessage::WatchArtifacts { blocks, .. } => collection(blocks.len()),
+        EditorMessage::WatchArtifacts { blocks, .. }
+        | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
+        EditorMessage::HistoryStates { states, .. } => collection(states.len()),
+        EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
             for state in states {

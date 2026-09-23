@@ -435,9 +435,7 @@ impl MapState {
             return;
         };
         let view = self.view();
-        let at = |position: block_editor_plugin::egui::Pos2| {
-            view.coordinate(Pos2::new(position.x, position.y))
-        };
+        let at = |position: Pos2| view.coordinate(position);
         if !drop.dropped {
             self.pending_file_drop.set(Some(at(drop.position)));
             return;

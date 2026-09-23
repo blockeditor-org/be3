@@ -19,7 +19,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use worker::Shared;
+pub(crate) use worker::{History, Shared};
 
 use worker::Command;
 
@@ -30,7 +30,6 @@ pub(crate) struct Config {
     pub(crate) workspace: Uuid,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
-    pub(crate) context: eframe::egui::Context,
 }
 
 impl Config {
@@ -53,11 +52,76 @@ impl Config {
 
 const CONTENT_KEY_LABEL: &[u8] = b"be3.workspace.content-key.v1";
 
+const LOG_LIMIT: usize = 512;
+
 #[derive(Clone)]
 pub(crate) struct Content {
     pub(crate) content_type: Uuid,
     pub(crate) bytes: Vec<u8>,
     pub(crate) revision: u64,
+    log: std::collections::VecDeque<(Vec<u8>, Option<u64>)>,
+    taken: std::collections::HashMap<u64, u64>,
+}
+
+impl Content {
+    pub(crate) fn new(content_type: Uuid, bytes: Vec<u8>) -> Self {
+        Self {
+            content_type,
+            bytes,
+            revision: 1,
+            log: std::collections::VecDeque::new(),
+            taken: std::collections::HashMap::new(),
+        }
+    }
+
+    pub(crate) fn record(&mut self, entry: worker::Logged) {
+        self.revision += 1;
+        match entry {
+            worker::Logged::Operation { bytes, origin } => {
+                if let Some(origin) = origin {
+                    *self.taken.entry(origin).or_default() += 1;
+                }
+                self.log.push_back((bytes, origin));
+                if self.log.len() > LOG_LIMIT {
+                    self.log.pop_front();
+                }
+            }
+            worker::Logged::Replaced => self.log.clear(),
+        }
+    }
+
+    pub(crate) fn since(&self, origin: u64, sent: Option<u64>) -> Update {
+        let behind = sent.map(|sent| self.revision.saturating_sub(sent));
+        match behind {
+            Some(behind) if behind as usize <= self.log.len() => Update::Operations(
+                self.log
+                    .iter()
+                    .skip(self.log.len() - behind as usize)
+                    .map(|(bytes, from)| (bytes.clone(), *from == Some(origin)))
+                    .collect(),
+            ),
+            _ => Update::Snapshot {
+                content_type: self.content_type,
+                bytes: self.bytes.clone(),
+                applied: self.taken.get(&origin).copied().unwrap_or_default(),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Update {
+    Snapshot {
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        applied: u64,
+    },
+    Operations(Vec<(Vec<u8>, bool)>),
+}
+
+pub(crate) fn next_origin() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 #[derive(Default)]
@@ -92,13 +156,29 @@ where
     }
 }
 
+const fn migrated_with_history<B, C>() -> Migrated
+where
+    B: Block,
+    C: be_block::Undo + be_block::Merge + Clone + Default,
+{
+    Migrated {
+        block_type: B::TYPE_ID,
+        content_type: C::CONTENT_TYPE,
+        join: worker::join_with_history::<C>,
+        copy: worker::copy::<C>,
+        name: content_name::<C>,
+    }
+}
+
 fn content_name<C: be_block::BlockContent>(bytes: &[u8]) -> Option<String> {
     C::decode(bytes).ok()?.name()
 }
 
 const MIGRATED: &[Migrated] = &[
-    migrated::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(),
-    migrated::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
+    migrated_with_history::<block_client::blocks::calendar::Calendar, be_block::CalendarContent>(),
+    migrated_with_history::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(
+    ),
+    migrated_with_history::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
 ];
@@ -221,8 +301,29 @@ pub(crate) fn hold(block: Uuid, block_type: Uuid) {
     }
 }
 
-pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
-    send(Command::Operate(block, operation));
+pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
+    send(Command::Operate(block, Some(origin), operation));
+}
+
+pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Option<(u64, Update)> {
+    with_shared(|shared| {
+        let content = shared.blocks.get(&block)?;
+        (sent != Some(content.revision)).then(|| (content.revision, content.since(origin, sent)))
+    })?
+}
+
+pub(crate) fn history(block: Uuid) -> History {
+    with_shared(|shared| shared.histories.get(&block).copied())
+        .flatten()
+        .unwrap_or_default()
+}
+
+pub(crate) fn undo(block: Uuid) {
+    send(Command::History { block, redo: false });
+}
+
+pub(crate) fn redo(block: Uuid) {
+    send(Command::History { block, redo: true });
 }
 
 pub(crate) fn duplicate(from: Uuid, to: Uuid, block_type: Uuid) {

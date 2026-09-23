@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::calendar::{Calendar, CalendarEvent, CalendarOperation};
+use block_editor_plugin::be_block::{Calendar, CalendarContent};
 use block_editor_plugin::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
@@ -15,7 +15,9 @@ use block_editor_plugin::beui::unstyled::ChoiceOption;
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{DateTimeRow, Editor, Toolbar};
 
-use super::model::{CalendarView, EventForm, today_days_since_epoch, week_start};
+use super::model::{
+    CalendarView, EventForm, FormAction, Shown, today_days_since_epoch, week_start,
+};
 use super::month::MonthGrid;
 use super::timeline::Timeline;
 
@@ -28,9 +30,9 @@ const FORM_WIDTH: f32 = 420.0;
 
 #[component]
 pub fn CalendarEditor(editor: Editor) -> NodeId {
-    let calendar = editor.block::<Calendar>();
+    let calendar = editor.block_content::<CalendarContent>();
     let events = calendar.project(|calendar| {
-        let mut events = calendar.events().to_vec();
+        let mut events = calendar.root().events.to_vec();
         events.sort_by_key(|event| event.start);
         events
     });
@@ -72,9 +74,19 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let operate = {
         let calendar = Rc::clone(&calendar);
         let editable = editable.clone();
-        move |operation: CalendarOperation| {
-            if editable.get_untracked() {
-                calendar.operate(operation);
+        move |action: FormAction| {
+            if !editable.get_untracked() {
+                return;
+            }
+            let edit = match action {
+                FormAction::Save(Some(id), event) => calendar
+                    .read(|content| content.root().update(id, &event))
+                    .unwrap_or_default(),
+                FormAction::Save(None, event) => Calendar::add(&event).1,
+                FormAction::Delete(id) => Calendar::remove(id),
+            };
+            if !edit.0.is_empty() {
+                calendar.operate(edit);
             }
         }
     };
@@ -89,7 +101,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
         }
     });
     let pick_event =
-        clone!(set_form -> move |event: CalendarEvent| set_form.set(Some(EventForm::edit(&event))));
+        clone!(set_form -> move |event: Shown| set_form.set(Some(EventForm::edit(&event))));
 
     let form_read_only = read_only.clone();
     let chrome = editor.chrome_shown();
@@ -208,7 +220,7 @@ fn EventDialog(
     form: block_editor_plugin::beui::reactive::ReadSignal<Option<EventForm>>,
     set_form: WriteSignal<Option<EventForm>>,
     read_only: block_editor_plugin::beui::reactive::Memo<bool>,
-    on_operate: block_editor_plugin::beui::reactive::Callback<CalendarOperation>,
+    on_operate: block_editor_plugin::beui::reactive::Callback<FormAction>,
 ) -> NodeId {
     let open = create_memo(clone!(form -> move || form.get().is_some()));
     let title = create_memo(clone!(form -> move || {
@@ -265,17 +277,12 @@ fn EventDialog(
         let Some(shown) = form.get_untracked() else {
             return;
         };
-        let event = shown.event();
-        let operation = match shown.editing_id.is_some() {
-            true => CalendarOperation::UpdateEvent { event },
-            false => CalendarOperation::AddEvent { event },
-        };
-        on_operate.call(operation);
+        on_operate.call(FormAction::Save(shown.editing_id, shown.event()));
         set_form.set(None);
     });
     let delete = clone!(form set_form on_operate -> move || {
         if let Some(id) = form.get_untracked().and_then(|form| form.editing_id) {
-            on_operate.call(CalendarOperation::RemoveEvent { id });
+            on_operate.call(FormAction::Delete(id));
         }
         set_form.set(None);
     });

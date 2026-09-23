@@ -10,10 +10,6 @@ use crate::editors::plugin::discovery::{self, Module};
 
 use block_plugin_api::{Message, PluginManifest, ScreenLayout, decode_frame, encode_frame};
 use block_wasm_host::{Host, Plugin};
-use eframe::{
-    egui,
-    egui_wgpu::{self, wgpu},
-};
 
 mod surface;
 
@@ -33,9 +29,9 @@ pub(crate) fn cache_in(directory: PathBuf) {
     CACHE.with(|cache| *cache.borrow_mut() = Some(directory));
 }
 
-fn remember_gpu(render_state: &egui_wgpu::RenderState) {
+fn remember_gpu(device: &wgpu::Device, queue: &wgpu::Queue) {
     GPU.with(|gpu| {
-        *gpu.borrow_mut() = Some((render_state.device.clone(), render_state.queue.clone()));
+        *gpu.borrow_mut() = Some((device.clone(), queue.clone()));
     });
 }
 
@@ -93,7 +89,7 @@ pub(super) struct Wasm {
 impl super::backend::Backend for Wasm {
     type Frame = WasmFrame;
 
-    fn new(plugin: &PluginManifest, _context: &egui::Context) -> Self {
+    fn new(plugin: &PluginManifest) -> Self {
         Self {
             worker: None,
             module: discovery::module(&plugin.identity.id, &plugin.entry_point),
@@ -102,7 +98,7 @@ impl super::backend::Backend for Wasm {
         }
     }
 
-    fn start(&mut self, plugin: &PluginManifest, context: &egui::Context) {
+    fn start(&mut self, plugin: &PluginManifest) {
         self.shutdown();
         self.started = Instant::now();
         self.error = None;
@@ -123,10 +119,9 @@ impl super::backend::Backend for Wasm {
         };
         let (commands, orders) = mpsc::channel();
         let (reports, events) = mpsc::channel();
-        let context = context.clone();
         let spawned = thread::Builder::new()
             .name(format!("plugin {}", plugin.identity.id))
-            .spawn(move || run(host, module, orders, reports, context));
+            .spawn(move || run(host, module, orders, reports));
         match spawned {
             Ok(_) => {
                 self.worker = Some(Worker {
@@ -267,36 +262,22 @@ fn open(host: &Host, module: &Module) -> Result<Plugin, String> {
     }
 }
 
-fn run(
-    host: Host,
-    module: Module,
-    orders: Receiver<Command>,
-    reports: Sender<Event>,
-    context: egui::Context,
-) {
+fn run(host: Host, module: Module, orders: Receiver<Command>, reports: Sender<Event>) {
     let mut plugin = match open(&host, &module) {
         Ok(plugin) => plugin,
         Err(error) => {
             let _ = reports.send(Event::Failed(error));
-            context.request_repaint();
+            crate::host::wake();
             return;
         }
     };
-    plugin.on_wake({
-        let context = context.clone();
-        move || context.request_repaint()
-    });
+    plugin.on_wake(crate::host::wake);
     if let Err(error) = plugin.start() {
         let _ = reports.send(Event::Failed(error));
-        context.request_repaint();
+        crate::host::wake();
         return;
     }
-    if !report(
-        &reports,
-        &context,
-        Event::Ready(produced(&mut plugin)),
-        true,
-    ) {
+    if !report(&reports, Event::Ready(produced(&mut plugin)), true) {
         return;
     }
     for order in orders {
@@ -311,18 +292,18 @@ fn run(
         };
         let woken = plugin.take_wake();
         let failed = matches!(event, Event::Failed(_));
-        if !report(&reports, &context, event, woken) || failed {
+        if !report(&reports, event, woken) || failed {
             return;
         }
     }
     plugin.stop();
 }
 
-fn report(reports: &Sender<Event>, context: &egui::Context, event: Event, woken: bool) -> bool {
+fn report(reports: &Sender<Event>, event: Event, woken: bool) -> bool {
     let quiet = !woken && matches!(&event, Event::Stepped(produced) if produced.is_empty());
     let sent = reports.send(event).is_ok();
     if !quiet {
-        context.request_repaint();
+        crate::host::wake();
     }
     sent
 }

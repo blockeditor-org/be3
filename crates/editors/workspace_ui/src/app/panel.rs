@@ -105,17 +105,11 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
     if debugging && !ceiling.can_view() {
         workspace.debug(item.id, false);
     }
-    let history = access
-        .can_edit()
-        .then(|| {
-            workspace.read_handle(item, |handle| {
-                handle.history().map_or((false, false), |history| {
-                    (history.can_undo(), history.can_redo())
-                })
-            })
-        })
-        .flatten()
-        .unwrap_or((false, false));
+    let history = if access.can_edit() {
+        workspace.history(item)
+    } else {
+        (false, false)
+    };
     let parent = workspace
         .read_handle(item, |handle| {
             handle
@@ -149,10 +143,7 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
         debugging: debugging && ceiling.can_view(),
         dynamic_artifact: workspace.client().is_dynamic_artifact(item.id),
         type_name,
-        glyph: label
-            .icon
-            .map(|icon| icon.codepoint.to_owned())
-            .unwrap_or_default(),
+        glyph: label.icon.map(str::to_owned).unwrap_or_default(),
         automatic: label.automatic,
         label: label.name,
         can_undo: history.0,

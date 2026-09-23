@@ -97,7 +97,7 @@ impl Folder {
                         glyph: label
                             .as_ref()
                             .and_then(|label| label.icon)
-                            .map_or_else(String::new, |icon| icon.codepoint.to_owned()),
+                            .map_or_else(String::new, str::to_owned),
                         automatic: label.as_ref().is_some_and(|label| label.automatic),
                         loaded: found.is_some(),
                     }

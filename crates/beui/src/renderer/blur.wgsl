@@ -23,7 +23,7 @@ fn full(@builtin(vertex_index) index: u32) -> Full {
 }
 
 fn tap(uv: vec2<f32>) -> vec4<f32> {
-    return textureSample(source, source_sampler, clamp(uv, blur.bounds.xy, blur.bounds.zw));
+    return textureSampleLevel(source, source_sampler, clamp(uv, blur.bounds.xy, blur.bounds.zw), 0.0);
 }
 
 @fragment

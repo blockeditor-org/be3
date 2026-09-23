@@ -85,50 +85,6 @@ pub fn parse_datetime_utc(value: &str) -> Option<i64> {
     )
 }
 
-pub fn datetime_editor(ui: &mut egui::Ui, seconds: &mut i64) -> bool {
-    let mut fields = DateTimeFields::from_unix(*seconds);
-    let changed = date_time_fields_row(ui, &mut fields);
-    if changed {
-        *seconds = fields.to_unix();
-    }
-    changed
-}
-
-pub fn date_time_fields_row(ui: &mut egui::Ui, fields: &mut DateTimeFields) -> bool {
-    let mut changed = false;
-    ui.horizontal(|ui| {
-        changed |= ui
-            .add(egui::DragValue::new(&mut fields.year).range(1..=9999))
-            .changed();
-        changed |= ui
-            .add(egui::DragValue::new(&mut fields.month).range(1..=12))
-            .changed();
-        ui.label(MONTH_NAMES[(fields.month.clamp(1, 12) - 1) as usize]);
-        let max_day = days_in_month(fields.year, fields.month.clamp(1, 12));
-        fields.day = fields.day.clamp(1, max_day);
-        changed |= ui
-            .add(egui::DragValue::new(&mut fields.day).range(1..=max_day))
-            .changed();
-        ui.label("at");
-        changed |= ui
-            .add(
-                egui::DragValue::new(&mut fields.hour)
-                    .range(0..=23)
-                    .custom_formatter(|value, _| format!("{value:02.0}")),
-            )
-            .changed();
-        ui.label(":");
-        changed |= ui
-            .add(
-                egui::DragValue::new(&mut fields.minute)
-                    .range(0..=59)
-                    .custom_formatter(|value, _| format!("{value:02.0}")),
-            )
-            .changed();
-    });
-    changed
-}
-
 pub fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }

@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{CounterContent, CounterOp};
+use be_block::{Counter, CounterContent};
 
 #[tokio::test]
 async fn a_second_follower_keeps_following_after_the_owner_leaves() {
@@ -22,15 +22,15 @@ async fn a_second_follower_keeps_following_after_the_owner_leaves() {
         .await
         .unwrap();
 
-    on_phone.edit(CounterOp::Add { by: 1 }).await.unwrap();
-    on_tablet.edit(CounterOp::Add { by: 2 }).await.unwrap();
+    on_phone.edit(Counter::add(1)).await.unwrap();
+    on_tablet.edit(Counter::add(2)).await.unwrap();
     until(
         &mut [&mut on_phone, &mut on_laptop, &mut on_tablet],
         "agreed on the first adds",
         |sessions| {
             sessions
                 .iter()
-                .all(|session| session.content().count() == 3)
+                .all(|session| session.content().root().value() == 3)
                 && sessions[1..].iter().all(|session| session.is_clean())
         },
     )
@@ -43,8 +43,8 @@ async fn a_second_follower_keeps_following_after_the_owner_leaves() {
         |sessions| sessions[0].is_owner() && !sessions[1].is_owner(),
     )
     .await;
-    on_tablet.edit(CounterOp::Add { by: 20 }).await.unwrap();
-    on_laptop.edit(CounterOp::Add { by: 300 }).await.unwrap();
+    on_tablet.edit(Counter::add(20)).await.unwrap();
+    on_laptop.edit(Counter::add(300)).await.unwrap();
 
     until(
         &mut [&mut on_laptop, &mut on_tablet],
@@ -52,7 +52,7 @@ async fn a_second_follower_keeps_following_after_the_owner_leaves() {
         |sessions| {
             sessions
                 .iter()
-                .all(|session| session.content().count() == 323)
+                .all(|session| session.content().root().value() == 323)
                 && sessions[1].is_clean()
         },
     )
@@ -64,7 +64,8 @@ async fn a_second_follower_keeps_following_after_the_owner_leaves() {
             .await
             .unwrap()
             .unwrap()
-            .count(),
+            .root()
+            .value(),
         323
     );
 

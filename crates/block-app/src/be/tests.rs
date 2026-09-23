@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use be_block::{BlockContent, ChecklistContent, ChecklistOp, CounterContent, CounterOp, LiveEdit};
+use be_block::{BlockContent, Checklist, ChecklistContent, Counter, CounterContent, LiveEdit};
 use block_client::ManagementClient;
 use uuid::Uuid;
 
@@ -17,6 +17,13 @@ mod an_idle_peer_never_wakes_its_worker;
 mod an_unmigrated_block_type_has_no_content_in_the_new_stack;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod two_peers_of_one_workspace_share_a_counter;
+mod undo_steps_back_through_what_this_peer_did;
+
+const TEST_ORIGIN: u64 = 0;
+
+fn operate(block: Uuid, operation: Vec<u8>) {
+    operate_from(block, TEST_ORIGIN, operation);
+}
 
 const PATIENCE: Duration = Duration::from_secs(20);
 const QUIET: Duration = Duration::from_secs(2);
@@ -98,7 +105,6 @@ impl Harness {
             account: self.account,
             workspace: self.workspace,
             data_dir,
-            context: eframe::egui::Context::default(),
         }
     }
 
@@ -131,7 +137,7 @@ fn count_of(block: Uuid) -> Option<i64> {
     (held.content_type == CounterContent::CONTENT_TYPE)
         .then(|| CounterContent::decode(&held.bytes).ok())
         .flatten()
-        .map(|counter| counter.count())
+        .map(|counter| counter.root().value())
 }
 
 fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
@@ -139,7 +145,7 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
     (held.content_type == CounterContent::CONTENT_TYPE)
         .then(|| CounterContent::decode(&held.bytes).ok())
         .flatten()
-        .map(|counter| counter.count())
+        .map(|counter| counter.root().value())
 }
 
 fn wait_for_count(block: Uuid, expected: i64) {
@@ -164,8 +170,5 @@ fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
 }
 
 fn add(block: Uuid, by: i64) {
-    operate(
-        block,
-        CounterContent::encode_operation(&CounterOp::Add { by }),
-    );
+    operate(block, CounterContent::encode_operation(&Counter::add(by)));
 }

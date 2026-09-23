@@ -23,14 +23,10 @@ what the machine running the tests happens to have installed.
 Widgets are found by an id the test names, never by their label: renaming a button, giving
 it an icon, or moving it to a sidebar then leaves the tests alone.
 
-    use block_editor_plugin::block_ui::test_id::TestId;
+    <Button label="Add task" @test_id={"checklist.add"} on_click={add} />
 
-    if ui.button("Add").test_id("checklist.add").clicked() {
-
-test_id writes an author id onto the widget's accessibility node, which is what
-block-ui-test searches for. AccessKit is off unless a screen reader or a test turns it on,
-so the call allocates nothing in the app; it does take the context's lock for a moment, so
-tag the widgets tests reach for rather than every widget. Name them
+@test_id names the node the component builds, and the frame reports the rectangle every
+named node was laid out at, which is what block-ui-test clicks. Name them
 `<editor>.<what it does>`, and where there are many of a kind, key them by whatever the
 block itself keys them by (`checklist.item.3.done` — the operation takes that index too),
 never by the order they happen to be drawn in.
@@ -38,22 +34,21 @@ never by the order they happen to be drawn in.
 3. Write the test
 
 Tests live inside the editor's crate, one test per file under src/tests/, like every other
-test in the repository. block-ui-test's EditorTest lays the editor out the way the host
-does — toolbar above, sidebars either side, the editor in the middle — and runs it in a
-headless egui.
+test in the repository. block-ui-test's BeuiTest is built from the same Editor the view is
+handed, lays the view out over a frame of its own, and runs it headless.
 
     let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
     let block = client.create_block(Checklist::default());
-    let mut app = ChecklistApp::default();
-    app.connect(Default::default(), client, block.id());
-    let mut editor = EditorTest::new(app);
+    let host = EditorHost::default();
+    host.set_editable(true);
+    let mut editor = BeuiTest::new(Editor::new(host, client, block.id()));
     editor.run();
 
-    editor.find("checklist.draft").click();
+    editor.click("checklist.draft");
     editor.run();
-    editor.find("checklist.draft").type_text("buy milk");
+    editor.text("buy milk");
     editor.run();
-    editor.find("checklist.add").click();
+    editor.click("checklist.add");
     editor.run();
 
     assert_eq!(items(&block), [("buy milk".to_owned(), false)]);
@@ -61,40 +56,38 @@ headless egui.
 
 A block client that was never connected is a whole client: it creates blocks, applies
 operations and reads them back locally, so an editor test needs no server. Call run() after
-every gesture — egui only sees an event on the frame after it arrives — and click a text
-field before typing into it. find() panics with the whole accessibility tree when nothing
-matches, which is usually a widget that was never given a test id.
+every gesture — the view only sees an event on the frame it is delivered in — and click a
+text field before typing into it. click() panics when no node has that test id, which is
+usually a node that was never given one; shown() and label() ask about one without clicking
+it.
 
-run() paints until the editor asks for no more immediate repaints, so an editor that is
-animating — a recording playing, a spinner turning — never lets it return. Drive those a
-frame at a time with step(), which paints once however much the editor wanted.
+run() paints one frame for each gesture queued since the last one, and step(events) paints
+one frame with exactly the events it is handed.
 
 An editor that hands work to another thread paints a spinner until the work lands, so which
 of the two a test captures is down to whether the thread beat it to the frame: a snapshot
 that passes on an idle machine and fails when the suite is running thirty editors at once.
-step_until paints a frame at a time until the editor says it is done waiting, and fails the
-test rather than the painting if it never is.
+settle_until paints until a predicate over the harness holds, and fails the test rather
+than the painting if it never does.
 
-    editor.step_until("the lighting to land", |app| app.lighting_landed());
+    editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
-The predicate reads the app, so the editor needs something to ask — a #[cfg(test)] accessor
-over whatever it was waiting on. Wait for the work rather than for a number of frames: a few
-more step() calls is the same race with a wider margin, which is how one of these hid.
+Wait for the work rather than for a number of frames: a few more run() calls is the same
+race with a wider margin, which is how one of these hid.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
-is built with EditorTest::viewport(app, host) — the host it was connected to — instead of
-EditorTest::new(app). The harness then does what the host does around the main region: it
-holds a zoom and an offset, hands the editor host.view() over its region, and answers the
-pan, zoom and fit the editor asks for, fitting the content until the first of them arrives.
-An editor given EditorTest::new is told nothing about a view and fills its region, which is
-what an editor without that capability does anyway.
+calls in_viewport() on the harness. The harness then does what the host does around the main
+region: it holds a zoom and an offset, hands the editor a view over its region, and answers
+the pan, zoom and fit the editor asks for, fitting the content until the first of them
+arrives. An editor that is not in a viewport is told nothing about a view and fills its
+region, which is what an editor without that capability does anyway.
 
 4. Snapshots of the painting
 
 editor.snapshot(name) writes everything the editor painted into
 snapshots/<crate>.<name>.paint, one folder at the root of the repository holding every
-painting the workspace accepted: the triangles egui tessellated, and the scrap of texture
-each one samples, compressed. It is a few kilobytes rather than the hundreds a screenshot
+painting the workspace accepted: the rounded rectangles, glyphs and triangles beui's
+renderer would hand the gpu, each glyph carrying its own coverage image, compressed. It is a few kilobytes rather than the hundreds a screenshot
 costs, and it is compared exactly, so nothing about it is flaky.
 
 A painting is a recording: one frame by default, or the frames the test kept. record()
@@ -103,7 +96,7 @@ since the last one — or the frame the test is on, if it kept none — so recor
 at a time paints how the editor got somewhere rather than only where it ended up.
 
     editor.record();
-    editor.find("checklist.add").click();
+    editor.click("checklist.add");
     editor.run();
     editor.record();
     editor.snapshot("adding_an_item_puts_it_on_the_list");
@@ -128,7 +121,7 @@ way for the test to fail.
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write. It is for a person looking at a painting on the machine that made it; the review
   that matters still happens in a Paint review block.
-- Regenerating them is cheap and mechanical - an egui upgrade rewrites every one - so a
+- Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so a
   changed painting is not by itself a failure to explain, and there is nothing in it for you
   to look at. Say in your handoff which paintings changed and why, and leave the images
   alone.
@@ -137,22 +130,19 @@ way for the test to fail.
   snapshots/ && ./scripts/verify --check --plugin-tests - and the failure says which frame
   changed and what moved in it, which is what you needed rather than the image.
 
-A snapshot never holds the font atlas. Each triangle carries the piece of texture it
-samples, cut out of the atlas and keyed by what is in it, so where a glyph happened to land
-in the atlas cannot reach the file: text an earlier frame drew - a temporary directory's
-name, a uuid, the time - repacks the atlas without moving anything in the snapshot. Text
-that varies in the frame the test captures is of course a different painting, and still
-has to be kept out of it.
+A snapshot never holds the glyph atlas. Each glyph carries its own coverage image, keyed by
+what is in it, so where a glyph happened to land in the atlas cannot reach the file: text an
+earlier frame drew - a temporary directory's name, a uuid, the time - repacks the atlas
+without moving anything in the snapshot. Text that varies in the frame the test captures is
+of course a different painting, and still has to be kept out of it.
 
-Nor does a snapshot hold what a paint callback or a beui Drawing draws - a plugin's
-surface, a 3D scene - since those contents never reach the painter: the snapshot keeps the
-region and nothing inside it, so a test of one asserts on the block instead.
+Nor does a snapshot hold what a beui Drawing draws - a plugin's surface, a 3D scene - since
+those contents never reach the painter: the snapshot keeps the region and nothing inside it,
+so a test of one asserts on the block instead.
 
-An editor that rasterizes its own glyphs rather than egui's - a beui one, which shapes and
-rasterizes through the HarfBuzz and FreeType beui carries - draws with the fonts it carries
-once it is compiled to wasm, which is how its tests run, so what it paints is comparable like
-anything else. What is still not comparable is anything the frame itself varies: a temporary
-directory's name, a uuid, the time.
+beui shapes and rasterizes its glyphs through the HarfBuzz and FreeType it carries, with
+the fonts it carries, once it is compiled to wasm, which is how its tests run, so what an
+editor paints is comparable like anything else.
 
 5. Running them
 
