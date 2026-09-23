@@ -3,6 +3,7 @@ load("@root//buck/wasm:defs.bzl", "editor")
 editor(
     name = "logic_grid",
     deps = [
+        "//crates/beui:beui",
         "//crates/block:block",
         "//crates/block-client:block-client",
         "//crates/block-editor-plugin:block-editor-plugin",
@@ -11,6 +12,7 @@ editor(
         "//third-party/rust:serde",
         "//third-party/rust:serde_json",
         "//third-party/rust:uuid",
+        "//third-party/rust:wgpu",
     ],
     module = "logic_grid",
     test_deps = [

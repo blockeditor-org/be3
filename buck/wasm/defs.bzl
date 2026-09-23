@@ -160,6 +160,12 @@ def editor(name, module, deps, test_deps = [], visibility = ["PUBLIC"]):
 # every test in the module, and answered by the cache on a machine that has
 # never built the plugin.
 #
+# The compile is for the x86_64 baseline rather than for the machine it runs
+# on. Left to itself wasmtime uses every CPU feature it finds, and the artifact
+# is then only loadable by a machine with the same ones: the compile runs on a
+# remote worker and the test on the machine that asked for it, and the two
+# rarely match. Naming the target is what makes wasmtime stop looking.
+#
 # The runner is told where the artifact is rather than looking beside the
 # module, because what decides whether one is stale under cargo is its mtime
 # and buck2 does not preserve those. It does not need to: the runner is an
@@ -169,7 +175,7 @@ def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
     runner = ctx.attrs.runner[RunInfo]
     artifact = ctx.actions.declare_output(module.basename.removesuffix(".wasm") + ".cwasm")
     ctx.actions.run(
-        cmd_args(runner, "--precompile-to", artifact.as_output(), module),
+        cmd_args(runner, "--precompile-to", "--target", "x86_64-unknown-linux-gnu", artifact.as_output(), module),
         category = "wasm_precompile",
         identifier = module.basename,
     )
