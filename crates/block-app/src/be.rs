@@ -134,6 +134,8 @@ pub(crate) struct Status {
     pub(crate) error: Option<String>,
 }
 
+type ChildOperations = fn(&[u8], be_block::ChildChange) -> Option<Vec<Vec<u8>>>;
+
 struct Migrated {
     block_type: Uuid,
     content_type: Uuid,
@@ -142,7 +144,7 @@ struct Migrated {
     seed: worker::Seed,
     name: fn(&[u8]) -> Option<String>,
     references: fn(&[u8]) -> Vec<Uuid>,
-    child: fn(&[u8], be_block::ChildChange) -> Option<Vec<Vec<u8>>>,
+    child: ChildOperations,
 }
 
 const fn migrated<B, C>() -> Migrated
@@ -211,6 +213,7 @@ const MIGRATED: &[Migrated] = &[
         block_client::blocks::database_view::DatabaseView,
         be_block::DatabaseViewContent,
     >(),
+    migrated_with_history::<block_client::blocks::hotbar::Hotbar, be_block::HotbarContent>(),
     migrated_with_history::<
         block_client::blocks::presentation::Presentation,
         be_block::PresentationContent,

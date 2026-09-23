@@ -35,6 +35,7 @@ mod text_operations_rebase_onto_concurrent_edits;
 mod two_checklists_merge_every_item_either_side_added;
 mod two_counters_merge_by_keeping_both_sides_of_the_count;
 mod ui_settings_keep_the_zoom_in_bounds;
+mod unpinning_a_component_removes_it_from_every_folder;
 
 fn header(name: &str) -> ImageHeader {
     ImageHeader {

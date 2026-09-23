@@ -4,10 +4,10 @@ use std::rc::Rc;
 
 use block::BlockReferenceList;
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
+use block_editor_plugin::be_block::ObjectId;
+use block_editor_plugin::be_block::presentation::{Presentation, PresentationContent};
 use block_editor_plugin::beui::reactive::{KeyedStore, ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::be_block::presentation::{Presentation, PresentationContent};
-use block_editor_plugin::be_block::ObjectId;
 use block_editor_plugin::{ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
@@ -191,9 +191,8 @@ impl Slides {
         let items: Vec<_> = entries
             .into_iter()
             .map(|(id, block)| {
-                let resolved = block.and_then(|block| {
-                    cache.borrow_mut().resolve(client, referencing, block)
-                });
+                let resolved =
+                    block.and_then(|block| cache.borrow_mut().resolve(client, referencing, block));
                 let reference = resolved.and_then(|id| metadata.get(&id));
                 let slide = match reference {
                     Some(reference) => Slide {

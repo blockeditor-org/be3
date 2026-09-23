@@ -307,7 +307,8 @@ values, and every algorithm is written once against that table:
 `be-block` (`model.rs`), so a type built this way is registered with
 `migrated_with_history` and has undo from the start. Every migrated editor's
 content is built this way: the counter, the checklist, the calendar, the browser
-tab, the UI settings and the three database types. Text and images still implement the traits by hand,
+tab, the UI settings, the three database types, the presentation and the
+hotbar. Text and images still implement the traits by hand,
 which remains possible for content that does not fit, such as a byte payload or
 a type that is better as a CRDT. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
@@ -433,6 +434,17 @@ bridges a name it also hands `BlockContent::references` to
 `BlockHandleAccess::set_references`, for the editor's own block and for every
 block it watches, which only writes when the set changed.
 
+The old stack's child hooks reach a migrated block's content too. Moving a
+block into a container, deleting a child or replacing it with a copy calls
+`add_child`, `delete_child` or `replace_child` on the container's editor, and
+for a migrated type `PluginEditor` sends that to `be::change_child` instead of
+the emptied old value. The content type answers with `Root::child_edit`, which
+turns a `be_block::ChildChange` into an ordinary edit: a presentation adds or
+drops a slide, a database clears or rewrites the cells that link the block, a
+hotbar unpins or repoints a component. If the block is not open, `change_child`
+holds it and answers `None`, which the callers already treat as "not yet" and
+retry.
+
 A new block's first content comes from the editor that made it. The old stack
 creates the block, and `editor.seed_content(block, &content)` (or the same on
 `Creation`) sends `EditorMessage::SeedContent`; the peer writes it as the
@@ -522,10 +534,7 @@ the old client - and it is what the key wrapping below replaces.
 ## What is not built yet
 
 - A migrated block's references reach the old graph only while an editor holds
-  the block, like its name. The old stack's `delete_child` and `replace_child`
-  hooks do nothing for a migrated block, so deleting a block a database cell
-  points at leaves the cell pointing at nothing, and duplicating a subtree does
-  not rewrite cells to the copies.
+  the block, like its name.
 - A migrated block's content is not in the old workspace index, so nothing but
   the editor can read it: no preview and no search. Only its name is carried
   across, and only while an editor has it open.

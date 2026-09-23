@@ -111,7 +111,9 @@ impl Root for Database {
         let (old, new) = match change {
             ChildChange::Add(_) => return None,
             ChildChange::Delete(old) => (old, None),
-            ChildChange::Replace { old, new } => (old, Some(DatabaseValue::Block(BlockRef::Direct(new)))),
+            ChildChange::Replace { old, new } => {
+                (old, Some(DatabaseValue::Block(BlockRef::Direct(new))))
+            }
         };
         let old = DatabaseValue::Block(BlockRef::Direct(old));
         Some(
