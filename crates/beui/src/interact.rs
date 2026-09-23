@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
@@ -6,6 +8,8 @@ use crate::painter::Painter;
 
 use crate::document::Document;
 use crate::node::{InteractInput, NodeId, NodeMap};
+
+pub(crate) const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
 
 pub(crate) fn interact(
     doc: &mut Document,
@@ -80,9 +84,15 @@ pub(crate) fn interact(
     }
     let wheel_target = (input.scroll != Vec2::ZERO)
         .then(|| {
-            target(doc, rects, root, input.pointer_pos, &|element| {
-                wants_wheel(element, input.scroll)
-            })
+            let now = Instant::now();
+            let target = latched_wheel_target(doc, rects, input.pointer_pos, input.scroll, now)
+                .or_else(|| {
+                    target(doc, rects, root, input.pointer_pos, &|element| {
+                        wants_wheel(element, input.scroll)
+                    })
+                });
+            doc.wheel_latch = target.map(|target| (target, now));
+            target
         })
         .flatten();
     let zoom_target = (input.zoom != 1.0 || input.touch_pan != Vec2::ZERO)
@@ -309,6 +319,21 @@ fn wants_wheel(element: &dyn crate::node::Element, wheel: Vec2) -> bool {
         .as_any()
         .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
         .is_some_and(|catcher| catcher.wants_wheel(wheel))
+}
+
+fn latched_wheel_target(
+    doc: &Document,
+    rects: &NodeMap<Rect>,
+    pointer: Option<Pos2>,
+    wheel: Vec2,
+    now: Instant,
+) -> Option<NodeId> {
+    let (latched, last) = doc.wheel_latch?;
+    let recent = now.saturating_duration_since(last) < WHEEL_LATCH_TIMEOUT;
+    let under =
+        pointer.is_some_and(|pos| rects.get(&latched).is_some_and(|rect| rect.contains(pos)));
+    let still_wants = doc.arena.contains(latched) && wants_wheel(doc.arena.get(latched), wheel);
+    (recent && under && still_wants).then_some(latched)
 }
 
 fn wants_gestures(element: &dyn crate::node::Element) -> bool {
