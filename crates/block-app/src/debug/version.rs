@@ -5,10 +5,10 @@ mod install;
 
 use std::cell::RefCell;
 
-use eframe::egui;
-
 use crate::platform::http;
 use github::WorkflowRun;
+
+use crate::ui::{RunView, VersionRuns, VersionView};
 
 thread_local! {
     static STATE: RefCell<State> = RefCell::new(State::default());
@@ -16,7 +16,6 @@ thread_local! {
 
 #[derive(Default)]
 struct State {
-    open: bool,
     runs_fetch: Option<http::Fetch>,
     runs: Option<Result<Vec<WorkflowRun>, String>>,
     #[cfg(target_os = "android")]
@@ -33,148 +32,106 @@ impl State {
 pub(crate) fn open() {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
-        state.open = true;
         if state.runs.is_none() && state.runs_fetch.is_none() {
             state.start_fetch();
         }
     });
 }
 
-pub(crate) fn show(ctx: &egui::Context) {
+pub(crate) fn refresh() {
+    STATE.with(|state| state.borrow_mut().start_fetch());
+}
+
+pub(crate) fn poll() {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
-        if !state.open {
-            return;
-        }
-
         if let Some(fetch) = &state.runs_fetch {
             match fetch.poll() {
                 Some(result) => {
                     state.runs = Some(result.and_then(|body| github::parse_runs(&body)));
                     state.runs_fetch = None;
                 }
-                None => ctx.request_repaint(),
+                None => crate::host::request_repaint_after(std::time::Duration::from_millis(100)),
             }
         }
         #[cfg(target_os = "android")]
-        if let Some(install) = &mut state.install {
-            if !install.finished() {
-                install.poll();
-                ctx.request_repaint();
-            }
+        if let Some(install) = &mut state.install
+            && !install.finished()
+        {
+            install.poll();
+            crate::host::request_repaint_after(std::time::Duration::from_millis(100));
         }
-
-        let mut open = state.open;
-        egui::Window::new("App Version")
-            .open(&mut open)
-            .default_size([640.0, 480.0])
-            .show(ctx, |ui| show_contents(ui, &mut state));
-        state.open = open;
     });
 }
 
-fn show_contents(ui: &mut egui::Ui, state: &mut State) {
-    ui.horizontal(|ui| {
-        ui.label("Running commit:");
-        ui.add(egui::Label::new(egui::RichText::new(crate::COMMIT).monospace()).selectable(true));
-        if ui.button("Refresh").clicked() {
-            state.start_fetch();
+#[cfg(target_os = "android")]
+pub(crate) fn install(run_id: u64) {
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let short = state
+            .runs
+            .as_ref()
+            .and_then(|runs| runs.as_ref().ok())
+            .and_then(|runs| runs.iter().find(|run| run.id == run_id))
+            .map(|run| short_sha(&run.head_sha).to_owned());
+        if let Some(short) = short {
+            state.install = Some(install::Install::start(run_id, &short));
         }
     });
-    ui.separator();
+}
 
-    let runs = state.runs.clone();
-    match runs {
-        None => {
-            ui.spinner();
-        }
-        Some(Err(error)) => {
-            ui.colored_label(ui.visuals().error_fg_color, error);
-        }
-        Some(Ok(runs)) => {
-            if runs.is_empty() {
-                ui.weak("No workflow runs found.");
-            }
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for run in &runs {
-                    show_run(ui, run, state);
+#[cfg(not(target_os = "android"))]
+pub(crate) fn install(_run_id: u64) {}
+
+pub(crate) fn view() -> VersionView {
+    STATE.with(|state| {
+        let state = state.borrow();
+        VersionView {
+            commit: crate::COMMIT.to_owned(),
+            can_install: cfg!(target_os = "android"),
+            runs: match &state.runs {
+                None => VersionRuns::Loading,
+                Some(Err(error)) => VersionRuns::Failed(error.clone()),
+                Some(Ok(runs)) => {
+                    VersionRuns::Loaded(runs.iter().map(|run| run_view(run, &state)).collect())
                 }
-            });
+            },
         }
-    }
+    })
 }
 
-fn show_run(ui: &mut egui::Ui, run: &WorkflowRun, state: &mut State) {
-    let current = run.head_sha == crate::COMMIT;
-    ui.group(|ui| {
-        ui.set_width(ui.available_width());
-        ui.horizontal(|ui| {
-            ui.strong(format!("#{}", run.run_number));
-            ui.label(&run.head_branch);
-            ui.weak(&run.event);
-            if current {
-                ui.colored_label(ui.visuals().hyperlink_color, "running");
-            }
-        });
-        ui.horizontal(|ui| {
-            ui.add(
-                egui::Label::new(egui::RichText::new(short_sha(&run.head_sha)).monospace())
-                    .selectable(true),
-            );
-            ui.weak(&run.created_at);
-            ui.label(status_text(run));
-        });
-        ui.horizontal(|ui| {
-            ui.hyperlink_to("View on GitHub", &run.html_url);
-            show_install_button(ui, run, state);
-        });
-    });
+fn run_view(run: &WorkflowRun, state: &State) -> RunView {
+    #[cfg(target_os = "android")]
+    let (installing, error) = match &state.install {
+        Some(install) if install.run_id == run.id => {
+            (!install.finished(), install.error().map(str::to_owned))
+        }
+        _ => (false, None),
+    };
+    #[cfg(not(target_os = "android"))]
+    let (installing, error) = {
+        let _ = state;
+        (false, None)
+    };
+    RunView {
+        id: run.id,
+        number: run.run_number,
+        branch: run.head_branch.clone(),
+        event: run.event.clone(),
+        sha: short_sha(&run.head_sha).to_owned(),
+        created: run.created_at.clone(),
+        status: match &run.conclusion {
+            Some(conclusion) => conclusion.clone(),
+            None => run.status.clone(),
+        },
+        url: run.html_url.clone(),
+        current: run.head_sha == crate::COMMIT,
+        succeeded: run.conclusion.as_deref() == Some("success"),
+        installing,
+        error,
+    }
 }
 
 fn short_sha(sha: &str) -> &str {
     &sha[..sha.len().min(7)]
-}
-
-fn status_text(run: &WorkflowRun) -> String {
-    match &run.conclusion {
-        Some(conclusion) => conclusion.clone(),
-        None => run.status.clone(),
-    }
-}
-
-#[cfg(target_os = "android")]
-fn show_install_button(ui: &mut egui::Ui, run: &WorkflowRun, state: &mut State) {
-    let succeeded = run.conclusion.as_deref() == Some("success");
-    let installing = state
-        .install
-        .as_ref()
-        .is_some_and(|install| install.run_id == run.id && !install.finished());
-    let label = if installing {
-        "Installing…"
-    } else {
-        "Install"
-    };
-    let response = ui.add_enabled(succeeded && !installing, egui::Button::new(label));
-    let response = if !succeeded {
-        response.on_disabled_hover_text("This run did not finish successfully.")
-    } else {
-        response
-    };
-    if response.clicked() {
-        state.install = Some(install::Install::start(run.id, short_sha(&run.head_sha)));
-    }
-
-    if let Some(install) = &state.install {
-        if install.run_id == run.id {
-            if let Some(error) = install.error() {
-                ui.colored_label(ui.visuals().error_fg_color, error);
-            }
-        }
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-fn show_install_button(ui: &mut egui::Ui, _run: &WorkflowRun, _state: &mut State) {
-    ui.add_enabled(false, egui::Button::new("Install"))
-        .on_disabled_hover_text("Installing a downloaded build is only supported on Android.");
 }

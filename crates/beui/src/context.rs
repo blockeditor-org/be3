@@ -10,7 +10,7 @@ use crate::damage;
 use crate::filter::Filter;
 use crate::font::{FontId, FontSources, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
-use crate::input::{CursorIcon, InputState, RawInput};
+use crate::input::{CursorIcon, Event, ImeArea, InputState, RawInput};
 use crate::mouse_simulation::MouseSimulation;
 use crate::node::NodeId;
 use crate::paint::Painted;
@@ -36,12 +36,16 @@ struct Inner {
     copied_text: RefCell<Option<String>>,
     paste_requested: Cell<bool>,
     cursor_icon: Cell<CursorIcon>,
+    ime: Cell<Option<ImeArea>>,
+    fullscreen: Cell<Option<bool>>,
+    close_requested: Cell<bool>,
     pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
     mouse_simulation: RefCell<MouseSimulation>,
     pixels_per_point: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
+    zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
     previous: RefCell<Option<Previous>>,
@@ -57,6 +61,9 @@ pub struct FrameOutput {
     pub(crate) filter: Option<(Filter, usize)>,
     test_ids: HashMap<String, Rect>,
     pub cursor_icon: CursorIcon,
+    pub ime: Option<ImeArea>,
+    pub fullscreen: Option<bool>,
+    pub close_requested: bool,
     pub pointer_locked: bool,
     pub copied_text: Option<String>,
     pub paste_requested: bool,
@@ -124,12 +131,16 @@ impl Context {
                 copied_text: RefCell::new(None),
                 paste_requested: Cell::new(false),
                 cursor_icon: Cell::new(CursorIcon::Default),
+                ime: Cell::new(None),
+                fullscreen: Cell::new(None),
+                close_requested: Cell::new(false),
                 pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 mouse_simulation: RefCell::new(MouseSimulation::default()),
                 pixels_per_point: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
+                zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
                 previous: RefCell::new(None),
@@ -185,6 +196,9 @@ impl Context {
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste_requested.set(false);
         self.inner.cursor_icon.set(CursorIcon::Default);
+        self.inner.ime.set(None);
+        self.inner.fullscreen.set(None);
+        self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
     }
 
@@ -228,6 +242,9 @@ impl Context {
             changed,
             repaint_after: self.inner.repaint_after.get(),
             cursor_icon: self.inner.cursor_icon.get(),
+            ime: self.inner.ime.get(),
+            fullscreen: self.inner.fullscreen.get(),
+            close_requested: self.inner.close_requested.get(),
             pointer_locked: self.inner.pointer_locked.get(),
             repaint: self.inner.repaint.get(),
             accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
@@ -243,6 +260,22 @@ impl Context {
 
     pub fn input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {
         reader(&self.inner.input.borrow())
+    }
+
+    pub fn retain_events(&self, keep: impl FnMut(&Event) -> bool) {
+        self.inner.input.borrow_mut().events.retain(keep);
+    }
+
+    pub fn set_ime_area(&self, area: Option<ImeArea>) {
+        self.inner.ime.set(area);
+    }
+
+    pub fn set_fullscreen(&self, fullscreen: bool) {
+        self.inner.fullscreen.set(Some(fullscreen));
+    }
+
+    pub fn close_window(&self) {
+        self.inner.close_requested.set(true);
     }
 
     pub fn painter(&self) -> Painter {
@@ -269,6 +302,10 @@ impl Context {
 
     pub fn set_cursor_icon(&self, cursor_icon: CursorIcon) {
         self.inner.cursor_icon.set(cursor_icon);
+    }
+
+    pub fn cursor_icon(&self) -> CursorIcon {
+        self.inner.cursor_icon.get()
     }
 
     pub fn touch_emulation(&self) -> bool {
@@ -507,10 +544,21 @@ impl Context {
         self.inner.simulated_pixels_per_point.set(pixels_per_point);
     }
 
+    pub fn zoom_factor(&self) -> f32 {
+        self.inner.zoom.get()
+    }
+
+    pub fn set_zoom_factor(&self, zoom: f32) {
+        if zoom.is_finite() && zoom > 0.0 && zoom != self.inner.zoom.get() {
+            self.inner.zoom.set(zoom);
+            self.request_repaint();
+        }
+    }
+
     fn apply_pixels_per_point(&self) {
         let pixels_per_point = self
             .simulated_pixels_per_point()
-            .unwrap_or_else(|| self.native_pixels_per_point());
+            .unwrap_or_else(|| self.native_pixels_per_point() * self.zoom_factor());
         self.inner.pixels_per_point.set(pixels_per_point);
     }
 

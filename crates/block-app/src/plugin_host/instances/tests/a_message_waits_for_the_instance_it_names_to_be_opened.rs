@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_message_waits_for_the_instance_it_names_to_be_opened() {
-    let (mut instances, ..) = placed();
+    let mut instances = placed();
     let presence = Message::Editor(EditorMessage::Presence {
         instance: INSTANCE,
         visible: true,

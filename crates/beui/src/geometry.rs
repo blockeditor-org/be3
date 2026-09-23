@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Mul, Sub};
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
 #[derive(Clone, Copy, PartialEq, Default, Debug)]
 pub struct Vec2 {
@@ -64,6 +64,51 @@ impl Mul<f32> for Vec2 {
 
     fn mul(self, factor: f32) -> Self {
         Self::new(self.x * factor, self.y * factor)
+    }
+}
+
+impl Mul<Vec2> for Vec2 {
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self {
+        Self::new(self.x * other.x, self.y * other.y)
+    }
+}
+
+impl Div<f32> for Vec2 {
+    type Output = Self;
+
+    fn div(self, divisor: f32) -> Self {
+        Self::new(self.x / divisor, self.y / divisor)
+    }
+}
+
+impl Neg for Vec2 {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Self::new(-self.x, -self.y)
+    }
+}
+
+impl AddAssign for Vec2 {
+    fn add_assign(&mut self, other: Self) {
+        self.x += other.x;
+        self.y += other.y;
+    }
+}
+
+impl SubAssign for Vec2 {
+    fn sub_assign(&mut self, other: Self) {
+        self.x -= other.x;
+        self.y -= other.y;
+    }
+}
+
+impl MulAssign<f32> for Vec2 {
+    fn mul_assign(&mut self, factor: f32) {
+        self.x *= factor;
+        self.y *= factor;
     }
 }
 
@@ -183,6 +228,33 @@ impl Rect {
 
     pub fn size(&self) -> Vec2 {
         self.max - self.min
+    }
+
+    pub fn from_center_size(center: Pos2, size: Vec2) -> Self {
+        Self::from_min_size(center - size * 0.5, size)
+    }
+
+    pub fn from_points(points: &[Pos2]) -> Self {
+        points.iter().fold(Self::NOTHING, |rect, point| Self {
+            min: Pos2::new(rect.min.x.min(point.x), rect.min.y.min(point.y)),
+            max: Pos2::new(rect.max.x.max(point.x), rect.max.y.max(point.y)),
+        })
+    }
+
+    pub fn left_top(&self) -> Pos2 {
+        self.min
+    }
+
+    pub fn right_top(&self) -> Pos2 {
+        Pos2::new(self.max.x, self.min.y)
+    }
+
+    pub fn right_bottom(&self) -> Pos2 {
+        self.max
+    }
+
+    pub fn left_bottom(&self) -> Pos2 {
+        Pos2::new(self.min.x, self.max.y)
     }
 
     pub fn center(&self) -> Pos2 {

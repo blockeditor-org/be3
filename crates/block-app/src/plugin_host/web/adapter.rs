@@ -1,5 +1,4 @@
 use block_plugin_api::{Message, encode_frame};
-use eframe::egui;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, prelude::*};
 
@@ -105,17 +104,13 @@ pub(super) struct WebProtocolAdapter {
 }
 
 impl WebProtocolAdapter {
-    pub(super) fn start(
-        url: &str,
-        canvas: &web_sys::HtmlCanvasElement,
-        context: &egui::Context,
-    ) -> Result<Self, String> {
+    pub(super) fn start(url: &str, canvas: &web_sys::HtmlCanvasElement) -> Result<Self, String> {
         let offscreen = canvas
             .transfer_control_to_offscreen()
             .map_err(|_| "the plugin canvas could not be handed to its worker".to_owned())?;
         let worker = spawn()?;
         let inbox = Rc::new(RefCell::new(Inbox::default()));
-        let onmessage = listen(&worker, Rc::clone(&inbox), context.clone());
+        let onmessage = listen(&worker, Rc::clone(&inbox));
         let message = js_sys::Object::new();
         set(&message, "kind", &"start".into());
         set(&message, "url", &absolute(url).into());
@@ -193,7 +188,6 @@ impl WebProtocolAdapter {
 fn listen(
     worker: &web_sys::Worker,
     inbox: Rc<RefCell<Inbox>>,
-    context: egui::Context,
 ) -> Closure<dyn FnMut(web_sys::MessageEvent)> {
     let onmessage = Closure::wrap(Box::new(move |event: web_sys::MessageEvent| {
         let data = event.data();
@@ -214,7 +208,7 @@ fn listen(
                 );
             }
         }
-        context.request_repaint();
+        crate::host::wake();
     }) as Box<dyn FnMut(web_sys::MessageEvent)>);
     worker.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
     onmessage

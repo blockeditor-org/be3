@@ -307,7 +307,6 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
-    let context = config.context.clone();
     let mut open: HashMap<Uuid, Uuid> = HashMap::new();
     loop {
         if let Outcome::Stopped = connected(
@@ -317,7 +316,6 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             &shared,
             &changed,
             &mut open,
-            &context,
         )
         .await
         {
@@ -326,7 +324,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         }
         shared.lock().unwrap().connected = false;
         changed.notify_all();
-        context.request_repaint();
+        crate::host::wake();
         platform::sleep(RECONNECT_DELAY).await;
     }
 }
@@ -343,7 +341,6 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     shared: &Arc<Mutex<Shared>>,
     changed: &Arc<Condvar>,
     open: &mut HashMap<Uuid, Uuid>,
-    context: &eframe::egui::Context,
 ) -> Outcome {
     let store = match make_store() {
         Ok(store) => store,
@@ -365,7 +362,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         held.error = None;
     }
     changed.notify_all();
-    context.request_repaint();
+    crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
@@ -374,7 +371,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     }
     publish(&sessions, shared);
     changed.notify_all();
-    context.request_repaint();
+    crate::host::wake();
     let mut unsealed_since: Option<Instant> = None;
     loop {
         let woken = match unsealed_since {
@@ -420,7 +417,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         let moved = publish(&sessions, shared);
         changed.notify_all();
         if moved {
-            context.request_repaint();
+            crate::host::wake();
         }
     }
 }

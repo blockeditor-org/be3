@@ -19,7 +19,6 @@ fn two_peers_of_one_workspace_share_a_counter() {
         account: harness.account,
         workspace: harness.workspace,
         data_dir: elsewhere.clone(),
-        context: eframe::egui::Context::default(),
     });
     open(block, CounterContent::CONTENT_TYPE);
 

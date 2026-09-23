@@ -1721,6 +1721,11 @@ fn beui_cursor(cursor: beui::CursorIcon) -> CursorIcon {
         beui::CursorIcon::ResizeNwSe => CursorIcon::ResizeNwSe,
         beui::CursorIcon::Text => CursorIcon::Text,
         beui::CursorIcon::Wait => CursorIcon::Wait,
+        beui::CursorIcon::None => CursorIcon::None,
+        beui::CursorIcon::Move => CursorIcon::Move,
+        beui::CursorIcon::Progress => CursorIcon::Progress,
+        beui::CursorIcon::Help => CursorIcon::Help,
+        beui::CursorIcon::Alias => CursorIcon::Pointer,
     }
 }
 

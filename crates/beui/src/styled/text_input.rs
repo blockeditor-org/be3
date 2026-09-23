@@ -23,6 +23,7 @@ pub fn TextInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = false)] password: Prop<bool>,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
@@ -41,6 +42,7 @@ pub fn TextInput(
             placeholder
             disabled
             focused
+            password
             accessibility
             font_size=FONT_BODY
             color={theme.text.clone()}

@@ -93,7 +93,6 @@ impl Harness {
             account: self.account,
             workspace: self.workspace,
             data_dir,
-            context: eframe::egui::Context::default(),
         }
     }
 
