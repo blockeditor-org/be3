@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use block_client::BlockClient;
 use block_client::blocks::counter::Counter;
-use block_editor_plugin::be_block::{BlockContent, CounterContent, LiveEdit};
+use block_editor_plugin::be_block::{
+    BlockContent, Counter as CounterModel, CounterContent, LiveEdit,
+};
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -68,12 +70,13 @@ impl Harness {
     }
 
     fn set_count(&mut self, count: i64) {
-        self.content = CounterContent::new(count);
+        let by = count - self.count();
+        self.content.apply(&CounterModel::add(by));
         self.publish();
     }
 
     fn count(&self) -> i64 {
-        self.content.count()
+        self.content.root().value()
     }
 
     fn shown(&mut self) -> String {

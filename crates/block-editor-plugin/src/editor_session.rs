@@ -527,6 +527,10 @@ impl EditorSession {
         self.host.set_block_content(content_type, bytes, applied);
     }
 
+    pub(crate) fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
+        self.host.push_content_operations(operations);
+    }
+
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
         self.host.set_focused_block(focused);
     }
@@ -543,6 +547,18 @@ impl EditorSession {
 
     pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
         self.host.set_artifacts(states);
+    }
+
+    pub(crate) fn set_histories(&self, states: &[block_plugin_api::HistoryState]) {
+        self.host.set_histories(states.iter().map(|state| {
+            (
+                Uuid::from_bytes(state.block_id),
+                crate::host::BlockHistory {
+                    can_undo: state.can_undo,
+                    can_redo: state.can_redo,
+                },
+            )
+        }));
     }
 
     pub(crate) fn set_view(&self, view: egui::Rect, scale: f32) {
@@ -886,6 +902,12 @@ impl EditorSession {
         }
         if let Some(blocks) = self.host.take_artifact_watch() {
             messages.push(Message::Editor(EditorMessage::WatchArtifacts {
+                instance,
+                blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
+            }));
+        }
+        if let Some(blocks) = self.host.take_history_watch() {
+            messages.push(Message::Editor(EditorMessage::WatchHistory {
                 instance,
                 blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
             }));

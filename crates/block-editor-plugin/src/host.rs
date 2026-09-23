@@ -36,7 +36,12 @@ pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
     pub applied: u64,
-    pub revision: u64,
+}
+
+#[derive(Clone)]
+pub enum ContentUpdate {
+    Snapshot(HostContent),
+    Operations(Vec<(Vec<u8>, bool)>),
 }
 
 #[derive(Clone)]
@@ -54,6 +59,12 @@ pub struct ShowRequest {
     pub block_type: Uuid,
     pub via: Option<Uuid>,
     pub from: Option<Uuid>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BlockHistory {
+    pub can_undo: bool,
+    pub can_redo: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -532,6 +543,10 @@ pub struct EditorHost {
     watched_artifacts: Rc<RefCell<Vec<Uuid>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_artifacts: Rc<RefCell<Option<Vec<Uuid>>>>,
+    histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
+    watched_history: Rc<RefCell<Vec<Uuid>>>,
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
@@ -564,7 +579,7 @@ pub struct EditorHost {
     hidden_bands: Rc<RefCell<HashSet<EditorBand>>>,
     beui: Rc<Cell<BeuiFrame>>,
     next_frame: Rc<Cell<Option<Duration>>>,
-    content: Rc<RefCell<Option<HostContent>>>,
+    content_updates: Rc<RefCell<Vec<ContentUpdate>>>,
     content_operations: Rc<RefCell<Vec<Vec<u8>>>>,
 }
 
@@ -662,6 +677,48 @@ impl EditorHost {
         }
         *reported = Some(blocks.clone());
         Some(blocks)
+    }
+
+    pub fn watch_history(&self, blocks: impl IntoIterator<Item = Uuid>) {
+        let mut blocks: Vec<Uuid> = blocks.into_iter().collect();
+        blocks.sort();
+        blocks.dedup();
+        *self.watched_history.borrow_mut() = blocks;
+    }
+
+    pub fn history(&self, block_id: Uuid) -> BlockHistory {
+        self.histories
+            .borrow()
+            .get(&block_id)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_history_watch(&self) -> Option<Vec<Uuid>> {
+        let blocks = self.watched_history.borrow().clone();
+        let mut reported = self.reported_history.borrow_mut();
+        if reported.as_ref() == Some(&blocks) {
+            return None;
+        }
+        *reported = Some(blocks.clone());
+        Some(blocks)
+    }
+
+    pub fn set_histories(&self, states: impl IntoIterator<Item = (Uuid, BlockHistory)>) {
+        *self.histories.borrow_mut() = states.into_iter().collect();
+    }
+
+    pub fn undo(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Undo));
+    }
+
+    pub fn redo(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Redo));
     }
 
     pub fn set_artifacts(&self, states: Vec<ArtifactState>) {
@@ -783,8 +840,7 @@ impl EditorHost {
         ));
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
+    pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
         std::mem::take(&mut self.block_commands.borrow_mut())
     }
 
@@ -796,19 +852,24 @@ impl EditorHost {
         self.editable.get()
     }
 
-    pub fn block_content(&self) -> Option<HostContent> {
-        self.content.borrow().clone()
+    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
+        self.content_updates
+            .borrow_mut()
+            .push(ContentUpdate::Snapshot(HostContent {
+                content_type,
+                bytes,
+                applied,
+            }));
     }
 
-    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        let mut held = self.content.borrow_mut();
-        let revision = held.as_ref().map_or(1, |content| content.revision + 1);
-        *held = Some(HostContent {
-            content_type,
-            bytes,
-            applied,
-            revision,
-        });
+    pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
+        self.content_updates
+            .borrow_mut()
+            .push(ContentUpdate::Operations(operations));
+    }
+
+    pub(crate) fn take_content_updates(&self) -> Vec<ContentUpdate> {
+        std::mem::take(&mut self.content_updates.borrow_mut())
     }
 
     pub fn operate_content(&self, operation: Vec<u8>) {

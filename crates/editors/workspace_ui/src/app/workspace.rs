@@ -152,6 +152,7 @@ impl Workspace {
         self.refresh_titles();
         self.report_focus();
         self.watch_artifacts();
+        self.watch_history();
     }
 
     fn refresh_titles(&self) {
@@ -197,6 +198,60 @@ impl Workspace {
                 .collect::<Vec<_>>()
         });
         self.host().watch_artifacts(watched);
+    }
+
+    fn watch_history(&self) {
+        let watched = self.tabs.with_untracked(|tabs| {
+            tabs.values()
+                .map(|tab| tab.current().id)
+                .collect::<Vec<_>>()
+        });
+        self.host().watch_history(watched);
+    }
+
+    pub(crate) fn history(&self, item: TabItem) -> (bool, bool) {
+        self.read_handle(item, |handle| {
+            handle
+                .history()
+                .map(|history| (history.can_undo(), history.can_redo()))
+        })
+        .flatten()
+        .unwrap_or_else(|| {
+            let history = self.host().history(item.id);
+            (history.can_undo, history.can_redo)
+        })
+    }
+
+    pub(crate) fn step_history(&self, item: TabItem, redo: bool) -> bool {
+        let handled = self.read_handle(item, |handle| {
+            let history = handle.history()?;
+            Some(match redo {
+                true if history.can_redo() => {
+                    history.redo();
+                    true
+                }
+                false if history.can_undo() => {
+                    history.undo();
+                    true
+                }
+                _ => false,
+            })
+        });
+        if let Some(Some(handled)) = handled {
+            return handled;
+        }
+        let history = self.host().history(item.id);
+        match redo {
+            true if history.can_redo => {
+                self.host().redo(item.id);
+                true
+            }
+            false if history.can_undo => {
+                self.host().undo(item.id);
+                true
+            }
+            _ => false,
+        }
     }
 
     fn via_chain(&self, id: Uuid) -> Vec<Uuid> {
@@ -417,23 +472,7 @@ impl Workspace {
         if !self.access(item.id).can_edit() {
             return false;
         }
-        self.read_handle(item, |handle| {
-            let Some(history) = handle.history() else {
-                return false;
-            };
-            match redo {
-                true if history.can_redo() => {
-                    history.redo();
-                    true
-                }
-                false if history.can_undo() => {
-                    history.undo();
-                    true
-                }
-                _ => false,
-            }
-        })
-        .unwrap_or(false)
+        self.step_history(item, redo)
     }
 
     pub(crate) fn open_picker(self: &Rc<Self>, parent: Uuid) {

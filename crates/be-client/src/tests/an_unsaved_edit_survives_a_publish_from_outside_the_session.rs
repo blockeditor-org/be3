@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{CounterContent, CounterOp};
+use be_block::{Counter, CounterContent};
 
 #[tokio::test]
 async fn an_unsaved_edit_survives_a_publish_from_outside_the_session() {
@@ -12,6 +12,8 @@ async fn an_unsaved_edit_survives_a_publish_from_outside_the_session() {
         .unwrap();
     let laptop = harness.shared(&phone).await;
     let offline = harness.shared(&phone).await;
+    let mut published = CounterContent::default();
+    published.apply(&Counter::add(50));
     let mut on_phone = Live::<_, CounterContent>::join(Arc::clone(&phone), block)
         .await
         .unwrap();
@@ -19,15 +21,15 @@ async fn an_unsaved_edit_survives_a_publish_from_outside_the_session() {
         .await
         .unwrap();
 
-    on_phone.edit(CounterOp::Add { by: 1 }).await.unwrap();
+    on_phone.edit(Counter::add(1)).await.unwrap();
     until(
         &mut [&mut on_phone, &mut on_laptop],
         "shared the add",
-        |sessions| sessions[1].content().count() == 1,
+        |sessions| sessions[1].content().root().value() == 1,
     )
     .await;
     offline
-        .save(block, &CounterContent::new(50), None)
+        .save(block, &published, None)
         .await
         .unwrap()
         .published()
@@ -36,12 +38,12 @@ async fn an_unsaved_edit_survives_a_publish_from_outside_the_session() {
     assert!(on_phone.seal().await.unwrap().published().is_none());
     assert!(on_phone.reconcile().await.unwrap().is_clean());
 
-    assert_eq!(on_phone.content().count(), 51);
+    assert_eq!(on_phone.content().root().value(), 51);
     assert!(on_phone.is_clean());
     until(
         &mut [&mut on_phone, &mut on_laptop],
         "reloaded the merge",
-        |sessions| sessions[1].content().count() == 51,
+        |sessions| sessions[1].content().root().value() == 51,
     )
     .await;
     assert_eq!(
@@ -50,7 +52,8 @@ async fn an_unsaved_edit_survives_a_publish_from_outside_the_session() {
             .await
             .unwrap()
             .unwrap()
-            .count(),
+            .root()
+            .value(),
         51
     );
 

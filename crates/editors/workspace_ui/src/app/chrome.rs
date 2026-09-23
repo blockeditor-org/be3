@@ -118,15 +118,7 @@ pub(crate) fn ChromeBar(
 }
 
 fn history(workspace: &Rc<Workspace>, item: TabItem, redo: bool) {
-    workspace.read_handle(item, |handle| {
-        let Some(history) = handle.history() else {
-            return;
-        };
-        match redo {
-            true => history.redo(),
-            false => history.undo(),
-        }
-    });
+    workspace.step_history(item, redo);
 }
 
 #[component]
