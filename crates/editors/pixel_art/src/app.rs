@@ -50,12 +50,13 @@ impl block_editor_plugin::BeuiApp for PixelArtApp {
         let regeneration: Rc<RefCell<Option<artifact::Regeneration>>> = Rc::new(RefCell::default());
         let failure: Rc<RefCell<Option<String>>> = Rc::new(RefCell::default());
         let client = artifacts.client().clone();
+        let host = artifacts.host().clone();
         let block_id = artifacts.block_id();
         let block_type = artifacts.block_type();
         let started = Rc::clone(&regeneration);
         let reported = Rc::clone(&failure);
         artifacts.on_regenerate(move |data| {
-            match artifact::Regeneration::start(&client, block_id, block_type, data) {
+            match artifact::Regeneration::start(&host, &client, block_id, block_type, data) {
                 Ok(started_regeneration) => {
                     *started.borrow_mut() = Some(started_regeneration);
                     reported.borrow_mut().take();
@@ -179,7 +180,8 @@ pub(crate) fn export(tools: &Rc<Tools>) {
         Ok(image) => {
             let child = editor
                 .client()
-                .create_dynamic_artifact(image, artifact::descriptor(handle.id()));
+                .create_dynamic_artifact(Image::new(), artifact::descriptor(handle.id()));
+            editor.seed_content(child.id(), &image);
             editor.host().open_block(child.id(), Image::TYPE_ID);
             tools.set_export_error.set(None);
         }

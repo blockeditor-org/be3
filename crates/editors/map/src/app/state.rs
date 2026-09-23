@@ -9,6 +9,7 @@ use block_client::block_ref::BlockRef;
 use block_client::blocks::image::Image as ImageBlock;
 use block_client::blocks::map::{Map, MapColor, MapCoordinate, MapOperation, MapPoint, MapRegion};
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
+use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
@@ -452,7 +453,7 @@ impl MapState {
                 base.longitude + step * index as f64,
                 base.latitude - step * index as f64,
             );
-            self.import(ImageBlock::new(file.name, file.data), position);
+            self.import(ImageContent::from_file(file.name, file.data), position);
         }
     }
 
@@ -466,15 +467,15 @@ impl MapState {
             PastedImage::Image { name, data } => {
                 self.set_import_error.set(None);
                 let position = self.view_center.get();
-                self.import(ImageBlock::new(name, data), position);
+                self.import(ImageContent::from_file(name, data), position);
             }
             PastedImage::Failed(error) => self.set_import_error.set(Some(error)),
             PastedImage::Empty => {}
         }
     }
 
-    fn import(&self, image: ImageBlock, position: MapCoordinate) {
-        let created = self.editor.client().create_block(image);
+    fn import(&self, image: ImageContent, position: MapCoordinate) {
+        let created = self.editor.create_with_content::<ImageBlock, _>(&image);
         created.set_parent(BlockParent::Uuid(self.block_id()));
         self.add_point(created.id(), position);
     }

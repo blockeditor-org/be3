@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::image::{Image as ImageBlock, ImageOperation};
+use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::beui::reactive::{
     Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, Picture, Show,
     Spacer, clone, component, component_rect, create_effect, create_memo, view,
@@ -14,7 +14,7 @@ use super::{filter, imported};
 
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {
-    let block = editor.block::<ImageBlock>();
+    let block = editor.block_content::<ImageContent>();
     let shown = watch(&editor, &block);
     let image = create_memo(clone!(shown -> move || shown.get().image));
     let failed = create_memo(clone!(shown -> move || shown.get().error.is_some()));
@@ -23,11 +23,11 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let chooser = FileChooser::new(filter(), imported);
     let polled = Rc::clone(&chooser);
     let host = editor.host().clone();
-    let operating = Rc::clone(&block);
+    let replacing = editor.clone();
     editor.each_frame(move || {
         polled.poll(&host);
         if let Some(image) = polled.take() {
-            operating.operate(ImageOperation::Replace { image });
+            replacing.replace_content(replacing.block_id(), &image);
         }
     });
 
@@ -107,7 +107,7 @@ fn Artwork(editor: Editor, image: Memo<Option<block_editor_plugin::beui::Image>>
 
 #[component]
 pub fn ImagePreview(editor: Editor) -> NodeId {
-    let block = editor.block::<ImageBlock>();
+    let block = editor.block_content::<ImageContent>();
     let shown = watch(&editor, &block);
     let image = create_memo(move || shown.get().image);
     view! {

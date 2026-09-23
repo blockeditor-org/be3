@@ -1,12 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use block_client::blocks::pdf::Pdf;
+use block_editor_plugin::be_block::PdfContent;
 use block_editor_plugin::beui::reactive::{
     Memo, ReadSignal, WriteSignal, create_memo, create_signal,
 };
 use block_editor_plugin::beui::{Image, Rect, Vec2};
-use block_editor_plugin::{BlockProjection, Editor, PerformanceReporter};
+use block_editor_plugin::{ContentProjection, Editor, PerformanceReporter};
 
 use crate::pane::Pane;
 
@@ -67,7 +67,7 @@ impl Pages {
     pub(crate) fn pump(
         &self,
         editor: &Editor,
-        block: &BlockProjection<Pdf>,
+        block: &ContentProjection<PdfContent>,
         performance: &PerformanceReporter,
         viewport: Viewport,
     ) {
@@ -80,8 +80,7 @@ impl Pages {
             }
             shown.page_size = Some(facts.page_size_pts);
         }
-        let handle = block.handle();
-        let Some(revision) = Some(handle.revision()) else {
+        let Some(revision) = block.revision() else {
             return;
         };
         pane.ensure(
@@ -93,7 +92,7 @@ impl Pages {
             viewport.pixels_per_point,
             editor.host().waker(),
             Some(performance),
-            || Some(handle.read()?.data().to_vec()),
+            || block.read(|pdf| pdf.data().to_vec()),
         );
         shown.tiles = pane.tiles();
         shown.page = self.page.get();

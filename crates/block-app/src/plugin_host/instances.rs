@@ -1,5 +1,6 @@
+use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
-use block_client::{BlockClient, BlockHandleAccess, Tunnel, blocks::audio::Audio};
+use block_client::{BlockClient, BlockHandleAccess, Tunnel};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
@@ -1904,6 +1905,19 @@ impl Instances {
             EditorMessage::WatchContent { instance, blocks } => {
                 self.watch_content(instance, blocks)
             }
+            EditorMessage::ReplaceContent {
+                block_id,
+                content_type,
+                bytes,
+                ..
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                let content_type = Uuid::from_bytes(content_type);
+                if crate::be::is_migrated(content_type) && self.editable(block) {
+                    crate::be::replace(block, content_type, bytes);
+                }
+                false
+            }
             EditorMessage::SeedContent {
                 block_id,
                 content_type,
@@ -1930,13 +1944,6 @@ impl Instances {
                 block_id,
                 command,
             } => {
-                let Some(client) = self
-                    .connection
-                    .as_ref()
-                    .map(|connection| Arc::clone(&connection.client))
-                else {
-                    return false;
-                };
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
@@ -1944,8 +1951,8 @@ impl Instances {
                 match command {
                     AudioCommand::Reset => player.reset(),
                     AudioCommand::Toggle => {
-                        let block = client.get_block::<Audio>(Uuid::from_bytes(block_id));
-                        let audio = block.read().map(|audio| audio.clone());
+                        let audio = crate::be::content(Uuid::from_bytes(block_id))
+                            .and_then(|held| be_block::AudioContent::decode(&held.bytes).ok());
                         if let Some(audio) = audio {
                             player.toggle(&audio);
                         }

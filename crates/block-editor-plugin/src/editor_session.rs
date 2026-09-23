@@ -658,11 +658,24 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
         }
         for seeded in self.host.take_seeded_content() {
-            messages.push(Message::Editor(EditorMessage::SeedContent {
-                instance,
-                block_id: seeded.block.into_bytes(),
-                content_type: seeded.content_type.into_bytes(),
-                bytes: seeded.bytes,
+            let (block_id, content_type, bytes) = (
+                seeded.block.into_bytes(),
+                seeded.content_type.into_bytes(),
+                seeded.bytes,
+            );
+            messages.push(Message::Editor(match seeded.replace {
+                true => EditorMessage::ReplaceContent {
+                    instance,
+                    block_id,
+                    content_type,
+                    bytes,
+                },
+                false => EditorMessage::SeedContent {
+                    instance,
+                    block_id,
+                    content_type,
+                    bytes,
+                },
             }));
         }
         if let Some(outcome) = self.created.take() {

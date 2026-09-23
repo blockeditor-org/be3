@@ -464,6 +464,7 @@ pub struct SeededContent {
     pub block: Uuid,
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
+    pub replace: bool,
 }
 
 impl EditorHost {
@@ -820,10 +821,19 @@ impl EditorHost {
     }
 
     pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.write_content(block, content, false);
+    }
+
+    pub fn replace_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.write_content(block, content, true);
+    }
+
+    fn write_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C, replace: bool) {
         self.seeded.borrow_mut().push(SeededContent {
             block,
             content_type: C::CONTENT_TYPE,
             bytes: content.encode(),
+            replace,
         });
         self.waker.wake();
     }
