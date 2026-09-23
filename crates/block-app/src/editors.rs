@@ -928,12 +928,13 @@ fn viewport_gesture_input(
     let Some(pointer) = host::pointer().filter(|pointer| !outside(*pointer)) else {
         return;
     };
+    let space = host::key_down(Key::Space);
     let (scroll, zoom_delta, command, panning, delta) = host::input(|input| {
         (
             input.scroll,
             input.zoom,
             input.modifiers.ctrl,
-            input.middle_down || (host::key_down(Key::Space) && input.primary_down),
+            input.middle_down || (space && input.primary_down),
             input.delta,
         )
     });
@@ -1203,3 +1204,6 @@ impl EditorRegistry {
         )
     }
 }
+
+#[cfg(test)]
+mod tests;
