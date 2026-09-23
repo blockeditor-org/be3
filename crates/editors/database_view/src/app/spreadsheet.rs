@@ -1,6 +1,6 @@
 use block_client::blocks::database::{DatabaseColor, DatabaseValue};
 use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType};
-use block_client::blocks::database_view::{DatabaseViewOperation, DatabaseViewSort, SortDirection};
+use block_editor_plugin::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
 use block_editor_plugin::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK,
 };
@@ -136,7 +136,7 @@ fn HeaderRow(data: Data) -> NodeId {
                     let sorted = sorted_direction(data.sort.clone(), id);
                     let resort = clone!(data -> move || {
                         let sort = next_sort(data.sort.get_untracked(), id);
-                        data.operate_view(DatabaseViewOperation::SetSort { sort });
+                        data.operate_view(DatabaseView::set_sort(sort));
                     });
                     view! {
                         <HeaderCell

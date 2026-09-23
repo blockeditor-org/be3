@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use block::BlockReferenceList;
-use block_client::blocks::presentation::{Presentation, PresentationOperation, PresentationSlide};
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
+use block_editor_plugin::be_block::ObjectId;
+use block_editor_plugin::be_block::presentation::{Presentation, PresentationContent};
 use block_editor_plugin::beui::reactive::{KeyedStore, ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::{BlockProjection, ChildTarget, Editor};
+use block_editor_plugin::{ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -18,7 +19,7 @@ pub struct Slide {
 
 pub struct Slides {
     editor: Editor,
-    block: Rc<BlockProjection<Presentation>>,
+    block: Rc<ContentProjection<PresentationContent>>,
     store: KeyedStore<Uuid, Slide>,
     selected: ReadSignal<Option<Uuid>>,
     set_selected: WriteSignal<Option<Uuid>>,
@@ -27,7 +28,7 @@ pub struct Slides {
 
 impl Slides {
     pub fn new(editor: &Editor) -> Rc<Self> {
-        let block = editor.block::<Presentation>();
+        let block = editor.block_content::<PresentationContent>();
         let (selected, set_selected) = create_signal(None::<Uuid>);
         let slides = Rc::new(Self {
             editor: editor.clone(),
@@ -108,7 +109,7 @@ impl Slides {
     pub fn remove(&self, id: Uuid) {
         let index = self.index_of(id);
         self.block
-            .operate(PresentationOperation::Remove { slide_id: id });
+            .operate(Presentation::remove(ObjectId::from_uuid(id)));
         if self.selected.get_untracked() == Some(id) {
             let keys = self.store.keys().get_untracked();
             let next = index.and_then(|index| {
@@ -120,10 +121,12 @@ impl Slides {
     }
 
     pub fn move_to(&self, id: Uuid, index: usize) {
-        self.block.operate(PresentationOperation::Move {
-            slide_id: id,
-            index,
-        });
+        if let Some(edit) = self
+            .block
+            .read(|presentation| presentation.root().move_to(ObjectId::from_uuid(id), index))
+        {
+            self.block.operate(edit);
+        }
     }
 
     pub fn add(self: &Rc<Self>, index: usize) {
@@ -159,19 +162,24 @@ impl Slides {
         cache.borrow_mut().poll();
         let inserts: Vec<_> = self.pending.borrow_mut().poll();
         for (block_id, (slide_id, index)) in inserts {
-            self.block.operate(PresentationOperation::Insert {
-                slide: PresentationSlide {
-                    id: slide_id,
-                    block_id,
-                },
-                index,
-            });
+            if let Some(edit) = self.block.read(|presentation| {
+                presentation
+                    .root()
+                    .insert(ObjectId::from_uuid(slide_id), index, block_id)
+            }) {
+                self.block.operate(edit);
+            }
         }
-        let Some(presentation) = self.block.handle().read() else {
+        let Some(entries) = self.block.read(|presentation| {
+            presentation
+                .root()
+                .slides
+                .iter()
+                .map(|slide| (slide.id.as_uuid(), slide.block))
+                .collect::<Vec<_>>()
+        }) else {
             return;
         };
-        let entries = presentation.slides().to_vec();
-        drop(presentation);
         let metadata: HashMap<_, _> = dependencies
             .read()
             .into_iter()
@@ -182,10 +190,9 @@ impl Slides {
         let referencing = self.editor.block_id();
         let items: Vec<_> = entries
             .into_iter()
-            .map(|entry| {
-                let resolved = cache
-                    .borrow_mut()
-                    .resolve(client, referencing, entry.block_id);
+            .map(|(id, block)| {
+                let resolved =
+                    block.and_then(|block| cache.borrow_mut().resolve(client, referencing, block));
                 let reference = resolved.and_then(|id| metadata.get(&id));
                 let slide = match reference {
                     Some(reference) => Slide {
@@ -193,7 +200,7 @@ impl Slides {
                         name: BlockLabel::for_reference(types.as_ref(), reference).name,
                     },
                     None => self
-                        .known(entry.id)
+                        .known(id)
                         .filter(|slide| {
                             slide.target.map(|target| target.id) == resolved && resolved.is_some()
                         })
@@ -205,7 +212,7 @@ impl Slides {
                             },
                         }),
                 };
-                (entry.id, slide)
+                (id, slide)
             })
             .collect();
         self.store.reconcile_owned(items);

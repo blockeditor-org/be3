@@ -28,7 +28,7 @@ use block_client::{
     block_ref::BlockRef,
     blocks::{
         compiled_logic::CompiledLogic,
-        hotbar::{Hotbar, HotbarOperation, HotbarSlot as BlockHotbarSlot},
+        hotbar::Hotbar,
         logic_grid::{LogicGrid, LogicGridOperation},
     },
 };
@@ -544,6 +544,8 @@ pub(super) struct LogicGridEditor {
 
     hotbar_block: Option<RootSetting<Hotbar>>,
 
+    hotbar_editor: Option<block_editor_plugin::Editor>,
+
     hotbar_needs_write: bool,
 
     compiled: HashMap<Uuid, BlockHandle<CompiledLogic>>,
@@ -575,12 +577,23 @@ pub(super) struct LogicGridEditor {
 const DISPLAY_NAME: &str = "Logic Grid";
 
 impl LogicGridEditor {
+    fn with_hotbar_editor(
+        block: BlockHandle<LogicGrid>,
+        editor: block_editor_plugin::Editor,
+    ) -> Self {
+        Self {
+            hotbar_editor: Some(editor),
+            ..Self::new(block)
+        }
+    }
+
     fn new(block: BlockHandle<LogicGrid>) -> Self {
         Self {
             block,
             grid: Grid::new(),
             observed_revision: None,
             hotbar_block: None,
+            hotbar_editor: None,
             hotbar_needs_write: false,
             compiled: HashMap::new(),
             tool: Tool {

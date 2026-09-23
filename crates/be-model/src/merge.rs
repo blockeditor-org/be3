@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use be_commit::merge_slices;
 
@@ -81,11 +81,33 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
                 (Value::Register(_), Value::Register(_), Value::Register(_)) => {
                     pick(before, mine, other, conflicts)
                 }
+                (Value::Map(before), Value::Map(mine), Value::Map(other)) => {
+                    Value::Map(merge_entries(before, mine, other, conflicts))
+                }
                 _ => mine.clone(),
             }
         })
         .collect();
     Object { parent, fields }
+}
+
+fn merge_entries(
+    base: &BTreeMap<Vec<u8>, Vec<u8>>,
+    ours: &BTreeMap<Vec<u8>, Vec<u8>>,
+    theirs: &BTreeMap<Vec<u8>, Vec<u8>>,
+    conflicts: &mut usize,
+) -> BTreeMap<Vec<u8>, Vec<u8>> {
+    let keys: BTreeSet<&Vec<u8>> = base
+        .keys()
+        .chain(ours.keys())
+        .chain(theirs.keys())
+        .collect();
+    keys.into_iter()
+        .filter_map(|key| {
+            pick(&base.get(key), &ours.get(key), &theirs.get(key), conflicts)
+                .map(|value| (key.clone(), value.clone()))
+        })
+        .collect()
 }
 
 fn pick<T: Clone + PartialEq>(base: &T, ours: &T, theirs: &T, conflicts: &mut usize) -> T {

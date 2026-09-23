@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn editing_gives_the_slide_the_whole_stage() {
-    let (mut test, editor, _block) = editor(3);
+    let (mut test, editor) = editor(3);
     test.run();
 
     assert_eq!(test.rect_of("presentation.stage"), editor.content_rect());

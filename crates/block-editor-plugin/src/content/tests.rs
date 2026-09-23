@@ -10,6 +10,7 @@ use crate::EditorHost;
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
 mod an_edit_coming_back_as_mine_runs_nothing_again;
 mod an_operation_runs_only_the_watchers_of_what_it_touched;
+mod updates_for_another_block_reach_only_its_projection;
 
 struct Fixture {
     host: EditorHost,
@@ -30,7 +31,7 @@ impl Fixture {
         content.apply(&add_first);
         content.apply(&add_second);
         host.set_block_content(ChecklistContent::CONTENT_TYPE, content.encode(), 0);
-        let projection = ContentProjection::<ChecklistContent>::new(host.clone());
+        let projection = ContentProjection::<ChecklistContent>::new(host.clone(), None);
         let runs = [
             Rc::new(Cell::new(0)),
             Rc::new(Cell::new(0)),

@@ -86,6 +86,27 @@ impl Tree {
                 }
                 _ => false,
             },
+            Change::Put {
+                object,
+                field,
+                key,
+                value,
+            } => match self.value_mut(*object, *field) {
+                Some(Value::Map(entries)) => put(entries, key, value.as_ref()),
+                _ => false,
+            },
+            Change::PutIf {
+                object,
+                field,
+                key,
+                expected,
+                value,
+            } => match self.value_mut(*object, *field) {
+                Some(Value::Map(entries)) if entries.get(key) == expected.as_ref() => {
+                    put(entries, key, value.as_ref())
+                }
+                _ => false,
+            },
             Change::Insert {
                 place,
                 anchor,
@@ -139,6 +160,33 @@ impl Tree {
                     )
                 })
             }
+            Change::Put {
+                object,
+                field,
+                key,
+                value,
+            } => {
+                let Some(Value::Map(entries)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let held = entries.get(key);
+                (held != value.as_ref())
+                    .then(|| conditional_entry(*object, *field, key, held, value.as_ref()))
+            }
+            Change::PutIf {
+                object,
+                field,
+                key,
+                expected,
+                value,
+            } => {
+                let Some(Value::Map(entries)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let held = entries.get(key);
+                (held == expected.as_ref() && held != value.as_ref())
+                    .then(|| conditional_entry(*object, *field, key, held, value.as_ref()))
+            }
             Change::Insert { place, objects, .. } => {
                 let (top, _) = objects.first()?;
                 (!self.contains(*top) && self.list(*place).is_some())
@@ -183,7 +231,9 @@ impl Tree {
         match change {
             Change::Set { object, field, .. }
             | Change::SetIf { object, field, .. }
-            | Change::Add { object, field, .. } => {
+            | Change::Add { object, field, .. }
+            | Change::Put { object, field, .. }
+            | Change::PutIf { object, field, .. } => {
                 out.push(Touched::Field(*object, *field));
                 self.touch_up(*object, out);
             }
@@ -391,6 +441,46 @@ fn conditional(object: ObjectId, field: u16, before: &[u8], after: &[u8]) -> (Ch
             field,
             expected: before.to_vec(),
             value: after.to_vec(),
+        },
+    )
+}
+
+fn put(entries: &mut BTreeMap<Vec<u8>, Vec<u8>>, key: &[u8], value: Option<&Vec<u8>>) -> bool {
+    if entries.get(key) == value {
+        return false;
+    }
+    match value {
+        Some(value) => {
+            entries.insert(key.to_vec(), value.clone());
+        }
+        None => {
+            entries.remove(key);
+        }
+    }
+    true
+}
+
+fn conditional_entry(
+    object: ObjectId,
+    field: u16,
+    key: &[u8],
+    before: Option<&Vec<u8>>,
+    after: Option<&Vec<u8>>,
+) -> (Change, Change) {
+    (
+        Change::PutIf {
+            object,
+            field,
+            key: key.to_vec(),
+            expected: after.cloned(),
+            value: before.cloned(),
+        },
+        Change::PutIf {
+            object,
+            field,
+            key: key.to_vec(),
+            expected: before.cloned(),
+            value: after.cloned(),
         },
     )
 }
