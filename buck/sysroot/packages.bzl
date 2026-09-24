@@ -445,7 +445,7 @@ packages = {
         ("zlib1g", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/z/zlib/zlib1g_1.3.dfsg-3.1ubuntu2.2_amd64.deb", "84b9cf5752b29c9f92c27cd4c4ba9bbcc70b5ccf9b1b515421a28ae23212e273", 62988),
         ("zlib1g-dev", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/z/zlib/zlib1g-dev_1.3.dfsg-3.1ubuntu2.2_amd64.deb", "e9152a08af21ab22bc99e8bfa98f1eb83955b2cc3653bcefecab394ecf9d1b63", 894116),
     ],
-    "amd64-vulkan": [
+    "amd64-test": [
         ("gcc-14-base", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/g/gcc-14/gcc-14-base_14.2.0-4ubuntu2~24.04.1_amd64.deb", "b95c172411a7fdae70307cf33a9f5320ba5e056b556454543dd5b679d5ce1c4f", 51014),
         ("libbsd0", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/libb/libbsd/libbsd0_0.12.1-1build1.1_amd64.deb", "f3857b0863ac5cfd4263e9bf6cfb1d4be88d5321e4070d5bc2b62b0949e6c86f", 41238),
         ("libc6", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/g/glibc/libc6_2.39-0ubuntu8.9_amd64.deb", "ff5557d99b51f761c4b7c92368b9cc45565eda17df9bf9eb4b134d09825008be", 3264314),
@@ -481,6 +481,7 @@ packages = {
         ("libxshmfence1", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/libx/libxshmfence/libxshmfence1_1.3-1build5_amd64.deb", "bc6de4bfaf9050a8ba83d4bcfb114131b081084a7972c03417f8523d52b5c742", 4764),
         ("libzstd1", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/libz/libzstd/libzstd1_1.5.5+dfsg2-2build1.1_amd64.deb", "dfcf25061e07aad7efd3f4f880ba5ad4d4d09ebe7fc8cc77ab6b8a161d6d4727", 299472),
         ("mesa-vulkan-drivers", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/m/mesa/mesa-vulkan-drivers_25.2.8-0ubuntu0.24.04.2_amd64.deb", "b3be471db0ec27eb28c1ea75a4d2e6bb3207c5904bdc3823dbba9ce530026939", 17499848),
+        ("xkb-data", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/x/xkeyboard-config/xkb-data_2.41-2ubuntu1.1_all.deb", "e99f2a0b4c56cdf35dec489e56b6a8418826cab8ce6306ec6d0bd98e2cd0014a", 397328),
         ("zlib1g", "https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/z/zlib/zlib1g_1.3.dfsg-3.1ubuntu2.2_amd64.deb", "84b9cf5752b29c9f92c27cd4c4ba9bbcc70b5ccf9b1b515421a28ae23212e273", 62988),
     ],
     "arm64": [

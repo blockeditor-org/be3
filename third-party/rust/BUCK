@@ -1245,6 +1245,79 @@ buildscript_run(
 )
 
 http_archive(
+    name = "appendlist-1.4.0.crate",
+    sha256 = "e149dc73cd30538307e7ffa2acd3d2221148eaeed4871f246657b1c3eaa1cbd2",
+    strip_prefix = "appendlist-1.4.0",
+    urls = ["https://static.crates.io/crates/appendlist/1.4.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "appendlist-1",
+    srcs = [":appendlist-1.4.0.crate"],
+    crate = "appendlist",
+    crate_root = "appendlist-1.4.0.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "appendlist",
+        "CARGO_CRATE_NAME": "appendlist",
+        "CARGO_MANIFEST_DIR": "appendlist-1.4.0.crate",
+        "CARGO_PKG_AUTHORS": "Daniel Dulaney <dan@dulaney.xyz>",
+        "CARGO_PKG_DESCRIPTION": "An append-only list that preserves references to its elements",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "appendlist",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/danieldulaney/appendlist",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "1.4.0",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "4",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+http_archive(
+    name = "approx-0.4.0.crate",
+    sha256 = "3f2a05fd1bd10b2527e20a2cd32d8873d115b8b39fe219ee25f42a8aca6ba278",
+    strip_prefix = "approx-0.4.0",
+    urls = ["https://static.crates.io/crates/approx/0.4.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "approx-0.4",
+    srcs = [":approx-0.4.0.crate"],
+    crate = "approx",
+    crate_root = "approx-0.4.0.crate/src/lib.rs",
+    edition = "2015",
+    env = {
+        "CARGO_BIN_NAME": "approx",
+        "CARGO_CRATE_NAME": "approx",
+        "CARGO_MANIFEST_DIR": "approx-0.4.0.crate",
+        "CARGO_PKG_AUTHORS": "Brendan Zabarauskas <bjzaba@yahoo.com.au>",
+        "CARGO_PKG_DESCRIPTION": "Approximate floating point equality comparisons and assertions.",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/brendanzab/approx",
+        "CARGO_PKG_NAME": "approx",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/brendanzab/approx",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.4.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "4",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+    deps = [":num-traits-0.2"],
+)
+
+http_archive(
     name = "arbitrary-1.4.2.crate",
     sha256 = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1",
     strip_prefix = "arbitrary-1.4.2",
@@ -2480,6 +2553,44 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "atomic_float-1.1.0.crate",
+    sha256 = "628d228f918ac3b82fe590352cc719d30664a0c13ca3a60266fe02c7132d480a",
+    strip_prefix = "atomic_float-1.1.0",
+    urls = ["https://static.crates.io/crates/atomic_float/1.1.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "atomic_float-1",
+    srcs = [":atomic_float-1.1.0.crate"],
+    crate = "atomic_float",
+    crate_root = "atomic_float-1.1.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "atomic_float",
+        "CARGO_CRATE_NAME": "atomic_float",
+        "CARGO_MANIFEST_DIR": "atomic_float-1.1.0.crate",
+        "CARGO_PKG_AUTHORS": "Thom Chiovoloni <chiovolonit@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Floating point types which can be safely shared between threads",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/thomcc/atomic_float",
+        "CARGO_PKG_NAME": "atomic_float",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/thomcc/atomic_float",
+        "CARGO_PKG_RUST_VERSION": "1.60.0",
+        "CARGO_PKG_VERSION": "1.1.0",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "1",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "atomic_f64",
+        "default",
+    ],
+    visibility = [],
+)
+
+http_archive(
     name = "atspi-0.29.0.crate",
     sha256 = "c77886257be21c9cd89a4ae7e64860c6f0eefca799bb79127913052bd0eefb3d",
     strip_prefix = "atspi-0.29.0",
@@ -3667,6 +3778,47 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "calloop-0.14.4.crate",
+    sha256 = "4dbf9978365bac10f54d1d4b04f7ce4427e51f71d61f2fe15e3fed5166474df7",
+    strip_prefix = "calloop-0.14.4",
+    urls = ["https://static.crates.io/crates/calloop/0.14.4/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "calloop-0.14",
+    srcs = [":calloop-0.14.4.crate"],
+    crate = "calloop",
+    crate_root = "calloop-0.14.4.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "calloop",
+        "CARGO_CRATE_NAME": "calloop",
+        "CARGO_MANIFEST_DIR": "calloop-0.14.4.crate",
+        "CARGO_PKG_AUTHORS": "Elinor Berger <elinor@safaradeg.net>",
+        "CARGO_PKG_DESCRIPTION": "A callback-based event loop",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "calloop",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Smithay/calloop",
+        "CARGO_PKG_RUST_VERSION": "1.71.1",
+        "CARGO_PKG_VERSION": "0.14.4",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "14",
+        "CARGO_PKG_VERSION_PATCH": "4",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":bitflags-2",
+        ":polling-3",
+        ":rustix-1",
+        ":slab-0.4",
+        ":tracing-0.1",
+    ],
+)
+
+http_archive(
     name = "calloop-wayland-source-0.3.0.crate",
     sha256 = "95a66a987056935f7efce4ab5668920b5d0dac4a7c99991a67395f13702ddd20",
     strip_prefix = "calloop-wayland-source-0.3.0",
@@ -4319,6 +4471,91 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     visibility = [],
+)
+
+http_archive(
+    name = "cgmath-0.18.0.crate",
+    sha256 = "1a98d30140e3296250832bbaaff83b27dcd6fa3cc70fb6f1f3e5c9c0023b5317",
+    strip_prefix = "cgmath-0.18.0",
+    urls = ["https://static.crates.io/crates/cgmath/0.18.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "cgmath-0.18",
+    srcs = [":cgmath-0.18.0.crate"],
+    crate = "cgmath",
+    crate_root = "cgmath-0.18.0.crate/src/lib.rs",
+    edition = "2015",
+    env = {
+        "CARGO_BIN_NAME": "cgmath",
+        "CARGO_CRATE_NAME": "cgmath",
+        "CARGO_MANIFEST_DIR": "cgmath-0.18.0.crate",
+        "CARGO_PKG_AUTHORS": "Rust game-developers",
+        "CARGO_PKG_DESCRIPTION": "A linear algebra and mathematics library for computer graphics.",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/rustgd/cgmath",
+        "CARGO_PKG_NAME": "cgmath",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/rustgd/cgmath",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.18.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+        "OUT_DIR": "$(location :cgmath-0.18-build-script-run[out_dir])",
+    },
+    rustc_flags = ["@$(location :cgmath-0.18-build-script-run[rustc_flags])"],
+    visibility = [],
+    deps = [
+        ":approx-0.4",
+        ":num-traits-0.2",
+    ],
+)
+
+cargo.rust_binary(
+    name = "cgmath-0.18-build-script-build",
+    srcs = [":cgmath-0.18.0.crate"],
+    crate = "build_script_build",
+    crate_root = "cgmath-0.18.0.crate/build.rs",
+    edition = "2015",
+    env = {
+        "CARGO_BIN_NAME": "build-script-build",
+        "CARGO_CRATE_NAME": "build_script_build",
+        "CARGO_MANIFEST_DIR": "cgmath-0.18.0.crate",
+        "CARGO_PKG_AUTHORS": "Rust game-developers",
+        "CARGO_PKG_DESCRIPTION": "A linear algebra and mathematics library for computer graphics.",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/rustgd/cgmath",
+        "CARGO_PKG_NAME": "cgmath",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/rustgd/cgmath",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.18.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+)
+
+buildscript_run(
+    name = "cgmath-0.18-build-script-run",
+    package_name = "cgmath",
+    buildscript_rule = ":cgmath-0.18-build-script-build",
+    env = {
+        "CARGO_PKG_AUTHORS": "Rust game-developers",
+        "CARGO_PKG_DESCRIPTION": "A linear algebra and mathematics library for computer graphics.",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/rustgd/cgmath",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/rustgd/cgmath",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "18",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    version = "0.18.0",
 )
 
 http_archive(
@@ -7408,6 +7645,44 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "drm-fourcc-2.2.0.crate",
+    sha256 = "0aafbcdb8afc29c1a7ee5fbe53b5d62f4565b35a042a662ca9fecd0b54dae6f4",
+    strip_prefix = "drm-fourcc-2.2.0",
+    urls = ["https://static.crates.io/crates/drm-fourcc/2.2.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "drm-fourcc-2",
+    srcs = [":drm-fourcc-2.2.0.crate"],
+    crate = "drm_fourcc",
+    crate_root = "drm-fourcc-2.2.0.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "drm_fourcc",
+        "CARGO_CRATE_NAME": "drm_fourcc",
+        "CARGO_MANIFEST_DIR": "drm-fourcc-2.2.0.crate",
+        "CARGO_PKG_AUTHORS": "Daniel Franklin <daniel@danielzfranklin.org>",
+        "CARGO_PKG_DESCRIPTION": "Provides an enum with every valid Direct Rendering Manager (DRM) format fourcc",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "drm-fourcc",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/danielzfranklin/drm-fourcc-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "2.2.0",
+        "CARGO_PKG_VERSION_MAJOR": "2",
+        "CARGO_PKG_VERSION_MINOR": "2",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
+http_archive(
     name = "drop_bomb-0.1.5.crate",
     sha256 = "9bda8e21c04aca2ae33ffc2fd8c23134f3cac46db123ba97bd9d3f3b8a4a85e1",
     strip_prefix = "drop_bomb-0.1.5",
@@ -7802,17 +8077,18 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "14",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = ["std"],
+    features = [
+        "default",
+        "std",
+    ],
     platform = {
         "android-arm64": dict(
             deps = [":libc-0.2"],
         ),
         "linux-arm64": dict(
-            features = ["default"],
             deps = [":libc-0.2"],
         ),
         "linux-x86_64": dict(
-            features = ["default"],
             deps = [":libc-0.2"],
         ),
         "macos-arm64": dict(
@@ -17284,8 +17560,24 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "10",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    platform = {
+        "android-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "linux-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "linux-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "macos-arm64": dict(
+            deps = [":libc-0.2"],
+        ),
+        "macos-x86_64": dict(
+            deps = [":libc-0.2"],
+        ),
+    },
     visibility = [],
-    deps = [":libc-0.2"],
 )
 
 http_archive(
@@ -20298,7 +20590,7 @@ cargo.rust_library(
         ":bytemuck-1",
         ":bytes-1",
         ":chrono-0.4",
-        ":itertools-0.14",
+        ":itertools-0.15",
         ":libloading-0.8",
         ":log-0.4",
         ":maybe-owned-0.3",
@@ -20862,11 +21154,39 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "0",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    platform = {
+        "android-arm64": dict(
+            deps = [":rustix-1"],
+        ),
+        "linux-arm64": dict(
+            deps = [":rustix-1"],
+        ),
+        "linux-x86_64": dict(
+            deps = [":rustix-1"],
+        ),
+        "macos-arm64": dict(
+            deps = [":rustix-1"],
+        ),
+        "macos-x86_64": dict(
+            deps = [":rustix-1"],
+        ),
+        "windows-arm64": dict(
+            deps = [
+                ":concurrent-queue-2",
+                ":pin-project-lite-0.2",
+                ":windows-sys-0.61",
+            ],
+        ),
+        "windows-x86_64": dict(
+            deps = [
+                ":concurrent-queue-2",
+                ":pin-project-lite-0.2",
+                ":windows-sys-0.61",
+            ],
+        ),
+    },
     visibility = [],
-    deps = [
-        ":cfg-if-1",
-        ":rustix-1",
-    ],
+    deps = [":cfg-if-1"],
 )
 
 cargo_alias(
@@ -21618,7 +21938,52 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "18",
         "CARGO_PKG_VERSION_PRE": "",
     },
+    features = [
+        "default",
+        "procmacros",
+        "profiling-procmacros",
+    ],
     visibility = [],
+    deps = [":profiling-procmacros-1"],
+)
+
+http_archive(
+    name = "profiling-procmacros-1.0.18.crate",
+    sha256 = "4488a4a36b9a4ba6b9334a32a39971f77c1436ec82c38707bce707699cc3bbcb",
+    strip_prefix = "profiling-procmacros-1.0.18",
+    urls = ["https://static.crates.io/crates/profiling-procmacros/1.0.18/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "profiling-procmacros-1",
+    srcs = [":profiling-procmacros-1.0.18.crate"],
+    crate = "profiling_procmacros",
+    crate_root = "profiling-procmacros-1.0.18.crate/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_BIN_NAME": "profiling_procmacros",
+        "CARGO_CRATE_NAME": "profiling_procmacros",
+        "CARGO_MANIFEST_DIR": "profiling-procmacros-1.0.18.crate",
+        "CARGO_PKG_AUTHORS": "Philip Degarmo <aclysma@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "This crate provides a very thin abstraction over other profiler crates.",
+        "CARGO_PKG_HOMEPAGE": "https://github.com/aclysma/profiling",
+        "CARGO_PKG_NAME": "profiling-procmacros",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/aclysma/profiling",
+        "CARGO_PKG_RUST_VERSION": "1.65",
+        "CARGO_PKG_VERSION": "1.0.18",
+        "CARGO_PKG_VERSION_MAJOR": "1",
+        "CARGO_PKG_VERSION_MINOR": "0",
+        "CARGO_PKG_VERSION_PATCH": "18",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":quote-1",
+        ":syn-2",
+    ],
 )
 
 http_archive(
@@ -24303,6 +24668,24 @@ buildscript_run(
     version = "0.38.44",
 )
 
+cargo_alias(
+    name = "rustix",
+    actual = ":rustix-1",
+    platforms = [
+        "android-arm64",
+        "linux-arm64",
+        "linux-x86_64",
+        "macos-arm64",
+        "macos-x86_64",
+        "wasi",
+        "wasi-guest",
+        "wasm32",
+        "windows-arm64",
+        "windows-x86_64",
+    ],
+    visibility = ["PUBLIC"],
+)
+
 http_archive(
     name = "rustix-1.1.4.crate",
     sha256 = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190",
@@ -24338,19 +24721,21 @@ cargo.rust_library(
     features = [
         "alloc",
         "default",
+        "event",
+        "fs",
+        "mm",
+        "net",
+        "pipe",
+        "process",
+        "shm",
         "std",
+        "time",
     ],
     platform = {
         "android-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
             named_deps = {
                 "libc_errno": ":errno-0.3",
@@ -24362,46 +24747,24 @@ cargo.rust_library(
         ),
         "linux-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "pipe",
-                "process",
-                "shm",
                 "system",
                 "termios",
-                "time",
             ],
             deps = [":linux-raw-sys-0.12"],
         ),
         "linux-x86_64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "pipe",
-                "process",
-                "shm",
                 "system",
                 "termios",
-                "time",
             ],
             deps = [":linux-raw-sys-0.12"],
         ),
         "macos-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
             named_deps = {
                 "libc_errno": ":errno-0.3",
@@ -24410,14 +24773,8 @@ cargo.rust_library(
         ),
         "macos-x86_64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
             named_deps = {
                 "libc_errno": ":errno-0.3",
@@ -24425,56 +24782,33 @@ cargo.rust_library(
             deps = [":libc-0.2"],
         ),
         "wasi": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
+            features = ["termios"],
             named_deps = {
                 "libc_errno": ":errno-0.3",
             },
             deps = [":libc-0.2"],
         ),
         "wasi-guest": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
+            features = ["termios"],
             named_deps = {
                 "libc_errno": ":errno-0.3",
             },
             deps = [":libc-0.2"],
         ),
         "wasm32": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
+            features = ["termios"],
             named_deps = {
                 "libc_errno": ":errno-0.3",
             },
             deps = [":libc-0.2"],
         ),
         "windows-arm64": dict(
-            features = [
-                "event",
-                "net",
-            ],
             named_deps = {
                 "libc_errno": ":errno-0.3",
             },
             deps = [":windows-sys-0.61"],
         ),
         "windows-x86_64": dict(
-            features = [
-                "event",
-                "net",
-            ],
             named_deps = {
                 "libc_errno": ":errno-0.3",
             },
@@ -24512,110 +24846,57 @@ cargo.rust_binary(
     features = [
         "alloc",
         "default",
+        "event",
+        "fs",
+        "mm",
+        "net",
+        "pipe",
+        "process",
+        "shm",
         "std",
+        "time",
     ],
     platform = {
         "android-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
         ),
         "linux-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "pipe",
-                "process",
-                "shm",
                 "system",
                 "termios",
-                "time",
             ],
         ),
         "linux-x86_64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "pipe",
-                "process",
-                "shm",
                 "system",
                 "termios",
-                "time",
             ],
         ),
         "macos-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
         ),
         "macos-x86_64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
         ),
         "wasi": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
+            features = ["termios"],
         ),
         "wasi-guest": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
+            features = ["termios"],
         ),
         "wasm32": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
-        ),
-        "windows-arm64": dict(
-            features = [
-                "event",
-                "net",
-            ],
-        ),
-        "windows-x86_64": dict(
-            features = [
-                "event",
-                "net",
-            ],
+            features = ["termios"],
         ),
     },
     visibility = [],
@@ -24640,110 +24921,57 @@ buildscript_run(
     features = [
         "alloc",
         "default",
+        "event",
+        "fs",
+        "mm",
+        "net",
+        "pipe",
+        "process",
+        "shm",
         "std",
+        "time",
     ],
     platform = {
         "android-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
         ),
         "linux-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "pipe",
-                "process",
-                "shm",
                 "system",
                 "termios",
-                "time",
             ],
         ),
         "linux-x86_64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "pipe",
-                "process",
-                "shm",
                 "system",
                 "termios",
-                "time",
             ],
         ),
         "macos-arm64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
         ),
         "macos-x86_64": dict(
             features = [
-                "event",
-                "fs",
-                "mm",
-                "net",
                 "param",
-                "process",
                 "termios",
-                "time",
             ],
         ),
         "wasi": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
+            features = ["termios"],
         ),
         "wasi-guest": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
+            features = ["termios"],
         ),
         "wasm32": dict(
-            features = [
-                "fs",
-                "process",
-                "termios",
-                "time",
-            ],
-        ),
-        "windows-arm64": dict(
-            features = [
-                "event",
-                "net",
-            ],
-        ),
-        "windows-x86_64": dict(
-            features = [
-                "event",
-                "net",
-            ],
+            features = ["termios"],
         ),
     },
     version = "1.1.4",
@@ -26385,15 +26613,10 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PATCH": "12",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = ["std"],
-    platform = {
-        "linux-arm64": dict(
-            features = ["default"],
-        ),
-        "linux-x86_64": dict(
-            features = ["default"],
-        ),
-    },
+    features = [
+        "default",
+        "std",
+    ],
     visibility = [],
 )
 
@@ -26530,6 +26753,93 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [":serde-1"],
+)
+
+cargo_alias(
+    name = "smithay",
+    actual = ":smithay-0.7",
+    platforms = [
+        "android-arm64",
+        "linux-arm64",
+        "linux-x86_64",
+        "macos-arm64",
+        "macos-x86_64",
+        "wasi",
+        "wasi-guest",
+        "wasm32",
+        "windows-arm64",
+        "windows-x86_64",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "smithay-0.7.0.crate",
+    sha256 = "740cea6927892bc182d5bf70c8f79806c8bc9f68f2fb96e55a30be171b63af98",
+    strip_prefix = "smithay-0.7.0",
+    urls = ["https://static.crates.io/crates/smithay/0.7.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "smithay-0.7",
+    srcs = [":smithay-0.7.0.crate"],
+    crate = "smithay",
+    crate_root = "smithay-0.7.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "smithay",
+        "CARGO_CRATE_NAME": "smithay",
+        "CARGO_MANIFEST_DIR": "smithay-0.7.0.crate",
+        "CARGO_PKG_AUTHORS": "Victor Berger <victor.berger@m4x.org>:Drakulix (Victoria Brekenfeld)",
+        "CARGO_PKG_DESCRIPTION": "Smithay is a library for writing wayland compositors.",
+        "CARGO_PKG_HOMEPAGE": "https://smithay.github.io/",
+        "CARGO_PKG_NAME": "smithay",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Smithay/smithay",
+        "CARGO_PKG_RUST_VERSION": "1.80.1",
+        "CARGO_PKG_VERSION": "0.7.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "7",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "desktop",
+        "tempfile",
+        "wayland-protocols",
+        "wayland-protocols-misc",
+        "wayland-protocols-wlr",
+        "wayland-server",
+        "wayland_frontend",
+    ],
+    visibility = [],
+    deps = [
+        ":appendlist-1",
+        ":atomic_float-1",
+        ":bitflags-2",
+        ":calloop-0.14",
+        ":cgmath-0.18",
+        ":cursor-icon-1",
+        ":downcast-rs-1",
+        ":drm-fourcc-2",
+        ":errno-0.3",
+        ":indexmap-2",
+        ":libc-0.2",
+        ":profiling-1",
+        ":rand-0.9",
+        ":rustix-1",
+        ":sha2-0.10",
+        ":smallvec-1",
+        ":tempfile-3",
+        ":thiserror-2",
+        ":tracing-0.1",
+        ":wayland-protocols-0.32",
+        ":wayland-protocols-misc-0.3",
+        ":wayland-protocols-wlr-0.3",
+        ":wayland-server-0.31",
+        ":xkbcommon-0.8",
+    ],
 )
 
 http_archive(
@@ -27869,6 +28179,104 @@ buildscript_run(
     },
     features = ["default"],
     version = "0.13.5",
+)
+
+http_archive(
+    name = "tempfile-3.27.0.crate",
+    sha256 = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd",
+    strip_prefix = "tempfile-3.27.0",
+    urls = ["https://static.crates.io/crates/tempfile/3.27.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "tempfile-3",
+    srcs = [":tempfile-3.27.0.crate"],
+    crate = "tempfile",
+    crate_root = "tempfile-3.27.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "tempfile",
+        "CARGO_CRATE_NAME": "tempfile",
+        "CARGO_MANIFEST_DIR": "tempfile-3.27.0.crate",
+        "CARGO_PKG_AUTHORS": "Steven Allen <steven@stebalien.com>:The Rust Project Developers:Ashley Mannix <ashleymannix@live.com.au>:Jason White <me@jasonwhite.io>",
+        "CARGO_PKG_DESCRIPTION": "A library for managing temporary files and directories.",
+        "CARGO_PKG_HOMEPAGE": "https://stebalien.com/projects/tempfile-rs/",
+        "CARGO_PKG_NAME": "tempfile",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/Stebalien/tempfile",
+        "CARGO_PKG_RUST_VERSION": "1.63",
+        "CARGO_PKG_VERSION": "3.27.0",
+        "CARGO_PKG_VERSION_MAJOR": "3",
+        "CARGO_PKG_VERSION_MINOR": "27",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "getrandom",
+    ],
+    platform = {
+        "android-arm64": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":rustix-1",
+            ],
+        ),
+        "linux-arm64": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":rustix-1",
+            ],
+        ),
+        "linux-x86_64": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":rustix-1",
+            ],
+        ),
+        "macos-arm64": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":rustix-1",
+            ],
+        ),
+        "macos-x86_64": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":rustix-1",
+            ],
+        ),
+        "wasi": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":rustix-1",
+            ],
+        ),
+        "wasi-guest": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":rustix-1",
+            ],
+        ),
+        "windows-arm64": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":windows-sys-0.61",
+            ],
+        ),
+        "windows-x86_64": dict(
+            deps = [
+                ":getrandom-0.4",
+                ":windows-sys-0.61",
+            ],
+        ),
+    },
+    visibility = [],
+    deps = [
+        ":fastrand-2",
+        ":once_cell-1",
+    ],
 )
 
 http_archive(
@@ -29509,19 +29917,14 @@ cargo.rust_library(
     },
     features = [
         "attributes",
+        "default",
+        "log",
         "std",
         "tracing-attributes",
     ],
-    platform = {
-        "linux-arm64": dict(
-            features = ["default"],
-        ),
-        "linux-x86_64": dict(
-            features = ["default"],
-        ),
-    },
     visibility = [],
     deps = [
+        ":log-0.4",
         ":pin-project-lite-0.2",
         ":tracing-attributes-0.1",
         ":tracing-core-0.1",
@@ -33783,16 +34186,27 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
         "OUT_DIR": "$(location :wayland-backend-0.3-build-script-run[out_dir])",
     },
-    features = [
-        "client_system",
-        "dlopen",
-    ],
+    platform = {
+        "linux-arm64": dict(
+            features = [
+                "client_system",
+                "dlopen",
+            ],
+            deps = [":scoped-tls-1"],
+        ),
+        "linux-x86_64": dict(
+            features = [
+                "client_system",
+                "dlopen",
+            ],
+            deps = [":scoped-tls-1"],
+        ),
+    },
     rustc_flags = ["@$(location :wayland-backend-0.3-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
         ":downcast-rs-1",
         ":rustix-1",
-        ":scoped-tls-1",
         ":smallvec-1",
         ":wayland-sys-0.31",
     ],
@@ -33821,10 +34235,20 @@ cargo.rust_binary(
         "CARGO_PKG_VERSION_PATCH": "15",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "client_system",
-        "dlopen",
-    ],
+    platform = {
+        "linux-arm64": dict(
+            features = [
+                "client_system",
+                "dlopen",
+            ],
+        ),
+        "linux-x86_64": dict(
+            features = [
+                "client_system",
+                "dlopen",
+            ],
+        ),
+    },
     visibility = [],
     deps = [":cc-1"],
 )
@@ -33845,11 +34269,39 @@ buildscript_run(
         "CARGO_PKG_VERSION_PATCH": "15",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "client_system",
-        "dlopen",
-    ],
+    platform = {
+        "linux-arm64": dict(
+            features = [
+                "client_system",
+                "dlopen",
+            ],
+        ),
+        "linux-x86_64": dict(
+            features = [
+                "client_system",
+                "dlopen",
+            ],
+        ),
+    },
     version = "0.3.15",
+)
+
+cargo_alias(
+    name = "wayland-client",
+    actual = ":wayland-client-0.31",
+    platforms = [
+        "android-arm64",
+        "linux-arm64",
+        "linux-x86_64",
+        "macos-arm64",
+        "macos-x86_64",
+        "wasi",
+        "wasi-guest",
+        "wasm32",
+        "windows-arm64",
+        "windows-x86_64",
+    ],
+    visibility = ["PUBLIC"],
 )
 
 http_archive(
@@ -34017,6 +34469,24 @@ cargo.rust_library(
     ],
 )
 
+cargo_alias(
+    name = "wayland-protocols",
+    actual = ":wayland-protocols-0.32",
+    platforms = [
+        "android-arm64",
+        "linux-arm64",
+        "linux-x86_64",
+        "macos-arm64",
+        "macos-x86_64",
+        "wasi",
+        "wasi-guest",
+        "wasm32",
+        "windows-arm64",
+        "windows-x86_64",
+    ],
+    visibility = ["PUBLIC"],
+)
+
 http_archive(
     name = "wayland-protocols-0.32.12.crate",
     sha256 = "563a85523cade2429938e790815fd7319062103b9f4a2dc806e9b53b95982d8f",
@@ -34050,9 +34520,11 @@ cargo.rust_library(
     },
     features = [
         "client",
+        "server",
         "staging",
         "unstable",
         "wayland-client",
+        "wayland-server",
     ],
     visibility = [],
     deps = [
@@ -34060,6 +34532,52 @@ cargo.rust_library(
         ":wayland-backend-0.3",
         ":wayland-client-0.31",
         ":wayland-scanner-0.31",
+        ":wayland-server-0.31",
+    ],
+)
+
+http_archive(
+    name = "wayland-protocols-misc-0.3.12.crate",
+    sha256 = "6e9567599ef23e09b8dad6e429e5738d4509dfc46b3b21f32841a304d16b29c8",
+    strip_prefix = "wayland-protocols-misc-0.3.12",
+    urls = ["https://static.crates.io/crates/wayland-protocols-misc/0.3.12/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "wayland-protocols-misc-0.3",
+    srcs = [":wayland-protocols-misc-0.3.12.crate"],
+    crate = "wayland_protocols_misc",
+    crate_root = "wayland-protocols-misc-0.3.12.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "wayland_protocols_misc",
+        "CARGO_CRATE_NAME": "wayland_protocols_misc",
+        "CARGO_MANIFEST_DIR": "wayland-protocols-misc-0.3.12.crate",
+        "CARGO_PKG_AUTHORS": "Elinor Berger <elinor@safaradeg.net>",
+        "CARGO_PKG_DESCRIPTION": "Generated API for misc and deprecated wayland protocol extensions",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "wayland-protocols-misc",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/smithay/wayland-rs",
+        "CARGO_PKG_RUST_VERSION": "1.71",
+        "CARGO_PKG_VERSION": "0.3.12",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "3",
+        "CARGO_PKG_VERSION_PATCH": "12",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "server",
+        "wayland-server",
+    ],
+    visibility = [],
+    deps = [
+        ":bitflags-2",
+        ":wayland-backend-0.3",
+        ":wayland-protocols-0.32",
+        ":wayland-scanner-0.31",
+        ":wayland-server-0.31",
     ],
 )
 
@@ -34140,16 +34658,32 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     features = [
-        "client",
-        "wayland-client",
+        "server",
+        "wayland-server",
     ],
+    platform = {
+        "linux-arm64": dict(
+            features = [
+                "client",
+                "wayland-client",
+            ],
+            deps = [":wayland-client-0.31"],
+        ),
+        "linux-x86_64": dict(
+            features = [
+                "client",
+                "wayland-client",
+            ],
+            deps = [":wayland-client-0.31"],
+        ),
+    },
     visibility = [],
     deps = [
         ":bitflags-2",
         ":wayland-backend-0.3",
-        ":wayland-client-0.31",
         ":wayland-protocols-0.32",
         ":wayland-scanner-0.31",
+        ":wayland-server-0.31",
     ],
 )
 
@@ -34194,6 +34728,47 @@ cargo.rust_library(
 )
 
 http_archive(
+    name = "wayland-server-0.31.14.crate",
+    sha256 = "0dde9c29be0f723a573977de51ee455bf3dfa03652730a74f9dd3b337e374d75",
+    strip_prefix = "wayland-server-0.31.14",
+    urls = ["https://static.crates.io/crates/wayland-server/0.31.14/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "wayland-server-0.31",
+    srcs = [":wayland-server-0.31.14.crate"],
+    crate = "wayland_server",
+    crate_root = "wayland-server-0.31.14.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "wayland_server",
+        "CARGO_CRATE_NAME": "wayland_server",
+        "CARGO_MANIFEST_DIR": "wayland-server-0.31.14.crate",
+        "CARGO_PKG_AUTHORS": "Elinor Berger <elinor@safaradeg.net>",
+        "CARGO_PKG_DESCRIPTION": "Bindings to the standard C implementation of the wayland protocol, server side.",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "wayland-server",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/smithay/wayland-rs",
+        "CARGO_PKG_RUST_VERSION": "1.71",
+        "CARGO_PKG_VERSION": "0.31.14",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "31",
+        "CARGO_PKG_VERSION_PATCH": "14",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    visibility = [],
+    deps = [
+        ":bitflags-2",
+        ":downcast-rs-1",
+        ":rustix-1",
+        ":wayland-backend-0.3",
+        ":wayland-scanner-0.31",
+    ],
+)
+
+http_archive(
     name = "wayland-sys-0.31.11.crate",
     sha256 = "d8eab23fefc9e41f8e841df4a9c707e8a8c4ed26e944ef69297184de2785e3be",
     strip_prefix = "wayland-sys-0.31.11",
@@ -34225,19 +34800,49 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
         "OUT_DIR": "$(location :wayland-sys-0.31-build-script-run[out_dir])",
     },
-    features = [
-        "client",
-        "dlopen",
-        "egl",
-        "once_cell",
-    ],
+    platform = {
+        "android-arm64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+            deps = [
+                ":dlib-0.5",
+                ":log-0.4",
+                ":once_cell-1",
+            ],
+        ),
+        "linux-arm64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+            deps = [
+                ":dlib-0.5",
+                ":log-0.4",
+                ":once_cell-1",
+            ],
+        ),
+        "linux-x86_64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+            deps = [
+                ":dlib-0.5",
+                ":log-0.4",
+                ":once_cell-1",
+            ],
+        ),
+    },
     rustc_flags = ["@$(location :wayland-sys-0.31-build-script-run[rustc_flags])"],
     visibility = [],
-    deps = [
-        ":dlib-0.5",
-        ":log-0.4",
-        ":once_cell-1",
-    ],
 )
 
 cargo.rust_binary(
@@ -34263,12 +34868,32 @@ cargo.rust_binary(
         "CARGO_PKG_VERSION_PATCH": "11",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "client",
-        "dlopen",
-        "egl",
-        "once_cell",
-    ],
+    platform = {
+        "android-arm64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+        ),
+        "linux-arm64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+        ),
+        "linux-x86_64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+        ),
+    },
     visibility = [],
     deps = [":pkg-config-0.3"],
 )
@@ -34289,12 +34914,32 @@ buildscript_run(
         "CARGO_PKG_VERSION_PATCH": "11",
         "CARGO_PKG_VERSION_PRE": "",
     },
-    features = [
-        "client",
-        "dlopen",
-        "egl",
-        "once_cell",
-    ],
+    platform = {
+        "android-arm64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+        ),
+        "linux-arm64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+        ),
+        "linux-x86_64": dict(
+            features = [
+                "client",
+                "dlopen",
+                "egl",
+                "once_cell",
+            ],
+        ),
+    },
     version = "0.31.11",
 )
 
@@ -38217,6 +38862,7 @@ cargo.rust_library(
         "Win32_System_Diagnostics_Debug",
         "Win32_System_IO",
         "Win32_System_Kernel",
+        "Win32_System_LibraryLoader",
         "Win32_System_Memory",
         "Win32_System_Performance",
         "Win32_System_Pipes",
@@ -39556,6 +40202,50 @@ cargo.rust_library(
         "CARGO_PKG_VERSION_PRE": "",
     },
     visibility = [],
+)
+
+http_archive(
+    name = "xkbcommon-0.8.0.crate",
+    sha256 = "8d66ca9352cbd4eecbbc40871d8a11b4ac8107cfc528a6e14d7c19c69d0e1ac9",
+    strip_prefix = "xkbcommon-0.8.0",
+    urls = ["https://static.crates.io/crates/xkbcommon/0.8.0/download"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "xkbcommon-0.8",
+    srcs = [":xkbcommon-0.8.0.crate"],
+    crate = "xkbcommon",
+    crate_root = "xkbcommon-0.8.0.crate/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_BIN_NAME": "xkbcommon",
+        "CARGO_CRATE_NAME": "xkbcommon",
+        "CARGO_MANIFEST_DIR": "xkbcommon-0.8.0.crate",
+        "CARGO_PKG_AUTHORS": "Remi THEBAULT <remi.thebault@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "Rust bindings and wrappers for libxkbcommon",
+        "CARGO_PKG_HOMEPAGE": "",
+        "CARGO_PKG_NAME": "xkbcommon",
+        "CARGO_PKG_README": "README.md",
+        "CARGO_PKG_REPOSITORY": "https://github.com/rust-x-bindings/xkbcommon-rs",
+        "CARGO_PKG_RUST_VERSION": "",
+        "CARGO_PKG_VERSION": "0.8.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "8",
+        "CARGO_PKG_VERSION_PATCH": "0",
+        "CARGO_PKG_VERSION_PRE": "",
+    },
+    features = [
+        "default",
+        "memmap2",
+        "wayland",
+    ],
+    visibility = [],
+    deps = [
+        ":libc-0.2",
+        ":memmap2-0.9",
+        ":xkeysym-0.2",
+    ],
 )
 
 http_archive(

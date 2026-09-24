@@ -216,8 +216,10 @@ jobs:
 
       # Everything, on BuildBuddy's workers: the tests jobs above build what
       # they test, and this is what says the rest - the binaries, the plugin
-      # and game modules - builds too.
-      - run: ./scripts/buck build //crates/...
+      # and game modules - builds too. Nothing is downloaded: what this checks
+      # is that it built, and every platform's binaries together are more than
+      # a runner's disk.
+      - run: ./scripts/buck build --materializations=none //crates/...
 
       # The same for the platforms buck/platforms/cross.bzl cross-compiles on
       # the same Linux workers: Android, against the NDK, Linux on arm64,
@@ -227,9 +229,9 @@ jobs:
       - name: Build for the cross-compiled platforms
         run: |
           for platform in android_arm64 linux_arm64 macos_arm64 macos_x86_64 windows_arm64 windows_x86_64; do
-            ./scripts/buck build --target-platforms "root//buck/platforms:$platform" //crates/...
+            ./scripts/buck build --materializations=none --target-platforms "root//buck/platforms:$platform" //crates/...
           done
-          ./scripts/buck build --target-platforms root//buck/platforms:android_arm64 '//crates/block-app:block-app[cdylib]'
+          ./scripts/buck build --materializations=none --target-platforms root//buck/platforms:android_arm64 '//crates/block-app:block-app[cdylib]'
 
   web:
     name: web bundle

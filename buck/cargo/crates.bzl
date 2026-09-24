@@ -389,6 +389,192 @@ crates = {
         },
         "version": "0.1.0",
     },
+    "crates/be-compositor": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "be-compositor",
+            },
+        ],
+        "edition": "2024",
+        "library": {
+            "crate": "be_compositor",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-compositor",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "be-compositor": [
+                        "//crates/beui:beui",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:rustix",
+                        "//third-party/rust:smithay",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:rustix",
+                    "//third-party/rust:smithay",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:wayland-client",
+                    "//third-party/rust:wayland-protocols",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "be-compositor": [
+                        "//crates/beui:beui",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:rustix",
+                        "//third-party/rust:smithay",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:rustix",
+                    "//third-party/rust:smithay",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:wayland-client",
+                    "//third-party/rust:wayland-protocols",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "be-compositor": [
+                        "//crates/beui:beui",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:rustix",
+                        "//third-party/rust:smithay",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:rustix",
+                    "//third-party/rust:smithay",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:wayland-client",
+                    "//third-party/rust:wayland-protocols",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "be-compositor": [
+                        "//crates/beui:beui",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:rustix",
+                        "//third-party/rust:smithay",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:rustix",
+                    "//third-party/rust:smithay",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:wayland-client",
+                    "//third-party/rust:wayland-protocols",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "be-compositor": [
+                        "//crates/beui:beui",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:rustix",
+                        "//third-party/rust:smithay",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:rustix",
+                    "//third-party/rust:smithay",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:wayland-client",
+                    "//third-party/rust:wayland-protocols",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "be-compositor": [
+                        "//crates/beui:beui",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:rustix",
+                        "//third-party/rust:smithay",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:rustix",
+                    "//third-party/rust:smithay",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:wayland-client",
+                    "//third-party/rust:wayland-protocols",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "be-compositor": [
+                        "//crates/beui:beui",
+                        "//third-party/rust:bytemuck",
+                        "//third-party/rust:rustix",
+                        "//third-party/rust:smithay",
+                        "//third-party/rust:wgpu",
+                    ],
+                },
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:rustix",
+                    "//third-party/rust:smithay",
+                    "//third-party/rust:wgpu",
+                ],
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:wayland-client",
+                    "//third-party/rust:wayland-protocols",
+                ],
+                "test_features": [],
+            },
+        },
+        "version": "0.1.0",
+    },
     "crates/be-graph": {
         "binaries": [],
         "edition": "2024",
@@ -2429,6 +2615,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/block:block",
                     "//crates/logicgame:logicgame",
                     "//crates/tabletop_games/api:game-api",
@@ -2456,6 +2643,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/block:block",
                     "//crates/logicgame:logicgame",
                     "//crates/tabletop_games/api:game-api",
@@ -2483,6 +2671,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/block:block",
                     "//crates/logicgame:logicgame",
                     "//crates/tabletop_games/api:game-api",
@@ -2510,6 +2699,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/block:block",
                     "//crates/logicgame:logicgame",
                     "//crates/tabletop_games/api:game-api",
@@ -2537,6 +2727,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/block:block",
                     "//crates/logicgame:logicgame",
                     "//crates/tabletop_games/api:game-api",
@@ -2564,6 +2755,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/block:block",
                     "//crates/logicgame:logicgame",
                     "//crates/tabletop_games/api:game-api",
@@ -2593,6 +2785,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/block:block",
                     "//crates/logicgame:logicgame",
                     "//crates/tabletop_games/api:game-api",
@@ -2620,6 +2813,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/block:block",
                     "//crates/logicgame:logicgame",
                     "//crates/tabletop_games/api:game-api",
@@ -3352,7 +3546,9 @@ crates = {
                     "//third-party/rust:uuid",
                 ],
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -3364,7 +3560,9 @@ crates = {
                     "//third-party/rust:uuid",
                 ],
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -3376,7 +3574,9 @@ crates = {
                     "//third-party/rust:uuid",
                 ],
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -3388,7 +3588,9 @@ crates = {
                     "//third-party/rust:uuid",
                 ],
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -3400,7 +3602,9 @@ crates = {
                     "//third-party/rust:uuid",
                 ],
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde",
+                ],
                 "test_features": [],
             },
             "wasi": {
@@ -3424,7 +3628,9 @@ crates = {
                     "//third-party/rust:uuid",
                 ],
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -3436,7 +3642,9 @@ crates = {
                     "//third-party/rust:uuid",
                 ],
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde",
+                ],
                 "test_features": [],
             },
         },
@@ -3905,6 +4113,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-client:block-client",
+                    "//crates/block:block",
                 ],
                 "test_features": [],
             },
@@ -3919,6 +4128,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-client:block-client",
+                    "//crates/block:block",
                 ],
                 "test_features": [],
             },
@@ -3933,6 +4143,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-client:block-client",
+                    "//crates/block:block",
                 ],
                 "test_features": [],
             },
@@ -3947,6 +4158,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-client:block-client",
+                    "//crates/block:block",
                 ],
                 "test_features": [],
             },
@@ -3961,6 +4173,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-client:block-client",
+                    "//crates/block:block",
                 ],
                 "test_features": [],
             },
@@ -3987,6 +4200,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-client:block-client",
+                    "//crates/block:block",
                 ],
                 "test_features": [],
             },
@@ -4001,6 +4215,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-client:block-client",
+                    "//crates/block:block",
                 ],
                 "test_features": [],
             },

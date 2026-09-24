@@ -87,14 +87,21 @@ done
 find . -xtype l -delete
 find . -name '*\\*' -exec rm -rf {} +
 """
+    if ctx.attrs.keep_xkb:
+        script = script.replace("usr/lib/aarch64-linux-gnu; do", "usr/lib/aarch64-linux-gnu usr/share/X11/xkb; do")
     ctx.actions.run(
         cmd_args("sh", "-c", script, "--", out.as_output(), ctx.attrs.packages),
         category = "deb_sysroot",
     )
     return [DefaultInfo(default_output = out)]
 
+# keep_xkb also keeps the XKB keymaps, which nothing compiles against but a
+# program that builds a keyboard with libxkbcommon reads when it runs.
 deb_sysroot = rule(
-    attrs = {"packages": attrs.list(attrs.source())},
+    attrs = {
+        "keep_xkb": attrs.bool(default = False),
+        "packages": attrs.list(attrs.source()),
+    },
     impl = _deb_sysroot_impl,
 )
 

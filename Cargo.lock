@@ -6279,6 +6279,8 @@ version = "0.1.0"
 dependencies = [
  "naga",
  "wat",
+ "wayland-client",
+ "wayland-protocols",
 ]
 
 [[package]]

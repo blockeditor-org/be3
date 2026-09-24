@@ -166,10 +166,11 @@ A new system library is a line in `buck/sysroot/BUCK` and a `./scripts/buckify`.
 What a test loads but nothing compiles against is a set of its own, resolved
 from the same snapshot into its own sysroot, so that adding to it leaves the
 compile sysroot, and every cache key built on it, alone.
-`buck/sysroot:amd64-vulkan` is the Vulkan loader and Mesa's software driver,
-lavapipe: beui's renderer tests put its libraries on `LD_LIBRARY_PATH` and
-name `buck/sysroot/lavapipe_icd.json` in `VK_ICD_FILENAMES`, and draw through
-it on a worker.
+`buck/sysroot:amd64-test` is the Vulkan loader and Mesa's software driver,
+lavapipe, and the XKB keymaps. beui's renderer tests put its libraries on
+`LD_LIBRARY_PATH` and name `buck/sysroot/lavapipe_icd.json` in
+`VK_ICD_FILENAMES`, and draw through it on a worker; be-compositor's tests
+build their keyboard from its keymaps through `XKB_CONFIG_ROOT`.
 
 A test that loads one of these at run time, on a worker whose image does not
 have it, gets the sysroot's library directory through `LD_LIBRARY_PATH`; today
@@ -680,7 +681,7 @@ target with `--target` is what makes wasmtime stop looking.
 - **The plugin tests' GPU half.** The plugin tests run locally, because they
   write accepted paintings into `snapshots/`, so what they draw through is this
   machine's device. beui's renderer tests run on a worker, on lavapipe from
-  `buck/sysroot:amd64-vulkan`.
+  `buck/sysroot:amd64-test`.
 - **The lint pass.** clippy has no gate yet (above), and rustfmt and
   `fix-rust-source` have no buck2 story yet.
 - **`./scripts/check`.** It is `cargo check`. `rust-project check` is its

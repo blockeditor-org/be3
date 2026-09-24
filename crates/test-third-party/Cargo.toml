@@ -26,6 +26,9 @@ naga = { version = "29", features = ["wgsl-in"] }
 # guest's, where a game module the user picked is never text and the error a
 # plugin paints when one will not load is the one wat is not there to soften.
 wat = "1"
+# be-compositor's tests connect to the compositor as a Wayland client.
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client"] }
 
 [lints]
 workspace = true
