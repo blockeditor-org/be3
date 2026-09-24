@@ -67,6 +67,8 @@ packages+=(
 # carry theirs - but the GTK dialogs and the window manager the app runs under
 # still want one, and a machine with no font at all is a confusing one to debug.
 packages+=(fonts-dejavu-core fonts-dejavu-mono)
+# be-compositor's session backend loads GBM, libinput, libseat and udev.
+packages+=(libgbm1 libinput10 libseat1 libudev1)
 # ./scripts/buck run //crates/block-app:smoke starts the app against a virtual
 # display.
 packages+=(xvfb)

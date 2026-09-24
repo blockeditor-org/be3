@@ -133,7 +133,8 @@ app(
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 
-# The bundle served on this machine, with block-server behind it: web/serve.py.
+# The bundle served on this machine by Caddy, with block-server behind it:
+# web/serve.py.
 #
 #   ./scripts/buck run //crates/block-app:web-serve
 tool(
@@ -141,9 +142,20 @@ tool(
     command = [
         "python3",
         "$(location :serve.py)",
+        "--caddy",
+        "$(location //buck/tools:caddy)",
+        "--caddyfile",
+        "$(location :Caddyfile)",
+        "--bundle",
         "$(location :web)",
+        "--server",
         "$(location //crates/block-server:block-server-bin)",
     ],
+)
+
+export_file(
+    name = "Caddyfile",
+    src = "web/Caddyfile",
 )
 
 export_file(

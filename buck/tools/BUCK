@@ -394,3 +394,40 @@ script(
     src = "pkg-config-provided",
     visibility = ["PUBLIC"],
 )
+
+# Caddy, the web server `./scripts/buck run //crates/block-app:web-serve` serves
+# the web bundle with, and crates/block-app/web/Caddyfile's. It runs on the
+# machine that asked for it rather than on a worker, so the archive is the one
+# for this machine. Upstream publishes them as GitHub release assets; these
+# are the same bytes, from the mirror scripts/internal/common.sh describes.
+caddy_version = "2.11.4"
+
+caddy_releases = {
+    "linux_amd64": ("527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9", 17238873, "tar.gz"),
+    "linux_arm64": ("52d42ae12b3462097e9868da6dfed3c9648ae12edd3b3638102312af84cb6904", 15704974, "tar.gz"),
+    "mac_amd64": ("34bc9e5cceee8d67844ef51da624f5b79e8d070f27236e050c3f0066a2dba534", 17631734, "tar.gz"),
+    "mac_arm64": ("9efb0af2d6cf09cfb5053c0e51721b9b3d4956d346234f39368d943d25a3c9a7", 16448366, "tar.gz"),
+    "windows_amd64": ("1708333f79e274c7697285afe6d592ab39314e0b131e9ec6bea08ad27df62ebf", 17559418, "zip"),
+    "windows_arm64": ("c7f16da93728f61455f77c04eac1ff4de06a38da281ed6d3dcbfae795be2a936", 15748221, "zip"),
+}
+
+[
+    http_archive(
+        name = "caddy-" + release,
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        urls = ["https://lfs.pfg.pw/by-name/be3/caddy/caddy_{}_{}.{}".format(caddy_version, release, extension)],
+    )
+    for release, (sha256, size_bytes, extension) in caddy_releases.items()
+]
+
+_caddy_host = "{}_{}".format(
+    "mac" if host_info().os.is_macos else "windows" if host_info().os.is_windows else "linux",
+    "arm64" if host_info().arch.is_aarch64 else "amd64",
+)
+
+alias(
+    name = "caddy",
+    actual = ":caddy-" + _caddy_host,
+    visibility = ["PUBLIC"],
+)

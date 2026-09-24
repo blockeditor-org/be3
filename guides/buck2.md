@@ -464,10 +464,15 @@ a freestanding wasm archive.
 `wasm-bindgen` is `buck/cargo:wasm-bindgen`, `cargo install` of
 `wasm-bindgen-cli` on a worker at the version `Cargo.lock` has for the crate;
 the two have to agree. `:web-dist` is what CI publishes: no plugins, and an
-index of none. `:web-serve` runs `crates/block-app/web/serve.py`, which serves
-the bundle with the two cross-origin isolation headers the module's shared
-memory needs and passes `/api`, WebSocket and all, through to a
-`block-server` it starts. `web/Caddyfile` is the same for a deployment.
+index of none.
+
+`:web-serve` runs `crates/block-app/web/serve.py`, which starts a
+`block-server` and Caddy with `crates/block-app/web/Caddyfile`: the bundle
+with the two cross-origin isolation headers the module's shared memory needs,
+and `/api`, WebSocket and all, passed through to the server. A deployment runs
+the same Caddyfile with `BE3_DOMAIN_NAME` a domain, which Caddy gets a
+certificate for, and `BE3_WEB_ROOT` the directory `:web-dist` was written to.
+Caddy is `buck/tools:caddy`, the release for the machine it runs on.
 
 ### The APK
 
@@ -760,7 +765,8 @@ target with `--target` is what makes wasmtime stop looking.
 ## What is left
 
 - **The macOS `.app`.** The Mac builds are the executable and its libraries,
-  as they were under cargo.
+  which is what CI ships for now; the bundle waits until the app is prepared
+  for distribution, along with the Mac worker the SDK's licence asks for.
 
 The plugin tests run here rather than on a worker, because they write accepted
 paintings into `snapshots/`, so what they draw through is this machine's
@@ -782,6 +788,10 @@ The pin is a dated release tag. `latest` is a tag upstream repoints on every
 push to main, so it is never what to pin. A buck2 binary carries the prelude it
 was built with, which is why moving that version is a change to verify with a
 build rather than a number to bump.
+
+Caddy is the same: GitHub release assets, mirrored and pinned in
+`buck/tools/BUCK`, one for each platform upstream builds, since it runs on the
+machine that asked for it rather than on a worker.
 
 reindeer publishes no releases at all, so it is pinned by commit in
 `buck/cargo/BUCK` and built from source on a worker. Only `./scripts/buck run //:buckify`
