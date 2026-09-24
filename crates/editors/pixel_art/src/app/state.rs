@@ -1,11 +1,15 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use block_client::blocks::pixel_art::{PixelArt, PixelArtAnchor, PixelArtOperation, PixelColor};
+use block_client::blocks::pixel_art::{PixelArtAnchor, PixelArtOperation, PixelColor};
+use block_editor_plugin::be_block::PixelArtContent;
+use block_editor_plugin::be_block::pixel_art::Artwork;
 use block_editor_plugin::beui::reactive::{
     Memo, ReadSignal, WriteSignal, create_memo, create_signal,
 };
-use block_editor_plugin::{BlockProjection, Editor};
+use block_editor_plugin::{ContentProjection, Editor};
+
+pub(crate) type ArtBlock = Rc<ContentProjection<PixelArtContent>>;
 
 use crate::color::format_hex_color;
 use crate::drawing::{ActiveDrawing, Brush, BrushShape, CommittedPreview, PixelTool};
@@ -22,7 +26,8 @@ pub(crate) enum Dialog {
 
 pub(crate) struct Tools {
     editor: Editor,
-    block: Rc<BlockProjection<PixelArt>>,
+    block: ArtBlock,
+    held: RefCell<Option<(u64, Rc<Artwork>)>>,
     pub(crate) tool: ReadSignal<PixelTool>,
     set_tool: WriteSignal<PixelTool>,
     previous_drawing_tool: Cell<PixelTool>,
@@ -60,7 +65,7 @@ pub(crate) struct Tools {
 }
 
 impl Tools {
-    pub(crate) fn new(editor: &Editor, block: Rc<BlockProjection<PixelArt>>) -> Rc<Self> {
+    pub(crate) fn new(editor: &Editor, block: ArtBlock) -> Rc<Self> {
         let black = PixelColor::new(0, 0, 0, 255);
         let (tool, set_tool) = create_signal(PixelTool::Pencil);
         let (color, set_color) = create_signal(black);
@@ -80,6 +85,7 @@ impl Tools {
         Rc::new(Self {
             editor: editor.clone(),
             block,
+            held: RefCell::new(None),
             tool,
             set_tool,
             previous_drawing_tool: Cell::new(PixelTool::Pencil),
@@ -121,8 +127,16 @@ impl Tools {
         &self.editor
     }
 
-    pub(crate) fn block(&self) -> &Rc<BlockProjection<PixelArt>> {
+    pub(crate) fn block(&self) -> &ArtBlock {
         &self.block
+    }
+
+    pub(crate) fn artwork(&self) -> Option<Rc<Artwork>> {
+        artwork_of(&self.block, &self.held)
+    }
+
+    pub(crate) fn pixel(&self, x: u16, y: u16) -> Option<PixelColor> {
+        self.artwork()?.pixel(x, y)
     }
 
     pub(crate) fn editable(&self) -> bool {
@@ -130,8 +144,13 @@ impl Tools {
     }
 
     pub(crate) fn operate(&self, operation: PixelArtOperation) {
-        if self.editable() {
-            self.block.operate(operation);
+        if !self.editable() {
+            return;
+        }
+        if let Some(edit) = self.block.read(|art| art.root().edit_for(&operation))
+            && !edit.0.is_empty()
+        {
+            self.block.operate(edit);
         }
     }
 
@@ -201,4 +220,19 @@ impl Tools {
     pub(crate) fn busy(&self) -> bool {
         self.dialog.get_untracked() != Dialog::None
     }
+}
+
+pub(crate) fn artwork_of(
+    block: &ArtBlock,
+    held: &RefCell<Option<(u64, Rc<Artwork>)>>,
+) -> Option<Rc<Artwork>> {
+    let revision = block.revision()?;
+    if let Some((seen, art)) = &*held.borrow()
+        && *seen == revision
+    {
+        return Some(Rc::clone(art));
+    }
+    let art = Rc::new(block.read(|content| content.root().artwork())?);
+    held.replace(Some((revision, Rc::clone(&art))));
+    Some(art)
 }

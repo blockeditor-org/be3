@@ -1,10 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_client::blocks::pixel_art::{PixelArt, PixelColor};
+use block_client::blocks::pixel_art::PixelColor;
+use block_editor_plugin::Editor;
+use block_editor_plugin::be_block::pixel_art::Artwork;
 use block_editor_plugin::beui::Image;
 use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
-use block_editor_plugin::{BlockProjection, Editor};
+
+use super::state::{ArtBlock, artwork_of};
 
 use crate::color::{artwork_image, preview_bounds, preview_image};
 
@@ -28,6 +31,7 @@ struct Held {
 
 pub(crate) struct Pane {
     held: RefCell<Held>,
+    art: RefCell<Option<(u64, Rc<Artwork>)>>,
     shown: Memo<Shown>,
     set_shown: block_editor_plugin::beui::reactive::WriteSignal<Shown>,
 }
@@ -40,6 +44,7 @@ impl Pane {
                 dark_mode: true,
                 ..Held::default()
             }),
+            art: RefCell::new(None),
             shown: create_memo(move || shown.get()),
             set_shown,
         })
@@ -52,16 +57,17 @@ impl Pane {
     pub(crate) fn refresh(
         &self,
         editor: &Editor,
-        block: &BlockProjection<PixelArt>,
+        block: &ArtBlock,
         dark_mode: bool,
         pixels: &[(u16, u16)],
         color: PixelColor,
     ) {
         let _ = editor;
-        let handle = block.handle();
-        let revision = handle.revision();
+        let Some(revision) = block.revision() else {
+            return;
+        };
         let mut held = self.held.borrow_mut();
-        let Some(art) = handle.read() else {
+        let Some(art) = artwork_of(block, &self.art) else {
             return;
         };
         let size = (art.width(), art.height());

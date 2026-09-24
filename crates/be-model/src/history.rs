@@ -16,6 +16,11 @@ impl Step {
     }
 
     pub fn absorb(&mut self, next: Self) -> Result<(), Self> {
+        if strokes(&self.redo, &next.redo) {
+            self.undo.extend(next.undo);
+            self.redo.extend(next.redo);
+            return Ok(());
+        }
         let chained = self.redo.len() == next.redo.len()
             && self
                 .redo
@@ -59,6 +64,22 @@ impl Step {
         }
         Ok(())
     }
+}
+
+fn strokes(done: &[Change], following: &[Change]) -> bool {
+    let Some(Change::Paint { object, field, .. }) = done.first() else {
+        return false;
+    };
+    done.iter().chain(following).all(|change| {
+        matches!(
+            change,
+            Change::Paint {
+                object: painted,
+                field: into,
+                ..
+            } if painted == object && into == field
+        )
+    })
 }
 
 fn follows(done: &Change, following: &Change) -> bool {

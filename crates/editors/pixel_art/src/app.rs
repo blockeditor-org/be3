@@ -4,6 +4,8 @@ use std::rc::Rc;
 use block::Block;
 use block_client::blocks::image::Image;
 use block_client::blocks::pixel_art::{PixelArt, PixelColor};
+use block_editor_plugin::be_block::pixel_art::{default_palette, size_of};
+use block_editor_plugin::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
 use block_editor_plugin::beui::reactive::{
     Direction, ItemSize, List, Picture, clone, component, create_effect, create_memo,
     create_signal, view,
@@ -43,7 +45,9 @@ impl block_editor_plugin::BeuiApp for PixelArtApp {
     }
 
     fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
-        Ok(creation.client().create_block(PixelArt::new()).id())
+        let block = creation.client().create_block(PixelArt::new());
+        creation.seed_content(block.id(), &PixelArtContent::new(&PixelArtDocument::new()));
+        Ok(block.id())
     }
 
     fn connect_artifact(artifacts: &Artifacts) {
@@ -90,13 +94,16 @@ impl block_editor_plugin::BeuiApp for PixelArtApp {
 
 #[component]
 fn PixelArtEditor(editor: Editor) -> NodeId {
-    let block = editor.block::<PixelArt>();
+    let block = editor.block_content::<PixelArtContent>();
     let tools = Tools::new(&editor, Rc::clone(&block));
     let pane = Pane::new();
     let shown = pane.shown();
-    let size = block.project(|art| (art.width(), art.height()));
+    let size = block.project(size_of);
     let size = create_memo(clone!(size -> move || size.get()));
-    let palette = block.project(|art| art.palette().to_vec());
+    let palette = block.project(|art| {
+        art.field(ObjectId::ROOT, PixelArtDocument::PALETTE)
+            .unwrap_or_else(default_palette)
+    });
     let palette = create_memo(clone!(palette -> move || palette.get()));
     let (hovered, set_hovered) = create_signal(None::<(u16, u16)>);
 
@@ -152,7 +159,7 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn PixelArtPreview(editor: Editor) -> NodeId {
-    let block = editor.block::<PixelArt>();
+    let block = editor.block_content::<PixelArtContent>();
     let pane = Pane::new();
     let shown = pane.shown();
     let refreshed = Rc::clone(&pane);
@@ -169,13 +176,12 @@ fn PixelArtPreview(editor: Editor) -> NodeId {
 
 pub(crate) fn export(tools: &Rc<Tools>) {
     let editor = tools.editor();
-    let handle = tools.block().handle();
+    let handle = editor.client().get_block::<PixelArt>(editor.block_id());
     let name = handle.name().unwrap_or_else(|| "Pixel Art".to_owned());
-    let Some(art) = handle.read() else {
+    let Some(art) = tools.artwork() else {
         return;
     };
     let generated = artifact::generate_initial(&art, &name);
-    drop(art);
     match generated {
         Ok(image) => {
             let child = editor

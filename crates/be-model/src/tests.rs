@@ -6,6 +6,7 @@ mod a_document_reads_back_what_it_was_built_from;
 mod a_node_cannot_move_inside_itself;
 mod an_edit_touches_its_field_and_what_holds_it;
 mod counts_merge_by_adding_both_sides;
+mod grids_merge_cell_by_cell_and_keep_coordinates_across_a_resize;
 mod map_entries_merge_key_by_key;
 mod merging_a_move_on_one_side_with_an_edit_on_the_other_keeps_both;
 mod merging_restores_a_column_one_side_removed_while_the_other_filled_it;
@@ -13,6 +14,7 @@ mod one_field_set_on_both_sides_conflicts_and_keeps_ours;
 mod undo_leaves_a_field_someone_else_changed_since;
 mod undo_of_map_entries_restores_only_what_nobody_changed_since;
 mod undo_puts_a_removed_column_back_with_its_cards;
+mod undoing_paint_and_a_crop_restores_only_what_nobody_changed_since;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Board {
