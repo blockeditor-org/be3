@@ -734,14 +734,16 @@ fn divide(area: Rect, direction: Direction, fraction: f32, thickness: f32) -> (R
     }
 }
 
-pub fn fraction_at(area: Rect, direction: Direction, pos: Pos2, thickness: f32) -> f32 {
+pub fn fraction_moved(
+    area: Rect,
+    direction: Direction,
+    thickness: f32,
+    fraction: f32,
+    moved: f32,
+) -> f32 {
     let length = direction.main(area.size()) - thickness;
     if length <= 0.0 {
-        return 0.5;
+        return fraction;
     }
-    let offset = match direction {
-        Direction::Horizontal => pos.x - area.left(),
-        Direction::Vertical => pos.y - area.top(),
-    };
-    (offset / length).clamp(MIN_FRACTION, 1.0 - MIN_FRACTION)
+    (fraction + moved / length).clamp(MIN_FRACTION, 1.0 - MIN_FRACTION)
 }
