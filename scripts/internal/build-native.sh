@@ -112,6 +112,9 @@ if [[ -n "$platform" ]]; then
 fi
 if [[ "$profile" == 'release' ]]; then
     buck_arguments+=(-c be3.profile=release)
+    # A release says which commit it is, which the app's version window
+    # compares against CI's builds.
+    buck_arguments+=(-c "be3.commit=$(git -C "$repository" rev-parse HEAD 2> /dev/null || echo unknown)")
 fi
 
 cd "$repository"

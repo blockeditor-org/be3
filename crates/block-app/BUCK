@@ -12,7 +12,11 @@ load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
 #
 # BLOCK_APP_COMMIT is what build.rs asks git for under cargo. A worker has no
 # checkout to ask, so this says what build.rs says when git cannot answer.
-commit = {"BLOCK_APP_COMMIT": "unknown"}
+# The commit the app says it was built from, which cargo's build script asks git
+# for and a worker has no checkout to ask. ./scripts/build --release passes it
+# as `-c be3.commit=...`; every other build says unknown, so that a new commit
+# does not recompile the app.
+commit = {"BLOCK_APP_COMMIT": read_config("be3", "commit", "unknown")}
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
 

@@ -36,7 +36,6 @@
 # Usage:
 #   ./scripts/verify
 #   ./scripts/verify --check
-#   ./scripts/verify --full
 #   ./scripts/verify --check --lint
 #   ./scripts/verify --check --tests
 #   ./scripts/verify --check --plugin-tests
@@ -57,7 +56,6 @@ for argument in "$@"; do
             ci=true
             ;;
         --ci) ci=true ;;
-        --full) export BE3_FULL=1 ;;
         --lint)
             lint=true
             selected=true
@@ -72,7 +70,7 @@ for argument in "$@"; do
             ;;
         *)
             echo "Unknown argument: $argument" >&2
-            echo 'Usage: ./scripts/verify [--check] [--ci] [--full] [--lint] [--tests] [--plugin-tests]' >&2
+            echo 'Usage: ./scripts/verify [--check] [--ci] [--lint] [--tests] [--plugin-tests]' >&2
             exit 1
             ;;
     esac

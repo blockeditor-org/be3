@@ -4,10 +4,10 @@ buck2 builds and tests the workspace, and every action it runs, runs on
 BuildBuddy. This guide says what it covers, how to run it, why it is set up the
 way it is, and what is still cargo's.
 
-`./scripts/verify` runs the tests through it. cargo is still what `./scripts/check`,
-the lint pass, `./scripts/build` and `./scripts/run` use, and what builds for
-every platform but Linux on x86_64; the last section says why each of those is
-still cargo's.
+`./scripts/check`, `./scripts/verify` - the lint pass and the tests - and
+`./scripts/build` and `./scripts/run` for the native app and the plugins all
+go through it, for every platform. cargo is left with the web bundle and the
+Android APK; the last section says what is missing for each.
 
 ## What buck2 builds
 
@@ -401,7 +401,15 @@ same rule.
 `//crates/block-app:app` is the app as it runs: the executable, and beside it
 every editor's manifest, renamed `<id>.plugin.json`, the module it names, and
 the `.cwasm` compiled from it, which is the directory native plugin discovery
-scans and what `./scripts/build` lays out under cargo. `buck/app` is the rule.
+scans. `buck/app` is the rule.
+
+`./scripts/build` and `./scripts/run` are this: `./scripts/build --target
+TRIPLE [--release]` builds it and the server for that platform and copies them
+under cargo's names, with PDFium from `third-party/pdfium`, into
+`target/native/TRIPLE/PROFILE`, and `--target plugins` builds
+`//crates/block-app:plugins`, the plugins alone. `--release` is
+`-c be3.profile=release`, Cargo's release profile, and passes the commit as
+`-c be3.commit=...` for the app to report.
 
 - Each module is precompiled in an action of its own, by the plugin test
   runner's `--precompile-to`, which is `block-wasm-host`'s and so the engine
@@ -676,29 +684,27 @@ target with `--target` is what makes wasmtime stop looking.
 
 ## What is still cargo's
 
-- **Every release artifact.** buck2 builds for Linux, macOS and Windows on
-  both architectures and for Android; the release artifacts CI uploads, the
-  APK, the macOS `.app`, and `./scripts/build` and `./scripts/run` are
-  cargo's.
-  Adding a platform is the cross-compiling section above again: an entry in
-  `cross.bzl`, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain,
-  and whatever its build scripts need.
-- **The plugin tests' GPU half.** The plugin tests run locally, because they
-  write accepted paintings into `snapshots/`, so what they draw through is this
-  machine's device. beui's renderer tests run on a worker, on lavapipe from
-  `buck/sysroot:amd64-test`.
-- **No web bundle.** The third-party half of it is there: `wgpu`, `wgpu-core`,
-  `wgpu-hal` and `eframe` all build for `buck/platforms:wasi`, with the app's
-  feature set. What is left is `block-app` for wasm, wasm-bindgen after it, and
-  the JS shims in `scripts/internal/web`.
-- **The browser's and Android's plugin index.** `//crates/block-app:app`
-  stages the plugins the way native discovery reads them; the `plugins.json`
-  the browser and an APK read instead is still written by
+- **The web bundle.** The third-party half of it is there: `wgpu`,
+  `wgpu-core` and `wgpu-hal` build for `buck/platforms:wasi`, with the app's
+  feature set. What is left is `block-app` for wasm, wasm-bindgen after it,
+  and the JS shims in `scripts/internal/web`.
+- **The APK.** buck2 builds the app's library for Android,
+  `//crates/block-app:block-app[cdylib]`; what is left is handing it, and
+  `libc++_shared.so`, to the Gradle build in `android/` in place of cargo's.
+- **The browser's and Android's plugin index.** `//crates/block-app:app` and
+  `:plugins` stage the plugins the way native discovery reads them; the
+  `plugins.json` the browser and an APK read instead is still written by
   `scripts/internal/common.sh`.
-- **`BLOCK_APP_COMMIT` is `unknown`.** Under cargo, `block-app`'s build script
-  asks git for the commit; a worker has no checkout to ask. Passing it in as
-  config would rebuild the app on every commit, which is only worth it once
-  buck2 builds something that ships.
+- **The macOS `.app`.** The Mac builds are the executable and its libraries,
+  as they were under cargo.
+
+The plugin tests run here rather than on a worker, because they write accepted
+paintings into `snapshots/`, so what they draw through is this machine's
+device.
+
+Adding a platform is the cross-compiling section above again: an entry in
+`cross.bzl`, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain,
+and whatever its build scripts need.
 
 ## Where the tools come from
 

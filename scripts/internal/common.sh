@@ -228,32 +228,12 @@ manifest_field() {
 # embedded browser is fifty-nine crates that nothing else in the workspace
 # needs; and cvl2 has nothing depending on it at all.
 #
-# So a default build leaves all three out, which is what makes a fresh checkout
-# compile with nothing but cargo, and a full build puts them back. ./scripts/check
-# and ./scripts/verify take --full, every script reads BE3_FULL, and CI sets it,
-# so what ships and what is linted is still the whole app.
+# So a default cargo build - the web and Android ones are what is left of those
+# - leaves all three out, which is what makes a fresh checkout compile with
+# nothing but cargo, and BE3_FULL puts them back; CI sets it, so what ships is
+# still the whole app. buck2 always builds the whole app.
 full_build() {
     [[ -n "${BE3_FULL:-}" ]]
-}
-
-# Packages only a full build compiles. ghostty-vt is not merely unused without
-# one: its build script has no archive to point cargo at, so it fails to build.
-optional_packages=(ghostty-vt cvl2)
-
-# The packages a workspace-wide cargo call in these scripts is for, in the
-# variable `selection`. Feature selection travels with it, because a call that
-# named the packages one way and the features another would resolve features
-# over a different graph and compile everything a second time.
-workspace_selection() {
-    selection=(--workspace)
-    local package
-    if full_build; then
-        selection+=(--features block-app/full)
-    else
-        for package in "${optional_packages[@]}"; do
-            selection+=(--exclude "$package")
-        done
-    fi
 }
 
 # Builds libghostty-vt, and only when there is a build to link it into. Every

@@ -18,7 +18,6 @@ updates:
     # shell script and has nothing to update.
     directories:
       - /
-      - /.github/actions/cargo-cache
       - /.github/actions/ghostty-vt
       - /.github/actions/rust-toolchain
       - /.github/actions/sccache

@@ -25,12 +25,11 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
-  # A default build leaves out the debug terminal, which needs a Zig toolchain
-  # and a Ghostty checkout before cargo can link anything, the embedded browser,
-  # which is a dependency tree nothing else in the workspace shares, and cvl2,
-  # which nothing depends on. That keeps a local checkout and the check someone
-  # runs a hundred times a day cheap. What ships and what is linted is still the
-  # whole of it, so every job here asks for a full build.
+  # A default cargo build - the web and Android builds are cargo's - leaves out
+  # the debug terminal, which needs a Zig toolchain and a Ghostty checkout
+  # before cargo can link anything, the embedded browser and cvl2. What ships
+  # is still the whole of it, so every job here asks for a full build. buck2,
+  # which builds everything else, always builds the whole app.
   BE3_FULL: 1
   # scripts/internal/common.sh routes rustc through sccache against a shared
   # object store, reading with a key that is public and writing only when it is
@@ -39,8 +38,8 @@ env:
   # from a fork sees an empty value and reads the same cache read-only.
   #
   # That store answers a compilation wherever it runs, which is what a fork's
-  # first run and every cold runner live on. The Actions caches beside it are
-  # the cheaper half of the same idea: see .github/actions/cargo-cache.
+  # first run and every cold runner live on. Only the web and Android jobs
+  # compile with cargo; everything else is buck2's, and BuildBuddy caches it.
   BUNNY_SCCACHE_PASSWORD: ${{ secrets.BUNNY_SCCACHE_PASSWORD }}
   # BuildBuddy, which runs every buck2 action. A pull request from a fork sees
   # an empty value, and ./scripts/buck says so rather than building.
