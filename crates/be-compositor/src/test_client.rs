@@ -11,6 +11,12 @@ use wayland_protocols::xdg::shell::client::{
 };
 
 use crate::server::Server;
+
+use wayland_protocols::wp::linux_dmabuf::zv1::client::{
+    zwp_linux_buffer_params_v1, zwp_linux_dmabuf_v1,
+};
+
+const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};
 
 #[derive(Default)]
@@ -178,6 +184,29 @@ impl TestClient {
         self.queue
             .dispatch_pending(&mut self.received)
             .expect("the client dispatches");
+    }
+
+    pub(crate) fn attach_dmabuf_unsent(
+        &mut self,
+        window: &TestWindow,
+        fd: std::os::fd::BorrowedFd<'_>,
+        width: i32,
+        height: i32,
+    ) {
+        let dmabuf: zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1 = self.bind("zwp_linux_dmabuf_v1", 3);
+        let params = dmabuf.create_params(&self.handle, ());
+        params.add(fd, 0, 0, (width * 4) as u32, 0, 0);
+        let buffer = params.create_immed(
+            width,
+            height,
+            ARGB8888,
+            zwp_linux_buffer_params_v1::Flags::empty(),
+            &self.handle,
+            (),
+        );
+        window.surface.attach(Some(&buffer), 0, 0);
+        window.surface.damage_buffer(0, 0, width, height);
+        window.surface.commit();
     }
 
     pub(crate) fn popup(
@@ -419,5 +448,75 @@ wayland_client::delegate_noop!(Received: ignore wl_shm::WlShm);
 wayland_client::delegate_noop!(Received: ignore wl_shm_pool::WlShmPool);
 wayland_client::delegate_noop!(Received: ignore wl_buffer::WlBuffer);
 wayland_client::delegate_noop!(Received: ignore wl_seat::WlSeat);
+wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
+wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);
 wayland_client::delegate_noop!(Received: ignore xdg_positioner::XdgPositioner);
 wayland_client::delegate_noop!(Received: ignore xdg_popup::XdgPopup);
+
+pub(crate) fn vulkan_device() -> (wgpu::Device, wgpu::Queue) {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::VULKAN,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::LowPower,
+        force_fallback_adapter: false,
+        compatible_surface: None,
+    }))
+    .expect("a Vulkan adapter is available");
+    crate::gpu::open_device(
+        &adapter,
+        &wgpu::DeviceDescriptor {
+            label: Some("compositor test device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::downlevel_defaults(),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            memory_hints: wgpu::MemoryHints::Performance,
+            trace: wgpu::Trace::Off,
+        },
+    )
+    .expect("the Vulkan device opens")
+}
+
+pub(crate) fn pattern(width: u32, height: u32) -> Vec<u8> {
+    (0..width * height)
+        .flat_map(|index| [(index % 251) as u8, (index / 251 % 251) as u8, 90, 255])
+        .collect()
+}
+
+pub(crate) fn read(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture) -> Vec<u8> {
+    let size = texture.size();
+    let row = size.width * 4;
+    let padded = row.div_ceil(256) * 256;
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("readback"),
+        size: u64::from(padded * size.height),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+    encoder.copy_texture_to_buffer(
+        texture.as_image_copy(),
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(padded),
+                rows_per_image: Some(size.height),
+            },
+        },
+        size,
+    );
+    queue.submit([encoder.finish()]);
+    buffer.slice(..).map_async(wgpu::MapMode::Read, |result| {
+        result.expect("the readback maps");
+    });
+    device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .expect("the device finishes");
+    let mapped = buffer.slice(..).get_mapped_range();
+    mapped
+        .chunks(padded as usize)
+        .flat_map(|chunk| chunk[..row as usize].to_vec())
+        .collect()
+}

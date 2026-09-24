@@ -4,18 +4,22 @@ use std::rc::Rc;
 
 use beui::{Draw, DrawAt, Drawing, Waker};
 use bytemuck::{Pod, Zeroable};
-use smithay::backend::renderer::utils::with_renderer_surface_state;
+use smithay::backend::allocator::dmabuf::{Dmabuf, WeakDmabuf};
+use smithay::backend::renderer::utils::{Buffer, with_renderer_surface_state};
 use smithay::reexports::wayland_server::Resource;
 use smithay::reexports::wayland_server::protocol::wl_shm;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
+use smithay::wayland::dmabuf::get_dmabuf;
 use smithay::wayland::shm::with_buffer_contents;
 
+use crate::gpu::{Usage, Vulkan};
 use crate::state::Layer;
 
 pub struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
     srgb: bool,
+    vulkan: Option<Vulkan>,
     pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
@@ -87,10 +91,12 @@ impl Gpu {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        let vulkan = Vulkan::of(&device);
         Self {
             device,
             queue,
             srgb: format.is_srgb(),
+            vulkan,
             pipeline,
             layout,
             sampler,
@@ -104,10 +110,23 @@ pub struct SurfaceTexture {
     opaque: bool,
 }
 
+impl SurfaceTexture {
+    pub fn texture(&self) -> &wgpu::Texture {
+        &self.texture
+    }
+}
+
+#[derive(Clone)]
+pub struct Current {
+    pub texture: Rc<SurfaceTexture>,
+    pub buffer: Option<Buffer>,
+}
+
 #[derive(Default)]
 pub struct Textures {
     gpu: Option<Rc<Gpu>>,
-    surfaces: HashMap<WlSurface, Rc<SurfaceTexture>>,
+    surfaces: HashMap<WlSurface, Current>,
+    dmabufs: HashMap<WeakDmabuf, Rc<SurfaceTexture>>,
 }
 
 impl Textures {
@@ -119,12 +138,37 @@ impl Textures {
         self.gpu.clone()
     }
 
-    pub fn get(&self, surface: &WlSurface) -> Option<Rc<SurfaceTexture>> {
+    pub fn get(&self, surface: &WlSurface) -> Option<Current> {
         self.surfaces.get(surface).cloned()
     }
 
     pub fn prune(&mut self) {
         self.surfaces.retain(|surface, _| surface.is_alive());
+        self.dmabufs.retain(|dmabuf, _| !dmabuf.is_gone());
+    }
+
+    pub fn dmabuf_formats(
+        &self,
+    ) -> Option<(Vec<smithay::backend::allocator::Format>, Option<u64>)> {
+        let vulkan = self.gpu.as_ref()?.vulkan.as_ref()?;
+        Some((vulkan.formats(Usage::Sample), vulkan.render_node()))
+    }
+
+    pub fn import(&mut self, dmabuf: &Dmabuf) -> Option<Rc<SurfaceTexture>> {
+        if let Some(texture) = self.dmabufs.get(&dmabuf.weak()) {
+            return Some(texture.clone());
+        }
+        let gpu = self.gpu.clone()?;
+        let vulkan = gpu.vulkan.as_ref()?;
+        let imported = vulkan
+            .import(&gpu.device, dmabuf, gpu.srgb, Usage::Sample)
+            .inspect_err(|error| {
+                eprintln!("be-compositor: a client buffer did not import: {error}")
+            })
+            .ok()?;
+        let texture = Rc::new(gpu.bind(imported.texture, imported.opaque));
+        self.dmabufs.insert(dmabuf.weak(), texture.clone());
+        Some(texture)
     }
 
     pub fn upload(&mut self, surface: &WlSurface) {
@@ -137,7 +181,28 @@ impl Textures {
             self.surfaces.remove(surface);
             return;
         };
-        let previous = self.surfaces.get(surface).cloned();
+        if let Ok(dmabuf) = get_dmabuf(&buffer).cloned() {
+            match self.import(&dmabuf) {
+                Some(texture) => {
+                    self.surfaces.insert(
+                        surface.clone(),
+                        Current {
+                            texture,
+                            buffer: Some(buffer),
+                        },
+                    );
+                }
+                None => {
+                    self.surfaces.remove(surface);
+                }
+            }
+            return;
+        }
+        let previous = self
+            .surfaces
+            .get(surface)
+            .filter(|current| current.buffer.is_none())
+            .map(|current| current.texture.clone());
         let uploaded = with_buffer_contents(&buffer, |pointer, length, data| {
             let (format, opaque) = match (data.format, gpu.srgb) {
                 (wl_shm::Format::Argb8888, true) => (wgpu::TextureFormat::Bgra8UnormSrgb, false),
@@ -190,7 +255,13 @@ impl Textures {
         });
         match uploaded.ok().flatten() {
             Some(texture) => {
-                self.surfaces.insert(surface.clone(), texture);
+                self.surfaces.insert(
+                    surface.clone(),
+                    Current {
+                        texture,
+                        buffer: None,
+                    },
+                );
             }
             None => {
                 self.surfaces.remove(surface);
@@ -216,6 +287,10 @@ impl Gpu {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
+        self.bind(texture, opaque)
+    }
+
+    fn bind(&self, texture: wgpu::Texture, opaque: bool) -> SurfaceTexture {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("client surface"),
@@ -256,6 +331,7 @@ struct Vertices {
 pub struct WindowDraw {
     gpu: Rc<Gpu>,
     layers: Vec<(Rc<SurfaceTexture>, Layer)>,
+    buffers: Vec<Buffer>,
     vertices: RefCell<Option<Vertices>>,
     painted: Rc<Cell<bool>>,
     waker: Option<Waker>,
@@ -264,13 +340,22 @@ pub struct WindowDraw {
 impl WindowDraw {
     pub fn drawing(
         gpu: Rc<Gpu>,
-        layers: Vec<(Rc<SurfaceTexture>, Layer)>,
+        layers: Vec<(Current, Layer)>,
         painted: Rc<Cell<bool>>,
         waker: Option<Waker>,
     ) -> Drawing {
+        let buffers = layers
+            .iter()
+            .filter_map(|(current, _)| current.buffer.clone())
+            .collect();
+        let layers = layers
+            .into_iter()
+            .map(|(current, layer)| (current.texture, layer))
+            .collect();
         Drawing::new(Self {
             gpu,
             layers,
+            buffers,
             vertices: RefCell::new(None),
             painted,
             waker,
@@ -371,6 +456,15 @@ impl Draw for WindowDraw {
         self.painted.set(true);
         if let Some(waker) = &self.waker {
             waker.wake();
+        }
+    }
+}
+
+impl Drop for WindowDraw {
+    fn drop(&mut self) {
+        let buffers = std::mem::take(&mut self.buffers);
+        if !buffers.is_empty() {
+            self.gpu.queue.on_submitted_work_done(move || drop(buffers));
         }
     }
 }

@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::process::{Child, Command as Process, Stdio};
+use std::rc::Rc;
 
 use beui::reactive::{build, view, with_reactive_scope};
 use beui::{
@@ -22,7 +24,7 @@ pub struct Compositor {
     server: Server,
     clients: Clients,
     document: Document,
-    textures: Textures,
+    textures: Rc<RefCell<Textures>>,
     watch: Option<Watch>,
     waker: Option<Waker>,
     launches: Vec<String>,
@@ -44,7 +46,7 @@ impl Compositor {
             server,
             clients,
             document,
-            textures: Textures::default(),
+            textures: Rc::new(RefCell::new(Textures::default())),
             watch: None,
             waker: None,
             launches,
@@ -90,9 +92,9 @@ impl Compositor {
         self.server.dispatch();
         let events = self.server.state.take_events();
         for surface in self.server.state.take_committed() {
-            self.textures.upload(&surface);
+            self.textures.borrow_mut().upload(&surface);
         }
-        self.textures.prune();
+        self.textures.borrow_mut().prune();
         let clients = self.clients.clone();
         let mut redraw = Vec::new();
         with_reactive_scope(&mut self.document, || {
@@ -140,14 +142,15 @@ impl Compositor {
     }
 
     fn drawing(&self, id: WindowId) -> Option<beui::Drawing> {
-        let gpu = self.textures.gpu()?;
+        let textures = self.textures.borrow();
+        let gpu = textures.gpu()?;
         let signals = self.clients.signals(id)?;
         let layers = self
             .server
             .state
             .layers(id)
             .into_iter()
-            .filter_map(|layer| Some((self.textures.get(&layer.surface)?, layer)))
+            .filter_map(|layer| Some((textures.get(&layer.surface)?, layer)))
             .collect();
         Some(WindowDraw::drawing(
             gpu,
@@ -307,15 +310,29 @@ fn clone_clients(clients: &Clients) -> impl FnOnce() -> beui::NodeId + use<> {
     }
 }
 
-impl App for Compositor {
-    fn setup(&mut self, setup: &Setup) {
-        self.textures.set_gpu(Gpu::new(
-            setup.device.clone(),
-            setup.queue.clone(),
-            setup.format,
-        ));
-        self.waker = Some(setup.waker.clone());
-        let waker = setup.waker.clone();
+impl Compositor {
+    pub fn start(
+        &mut self,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+        waker: Waker,
+    ) {
+        self.textures
+            .borrow_mut()
+            .set_gpu(Gpu::new(device, queue, format));
+        let dmabuf = self.textures.borrow().dmabuf_formats();
+        if let Some((formats, render_node)) = dmabuf {
+            let textures = self.textures.clone();
+            self.server.state.enable_dmabuf(
+                formats,
+                render_node,
+                Some(Box::new(move |dmabuf| {
+                    textures.borrow_mut().import(dmabuf).is_some()
+                })),
+            );
+        }
+        self.waker = Some(waker.clone());
         match self.server.watch(move || waker.wake()) {
             Ok(watch) => self.watch = Some(watch),
             Err(error) => eprintln!("be-compositor: could not watch the display: {error}"),
@@ -323,6 +340,17 @@ impl App for Compositor {
         for line in std::mem::take(&mut self.launches) {
             self.launch(&line);
         }
+    }
+}
+
+impl App for Compositor {
+    fn setup(&mut self, setup: &Setup) {
+        self.start(
+            setup.device.clone(),
+            setup.queue.clone(),
+            setup.format,
+            setup.waker.clone(),
+        );
     }
 
     fn update(&mut self, context: &Context, rect: Rect) {

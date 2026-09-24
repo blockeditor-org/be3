@@ -1,9 +1,22 @@
 use std::time::{Duration, Instant};
 
-use smithay::backend::renderer::utils::{
-    RendererSurfaceStateUserData, on_commit_buffer_handler,
-};
+use smithay::backend::renderer::utils::{RendererSurfaceStateUserData, on_commit_buffer_handler};
+use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use smithay::backend::allocator::dmabuf::Dmabuf;
+use smithay::backend::allocator::{Buffer as _, Format};
 use smithay::delegate_compositor;
+use smithay::delegate_dmabuf;
+use smithay::wayland::compositor::{
+    Blocker, BlockerState, BufferAssignment, SurfaceAttributes, add_blocker, add_pre_commit_hook,
+};
+use smithay::wayland::dmabuf::{
+    DmabufFeedbackBuilder, DmabufGlobal, DmabufHandler, DmabufState, ImportNotifier, get_dmabuf,
+};
+
+use crate::server::{Waiter, readable};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
 use smithay::delegate_output;
@@ -85,6 +98,11 @@ impl ClientData for ClientState {
 
 pub struct State {
     handle: DisplayHandle,
+    waiter: Waiter,
+    blocked: Vec<Blocked>,
+    dmabuf: DmabufState,
+    dmabuf_formats: Vec<Format>,
+    dmabuf_check: Option<Box<dyn FnMut(&Dmabuf) -> bool>>,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -106,7 +124,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(handle: &DisplayHandle) -> Self {
+    pub fn new(handle: &DisplayHandle, waiter: Waiter) -> Self {
         let compositor = CompositorState::new::<Self>(handle);
         let xdg_shell = XdgShellState::new::<Self>(handle);
         let shm = ShmState::new::<Self>(handle, Vec::new());
@@ -131,6 +149,11 @@ impl State {
         );
         output.create_global::<Self>(handle);
         let state = Self {
+            waiter,
+            blocked: Vec::new(),
+            dmabuf: DmabufState::new(),
+            dmabuf_formats: Vec::new(),
+            dmabuf_check: None,
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -153,6 +176,94 @@ impl State {
         };
         state.set_output(state.size, state.scale);
         state
+    }
+
+    pub fn waiter(&self) -> &Waiter {
+        &self.waiter
+    }
+
+    pub fn enable_dmabuf(
+        &mut self,
+        formats: Vec<Format>,
+        render_node: Option<u64>,
+        check: Option<Box<dyn FnMut(&Dmabuf) -> bool>>,
+    ) {
+        if formats.is_empty() {
+            return;
+        }
+        self.dmabuf_formats = formats.clone();
+        self.dmabuf_check = check;
+        let handle = self.handle.clone();
+        let feedback = render_node.and_then(|node| {
+            DmabufFeedbackBuilder::new(node, formats.clone())
+                .build()
+                .ok()
+        });
+        match feedback {
+            Some(feedback) => {
+                self.dmabuf
+                    .create_global_with_default_feedback::<Self>(&handle, &feedback);
+            }
+            None => {
+                self.dmabuf.create_global::<Self>(&handle, formats);
+            }
+        }
+    }
+
+    fn pre_commit(&mut self, surface: &WlSurface) {
+        let dmabuf = with_states(surface, |states| {
+            let mut cached = states.cached_state.get::<SurfaceAttributes>();
+            match cached.pending().buffer.as_ref() {
+                Some(BufferAssignment::NewBuffer(buffer)) => get_dmabuf(buffer).cloned().ok(),
+                _ => None,
+            }
+        });
+        if let Some(dmabuf) = dmabuf {
+            for fd in dmabuf.handles() {
+                self.block_on(surface, fd);
+            }
+        }
+    }
+
+    fn block_on(&mut self, surface: &WlSurface, fd: BorrowedFd<'_>) {
+        if readable(fd) {
+            return;
+        }
+        let (Some(client), Ok(watched), Ok(kept)) = (
+            surface.client(),
+            fd.try_clone_to_owned(),
+            fd.try_clone_to_owned(),
+        ) else {
+            return;
+        };
+        let ready = Arc::new(AtomicBool::new(false));
+        add_blocker(surface, FlagBlocker(ready.clone()));
+        self.waiter.wait(watched, ready.clone());
+        self.blocked.push(Blocked {
+            ready,
+            fd: kept,
+            client,
+        });
+    }
+
+    pub fn blocked(&self) -> usize {
+        self.blocked.len()
+    }
+
+    pub fn release_blockers(&mut self) {
+        let (released, waiting): (Vec<Blocked>, Vec<Blocked>) = std::mem::take(&mut self.blocked)
+            .into_iter()
+            .partition(|blocked| {
+                blocked.ready.load(Ordering::SeqCst) || readable(blocked.fd.as_fd())
+            });
+        self.blocked = waiting;
+        let handle = self.handle.clone();
+        for blocked in released {
+            blocked.ready.store(true, Ordering::SeqCst);
+            if let Some(data) = blocked.client.get_data::<ClientState>() {
+                data.compositor.blocker_cleared(self, &handle);
+            }
+        }
     }
 
     pub fn cleanup(&mut self) {
@@ -513,7 +624,55 @@ fn collect_layers(surface: &WlSurface, location: Point<i32, Logical>, layers: &m
     );
 }
 
+struct Blocked {
+    ready: Arc<AtomicBool>,
+    fd: OwnedFd,
+    client: Client,
+}
+
+struct FlagBlocker(Arc<AtomicBool>);
+
+impl Blocker for FlagBlocker {
+    fn state(&self) -> BlockerState {
+        match self.0.load(Ordering::SeqCst) {
+            true => BlockerState::Released,
+            false => BlockerState::Pending,
+        }
+    }
+}
+
+impl DmabufHandler for State {
+    fn dmabuf_state(&mut self) -> &mut DmabufState {
+        &mut self.dmabuf
+    }
+
+    fn dmabuf_imported(
+        &mut self,
+        _global: &DmabufGlobal,
+        dmabuf: Dmabuf,
+        notifier: ImportNotifier,
+    ) {
+        let known = self.dmabuf_formats.contains(&dmabuf.format());
+        let imported = known
+            && self
+                .dmabuf_check
+                .as_mut()
+                .is_none_or(|check| check(&dmabuf));
+        if imported {
+            let _ = notifier.successful::<Self>();
+        } else {
+            notifier.failed();
+        }
+    }
+}
+
 impl CompositorHandler for State {
+    fn new_surface(&mut self, surface: &WlSurface) {
+        add_pre_commit_hook::<Self, _>(surface, |state, _handle, surface| {
+            state.pre_commit(surface);
+        });
+    }
+
     fn compositor_state(&mut self) -> &mut CompositorState {
         &mut self.compositor
     }
@@ -750,3 +909,4 @@ delegate_output!(State);
 delegate_xdg_decoration!(State);
 delegate_cursor_shape!(State);
 delegate_viewporter!(State);
+delegate_dmabuf!(State);

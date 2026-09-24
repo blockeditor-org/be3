@@ -14,7 +14,7 @@ wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]
 pollster = "0.4"
-rustix = { version = "1", features = ["event", "fs"] }
+rustix = { version = "1", features = ["event", "fs", "pipe"] }
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client"] }
 

@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_new_window_floats_at_the_size_it_drew;
 mod closing_a_window_removes_its_tab;
 mod keys_follow_the_focus_between_beui_and_a_window;
@@ -33,6 +34,30 @@ impl Harness {
             client,
             output: None,
         }
+    }
+
+    fn with_gpu() -> (Self, wgpu::Device, wgpu::Queue) {
+        let (device, queue) = crate::test_client::vulkan_device();
+        let mut app = Compositor::new(
+            Server::headless().expect("a headless display starts"),
+            Vec::new(),
+        );
+        app.start(
+            device.clone(),
+            queue.clone(),
+            wgpu::TextureFormat::Bgra8Unorm,
+            Waker::new(|| {}),
+        );
+        let client = TestClient::connect(app.server());
+        let context = Context::new();
+        context.set_test_ids_published(true);
+        let harness = Self {
+            app,
+            context,
+            client,
+            output: None,
+        };
+        (harness, device, queue)
     }
 
     fn frame(&mut self, events: Vec<Event>) {
