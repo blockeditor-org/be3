@@ -3,7 +3,7 @@ use crate::reactive::view;
 use crate::styled::{Body, Heading};
 
 #[test]
-fn arrow_keys_walk_the_simulated_screen_reader_through_the_document() {
+fn alt_arrows_walk_the_simulated_screen_reader_through_the_document() {
     let (document, [_heading, _body]) = toolbar_of(|| {
         [
             view! {
@@ -24,16 +24,16 @@ fn arrow_keys_walk_the_simulated_screen_reader_through_the_document() {
     );
     assert_eq!(harness.reading().as_deref(), Some("Settings, text"));
 
-    harness.key(Key::ArrowRight, Modifiers::NONE);
+    harness.key(Key::ArrowRight, Modifiers::ALT);
     assert_eq!(harness.reading().as_deref(), Some("Pick a theme, text"));
 
-    harness.key(Key::ArrowRight, Modifiers::NONE);
+    harness.key(Key::ArrowRight, Modifiers::ALT);
     assert_eq!(harness.reading().as_deref(), Some("Pick a theme, text"));
     assert_eq!(
         harness.spoken().as_deref(),
         Some("End of the document. Pick a theme, text")
     );
 
-    harness.key(Key::ArrowLeft, Modifiers::NONE);
+    harness.key(Key::ArrowLeft, Modifiers::ALT);
     assert_eq!(harness.reading().as_deref(), Some("Settings, text"));
 }
