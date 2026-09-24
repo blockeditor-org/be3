@@ -6,26 +6,18 @@ load("@root//buck/tools:defs.bzl", "tool")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
 
-# The desktop app, with both of the features that are more than Rust: the
-# terminal, whose libghostty-vt crates/ghostty-vt builds on a worker, and the
-# embedded browser, whose WebKitGTK and GTK come from the sysroot in
-# buck/sysroot. Which features are on is decided where the dependencies are
-# generated: reindeer.toml turns on block-app's full on every platform the app
-# is built for, the browser's included, and buck/cargo/buckify.bxl asks cargo
-# to plan the same builds.
+# The app, with its full features (the terminal and the embedded browser), which
+# reindeer.toml and buckify.bxl turn on for every platform.
 #
-# The commit the app says it was built from, which cargo's build script asks git
-# for and a worker has no checkout to ask. CI's release builds pass it as
-# `-c be3.commit=...`; every other build says unknown, so that a new commit
-# does not recompile the app.
+# BLOCK_APP_COMMIT is what cargo's build script asks git for; a worker has no
+# checkout, so release builds pass `-c be3.commit=SHA` and every other build
+# says unknown, so a new commit does not rebuild the app.
 commit = {"BLOCK_APP_COMMIT": read_config("be3", "commit", "unknown")}
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
 
-# On Android the app is this library, as the shared object the APK carries and
-# its NativeActivity loads by cargo's name for it.
-# On the web it is this library again, as the module wasm-bindgen writes the
-# browser's JavaScript for: :web below.
+# On Android the app is this library, loaded by NativeActivity under cargo's
+# name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
     env = commit,
     rustc_flags = select({
@@ -70,14 +62,8 @@ app(
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
 
-# What CI ships for a platform: the app and the server, under cargo's names,
-# and PDFium, without the plugins, which :plugins builds once for every
-# platform. `-c be3.profile=release` makes it a release build, and
-# `-c be3.commit=SHA` says which commit it is:
-#
-#   ./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 \
-#       -c be3.profile=release -c be3.commit="$(git rev-parse HEAD)" \
-#       //crates/block-app:dist --out dist
+# What CI ships per platform: the app and server under cargo's names, and PDFium;
+# the plugins ship once, from :plugins.
 app(
     name = "dist",
     binary = ":block-app-bin",
@@ -90,14 +76,9 @@ app(
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
 
-# The web bundle: the app as a WASI module, and the gpu shim, each with the
-# JavaScript wasm-bindgen writes for it, beside the page and the shims in web/
-# that stand in for WASI and for threads, and every plugin with the plugins.json
-# the browser finds them through. Any static file server that sends the two
-# cross-origin isolation headers web/Caddyfile does can serve it, and
-# :web-serve below does, on this machine:
-#
-#   ./scripts/buck build //crates/block-app:web --out dist/web
+# The web bundle: the app for wasi and the gpu shim for wasm32, each through
+# wasm-bindgen, the page and shims in web/, and the plugins with the
+# plugins.json a browser finds them through. :web-dist is CI's, without them.
 wasi_app_module(
     name = "web-module",
     library = ":block-app",
@@ -133,10 +114,7 @@ app(
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 
-# The bundle served on this machine by Caddy, with block-server behind it:
-# web/serve.py.
-#
-#   ./scripts/buck run //crates/block-app:web-serve
+# The bundle served here by Caddy, with block-server behind it (web/serve.py).
 tool(
     name = "web-serve",
     command = [
@@ -163,16 +141,11 @@ export_file(
     src = "web/serve.py",
 )
 
-# The Android app: the library above, built for Android, in an APK with every
-# plugin precompiled for the device's wasmtime. The APK is built unsigned on a
-# worker, and :android signs it here with this machine's key and writes it to
-# target/android/block-app.apk; --install puts it on the device adb sees and
-# starts it:
-#
-#   ./scripts/buck run //crates/block-app:android -- --install
-#
-# CI's builds install beside a developer's, under their own id and label:
-# `-c be3.android_id=com.be3.block.ci -c "be3.android_label=Block (CI)"`.
+# The Android app: the APK is built unsigned on a worker, with the plugins
+# precompiled for the device, and :android signs it here into
+# target/android/block-app.apk (`-- --install` installs and starts it).
+# CI's builds take their own id and label from be3.android_id and
+# be3.android_label.
 app(
     name = "android-assets",
     index = True,

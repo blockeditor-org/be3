@@ -1,17 +1,7 @@
 load("@prelude//cfg/exec_platform:marker.bzl", "get_exec_platform_marker")
 
-# The prelude's own execution platform, pointed at a remote executor.
-#
-# This is prelude//platforms:defs.bzl's execution_platform with the executor
-# changed. Everything else about it is the same, and deliberately so: the cpu
-# and os constraints are what a build script's exec dep is configured against,
-# and the exec marker is what buck2 uses to tell an execution configuration
-# from a target one.
-#
-# An action runs on the remote executor, in the container
-# remote_execution_properties names, unless the rule that declared it asked to
-# run locally. Local execution stays enabled for those; limited hybrid means
-# buck2 never races the two. See guides/buck2.md.
+# prelude//platforms:defs.bzl's execution_platform, pointed at a remote executor.
+# Actions run on BuildBuddy unless their rule asks to run locally.
 def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
     constraints = dict()
     constraints.update(ctx.attrs.cpu_configuration[ConfigurationInfo].constraints)

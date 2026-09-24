@@ -1,12 +1,6 @@
-# An Android app's APK, made on a worker without Gradle: buck/android/apk.py
-# says how. It is unsigned; buck/android/sign.py, which crates/block-app/BUCK
-# runs, signs it here, with this machine's key.
-#
-# The native library is the one dependency built for Android: the transition
-# takes it there, so the APK itself - and the assets beside it, whose plugins
-# are precompiled by a host build of the plugin runner - is configured for the
-# host. The C++ runtime the NDK ships as a shared library goes beside it, as
-# the NDK's own build does.
+# An APK, made on a worker without Gradle by apk.py, unsigned; sign.py signs it
+# locally. Only the native library is built for Android, through the
+# transition; the NDK's libc++_shared.so goes beside it.
 
 def _android_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return refs.android[PlatformInfo]

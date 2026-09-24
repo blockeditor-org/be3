@@ -1,26 +1,12 @@
-# Regenerates the two files buck2 reads the workspace's Cargo.toml files
-# through, on a worker, and prints the directory they are in.
-# ./scripts/buck copies them into place whenever their inputs change, and
-# git ignores them (scripts/internal/common.sh):
+# Generates third-party/rust/BUCK (reindeer) and buck/cargo/crates.bzl
+# (generate.py, from cargo's plans) on a worker and prints their directory;
+# ./scripts/buck copies them into place when their inputs change.
 #
-#   - third-party/rust/BUCK, the rules for every third-party crate, which
-#     reindeer writes;
-#   - buck/cargo/crates.bzl, what each workspace crate's Cargo.toml says, which
-#     generate.py writes from cargo's own plan for each build buck2 stands in
-#     for. The BUCK file beside each crate reads it through buck/cargo/defs.bzl.
-#
-# Both read the workspace through cargo, which reads every Cargo.toml,
-# Cargo.lock and the layout of each crate: whether it has a src/lib.rs, a
-# build.rs, an examples/ directory. It never reads a source file. So the
-# manifests, the lockfile, reindeer.toml, the fixups and generate.py are the
-# action's real inputs, and of the rest only the paths cargo discovers targets
-# at are recreated, empty (_discovered below). Editing or adding an ordinary
-# source file therefore leaves the action's key alone and is answered from the
-# cache; a dependency, a crate or a new target is what runs it again.
-#
-# A BXL script rather than a rule because the manifests belong to seventy-odd
-# packages, and a rule can only take the files of its own; a script can take
-# any file in the repository.
+# The action's inputs are the manifests, Cargo.lock, reindeer.toml, the fixups
+# and generate.py, plus empty files at the paths cargo discovers targets at
+# (_discovered). Editing or adding an ordinary source file leaves its key, and
+# the cache entry everyone shares, alone. It is BXL because a rule can only take
+# its own package's files.
 
 def _files(ctx, directory: str) -> list[str]:
     found = []
@@ -32,12 +18,8 @@ def _files(ctx, directory: str) -> list[str]:
             found.append(path)
     return found
 
-# Whether cargo would look for this file when it discovers a crate's targets:
-# its lib.rs, main.rs and build script, and what is under src/bin, examples,
-# tests and benches. Only these are recreated, so that adding any other source
-# file leaves the action's key, and the cache entry everyone shares, alone. A
-# target at a path its Cargo.toml names is recreated by the script instead,
-# which can read the manifest.
+# Whether cargo looks for this file when discovering a crate's targets. Paths a
+# Cargo.toml names are recreated by the script, which can read it.
 def _discovered(path: str, crate_dirs: list[str]) -> bool:
     owner = ""
     for directory in crate_dirs:
@@ -78,19 +60,12 @@ def _impl(ctx):
 
     out = actions.declare_output("generated", dir = True)
 
-    # The builds buck2 stands in for, as cargo would be asked for them.
-    # The host is the workspace with block-app's full - the terminal and the
-    # embedded browser - less the plugins, which are only ever wasm, the gpu
-    # shim, which is only ever the browser's, and test-third-party. The web
-    # bundle's app is block-app's library for wasm32-wasip1-threads. The
-    # plugins are every editor and block-editor-plugin, for the same triple but
-    # a plan of their own, since cargo builds them in a call of their own: the
-    # two want different wgpu. The games are the three rule crates, and the
-    # browser's gpu shim, for wasm32-unknown-unknown. Android, Linux on arm64, the two
-    # Macs and the two Windows are the host's build again, for their triples. `cargo test` rather than `cargo
-    # build` where there are tests, so that the plan has the dev-dependencies
-    # and the features they unify. --unit-graph is nightly's, which is why the
-    # nightly reindeer is built with is what runs it.
+    # The builds buck2 stands in for, as cargo would be asked for them: the host
+    # (block-app with full, without the wasm-only crates), block-app for the web,
+    # the plugins (a plan of their own: they want a different wgpu), the games and
+    # the gpu shim, and the host again for each cross target. `cargo test` where
+    # there are tests, so the plan has the dev-dependencies. --unit-graph needs the
+    # nightly.
     script = """
 set -eu
 out="$(pwd)/$1"

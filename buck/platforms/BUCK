@@ -2,14 +2,9 @@ load("//buck/tools:defs.bzl", "worker_properties")
 load(":cross.bzl", "CROSS_PLATFORMS")
 load(":defs.bzl", "execution_platform")
 
-# Where every action runs: a BuildBuddy worker. buck/tools/defs.bzl says what
-# the container is, and it is Linux on x86_64 whatever the machine that asked
-# for the build is.
-#
-# Nothing is uploaded from here. BuildBuddy writes the result of every action
-# a worker ran to its own cache, and the few that run locally - the plugin
-# tests, which are not cached anyway - have nothing a second machine would
-# want.
+# Where every action runs: a BuildBuddy worker, Linux on x86_64 whatever the
+# machine that asked (buck/tools/defs.bzl). Nothing is uploaded from here;
+# BuildBuddy caches what its workers ran.
 execution_platform(
     name = "default",
     cpu_configuration = "prelude//cpu:x86_64",
@@ -18,12 +13,10 @@ execution_platform(
     visibility = ["PUBLIC"],
 )
 
-# What every build is for unless it says otherwise: Linux on x86_64, whatever
-# the machine that asked for it is. buck2's own default follows the machine, so
-# a Mac would build for macOS, its tests would be handed to Linux workers that
-# cannot run them, and nothing it built would share a cache entry with CI or
-# with anyone on Linux. .buckconfig names this instead; ./scripts/buck asks for
-# the machine's own platform for what it runs here, with `buck2 run`.
+# What every build is for unless it says otherwise, whatever machine asks, so a
+# Mac's or Windows machine's builds share CI's cache and its tests can run on a
+# worker. buck2's own default would follow the machine. ./scripts/buck run
+# builds for the machine instead.
 platform(
     name = "linux_x86_64",
     constraint_values = [
@@ -33,13 +26,9 @@ platform(
     visibility = ["PUBLIC"],
 )
 
-# Target platforms for WebAssembly, so that a plugin or a game can be asked for
-# with --target-platforms. They are target platforms only: nothing executes
-# here, and the execution platform above is still what runs the compiler.
-#
-# The constraints are the ones prelude//rust:cargo_package.bzl maps to
-# reindeer's platform names, so this pair is reindeer's "wasi" and the pair
-# below is its "wasm32". reindeer.toml has to agree with both.
+# Target platforms for WebAssembly. The constraints are the ones
+# prelude//rust:cargo_package.bzl maps to reindeer's platform names, "wasi" and
+# "wasm32", so reindeer.toml has to agree.
 platform(
     name = "wasi",
     constraint_values = [

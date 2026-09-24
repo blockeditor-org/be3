@@ -1,25 +1,10 @@
-# The app as it runs: its executable and every plugin beside it. buck/app/stage.py
-# says what that layout is; this is the rule that makes it, and what
-# `./scripts/buck run //crates/block-app:app` runs.
-#
-# A plugin is compiled for the host's own wasmtime ahead of time, by the plugin
-# test runner's --precompile-to, which is block-wasm-host's own and so the
-# engine the app loads it with, and which has to run where the action does. It
-# is a target dependency rather than an exec one, as for the plugin tests, so
-# that it is the same build of wasmtime theirs is; it is only asked for on the
-# host, where the two configurations run on the same workers. A
-# cross-compiled app gets its modules alone and compiles each at first launch,
-# as the app does with any module it has no current .cwasm for.
-#
-# The executable takes the name cargo gives it - block-app, not the crate's
-# block_app - with the platform's extension. With no binary, the directory is
-# the plugins alone.
-#
-# The web bundle is this rule too, with no executable: what the browser loads
-# instead is each of `bindgen`'s modules with the JavaScript wasm-bindgen writes
-# for it, one action a module, beside the page and the shims in `files`. The
-# browser cannot list a directory, so `index` writes plugins.json, the names
-# of the manifests staged beside them, for it to find the plugins through.
+# The app as it runs (buck/app/stage.py): the executable under cargo's name, and
+# beside it every plugin, each module precompiled in an action of its own by
+# plugin-test-runner, block-wasm-host's own engine, on the host only;
+# cross-compiled apps compile their modules at first launch. With no binary it
+# is the plugins alone. The web bundle is this rule too: `bindgen` runs
+# wasm-bindgen over each module, and `index` writes the plugins.json a browser
+# finds the plugins through.
 def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name, dir = True)
     command = cmd_args("python3", ctx.attrs._stage, out.as_output())

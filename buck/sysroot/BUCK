@@ -2,20 +2,12 @@ load("//buck/platforms:cross.bzl", "per_cross_platform")
 load(":defs.bzl", "deb_lock", "deb_sysroot", "pkg_config")
 load(":packages.bzl", "packages")
 
-# The Linux the build compiles and links against.
-#
-# A worker is a container of Ubuntu 24.04's buildpack-deps, and what it is for
-# is running tools. What a program is built against - glibc and its headers,
-# libstdc++, and every system library a crate links: ALSA, GTK, WebKitGTK -
-# comes from here instead, as Ubuntu 24.04's own packages, unpacked into a
-# sysroot the toolchain in buck/toolchains/BUCK hands the compiler and the
-# linker with --sysroot. So nothing a build needs has to be installed anywhere,
-# and the worker's image is not part of what a program is made of.
-#
-# The packages come from a snapshot of the archive, which pins every index for
-# good. ./scripts/buck run //:lock-sysroot resolves what is asked for below into its dependency
-# closure and writes packages.bzl; a new system library is a line here and a
-# buckify.
+# The Linux the build compiles and links against: Ubuntu 24.04's own packages -
+# glibc, libstdc++ and every system library a crate links - unpacked into a
+# sysroot the toolchain passes with --sysroot, so a worker's image is only what
+# runs the tools. They come from a snapshot of the archive, which pins every
+# index; ./scripts/buck run //:lock-sysroot resolves the list below into
+# packages.bzl.
 
 snapshot = "20260915T000000Z"
 
@@ -36,13 +28,8 @@ wanted = [
     "libudev-dev",
 ]
 
-# What a test loads that nothing is compiled or linked against: the Vulkan
-# loader and Mesa's software driver, lavapipe, which is the graphics device
-# beui's renderer tests draw through on a worker, and the XKB keymaps
-# libxkbcommon compiles a keyboard from, which be-compositor's tests need. A set
-# of its own rather than part of the one above, whose sysroot is an input of
-# every compile and link on the host, so that adding to it does not change their
-# cache keys.
+# What only tests load: the Vulkan loader, lavapipe and the XKB keymaps. A set
+# of its own, so that changing it leaves every compile's key alone.
 test_runtime = [
     "libvulkan1",
     "mesa-vulkan-drivers",
@@ -109,11 +96,9 @@ pkg_config(
     visibility = ["PUBLIC"],
 )
 
-# Lavapipe's Vulkan driver manifest, for a test to name with VK_ICD_FILENAMES.
-# Mesa's own names its library by its absolute path on an installed system; this
-# names it by file name, which the loader looks up the way the dynamic linker
-# does, so a test that puts :amd64-test's libraries on LD_LIBRARY_PATH gets
-# the driver from there.
+# Lavapipe's Vulkan driver manifest, naming its library by file name rather than
+# Mesa's absolute path, so a test with :amd64-test's libraries on
+# LD_LIBRARY_PATH loads it from there.
 export_file(
     name = "lavapipe_icd.json",
     visibility = ["PUBLIC"],

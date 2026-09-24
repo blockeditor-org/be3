@@ -3,14 +3,10 @@ third_party_dir = "third-party/rust"
 vendor = false
 cargo_env = true
 
-# The platforms the third-party rules are resolved for. The names are not free:
-# prelude//rust:cargo_package.bzl maps a buck2 configuration to one of these
-# strings, so "wasi" is os:wasi + cpu:wasm32 and "wasm32" is os:none + the same
-# cpu. buck/platforms/BUCK defines the two target platforms that land on them.
-#
-# execution-platform says which of them a build script or a proc macro runs on.
-# Only the host does; without saying so, a feature a build script turns on
-# would be turned on for the wasm targets as well.
+# The platforms third-party rules are resolved for. The names are the prelude's
+# (prelude//rust:cargo_package.bzl), which buck/platforms and the root PACKAGE
+# map configurations onto. Only the host is an execution platform, so a build
+# script's features do not reach the wasm targets.
 [platform.linux-x86_64]
 target = "x86_64-unknown-linux-gnu"
 execution-platform = true
@@ -61,12 +57,9 @@ target = "wasm32-wasip1-threads"
 execution-platform = false
 features = ["default", "full"]
 
-# The plugins. The same triple as above, because it is the same triple:
-# what tells them apart is the plugin_guest cfg, which nothing but this file and
-# the fixups keyed on it know about. Cargo resolves both the same way; the
-# fixups are what then give wgpu and egui-wgpu the guest's feature set rather
-# than the app's. buck/constraints/BUCK says why that is necessary, and the root
-# PACKAGE file is what maps a buck2 configuration onto this name.
+# The plugins: the same triple, told apart by the plugin_guest cfg, which only
+# the wgpu and egui-wgpu fixups read to give the guest its own features
+# (buck/constraints/BUCK).
 [platform.wasi-guest]
 target = "wasm32-wasip1-threads"
 execution-platform = false

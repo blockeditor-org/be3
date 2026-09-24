@@ -1,8 +1,5 @@
-# Fast compile feedback: rustc's check pass - type checking and borrow checking
-# with no code generated - over every first-party target, tests included, in
-# every configuration the workspace builds it in: the host's, and the plugins'
-# and games' wasm. It runs on BuildBuddy's workers, and fails with the
-# compiler's errors on the first target that has any.
+# rustc's check pass over every first-party target and configuration - host,
+# plugins and games - on BuildBuddy, failing with the compiler's errors.
 #
 # Usage:
 #   ./scripts/buck run //:check

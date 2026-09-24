@@ -1,15 +1,8 @@
-# The rules that turn the downloads in buck/tools/BUCK into tools.
-#
-# Everything here runs as an ordinary action, so it runs on a worker rather
-# than on the machine that asked for the build, and what it produces is a
-# directory in the CAS rather than on anyone's disk.
+# The rules that turn buck/tools/BUCK's downloads into tools, run on workers.
 
-# The container a remote worker runs an action or a test in: buildpack-deps on
-# Ubuntu 24.04, pinned by digest so that a worker is the same machine from one
-# build to the next. It brings the parts of a build that are the
-# distribution's rather than the project's - glibc and its headers, libstdc++,
-# the gcc install clang takes them from, and a Python new enough for the
-# prelude. The compilers are not among them; buck/tools/BUCK downloads those.
+# The container a worker runs actions in: Ubuntu 24.04's buildpack-deps, pinned
+# by digest. It brings glibc, libstdc++ and the Python the prelude runs on; the
+# compilers come from buck/tools/BUCK.
 worker_properties = {
     "OSFamily": "Linux",
     "container-image": "docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549",
@@ -39,15 +32,10 @@ rust_sysroot = rule(
     impl = _rust_sysroot_impl,
 )
 
-# Unpacks Ubuntu's clang packages into the part of /usr/lib/llvm-20 a build
-# uses: the binaries, the two shared libraries they load through
-# $ORIGIN/../lib, clang's resource directory, and libclang, which bindgen loads
-# from a build script and which finds the resource directory beside it. The packages keep the
-# libraries in /usr/lib/x86_64-linux-gnu and point at them with symlinks that
-# climb out of llvm-20; copying the files in is what makes the tree
-# self-contained. The symlinks within bin - clang++ to clang, ld.lld to lld -
-# stay symlinks, because the name a driver is invoked by is what decides how it
-# behaves.
+# Unpacks Ubuntu's clang packages into a self-contained llvm-20 tree: the
+# binaries, the libraries they load through $ORIGIN/../lib, clang's resource
+# directory and libclang for bindgen. Symlinks within bin stay, since a driver's
+# name decides how it behaves.
 def _llvm_tree_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("llvm", dir = True)
     script = """

@@ -38,15 +38,12 @@ cxx_tools_info_toolchain(
     visibility = ["PUBLIC"],
 )
 
-# The cross-compiled platforms: the same clang, for the target (buck/tools
-# says why that is part of the command). Android compiles against the NDK's
-# sysroot, and links the NDK's compiler runtime, which is the NDK's clang's and
-# so is named as the resource directory for the link alone. Linux on arm64 compiles and links
-# against buck/sysroot's arm64 packages the way the host does against amd64's;
-# a Mac against Apple's SDK, linked by lld's ld64.lld; Windows against the MSVC
-# runtime and the Windows SDK that xwin lays out, linked by lld-link. Those go
-# after clang's own headers rather than before, as -isystem would put them:
-# MSVC's intrinsics headers declare what clang's define.
+# The cross-compiled platforms: the same clang, for the target. Android against
+# the NDK's sysroot (its compiler runtime named as the resource directory for
+# the link alone), Linux on arm64 against buck/sysroot's arm64 packages, a Mac
+# against Apple's SDK with ld64.lld, Windows against xwin's MSVC runtime and SDK
+# with lld-link. Windows' headers go after clang's own (-idirafter), since
+# MSVC's intrinsics headers only declare what clang's define.
 [
     [
         host_cxx_tools(
@@ -189,34 +186,15 @@ pinned_rust_toolchain(
     compiler = cross_tool(tools, "rustc"),
     default_edition = "2024",
     deny_lints = ["warnings"],
-    # This project builds on a stable rustc, and cargo builds it on that same
-    # one. Left on, the prelude passes RUSTC_BOOTSTRAP=1 to every compile so it
-    # can use -Z flags for pipelined builds - and rustc then behaves like a
-    # nightly, which is not a difference that stays inside the build system.
-    # cfg(target_feature) reports unstable target features under it, so on
-    # wasm32-wasip1-threads a crate asking not(target_feature = "atomics") gets
-    # the opposite answer from the one cargo gives it. wgpu-types is such a
-    # crate: that cfg is what decides whether its handles are Send and Sync,
-    # and it decided differently from the build script that had already emitted
-    # --cfg=send_sync from the same question. A build script probing for
-    # #![feature] would go the same way.
-    #
-    # What this costs is one layer of pipelining: a dependent that has to
-    # generate code waits for the rlib rather than for a -Zno-codegen hollow
-    # one. Nothing else here used the unstable paths - no doctests, no expand
-    # or profiling subtargets, and the cwd is still remapped, by the action
-    # wrapper rather than by -Zremap-cwd-prefix.
+    # Left on, the prelude sets RUSTC_BOOTSTRAP=1 for -Z flags, and a stable rustc
+    # then reports unstable target features: on wasm32-wasip1-threads,
+    # cfg(target_feature = "atomics") answered differently from cargo and broke
+    # wgpu's Send/Sync. The cost is one layer of pipelining.
     nightly_features = False,
-    # Cargo's dev profile on the host, and Cargo.toml's plugin profile on wasm:
-    # a plugin is compiled once and loaded on every platform, and cranelift is
-    # an order of magnitude slower at an unoptimised one.
-    #
-    # The opt level is also what makes the prelude tell a build script what
-    # OPT_LEVEL it is building for, which cc-rs and libm both ask.
-    #
-    # `-c be3.profile=release` is Cargo's release profile instead, which is
-    # what CI's release builds ask for: optimised, no debug info, and on
-    # wasm the plugin-release profile, which is the same with symbols stripped.
+    # Cargo's dev profile on the host, and its plugin profile on wasm, since
+    # cranelift is far slower at an unoptimised module; the opt level is also what
+    # tells build scripts OPT_LEVEL. `-c be3.profile=release` is cargo's release
+    # profile.
     rustc_flags = select({
         "DEFAULT": _release if _profile == "release" else ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
         "prelude//cpu:wasm32": (_release if _profile == "release" else ["-Copt-level=2", "-Cdebuginfo=0"]) + ["-Cstrip=debuginfo"],
@@ -238,11 +216,8 @@ pinned_rust_toolchain(
 
 python_bootstrap_toolchain(
     name = "python_bootstrap",
-    # The Python the prelude's own helpers run on, as a file rather than as a
-    # name: a toolchain named by a string puts that string in the command line
-    # of every action that uses it, and this one is in all of them. defs.bzl
-    # says why that matters. It is the same file whichever tools are in use,
-    # because it finds its interpreter when it runs.
+    # The Python the prelude's helpers run on, as a file rather than a name, which
+    # would otherwise be in every action's command line.
     interpreter = "root//buck/tools:python3",
     visibility = ["PUBLIC"],
 )
@@ -251,11 +226,8 @@ system_genrule_toolchain(name = "genrule", visibility = ["PUBLIC"])
 
 noop_test_toolchain(name = "test", visibility = ["PUBLIC"])
 
-# Where a Rust test runs: on a worker, in the same container its binary was
-# linked for, so what it loads at run time is what it was linked against. A
-# test can still ask to stay local, as beui's does. buck2 keeps every test
-# local unless it is also given --unstable-allow-compatible-tests-on-re, which
-# ./scripts/buck passes.
+# Tests run on a worker, in the container their binary was linked for, unless
+# they ask to stay local; ./scripts/buck passes the flag that allows it.
 remote_test_execution_toolchain(
     name = "remote_test_execution",
     default_profile = "remote",

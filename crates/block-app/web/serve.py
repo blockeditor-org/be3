@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 #
-# The web bundle and the server behind it, on this machine:
+# Serves the web bundle on this machine: starts block-server on --backend and
+# Caddy on --listen with the Caddyfile beside this, plain http rather than a
+# deployment's TLS. Arguments after the options go to block-server; the default
+# is --disable-registration.
 #
 #   ./scripts/buck run //crates/block-app:web-serve
-#
-# Starts block-server on --backend and Caddy on --listen, with the Caddyfile
-# beside this, which a deployment runs as well: the bundle served with the two
-# headers that make the page cross-origin isolated, which the module's shared
-# memory needs before a browser will hand it out, and /api passed through to
-# the server. Here it is plain http on this machine's address rather than TLS
-# on a domain.
-#
-# Anything after the options is handed to block-server; the default is
-# --disable-registration, as a deployment runs it.
 
 import argparse
 import os

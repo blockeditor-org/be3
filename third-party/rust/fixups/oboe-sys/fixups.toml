@@ -1,12 +1,6 @@
-# The build script compiles Oboe's C++ against the NDK, and the archive it
-# writes and the libraries it names - the C++ runtime among them - reach the
-# link. It asks for PROFILE, which cargo sets and the prelude does not; the
-# answer only names the prebuilt archive the crate would otherwise fetch.
-#
-# cc-rs adds a --target of its own, with no API level, unless it can see one in
-# the compiler's command, which it cannot through the prelude's shim; the NDK's
-# libc++ then disagrees with its libc about what exists. Its CXXFLAGS come after
-# its own flags, so the API level the rest of the build targets goes there.
+# The build script compiles Oboe against the NDK, and its archive and libraries
+# reach the link. PROFILE only names a prebuilt it would otherwise fetch. cc-rs
+# adds a --target without an API level unless it sees one in CXXFLAGS.
 [buildscript.run]
 rustc_link_lib = true
 rustc_link_search = true

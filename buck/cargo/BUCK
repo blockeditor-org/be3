@@ -1,13 +1,8 @@
 load("//buck/tools:defs.bzl", "rust_sysroot")
 load(":cargo_install.bzl", "cargo_install")
 
-# reindeer, and the cargo it and generate.py run, for buckify.bxl, which
-# ./scripts/buck runs whenever the rules it generates would change.
-#
-# Nothing here is part of the build: buckify.bxl beside this file is what uses
-# it, to regenerate third-party/rust/BUCK and crates.bzl on a worker. Every
-# download is pinned by hash and size, like buck/tools. The nightly is also what
-# plans the builds generate.py reads, because --unit-graph is nightly-only.
+# reindeer, and the cargo and nightly it and generate.py run in buckify.bxl
+# (--unit-graph is nightly-only), pinned like buck/tools.
 
 # The commit reindeer is built from, and the nightly its rust-toolchain asks for.
 reindeer_revision = "3be7bd2e11d8fe949ae6db0bcbc46db8adab7264"
@@ -80,12 +75,8 @@ cargo_install(
     visibility = ["PUBLIC"],
 )
 
-# What rust-analyzer reads the standard library from: rust-toolchain.toml's
-# rustc and host standard library, and its sources, which is rust-src. Kept
-# apart from buck/tools:rust so that the sources are not an input of every
-# compile. rust-analyzer also takes its proc-macro server from here, which
-# ships in the rustc component, so it expands macros with the compiler the
-# build uses.
+# rust-analyzer's standard library, its sources and its proc-macro server, kept
+# apart from buck/tools:rust so rust-src is not an input of every compile.
 http_archive(
     name = "rust-src-component",
     sha256 = "0e977492aed5ff137815bf9b4b796e8a85b80fb2367ed64e82d5c5839870f2bf",

@@ -1,26 +1,13 @@
 #!/usr/bin/env python3
 #
-# Lays out the app the way it runs: the executable, and beside it every
-# plugin's manifest, renamed after the plugin's id, and the module the manifest
-# names as its entry point. That is what the app's native plugin discovery
-# scans the executable's own directory for. A module can be followed by the .cwasm compiled from it, which
-# wasmtime maps in rather than compiling the module at launch, and which goes
-# beside it.
-#
-# The web bundle is laid out the same way, with no executable: each --tree is
-# a directory wasm-bindgen wrote, whose files go beside the page, and --index
-# writes plugins.json, the list of the manifests staged, which is how the
-# browser finds the plugins it cannot scan a directory for.
+# Lays out the app as it runs: the executable under cargo's name, --file beside
+# it as it is (PDFium), and each plugin's manifest renamed <id>.plugin.json with
+# the module it names and its .cwasm. For the web bundle, --tree copies in what
+# wasm-bindgen wrote and --index writes plugins.json.
 #
 # Usage:
 #   stage.py OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
 #            [--index] (MANIFEST=MODULE [--artifact=CWASM])...
-#
-# The executable is renamed to the name cargo gives it, which buck2's does not
-# share: buck2 names a binary after its crate. A --file goes beside it as it
-# is: a library the app loads at run time, such as PDFium. With no executable
-# the directory is the plugins alone, which is what CI ships beside every
-# platform's app.
 
 import json
 import os

@@ -2,21 +2,10 @@ load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/cargo:defs.bzl", "cargo_wasm_facts")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 
-# A WebAssembly module, named from a target that is not built for WebAssembly.
-#
-# The app never loads a game or a plugin as anything but a wasm module, and the
-# tests that drive one are native: they run the host and hand it the module.
-# Cargo arranges that with a build script that shells out to a second cargo
-# build for wasm32 and prints the path it wrote to. Here the module is a target
-# and the dependency is a dependency - the only unusual thing about it is that
-# it is a dependency in a different configuration, which is what the transition
-# below does.
-#
-# So a native rule can say:
-#
-#     env = {"GAME_WASM": "$(location //crates/.../tic_tac_toe:module)"}
-#
-# and get the wasm build of the same crate without knowing how it was made.
+# WebAssembly modules, depended on from targets that are not WebAssembly: the
+# app and the native tests only load a game or a plugin as a module, so the
+# module is a dependency in another configuration, which these transitions give
+# it. A game's test says `env = {"GAME_WASM": "$(location :module)"}`.
 def _wasm32_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return refs.wasm32[PlatformInfo]
 
@@ -25,8 +14,8 @@ wasm32_transition = transition(
     refs = {"wasm32": "root//buck/platforms:wasm32"},
 )
 
-# The guest's wasi, not the app's: the same triple with the constraint that
-# tells reindeer which wgpu to resolve. buck/constraints/BUCK says why.
+# The plugins' wasi. The app's is the same triple, told apart by a constraint
+# (buck/constraints/BUCK) so that each gets its own wgpu.
 def _wasi_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return refs.wasi_guest[PlatformInfo]
 
@@ -35,8 +24,6 @@ wasi_transition = transition(
     refs = {"wasi_guest": "root//buck/platforms:wasi_guest"},
 )
 
-# The app's wasi: block-app's web bundle, which draws to the page with a real
-# wgpu backend.
 def _wasi_app_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return refs.wasi[PlatformInfo]
 
@@ -45,12 +32,8 @@ wasi_app_transition = transition(
     refs = {"wasi": "root//buck/platforms:wasi"},
 )
 
-# rustc calls a cdylib a shared library whatever it is compiling for, so on
-# wasm the "shared" output is the .wasm. Renaming it here is what makes the
-# path a person reads in an error message the one they expected.
-# A plugin's manifest names its entry point by file name and the app resolves
-# it against the directory the manifest was found in, so the module attribute
-# is how a target whose name is "module" still writes out checklist.wasm.
+# A cdylib's "shared" output is the .wasm; this names it as the module it is,
+# which for a plugin is the entry point its manifest names.
 def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
     shared = ctx.attrs.library[DefaultInfo].sub_targets["shared"][DefaultInfo].default_outputs[0]
     module = ctx.actions.copy_file((ctx.attrs.module or ctx.attrs.name) + ".wasm", shared)
@@ -80,11 +63,9 @@ wasi_app_module = rule(
     impl = _wasm_module_impl,
 )
 
-# rustc links a cdylib with --no-entry, which leaves the module without the
-# symbols a host needs to stand one up: lld strips the ones that describe a
-# thread's own storage, and there is no _start left to run libc's constructors
-# through. The host lays out thread storage itself and calls __wasm_call_ctors
-# itself, so a plugin has to export them.
+# rustc links a cdylib with --no-entry, which strips the symbols a host needs to
+# lay out a thread's storage and leaves nothing to run libc's constructors; the
+# host does both itself, so a guest exports them.
 plugin_exports = [
     "-Clink-arg=--export=__heap_base",
     "-Clink-arg=--export=__tls_base",
@@ -94,24 +75,17 @@ plugin_exports = [
     "-Clink-arg=--export=__wasm_call_ctors",
 ]
 
-# What block-app's web bundle is linked with, which is what cargo's web build
-# gives it through RUSTFLAGS: the exports above, which wasm-bindgen needs to
-# set up a thread's storage when it prepares the module for threads, and
-# wasi-libc's setjmp and its libc++ built without exceptions, which the C and
-# C++ the app links - FreeType's error handling and HarfBuzz - need.
+# block-app on the web: the same exports, which wasm-bindgen needs to prepare the
+# module for threads, and wasi-libc's setjmp and no-exceptions libc++ for the C
+# and C++ it links.
 wasi_app_flags = plugin_exports + [
     "-Clink-arg=-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
     "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
 ]
 
-# One editor: the guest, and the module the app loads it as.
-#
-# There is no native build of an editor - what a plugin is made of is behind
-# cfg(target_arch = "wasm32") - so the library is compatible with wasm32 alone
-# and asking for it on the host is a configuration error rather than a link
-# failure. The module is named from the manifest's entry_point, which is what
-# the app resolves against the directory it found the manifest in. Everything
-# else comes from the editor's Cargo.toml, through buck/cargo/crates.bzl.
+# An editor: the guest cdylib (wasm32 only; a plugin is all behind
+# cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
+# :manifest, and its wasm :test.
 def editor(name, module, visibility = ["PUBLIC"]):
     facts = cargo_wasm_facts()
     native.rust_library(
@@ -144,10 +118,8 @@ def editor(name, module, visibility = ["PUBLIC"]):
         srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
     )
 
-# A crate's tests compiled to wasm and run through plugin-test-runner: the test
-# module, and the test that runs it. An editor's, and block-editor-plugin's,
-# whose tests are the guest half of the plugin framework and exist only on
-# wasm.
+# A crate's tests compiled to wasm and run by plugin-test-runner, which gives
+# the module a plugin's imports; an editor's, and block-editor-plugin's.
 def plugin_tests(srcs, exports = []):
     facts = cargo_wasm_facts()
     native.rust_binary(
@@ -170,52 +142,15 @@ def plugin_tests(srcs, exports = []):
         runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
     )
 
-# An editor's tests, which are a wasm guest like the editor itself.
+# Compiled to wasm, a plugin's tests paint with the FreeType and HarfBuzz it
+# ships, so the accepted paintings in snapshots/ stay put. The guest finds them
+# from CARGO_MANIFEST_DIR, taken from the crate's real Cargo.toml rather than a
+# staged copy.
 #
-# A plugin paints with the FreeType and HarfBuzz it was compiled against, so
-# running its tests natively paints with whatever those libraries happen to be
-# on the machine and the accepted paintings never settle. Compiled to wasm they
-# are the versions the plugin ships with. So the test binary is a module, built
-# for wasi with --test the way cargo builds one, and the thing buck2 runs is the
-# host: plugin-test-runner hands the module to wasmtime with a plugin's imports
-# linked and opens a graphics device only if a test asks the gpu abi for one.
-#
-# CARGO_MANIFEST_DIR is what a plugin's tests find their accepted paintings
-# through: the guest inherits the runner's environment, walks up from there to
-# the workspace and reads snapshots/ under it. The runner preopens that same
-# workspace for the guest, so the path has to be the real one rather than the
-# staged copy a rustc action sees, which is why it is taken from the crate's
-# Cargo.toml, which is a file in the repository rather than an output.
-#
-# Under cargo this is CARGO_TARGET_WASM32_WASIP1_THREADS_RUNNER; here the runner
-# is an ordinary dependency, so it is built for whatever the test itself is
-# built for, and the module is a dependency in wasi's configuration, which is
-# what the transition below does. An exec_dep would put the runner in the
-# execution platform's configuration instead and build wasmtime a second time
-# for it.
-# Cranelift is what makes a module this size take seconds rather than minutes,
-# and it is still most of what a plugin test run costs: about forty seconds a
-# module, and there are thirty-four of them. So the compile is an action here
-# rather than something each test process does again - done once, shared by
-# every test in the module, and answered by the cache on a machine that has
-# never built the plugin.
-#
-# The compile is for the x86_64 baseline rather than for the machine it runs
-# on. Left to itself wasmtime uses every CPU feature it finds, and the artifact
-# is then only loadable by a machine with the same ones: the compile runs on a
-# remote worker and the test on the machine that asked for it, and the two
-# rarely match. Naming the target is what makes wasmtime stop looking.
-#
-# The runner is told where the artifact is rather than looking beside the
-# module, because what decides whether one is stale under cargo is its mtime
-# and buck2 does not preserve those. It does not need to: the runner is an
-# input to the action that wrote the artifact, so a runner that could not read
-# what it wrote is not a state that exists.
-#
-# Only for the host. A test built for another platform - a Mac, or Linux on
-# arm64 - has a runner that cannot run where the compile does, and the
-# worker's wasmtime has only cranelift's x86_64 backend; there the runner
-# compiles the module itself when the test runs.
+# The module is compiled for wasmtime once, in an action, rather than by every
+# test process - about forty seconds a module. It is compiled for the x86_64
+# baseline, since the compile runs on a worker and the test here, and only for
+# the host: elsewhere the runner compiles it when the test runs.
 def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
     if not ctx.attrs.precompile:
         return cmd_args(module)

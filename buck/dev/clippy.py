@@ -1,17 +1,7 @@
-# clippy over the workspace through buck2, which is what //:verify's lint pass
-# runs.
-#
-# buck/dev/workspace.bxl builds every first-party Rust target's [clippy.json] -
-# rustc's JSON diagnostics - in every configuration the workspace builds it in,
-# on BuildBuddy's workers. This reads them. A file compiled in more than one
-# configuration or target is diagnosed more than once, so each finding is
-# reported once. The toolchain denies warnings, so any finding fails the run.
-#
-# With --fix it first applies the suggestions clippy marks machine-applicable,
-# which is what `cargo clippy --fix` applies: every edit a diagnostic suggests
-# goes in together or not at all, one that overlaps an edit already taken is
-# left for the next run, and then clippy runs again over the result, so what is
-# reported is what the fixes did not reach.
+# clippy over the workspace, for //:verify: reads the [clippy.json] of every
+# first-party target in every configuration (buck/dev/workspace.bxl), reporting
+# each finding once. With --fix it first applies the machine-applicable
+# suggestions, as `cargo clippy --fix` does, and lints again.
 
 import json
 import os

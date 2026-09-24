@@ -1,18 +1,10 @@
 #!/usr/bin/env python3
 #
-# Resolves the Ubuntu packages a sysroot is made of, and writes them down.
-#
-# The input is a snapshot of the Ubuntu archive - snapshot.ubuntu.com serves
-# the archive as it was at any moment, so a timestamp pins every package index
-# for good - and the packages the build asked for. The output is packages.bzl:
-# every package in their dependency closure, with the URL, hash and size of its
-# .deb, which buck/sysroot/BUCK downloads and lays out. It is checked in, like
-# a lockfile, and ./scripts/buck run //:buckify writes it; guides/buck2.md says how the
-# pieces fit.
-#
-# Resolution is apt's, simplified: Depends and Pre-Depends, the first
-# alternative that exists, a virtual package's first provider, and the highest
-# version any of the suites has. Recommends are not followed.
+# Resolves the packages a sysroot needs from a snapshot of the Ubuntu archive
+# into packages.bzl: every package in their dependency closure, with its .deb's
+# URL, hash and size. Resolution is apt's, simplified: Depends and Pre-Depends,
+# the first alternative that exists, a virtual package's first provider, the
+# highest version; no Recommends.
 #
 # Usage:
 #   resolve.py SNAPSHOT NAME:ARCHITECTURE:PACKAGE[,PACKAGE...]... > packages.bzl

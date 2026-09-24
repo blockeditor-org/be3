@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 #
-# Signs an APK buck2 built, and with --install puts it on the device adb sees
-# and starts it. This is the one step of the Android build that runs here
-# rather than on a worker, because it needs the key, and the key is this
-# machine's: Android refuses to install an update signed with a different key
-# than the one already on the device, so every build has to be signed with the
-# same one.
+# Signs an APK buck2 built, here, because the key is this machine's: Android
+# only installs an update signed with the same key. The keystore is --keystore,
+# target/android-debug.keystore by default, made on first use; CI restores its
+# own there. --install installs it with adb and starts it.
 #
-# The key is the keystore at --keystore, target/android-debug.keystore unless
-# it says otherwise, with Android's debug passwords. One is made there if there
-# is none yet. CI restores its own there from a secret, so that its builds stay
-# installable over one another.
-#
-# Usage, through the runnables in crates/block-app/BUCK:
+# Usage:
 #   ./scripts/buck run //crates/block-app:android -- [--out APK] [--keystore FILE] [--install]
 
 import argparse

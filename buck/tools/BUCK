@@ -1,23 +1,14 @@
 load("@toolchains//:defs.bzl", "script")
 load(":defs.bzl", "llvm_tree", "rust_sysroot", "tool")
 
-# The compilers the build runs, downloaded rather than taken from the machine.
-#
-# Every action runs on a BuildBuddy worker, which is a container with nothing
-# of this project's in it, so the compilers come with the build: they are
-# downloaded here, pinned by hash, and reach a worker the way a source file
-# does, as inputs of the actions that run them. defs.bzl says what the
-# container is. guides/buck2.md says why none of it is taken from the machine
-# that asked for the build.
-#
-# The versions are rust-toolchain.toml's Rust, and clang-20, which is Ubuntu
-# 24.04's, the distribution the container is.
+# The compilers and tools the build runs. A worker is a container with nothing
+# of this project's in it (defs.bzl), so everything is downloaded here, pinned
+# by hash, and reaches a worker as an input of the actions that use it:
+# rust-toolchain.toml's Rust, and Ubuntu 24.04's clang-20.
 
-# Each download is pinned by its size as well as its hash. With both, buck2
-# knows the file's digest without asking the server anything, so a build whose
-# workers already have the file never contacts the host that serves it. With
-# only the hash it sends a HEAD request for the size on every new daemon, and
-# the build fails whenever that host is slow to answer.
+# Every download has its size as well as its hash: with both, buck2 never asks
+# the host anything, where with the hash alone it sends a HEAD request per file
+# on every new daemon.
 rust_version = "1.98.0"
 
 rust_host = "x86_64-unknown-linux-gnu"
@@ -253,14 +244,9 @@ tool(
     visibility = ["PUBLIC"],
 )
 
-# The MSVC C runtime and the Windows SDK: headers and import libraries, which
-# xwin downloads from Microsoft and lays out, one architecture per action. The
-# channel manifest is pinned, and it pins every package xwin fetches by hash,
-# so the result is the same wherever it is made; it is the one download here
-# that happens inside an action, because the packages are MSIs and VSIXs xwin
-# has to take apart. Downloading them means accepting Microsoft's licence for
-# the Visual Studio Build Tools, which --accept-license does, and
-# guides/buck2.md says so.
+# The MSVC C runtime and Windows SDK, laid out by xwin on a worker from a pinned
+# channel manifest that pins every package by hash. Downloading them accepts
+# Microsoft's Build Tools licence (--accept-license).
 http_archive(
     name = "xwin",
     sha256 = "d870eb4b2f390878af6da1ccd3cf321d22fcb72720984853b4be732ae597fc88",
@@ -301,11 +287,8 @@ http_file(
     for arch in ["x86_64", "aarch64"]
 ]
 
-# Android's NDK r29: the aarch64 sysroot and
-# the compiler runtime clang links into an Android program, which
-# android-ndk.py downloads, checks and keeps on a worker - the NDK is a 780 MB
-# zip, and an action whose input it was would move all of it to every worker
-# that compiled for Android.
+# Android's NDK r29, pruned on a worker to the aarch64 sysroot and the compiler
+# runtime (86 of its 780 MB), so no action takes the whole zip as an input.
 genrule(
     name = "android-ndk",
     cmd = "python3 $(location :android-ndk.py) "
@@ -319,11 +302,9 @@ export_file(
     name = "android-ndk.py",
 )
 
-# clang for each cross-compiled platform. The target is part of the command
-# rather than a toolchain flag because the prelude assembles a .S file with the
-# bare compiler and none of the flags, and an assembly file that asks which
-# platform it is for would otherwise be told Linux on x86_64. The macOS
-# minimums are rustc's defaults for the two triples, so C and Rust agree.
+# clang for each cross-compiled platform, with the target in the command: the
+# prelude assembles .S files with the bare compiler, without toolchain flags.
+# The macOS minimums are rustc's defaults.
 clang_targets = {
     "android_arm64": "aarch64-linux-android26",
     "linux_arm64": "aarch64-linux-gnu",
@@ -395,11 +376,8 @@ script(
     visibility = ["PUBLIC"],
 )
 
-# Caddy, the web server `./scripts/buck run //crates/block-app:web-serve` serves
-# the web bundle with, and crates/block-app/web/Caddyfile's. It runs on the
-# machine that asked for it rather than on a worker, so the archive is the one
-# for this machine. Upstream publishes them as GitHub release assets; these
-# are the same bytes, from the mirror scripts/internal/common.sh describes.
+# Caddy, which //crates/block-app:web-serve runs on this machine, so the release
+# is this machine's. The same bytes as upstream's GitHub releases, mirrored.
 caddy_version = "2.11.4"
 
 caddy_releases = {

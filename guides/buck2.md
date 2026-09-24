@@ -1,710 +1,90 @@
 # buck2
 
-buck2 builds and tests the workspace, and every action it runs, runs on
-BuildBuddy. This guide says what it covers, how to run it, and why it is set up
-the way it is.
+buck2 builds, lints and tests the workspace, and every action runs on
+BuildBuddy's remote workers. Every command is a buck2 target started through
+`./scripts/buck`. cargo builds nothing; `Cargo.toml` is still the one place a
+dependency is declared, and buck2 reads it through cargo's own plans.
 
-Every command a person runs is a buck2 target, from `./scripts/buck`: the
-checks, the lint pass, the tests, the app, every platform's release build, the
-web bundle and the Android APK. cargo builds nothing; what is left of it is
-`Cargo.toml`, the one place a dependency is declared, which buck2 reads through
-cargo's own plans.
-
-## What buck2 builds
-
-- Every third-party crate the workspace depends on, on `x86_64-unknown-linux-gnu`:
-  around nine hundred of them, including the ones that compile C or assembly -
-  sqlite, zstd, freetype, harfbuzz, tree-sitter, ring, wasmtime.
-- Every first-party crate and its tests: the `be-*` stack, `block*`, `beui`,
-  `reactive`, `text-editor-core`, the games' api and host, the tools, and
-  `block-app` itself, with its terminal and its embedded browser.
-- libghostty-vt, the Zig library behind the terminal, built on a worker by
-  `scripts/internal/build-ghostty-vt.sh`.
-- The three game modules, as WebAssembly, and the native tests that drive them
-  through the host.
-- All thirty-three editors, as the wasm plugins the app loads, and their tests,
-  compiled to wasm and run through the same host `block-app` runs a plugin in.
-- `block-app` for the browser, with the gpu shim and the JavaScript
-  wasm-bindgen writes for both, and the APK for Android.
-- All of the above for Android, Linux on arm64, macOS on arm64 and x86_64,
-  and Windows on arm64 and x86_64, cross-compiled on the same Linux workers
-  (below).
-
-`./scripts/buck test //crates/...` is 72 test targets.
-
-## Running it
+## Commands
 
 | Command | What it does |
 |---|---|
 | `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm |
-| `./scripts/buck run //:verify` | the lint pass with its fixes, the tests and the plugin tests; `-- --check` writes nothing, `-- --lint`, `--tests`, `--plugin-tests` run one part |
+| `./scripts/buck run //:verify` | autofixes, lints, tests and plugin tests; `-- --check` writes nothing, `-- --lint`, `--tests`, `--plugin-tests` run one part |
 | `./scripts/buck test //crates/...` | the tests alone |
-| `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; `-- --env UPDATE_SNAPSHOTS=1` accepts its paintings |
+| `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
-| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: the app, the server and PDFium; add `--target-platforms root//buck/platforms:PLATFORM`, `-c be3.profile=release` and `-c be3.commit=SHA` |
-| `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, which every platform shares |
-| `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle, with every plugin; `:web-dist` is CI's, without them |
-| `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `block-server` behind it, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed with adb and started; without `--install` it is only written to `target/android/block-app.apk`. `:android-dist` is CI's, without the plugins |
-| `./scripts/buck run //:buckify` | regenerates the files made from `Cargo.toml` and `buck/sysroot/BUCK` |
+| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app, `block-server`, PDFium |
+| `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
+| `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
+| `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `block-server`, on http://127.0.0.1:8080 |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`:android-dist` without the plugins) |
+| `./scripts/buck run //crates/beui:demo-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
-
-The root `BUCK.v2` file defines the `//:` commands, each a script in `buck/dev`
-that says what it does, started from the repository's root once buck2 has
-built or downloaded what it needs, like `//:rust-project`'s rust-project. A
-command that builds more calls `./scripts/buck` itself - `buck2 run` lets go of
-buck2 before it starts one - and `//:verify` does that for its tools too:
-rustfmt, starlark_fmt and fix-rust-source are built only for the lint pass, so
-a run of the tests alone never fetches them.
-
-`./scripts/buck` is the pinned buck2 with a few things in front of it. It runs
-under bash on Linux, on macOS - whose bash 3.2 it keeps to - and in Git Bash
-on Windows.
-
-- **buck2 itself.** The pinned release lives in the checkout, at
-  `target/tools/buck2-<version>/`, and `./scripts/internal/install-buck2.sh`
-  puts it there the first time `./scripts/buck` finds it missing, with the
-  zstd command or, failing that, Python 3.14's zstd. Checking is one test of a
-  file, so it costs nothing on every other run, and moving the version
-  installs the new one. A `buck2` on `PATH` is not used: every buck2 carries
-  the prelude it was built with.
-- **The key**, since there is nowhere else to build: `BUILDBUDDY_API_KEY` from
-  the environment, or else the contents of `.buildbuddy-api-key` at the root
-  of the checkout, which git ignores, or of `~/.config/be3/buildbuddy-api-key`.
-  With none of them, a person at a terminal is asked for it, and it is saved
-  to `.buildbuddy-api-key`; anything without a terminal on both stdin and
-  stderr - CI, a pipe, an agent's shell - gets told what to set instead.
-- **Tests** are allowed onto the workers (below).
-- **`run` builds for this machine.** Every build is for Linux on x86_64
-  unless it says otherwise, wherever it is asked for: `.buckconfig` names
-  `buck/platforms:linux_x86_64` as the default target platform, so a Mac or
-  Windows machine builds, tests and caches exactly what CI and a Linux machine
-  do. buck2's own default would follow the machine instead. What `run` starts
-  has to run here, though, so on anything but Linux on x86_64 `./scripts/buck
-  run` adds `--target-platforms` for this machine - `macos_arm64`,
-  `windows_x86_64` and the rest in `buck/platforms` - unless the command names
-  one itself. The `//:` commands are Python, so `//:check` and `//:buckify`
-  work from any of them; `//:verify` and `//:rust-project` run tools that are
-  Linux builds.
-- An older copy of it wrote `.buckconfig.local`; one left behind is removed.
-
-**Restart the daemon when the key changes**, with `./scripts/buck killall`. `.buckconfig`
-names the variable rather than holding the key, and buck2 expands it from the
-environment of the daemon, which is the one it was started with.
-
-`./scripts/buck run //:buckify` regenerates `third-party/rust/BUCK`,
-`buck/cargo/crates.bzl` and `buck/sysroot/packages.bzl`. Run it after changing
-any `Cargo.toml` or `Cargo.lock`, or `buck/sysroot/BUCK`; CI fails if any of
-them disagrees. Nothing else needs touching for a new dependency: a crate's
-`BUCK` file takes its dependencies from `crates.bzl` (below).
-
-buck2 itself is a download `./scripts/buck` makes the first time it runs.
-Every other tool is one buck2 downloads or builds; reindeer is built
-and run on a worker.
-
-### Generated from Cargo.toml
-
-Two files are generated, and both are checked in:
-
-- `third-party/rust/BUCK`, one rule per third-party crate, which reindeer
-  writes.
-- `buck/cargo/crates.bzl`, what each workspace crate's `Cargo.toml` says - its
-  dependencies and features on each platform, its edition and its targets -
-  which `buck/cargo/generate.py` writes. The `BUCK` file beside a crate turns
-  that into rules with `cargo_library()`, `cargo_test()` and `cargo_binary()`
-  from `buck/cargo/defs.bzl`, and the plugin macros in `buck/wasm/defs.bzl`
-  read it the same way.
-
-A crate's dependencies and features come from cargo's own plan for the build
-buck2 stands in for, `cargo test --unit-graph` or `cargo build --unit-graph`,
-rather than from `cargo metadata`. The difference matters: cargo unifies
-features across one invocation, so `beui` has `window` in a build of the app
-and only `render` in a build of the plugins, and `cargo metadata` would give it
-`window` everywhere. There are three plans - the host, the plugins for
-`wasm32-wasip1-threads`, the games for `wasm32-unknown-unknown` - and
-`buck/cargo/buckify.bxl` says exactly how each is asked for. Where they differ
-for a crate, the macro writes the `select()`.
-
-`buck/cargo/buckify.bxl` is what `./scripts/buck run //:buckify` runs. It builds reindeer
-on a worker - `cargo install` of the pinned commit, with the nightly reindeer's
-own rust-toolchain asks for, both in `buck/cargo/BUCK` - and then, in one
-action on a worker, runs `reindeer buckify --stdout` against
-rust-toolchain.toml's cargo and the three plans against the nightly's, and
-prints the directory the two files are in. The script copies them into the
-repository. Building reindeer takes about nine minutes, once; regenerating
-takes about a minute, most of it cargo downloading the crates, and only when
-something it reads has changed.
-
-What it reads is the root `Cargo.toml`, `Cargo.lock`, `reindeer.toml`, the
-fixups, `generate.py`, and every `Cargo.toml` under `crates/`: those are the
-action's real inputs. cargo also looks at the layout of each crate - whether
-there is a `src/lib.rs`, a `build.rs`, an `examples/` directory - but never
-reads a source file, so every other file under `crates/` is passed as a path
-only and recreated empty on the worker. An edit to a source file leaves the
-action's key alone; adding a file, a dependency or a crate is what runs it
-again. With nothing changed, `./scripts/buck run //:buckify` takes about a second on a live
-daemon.
-
-It is a BXL script rather than a rule because the manifests belong to
-seventy-odd packages, and a rule can only take the files of its own package.
-
-## rust-analyzer
-
-`./scripts/buck run //:rust-project` writes `rust-project.json` at the root, which is how
-rust-analyzer reads the workspace without cargo. rust-analyzer prefers it over
-`Cargo.toml` when both are there. Run it again after adding a crate or a
-dependency; the file is ignored by git, because the paths in it are this
-checkout's.
-
-- buck2's own `rust-project` tool walks the build graph and writes every crate
-  with its dependencies, features, cfgs and edition as buck2 builds it. It is
-  built on a worker from the commit the pinned buck2 release was, like
-  reindeer (`buck/cargo/BUCK`).
-- It walks the graph twice: once as the host, and once as the plugins' guest
-  for every editor and `block-editor-plugin`, with their target set to
-  `wasm32-wasip1-threads` so rust-analyzer evaluates their
-  `cfg(target_arch = "wasm32")` code as live. The script merges the two.
-- The standard library and its sources come from `buck/cargo:analyzer-sysroot`,
-  rust-toolchain.toml's toolchain with `rust-src`, so no rustup is involved.
-  rust-analyzer's proc-macro server comes from the same place, so macros are
-  expanded by the compiler the build uses.
-- Diagnostics on save come from `rust-project check`, which builds the saved
-  file's target through buck2, rather than from `cargo check`. The script adds
-  that as the file's flycheck runnable, and points its test runnable at
-  `./scripts/buck`.
-- Third-party crates' sources are unpacked locally under
-  `buck-out/.rust-analyzer`, which is a buck2 isolation directory of its own:
-  rust-analyzer has to read them from disk. It is about 1.6 GB.
-
-Use a current rust-analyzer, the one an editor extension ships. The one in the
-Rust 1.98.0 toolchain panics in its lexer on a file in this workspace.
-
-## The sysroot
-
-Everything built for the host is compiled and linked against `buck/sysroot`
-rather than against whatever machine runs the action: Ubuntu 24.04's glibc,
-libstdc++ and every system library a crate links - ALSA, GTK, WebKitGTK - as
-Ubuntu's own packages. The worker's image is only what runs the tools.
-
-- `buck/sysroot/BUCK` names the packages the build needs and the snapshot of
-  the archive they come from. snapshot.ubuntu.com serves the archive as it was
-  at any moment, so a timestamp pins every package index for good.
-- `./scripts/buck run //:buckify` runs `buck/sysroot/resolve.py` on a worker, which
-  resolves the dependency closure the way apt would and writes
-  `buck/sysroot/packages.bzl`: the URL, hash and size of every `.deb`. It is
-  checked in, like a lockfile. Today it is 441 packages, most of them GTK's
-  and WebKitGTK's.
-- An action on a worker unpacks them into the sysroot, keeping headers,
-  libraries, the gcc install clang takes the C++ runtime from, and pkg-config
-  files. Absolute symlinks are made relative so they resolve inside it.
-- The host toolchain compiles and links with `--sysroot`.
-- A `-sys` crate's build script asks pkg-config how to link its library.
-  `buck/sysroot:pkg-config` answers from the sysroot, and the crate's fixup
-  names it with `PKG_CONFIG` and asks for `rustc_link_lib`, so the libraries
-  it prints reach the link, where `--sysroot` finds them. alsa-sys and the
-  GTK and WebKitGTK bindings are set up this way.
-
-A new system library is a line in `buck/sysroot/BUCK` and a `./scripts/buck run //:buckify`.
-
-What a test loads but nothing compiles against is a set of its own, resolved
-from the same snapshot into its own sysroot, so that adding to it leaves the
-compile sysroot, and every cache key built on it, alone.
-`buck/sysroot:amd64-test` is the Vulkan loader and Mesa's software driver,
-lavapipe, and the XKB keymaps. beui's renderer tests put its libraries on
-`LD_LIBRARY_PATH` and name `buck/sysroot/lavapipe_icd.json` in
-`VK_ICD_FILENAMES`, and draw through it on a worker; be-compositor's tests
-build their keyboard from its keymaps through `XKB_CONFIG_ROOT`.
-
-A test that loads one of these at run time, on a worker whose image does not
-have it, gets the sysroot's library directory through `LD_LIBRARY_PATH`; today
-that is `block-app`'s. A binary built here links against the same libraries a
-user's Ubuntu 24.04 has, and loads them from the system when it runs.
-
-## BuildBuddy
-
-Every action runs on one of BuildBuddy's workers, and BuildBuddy keeps the
-result, so a build only ever does the work nobody has done before:
-
-```
-./scripts/buck build //crates/...    # BuildBuddy empty
-Commands: 4699 (cached: 0, remote: 4699, local: 0)
-real    4m07s
-
-./scripts/buck test //crates/...     # after buck2 clean
-Cache hits: 100%
-Commands: 3610 (cached: 3610, remote: 0, local: 0)
-Tests finished: Pass 68. Fail 0.
-real    0m20s
-```
-
-Four minutes is the whole workspace from nothing. The same machine takes nine
-to build `beui` and one plugin by itself, and cargo's own test run takes
-fourteen from an empty `target/`.
-
-What this machine downloads is what it asked for and what a local test runs;
-the intermediate rlibs stay in BuildBuddy's CAS and never arrive. Nothing is
-uploaded from here: BuildBuddy writes the result of every action a worker ran,
-and a machine never vouches for an output it compiled itself.
-
-### What a worker is
-
-A worker is a container with nothing of this project's in it: Ubuntu 24.04's
-`buildpack-deps`, pinned by digest in `buck/tools/defs.bzl`. It brings the parts
-of a build that are the distribution's rather than the project's - glibc and
-its headers, libstdc++, the gcc install clang takes them from, and a Python new
-enough for the prelude.
-
-Everything else comes with the build, as inputs of the actions that use it:
-
-- `buck/tools/BUCK` downloads `rust-toolchain.toml`'s Rust from
-  static.rust-lang.org - rustc, clippy and the three standard libraries - and
-  Ubuntu 24.04's clang-20, lld and llvm-ar packages from Launchpad, which keeps
-  every version it ever published.
-- `third-party/system/BUCK` does the same for ALSA, which `rodio` links and the
-  container does not have.
-- `crates/ghostty-vt/BUCK` runs `scripts/internal/build-ghostty-vt.sh` on a
-  worker, which downloads Zig and Ghostty itself. It is the one action that
-  needs the network, and its inputs pin everything it downloads.
-
-Every download is pinned by size as well as hash. With both, buck2 knows the
-file's digest without asking the server, so a build whose workers already have
-it never contacts the host that serves it; with only the hash it sends a HEAD
-request per download on every new daemon, and fails the build when a host is
-slow to answer.
-
-Because the tools are artifacts rather than names, they are part of every
-action's key: a different rustc or clang is a different action, never a cache
-hit on another compiler's output. The container is part of the key too, through
-the platform properties every action carries.
-
-### Tests
-
-Most tests run on the workers as well, beui's renderer tests among them, on
-lavapipe (below). Two kinds stay on the machine that asked, because a worker
-cannot do what they do:
-
-- **The plugin tests** read the accepted paintings out of `snapshots/` in the
-  working tree and write the ones that changed back into it, and may open a
-  graphics adapter. They are labelled `plugin`, which is how
-  `./scripts/buck run //:verify -- --tests` and `--plugin-tests` tell them apart.
-- **`block-plugin-api`'s `every_editor_manifest_parses`** walks
-  `crates/editors` in the working tree, and the editors are packages of their
-  own rather than its inputs. Its `rust_test` says
-  `remote_execution = "disabled"`.
-
-buck2 keeps every test local unless it is told otherwise, so `./scripts/buck`
-adds `--unstable-allow-compatible-tests-on-re` to a test run. "Compatible" is
-what separates them: a Rust test runs from the project root with
-project-relative paths, which is what a worker can give it, and the plugin
-tests' rule asks for absolute ones.
-
-A local test runs a binary a worker linked, against the worker's glibc. That is
-Ubuntu 24.04's, so a machine on an older one cannot run them.
-
-Arguments after `--` go to buck2's test executor rather than the test.
-`--env NAME=VALUE` sets a variable for the tests - `UPDATE_SNAPSHOTS=1` is how
-`./scripts/buck run //:verify` accepts paintings - and `--test-arg` passes one through to
-the test binary, which is how to run a single test:
-
-```
-./scripts/buck test //crates/editors/checklist:test -- --env UPDATE_SNAPSHOTS=1
-./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name
-```
-
-buck2's test runner starts one process per test binary and runs its tests on
-threads, the way `cargo test` does, where nextest gave every test a process of
-its own. A test that installs process-wide state has to take turns with the
-others that do; `block-app`'s `be` tests hold a lock for that.
-
-### When the key is wrong
-
-Three things about the connection are not guessable, and none of them
-announces itself. The address is a bare `remote.buildbuddy.io:443`: buck2
-parses it itself and rejects both `grpcs://` and `https://` with `Invalid
-URI`. `http_headers` separates name from value with a colon, not an equals
-sign. And the instance name is empty.
-
-buck2 treats a cache it cannot use as a cache that is empty, so a wrong key
-shows up as a build with no hits rather than as an error. BuildBuddy's
-rejection is in the event log rather than on screen:
-
-```
-buck2 log show | grep -i 'invalid api key'
-```
-
-### Build metadata
-
-BuildBuddy's build metadata - the repository, branch, commit and role that
-group invocations and drive its GitHub commit statuses - is not available here.
-BuildBuddy reads it from the Build Event Stream, which is Bazel's, and buck2
-does not implement it; nothing in the pinned release speaks it, and buck2's own
-`--client-metadata` goes only to its event log. What BuildBuddy does see is the
-remote execution traffic itself: the actions, their inputs and outputs, and
-what they cost.
-
-## WebAssembly
-
-The games build for `wasm32-unknown-unknown` and the plugins will build for
-`wasm32-wasip1-threads`. Both are target platforms in `buck/platforms/BUCK`,
-and asking for one is:
-
-```
-./scripts/buck build //crates/tabletop_games/rules/tic_tac_toe:tic_tac_toe_wasm \
-    --target-platforms=//buck/platforms:wasm32
-```
-
-Three things make that work, and all three are worth knowing about before
-adding the plugins to it.
-
-**The toolchain switches on what is being built for.** `buck/toolchains/BUCK`
-selects the target triple and the rustc flags off the target platform, so wasm
-gets Cargo.toml's plugin profile rather than its dev one. The C toolchain
-switches too: rustc emits lld's own flags for a wasm link and hands them to
-whatever the cxx toolchain calls a linker, which for the host is a clang driver
-that has never heard of them, so wasm gets `rust-lld` from the same rustc
-instead. `buck/tools/wasm-ld` drops `-fuse-ld=lld` on the way through, because
-`prelude//os_lookup` has no case for WebAssembly and falls back to linux - its
-own FIXME says so - and a linux link is what the prelude thinks it is building.
-
-**The C dependencies compile to wasm.** `third-party/wasi:sysroot` is the WASI
-sysroot as an `http_archive`, pinned by hash, and `buck/toolchains/BUCK` has a
-cxx toolchain pointed at it with the flags the C needs - the setjmp lowering
-FreeType needs, the `-pthread` that marks the objects as using
-atomics, and the rest. Rust needs none of it: rustc's own wasip1 standard
-library is self-contained, and a pure-Rust module links without the sysroot at
-all. `beui` builds for `wasm32-wasip1-threads` through this, freetype and
-harfbuzz included.
-
-The wasm C compiler is the host one aimed elsewhere: the same downloaded
-clang-20, with `--target=wasm32-wasip1-threads` in the tool itself rather than
-in the toolchain's flags, because the prelude's cxx toolchain has flags for C
-and for C++ and none for assembly. FreeType's setjmp lowering is why it is
-clang 20: it needs 19 or newer.
-
-**reindeer resolves the third-party crates once per platform**, and
-`reindeer.toml` names all four. The platform names are not free: a buck2
-configuration is mapped to one of them, so `wasm32` is `os:none` + `cpu:wasm32`,
-and `wasi` and `wasi-guest` are `os:wasi` with the same cpu. The root `PACKAGE`
-file is what does the mapping, through the prelude's
-`set_reindeer_platforms`.
-
-What that costs is feature fixups. reindeer resolves one feature set per
-platform across the whole workspace, so a feature one crate wants natively
-arrives everywhere: `uuid`'s `v4` and `rand`'s `os_rng` both reached
-`wasm32-unknown-unknown`, where there is no operating system to ask for entropy
-and the crates say so with a `compile_error`. The fixups under
-`third-party/rust/fixups` take them back off for that platform.
-
-**`wasi` and `wasi-guest` are the same triple.** `block-app`'s web bundle and a
-plugin are both `wasm32-wasip1-threads`, and no cfg tells them apart, but they
-want different `wgpu`: the app draws to the page and links a real browser
-backend, and a plugin is a guest that reaches the host's device through the gpu
-abi with only wgpu's `custom` backend. The two cannot be merged. `custom` keeps
-its handles behind trait objects that are neither `Send` nor `Sync`, and
-`fragile-send-sync-non-atomic-wasm` - which the app has, because this target's
-cfg carries no `"atomics"` - makes wgpu assert that they are both.
-
-cargo kept them apart by resolving features once per call and making two
-calls. reindeer resolves once per platform, so the platforms are what differ:
-
-- `buck/constraints/BUCK` has a `wasm_role` setting with a `guest` value.
-- `buck/platforms:wasi_guest` is `buck/platforms:wasi` plus that value, and
-  `buck/wasm/defs.bzl` transitions a plugin's module and tests to it.
-- `[platform.wasi-guest]` in `reindeer.toml` is the same triple with an extra
-  `plugin_guest` cfg that nothing but the fixups reads. Cargo resolves both
-  platforms identically; the fixups on `wgpu` and `egui-wgpu` are keyed on
-  `cfg(plugin_guest)` and are what then give each one its own feature set.
-- `buck/cargo/crates.bzl` has a plan for each as well, `wasi` for the app and
-  `wasi-guest` for the plugins, which `buck/cargo/defs.bzl` tells apart by
-  `buck/platforms:wasi_setting` and `:wasi_guest_setting`.
-
-Everything else follows: `wgpu-types` loses `fragile-send-sync-non-atomic-wasm`
-on the guest and `wgpu-core` and `wgpu-hal` appear only on the app's, because
-reindeer resolves the forwarding for each platform in turn. Measured against
-cargo, those three crates are the whole of the difference between the two
-builds - everything else the app wants is a superset the guest compiles with
-anyway.
-
-**A native target can depend on a wasm one.** `buck/wasm/defs.bzl` has a rule
-that transitions its dependency to a wasm platform, so a test that is built for
-the host can name a module that is not:
-
-```
-env = {"GAME_WASM": "$(location :module)"}
-```
-
-That replaces the build script under cargo, which shells out to a second cargo
-build for wasm32 and prints the path it wrote to. The plugin tests, the web
-bundle and the APK use the same rules.
-
-## The app
-
-```
-./scripts/buck run //crates/block-app:app
-```
-
-`//crates/block-app:app` is the app as it runs: the executable, and beside it
-every editor's manifest, renamed `<id>.plugin.json`, the module it names, and
-the `.cwasm` compiled from it, which is the directory native plugin discovery
-scans. `buck/app` is the rule.
-
-The executable takes cargo's name, `block-app`, and PDFium from
-`third-party/pdfium` goes beside it. `//crates/block-app:dist` is what CI
-ships for each platform - the app and `block-server`, under cargo's names, and
-PDFium, with no plugins - and `//crates/block-app:plugins` is the plugins
-alone, built once for every platform. `-c be3.profile=release` is Cargo's
-release profile, and `-c be3.commit=SHA` the commit the app reports; every
-other build says `unknown`, so that a commit does not recompile the app.
-
-- Each module is precompiled in an action of its own, by the plugin test
-  runner's `--precompile-to`, which is `block-wasm-host`'s and so the engine
-  the app loads it with. A cross-compiled app has no precompiler that can run
-  on a worker and gets its modules alone; the app compiles each at first
-  launch, as it does any module without a current `.cwasm`.
-- The editors are every crate under `crates/editors`, from
-  `buck/cargo/crates.bzl`, so a new editor is staged with no change here.
-- On this VM, which has no WebKitGTK of its own, it runs with the sysroot's
-  libraries on `LD_LIBRARY_PATH`, and passes `./scripts/buck run //crates/block-app:smoke`'s check:
-  still running after ten seconds in a virtual display.
-
-### The web bundle
-
-```
-./scripts/buck build //crates/block-app:web --out dist/web
-./scripts/buck run //crates/block-app:web-serve
-```
-
-`:web` is the same `buck/app` rule with no executable. What the browser loads
-instead is `block-app`'s library built for `buck/platforms:wasi` and
-`block-gpu-shim` built for `wasm32-unknown-unknown`, each with the JavaScript
-`wasm-bindgen` writes for it, in an action of its own; beside them go the page
-and the shims in `crates/block-app/web`, every plugin, and `plugins.json`, the
-list of the manifests, since a browser cannot list a directory. The app on
-wasi is linked with what wasm-bindgen needs to prepare it for threads - the
-thread-storage exports a plugin has too - and wasi-libc's setjmp
-(`wasi_app_flags` in `buck/wasm/defs.bzl`). libghostty-vt is built for it as
-a freestanding wasm archive.
-
-`wasm-bindgen` is `buck/cargo:wasm-bindgen`, `cargo install` of
-`wasm-bindgen-cli` on a worker at the version `Cargo.lock` has for the crate;
-the two have to agree. `:web-dist` is what CI publishes: no plugins, and an
-index of none.
-
-`:web-serve` runs `crates/block-app/web/serve.py`, which starts a
-`block-server` and Caddy with `crates/block-app/web/Caddyfile`: the bundle
-with the two cross-origin isolation headers the module's shared memory needs,
-and `/api`, WebSocket and all, passed through to the server. A deployment runs
-the same Caddyfile with `BE3_DOMAIN_NAME` a domain, which Caddy gets a
-certificate for, and `BE3_WEB_ROOT` the directory `:web-dist` was written to.
-Caddy is `buck/tools:caddy`, the release for the machine it runs on.
-
-### The APK
-
-```
-./scripts/buck run //crates/block-app:android -- --install
-```
-
-`buck/android` makes an APK on a worker without Gradle: aapt2 links the
-manifest against `android.jar`, javac and d8 turn `MainActivity` into
-`classes.dex`, the native libraries - `block-app`'s `[cdylib]`, transitioned to
-`android_arm64`, and the NDK's `libc++_shared.so` - go in stored, and the
-assets are `:android-assets`, the plugins with each module precompiled for
-`aarch64-linux-android`; zipalign `-P 16` then puts each library on a 16 KB
-page. The JDK, the SDK's build tools and platform, and the platform tools for
-adb are pinned downloads in `buck/android/BUCK`.
-
-What runs here is the signing, `buck/android/sign.py`, because the key is this
-machine's: `target/android-debug.keystore`, made on first use, which
-`--keystore` changes. CI restores its own from a secret and builds with
-`-c be3.android_id=com.be3.block.ci -c "be3.android_label=Block (CI)"`, so its
-builds install beside a developer's. The JDK and the tools are Linux x86_64
-builds, so signing and installing run on a Linux x86_64 machine.
-
-Precompiling for the device needs a host wasmtime that can emit arm64, which
-cargo got from a precompiler built with `block-wasm-host`'s `all-arch`. buck2
-builds one wasmtime for the host, so the fixup on `cranelift-codegen` gives
-that one the arm64 backend beside its own.
-
-## Cross-compiling
-
-```
-./scripts/buck build --target-platforms root//buck/platforms:linux_arm64 //crates/block-app:block-app-bin
-./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 //crates/...
-./scripts/buck build --target-platforms root//buck/platforms:macos_x86_64 //crates/...
-./scripts/buck build --target-platforms root//buck/platforms:windows_x86_64 //crates/...
-./scripts/buck build --target-platforms root//buck/platforms:android_arm64 '//crates/block-app:block-app[cdylib]'
-```
-
-Android, Linux on arm64, both Macs and both Windows are built on the Linux
-workers everything else builds on; CI builds the whole workspace for each. `buck/platforms/cross.bzl`
-lists them, and every rule that differs between platforms selects over that
-list with `per_cross_platform`.
-
-- **Compilers**: the same clang with `--target=` as part of the command (the
-  prelude assembles a `.S` file with the bare compiler, so a toolchain flag
-  would not reach it). Linux on arm64 links with lld like the host; a Mac with
-  lld's `ld64.lld`; Windows with `lld-link` directly, since rustc speaks
-  `link.exe`'s flags, and archives with `llvm-lib`. The macOS minimums are
-  rustc's defaults, 11.0 and 10.12.
-- **rustc**: a sysroot per cross target with only that target's standard
-  library, so the host's cache keys do not change when a target is added.
-- **Linux on arm64** compiles and links against `buck/sysroot:arm64`, Ubuntu
-  24.04's arm64 packages from the same snapshot and the same package list as
-  amd64's; `resolve.py` resolves both into `packages.bzl`. The snapshot of
-  `ubuntu-ports`, where Ubuntu keeps arm64, refuses anonymous requests, and the
-  main archive's snapshot serves the same packages. The fixups ask
-  `$(exe_target //buck/sysroot:pkg-config)`, which answers for the platform
-  being built rather than the worker's. The app runs under
-  `qemu-aarch64 -L <that sysroot>` as far as looking for a display.
-- **macOS** compiles and links against Apple's SDK (`buck/tools:macos-sdk`),
-  the headers and `.tbd` stubs of MacOSX15.5.sdk, a pinned download. It is a
-  repackaging of the one in Xcode, and Apple's licence allows the SDK on Apple
-  hardware only. Building on Linux is for development; before a release ships,
-  the release build moves to a worker that is a Mac or runs Asahi Linux on
-  one. rustc gets `SDKROOT` rather than asking `xcrun`, and
-  `-Csplit-debuginfo=unpacked`, because the default runs `dsymutil`.
-- **Android** compiles against the sysroot of NDK r29 at API level 26, and links the NDK's compiler runtime, which is its
-  clang's and so is named as the resource directory for the link alone.
-  `buck/tools:android-ndk` downloads the 780 MB NDK on a worker, checks it,
-  and keeps the 86 MB of it the build reads. The app is `block-app`'s
-  `[cdylib]`, `libblock_app_lib.so`, the library the APK carries; it needs
-  `libc++_shared.so` beside it, which the APK carries. Ghostty's build finds
-  an NDK itself, and is shown the same one. oboe-sys compiles Oboe with cc-rs,
-  which appends a `--target` with no API level unless one is visible in the
-  compiler's command, so the fixup puts the versioned one in its `CXXFLAGS`.
-- **Windows** (MSVC, as what ships is) compiles and links against the MSVC C
-  runtime and the Windows SDK, which `buck/tools:windows-sdk-<arch>` has xwin
-  download from Microsoft and lay out on a worker, from a pinned Visual Studio
-  channel manifest that pins every package by hash. It is the one download
-  that happens inside an action, because the packages are MSIs and VSIXs xwin
-  has to take apart, and it means accepting Microsoft's licence for the Visual
-  Studio Build Tools (`--accept-license`). The SDK's headers go after clang's
-  own (`-idirafter`), since MSVC's intrinsics headers only declare what
-  clang's define. The Windows API is imported as raw-dylib
-  (`--cfg=windows_raw_dylib` on windows-targets), so no import library has to
-  reach a link. The app starts under Wine as far as asking for a GPU.
-- **reindeer and cargo's plan**: a platform per target in `reindeer.toml`, and
-  a `cargo test --unit-graph` per triple in `buckify.bxl`, so each gets the
-  dependencies and features cargo would give it.
-- **Build scripts**: `coreaudio-sys` runs bindgen against the SDK with
-  `libclang` from `buck/tools:llvm`. ring, `objc2-exception-helper` and, on
-  Windows, wasmtime's fiber compile their C and assembly through their own
-  build scripts, whose archives reach the link (`rustc_link_lib` and
-  `rustc_link_search`); ring picks its per-platform set itself, including the
-  pre-assembled objects it ships for Windows. harfbuzz and SQLite are
-  `cxx_library`s with a Windows variant each, under a name of its own because
-  reindeer keys a library by name, and harfbuzz's build script is told by
-  `buck/tools:pkg-config-provided` that there is nothing left for it to
-  compile. khronos_api's build script is replaced by an overlay that copies
-  what it includes into `OUT_DIR`, since the original includes it from where
-  the build script ran.
-- **libghostty-vt** is Zig, and Zig cross-compiles, so it is the same genrule
-  with a different triple; for Windows it is handed a libc file naming the
-  xwin layout. `scripts/internal/ghostty-vt.patch` drops Ghostty's `memset`
-  override on Darwin and its bundled compiler_rt on Windows, where each
-  collides with the program's own copy, and gives wuffs its minimal libc
-  headers on Windows too.
-- **Plugin tests** build for every platform but are only precompiled for the
-  host: the precompile runs on a Linux worker, whose wasmtime has only
-  cranelift's x86_64 backend, so elsewhere the runner compiles the module when
-  the test runs.
-
-A macOS binary links only the system's frameworks and carries lld's ad hoc
-signature; none has been run from here, since nothing in this setup has a Mac.
-Neither is there a `.app` bundle yet.
-
-## The compiler is a stable one, and the build says so
-
-`nightly_features = False` in `buck/toolchains/BUCK`, which is not the prelude's
-default. Left on, the rules pass `RUSTC_BOOTSTRAP=1` to every compile so they
-can use `-Z` flags - `-Zno-codegen` for pipelined builds, `-Zremap-cwd-prefix`
-for paths. That variable does not only unlock flags. It makes a stable rustc
-behave like a nightly one everywhere the difference is observable, and the one
-that matters here is `cfg(target_feature)`: a nightly reports unstable target
-features and a stable one does not.
-
-`wasm32-wasip1-threads` has `atomics`, and `atomics` is unstable to name. So
-under `RUSTC_BOOTSTRAP=1` a crate asking `not(target_feature = "atomics")` got
-the opposite answer from the one cargo gives it, while the build script that
-asked the same question through `CARGO_CFG_TARGET_FEATURE` still got cargo's.
-`wgpu-types` is such a crate - that cfg is what decides whether its handles are
-`Send` and `Sync` - and `wgpu-core` asserted the answer the build script had
-given it. The symptom was `dyn DynInstance` not being `Sync` in a build whose
-features matched cargo's exactly. A build script probing for `#![feature(...)]`
-would go the same way, and silently.
-
-What it costs is one layer of pipelining: a dependent that has to generate code
-waits for the rlib rather than for a `-Zno-codegen` hollow one. The unstable
-paths this project never used go with it - doctests, the `[expand]`,
-`[doc-coverage]` and profiling subtargets - and the cwd is still remapped, by
-the action wrapper rather than by `-Zremap-cwd-prefix`.
-
-## The lint pass
-
-`./scripts/buck run //:verify -- --lint` is buck2's, and needs no cargo:
-
-- **rustfmt** is `//buck/tools:rustfmt`, the pinned release in a sysroot of
-  its own, run here over every Rust file in the workspace's crates - every file
-  rather than each crate's root, because rustfmt cannot see a module a macro
-  declares, and `block-client` declares its blocks' that way.
-- **fix-rust-source** is `//crates/fix-rust-source:fix-rust-source-bin`.
-- **starlark_fmt** is `//buck/tools:starlark_fmt`, from the buck2 release
-  `scripts/internal/common.sh` pins, decompressed on a worker by Ubuntu's own
-  zstd.
-- **clippy** is `buck/dev/clippy.py`. `buck/dev/workspace.bxl` builds every
-  first-party Rust target's `[clippy.json]` subtarget on the workers, in every
-  configuration it is built in - the host's, and through the transitions the
-  plugins' and games' wasm, whose wasm-only code a native `cargo clippy` never
-  linted. It reports each finding once, and in a run that writes applies the
-  suggestions clippy marks machine-applicable first, the way `cargo clippy
-  --fix` does, and lints again.
-
-`//:verify`'s command names the first three, so `buck2 run` builds or
-downloads them before `buck/dev/verify.py` starts; clippy and the tests are
-calls to `./scripts/buck` from inside it.
-
-The lint levels are on the toolchain in `buck/toolchains/BUCK` -
-`deny_lints = ["warnings"]` and the one allow that Cargo.toml's
-`[workspace.lints]` sets - and `clippy.toml` at the root is clippy's own
-configuration, which is empty. It exists because clippy under buck2 is handed a
-configuration directory rather than left to search for one, and a directory
-without a `clippy.toml` in it is an error rather than a default.
-
-A clippy subtarget writes its diagnostics to a file and succeeds whatever they
-say, which is why the gate is the script rather than `buck2 build`.
-
-## How the build is laid out
-
-- `.buckconfig` names the cells, the execution platform and BuildBuddy. The
-  prelude is the one bundled in the buck2 binary, so there is no submodule to
-  check out and no prelude version to keep in step with the binary: the pinned
-  buck2 release pins both.
-- `buck/tools/BUCK` downloads the compilers, and `defs.bzl` beside it holds the
-  rules that lay them out and the container a worker runs.
-- `buck/toolchains/BUCK` is the toolchain, built on `buck/tools`; `defs.bzl`
-  beside it holds the small rules that take an artifact where the prelude's own
-  toolchains take a name, and the wrapper that lets links run on a worker and
-  puts a binary's shared libraries beside it. rustc gets `-Copt-level=0`, which
-  is cargo's dev profile and also what makes the prelude tell a build script
-  what `OPT_LEVEL` it is building for.
-- `buck/platforms/BUCK` is the execution platform: the prelude's, pointed at
-  BuildBuddy's workers.
-- `third-party/rust/BUCK` is generated by reindeer from the workspace manifests.
-  It is checked in and nothing but `./scripts/buck run //:buckify` should edit it. Crates
-  are downloaded from crates.io at build time rather than vendored, so the
-  repository carries the rules and not nine hundred crates of source.
-- `third-party/rust/fixups/<crate>/fixups.toml` is what reindeer needs told
-  about a crate it cannot work out on its own. Every crate with a build script
-  needs one, if only to say `buildscript.run = true`.
-- `third-party/system/BUCK` is for libraries the system provides rather than
-  the build: the C++ runtime a Rust binary linking harfbuzz needs, and ALSA.
-- `crates/<crate>/BUCK` is written by hand, one per crate.
-
-## Adding a crate
-
-Add it to the workspace in the root `Cargo.toml`, run `./scripts/buck run //:buckify`, and
-write a `BUCK` file beside its `Cargo.toml` naming the targets it has:
+| `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
+
+Release builds take `-c be3.profile=release` (cargo's release profile) and
+`-c be3.commit=SHA` (the commit the app reports; otherwise `unknown`, so a new
+commit does not rebuild the app). `--target-platforms root//buck/platforms:<p>`
+builds for another platform.
+
+## What `./scripts/buck` does
+
+It runs under bash on Linux, macOS (bash 3.2) and Git Bash on Windows, and puts
+four things in front of the pinned buck2:
+
+- **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
+  installed into `target/tools/buck2-<version>/` the first time it is missing.
+  A `buck2` on `PATH` is not used, since each buck2 carries its own prelude.
+- **The BuildBuddy key**: `BUILDBUDDY_API_KEY`, else `.buildbuddy-api-key` at
+  the root (git ignores it), else `~/.config/be3/buildbuddy-api-key`. With
+  none, a person at a terminal is asked for it and it is saved to
+  `.buildbuddy-api-key`; without a terminal it fails and says what to set.
+  After changing the key, restart the daemon with `./scripts/buck killall`.
+- **The generated rules.** `third-party/rust/BUCK` (every third-party crate,
+  written by reindeer) and `buck/cargo/crates.bzl` (every workspace crate's
+  dependencies, features and targets, from cargo's plans) are not checked in.
+  `./scripts/buck` hashes their inputs and, when that changes, runs
+  `buck/cargo/buckify.bxl` on a worker and copies the result into place. The
+  action is keyed on the manifests, `Cargo.lock`, `reindeer.toml`, the fixups
+  and the paths cargo discovers targets at, so it is shared through the cache:
+  a few seconds on a fresh checkout, about a minute for the first person to
+  change a dependency.
+- **Platforms.** Everything is built for Linux x86_64 wherever it is asked for
+  (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
+  CI's cache. `run` is the exception: on another machine it builds for that
+  machine unless the command names `--target-platforms`.
+
+It also lets `test` put tests on the workers (below).
+
+## Layout
+
+- `.buckconfig`: cells, the execution platform, BuildBuddy. The prelude is the
+  one bundled in the buck2 binary.
+- `BUCK.v2`: the `//:` commands, scripts in `buck/dev`. (`BUCK.v2` rather than
+  `BUCK`, which a case-insensitive filesystem cannot hold beside `buck/`.)
+- `buck/tools`: every compiler and tool, downloaded and pinned by hash and size.
+- `buck/toolchains`: the toolchains built from them, per target platform.
+- `buck/platforms`: the execution platform (a BuildBuddy worker) and every
+  target platform; `cross.bzl` lists the cross-compiled ones.
+- `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
+- `buck/cargo`: `crates.bzl`'s generator and the macros that read it.
+- `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
+- `buck/app`, `buck/android`: how the app, the web bundle and the APK are
+  laid out.
+- `third-party/rust/fixups/<crate>/fixups.toml`: what reindeer is told about
+  a crate it cannot work out alone; every crate with a build script needs one.
+- `crates/<crate>/BUCK`: one per crate, written by hand.
+
+## Adding things
+
+**A dependency**: `cargo add` (or edit `Cargo.toml`). The next `./scripts/buck`
+regenerates the rules. If the crate has a build script, reindeer warns until it
+has a fixup saying `buildscript.run = true` or `false`.
+
+**A crate**: add it to the workspace, and write a `BUCK` beside its
+`Cargo.toml`:
 
 ```
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
@@ -716,131 +96,121 @@ cargo_test()
 cargo_binary()
 ```
 
-Everything a rule needs that is in `Cargo.toml` comes from `crates.bzl`: the
-dependencies (third-party ones as `//third-party/rust:<package>`, workspace ones
-as `//crates/<dir>:<package>`), the features, the edition, the crate name and
-root, and cargo's package environment. What is left for the `BUCK` file is what
-`Cargo.toml` cannot say, passed as arguments:
+Dependencies, features, edition and roots come from `crates.bzl`. The library
+is named after the package, its tests are `:test`, a binary named like the
+package is `<name>-bin`, and an example is `cargo_example("<name>")`. What
+`Cargo.toml` cannot say is passed as arguments: `srcs` for non-Rust files the
+crate reads at compile time (default `src/**/*.rs`), `env`, `extra_deps`, or any
+rule attribute such as a test's `remote_execution = "disabled"`.
 
-- `extra_deps` for something that is not a crate, like `ghostty-vt`'s Zig
-  archive.
-- `env` for a variable beyond cargo's, like a game's `GAME_WASM`.
-- `srcs` when the crate reads files at compile time that are not Rust - a
-  `.wgsl` shader, a font, an `examples/` file a test includes. The default is
-  `src/**/*.rs`.
-- Any other rule attribute as it is, like a test's `remote_execution =
-  "disabled"`.
+**An editor**: `crates/editors/<name>/BUCK` is one `editor(name, module)` call
+from `buck/wasm/defs.bzl`, which makes the guest cdylib, its `:module`, its
+`:manifest` and its wasm `:test`. The app picks up every editor by itself.
 
-A few conventions the macros follow:
+**A system library**: a line in `buck/sysroot/BUCK`, then
+`./scripts/buck run //:lock-sysroot`. A `-sys` crate finds it through the fixup
+`env = { PKG_CONFIG = "$(exe_target //buck/sysroot:pkg-config)" }` with
+`rustc_link_lib = true`.
 
-- The library is named after the package, and its tests are `:test`.
-- A binary named like its package is `<name>-bin`, since the library has the
-  name; any other binary keeps its own name, and a crate with several names the
-  one with `bin = "..."`.
-- A proc macro's tests get `--extern proc_macro` without being asked.
-- An editor is one `editor(name, module)` call instead, from
-  `buck/wasm/defs.bzl`.
+**A dev-dependency with no other user**: reindeer does not look at
+`[dev-dependencies]`, so a crate only a test uses gets no rule. Name it in
+`crates/test-third-party/Cargo.toml` as well.
 
-## The plugins
+## Tests
 
-Every editor is one `editor()` call in `crates/editors/<name>/BUCK`, and the
-macro in `buck/wasm/defs.bzl` makes three targets out of it:
+Most tests run on the workers, including beui's and be-compositor's, which draw
+through lavapipe from `buck/sysroot:amd64-test`. Two kinds stay local:
 
-- `<name>_wasm`, the guest, a cdylib for `wasm32-wasip1-threads`. There is no
-  native build of an editor, so it is compatible with `wasm32` alone.
-- `module`, that cdylib under the name the manifest's `entry_point` gives it.
-- `test`, which is the editor's tests compiled to wasm and run through
-  `plugin-test-runner`, the same host `block-app` runs a plugin in.
+- **Plugin tests** read and write the accepted paintings in `snapshots/`.
+  They are labelled `plugin`, which is how `//:verify`'s `--tests` and
+  `--plugin-tests` split. Each is the crate's tests compiled to wasm and run by
+  `plugin-test-runner`, the host `block-app` runs a plugin in, so they paint
+  with the FreeType and HarfBuzz the plugin ships.
+- `block-plugin-api`'s test that walks `crates/editors`.
 
-A plugin paints with the FreeType and HarfBuzz it was compiled against, so its
-tests only mean anything as a wasm guest: run natively they paint with whatever
-those libraries happen to be on the machine and the accepted paintings never
-settle. Under cargo that is `CARGO_TARGET_WASM32_WASIP1_THREADS_RUNNER`; here
-the module is a `transition_dep` in wasi's configuration and the runner is an
-ordinary dependency, so it is built for the host beside it. The accepted
-paintings are read from `snapshots/` through `CARGO_MANIFEST_DIR`, which
-`wasi_test` takes from the crate's `Cargo.toml` so that the path is the one in
-the repository rather than the staged copy a rustc action compiles against.
-A changed painting fails the test unless `UPDATE_SNAPSHOTS` is set, which
-`./scripts/buck run //:verify` does through the test executor's `--env`, and the runner
-hands it to the guest.
+Arguments after `--` go to the test executor: `--env NAME=VALUE` sets a
+variable, `--test-arg NAME` runs one test. buck2 runs a binary's tests on
+threads, like `cargo test`, so tests that touch process-wide state must take
+turns.
 
-`block-editor-plugin` has a `test` of the same shape: it is the guest half of
-the plugin framework, and its tests are behind `cfg(target_arch = "wasm32")`.
+## Platforms
 
-Cranelift is most of what a plugin test run costs - about forty seconds a
-module, and there are thirty-four of them - so compiling one is an action
-rather than something each test process does again. `plugin-test-runner
---precompile-to` writes the artifact where buck2 asks for it and the test
-command names it with `--precompiled`, rather than the runner looking beside
-the module the way it does under cargo: what decides staleness there is an
-mtime, and buck2 does not preserve those. It does not need to, because the
-runner is an input to the action that wrote the artifact. Being an action is
-also what makes the compile shared - once per module rather than once per test
-process, and answered by the cache on a machine that has never built the
-plugin. It is the difference between `./scripts/buck test //crates/...` taking
-twenty-five minutes on an unchanged tree and taking twenty seconds.
+| Platform | Built against | Linked with |
+|---|---|---|
+| Linux x86_64 (default) | `buck/sysroot:amd64` | lld |
+| `linux_arm64` | `buck/sysroot:arm64` | lld |
+| `macos_arm64`, `macos_x86_64` | MacOSX15.5 SDK (`buck/tools:macos-sdk`) | `ld64.lld` |
+| `windows_arm64`, `windows_x86_64` | MSVC runtime and Windows SDK via xwin | `lld-link`, `llvm-lib` |
+| `android_arm64` | NDK r29, API 26 | lld |
+| `wasi` | the WASI sysroot | rust-lld (block-app on the web) |
+| `wasi_guest` | the WASI sysroot | rust-lld (the plugins) |
+| `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
-The artifact is compiled for the x86_64 baseline rather than for the machine
-that compiled it. Left to itself wasmtime uses every CPU feature it finds, and
-the artifact then only loads on a machine with the same ones - but it is
-compiled on a worker and loaded here, and the two rarely match. Naming the
-target with `--target` is what makes wasmtime stop looking.
+All of them build on the same Linux workers; CI builds `//crates/...` for every
+one. Apple's SDK licence allows it on Apple hardware only, so release builds
+for macOS move to a Mac or Asahi worker before anything ships; xwin accepts
+Microsoft's Build Tools licence.
 
-## What is left
+`wasi` and `wasi_guest` are the same triple, but the app links a real wgpu
+backend and a plugin only wgpu's `custom` one, and the two cannot be unified.
+A `guest` constraint (`buck/constraints`) tells them apart, reindeer resolves
+each as a platform of its own, and fixups keyed on `cfg(plugin_guest)` give
+each its wgpu. `crates.bzl` has a plan for each.
 
-- **The macOS `.app`.** The Mac builds are the executable and its libraries,
-  which is what CI ships for now; the bundle waits until the app is prepared
-  for distribution, along with the Mac worker the SDK's licence asks for.
+A native target depends on a wasm one through a transition in
+`buck/wasm/defs.bzl`: a game's test says
+`env = {"GAME_WASM": "$(location :module)"}`.
 
-The plugin tests run here rather than on a worker, because they write accepted
-paintings into `snapshots/`, so what they draw through is this machine's
-device.
+## Shipping
 
-Adding a platform is the cross-compiling section above again: an entry in
-`cross.bzl`, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain,
-and whatever its build scripts need.
+- `:app` stages the executable as `block-app`, PDFium, and every editor's
+  manifest (`<id>.plugin.json`), module and `.cwasm`, precompiled in an action
+  per module. Cross-compiled apps compile their modules at first launch.
+- `:dist` is what CI ships per platform, and `:plugins` the plugins once for all.
+- `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run
+  through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
+  version), with the page and shims from `crates/block-app/web` and a
+  `plugins.json` the browser finds the plugins through. `:web-serve` runs Caddy
+  (`buck/tools:caddy`) with `web/Caddyfile`; a deployment uses the same
+  Caddyfile with `BE3_DOMAIN_NAME` and `BE3_WEB_ROOT`.
+- The APK is assembled on a worker without Gradle (`buck/android/apk.py`):
+  aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
+  plugins precompiled for arm64, and `zipalign -P 16`. Signing runs locally
+  with `target/android-debug.keystore`, made on first use; CI restores its own
+  and passes `-c be3.android_id=com.be3.block.ci -c "be3.android_label=Block (CI)"`.
+  The host's wasmtime has cranelift's arm64 backend for that precompile (a
+  fixup on `cranelift-codegen`).
+- The macOS builds are an executable and its libraries; the `.app` bundle
+  comes with distribution.
 
-## Where the tools come from
+## rust-analyzer
 
-buck2 and starlark_fmt are prebuilt releases, checked against sha256 hashes
-pinned in `scripts/internal/common.sh` the way every other tool here is. Upstream
-publishes them as GitHub release assets with no hashes beside them, so the bytes
-are mirrored next to this repository's other archives and the hash is what says
-they are the right ones.
+`./scripts/buck run //:rust-project` writes `rust-project.json` (git ignores
+it), which rust-analyzer prefers over `Cargo.toml`. It covers the host and, as
+`wasm32-wasip1-threads`, the plugins, takes the standard library and proc-macro
+server from the pinned toolchain, and checks on save through buck2. Run it
+again after adding a crate or dependency, and use the rust-analyzer an editor
+extension ships: the toolchain's panics on this workspace.
 
-The pin is a dated release tag. `latest` is a tag upstream repoints on every
-push to main, so it is never what to pin. A buck2 binary carries the prelude it
-was built with, which is why moving that version is a change to verify with a
-build rather than a number to bump.
+## Things that are not obvious
 
-Caddy is the same: GitHub release assets, mirrored and pinned in
-`buck/tools/BUCK`, one for each platform upstream builds, since it runs on the
-machine that asked for it rather than on a worker.
-
-reindeer publishes no releases at all, so it is pinned by commit in
-`buck/cargo/BUCK` and built from source on a worker. Only `./scripts/buck run //:buckify`
-uses it; the file it writes is checked in.
-
-## Why reindeer, and why it reads the workspace manifests
-
-reindeer resolves the same dependency graph cargo does, from the same
-`Cargo.toml` files and the same `Cargo.lock`, and writes one Buck rule per
-crate. Pointing it at the workspace manifest rather than at a second manifest of
-its own is what keeps cargo the single place a dependency is declared: adding
-one is `cargo add`, then `./scripts/buck run //:buckify`.
-
-Where reindeer and cargo do differ is features. cargo resolves features once for
-a whole build, so a feature a dev-dependency turns on is on for the library too;
-buck2 builds one target per rule and unifies nothing. Where that matters the
-feature is named in a fixup - `wgpu` and `wgpu-core` both carry `noop` for this
-reason. A test that fails under buck2 and passes under cargo with a missing
-method or a missing `cfg` is almost always this.
-
-The other difference is what reindeer will not look at. It walks a workspace
-member's ordinary dependencies and stops at `[dev-dependencies]`, so a crate
-nothing but a test uses gets no target at all, and neither does an optional
-dependency behind a feature only a test asks for. `crates/test-third-party`
-names those - `naga`, and `wat` through `wasmi` and `wasmtime` - and has no code
-and no dependents. The `[dev-dependencies]` line that wants one stays where it
-belongs, on the crate whose tests use it.
+- **Features.** cargo unifies features across a build, so a feature a
+  dev-dependency enables is on for the library too; buck2 does not unify. Where
+  that matters the feature is named in a fixup (`wgpu`'s `noop`). A test that
+  passes under cargo and fails here with a missing method or `cfg` is usually
+  this. reindeer also resolves one feature set per platform across the
+  workspace, so fixups take features off where a platform cannot have them
+  (`uuid`'s `v4` on `wasm32`).
+- **The compiler stays stable.** `nightly_features = False` in
+  `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
+  `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers
+  differently from cargo, which broke wgpu's `Send`/`Sync` checks.
+- **The key.** A wrong or missing key looks like a build with no cache hits,
+  not an error. `buck2 log show | grep -i 'invalid api key'` finds it.
+- **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
+  without it buck2 sends a HEAD request per download on every new daemon.
+- **Clippy** runs through `buck/dev/workspace.bxl` over every target's
+  `[clippy.json]` in every configuration, including the wasm ones, which is why
+  wasm-only code is linted. `clippy.toml` is empty but must exist.
+- **Build metadata.** BuildBuddy reads it from Bazel's Build Event Stream,
+  which buck2 does not implement, so its invocations carry no branch or commit.

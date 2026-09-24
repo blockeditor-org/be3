@@ -1,10 +1,5 @@
-# uuid's v4 needs a source of randomness, and on wasm32-unknown-unknown there
-# is none without asking for the browser's. Nothing that targets it wants v4:
-# that platform is the game modules, which use uuid only to name players, and
-# the browser build of the app is wasip1 where getrandom works on its own.
-#
-# The feature is here at all because reindeer resolves one feature set per
-# platform across the whole workspace, so the v4 a native test asks for arrives
-# on every platform that builds uuid.
+# uuid's v4 needs randomness, which wasm32-unknown-unknown (the games) cannot
+# get without the browser; reindeer resolves one feature set per platform, so
+# the v4 a native test asks for would otherwise arrive there.
 ['cfg(all(target_family = "wasm", target_os = "unknown"))']
 omit_features = ["v4"]

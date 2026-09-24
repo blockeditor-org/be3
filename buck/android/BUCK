@@ -1,10 +1,6 @@
-# What an APK is made with, pinned by hash and size like everything in
-# buck/tools: a JDK, for javac and for the two Android tools that are Java -
-# d8, which turns classes into dex, and apksigner; the SDK's build tools, for
-# aapt2 and zipalign; the platform, for android.jar, which the Java is compiled
-# against and aapt2 links the manifest with; and the platform tools, for adb,
-# which only the runnable that installs the APK uses. buck/android/defs.bzl
-# says what each is used for.
+# What an APK is made with, pinned by hash and size: a JDK (javac, d8,
+# apksigner), the SDK build tools (aapt2, zipalign), the platform (android.jar)
+# and the platform tools (adb, for installing).
 
 jdk_version = "21.0.12.1+1"
 

@@ -3,20 +3,13 @@ load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustToolchainInfo")
 load("@prelude//toolchains:cxx.bzl", "CxxToolsInfo")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 
-# A checked-in script, as a tool a toolchain can name.
+# A checked-in script, as a tool a toolchain can name. Every tool is an artifact
+# rather than a name, so it is an input of the actions that run it and part of
+# their key.
 #
-# Every tool reaches buck2 as an artifact rather than as a name. Anything a
-# toolchain gives buck2 as a plain string ends up in the command line of every
-# action that uses it and is resolved wherever the action runs; an artifact is
-# written as a path relative to the repository root and is an input of the
-# action, so the worker has exactly the file this repository says it should.
-#
-# The script is run through /bin/sh by a wrapper this writes, rather than by
-# its own executable bit. A checkout on Windows has no executable bits, so the
-# file buck2 uploads from one is a plain file, and a worker refuses to run it;
-# the wrapper is buck2's own output, marked executable whatever the machine.
-# It finds the script relative to itself, as a build script's working
-# directory is its own.
+# A wrapper buck2 writes, and so marks executable, runs the script with /bin/sh:
+# a Windows checkout has no executable bits, and a worker would refuse the
+# uploaded script itself.
 def _script_impl(ctx: AnalysisContext) -> list[Provider]:
     wrapper = ctx.actions.declare_output(ctx.label.name)
     ctx.actions.write(
@@ -55,11 +48,8 @@ def _host_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
     ]
 
-# The same tools prelude//toolchains/cxx/clang:path_clang_tools names, as
-# artifacts. The linker is the C++ driver unless one is named, and linker_type
-# is what the prelude shapes its link flags for: "gnu" for an ELF link,
-# "darwin" for ld64.lld, "windows" for lld-link, which Windows links with
-# directly, since rustc speaks link.exe's flags to it.
+# prelude//toolchains/cxx/clang's tools, as artifacts. linker_type is "gnu" for
+# ELF, "darwin" for ld64.lld, "windows" for lld-link.
 host_cxx_tools = rule(
     attrs = {
         "archiver": attrs.exec_dep(providers = [RunInfo]),
@@ -72,13 +62,8 @@ host_cxx_tools = rule(
     impl = _host_cxx_tools_impl,
 )
 
-# The same, for WebAssembly.
-#
-# What differs is the linker. rustc emits lld's own flags for a wasm link -
-# -flavor wasm, --export, --no-entry - and hands them to whatever the cxx
-# toolchain calls a linker, which for the host is a clang driver that has never
-# heard of them. rust-lld is the linker rustc would have used itself, and it
-# ships in the same toolchain, so the two always agree on them.
+# The same for WebAssembly, linked by rust-lld: rustc hands a wasm link lld's own
+# flags, which a clang driver does not take.
 def _wasm_cxx_tools_impl(ctx: AnalysisContext) -> list[Provider]:
     return [
         DefaultInfo(),
@@ -107,11 +92,8 @@ wasm_cxx_tools = rule(
     impl = _wasm_cxx_tools_impl,
 )
 
-# prelude//toolchains:rust.bzl's system_rust_toolchain, with the three tools it
-# names as strings taken as artifacts instead, for the reason above. rustc is
-# the one that matters: as an artifact it is part of every Rust action's key,
-# so a different rustc is a different action rather than a cache hit on
-# another compiler's output.
+# prelude//toolchains:rust.bzl's system_rust_toolchain, with its tools as
+# artifacts, so a different rustc is a different action key.
 def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
     return [
         DefaultInfo(),
@@ -159,24 +141,10 @@ pinned_rust_toolchain = rule(
     is_toolchain_rule = True,
 )
 
-# A cxx toolchain whose links run on a remote worker.
-#
-# prelude//toolchains:cxx.bzl hard-codes every link and archive to run locally,
-# which is the right call for a toolchain that is whatever is on PATH: a worker
-# would not have it. This one is buck/tools', which a worker has, so the
-# preference would only cost a download - the whole compiler and every rlib a
-# binary links, onto a machine that then runs a linker it may not be able to
-# load. This passes the toolchain through with the three preferences cleared.
-#
-# It also puts a binary's shared libraries beside it. The demo toolchain
-# leaves them wherever they were built and trusts the machine that runs the
-# binary to find them, which a worker cannot: the one shared library the build
-# links, ALSA's, is not in its container. With symlink handling the binary gets
-# a tree of them next to it, an $ORIGIN rpath into that tree, and the tree as
-# an input of whatever runs it.
-#
-# Providers have no copy-with-changes, so the two that change are rebuilt from
-# their own fields.
+# A cxx toolchain whose links run on a worker, where the prelude's forces them
+# local, and which puts a binary's shared libraries in a tree beside it with an
+# $ORIGIN rpath, since a worker's container does not have them. Providers have
+# no copy-with-changes, so the two that change are rebuilt from their fields.
 def _replace(constructor, value, **changes):
     fields = {name: getattr(value, name) for name in dir(value)}
     fields.update(changes)

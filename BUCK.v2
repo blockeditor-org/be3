@@ -11,10 +11,8 @@ export_file(
     visibility = ["PUBLIC"],
 )
 
-# The commands a person runs, as targets `./scripts/buck run` builds what they
-# need for and then starts here, from the repository's root. Each is a script
-# in buck/dev, which says what it does; what follows the script is what buck2
-# builds or downloads for it first.
+# The commands a person runs: scripts in buck/dev, started from the root once
+# buck2 has built what each names.
 #
 #   ./scripts/buck run //:verify [-- --check] [-- --lint|--tests|--plugin-tests]
 #   ./scripts/buck run //:check

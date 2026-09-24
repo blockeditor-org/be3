@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 #
-# The part of Android's NDK a build for aarch64-linux-android reads: the
-# sysroot's headers and aarch64 libraries, and the compiler runtime clang links
-# into an Android program - its builtins and libunwind - laid out as a clang
-# resource directory. The NDK is a 780 MB zip of which this is under a hundred;
-# the rest is the NDK's own compilers, which the build has in buck/tools.
+# The part of the NDK a build for aarch64-linux-android reads: the sysroot's
+# headers and aarch64 libraries, and clang's Android runtime as a resource
+# directory - under 100 of the zip's 780 MB.
 #
 # Usage: android-ndk.py URL SHA256 OUT
 

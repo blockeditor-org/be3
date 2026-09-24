@@ -1,13 +1,6 @@
-# A tool built on a worker with `cargo install`, the way a developer would on
-# their own machine: reindeer and buck2's rust-project, from a pinned commit
-# since neither publishes releases, and wasm-bindgen, from a pinned version on
-# crates.io.
-#
-# cargo fetches the source and the tool's crates itself, which needs the
-# network; where it comes from, the pin and the toolchain are the inputs, so the
-# result is cached like any other action and built once rather than once per
-# machine. --locked, so what is built is what the tool's own lockfile pins
-# rather than whatever satisfies semver today.
+# A tool built on a worker with `cargo install --locked`: reindeer and
+# rust-project from pinned commits, wasm-bindgen from a pinned version. The pin
+# and the toolchain are the inputs, so it is built once and cached.
 def _cargo_install_impl(ctx: AnalysisContext) -> list[Provider]:
     binary = ctx.attrs.binary or ctx.attrs.package
     out = ctx.actions.declare_output(binary)

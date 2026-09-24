@@ -1,34 +1,13 @@
-# Fixes Rust source layout, strips comments, lints, formats and tests: what
-# `./scripts/buck run //:verify` runs.
-#
-# By default source layout and comments are fixed, clippy applies the fixes it
-# can, rustfmt rewrites the sources and the plugin tests accept whatever
-# painting they produce. With --check nothing is written and each tool only
-# reports, which is what CI wants. Either way the run fails if a Rust source
-# violation or clippy warning survives.
-#
-# Everything is buck2's: the tools this runs - rustfmt, starlark_fmt,
-# fix-rust-source - it asks buck2 to build or download when it lints, and only
-# then; clippy runs and every test binary is
-# built on BuildBuddy's workers, and most tests run there too.
-#
-# A run that writes is a person's, and it is quiet: what they want out of it is
-# the failures. --check is CI's, and it is loud, because the only thing left of
-# that run is its log and the question asked of it afterwards is where the time
-# went. --ci is the loud half of --check without the read-only half: every tool
-# writes its fixes and the tests accept what they paint, but the output is the
-# one CI keeps, so what the fixes changed can be pushed back to a pull request.
-#
-# The work splits into three parts that need nothing from one another: the lint
-# pass, the tests buck2 runs on BuildBuddy's workers, and the plugin tests,
-# which run here because they read and write the accepted paintings in
-# snapshots/. Naming one or more of them runs only those, which is how CI gets
-# them onto three runners at once. Naming none runs all three.
+# What `./scripts/buck run //:verify` runs: fix-rust-source, rustfmt,
+# starlark_fmt, clippy, the tests and the plugin tests. By default every tool
+# writes its fixes and the plugin tests accept new paintings; --check writes
+# nothing, as CI's lint job wants, and --ci writes with CI's verbose output. The
+# parts - --lint, --tests, --plugin-tests - need nothing from one another, so
+# CI runs them on three runners; naming none runs all three.
 #
 # Usage:
 #   ./scripts/buck run //:verify
 #   ./scripts/buck run //:verify -- --check
-#   ./scripts/buck run //:verify -- --ci --lint
 #   ./scripts/buck run //:verify -- --tests --plugin-tests
 
 import argparse
@@ -192,10 +171,8 @@ def main():
         run.step("clippy", lambda: clippy.run(buck, fixing=not check))
 
     if arguments.tests:
-        # The merge queue in .github/merge-queue is the one part of this
-        # repository that is not Rust. Node is not otherwise needed, so a
-        # checkout without it loses nothing but the early warning; CI runs
-        # these in a job of their own where Node is always present.
+        # The merge queue's tests, when node is installed; CI runs them in a job of
+        # their own.
         if shutil.which("node"):
             run.step(
                 "merge queue tests",

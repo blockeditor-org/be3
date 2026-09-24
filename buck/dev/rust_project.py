@@ -1,18 +1,7 @@
-# Writes rust-project.json, which is how rust-analyzer reads the workspace
-# without cargo.
-#
-# buck2's rust-project walks the build graph for every crate under crates/ and
-# writes the crates, their dependencies, features, cfgs and editions as buck2
-# builds them. rust-analyzer prefers a rust-project.json over Cargo.toml when
-# it finds one at the root, and runs `rust-project check` on save for
-# diagnostics, which builds the saved file's target on BuildBuddy.
-#
-# The standard library comes from buck/cargo:analyzer-sysroot, a download of
-# rust-toolchain.toml's toolchain with its sources, so this needs no rustup.
-# Both it and rust-project are what //:rust-project's command names, built on a
-# worker and fetched before this starts. Run this again after adding a crate or
-# a dependency; the file is ignored by git, because the paths in it are this
-# checkout's.
+# Writes rust-project.json, which rust-analyzer reads the workspace through
+# without cargo: buck2's rust-project walks the build graph, the standard
+# library comes from buck/cargo:analyzer-sysroot, and diagnostics on save come
+# from `rust-project check`. The file is this checkout's, so git ignores it.
 #
 # Usage:
 #   ./scripts/buck run //:rust-project
@@ -40,11 +29,9 @@ def develop(*arguments):
     return json.loads(result.stdout)
 
 
-# Twice, because the plugins are a build of their own: every editor and
-# block-editor-plugin are only ever compiled for wasm32-wasip1-threads, as the
-# guest, which is a configuration the host's graph does not have. rust-analyzer
-# needs to be told the target, or it evaluates their cfg(target_arch = "wasm32")
-# code as the host's and treats it as disabled.
+# Twice, because the plugins are only ever built for wasm32-wasip1-threads, a
+# configuration the host's graph does not have; told the target, rust-analyzer
+# treats their cfg(target_arch = "wasm32") code as live.
 print("Reading the build graph...", flush=True)
 project = develop("//crates/...")
 guest = develop(

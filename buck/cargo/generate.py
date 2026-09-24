@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 #
-# Writes buck/cargo/crates.bzl: what each workspace crate's Cargo.toml says, in
-# the terms a BUCK file needs, for each platform the build targets.
-#
-# What cargo builds depends on what it is asked to build: features are unified
-# across one invocation, so beui has the window feature in a build of the app
-# and only render in a build of the plugins. So the input is cargo's own plan
-# for each of the invocations buck2 stands in for - `cargo test --unit-graph`
-# for the host and the plugins, `cargo build --unit-graph` for the games - and
-# a crate's dependencies and features on a platform are the ones cargo would
-# have compiled it with there. ./scripts/buck run //:buckify runs this on a worker, next to
-# reindeer; buck/cargo/defs.bzl is what reads the result.
+# Writes buck/cargo/crates.bzl: what each workspace crate's Cargo.toml says, per
+# platform. cargo unifies features within one invocation, so beui has `window`
+# in the app's build and only `render` in the plugins'; the input is therefore
+# cargo's own plan (--unit-graph) for each build buck2 stands in for, and a
+# crate's dependencies and features on a platform are the ones cargo would use.
+# buckify.bxl runs this on a worker.
 #
 # Usage:
 #   generate.py METADATA.json PLATFORM=UNIT_GRAPH.json... > crates.bzl

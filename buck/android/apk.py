@@ -1,22 +1,11 @@
 #!/usr/bin/env python3
 #
-# An APK, unsigned and aligned, from its parts, the way the Android Gradle
-# plugin makes a debug one:
-#
-#   - the manifest, with the label filled in, linked by aapt2 against
-#     android.jar under the application id it is given;
-#   - the Java, compiled against android.jar and turned into classes.dex by d8;
-#   - the native libraries under lib/arm64-v8a, stored rather than compressed,
-#     which is what lets Android map them straight out of the APK, and which
-#     the manifest says with extractNativeLibs;
-#   - the assets under assets/;
-#
-# and then zipalign, with -P 16 so that each library starts on a 16 KB page,
-# which Android 15's 16 KB devices require. Signing is left to sign.py, which
-# runs where the key is.
-#
-# Every entry has the same timestamp and the entries are in a fixed order, so
-# the same inputs make the same bytes.
+# An unsigned, aligned APK, made the way the Android Gradle plugin makes a debug
+# one: aapt2 links the manifest, javac and d8 make classes.dex, the native
+# libraries go in stored under lib/arm64-v8a so Android maps them from the APK,
+# the assets go under assets/, and zipalign -P 16 puts each library on a 16 KB
+# page. Fixed timestamps and order make the same inputs the same bytes. sign.py
+# signs it where the key is.
 #
 # Usage:
 #   apk.py OUT --jdk DIR --build-tools DIR --platform DIR --manifest FILE

@@ -35,26 +35,17 @@ execution_platforms = root//buck/platforms:default
 # lives in.
 digest_algorithms = SHA256
 
-# Remember which artifacts are already on disk across daemon restarts, and skip
-# writing a file whose content is already there. Both are what the deferred
-# materializer wants: most of what a build "produces" is a digest in
-# BuildBuddy's CAS that buck2 never downloads, and this is what stops it
-# downloading one twice.
+# Remember what is already on disk across daemon restarts, and skip writing a
+# file whose content is already there, so the deferred materializer never
+# downloads a digest twice.
 defer_write_actions = true
 sqlite_materializer_state = true
 
-# BuildBuddy: its remote executor, and the action cache and CAS beside it.
-#
-# Three things about this are not guessable, and none of them announces itself
-# when it is wrong, because buck2 treats a cache it cannot use as one that is
-# empty. The address is a bare host:port: buck2 parses it itself and rejects
-# both grpcs:// and https:// with "Invalid URI". http_headers separates name
-# from value with a colon, not an equals sign. And there is no instance name.
-#
-# The key is named rather than written: buck2 expands $BUILDBUDDY_API_KEY from
-# the environment the daemon was started in, so a daemon started without it,
-# or with a different one, has to be restarted with ./scripts/buck killall.
-# ./scripts/buck refuses to start one without it.
+# BuildBuddy's executor, action cache and CAS. A mistake here looks like an empty
+# cache rather than an error: the address is a bare host:port (buck2 rejects
+# grpcs:// and https://), http_headers uses a colon, and there is no instance
+# name. $BUILDBUDDY_API_KEY is expanded from the daemon's environment, so a new
+# key needs ./scripts/buck killall.
 [buck2_re_client]
 action_cache_address = remote.buildbuddy.io:443
 cas_address = remote.buildbuddy.io:443

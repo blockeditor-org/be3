@@ -1,22 +1,12 @@
 #!/usr/bin/env bash
 #
-# buck2, run against BuildBuddy.
-#
-# Every action runs on BuildBuddy's workers, so what this machine needs is
-# buck2 and the key; the compilers are downloads the workers are handed.
-# .buckconfig says how buck2 reaches BuildBuddy and guides/buck2.md says why
-# there is no other way to run it. It runs under bash on Linux, on macOS and in
-# Git Bash on Windows.
-#
-# The pinned buck2 is installed the first time this runs, and the key asked for
-# the first time it is missing, when there is a person at the terminal to ask.
-#
-# Everything after the script name is handed to buck2 unchanged, except that:
-#   - a test run is allowed to put its tests on the workers;
-#   - on a machine that is not Linux on x86_64, `run` builds what it runs for
-#     this machine, unless the command names --target-platforms itself.
-#     Everything else is built for Linux on x86_64 wherever it is asked for, so
-#     that it is the same build, and the same cache entries, everywhere.
+# buck2, run against BuildBuddy, on Linux, macOS or Git Bash on Windows. Before
+# starting it, this installs the pinned buck2 if it is missing, finds the
+# BuildBuddy key (asking for it at a terminal), and regenerates the crates'
+# rules if their inputs changed (scripts/internal/common.sh). Arguments go to
+# buck2 unchanged, except that tests may run on the workers, and on anything
+# but Linux x86_64 `run` builds for this machine unless it names
+# --target-platforms.
 #
 # Usage:
 #   ./scripts/buck build //crates/...

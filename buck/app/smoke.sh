@@ -1,8 +1,6 @@
 #!/bin/sh
-# The native startup smoke check: starts the app for ten seconds in a virtual
-# display, with a data directory of its own, and passes if it is still running
-# at the end. It needs xvfb-run. The libraries it loads are the sysroot's it was
-# linked against, so it needs no GTK or WebKitGTK installed here.
+# The native startup smoke check: the app for ten seconds in a virtual display
+# with its own data directory, loading the sysroot's libraries. Needs xvfb-run.
 #
 #   ./scripts/buck run //crates/block-app:smoke
 set -u

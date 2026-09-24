@@ -30,19 +30,11 @@ deb_lock = rule(
     impl = _deb_lock_impl,
 )
 
-# The packages laid out as a sysroot: what a compiler, a linker and a program
-# run against it read, and nothing else. Each .deb is unpacked into one scratch
-# tree, and what is kept is the headers, the libraries - with the loadable
-# modules GTK and WebKitGTK keep beside them - the gcc install clang takes the
-# C++ runtime from, and the pkg-config files. Everything else a package ships,
-# systemd units and translations and binaries, stays behind.
-#
-# Two things make it usable from anywhere. Ubuntu 24.04 has merged /usr, so
-# /lib and /lib64 are links into usr/ the way they are on the real root. And a
-# package's absolute symlinks - libfoo.so pointing at
-# /usr/lib/x86_64-linux-gnu/libfoo.so.1 - would point out of the sysroot into
-# whatever machine it was read on, so each one is rewritten relative to where it
-# is, and one that points at something left behind is removed.
+# The packages laid out as a sysroot: headers, libraries (with GTK's and
+# WebKitGTK's loadable modules), the gcc install clang takes the C++ runtime
+# from, and pkg-config files. /lib and /lib64 link into usr/, as on a merged-/usr
+# root, and absolute symlinks are made relative so they resolve inside it; one
+# pointing at something left behind is removed.
 def _deb_sysroot_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("sysroot", dir = True)
     script = """
@@ -105,16 +97,10 @@ deb_sysroot = rule(
     impl = _deb_sysroot_impl,
 )
 
-# pkg-config, answering from the sysroot rather than from the machine.
-#
-# A -sys crate's build script asks pkg-config how to compile and link against
-# a system library, through the pkg-config crate, which runs whatever $PKG_CONFIG
-# names. This is that: a script that points the worker's own pkg-config at the
-# sysroot's .pc files and prefixes every path it answers with the sysroot. The
-# path to the sysroot is written relative to the script itself, because a build
-# script runs in a directory of its own. The third-party fixups name it with
-# PKG_CONFIG, and ask for rustc_link_lib so that the libraries it names reach the
-# link, where --sysroot finds them.
+# pkg-config, answering from the sysroot: the worker's pkg-config pointed at the
+# sysroot's .pc files, with the sysroot's path relative to the script, since a
+# build script runs in a directory of its own. Fixups name it with PKG_CONFIG
+# and rustc_link_lib, and --sysroot finds the libraries at the link.
 def _pkg_config_impl(ctx: AnalysisContext) -> list[Provider]:
     script = ctx.actions.declare_output("pkg-config")
     sysroot = ctx.attrs.sysroot[DefaultInfo].default_outputs[0]
