@@ -34,6 +34,29 @@ impl ContentKey {
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    pub fn seal(&self, plain: &[u8]) -> Vec<u8> {
+        let nonce_source = Hash::of_parts(&[self.as_bytes(), plain]);
+        let nonce_bytes = &nonce_source.as_bytes()[..NONCE_LEN];
+        let cipher = ChaCha20Poly1305::new(Key::from_slice(self.as_bytes()));
+        let ciphertext = cipher
+            .encrypt(Nonce::from_slice(nonce_bytes), plain)
+            .expect("chacha20poly1305 never fails on a valid key and nonce");
+        let mut sealed = Vec::with_capacity(NONCE_LEN + ciphertext.len());
+        sealed.extend_from_slice(nonce_bytes);
+        sealed.extend_from_slice(&ciphertext);
+        sealed
+    }
+
+    pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, StoreError> {
+        let (nonce_bytes, ciphertext) = sealed
+            .split_at_checked(NONCE_LEN)
+            .ok_or(StoreError::Corrupt)?;
+        let cipher = ChaCha20Poly1305::new(Key::from_slice(self.as_bytes()));
+        cipher
+            .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
+            .map_err(|_| StoreError::Corrupt)
+    }
 }
 
 impl std::fmt::Debug for ContentKey {
@@ -94,26 +117,11 @@ impl<S: ObjectStore> Vault<S> {
     }
 
     pub fn seal(&self, plain: &[u8]) -> Vec<u8> {
-        let nonce_source = Hash::of_parts(&[self.key.as_bytes(), plain]);
-        let nonce_bytes = &nonce_source.as_bytes()[..NONCE_LEN];
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(self.key.as_bytes()));
-        let ciphertext = cipher
-            .encrypt(Nonce::from_slice(nonce_bytes), plain)
-            .expect("chacha20poly1305 never fails on a valid key and nonce");
-        let mut sealed = Vec::with_capacity(NONCE_LEN + ciphertext.len());
-        sealed.extend_from_slice(nonce_bytes);
-        sealed.extend_from_slice(&ciphertext);
-        sealed
+        self.key.seal(plain)
     }
 
     pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, StoreError> {
-        let (nonce_bytes, ciphertext) = sealed
-            .split_at_checked(NONCE_LEN)
-            .ok_or(StoreError::Corrupt)?;
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(self.key.as_bytes()));
-        cipher
-            .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
-            .map_err(|_| StoreError::Corrupt)
+        self.key.open(sealed)
     }
 
     pub fn write(&self, content_type: Uuid, data: &[u8]) -> Result<Manifest, StoreError> {

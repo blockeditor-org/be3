@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::game_module::{GameModule, GameModuleOperation};
+use block_editor_plugin::be_block::GameModuleContent;
 use block_editor_plugin::beui::reactive::{
     Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo, view,
 };
@@ -26,12 +26,17 @@ enum Loaded {
 
 #[component]
 pub fn ModuleView(editor: Editor) -> NodeId {
-    let module = editor.block::<GameModule>();
-    let loaded = module.project(|module| match Game::load(module.data()) {
-        Ok(game) => Loaded::Named(game.name().to_owned()),
-        Err(error) => Loaded::Failed(error),
+    let module = editor.block_content::<GameModuleContent>();
+    let loaded = module.project(|module| {
+        if module.data().is_empty() {
+            return Loaded::Loading;
+        }
+        match Game::load(module.data()) {
+            Ok(game) => Loaded::Named(game.name().to_owned()),
+            Err(error) => Loaded::Failed(error),
+        }
     });
-    let source = module.project(|module| module.source_name().to_owned());
+    let source = module.project(|module| module.header().source_name.clone());
     let size = module.project(|module| module.data().len());
     let bytes = create_memo(clone!(size -> move || format!("{} bytes", size.get())));
 
@@ -94,16 +99,14 @@ pub fn ModuleView(editor: Editor) -> NodeId {
 
 #[component]
 fn ModulePanel(editor: Editor) -> NodeId {
-    let module = editor.block::<GameModule>();
+    let replacing = editor.clone();
     let chooser = FileChooser::new(filter(), imported);
     let polled = Rc::clone(&chooser);
     let host = editor.host().clone();
     editor.each_frame(move || {
         polled.poll(&host);
         if let Some(replacement) = polled.take() {
-            module.operate(GameModuleOperation::Replace {
-                module: replacement,
-            });
+            replacing.replace_content(replacing.block_id(), &replacement);
         }
     });
 

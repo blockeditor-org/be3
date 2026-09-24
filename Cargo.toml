@@ -125,6 +125,74 @@ incremental = false
 inherits = "release"
 strip = "debuginfo"
 
+# The new block stack seals every chunk it stores with ChaCha20-Poly1305 and
+# names it by its SHA-256, and unoptimised those are most of what saving or
+# opening a file costs: eight megabytes took three and a half seconds to save
+# and two and a half to open in a debug build. Optimising the cipher, the hash
+# and be-store, which instantiates both, brings that to a third of a second.
+# The websocket they travel over masks every byte a client sends, which is the
+# same kind of loop.
+
+[profile.dev.package.aead]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.be-store]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.block-buffer]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.chacha20]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.chacha20poly1305]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.cipher]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.digest]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.poly1305]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.sha2]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.tungstenite]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.tokio-tungstenite]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.universal-hash]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
 # Cranelift is what compiles a plugin, both in the app when an artifact is
 # missing and in the compiler the build hands every plugin to, and unoptimised
 # it is an order of magnitude slower at it: the plugins a debug build ships take

@@ -307,19 +307,25 @@ values, and every algorithm is written once against that table:
 `be-block` (`model.rs`), so a type built this way is registered with
 `migrated_with_history` and has undo from the start. Every migrated editor's
 content is built this way: the counter, the checklist, the calendar, the browser
-tab, the UI settings, the three database types, the presentation and the
-hotbar. Text still implements the traits by hand, which remains possible for
+tab, the UI settings, the three database types, the presentation, the hotbar,
+the deterministic game, the map and the video. Text still implements the traits by hand, which remains possible for
 content that does not fit, such as a type that is better as a CRDT. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
 so a push and a navigation made at the same time still agree on which page is
-current. The database schema shows the other direction: its fields and enum
+current. The video shows what identity buys a tree: a clip attached to another
+is an object in that clip's list, so reattaching it is a move, a move that
+would make a cycle is refused by the model, and removing a clip takes what is
+attached to it. Its editor still speaks in `VideoOperation`s, which
+`VideoProject::edit_for` turns into edits against the content it is shown, and
+reads a flattened `Video` for its timeline. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
 store, so renaming a field or an option changes nothing that points at it.
 
 A file is the other shape that does not fit a document: a small header and a
 payload that can be megabytes. `Blob<K>` is that shape once, for any `BlobKind`
-that names a content type and a header: `ImageContent`, `AudioContent` and
-`PdfContent` are each a `Blob` of their own kind. It encodes as a `Streamed`
+that names a content type and a header: `ImageContent`, `AudioContent`,
+`PdfContent`, `GameModuleContent` and `PaintSnapshotContent` are each a `Blob`
+of their own kind. It encodes as a `Streamed`
 type, its only live edit is `BlobOp::SetHeader` (the image editor records what
 it decoded that way), and an offline merge takes whichever side changed it.
 The payload never travels as an operation, because a session relays operations
@@ -329,7 +335,11 @@ and a new file for an existing block from `ReplaceContent` (below).
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
-in `crates/be-client/src/tests/`.
+in `crates/be-client/src/tests/`. An editor's tests stand in for the host with
+`block_ui_test::ContentHarness`, which holds the content of the editor's block
+and of any block it watches, applies what the editor sends, and takes the
+content it seeds or replaces; `ContentStore` is the same store handed to a test
+fixture that needs to read or write it between runs.
 
 ## Running it
 
@@ -482,7 +492,9 @@ way. `editor.create_with_content::<B, C>(&content)` and
 emptied old type with its first content, from code and from the new-block
 dialog's file picker. `ContentProjection::revision` counts the changes an editor
 has seen, for code like the PDF pane that re-renders on a change rather than
-projecting.
+projecting, and `ContentProjection::loaded` is a signal that turns true when the
+first snapshot arrives, for a view that must tell an empty block from one that
+has not loaded yet.
 
 An editor that follows a block chosen by its content, rather than a fixed one,
 uses `editor.related_content::<C>(block)`: given a `Memo<Option<Uuid>>` it
@@ -564,6 +576,12 @@ the old client - and it is what the key wrapping below replaces.
 
 - A migrated block's references reach the old graph only while an editor holds
   the block, like its name.
+- Nothing vouches for who wrote an item. The deterministic game stores the
+  account behind each move as a field the sender fills in, so a player can move
+  as someone else; the old server stamped it. Signing operations would not be
+  enough, because the session owner sequences and relays everything: the items a
+  block stores have to carry their own signatures, checked by whoever reads
+  them. That wants doing when a chat block makes it matter.
 - A migrated block's content is not in the old workspace index, so nothing but
   the editor can read it: no preview and no search. Only its name is carried
   across, and only while an editor has it open.

@@ -5,4 +5,4 @@ mod snapshot;
 mod tests;
 
 pub use beui::BeuiTest;
-pub use content::ContentHarness;
+pub use content::{ContentHarness, ContentStore};

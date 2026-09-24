@@ -114,6 +114,7 @@ pub enum ClientMessage {
 
     PutObject {
         request: u64,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     GetObject {
@@ -223,6 +224,7 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
         to: Option<ClientId>,
+        #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
 }
@@ -302,6 +304,7 @@ pub enum ServerMessage {
     },
     Object {
         request: u64,
+        #[serde(with = "serde_bytes")]
         bytes: Option<Vec<u8>>,
     },
     Missing {
@@ -358,6 +361,7 @@ pub enum ServerMessage {
     Relayed {
         block: Uuid,
         from: ClientId,
+        #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
 }

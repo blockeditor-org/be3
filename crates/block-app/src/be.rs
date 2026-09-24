@@ -217,13 +217,26 @@ const MIGRATED: &[Migrated] = &[
         block_client::blocks::database_view::DatabaseView,
         be_block::DatabaseViewContent,
     >(),
+    migrated_with_history::<
+        block_client::blocks::deterministic_game::DeterministicGame,
+        be_block::DeterministicGameContent,
+    >(),
+    migrated::<block_client::blocks::game_module::GameModule, be_block::GameModuleContent>(),
     migrated_with_history::<block_client::blocks::hotbar::Hotbar, be_block::HotbarContent>(),
     migrated::<block_client::blocks::image::Image, be_block::ImageContent>(),
+    migrated_with_history::<block_client::blocks::map::Map, be_block::MapContent>(),
+    migrated_with_history::<
+        block_client::blocks::paint_review::PaintReview,
+        be_block::PaintReviewContent,
+    >(),
+    migrated::<block_client::blocks::paint_snapshot::PaintSnapshot, be_block::PaintSnapshotContent>(
+    ),
     migrated::<block_client::blocks::pdf::Pdf, be_block::PdfContent>(),
     migrated_with_history::<
         block_client::blocks::presentation::Presentation,
         be_block::PresentationContent,
     >(),
+    migrated_with_history::<block_client::blocks::video::Video, be_block::VideoContent>(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
 ];
