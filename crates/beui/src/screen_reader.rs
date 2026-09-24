@@ -58,6 +58,7 @@ pub(crate) struct ScreenReader {
     active: bool,
     items: Vec<Item>,
     cursor: Option<AccessNodeId>,
+    focus: Option<AccessNodeId>,
     spoken: Option<String>,
     reported: Option<(AccessNodeId, String)>,
     live: bool,
@@ -80,6 +81,7 @@ impl Default for ScreenReader {
             active: false,
             items: Vec::new(),
             cursor: None,
+            focus: None,
             spoken: None,
             reported: None,
             live: false,
@@ -122,13 +124,16 @@ impl ScreenReader {
             self.stop();
             return;
         }
-        self.items = collect(target);
+        let (items, focus) = collect(target);
+        self.items = items;
         if !self.active {
             self.active = true;
             self.cursor = None;
+            self.focus = focus;
             self.reported = None;
             self.spoken = None;
         }
+        self.follow(ctx, focus);
         if self.index().is_none() {
             self.cursor = self.items.first().map(|item| item.access);
         }
@@ -147,9 +152,24 @@ impl ScreenReader {
         self.active = false;
         self.items.clear();
         self.cursor = None;
+        self.focus = None;
         self.reported = None;
         self.spoken = None;
         self.release();
+    }
+
+    fn follow(&mut self, ctx: &Context, focus: Option<AccessNodeId>) {
+        if focus == self.focus {
+            return;
+        }
+        self.focus = focus;
+        let Some(focus) = focus else {
+            return;
+        };
+        if self.cursor != Some(focus) && self.items.iter().any(|item| item.access == focus) {
+            self.cursor = Some(focus);
+            ctx.request_repaint();
+        }
     }
 
     fn release(&mut self) {
@@ -524,6 +544,10 @@ fn keyboard_commands(ctx: &Context) -> Vec<Command> {
     ctx.input(|input| input.events.iter().filter_map(shortcut).collect())
 }
 
+pub(crate) fn claims(event: &Event) -> bool {
+    shortcut(event).is_some()
+}
+
 fn shortcut(event: &Event) -> Option<Command> {
     let Event::Key {
         key,
@@ -534,14 +558,14 @@ fn shortcut(event: &Event) -> Option<Command> {
     else {
         return None;
     };
-    if modifiers.ctrl || modifiers.alt {
+    if modifiers.ctrl || !modifiers.alt {
         return None;
     }
     Some(match key {
+        Key::ArrowRight | Key::ArrowDown if modifiers.shift => Command::NextControl,
+        Key::ArrowLeft | Key::ArrowUp if modifiers.shift => Command::PreviousControl,
         Key::ArrowRight | Key::ArrowDown => Command::Next,
         Key::ArrowLeft | Key::ArrowUp => Command::Previous,
-        Key::Tab if modifiers.shift => Command::PreviousControl,
-        Key::Tab => Command::NextControl,
         Key::Enter | Key::Space => Command::Activate,
         Key::Home => Command::First,
         Key::End => Command::Last,
@@ -554,13 +578,13 @@ fn shortcut(event: &Event) -> Option<Command> {
     })
 }
 
-fn collect(target: &Document) -> Vec<Item> {
+fn collect(target: &Document) -> (Vec<Item>, Option<AccessNodeId>) {
     let Some(nodes) = target.accessibility_view() else {
-        return Vec::new();
+        return (Vec::new(), None);
     };
     let mut items = Vec::new();
     gather(target, &nodes, nodes.root(), false, &mut items);
-    items
+    (items, nodes.focus())
 }
 
 fn gather(

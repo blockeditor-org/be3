@@ -487,7 +487,11 @@ impl ApplicationHandler<UserEvent> for Runner {
         );
         let touch_cursor = event_loop.create_custom_cursor(touch_cursor_source());
         window.set_visible(true);
-        let gpu = match pollster::block_on(create_gpu(window.clone(), &self.context)) {
+        let gpu = match pollster::block_on(create_gpu(
+            window.clone(),
+            &self.context,
+            self.options.open_device.clone(),
+        )) {
             Ok(gpu) => gpu,
             Err(error) => return self.fail(event_loop, error),
         };
@@ -836,7 +840,11 @@ fn touch_force(force: winit::event::Force) -> f32 {
     }
 }
 
-async fn create_gpu(window: Arc<Window>, context: &Context) -> Result<Gpu, Box<dyn Error>> {
+async fn create_gpu(
+    window: Arc<Window>,
+    context: &Context,
+    open_device: Option<super::OpenDevice>,
+) -> Result<Gpu, Box<dyn Error>> {
     let instance = wgpu::Instance::default();
     let probe = instance.create_surface(window)?;
     let adapter = instance
@@ -846,16 +854,19 @@ async fn create_gpu(window: Arc<Window>, context: &Context) -> Result<Gpu, Box<d
             compatible_surface: Some(&probe),
         })
         .await?;
-    let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: Some("beui device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: adapter.limits(),
-            experimental_features: wgpu::ExperimentalFeatures::disabled(),
-            memory_hints: wgpu::MemoryHints::Performance,
-            trace: wgpu::Trace::Off,
-        })
-        .await?;
+    let descriptor = wgpu::DeviceDescriptor {
+        label: Some("beui device"),
+        required_features: wgpu::Features::empty(),
+        required_limits: adapter.limits(),
+        experimental_features: wgpu::ExperimentalFeatures::disabled(),
+        memory_hints: wgpu::MemoryHints::Performance,
+        trace: wgpu::Trace::Off,
+    };
+    let opened = open_device.and_then(|open| open(&adapter, &descriptor));
+    let (device, queue) = match opened {
+        Some(opened) => opened,
+        None => adapter.request_device(&descriptor).await?,
+    };
     let capabilities = probe.get_capabilities(&adapter);
     let format = capabilities
         .formats

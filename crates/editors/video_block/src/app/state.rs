@@ -7,13 +7,14 @@ use std::time::Instant;
 use block::{BlockParent, BlockReference, BlockReferenceList};
 use block_client::ReferenceList;
 use block_client::block_ref::BlockRef;
-use block_client::blocks::video::{
+use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
+use block_editor_plugin::be_block::VideoContent;
+use block_editor_plugin::be_block::video::{
     DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
 };
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_plugin::{BlockFilter, BlockPicker, BlockProjection, ChildTarget, Editor};
+use block_editor_plugin::{BlockFilter, BlockPicker, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
 use crate::timeline::{MAX_PIXELS_PER_FRAME, MIN_PIXELS_PER_FRAME};
@@ -31,7 +32,7 @@ type PendingClip = (Uuid, u64, Option<VideoAttachment>, usize);
 
 pub(crate) struct VideoState {
     editor: Editor,
-    block: Rc<BlockProjection<Video>>,
+    block: Rc<ContentProjection<VideoContent>>,
     dependencies: ReferenceList,
     picker: RefCell<BlockPicker>,
     picker_attachment: Cell<Option<Uuid>>,
@@ -61,10 +62,10 @@ pub(crate) struct VideoState {
 
 impl VideoState {
     pub(crate) fn new(editor: &Editor) -> Rc<Self> {
-        let block = editor.block::<Video>();
-        let clips = block.project(|video| video.clips().to_vec());
-        let duration = block.project(|video| video.duration());
-        let frame_rate = block.project_or(VideoFrameRate::new(30, 1), Video::frame_rate);
+        let block = editor.block_content::<VideoContent>();
+        let clips = block.project(|video| video.root().video().clips().to_vec());
+        let duration = block.project(|video| video.root().video().duration());
+        let frame_rate = block.project(|video| video.root().frame_rate);
         let (selected, set_selected) = create_signal(None);
         let (playhead, set_playhead) = create_signal(0);
         let (playing, set_playing) = create_signal(false);
@@ -110,15 +111,17 @@ impl VideoState {
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
-        self.block.handle().id()
+        self.editor.block_id()
     }
 
     pub(crate) fn video(&self) -> Option<Video> {
-        self.block.handle().read().map(|video| video.clone())
+        self.block.read(|video| video.root().video())
     }
 
     pub(crate) fn operate(&self, operation: VideoOperation) {
-        self.block.operate(operation);
+        if let Some(edit) = self.block.read(|video| video.root().edit_for(&operation)) {
+            self.block.operate(edit);
+        }
     }
 
     pub(crate) fn update_clip(&self, clip: VideoClip) {

@@ -192,6 +192,10 @@ impl AccessibilityView<'_> {
         self.tree.entries.get(&local).map(|entry| &entry.node)
     }
 
+    pub(crate) fn focus(&self) -> Option<AccessNodeId> {
+        self.tree.focus
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.tree.entries.iter().count()
     }

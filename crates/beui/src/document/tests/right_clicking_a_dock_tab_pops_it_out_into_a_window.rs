@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{Entry, TabId, dock_state};
 
 #[test]
 fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {
@@ -33,8 +33,8 @@ fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {
         "the window holds the tab the menu was opened on"
     );
     assert_eq!(
-        state.tabs(state.leaves(state.main())[0]),
-        vec![TabId::new(1)],
+        state.entries(state.leaves(state.main())[0]),
+        vec![Entry::Tab(TabId::new(1))],
         "the pane it left keeps the rest of its tabs"
     );
 }

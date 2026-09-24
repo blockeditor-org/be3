@@ -1,10 +1,10 @@
-use block_client::blocks::video::{
+use block_editor_plugin::be_block::video::{
     Video, VideoAttachment, VideoClip, VideoClipTiming, VideoFrameRate, VideoOperation,
 };
 use block_editor_plugin::beui::{Pos2, Rect};
 use uuid::Uuid;
 
-use block_client::blocks::video::DEFAULT_CLIP_SECONDS;
+use block_editor_plugin::be_block::video::DEFAULT_CLIP_SECONDS;
 
 use crate::app::state::ClipDrag;
 

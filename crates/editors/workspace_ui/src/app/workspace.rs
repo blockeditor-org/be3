@@ -433,7 +433,7 @@ fn files_only_leaf(state: &DockState) -> Option<LeafId> {
     state
         .find(FILES)
         .map(|position| position.leaf)
-        .filter(|leaf| state.tabs(*leaf).len() == 1)
+        .filter(|leaf| state.entries(*leaf).len() == 1)
 }
 
 fn editor_leaf(state: &DockState) -> Option<LeafId> {
@@ -470,7 +470,7 @@ pub(crate) fn set_files_compact(state: &mut DockState, compact: bool) {
     let Some(position) = state.find(FILES) else {
         return;
     };
-    let alone = state.tabs(position.leaf).len() == 1;
+    let alone = state.entries(position.leaf).len() == 1;
     if compact != alone {
         return;
     }

@@ -7,7 +7,7 @@ use beui::styled::{
     Body, Button, ButtonVariant, Caption, DockArea, Heading, ListRow, Scroll, TextInput,
 };
 use beui::unstyled::{DockState, TabId};
-use beui::{Align, Direction, ItemSize, NodeId};
+use beui::{Align, Direction, ItemSize, NodeId, vec2};
 
 use crate::clients::{ClientSignals, Clients, Command, LAUNCHER, tab_of, window_of};
 use crate::state::WindowId;
@@ -23,6 +23,15 @@ pub fn Workspace(clients: Clients) -> NodeId {
     let title = Func::new(clone!(clients -> move |tab: TabId| clients.title(tab)));
     let changed = clients.clone();
     let closed = clients.clone();
+    let rect = component_rect();
+    let area = clients.clone();
+    create_effect(move || {
+        let size = rect.get().size();
+        area.set_area(vec2(
+            size.x - 2.0 * SHELL_PADDING,
+            size.y - 2.0 * SHELL_PADDING,
+        ));
+    });
     view! {
         <Frame
             color={theme.background.clone()}

@@ -624,6 +624,25 @@ stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 any other tab list and scroll the tab they reach into view when a pane has more
 tabs than it has room for.
 
+A place in a tab bar holds an `Entry`: either a `Tab` or a `Group`. A group is a
+tab that holds a dock tree of its own, so choosing it shows that tree in the
+pane's body - one pane with a second tab bar under the first, or panes split
+side by side - and the same drops work inside it as anywhere else. Dropping a
+tab onto the middle of another tab groups the two (onto a group, it joins the
+group); the outer edge of a pane showing a group still splits the outer pane,
+so the drop zones of the group sit inside a thin band that belongs to its
+parent. A tab's menu offers "Group with next tab" and "Split with next tab",
+and a group's own menu ungroups it, closes every tab in it, or floats it into a
+window as a whole. The tree tidies itself after every change: a group left with
+a single tab turns back into that tab, and a tab bar left holding only a group
+takes the group's tabs, or its split, in its place, so nothing is nested for
+longer than it holds more than one thing. `entries`, `active_entry`, `locate`,
+`group_tabs`, `tree_leaves`, `surface_of` and `is_nested` read groups back, and
+`drop_entry`, `group_with_next`, `split_with_next` and `ungroup` change them;
+`layout_tree` lays a group's tree out the way `layout_surface` lays out a
+surface's. `find`, `all_tabs`, `surface_tabs` and `show` look through groups,
+and showing a tab inside one selects the group in every bar above it.
+
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
 the panel keeps its nodes, its scroll position, its caret and its state when
@@ -1019,15 +1038,22 @@ and then the state - checked, expanded, selected, a slider's percentage,
 "dimmed" for a disabled control. A control with nothing to name it is announced
 as its bare role, which is the point: "button" on its own is the bug.
 
-While the simulation is on the document answers no pointer or keyboard input
-directly, so a click lands nowhere and the only way through the UI is the
-simulation. Keyboard and touch drive it at the same time, with no mode to pick
-between them. From the keyboard, the left and right (or up and down) arrows walk
-an item at a time, Tab and Shift+Tab move between controls, Home and End jump to
-the ends, Enter or Space activates, Minus and Plus adjust, Page Up and Page Down
-scroll, and R repeats the current item. Walking past either end says so and
-reads the item again after it, so the readout never leaves you without the thing
-you are standing on. By touch, dragging a finger reads
+While the simulation is on the document answers no pointer input directly, so a
+click lands nowhere and the only way to reach something is the simulation. The
+keyboard is split the way a platform screen reader splits it: the reader's
+commands all hold Alt, and every other key goes to whatever the document has
+focused. Landing on a control focuses it, so walking to a text field and typing
+types into it, and the arrows, Enter and Space do what the focused control does
+with them. The reader follows focus in turn: when the document moves focus on
+its own - Tab, Shift+Tab, a dialog opening - the reader moves to the control
+that took it and reads it. Keyboard and touch drive it at the same time, with no
+mode to pick between them. From the keyboard, Alt with the left and right (or up
+and down) arrows walks an item at a time, Alt+Shift with the arrows moves
+between controls, Alt+Home and Alt+End jump to the ends, Alt+Enter or Alt+Space
+activates, Alt+Minus and Alt+Plus adjust, Alt+Page Up and Alt+Page Down scroll,
+and Alt+R repeats the current item. The document never sees those keys. Walking
+past either end says so and reads the item again after it, so the readout never
+leaves you without the thing you are standing on. By touch, dragging a finger reads
 whatever is under it, flicking left or right moves an item at a time, flicking
 up or down adjusts a value, a double tap activates, two fingers tapping repeats,
 and dragging two fingers scrolls; turning "Emulate touch with mouse" on as well

@@ -70,14 +70,15 @@ const COMMANDS: [(&str, &str, Command); 12] = [
     ("Scroll up", "scroll_up", Command::ScrollUp),
     ("Scroll down", "scroll_down", Command::ScrollDown),
 ];
-const KEYBOARD_GUIDE: [&str; 7] = [
-    "Arrows - previous or next item",
-    "Tab and Shift+Tab - previous or next control",
-    "Enter or Space - activate",
-    "Home and End - first or last item",
-    "Minus and Plus - adjust the value",
-    "Page Up and Page Down - scroll",
-    "R - repeat",
+const KEYBOARD_GUIDE: [&str; 8] = [
+    "Alt+Arrows - previous or next item",
+    "Alt+Shift+Arrows - previous or next control",
+    "Alt+Enter or Alt+Space - activate",
+    "Alt+Home and Alt+End - first or last item",
+    "Alt+Minus and Alt+Plus - adjust the value",
+    "Alt+Page Up and Alt+Page Down - scroll",
+    "Alt+R - repeat",
+    "Other keys - the focused control",
 ];
 const TOUCH_GUIDE: [&str; 5] = [
     "Drag a finger - read what is under it",
