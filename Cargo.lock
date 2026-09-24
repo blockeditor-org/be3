@@ -1006,6 +1006,7 @@ dependencies = [
  "block-ui",
  "futures-util",
  "serde",
+ "serde_bytes",
  "serde_json",
  "uuid",
  "wasi-threads",

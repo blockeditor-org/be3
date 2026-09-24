@@ -43,6 +43,10 @@ pub enum SessionMessage {
     Replaced {
         head: CommitId,
     },
+    Presence {
+        kind: uuid::Uuid,
+        value: Option<Vec<u8>>,
+    },
 }
 
 #[derive(Clone, Debug, Default)]

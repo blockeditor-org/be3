@@ -384,6 +384,11 @@ impl EditorSession {
         }
     }
 
+    pub(crate) fn set_peers(&self, block: Uuid, peers: Vec<crate::PeerPresence>) {
+        let block = (self.own_block != Some(block)).then_some(block);
+        self.host.set_peers(block, peers);
+    }
+
     pub(crate) fn push_content_operations(&self, block: Uuid, operations: Vec<(Vec<u8>, bool)>) {
         match self.own_block == Some(block) {
             true => self.host.push_content_operations(operations),
@@ -656,6 +661,17 @@ impl EditorSession {
         }
         if std::mem::take(&mut self.leaving) {
             messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
+        }
+        for shown in self.host.take_shown_presence() {
+            let Some(block) = shown.block.or(self.own_block) else {
+                continue;
+            };
+            messages.push(Message::Editor(EditorMessage::ShowPresence {
+                instance,
+                block_id: block.into_bytes(),
+                kind: shown.kind.into_bytes(),
+                value: shown.value.map(serde_bytes::ByteBuf::from),
+            }));
         }
         for seeded in self.host.take_seeded_content() {
             let (block_id, content_type, bytes) = (

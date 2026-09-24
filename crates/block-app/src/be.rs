@@ -19,7 +19,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use worker::{History, Shared};
+pub(crate) use worker::{History, Presence, Shared};
 
 use worker::Command;
 
@@ -425,6 +425,17 @@ pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Optio
     with_shared(|shared| {
         let content = shared.blocks.get(&block)?;
         (sent != Some(content.revision)).then(|| (content.revision, content.since(origin, sent)))
+    })?
+}
+
+pub(crate) fn show(block: Uuid, kind: Uuid, value: Option<Vec<u8>>) {
+    send(Command::Presence { block, kind, value });
+}
+
+pub(crate) fn presence_since(block: Uuid, sent: Option<u64>) -> Option<(u64, Vec<Presence>)> {
+    with_shared(|shared| {
+        let (revision, presence) = shared.presence.get(&block)?;
+        (sent != Some(*revision)).then(|| (*revision, presence.clone()))
     })?
 }
 

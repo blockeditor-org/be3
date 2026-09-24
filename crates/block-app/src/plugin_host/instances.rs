@@ -93,6 +93,7 @@ struct Instance {
     leaving: bool,
     content: Option<ContentLink>,
     watched: HashMap<Uuid, ContentLink>,
+    shown: std::collections::HashSet<(Uuid, Uuid)>,
 }
 
 struct ContentLink {
@@ -100,6 +101,7 @@ struct ContentLink {
     opened: bool,
     origin: u64,
     sent: Option<u64>,
+    peers_sent: Option<u64>,
     bridged: Option<(u64, bool)>,
     old_block: Option<Box<dyn BlockHandleAccess>>,
 }
@@ -111,6 +113,7 @@ impl ContentLink {
             opened: false,
             origin: crate::be::next_origin(),
             sent: None,
+            peers_sent: None,
             bridged: None,
             old_block: None,
         }
@@ -141,7 +144,7 @@ impl ContentLink {
         }
     }
 
-    fn message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
+    fn content_message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
         if crate::be::content(block).is_none() {
             if !std::mem::replace(&mut self.opened, true) {
                 crate::be::open(block, self.content_type);
@@ -172,6 +175,25 @@ impl ContentLink {
                     .collect(),
             },
         }))
+    }
+
+    fn messages(&mut self, instance: EditorInstanceId, block: Uuid, out: &mut Vec<Message>) {
+        out.extend(self.content_message(instance, block));
+        if let Some((revision, peers)) = crate::be::presence_since(block, self.peers_sent) {
+            self.peers_sent = Some(revision);
+            out.push(Message::Editor(EditorMessage::PeerPresence {
+                instance,
+                block_id: block.into_bytes(),
+                peers: peers
+                    .into_iter()
+                    .map(|peer| block_plugin_api::PeerPresence {
+                        client: peer.client,
+                        kind: peer.kind.into_bytes(),
+                        value: peer.value,
+                    })
+                    .collect(),
+            }));
+        }
     }
 }
 
@@ -251,6 +273,7 @@ impl Instance {
             next_replacement: 0,
             leaving: false,
             watched: HashMap::new(),
+            shown: std::collections::HashSet::new(),
             content: match role {
                 InstanceRole::Editor(block) => {
                     crate::be::content_type_for(block.block_type).map(ContentLink::new)
@@ -264,13 +287,11 @@ impl Instance {
 impl Instance {
     fn content_messages(&mut self, instance: EditorInstanceId) -> Vec<Message> {
         let mut messages = Vec::new();
-        if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut())
-            && let Some(message) = link.message(instance, block.id)
-        {
-            messages.push(message);
+        if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
+            link.messages(instance, block.id, &mut messages);
         }
         for (block, link) in &mut self.watched {
-            messages.extend(link.message(instance, *block));
+            link.messages(instance, *block, &mut messages);
         }
         messages
     }
@@ -499,6 +520,9 @@ impl Instances {
         let Some(entry) = self.entries.remove(&instance) else {
             return false;
         };
+        for (block, kind) in &entry.shown {
+            crate::be::show(*block, *kind, None);
+        }
         let own = entry
             .role
             .block()
@@ -1916,6 +1940,30 @@ impl Instances {
                 if crate::be::is_migrated(content_type) && self.editable(block) {
                     crate::be::replace(block, content_type, bytes);
                 }
+                false
+            }
+            EditorMessage::ShowPresence {
+                instance,
+                block_id,
+                kind,
+                value,
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                let kind = Uuid::from_bytes(kind);
+                if !self.can_view(block) {
+                    return false;
+                }
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                if !entry.holds(block) {
+                    return false;
+                }
+                match value.is_some() {
+                    true => entry.shown.insert((block, kind)),
+                    false => entry.shown.remove(&(block, kind)),
+                };
+                crate::be::show(block, kind, value.map(|value| value.into_vec()));
                 false
             }
             EditorMessage::SeedContent {

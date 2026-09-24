@@ -574,6 +574,41 @@ impl Editor {
         self.0.pending_resize.set(Some(size));
     }
 
+    pub fn show<P: block_client::presence::PresenceKind>(&self, value: Option<&P>) {
+        let value = value.and_then(|value| serde_json::to_vec(value).ok());
+        self.0.host.show_presence(None, P::ID, value);
+    }
+
+    pub fn peers<P>(&self) -> ReadSignal<Vec<(u64, P)>>
+    where
+        P: block_client::presence::PresenceKind + Clone + PartialEq + 'static,
+    {
+        let (peers, set_peers) = create_signal(Vec::new());
+        let host = self.0.host.clone();
+        let seen = Cell::new(0);
+        let last: RefCell<Vec<(u64, P)>> = RefCell::new(Vec::new());
+        self.each_frame(move || {
+            let Some((revision, held)) = host.peers_since(None, seen.get()) else {
+                return;
+            };
+            seen.set(revision);
+            let decoded: Vec<(u64, P)> = held
+                .iter()
+                .filter(|peer| peer.kind == P::ID)
+                .filter_map(|peer| {
+                    serde_json::from_slice(&peer.value)
+                        .ok()
+                        .map(|value| (peer.client, value))
+                })
+                .collect();
+            if *last.borrow() != decoded {
+                last.replace(decoded.clone());
+                set_peers.set(decoded);
+            }
+        });
+        peers
+    }
+
     pub fn presence_visible(&self) -> ReadSignal<bool> {
         self.0.presence_visible.clone()
     }

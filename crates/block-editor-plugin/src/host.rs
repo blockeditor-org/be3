@@ -38,6 +38,20 @@ pub struct HostContent {
 
 type ContentOperation = (Option<Uuid>, Vec<u8>);
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ShownPresence {
+    pub block: Option<Uuid>,
+    pub kind: Uuid,
+    pub value: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PeerPresence {
+    pub client: u64,
+    pub kind: Uuid,
+    pub value: Vec<u8>,
+}
+
 #[derive(Clone)]
 pub enum ContentUpdate {
     Snapshot(HostContent),
@@ -455,6 +469,9 @@ pub struct EditorHost {
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
     seeded: Rc<RefCell<Vec<SeededContent>>>,
+    shown: Rc<RefCell<Vec<ShownPresence>>>,
+    peers: Rc<RefCell<HashMap<Option<Uuid>, (u64, Vec<PeerPresence>)>>>,
+    next_peers: Rc<Cell<u64>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
 }
@@ -844,6 +861,34 @@ impl EditorHost {
             replace,
         });
         self.waker.wake();
+    }
+
+    pub fn show_presence(&self, block: Option<Uuid>, kind: Uuid, value: Option<Vec<u8>>) {
+        let mut shown = self.shown.borrow_mut();
+        shown.retain(|held| held.block != block || held.kind != kind);
+        shown.push(ShownPresence { block, kind, value });
+        self.waker.wake();
+    }
+
+    pub fn take_shown_presence(&self) -> Vec<ShownPresence> {
+        std::mem::take(&mut self.shown.borrow_mut())
+    }
+
+    pub fn set_peers(&self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
+        let revision = self.next_peers.get() + 1;
+        self.next_peers.set(revision);
+        self.peers.borrow_mut().insert(block, (revision, peers));
+        self.waker.wake();
+    }
+
+    pub(crate) fn peers_since(
+        &self,
+        block: Option<Uuid>,
+        seen: u64,
+    ) -> Option<(u64, Vec<PeerPresence>)> {
+        let peers = self.peers.borrow();
+        let (revision, held) = peers.get(&block)?;
+        (*revision != seen).then(|| (*revision, held.clone()))
     }
 
     pub fn take_seeded_content(&self) -> Vec<SeededContent> {
