@@ -38,7 +38,7 @@ pub use accesskit;
 #[cfg(feature = "web")]
 pub use app::run_web;
 #[cfg(any(feature = "window", feature = "web"))]
-pub use app::{App, RunOptions, Setup, Waker};
+pub use app::{App, OpenDevice, RunOptions, Setup, Waker};
 #[cfg(feature = "window")]
 pub use app::{run, run_with};
 pub use base::{Align, Direction, ItemSize, ScrollPosition, TextAlign, focus_within};

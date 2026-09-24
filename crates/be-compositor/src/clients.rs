@@ -181,7 +181,8 @@ impl Clients {
         let area = self.0.area.get();
         let want = vec2(
             size.x.clamp(1.0, (area.x - 2.0 * MARGIN).max(1.0)),
-            size.y.clamp(1.0, (area.y - 2.0 * MARGIN - CHROME.y).max(1.0)),
+            size.y
+                .clamp(1.0, (area.y - 2.0 * MARGIN - CHROME.y).max(1.0)),
         );
         let step = (self.0.opened.get() % CASCADE_STEPS) as f32 * CASCADE;
         self.0.opened.set(self.0.opened.get() + 1);

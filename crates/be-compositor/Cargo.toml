@@ -5,13 +5,15 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+ash = "0.38"
 beui = { path = "../beui" }
 bytemuck = { version = "1", features = ["derive"] }
-rustix = { version = "1", features = ["event"] }
+rustix = { version = "1", features = ["event", "fs"] }
 smithay = { version = "0.7", default-features = false, features = ["desktop", "wayland_frontend"] }
-wgpu = { version = "29", default-features = false }
+wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]
+pollster = "0.4"
 rustix = { version = "1", features = ["event", "fs"] }
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client"] }
