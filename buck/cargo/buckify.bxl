@@ -92,7 +92,21 @@ for manifest in $(find crates -name Cargo.toml); do
 done
 export CARGO_HOME="$scratch/cargo-home"
 
-PATH="$toolchain/bin:$PATH" "$reindeer"     --cargo-path "$toolchain/bin/cargo" --rustc-path "$toolchain/bin/rustc"     buckify --stdout > "$out/BUCK"
+PATH="$toolchain/bin:$PATH" "$reindeer"     --cargo-path "$toolchain/bin/cargo" --rustc-path "$toolchain/bin/rustc"     buckify --stdout > "$scratch/BUCK"
+
+# Every crate archive's size beside its hash, so that buck2 knows each digest
+# without asking crates.io for it on every new daemon. cargo fetch downloads
+# every crate Cargo.lock names, for every platform.
+PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" fetch --locked --quiet
+for crate in "$CARGO_HOME"/registry/cache/*/*.crate; do
+    printf '%s %s\n' "$(basename "$crate" .crate)" "$(wc -c < "$crate")"
+done > "$scratch/sizes"
+awk '
+    NR == FNR { size[$1] = $2 + 0; next }
+    $1 == "name" { crate = $3; gsub(/[",]/, "", crate); if (crate !~ /[.]crate$/) crate = ""; sub(/[.]crate$/, "", crate) }
+    { print }
+    $1 == "sha256" && crate in size { print "    size_bytes = " size[crate] ","; crate = "" }
+' "$scratch/sizes" "$scratch/BUCK" > "$out/BUCK"
 
 plugins=""
 excluded=""

@@ -381,8 +381,12 @@ ensure_generated_rules() {
         return 0
     fi
     echo 'Generating the rules for the workspace'"'"'s crates...' >&2
-    generated="$("$buck2" bxl //buck/cargo/buckify.bxl:main 2> "$repository/target/generated-rules.log" | tail -n 1)" || true
-    if [[ ! -f "$generated/BUCK" || ! -f "$generated/crates.bzl" ]]; then
+    if generated="$("$buck2" bxl //buck/cargo/buckify.bxl:main 2> "$repository/target/generated-rules.log")"; then
+        generated="$(printf '%s\n' "$generated" | tail -n 1)"
+    else
+        generated=''
+    fi
+    if [[ -z "$generated" || ! -f "$generated/BUCK" || ! -f "$generated/crates.bzl" ]]; then
         cat "$repository/target/generated-rules.log" >&2
         echo 'Generating the rules for the workspace'"'"'s crates failed.' >&2
         exit 1
