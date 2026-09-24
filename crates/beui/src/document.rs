@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use accesskit::Node;
 
-use crate::accessibility;
+use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::Context;
 use crate::damage::{Damage, Region};
@@ -82,8 +82,9 @@ pub struct Document {
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: NodeMap<Node>,
+    pub(crate) accessibility_tree: RefCell<AccessibilityTree>,
     performance: PerformanceTracker,
-    work: WorkCounters,
+    pub(crate) work: WorkCounters,
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
@@ -115,13 +116,14 @@ fn constrained(held: Vec2, available: Vec2) -> Vec2 {
 }
 
 #[derive(Default)]
-struct WorkCounters {
+pub(crate) struct WorkCounters {
     measured: Cell<usize>,
     reused_measurements: Cell<usize>,
     placed: Cell<usize>,
     reused_placements: Cell<usize>,
     painted_nodes: Cell<usize>,
     replayed_nodes: Cell<usize>,
+    described_nodes: Cell<usize>,
 }
 
 impl WorkCounters {
@@ -132,6 +134,11 @@ impl WorkCounters {
         self.reused_placements.set(0);
         self.painted_nodes.set(0);
         self.replayed_nodes.set(0);
+        self.described_nodes.set(0);
+    }
+
+    pub(crate) fn note_described(&self, nodes: usize) {
+        self.described_nodes.set(self.described_nodes.get() + nodes);
     }
 
     fn gathered(&self) -> FrameWork {
@@ -142,6 +149,7 @@ impl WorkCounters {
             reused_placements: self.reused_placements.get(),
             painted_nodes: self.painted_nodes.get(),
             replayed_nodes: self.replayed_nodes.get(),
+            described_nodes: self.described_nodes.get(),
         }
     }
 }
@@ -214,6 +222,7 @@ impl Document {
             component_states: HashMap::new(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
+            accessibility_tree: RefCell::default(),
             performance: PerformanceTracker::default(),
             work: WorkCounters::default(),
             changes: FlashLog::default(),
@@ -493,6 +502,7 @@ impl Document {
         self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);
+        self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             if self.test_ids.get(&test_id) == Some(&id) {
                 self.test_ids.remove(&test_id);
@@ -660,8 +670,10 @@ impl Document {
         self.damage_flashes.prune(now);
         if self.arena.take_everything() {
             self.damage.everything();
+            self.accessibility_tree.get_mut().reset();
         }
         for id in self.arena.take_changed() {
+            self.accessibility_tree.get_mut().mark(id, &self.arena);
             self.changes.record(id, now);
             if let Some(node) = self.rects.get(&id)
                 && self.paints(id)
@@ -724,10 +736,16 @@ impl Document {
         ctx.extend(&self.shapes);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
+                let mut tree = self.accessibility_tree.borrow_mut();
+                match tree.take_inspected() {
+                    true => tree.discard_changes(),
+                    false => tree.reset(),
+                }
                 return;
             }
-            if let Some(fragment) = self.accessibility_fragment() {
-                ctx.publish_accessibility(fragment);
+            let full = !ctx.accessibility_known(self.accessibility_id);
+            if let Some(fragment) = self.accessibility_update(full) {
+                ctx.publish_accessibility(self.accessibility_id, fragment);
             }
         });
         measurement.work = self.work.gathered();
@@ -1002,6 +1020,7 @@ impl Document {
         }
         let clip = self.clips.remove(&id).unwrap_or(Rect::EVERYTHING);
         if let Some(rect) = out.remove(&id) {
+            self.accessibility_tree.get_mut().mark(id, &self.arena);
             if self.paints(id) {
                 self.damage.add(rect.intersect(clip));
             }
@@ -1130,6 +1149,7 @@ impl Document {
         if previous == Some(rect) && previous_clip == clip {
             return;
         }
+        self.accessibility_tree.get_mut().mark(id, &self.arena);
         if self.paints(id) {
             self.damage.add(rect.intersect(clip));
             if let Some(previous) = previous {

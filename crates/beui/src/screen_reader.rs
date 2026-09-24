@@ -555,18 +555,17 @@ fn shortcut(event: &Event) -> Option<Command> {
 }
 
 fn collect(target: &Document) -> Vec<Item> {
-    let Some(fragment) = target.accessibility_fragment() else {
+    let Some(nodes) = target.accessibility_view() else {
         return Vec::new();
     };
-    let nodes: Nodes = fragment.nodes.into_iter().collect();
     let mut items = Vec::new();
-    gather(target, &nodes, fragment.root, false, &mut items);
+    gather(target, &nodes, nodes.root(), false, &mut items);
     items
 }
 
 fn gather(
     target: &Document,
-    nodes: &Nodes,
+    nodes: &Nodes<'_>,
     access: AccessNodeId,
     inside: bool,
     items: &mut Vec<Item>,
@@ -588,7 +587,7 @@ fn gather(
 
 fn item(
     target: &Document,
-    nodes: &Nodes,
+    nodes: &Nodes<'_>,
     access: AccessNodeId,
     node: &AccessNode,
     control: bool,

@@ -560,6 +560,7 @@ impl ApplicationHandler<UserEvent> for Runner {
         match event.window_event {
             accesskit_winit::WindowEvent::InitialTreeRequested => {
                 self.accessibility_active = true;
+                self.context.reset_accessibility();
                 self.request_redraw();
             }
             accesskit_winit::WindowEvent::ActionRequested(request) => {

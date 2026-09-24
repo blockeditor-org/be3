@@ -85,6 +85,7 @@ mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
 mod accessibility_exposes_and_operates_a_button;
 mod accessibility_reports_and_steps_a_slider;
+mod accessibility_updates_leave_the_tree_a_fresh_build_would_make;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
 mod an_embed_punches_a_hole_in_the_surface_it_sits_on;
@@ -93,6 +94,7 @@ mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
 mod an_icon_is_as_tall_as_the_text_it_sits_with;
+mod an_idle_frame_describes_no_accessibility_nodes_and_one_changed_row_describes_few;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
@@ -274,6 +276,7 @@ mod typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view;
 mod view_attributes_can_be_written_without_braces;
 mod view_attributes_can_pun_a_bare_name_as_its_own_value;
 mod view_children_can_pick_fixed_and_percent_sizing;
+mod without_an_assistive_technology_no_accessibility_tree_is_built;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 
 use std::cell::{Cell, RefCell};
@@ -318,8 +321,10 @@ pub(crate) struct Harness {
 
 impl Harness {
     pub(crate) fn new(document: Document) -> Self {
+        let context = Context::new();
+        context.set_accessibility_active(true);
         Self {
-            context: Context::new(),
+            context,
             document,
             viewport: VIEWPORT,
         }
