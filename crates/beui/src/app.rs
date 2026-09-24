@@ -61,10 +61,19 @@ impl std::fmt::Debug for Waker {
     }
 }
 
+#[cfg(feature = "render")]
+pub type OpenDevice = Arc<
+    dyn Fn(&wgpu::Adapter, &wgpu::DeviceDescriptor<'_>) -> Option<(wgpu::Device, wgpu::Queue)>
+        + Send
+        + Sync,
+>;
+
 pub struct RunOptions {
     pub title: String,
     pub app_id: Option<String>,
     pub size: Vec2,
+    #[cfg(feature = "render")]
+    pub open_device: Option<OpenDevice>,
     #[cfg(all(feature = "window", target_os = "android"))]
     pub android_app: Option<winit::platform::android::activity::AndroidApp>,
 }
@@ -75,6 +84,8 @@ impl RunOptions {
             title: title.into(),
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
+            #[cfg(feature = "render")]
+            open_device: None,
             #[cfg(all(feature = "window", target_os = "android"))]
             android_app: None,
         }

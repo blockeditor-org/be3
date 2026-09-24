@@ -86,7 +86,7 @@ impl Instance {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Uniforms {
     screen: [f32; 2],
-    padding: [f32; 2],
+    origin: [f32; 2],
 }
 
 struct Atlas {
@@ -233,6 +233,7 @@ pub struct Renderer {
     runs: Vec<Run>,
     overlay: Vec<Run>,
     scissor: Option<[u32; 4]>,
+    origin: Vec2,
     atlas: Atlas,
     pictures: HashMap<ImageId, Picture>,
     samplers: [wgpu::Sampler; 2],
@@ -390,6 +391,7 @@ impl Renderer {
             runs: Vec::new(),
             overlay: Vec::new(),
             scissor: None,
+            origin: Vec2::ZERO,
             atlas,
             pictures: HashMap::new(),
             samplers: [nearest, sampler],
@@ -463,6 +465,10 @@ impl Renderer {
         );
     }
 
+    pub fn set_origin(&mut self, origin: Vec2) {
+        self.origin = origin;
+    }
+
     pub fn prepare(
         &mut self,
         device: &wgpu::Device,
@@ -480,7 +486,7 @@ impl Renderer {
             0,
             bytemuck::bytes_of(&Uniforms {
                 screen: [screen.x, screen.y],
-                padding: [0.0, 0.0],
+                origin: [self.origin.x, self.origin.y],
             }),
         );
 
@@ -498,7 +504,7 @@ impl Renderer {
         let damaged = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, background } => {
-                let region = physical(region, screen, pixels_per_point);
+                let region = physical(region, self.origin, screen, pixels_per_point);
                 let region = match &prepared {
                     Some(prepared) => prepared.widen(region),
                     None => region,
@@ -628,9 +634,17 @@ impl Renderer {
                     clip,
                     drawing,
                 } => {
+                    let shift = |[left, top, right, bottom]: [f32; 4]| {
+                        [
+                            left - self.origin.x,
+                            top - self.origin.y,
+                            right - self.origin.x,
+                            bottom - self.origin.y,
+                        ]
+                    };
                     let at = DrawAt {
-                        rect,
-                        clip,
+                        rect: shift(rect),
+                        clip: shift(clip),
                         screen,
                         pixels_per_point,
                         format: self.format,
@@ -647,7 +661,8 @@ impl Renderer {
             picture.used = false;
             used
         });
-        self.scissor = damaged.map(scissor);
+        let origin = self.origin;
+        self.scissor = damaged.map(|damaged| scissor(damaged, origin));
         self.runs = runs;
         self.overlay = overlay;
         self.filter = prepared;
@@ -829,27 +844,32 @@ fn turn(turn: Turn) -> [f32; 4] {
     [turn.pivot[0], turn.pivot[1], turn.cos, turn.sin]
 }
 
-fn physical(region: Rect, screen: Vec2, pixels_per_point: f32) -> [f32; 4] {
+fn physical(region: Rect, origin: Vec2, screen: Vec2, pixels_per_point: f32) -> [f32; 4] {
     [
         (region.left() * pixels_per_point)
             .floor()
-            .clamp(0.0, screen.x),
+            .clamp(origin.x, origin.x + screen.x),
         (region.top() * pixels_per_point)
             .floor()
-            .clamp(0.0, screen.y),
+            .clamp(origin.y, origin.y + screen.y),
         (region.right() * pixels_per_point)
             .ceil()
-            .clamp(0.0, screen.x),
+            .clamp(origin.x, origin.x + screen.x),
         (region.bottom() * pixels_per_point)
             .ceil()
-            .clamp(0.0, screen.y),
+            .clamp(origin.y, origin.y + screen.y),
     ]
 }
 
-fn scissor(damaged: [f32; 4]) -> [u32; 4] {
+fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {
     let width = (damaged[2] - damaged[0]).max(0.0) as u32;
     let height = (damaged[3] - damaged[1]).max(0.0) as u32;
-    [damaged[0] as u32, damaged[1] as u32, width, height]
+    [
+        (damaged[0] - origin.x) as u32,
+        (damaged[1] - origin.y) as u32,
+        width,
+        height,
+    ]
 }
 
 pub fn clear_color(color: Color32) -> wgpu::Color {
