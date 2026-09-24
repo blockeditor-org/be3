@@ -111,6 +111,19 @@ impl Compositor {
         });
         let windows = self.server.state.windows();
         self.configured.retain(|id, _| windows.contains(id));
+        let mapping: Vec<(WindowId, beui::Vec2)> = redraw
+            .iter()
+            .filter(|id| !self.clients.mapped(**id))
+            .filter_map(|id| Some((*id, self.server.state.mapped_size(*id)?)))
+            .collect();
+        if !mapping.is_empty() {
+            let clients = self.clients.clone();
+            with_reactive_scope(&mut self.document, || {
+                for (id, size) in mapping {
+                    clients.map(id, size);
+                }
+            });
+        }
         if redraw.is_empty() {
             return;
         }
@@ -231,7 +244,7 @@ impl Compositor {
         self.server.state.pointer_motion(local);
     }
 
-    fn apply(&mut self) {
+    fn apply(&mut self, context: &Context) {
         let focused = self.clients.focused();
         if self.server.state.keyboard_window() != focused {
             let previous = self.server.state.keyboard_window();
@@ -256,6 +269,15 @@ impl Compositor {
                     }
                     self.configured.insert(id, (size, activated));
                     self.server.state.configure(id, size.into(), activated);
+                }
+                Command::Fit(id) => {
+                    let clients = self.clients.clone();
+                    let fitted = with_reactive_scope(&mut self.document, || clients.fit(id));
+                    if fitted {
+                        context.request_repaint();
+                    } else {
+                        self.clients.push(Command::Configure(id));
+                    }
                 }
                 Command::Close(id) => self.server.state.close(id),
                 Command::Launch(line) => self.launch(&line),
@@ -311,7 +333,7 @@ impl App for Compositor {
         self.keyboard(context);
         self.document.show(context, rect);
         self.pointer(context);
-        self.apply();
+        self.apply(context);
         self.server.flush();
         if let Some(watch) = &self.watch {
             watch.resume();

@@ -1,6 +1,6 @@
 use super::*;
 
-mod a_new_window_opens_as_a_tab_sized_to_its_panel;
+mod a_new_window_floats_at_the_size_it_drew;
 mod closing_a_window_removes_its_tab;
 mod keys_follow_the_focus_between_beui_and_a_window;
 
@@ -70,7 +70,7 @@ impl Harness {
         window.xdg_surface.ack_configure(serial);
         let (width, height) = match self.client.received.size {
             Some((width, height)) if width > 0 && height > 0 => (width, height),
-            _ => (40, 30),
+            _ => (300, 200),
         };
         self.client.attach_unsent(&window, width, height);
         self.settle();

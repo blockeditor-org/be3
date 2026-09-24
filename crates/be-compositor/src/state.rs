@@ -257,6 +257,15 @@ impl State {
         }
     }
 
+    pub fn mapped_size(&self, id: WindowId) -> Option<beui::Vec2> {
+        let window = self.find(id)?;
+        if self.layers(id).is_empty() {
+            return None;
+        }
+        let size = window.window.geometry().size;
+        (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
+    }
+
     pub fn close(&self, id: WindowId) {
         if let Some(toplevel) = self.toplevel(id) {
             toplevel.send_close();
