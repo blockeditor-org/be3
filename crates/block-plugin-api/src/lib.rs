@@ -498,6 +498,17 @@ pub enum EditorMessage {
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
+    ShowPresence {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        kind: [u8; 16],
+        value: Option<serde_bytes::ByteBuf>,
+    },
+    PeerPresence {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        peers: Vec<PeerPresence>,
+    },
     ViewChanged {
         instance: EditorInstanceId,
         x: f32,
@@ -768,6 +779,8 @@ impl EditorMessage {
             | Self::WatchContent { instance, .. }
             | Self::SeedContent { instance, .. }
             | Self::ReplaceContent { instance, .. }
+            | Self::ShowPresence { instance, .. }
+            | Self::PeerPresence { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -930,6 +943,14 @@ pub struct ArtifactState {
 pub struct WatchedContent {
     pub block_id: [u8; 16],
     pub content_type: [u8; 16],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PeerPresence {
+    pub client: u64,
+    pub kind: [u8; 16],
+    #[serde(with = "serde_bytes")]
+    pub value: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1170,6 +1191,7 @@ impl EditorMessage {
             | Self::EditabilityChanged { .. }
             | Self::Content { .. }
             | Self::ContentOperations { .. }
+            | Self::PeerPresence { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1220,6 +1242,7 @@ impl EditorMessage {
             | Self::WatchContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
+            | Self::ShowPresence { .. }
             | Self::Performance { .. } => Direction::ToHost,
         }
     }
@@ -1817,6 +1840,17 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
         EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
+        EditorMessage::ShowPresence { value, .. } => match value {
+            Some(value) => blob(value),
+            None => Ok(()),
+        },
+        EditorMessage::PeerPresence { peers, .. } => {
+            collection(peers.len())?;
+            for peer in peers {
+                blob(&peer.value)?;
+            }
+            Ok(())
+        }
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
             for state in states {

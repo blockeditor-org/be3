@@ -45,8 +45,9 @@ pub use file_chooser::{FileChooser, content_file_creation, file_creation};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
     BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
-    HostContent, ImagePaster, OpenRequest, PastedImage, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, SeededContent, ShowRequest, Task, Waker,
+    HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
+    PerformanceReporter, PickedBlock, PickedFile, SeededContent, ShowRequest, ShownPresence, Task,
+    Waker,
 };
 pub use related::RelatedBlock;
 pub use related_content::RelatedContent;

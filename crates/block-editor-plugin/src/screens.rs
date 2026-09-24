@@ -200,6 +200,26 @@ impl Screens {
                     *applied,
                 );
             }
+            Message::Editor(EditorMessage::PeerPresence {
+                instance,
+                block_id,
+                peers,
+            }) => {
+                let Some(session) = self.sessions.get(instance) else {
+                    return false;
+                };
+                session.set_peers(
+                    Uuid::from_bytes(*block_id),
+                    peers
+                        .iter()
+                        .map(|peer| crate::PeerPresence {
+                            client: peer.client,
+                            kind: Uuid::from_bytes(peer.kind),
+                            value: peer.value.clone(),
+                        })
+                        .collect(),
+                );
+            }
             Message::Editor(EditorMessage::ContentOperations {
                 instance,
                 block_id,

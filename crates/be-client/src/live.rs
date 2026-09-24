@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use be_block::{LiveEdit, Merge};
 use be_commit::{CommitId, MergeResult};
@@ -40,6 +43,9 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     reload: bool,
     events: Receiver<ServerMessage>,
     journal: Vec<Journaled<C::Op>>,
+    presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
+    shown: BTreeMap<Uuid, Vec<u8>>,
+    presence_changed: bool,
 }
 
 impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
@@ -69,6 +75,9 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             reload: false,
             events,
             journal: Vec::new(),
+            presence: BTreeMap::new(),
+            shown: BTreeMap::new(),
+            presence_changed: false,
         };
         if let Role::Follower(follower) = &live.role {
             let catchup = follower.catchup();
@@ -114,6 +123,45 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
 
     pub fn take_journal(&mut self) -> Vec<Journaled<C::Op>> {
         std::mem::take(&mut self.journal)
+    }
+
+    pub fn presence(&self) -> &BTreeMap<(ClientId, Uuid), Vec<u8>> {
+        &self.presence
+    }
+
+    pub fn take_presence_changed(&mut self) -> bool {
+        std::mem::take(&mut self.presence_changed)
+    }
+
+    pub async fn set_presence(
+        &mut self,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    ) -> Result<(), ClientError> {
+        let unchanged = match &value {
+            Some(value) => self.shown.get(&kind) == Some(value),
+            None => !self.shown.contains_key(&kind),
+        };
+        if unchanged {
+            return Ok(());
+        }
+        match &value {
+            Some(value) => self.shown.insert(kind, value.clone()),
+            None => self.shown.remove(&kind),
+        };
+        self.broadcast(&SessionMessage::Presence { kind, value })
+            .await
+    }
+
+    async fn show_presence_to(&self, client: ClientId) -> Result<(), ClientError> {
+        for (kind, value) in &self.shown {
+            let message = SessionMessage::Presence {
+                kind: *kind,
+                value: Some(value.clone()),
+            };
+            self.send(Some(client), &message).await?;
+        }
+        Ok(())
     }
 
     fn journal(&mut self, entry: Journaled<C::Op>) {
@@ -290,6 +338,17 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 Ok(())
             }
             SessionMessage::Replaced { head } => self.adopt_replacement(head).await,
+            SessionMessage::Presence { kind, value } => {
+                if from == self.client {
+                    return Ok(());
+                }
+                let changed = match value {
+                    Some(value) => self.presence.insert((from, kind), value.clone()) != Some(value),
+                    None => self.presence.remove(&(from, kind)).is_some(),
+                };
+                self.presence_changed |= changed;
+                Ok(())
+            }
             SessionMessage::Sealed {
                 head,
                 sequence,
@@ -375,7 +434,21 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
 
     async fn adopt(&mut self, state: SessionState) -> Result<(), ClientError> {
         let owner_changed = state.owner != self.state.owner;
+        let known: BTreeSet<ClientId> = self.state.participants.iter().copied().collect();
+        let joined: Vec<ClientId> = state
+            .participants
+            .iter()
+            .copied()
+            .filter(|client| *client != self.client && !known.contains(client))
+            .collect();
+        let before = self.presence.len();
+        self.presence
+            .retain(|(client, _), _| state.participants.contains(client));
+        self.presence_changed |= self.presence.len() != before;
         self.state = state;
+        for client in joined {
+            self.show_presence_to(client).await?;
+        }
         let Role::Follower(follower) = &mut self.role else {
             return Ok(());
         };

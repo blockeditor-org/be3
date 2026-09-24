@@ -43,12 +43,19 @@ pub(super) enum Command {
         block: Uuid,
         redo: bool,
     },
+    Presence {
+        block: Uuid,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    },
 }
 
 #[derive(Default)]
 pub(crate) struct Shared {
     pub(crate) blocks: HashMap<Uuid, Content>,
     pub(crate) histories: HashMap<Uuid, History>,
+    pub(crate) presence: HashMap<Uuid, (u64, Vec<Presence>)>,
+    pub(crate) presence_revision: u64,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
     pub(crate) connected: bool,
@@ -163,6 +170,14 @@ pub(super) trait Session {
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
+    fn show(
+        &mut self,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
+    fn take_presence(&mut self) -> Option<Vec<Presence>>;
+
     fn history(&self) -> History {
         History::default()
     }
@@ -171,6 +186,29 @@ pub(super) trait Session {
         let _ = redo;
         Box::pin(async { Ok(()) })
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Presence {
+    pub(crate) client: u64,
+    pub(crate) kind: Uuid,
+    pub(crate) value: Vec<u8>,
+}
+
+fn take_presence<C>(live: &mut Live<Store, C>) -> Option<Vec<Presence>>
+where
+    C: LiveEdit + Clone + Default,
+{
+    live.take_presence_changed().then(|| {
+        live.presence()
+            .iter()
+            .map(|((client, kind), value)| Presence {
+                client: *client,
+                kind: *kind,
+                value: value.clone(),
+            })
+            .collect()
+    })
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -270,6 +308,18 @@ where
             drain(&mut self.live, &mut self.log, None);
             replaced.map(|_| ())
         })
+    }
+
+    fn show(
+        &mut self,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.set_presence(kind, value).await })
+    }
+
+    fn take_presence(&mut self) -> Option<Vec<Presence>> {
+        take_presence(&mut self.live)
     }
 
     fn history(&self) -> History {
@@ -414,6 +464,18 @@ where
             drain(&mut self.live, &mut self.log, None);
             replaced.map(|_| ())
         })
+    }
+
+    fn show(
+        &mut self,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.set_presence(kind, value).await })
+    }
+
+    fn take_presence(&mut self) -> Option<Vec<Presence>> {
+        take_presence(&mut self.live)
     }
 }
 
@@ -654,6 +716,7 @@ async fn apply(
             let mut held = shared.lock().unwrap();
             held.blocks.remove(&block);
             held.histories.remove(&block);
+            held.presence.remove(&block);
             true
         }
         Command::Operate(block, origin, operation) => {
@@ -712,6 +775,15 @@ async fn apply(
             }
             false
         }
+        Command::Presence { block, kind, value } => {
+            let Some(session) = sessions.get_mut(&block) else {
+                return false;
+            };
+            if let Err(error) = session.show(kind, value).await {
+                record(shared, error);
+            }
+            false
+        }
         Command::History { block, redo } => {
             let Some(session) = sessions.get_mut(&block) else {
                 return false;
@@ -749,6 +821,12 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let history = session.history();
         if held.histories.get(block) != Some(&history) {
             held.histories.insert(*block, history);
+            changed = true;
+        }
+        if let Some(presence) = session.take_presence() {
+            held.presence_revision += 1;
+            let revision = held.presence_revision;
+            held.presence.insert(*block, (revision, presence));
             changed = true;
         }
         let log = session.take_log();
