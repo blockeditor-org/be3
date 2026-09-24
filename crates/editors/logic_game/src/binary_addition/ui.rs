@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::logic_game::{LogicGame, QuizRow};
+use block_editor_plugin::be_block::logic_game::QuizRow;
 use block_editor_plugin::beui::icons::ICON_CHECK_CIRCLE;
 use block_editor_plugin::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal,
@@ -10,7 +10,7 @@ use block_editor_plugin::beui::styled::{
     Body, Bordered, Button, ButtonVariant, Caption, Code, Icon, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, TextAlign};
-use block_editor_plugin::{BlockProjection, Editor};
+use block_editor_plugin::Editor;
 
 use super::{BinaryAdditionQuiz, next_answer};
 
@@ -24,7 +24,7 @@ const RULE_HEIGHT: f32 = 1.0;
 const PADDING: f32 = 8.0;
 
 #[component]
-pub(crate) fn BinaryAddition(editor: Editor, block: Rc<BlockProjection<LogicGame>>) -> NodeId {
+pub(crate) fn BinaryAddition(editor: Editor, block: crate::app::GameBlock) -> NodeId {
     let quiz = Rc::new(BinaryAdditionQuiz::default());
     let count = quiz.problems().len();
     let (page, set_page) = create_signal(0usize);
@@ -32,7 +32,9 @@ pub(crate) fn BinaryAddition(editor: Editor, block: Rc<BlockProjection<LogicGame
     let stored = block.project(move |game| {
         (0..count)
             .map(|problem| {
-                game.quiz(problem)
+                game.root()
+                    .game()
+                    .quiz(problem)
                     .map(|answers| (answers.carries.clone(), answers.sums.clone()))
                     .unwrap_or_default()
             })
@@ -73,8 +75,8 @@ pub(crate) fn BinaryAddition(editor: Editor, block: Rc<BlockProjection<LogicGame
     let check = clone!(set_checked -> move || set_checked.set(true));
     let reset = clone!(quiz block page set_checked -> move || {
         let problem = page.get_untracked();
-        quiz.write_row(block.handle(), problem, QuizRow::Carries, Vec::new());
-        quiz.write_row(block.handle(), problem, QuizRow::Sums, Vec::new());
+        quiz.write_row(&block, problem, QuizRow::Carries, Vec::new());
+        quiz.write_row(&block, problem, QuizRow::Sums, Vec::new());
         set_checked.set(false);
     });
     let back = clone!(page set_page set_checked -> move || {
@@ -157,7 +159,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: Rc<BlockProjection<LogicGame
 #[component]
 fn ProblemGrid(
     quiz: Rc<BinaryAdditionQuiz>,
-    block: Rc<BlockProjection<LogicGame>>,
+    block: crate::app::GameBlock,
     page: ReadSignal<usize>,
     answers: Memo<Answers>,
     checked: ReadSignal<bool>,
@@ -167,7 +169,7 @@ fn ProblemGrid(
         quiz.problems()[page.get()].operands().to_vec()
     }));
     let write = clone!(quiz block page -> move |row: QuizRow, values: Vec<Option<bool>>| {
-        quiz.write_row(block.handle(), page.get_untracked(), row, values);
+        quiz.write_row(&block, page.get_untracked(), row, values);
     });
     let carry_write = write.clone();
     let carries =
