@@ -670,7 +670,6 @@ impl Document {
         self.damage_flashes.prune(now);
         if self.arena.take_everything() {
             self.damage.everything();
-            self.accessibility_tree.get_mut().reset();
         }
         for id in self.arena.take_changed() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);

@@ -2,15 +2,20 @@ use super::*;
 use crate::reactive::{build, view};
 
 #[test]
-fn without_an_assistive_technology_no_accessibility_tree_is_built() {
+fn turning_the_accessibility_tree_off_in_the_inspector_stops_building_it() {
     let document = build(|| {
         view! {
             <styled::Button variant=styled::ButtonVariant::Primary label="Save" on_click={|| {}} />
         }
     });
     let mut harness = Harness::new(document);
-    harness.context.set_accessibility_active(false);
+    let output = harness.frame(Vec::new());
+    assert!(
+        output.accessibility_tree("Test", VIEWPORT).nodes.len() > 1,
+        "the accessibility tree is built without being asked for"
+    );
 
+    harness.disable_accessibility();
     for _ in 0..2 {
         let output = harness.frame(Vec::new());
         assert_eq!(
@@ -27,6 +32,6 @@ fn without_an_assistive_technology_no_accessibility_tree_is_built() {
         tree.nodes
             .iter()
             .any(|(_, node)| node.role() == accesskit::Role::Button),
-        "turning an assistive technology on sends the whole tree"
+        "turning the tree back on sends the whole tree"
     );
 }

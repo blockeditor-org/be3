@@ -237,8 +237,6 @@ impl Runner {
 
         self.context
             .set_pixels_per_point(surface.window.scale_factor() as f32);
-        self.context
-            .set_accessibility_active(self.accessibility_active);
         self.context.set_test_ids_published(false);
         let scale = self.context.pixels_per_point();
         let physical = vec2(surface.config.width as f32, surface.config.height as f32);

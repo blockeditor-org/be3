@@ -11,7 +11,7 @@ use crate::base::focusable::FocusableNode;
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::base::text::TextNode;
-use crate::geometry::{Rect, Vec2};
+use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
 use crate::node::{Arena, NodeId, NodeMap};
 
@@ -32,7 +32,8 @@ impl Fragment {
         let root = self.root;
         for (id, node) in &mut self.nodes {
             if *id == root {
-                node.set_transform(Affine::scale(scale.into()));
+                let local = node.transform().copied().unwrap_or(Affine::IDENTITY);
+                node.set_transform(Affine::scale(scale.into()) * local);
             }
         }
     }
@@ -92,11 +93,13 @@ pub(crate) struct AccessibilityTree {
     focus: Option<AccessNodeId>,
     changed: Vec<NodeId>,
     inspected: bool,
+    scale: Option<f32>,
 }
 
 struct Entry {
     node: Node,
     focus: Option<AccessNodeId>,
+    origin: Pos2,
 }
 
 #[derive(Default)]
@@ -202,7 +205,14 @@ struct Pass<'a> {
 }
 
 impl Pass<'_> {
-    fn visit(&mut self, id: NodeId, parent: Option<NodeId>, force: bool, out: &mut Gathered) {
+    fn visit(
+        &mut self,
+        id: NodeId,
+        parent: Option<NodeId>,
+        origin: Pos2,
+        force: bool,
+        out: &mut Gathered,
+    ) {
         let document = self.document;
         if !document.arena.contains(id) {
             return;
@@ -233,7 +243,7 @@ impl Pass<'_> {
             .and_then(TextNode::accessible_text);
         if explicit.is_none() && text.is_none() && !force {
             for child in element.children() {
-                self.visit(child, Some(id), false, out);
+                self.visit(child, Some(id), origin, false, out);
             }
             return;
         }
@@ -243,6 +253,7 @@ impl Pass<'_> {
         out.children.push(access);
         if !self.tree.stale(id)
             && let Some(entry) = self.tree.entries.get(&id)
+            && entry.origin == origin
         {
             if entry.focus.is_some() {
                 out.focus = entry.focus;
@@ -252,10 +263,10 @@ impl Pass<'_> {
 
         let mut inner = Gathered::default();
         for child in element.children() {
-            self.visit(child, Some(id), false, &mut inner);
+            self.visit(child, Some(id), rect.min, false, &mut inner);
         }
         self.described += 1;
-        let (node, focus) = document.describe(id, rect, explicit, text, inner);
+        let (node, focus) = document.describe(id, rect, origin, explicit, text, inner);
         if focus.is_some() {
             out.focus = focus;
         }
@@ -274,7 +285,14 @@ impl Pass<'_> {
             }
             None => self.tree.changed.push(id),
         }
-        self.tree.entries.insert(id, Entry { node, focus });
+        self.tree.entries.insert(
+            id,
+            Entry {
+                node,
+                focus,
+                origin,
+            },
+        );
     }
 }
 
@@ -292,6 +310,8 @@ impl Document {
         for id in self.arena.changed_since(0) {
             tree.mark(*id, &self.arena);
         }
+        let scale = self.pixels_per_point();
+        let rescaled = tree.scale.replace(scale) != Some(scale);
 
         let mut pass = Pass {
             document: self,
@@ -300,7 +320,7 @@ impl Document {
             described: 0,
         };
         let mut top = Gathered::default();
-        pass.visit(root, None, true, &mut top);
+        pass.visit(root, None, Pos2::ZERO, true, &mut top);
         let (dropped, described) = (pass.dropped, pass.described);
         self.work.note_described(described);
         tree.purge(self, dropped);
@@ -310,6 +330,9 @@ impl Document {
             tree.reset();
             return None;
         };
+        if rescaled {
+            tree.changed.push(root);
+        }
         Some(access)
     }
 
@@ -354,6 +377,7 @@ impl Document {
         &self,
         id: NodeId,
         rect: Rect,
+        origin: Pos2,
         explicit: Option<&Node>,
         text: Option<&str>,
         inner: Gathered,
@@ -368,7 +392,16 @@ impl Document {
         } else {
             Node::new(Role::GenericContainer)
         };
-        node.set_bounds(access_rect(rect));
+        let offset = rect.min - origin;
+        if offset != Vec2::ZERO {
+            node.set_transform(Affine::translate((offset.x as f64, offset.y as f64)));
+        }
+        node.set_bounds(AccessRect::new(
+            0.0,
+            0.0,
+            rect.width().into(),
+            rect.height().into(),
+        ));
         node.set_children(inner.children);
 
         if explicit.is_some() {
@@ -522,15 +555,6 @@ impl Document {
             .downcast_ref::<FocusableNode>()
             .is_some_and(|node| !node.on_activate.is_empty())
     }
-}
-
-fn access_rect(rect: Rect) -> AccessRect {
-    AccessRect::new(
-        rect.left().into(),
-        rect.top().into(),
-        rect.right().into(),
-        rect.bottom().into(),
-    )
 }
 
 fn is_text_input(role: Role) -> bool {

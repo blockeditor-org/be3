@@ -215,6 +215,7 @@ mod scrolling_a_virtual_scroll_reuses_overlapping_items;
 mod scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent;
 mod scrolling_damages_nothing_outside_the_scroll;
 mod scrolling_into_a_nested_scroll_keeps_moving_the_one_around_it;
+mod scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
@@ -267,6 +268,7 @@ mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
+mod turning_the_accessibility_tree_off_in_the_inspector_stops_building_it;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
 mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
 mod typing_into_a_focused_text_area_inserts_the_text;
@@ -276,7 +278,6 @@ mod typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view;
 mod view_attributes_can_be_written_without_braces;
 mod view_attributes_can_pun_a_bare_name_as_its_own_value;
 mod view_children_can_pick_fixed_and_percent_sizing;
-mod without_an_assistive_technology_no_accessibility_tree_is_built;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 
 use std::cell::{Cell, RefCell};
@@ -321,10 +322,8 @@ pub(crate) struct Harness {
 
 impl Harness {
     pub(crate) fn new(document: Document) -> Self {
-        let context = Context::new();
-        context.set_accessibility_active(true);
         Self {
-            context,
+            context: Context::new(),
             document,
             viewport: VIEWPORT,
         }
@@ -603,6 +602,17 @@ impl Harness {
         let toggle = self.inspector_center("inspector.screen_reader.enabled");
         self.click(toggle);
         self.key(Key::Escape, Modifiers::NONE);
+        self.frame(Vec::new());
+    }
+
+    pub(crate) fn disable_accessibility(&mut self) {
+        self.toggle_inspector();
+        let tab = self.simulation_tab_center();
+        self.click(tab);
+        self.frame(Vec::new());
+        let toggle = self.inspector_center("inspector.accessibility.enabled");
+        self.click(toggle);
+        self.toggle_inspector();
         self.frame(Vec::new());
     }
 

@@ -148,7 +148,7 @@ impl Context {
                 previous: RefCell::new(None),
                 accessibility: RefCell::new(Vec::new()),
                 accessibility_actions: RefCell::new(Vec::new()),
-                accessibility_active: Cell::new(false),
+                accessibility_active: Cell::new(true),
                 accessibility_known: RefCell::new(HashSet::new()),
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
