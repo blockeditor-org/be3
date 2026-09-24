@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::presence::PresenceKind;
+use crate::presence::{PresenceColor, PresenceKind};
 
 use super::CanvasPoint;
 
@@ -21,6 +21,7 @@ const CANVAS_CURSOR: Uuid = Uuid::from_u128(0x6361_6e76_6173_5f63_7572_736f_725f
 pub struct CanvasCursor {
     pub pointer: Option<CanvasPoint>,
     pub selection: Vec<Uuid>,
+    pub color: PresenceColor,
 }
 
 impl PresenceKind for CanvasCursor {

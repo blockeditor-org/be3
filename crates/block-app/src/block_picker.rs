@@ -400,8 +400,13 @@ impl BlockPicker {
         parent: BlockParent,
     ) -> BlockPickerResult {
         let canvas = crate::slide_templates::build_template_canvas(template);
-        let block = editors.client().create_block(canvas);
+        let block = editors.client().create_block(InfiniteCanvas::new());
         let id = block.id();
+        crate::be::seed(
+            id,
+            <be_block::CanvasContent as be_block::BlockContent>::CONTENT_TYPE,
+            be_block::BlockContent::encode(&canvas),
+        );
         block.set_parent(parent);
         editors.ensure(id, InfiniteCanvas::TYPE_ID);
         BlockPickerResult {

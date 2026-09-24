@@ -1,15 +1,17 @@
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
+use block_client::BlockClient;
 use block_client::block_ref::BlockRef;
 use block_client::blocks::database::DatabaseValue;
 use block_client::blocks::infinite_canvas::{
     CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
     CanvasPreviewRegion, CanvasTransform, InfiniteCanvas, InfiniteCanvasOperation,
 };
-use block_client::{BlockClient, BlockHandle};
+use block_editor_plugin::be_block::CanvasContent;
+use block_editor_plugin::be_block::canvas::Canvas;
 use block_editor_plugin::{Editor, EditorHost};
-use block_ui_test::BeuiTest;
+use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 
 use crate::app::CanvasApp;
@@ -23,6 +25,7 @@ mod dragging_with_the_rectangle_tool_adds_a_rectangle;
 mod removing_component_deletes_its_values_from_all_selected_entities;
 mod replacing_a_referenced_block_rewrites_the_entity;
 mod resizing_an_editor_that_cannot_resize_scales_it;
+mod selections_are_shared_with_peers_and_theirs_are_drawn;
 mod setting_component_value_writes_the_same_value_to_all_selected_entities;
 mod the_actions_menu_deletes_the_selection;
 mod the_canvas_paints_the_entities_it_holds;
@@ -41,27 +44,39 @@ fn entity(id: Uuid) -> CanvasEntity {
     }
 }
 
-fn editor(entities: &[CanvasEntity]) -> (BeuiTest<CanvasApp>, BlockHandle<InfiniteCanvas>) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
+fn open(client: Arc<BlockClient>, canvas: &Canvas, preview: bool) -> ContentHarness<CanvasApp> {
     let block = client.create_block(InfiniteCanvas::new());
-    for entity in entities {
-        block.operate(InfiniteCanvasOperation::Add {
-            entity: entity.clone(),
-        });
-    }
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, client, block.id());
-    let mut editor = BeuiTest::new(editor).in_viewport();
-    editor.run();
-    editor.run();
-    (editor, block)
+    let editor = Editor::new(host.clone(), client, block.id());
+    let test = match preview {
+        true => BeuiTest::preview(editor),
+        false => BeuiTest::new(editor),
+    };
+    let mut harness = ContentHarness::new(test.in_viewport(), host);
+    harness.hold(None, CanvasContent::new(canvas));
+    harness.run();
+    harness.run();
+    harness
 }
 
-fn entities(block: &BlockHandle<InfiniteCanvas>) -> Vec<CanvasEntity> {
-    block
-        .read()
-        .expect("the canvas is loaded")
-        .entities()
-        .to_vec()
+fn editor(entities: &[CanvasEntity]) -> ContentHarness<CanvasApp> {
+    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
+    open(
+        client,
+        &Canvas::with_entities(entities.to_vec(), None),
+        false,
+    )
+}
+
+fn apply(editor: &mut ContentHarness<CanvasApp>, operation: InfiniteCanvasOperation) {
+    let edit = editor
+        .content::<CanvasContent>(None)
+        .root()
+        .edit_for(&operation);
+    editor.edit::<CanvasContent>(None, &edit);
+}
+
+fn entities(editor: &ContentHarness<CanvasApp>) -> Vec<CanvasEntity> {
+    editor.content::<CanvasContent>(None).root().entities()
 }
