@@ -20,17 +20,13 @@ pub(super) struct Session {
 
 impl Session {
     pub(super) fn new(editor: &Editor) -> Rc<Self> {
-        let block = editor.block::<LogicGrid>();
         let (version, set_version) = create_signal(0_u64);
         let (pointer, set_pointer) = create_signal(None);
         let (debug_hover, set_debug_hover) = create_signal(None);
         let (graph_hover, set_graph_hover) = create_signal(GraphHover::default());
         let session = Rc::new(Self {
             editor: editor.clone(),
-            model: RefCell::new(LogicGridEditor::with_hotbar_editor(
-                block.handle().clone(),
-                editor.clone(),
-            )),
+            model: RefCell::new(LogicGridEditor::live(editor)),
             version,
             set_version,
             pointer,

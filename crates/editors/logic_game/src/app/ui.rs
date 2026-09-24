@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use block_client::block_ref::BlockRef;
+use block_editor_plugin::Editor;
 use block_editor_plugin::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
 use block_editor_plugin::beui::reactive::ClickCallback;
 use block_editor_plugin::beui::reactive::{
@@ -12,7 +13,6 @@ use block_editor_plugin::beui::styled::{
     use_theme,
 };
 use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::Editor;
 use logicgame::challenges::{ChallengeId, generate_challenge};
 
 use crate::binary_addition::ui::BinaryAddition;

@@ -207,6 +207,8 @@ const MIGRATED: &[Migrated] = &[
     migrated_with_history::<block_client::blocks::calendar::Calendar, be_block::CalendarContent>(),
     migrated_with_history::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(
     ),
+    migrated::<block_client::blocks::compiled_logic::CompiledLogic, be_block::CompiledLogicContent>(
+    ),
     migrated_with_history::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
     migrated_with_history::<block_client::blocks::database::Database, be_block::DatabaseContent>(),
     migrated_with_history::<
@@ -224,10 +226,10 @@ const MIGRATED: &[Migrated] = &[
     migrated::<block_client::blocks::game_module::GameModule, be_block::GameModuleContent>(),
     migrated_with_history::<block_client::blocks::hotbar::Hotbar, be_block::HotbarContent>(),
     migrated::<block_client::blocks::image::Image, be_block::ImageContent>(),
-    migrated_with_history::<
-        block_client::blocks::logic_game::LogicGame,
-        be_block::LogicGameContent,
-    >(),
+    migrated_with_history::<block_client::blocks::logic_game::LogicGame, be_block::LogicGameContent>(
+    ),
+    migrated_with_history::<block_client::blocks::logic_grid::LogicGrid, be_block::LogicGridContent>(
+    ),
     migrated_with_history::<block_client::blocks::map::Map, be_block::MapContent>(),
     migrated_with_history::<
         block_client::blocks::paint_review::PaintReview,

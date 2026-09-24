@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_number_key_picks_a_tool_and_a_click_places_a_gate() {
-    let (mut editor, block) = editor();
+    let mut editor = editor();
 
     editor.key_press(Key::Four);
     editor.run();
@@ -12,16 +12,12 @@ fn a_number_key_picks_a_tool_and_a_click_places_a_gate() {
     );
     editor.key_press(Key::One);
     editor.run();
-    editor.click_at(canvas_point(&editor, Vec2::new(30.0, 30.0)));
+    let point = canvas_point(&editor, Vec2::new(30.0, 30.0));
+    editor.click_at(point);
     editor.run();
     editor.run();
 
-    let grid = block.read().unwrap();
-    assert_eq!(
-        grid.grid().components().count(),
-        1,
-        "the click placed a gate"
-    );
-    drop(grid);
+    let grid = grid(&editor);
+    assert_eq!(grid.components().count(), 1, "the click placed a gate");
     editor.snapshot("a_number_key_picks_a_tool_and_a_click_places_a_gate");
 }

@@ -3,12 +3,13 @@ use logicgame::grid::{
     Scale,
 };
 
-use super::*;
+use crate::compiled_logic::CompiledLogic;
+use uuid::Uuid;
 
 #[test]
 fn compiling_a_grid_derives_ports_from_its_inputs_and_outputs() {
     let mut grid = Grid::new();
-                                                                          
+
     let not = grid.add_component(
         Point::new(0, 1),
         Rotation::Up,
@@ -49,6 +50,6 @@ fn compiling_a_grid_derives_ports_from_its_inputs_and_outputs() {
             (ConnectionDirection::Output, "OUT"),
         ]
     );
-                                                                        
+
     assert!(program.calls().is_empty());
 }

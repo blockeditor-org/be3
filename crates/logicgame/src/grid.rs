@@ -812,12 +812,14 @@ impl LogicGrid {
             .map(|component| (component.id, component))
             .collect();
 
-        Self {
+        let mut grid = Self {
             wires: snapshot.wires,
             components,
             next_component_id,
             revision: 0,
-        }
+        };
+        grid.normalize_wires();
+        grid
     }
 
     pub fn components(&self) -> impl Iterator<Item = &Component> {

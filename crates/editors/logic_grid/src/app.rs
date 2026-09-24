@@ -24,13 +24,17 @@ use beui::{Color32, Key, Pos2, Rect, TextAlign, Vec2};
 use block::Block;
 use block_client::root_settings::RootSetting;
 use block_client::{
-    BlockClient, BlockHandle,
+    BlockClient,
     block_ref::BlockRef,
     blocks::{
-        compiled_logic::CompiledLogic,
-        hotbar::Hotbar,
-        logic_grid::{LogicGrid, LogicGridOperation},
+        compiled_logic::CompiledLogic as CompiledBlock, hotbar::Hotbar, logic_grid::LogicGrid,
     },
+};
+use block_editor_plugin::ContentProjection;
+use block_editor_plugin::be_block::compiled_logic::CompiledLogic;
+use block_editor_plugin::be_block::logic_grid::LogicGridOperation;
+use block_editor_plugin::be_block::{
+    CompiledLogicContent, CompiledLogicDocument, LogicGridContent, ObjectId,
 };
 use logicgame::{
     challenges::{Challenge, ChallengeId, generate_challenge},
@@ -536,19 +540,78 @@ impl Selection {
     }
 }
 
+pub(super) enum GridStore {
+    Live {
+        editor: block_editor_plugin::Editor,
+        content: Rc<ContentProjection<LogicGridContent>>,
+    },
+    #[cfg(test)]
+    Local {
+        content: LogicGridContent,
+        revision: u64,
+    },
+}
+
+impl GridStore {
+    fn revision(&self) -> Option<u64> {
+        match self {
+            Self::Live { content, .. } => content.revision(),
+            #[cfg(test)]
+            Self::Local { revision, .. } => Some(*revision),
+        }
+    }
+
+    fn read<T>(&self, read: impl FnOnce(&LogicGridContent) -> T) -> Option<T> {
+        match self {
+            Self::Live { content, .. } => content.read(read),
+            #[cfg(test)]
+            Self::Local { content, .. } => Some(read(content)),
+        }
+    }
+
+    fn operate(&mut self, operations: &[LogicGridOperation]) {
+        let Some(edit) = self.read(|content| content.root().edit_for_all(operations)) else {
+            return;
+        };
+        if edit.0.is_empty() {
+            return;
+        }
+        match self {
+            Self::Live { content, .. } => content.operate(edit),
+            #[cfg(test)]
+            Self::Local { content, revision } => {
+                content.apply(&edit);
+                *revision += 1;
+            }
+        }
+    }
+
+    fn editor(&self) -> Option<&block_editor_plugin::Editor> {
+        match self {
+            Self::Live { editor, .. } => Some(editor),
+            #[cfg(test)]
+            Self::Local { .. } => None,
+        }
+    }
+}
+
+struct CompiledSource {
+    content: Rc<ContentProjection<CompiledLogicContent>>,
+    revision: Option<u64>,
+    program: Option<CompiledLogic>,
+}
+
 pub(super) struct LogicGridEditor {
-    block: BlockHandle<LogicGrid>,
+    store: GridStore,
 
     grid: Grid,
     observed_revision: Option<u64>,
 
     hotbar_block: Option<RootSetting<Hotbar>>,
 
-    hotbar_editor: Option<block_editor_plugin::Editor>,
-
     hotbar_needs_write: bool,
 
-    compiled: HashMap<Uuid, BlockHandle<CompiledLogic>>,
+    compiled: HashMap<Uuid, CompiledSource>,
     tool: Tool,
     placement_orientation: ComponentOrientation,
     camera: Camera,
@@ -569,31 +632,24 @@ pub(super) struct LogicGridEditor {
 
     io_label: String,
     compile_error: Option<String>,
-
-    #[cfg(test)]
-    test_client: Option<BlockClient>,
 }
 
 const DISPLAY_NAME: &str = "Logic Grid";
 
 impl LogicGridEditor {
-    fn with_hotbar_editor(
-        block: BlockHandle<LogicGrid>,
-        editor: block_editor_plugin::Editor,
-    ) -> Self {
-        Self {
-            hotbar_editor: Some(editor),
-            ..Self::new(block)
-        }
+    fn live(editor: &block_editor_plugin::Editor) -> Self {
+        Self::new(GridStore::Live {
+            editor: editor.clone(),
+            content: editor.block_content::<LogicGridContent>(),
+        })
     }
 
-    fn new(block: BlockHandle<LogicGrid>) -> Self {
+    fn new(store: GridStore) -> Self {
         Self {
-            block,
+            store,
             grid: Grid::new(),
             observed_revision: None,
             hotbar_block: None,
-            hotbar_editor: None,
             hotbar_needs_write: false,
             compiled: HashMap::new(),
             tool: Tool {
@@ -615,13 +671,11 @@ impl LogicGridEditor {
             confirm_hotbar_reset: false,
             io_label: String::new(),
             compile_error: None,
-            #[cfg(test)]
-            test_client: None,
         }
     }
 
     fn edit(&mut self, operation: LogicGridOperation) {
-        self.block.operate(operation);
+        self.store.operate(&[operation]);
         self.observed_revision = None;
         self.sync(None, Uuid::nil());
     }
@@ -631,7 +685,7 @@ impl LogicGridEditor {
         if operations.is_empty() {
             return;
         }
-        self.block.operate_grouped(operations);
+        self.store.operate(&operations);
         self.observed_revision = None;
         self.sync(None, Uuid::nil());
     }
@@ -670,17 +724,20 @@ impl LogicGridEditor {
     }
 
     fn sync(&mut self, client: Option<&BlockClient>, client_id: Uuid) -> bool {
-        let revision = self.block.revision();
-        if self.observed_revision == Some(revision) {
-            return self.sync_hotbar(client, client_id);
-        }
-        let Some(block) = self.block.read() else {
+        let refreshed = client.is_some() && self.refresh_compiled();
+        let Some(revision) = self.store.revision() else {
             return false;
         };
-        self.grid = block.grid().clone();
-        let challenge = block.challenge();
-        let called = block.called_blocks();
-        drop(block);
+        if self.observed_revision == Some(revision) {
+            return self.sync_hotbar(client, client_id) || refreshed;
+        }
+        let Some((grid, challenge, called)) = self.store.read(|content| {
+            let root = content.root();
+            (root.grid(), root.challenge, root.called_blocks())
+        }) else {
+            return false;
+        };
+        self.grid = grid;
         self.observed_revision = Some(revision);
 
         if self.challenge.as_ref().map(|state| state.id) != challenge {
@@ -691,9 +748,9 @@ impl LogicGridEditor {
                 passed_event: false,
             });
         }
-        if let Some(client) = client {
+        if client.is_some() {
             for compiled in called {
-                self.ensure_compiled(client, compiled);
+                self.ensure_compiled(compiled);
             }
         }
         self.sync_hotbar(client, client_id);
@@ -704,49 +761,92 @@ impl LogicGridEditor {
         self.observed_revision.is_some()
     }
 
-    fn ensure_compiled(&mut self, client: &BlockClient, compiled: Uuid) {
+    fn ensure_compiled(&mut self, compiled: Uuid) {
         if self.compiled.contains_key(&compiled) {
             return;
         }
-        let handle = client.get_block::<CompiledLogic>(compiled);
-        let calls = handle
-            .read()
-            .map(|program| program.calls().to_vec())
-            .unwrap_or_default();
-        self.compiled.insert(compiled, handle);
-        for called in calls {
-            self.ensure_compiled(client, called);
+        let Some(editor) = self.store.editor() else {
+            return;
+        };
+        let content = editor.content_of::<CompiledLogicContent>(compiled);
+        self.compiled.insert(
+            compiled,
+            CompiledSource {
+                content,
+                revision: None,
+                program: None,
+            },
+        );
+    }
+
+    fn refresh_compiled(&mut self) -> bool {
+        let mut changed = false;
+        let mut called = Vec::new();
+        for source in self.compiled.values_mut() {
+            let revision = source.content.revision();
+            if revision.is_none() || revision == source.revision {
+                continue;
+            }
+            source.revision = revision;
+            source.program = source
+                .content
+                .read(|content| content.field(ObjectId::ROOT, CompiledLogicDocument::COMPILED))
+                .flatten();
+            called.extend(
+                source
+                    .program
+                    .iter()
+                    .flat_map(|program| program.calls().to_vec()),
+            );
+            changed = true;
         }
+        for compiled in called {
+            self.ensure_compiled(compiled);
+        }
+        if changed {
+            self.simulation.snapshot = None;
+        }
+        changed
     }
 
     fn compiled_kind(&self, compiled: Uuid, name: &str) -> Option<ComponentKind> {
         self.compiled
             .get(&compiled)?
-            .read()?
+            .program
+            .as_ref()?
             .placement(compiled, name)
             .ok()
     }
 
     fn compile(&mut self, client: &BlockClient) -> Option<(Uuid, Uuid)> {
-        let compiled = self
-            .block
-            .read()
-            .map(|grid| dynamic_artifact::generate_initial(self.block.id(), &grid))?;
+        let editor = self.store.editor()?.clone();
+        let source_id = editor.block_id();
+        let compiled = dynamic_artifact::generate_initial(source_id, &self.grid);
         match compiled {
             Ok(compiled) => {
                 let child = client.create_dynamic_artifact(
-                    compiled,
-                    dynamic_artifact::descriptor(self.block.id()),
+                    CompiledBlock::new(),
+                    dynamic_artifact::descriptor(source_id),
                 );
-                let source_name = self.block.name().unwrap_or_else(|| DISPLAY_NAME.to_owned());
+                editor.seed_content(
+                    child.id(),
+                    &CompiledLogicContent::new(&CompiledLogicDocument::of(compiled.clone())),
+                );
+                let source_name = client
+                    .get_block::<LogicGrid>(source_id)
+                    .name()
+                    .unwrap_or_else(|| DISPLAY_NAME.to_owned());
                 let name = dynamic_artifact::artifact_name(&source_name);
                 child.set_name(name.clone());
                 let id = child.id();
 
-                self.compiled.insert(id, child);
+                self.ensure_compiled(id);
+                if let Some(source) = self.compiled.get_mut(&id) {
+                    source.program = Some(compiled);
+                }
                 self.pin_component(name, id);
                 self.compile_error = None;
-                Some((id, CompiledLogic::TYPE_ID))
+                Some((id, CompiledBlock::TYPE_ID))
             }
             Err(error) => {
                 self.compile_error = Some(error);
@@ -759,13 +859,12 @@ impl LogicGridEditor {
 #[cfg(test)]
 impl LogicGridEditor {
     fn detached(grid: Grid, challenge: Option<ChallengeId>) -> Self {
-        let client = BlockClient::new(Uuid::new_v4(), Uuid::new_v4());
-        let mut block = LogicGrid::from_grid(grid);
-        if let Some(challenge) = challenge {
-            block = block.with_challenge(challenge);
-        }
-        let mut editor = Self::new(client.create_block(block));
-        editor.test_client = Some(client);
+        let mut editor = Self::new(GridStore::Local {
+            content: LogicGridContent::new(
+                &block_editor_plugin::be_block::LogicGridDocument::with_grid(&grid, challenge),
+            ),
+            revision: 0,
+        });
         editor.sync(None, Uuid::nil());
         editor
     }
@@ -773,7 +872,13 @@ impl LogicGridEditor {
     fn seed<R>(&mut self, build: impl FnOnce(&mut Grid) -> R) -> R {
         let mut grid = self.grid.clone();
         let result = build(&mut grid);
-        self.block.replace(LogicGrid::from_grid(grid));
+        let challenge = self.challenge.as_ref().map(|state| state.id);
+        self.store = GridStore::Local {
+            content: LogicGridContent::new(
+                &block_editor_plugin::be_block::LogicGridDocument::with_grid(&grid, challenge),
+            ),
+            revision: self.store.revision().unwrap_or(0) + 1,
+        };
         self.observed_revision = None;
         self.sync(None, Uuid::nil());
         result

@@ -9,8 +9,9 @@ mod ui;
 
 use ui::LogicGameEditor;
 
-pub(crate) type GameBlock =
-    std::rc::Rc<block_editor_plugin::ContentProjection<block_editor_plugin::be_block::LogicGameContent>>;
+pub(crate) type GameBlock = std::rc::Rc<
+    block_editor_plugin::ContentProjection<block_editor_plugin::be_block::LogicGameContent>,
+>;
 
 pub(crate) fn operate(
     block: &GameBlock,
