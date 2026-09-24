@@ -10,10 +10,26 @@ load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 # action that uses it and is resolved wherever the action runs; an artifact is
 # written as a path relative to the repository root and is an input of the
 # action, so the worker has exactly the file this repository says it should.
+#
+# The script is run through /bin/sh by a wrapper this writes, rather than by
+# its own executable bit. A checkout on Windows has no executable bits, so the
+# file buck2 uploads from one is a plain file, and a worker refuses to run it;
+# the wrapper is buck2's own output, marked executable whatever the machine.
+# It finds the script relative to itself, as a build script's working
+# directory is its own.
 def _script_impl(ctx: AnalysisContext) -> list[Provider]:
+    wrapper = ctx.actions.declare_output(ctx.label.name)
+    ctx.actions.write(
+        wrapper,
+        [
+            "#!/bin/sh",
+            cmd_args(ctx.attrs.src, format = 'exec /bin/sh "$(dirname "$0")/{}" "$@"', relative_to = (wrapper, 1)),
+        ],
+        is_executable = True,
+    )
     return [
-        DefaultInfo(default_output = ctx.attrs.src),
-        RunInfo(args = cmd_args(ctx.attrs.src)),
+        DefaultInfo(default_output = wrapper, other_outputs = [ctx.attrs.src]),
+        RunInfo(args = cmd_args(wrapper, hidden = ctx.attrs.src)),
     ]
 
 script = rule(

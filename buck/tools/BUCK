@@ -369,13 +369,13 @@ tool(
 tool(
     name = "wasm-ld",
     command = [
-        "$(location :wasm-ld.sh)",
+        "$(exe :wasm-ld.sh)",
         "$(location :rust)/lib/rustlib/{}/bin/rust-lld".format(rust_host),
     ],
     visibility = ["PUBLIC"],
 )
 
-export_file(
+script(
     name = "wasm-ld.sh",
     src = "wasm-ld",
 )
