@@ -950,7 +950,7 @@ rustfmt() {
 # are left out, because a formatter that rewrote them would put it and the
 # check that they are current permanently at odds.
 starlark_files() {
-    find "$repository/buck" "$repository/crates" "$repository/third-party/system" \
+    find "$repository/buck" "$repository/crates" "$repository/third-party/system" "$repository/third-party/pdfium" \
         \( -name BUCK -o -name '*.bzl' -o -name '*.bxl' \) -print 2> /dev/null \
         | grep -v -e '/buck/cargo/crates\.bzl$' -e '/buck/sysroot/packages\.bzl$' | sort
 }

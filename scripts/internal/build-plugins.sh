@@ -1,29 +1,23 @@
 #!/usr/bin/env bash
 #
-# Builds every plugin and every game to WebAssembly.
+# Builds every plugin to WebAssembly through buck2, and lays each out beside its
+# manifest, named after the plugin's id: //crates/block-app:plugins.
 #
-# Neither is built for the machine the app runs on: a plugin is a WASI module
-# and a game is a wasm one, and the same bytes are what Windows, macOS, Linux,
-# Android and the browser all load. Building them once here is what keeps six
-# native builds from each compiling the same modules again, and it is the only
-# place the wasm toolchain is needed.
+# A plugin is a WASI module, and the same bytes are what Windows, macOS, Linux,
+# Android and the browser all load, so CI builds them once here and ships the
+# directory beside every platform's app.
 #
 # Usage:
-#   build-plugins.sh [--release] [--output DIRECTORY] [--wasi-sysroot DIRECTORY]
+#   build-plugins.sh [--release] [--output DIRECTORY]
 
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-wasi_sysroot=''
 profile='debug'
 output=''
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --wasi-sysroot)
-            wasi_sysroot="$2"
-            shift 2
-            ;;
         --release)
             profile='release'
             shift
@@ -39,31 +33,27 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-assert_command cargo 'Install Rust from https://rustup.rs.'
-cd "$repository"
-time_script 'The plugin build'
-
-load_plugins
-directory="$repository/target/plugins/$profile"
-build_plugin_wasm "$profile" "$directory"
-stage_plugin_manifests "$directory"
-
-# Nothing ships a game: a module reaches the app as a game module block someone
-# imports the file into. Building them is what says they still compile.
-build_games "$profile"
-
-# A manifest names its entry point and the app resolves that against the
-# directory the manifest was found in, so the two travel together or neither
-# does.
-if [[ -n "$output" ]]; then
-    step "Packaging ${#plugins[@]} plugins in $output"
-    mkdir -p "$output"
-    rm -f "$output"/*.wasm "$output"/*.plugin.json
-    cp "$directory"/*.wasm "$output/"
-    for manifest in "${plugin_manifests[@]}"; do
-        cp "$directory/$manifest" "$output/$manifest"
-    done
-    end_step
+buck_arguments=()
+if [[ "$profile" == 'release' ]]; then
+    buck_arguments+=(-c be3.profile=release)
 fi
 
-echo "Built ${#plugins[@]} plugins in $directory"
+cd "$repository"
+time_script 'The plugin build'
+output="${output:-$repository/target/plugins/$profile}"
+
+step 'Building the plugins on BuildBuddy'
+log="$(mktemp)"
+if ! "$repository/scripts/buck" build "${buck_arguments[@]}" //crates/block-app:plugins --show-full-output > "$log" 2>&1; then
+    cat "$log" >&2
+    rm -f "$log"
+    exit 1
+fi
+plugins="$(awk '$1 == "root//crates/block-app:plugins" { print $2 }' "$log")"
+rm -f "$log"
+end_step
+
+mkdir -p "$output"
+rm -f "$output"/*.wasm "$output"/*.plugin.json
+cp -f "$plugins"/* "$output/"
+echo "Built $(find "$output" -name '*.plugin.json' | wc -l) plugins in $output"

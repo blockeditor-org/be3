@@ -9,19 +9,33 @@
 # beside it.
 #
 # Usage:
-#   stage.py OUT EXECUTABLE (MANIFEST=MODULE [--artifact=CWASM])...
+#   stage.py OUT [--executable=EXECUTABLE=NAME] [--file=FILE]...
+#            (MANIFEST=MODULE [--artifact=CWASM])...
+#
+# The executable is renamed to the name cargo gives it, which buck2's does not
+# share: buck2 names a binary after its crate. A --file goes beside it as it
+# is: a library the app loads at run time, such as PDFium. With no executable
+# the directory is the plugins alone, which is what CI ships beside every
+# platform's app.
 
 import json
 import os
 import shutil
 import sys
 
-out, executable, *arguments = sys.argv[1:]
+out, *arguments = sys.argv[1:]
 
 os.makedirs(out)
-shutil.copy2(executable, os.path.join(out, os.path.basename(executable)))
 
 for argument in arguments:
+    if argument.startswith("--executable="):
+        executable, name = argument.removeprefix("--executable=").split("=", 1)
+        shutil.copy2(executable, os.path.join(out, name))
+        continue
+    if argument.startswith("--file="):
+        path = argument.removeprefix("--file=")
+        shutil.copyfile(path, os.path.join(out, os.path.basename(path)))
+        continue
     if argument.startswith("--artifact="):
         artifact = argument.removeprefix("--artifact=")
         shutil.copyfile(artifact, staged.removesuffix(".wasm") + ".cwasm")

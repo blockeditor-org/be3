@@ -50,7 +50,7 @@ if $smoke; then
     step 'Running the app in a virtual display'
     set +e
     XDG_DATA_HOME="$smoke_data" xvfb-run -a \
-        timeout --kill-after=5s 10s "$repository/target/$profile/block-app"
+        timeout --kill-after=5s 10s "$repository/target/native/x86_64-unknown-linux-gnu/$profile/block-app"
     status=$?
     set -e
     end_step
@@ -68,4 +68,4 @@ fi
 # exec leaves no trap to run, and what the total is worth knowing for is the
 # build that came before the app, so it is reported before handing over.
 report_total
-exec "$repository/target/$profile/block-app" "${application_arguments[@]}"
+exec "$repository/target/native/x86_64-unknown-linux-gnu/$profile/block-app" "${application_arguments[@]}"

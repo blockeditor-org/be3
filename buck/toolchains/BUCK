@@ -173,6 +173,12 @@ toolchain_alias(
     visibility = ["PUBLIC"],
 )
 
+# Which of Cargo's profiles the build stands in for: dev unless the command
+# says `-c be3.profile=release`.
+_profile = read_config("be3", "profile", "dev")
+
+_release = ["-Copt-level=3", "-Cdebuginfo=0"]
+
 pinned_rust_toolchain(
     name = "rust",
     # What cargo reads out of Cargo.toml's [workspace.lints]. A warning fails
@@ -207,12 +213,16 @@ pinned_rust_toolchain(
     #
     # The opt level is also what makes the prelude tell a build script what
     # OPT_LEVEL it is building for, which cc-rs and libm both ask.
+    #
+    # `-c be3.profile=release` is Cargo's release profile instead, which is
+    # what ./scripts/build --release asks for: optimised, no debug info, and on
+    # wasm the plugin-release profile, which is the same with symbols stripped.
     rustc_flags = select({
-        "DEFAULT": ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
-        "prelude//cpu:wasm32": ["-Copt-level=2", "-Cdebuginfo=0", "-Cstrip=debuginfo"],
+        "DEFAULT": _release if _profile == "release" else ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
+        "prelude//cpu:wasm32": (_release if _profile == "release" else ["-Copt-level=2", "-Cdebuginfo=0"]) + ["-Cstrip=debuginfo"],
         # Packed, macOS's default, runs dsymutil after the link, which is
         # Apple's and not something a Linux worker has.
-        "prelude//os:macos": ["-Copt-level=0", "-Cdebuginfo=line-tables-only", "-Csplit-debuginfo=unpacked"],
+        "prelude//os:macos": (_release if _profile == "release" else ["-Copt-level=0", "-Cdebuginfo=line-tables-only"]) + ["-Csplit-debuginfo=unpacked"],
     }),
     rustc_target_triple = per_cross_platform(
         "x86_64-unknown-linux-gnu",

@@ -1,20 +1,30 @@
 #!/usr/bin/env bash
+#
+# Builds the app and the server for one platform through buck2, and lays them
+# out the way they run: the executables, PDFium, and every plugin beside the
+# app. Every platform is built on BuildBuddy's Linux workers, this one's and the
+# others' alike; guides/buck2.md says how each is cross-compiled.
+#
+# The output is target/native/TRIPLE/PROFILE unless --output names another
+# directory. --no-plugins leaves the plugins out, for a build that ships beside
+# the one plugins directory every platform shares.
+#
+# Usage:
+#   build-native.sh [--triple TRIPLE] [--release] [--output DIRECTORY]
+#                   [--no-client] [--no-server] [--no-plugins]
+#                   [--sign-identity IDENTITY]
 
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-triple=''
+triple='x86_64-unknown-linux-gnu'
 profile='debug'
 output=''
 client=true
 server=true
-# The plugins and games are wasm, identical whatever the app is built for, so a
-# build that is one of several for different machines leaves them to
-# build-plugins.sh rather than compiling the same modules again.
 with_plugins=true
 sign_identity=''
-
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --triple)
@@ -52,34 +62,31 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-assert_command cargo 'Install Rust from https://rustup.rs.'
-cd "$repository"
-time_script 'The native build'
-
-host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
-target_triple="${triple:-$host_triple}"
-
-cargo_arguments=()
-artifact_directory="$repository/target"
-if [[ -n "$triple" ]]; then
-    cargo_arguments+=(--target "$triple")
-    artifact_directory+="/$triple"
-fi
-if [[ "$profile" == 'release' ]]; then
-    cargo_arguments+=(--release)
-fi
-artifact_directory+="/$profile"
+# The buck2 platform each triple is built as; buck/platforms/cross.bzl lists
+# them. The host is Linux on x86_64, and needs none.
+case "$triple" in
+    x86_64-unknown-linux-gnu) platform='' ;;
+    aarch64-unknown-linux-gnu) platform='linux_arm64' ;;
+    aarch64-apple-darwin) platform='macos_arm64' ;;
+    x86_64-apple-darwin) platform='macos_x86_64' ;;
+    aarch64-pc-windows-msvc) platform='windows_arm64' ;;
+    x86_64-pc-windows-msvc) platform='windows_x86_64' ;;
+    *)
+        echo "No buck2 platform builds $triple" >&2
+        exit 1
+        ;;
+esac
 
 extension=''
-case "$target_triple" in
+case "$triple" in
     *-windows-*) extension='.exe' ;;
 esac
 
+# A signing identity is codesign's, which only a Mac has. lld already signs a
+# macOS binary ad hoc, so an unsigned build still runs.
 if [[ -n "$sign_identity" ]]; then
-    case "$target_triple" in
-        *-apple-darwin)
-            assert_command codesign 'macOS signing requires the Xcode command-line tools.'
-            ;;
+    case "$triple" in
+        *-apple-darwin) assert_command codesign 'macOS signing requires the Xcode command-line tools.' ;;
         *)
             echo '--sign-identity is only valid for macOS targets' >&2
             exit 1
@@ -87,122 +94,66 @@ if [[ -n "$sign_identity" ]]; then
     esac
 fi
 
-sign() {
-    if [[ -n "$sign_identity" ]]; then
-        codesign --force --options runtime --sign "$sign_identity" "$1"
-    fi
-}
-
-# The app, the server and the compiler the plugins are handed to are one cargo
-# call, so cargo builds the dependencies they share once and has all three to
-# spread across the cores rather than a stretch of each in turn. Every plugin is
-# a wasm guest, built for its own target below.
-load_plugins
-selection=()
-building=()
+targets=()
 if $client; then
-    selection+=(-p block-app --bin block-app)
-    # The terminal and the embedded browser, which a default build leaves out
-    # so that a checkout compiles with nothing but cargo. What ships is a full
-    # build, and CI sets BE3_FULL for exactly that reason.
-    if full_build; then
-        selection+=(--features block-app/full)
-    fi
-    building+=('the app')
+    targets+=(//crates/block-app:app)
 fi
 if $server; then
-    selection+=(-p block-server --bin block-server)
-    building+=('the server')
+    targets+=(//crates/block-server:block-server-bin)
 fi
-if [[ ${#selection[@]} -eq 0 ]]; then
+if [[ ${#targets[@]} -eq 0 ]]; then
     echo '--no-client and --no-server together leave nothing to build' >&2
     exit 1
 fi
-# The compiler runs here rather than on the machine the app is for, so it only
-# joins this call when the two are the same machine. A cross build compiles it
-# on its own afterwards, for this machine and with every backend.
-compiler=false
-if $client && [[ -z "$triple" ]]; then
-    compiler=true
-    selection+=(-p block-wasm-host --bin precompile)
-    building+=('the plugin compiler')
+
+buck_arguments=()
+if [[ -n "$platform" ]]; then
+    buck_arguments+=(--target-platforms "root//buck/platforms:$platform")
 fi
-# Negative array subscripts need bash 4.3+, which macOS does not ship: its
-# /bin/bash is stuck on the last GPLv2 release, 3.2.
-last_index=$((${#building[@]} - 1))
-last="${building[$last_index]}"
-unset "building[$last_index]"
-description="$last"
-if [[ ${#building[@]} -ne 0 ]]; then
-    description="$(printf '%s, ' "${building[@]}")"
-    description="${description%, } and $last"
-fi
-# The terminal emulator the debug terminal window is built on is Zig, and is
-# compiled and cached for the target before cargo links it in. Only a full
-# build has a terminal to link, and only that build pays for Zig.
-if $client; then
-    ensure_ghostty_vt "$target_triple"
+if [[ "$profile" == 'release' ]]; then
+    buck_arguments+=(-c be3.profile=release)
 fi
 
-step "Building $description"
-cargo build "${cargo_arguments[@]}" "${selection[@]}"
-if $compiler; then
-    use_precompiler "$artifact_directory"
+cd "$repository"
+time_script 'The native build'
+output="${output:-$repository/target/native/$triple/$profile}"
+
+step "Building $triple ($profile) on BuildBuddy"
+log="$(mktemp)"
+if ! "$repository/scripts/buck" build "${buck_arguments[@]}" "${targets[@]}" --show-full-output > "$log" 2>&1; then
+    cat "$log" >&2
+    rm -f "$log"
+    exit 1
 fi
+built() {
+    awk -v target="$1" '$1 == target { print $2 }' "$log"
+}
 end_step
 
-executables=()
-if $server; then
-    executables+=("block-server$extension")
-fi
+step "Laying $triple out in $output"
+mkdir -p "$output"
 if $client; then
-    executables+=("block-app$extension")
-fi
-for executable in "${executables[@]}"; do
-    if [[ ! -f "$artifact_directory/$executable" ]]; then
-        echo "cargo did not produce $artifact_directory/$executable" >&2
-        exit 1
-    fi
-    sign "$artifact_directory/$executable"
-done
-
-if $client && $with_plugins; then
-    build_plugin_wasm "$profile" "$artifact_directory"
-    precompile_plugin_wasm "$artifact_directory" "$target_triple"
-    stage_plugin_manifests "$artifact_directory"
-    build_games "$profile"
-fi
-
-# PDFium is a native library the PDF plugin loads at runtime, so it belongs to
-# the machine this is built for however the modules are built.
-if $client; then
-    step "Fetching PDFium for $target_triple"
-    "$internal/fetch-pdfium.sh" --triple "$target_triple" --output "$artifact_directory"
-    end_step
-fi
-
-# Packaging is the one place files are copied: what a directory to hand over
-# holds cannot be spread across the target directory the way a local build is.
-if [[ -n "$output" ]]; then
-    step "Packaging $target_triple in $output"
-    mkdir -p "$output"
-    for executable in "${executables[@]}"; do
-        cp "$artifact_directory/$executable" "$output/$executable"
+    app="$(built root//crates/block-app:app)"
+    rm -f "$output"/*.plugin.json "$output"/*.wasm "$output"/*.cwasm
+    for file in "$app"/*; do
+        case "$file" in
+            *.plugin.json | *.wasm | *.cwasm) $with_plugins || continue ;;
+        esac
+        cp -f "$file" "$output/"
     done
-    if $client; then
-        for library in libpdfium.so libpdfium.dylib pdfium.dll; do
-            if [[ -f "$artifact_directory/$library" ]]; then
-                cp "$artifact_directory/$library" "$output/"
-            fi
-        done
-        if $with_plugins; then
-            rm -f "$output"/*.plugin.json
-            for manifest in "${plugin_manifests[@]}"; do
-                cp "$artifact_directory/$manifest" "$output/$manifest"
-            done
+fi
+if $server; then
+    cp -f "$(built root//crates/block-server:block-server-bin)" "$output/block-server$extension"
+fi
+rm -f "$log"
+end_step
+
+if [[ -n "$sign_identity" ]]; then
+    for executable in "$output/block-app" "$output/block-server"; do
+        if [[ -f "$executable" ]]; then
+            codesign --force --options runtime --sign "$sign_identity" "$executable"
         fi
-    fi
-    end_step
+    done
 fi
 
-echo "Built $target_triple in $artifact_directory"
+echo "Built $triple in $output"

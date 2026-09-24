@@ -1,6 +1,7 @@
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
+load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
 
 # The desktop app, with both of the features that are more than Rust: the
 # terminal, whose libghostty-vt crates/ghostty-vt builds on a worker, and the
@@ -34,8 +35,21 @@ cargo_binary(env = commit, srcs = app_srcs)
 app(
     name = "app",
     binary = ":block-app-bin",
+    executable_name = "block-app",
+    files = pdfium_library(),
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile = per_cross_platform(True, lambda _: False),
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+)
+
+# The plugins alone: every editor's manifest and module, for CI to ship once
+# beside every platform's app. Not precompiled, since a .cwasm is only good for
+# the machine it was compiled for.
+app(
+    name = "plugins",
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    modules = ["//{}:module".format(package) for package in editor_packages()],
+    precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
