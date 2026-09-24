@@ -31,6 +31,7 @@ const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
+const GROUP_INSET: f32 = 6.0;
 const DROP_ALPHA: u8 = 64;
 const PREVIEW_ALPHA: u8 = 235;
 
@@ -47,6 +48,7 @@ pub fn DockArea(
     view! {
         <unstyled::Dock
             state
+            group_inset=GROUP_INSET
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}
             title

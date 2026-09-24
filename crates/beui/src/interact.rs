@@ -75,14 +75,12 @@ pub(crate) fn interact(
     }
     if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
-    {
-        if let Some(captor) = doc
+        && let Some(captor) = doc
             .pointer_layers(root)
             .into_iter()
             .find_map(|layer| captor(doc, rects, layer, pos))
-        {
-            doc.capture_pointer(captor);
-        }
+    {
+        doc.capture_pointer(captor);
     }
     let wheel_target = (input.scroll != Vec2::ZERO)
         .then(|| {

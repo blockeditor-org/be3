@@ -24,7 +24,10 @@ fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
         !state.contains(TabId::new(2)),
         "the menu row over the window is the one the click reaches"
     );
-    assert!(state.windows().is_empty(), "closing its only tab closes the window");
+    assert!(
+        state.windows().is_empty(),
+        "closing its only tab closes the window"
+    );
 }
 
 fn right_click(harness: &mut Harness, dock: NodeId, title: &str) {

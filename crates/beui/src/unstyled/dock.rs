@@ -122,6 +122,7 @@ struct State {
     set_drag: WriteSignal<Option<Drag>>,
     title: Func<TabId, String>,
     thickness: f32,
+    group_inset: f32,
     rect: ReadSignal<Rect>,
     panes: RefCell<HashMap<Tree, NodeRef>>,
     windows: RefCell<HashMap<SurfaceId, NodeRef>>,
@@ -598,6 +599,7 @@ pub fn Dock(
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
+    #[prop(default = 0.0)] group_inset: f32,
     tab: RenderFn<DockTabHandle>,
     #[prop(children)] content: RenderFn<TabId>,
     panel: Option<RenderFn<DockPanelHandle>>,
@@ -622,6 +624,7 @@ pub fn Dock(
         set_drag,
         title,
         thickness: splitter_thickness,
+        group_inset,
         rect: component_rect(),
         panes: RefCell::default(),
         bars: RefCell::default(),
@@ -931,13 +934,19 @@ fn DockPanelBody(dock: Handle, leaf: LeafId) -> NodeId {
             <Dynamic value={group}>
                 {move |group: Option<GroupId>| {
                     let dock = dock.clone();
+                    let inset = dock.group_inset;
                     match group {
                         Some(group) => view! {
-                            <DockPane
-                                dock
-                                tree={Tree::Group(group)}
-                                @sizing=ItemSize::Percent(100.0)
-                            />
+                            <Frame padding_horizontal={inset} @sizing=ItemSize::Percent(100.0)>
+                                <List spacing=0.0>
+                                    <DockPane
+                                        dock
+                                        tree={Tree::Group(group)}
+                                        @sizing=ItemSize::Percent(100.0)
+                                    />
+                                    <Frame height={inset} />
+                                </List>
+                            </Frame>
                         },
                         None => view! {
                             <DockTabBody dock leaf @sizing=ItemSize::Percent(100.0) />
@@ -1300,12 +1309,15 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                             on_press={move |press: PointerPress| {
                                 let bar = pressed.over_window_bar(surface, press.pos);
                                 start.set(bar.then(|| (bar_rect.get_untracked(), press.pos)));
+                                let titled = pressed
+                                    .pane_rect(Tree::Surface(surface))
+                                    .is_some_and(|pane| press.pos.y < pane.top());
                                 pressed.edit(|state| {
                                     let inside = state
                                         .focused_leaf()
                                         .and_then(|leaf| state.surface_of(leaf))
                                         == Some(surface);
-                                    if inside {
+                                    if inside && !titled {
                                         state.raise(surface);
                                         return;
                                     }
