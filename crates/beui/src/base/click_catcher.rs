@@ -97,6 +97,14 @@ impl ClickCatcherNode {
         self.armed || self.key_active
     }
 
+    fn report_active(&mut self) {
+        let active = self.is_active();
+        if active != self.active {
+            self.active = active;
+            self.on_active_change.call(active);
+        }
+    }
+
     fn pan_drag(&mut self, input: &InteractInput, id: NodeId, contains_pointer: bool) {
         if input.middle_pressed_this_frame && contains_pointer {
             self.middle_dragged = input.pointer_pos;
@@ -213,6 +221,7 @@ impl Element for ClickCatcherNode {
             self.armed = true;
             let press = self.press(input, rect, pos);
             self.on_press.call(press);
+            self.report_active();
         }
         if contains_pointer
             && input.secondary_pressed_this_frame
@@ -256,11 +265,7 @@ impl Element for ClickCatcherNode {
                 self.on_hover_move.call(press);
             }
         }
-        let active = self.is_active();
-        if active != self.active {
-            self.active = active;
-            self.on_active_change.call(active);
-        }
+        self.report_active();
         if self.armed
             && input.pointer_down
             && (!input.touch_scrolling || captured)

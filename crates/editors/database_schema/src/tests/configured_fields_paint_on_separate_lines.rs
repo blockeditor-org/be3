@@ -1,57 +1,43 @@
 use super::*;
-use block_client::blocks::database_schema::{
-    DatabaseBlockOptions, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
-    DatabaseNumberOptions, DatabaseNumberScale, DatabaseSchemaOperation,
+use block_editor_plugin::be_block::database_schema::{
+    DatabaseBlockOptions, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
 };
 
 #[test]
 fn configured_fields_paint_on_separate_lines() {
-    let (mut editor, block) = editor();
-    let fields = [
-        DatabaseField {
-            id: Uuid::new_v4(),
-            name: "Status".into(),
-            field_type: DatabaseFieldType::Enum,
-            enum_options: vec![
-                DatabaseEnumOption {
-                    id: Uuid::new_v4(),
-                    name: "Ready".into(),
-                },
-                DatabaseEnumOption {
-                    id: Uuid::new_v4(),
-                    name: "Blocked".into(),
-                },
-            ],
-            number_options: Default::default(),
-            block_options: Default::default(),
-        },
-        DatabaseField {
-            id: Uuid::new_v4(),
-            name: "Estimate".into(),
-            field_type: DatabaseFieldType::Number,
-            enum_options: Vec::new(),
-            number_options: DatabaseNumberOptions {
+    let mut harness = editor();
+    let (status, add_status) = DatabaseSchema::add_field("Status", DatabaseFieldType::Enum);
+    let (_, add_ready) = DatabaseSchema::add_enum_option(status, "Ready");
+    let (_, add_blocked) = DatabaseSchema::add_enum_option(status, "Blocked");
+    let (estimate, add_estimate) = DatabaseSchema::add_field("Estimate", DatabaseFieldType::Number);
+    let (attachment, add_attachment) =
+        DatabaseSchema::add_field("Attachment", DatabaseFieldType::Block);
+    for edit in [
+        add_status,
+        add_ready,
+        add_blocked,
+        add_estimate,
+        DatabaseSchema::set_number_options(
+            estimate,
+            DatabaseNumberOptions {
                 minimum: Some(1.0),
                 maximum: Some(100.0),
                 step: Some(1.1),
                 scale: DatabaseNumberScale::Logarithmic,
             },
-            block_options: Default::default(),
-        },
-        DatabaseField {
-            id: Uuid::new_v4(),
-            name: "Attachment".into(),
-            field_type: DatabaseFieldType::Block,
-            enum_options: Vec::new(),
-            number_options: Default::default(),
-            block_options: DatabaseBlockOptions {
+        ),
+        add_attachment,
+        DatabaseSchema::set_block_options(
+            attachment,
+            DatabaseBlockOptions {
                 block_type: Some(Uuid::from_u128(7)),
             },
-        },
-    ];
-    for field in fields {
-        block.operate(DatabaseSchemaOperation::AddField { field });
+        ),
+    ] {
+        harness.edit::<DatabaseSchemaContent>(None, &edit);
     }
-    editor.run();
-    editor.snapshot("configured_fields_paint_on_separate_lines");
+    harness.run();
+    harness
+        .editor
+        .snapshot("configured_fields_paint_on_separate_lines");
 }

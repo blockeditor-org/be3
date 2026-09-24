@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_follower_replaces_an_image_and_the_owner_takes_it;
 mod a_follower_takes_over_and_keeps_editing_without_a_merge;
 mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
 mod a_large_image_streams_without_downloading_all_of_it;
@@ -104,6 +105,7 @@ fn image(name: &str, bytes: usize, seed: u64) -> ImageContent {
             media_type: "image/png".into(),
             width: 1920,
             height: 1080,
+            failure: None,
         },
         pseudorandom(bytes, seed),
     )

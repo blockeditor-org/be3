@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_replace_panel_goes_away_with_the_chrome() {
-    let (mut test, editor, _block) = editor();
+    let (mut test, editor) = editor();
 
     assert!(test.shown("audio.replace"));
     let with_panel = editor.content_rect();

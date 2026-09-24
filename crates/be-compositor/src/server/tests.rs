@@ -1,0 +1,11 @@
+mod a_committed_buffer_becomes_a_layer_of_its_window;
+mod a_popup_is_drawn_where_the_pointer_finds_it;
+mod a_title_reaches_the_ui;
+mod configure_sends_the_panel_size;
+mod destroying_a_toplevel_closes_its_window;
+mod frame_callbacks_wait_for_send_frames;
+mod keys_reach_the_focused_window;
+mod the_pointer_enters_the_surface_under_it;
+
+use crate::state::ServerEvent;
+use crate::test_client::*;

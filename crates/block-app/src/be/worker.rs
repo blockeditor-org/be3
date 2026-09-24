@@ -28,6 +28,16 @@ pub(super) enum Command {
         to: Uuid,
         content_type: Uuid,
     },
+    Seed {
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+    },
+    Replace {
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+    },
     Flush(std::sync::mpsc::Sender<()>),
     History {
         block: Uuid,
@@ -82,6 +92,54 @@ where
     })
 }
 
+pub(super) type Seed =
+    for<'a> fn(&'a Arc<Peer<Store>>, Uuid, Vec<u8>) -> LocalBoxFuture<'a, Result<(), ClientError>>;
+
+pub(super) fn seed<C>(
+    peer: &Arc<Peer<Store>>,
+    block: Uuid,
+    bytes: Vec<u8>,
+) -> LocalBoxFuture<'_, Result<(), ClientError>>
+where
+    C: BlockContent + Default,
+{
+    Box::pin(async move {
+        let Ok(content) = C::decode(&bytes) else {
+            return Ok(());
+        };
+        peer.ensure::<C>(block, BlockParent::Root).await?;
+        if peer.remote_head(block).await?.is_some() {
+            return Ok(());
+        }
+        peer.save(block, &content, None).await?;
+        Ok(())
+    })
+}
+
+pub(super) fn replace<C>(
+    peer: &Arc<Peer<Store>>,
+    block: Uuid,
+    bytes: Vec<u8>,
+) -> LocalBoxFuture<'_, Result<(), ClientError>>
+where
+    C: BlockContent + Default,
+{
+    Box::pin(async move {
+        let Ok(content) = C::decode(&bytes) else {
+            return Ok(());
+        };
+        peer.ensure::<C>(block, BlockParent::Root).await?;
+        let mut expected = peer.remote_head(block).await?;
+        for _ in 0..4 {
+            match peer.save(block, &content, expected).await? {
+                be_client::Saved::Rejected { head } => expected = head,
+                _ => return Ok(()),
+            }
+        }
+        Ok(())
+    })
+}
+
 pub(super) trait Session {
     fn content_type(&self) -> Uuid;
 
@@ -102,6 +160,8 @@ pub(super) trait Session {
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
+    fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn history(&self) -> History {
         History::default()
@@ -196,6 +256,20 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move { seal(&mut self.live).await })
+    }
+
+    fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move {
+            let Ok(content) = C::decode(&bytes) else {
+                return Ok(());
+            };
+            self.undo.clear();
+            self.redo.clear();
+            drain(&mut self.live, &mut self.log, None);
+            let replaced = self.live.replace(content).await;
+            drain(&mut self.live, &mut self.log, None);
+            replaced.map(|_| ())
+        })
     }
 
     fn history(&self) -> History {
@@ -328,6 +402,18 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move { seal(&mut self.live).await })
+    }
+
+    fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move {
+            let Ok(content) = C::decode(&bytes) else {
+                return Ok(());
+            };
+            drain(&mut self.live, &mut self.log, None);
+            let replaced = self.live.replace(content).await;
+            drain(&mut self.live, &mut self.log, None);
+            replaced.map(|_| ())
+        })
     }
 }
 
@@ -589,6 +675,39 @@ async fn apply(
             };
             let shown = sessions.get(&from).map(|session| session.bytes());
             if let Err(error) = copy(peer, from, to, shown).await {
+                record(shared, error);
+            }
+            false
+        }
+        Command::Replace {
+            block,
+            content_type,
+            bytes,
+        } => {
+            let outcome = match sessions.get_mut(&block) {
+                Some(session) => session.replace(bytes).await,
+                None => match super::replace_for(content_type) {
+                    Some(replace) => replace(peer, block, bytes).await,
+                    None => Ok(()),
+                },
+            };
+            if let Err(error) = outcome {
+                record(shared, error);
+            }
+            false
+        }
+        Command::Seed {
+            block,
+            content_type,
+            bytes,
+        } => {
+            if sessions.contains_key(&block) {
+                return false;
+            }
+            let Some(seed) = super::seed_for(content_type) else {
+                return false;
+            };
+            if let Err(error) = seed(peer, block, bytes).await {
                 record(shared, error);
             }
             false

@@ -6,21 +6,24 @@ fn selected_row_string_edit_updates_the_database() {
     let field_id = fixture.fields[0];
 
     fixture
-        .test
+        .harness
+        .editor
         .click(&format!("database-view.cell.0.{field_id}"));
-    fixture.test.run();
+    fixture.run();
     fixture
-        .test
+        .harness
+        .editor
         .click(&format!("database-view.selected-item.field.{field_id}"));
-    fixture.test.text("alpha");
-    fixture.test.run();
-    fixture.test.run();
+    fixture.harness.editor.text("alpha");
+    fixture.run();
+    fixture.run();
 
     assert_eq!(
-        fixture.database.read().unwrap().rows()[0].value(field_id),
+        fixture.database().rows[0].value(field_id),
         Some(&DatabaseValue::String("alpha".to_owned()))
     );
     fixture
-        .test
+        .harness
+        .editor
         .snapshot("selected_row_string_edit_updates_the_database");
 }

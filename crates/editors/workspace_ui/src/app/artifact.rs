@@ -12,11 +12,10 @@ use block_editor_plugin::beui::styled::theme::FONT_SMALL;
 use block_editor_plugin::beui::styled::{
     Body, Button, ButtonVariant, Caption, IconButton, IconSized, use_theme,
 };
-use block_editor_plugin::beui::unstyled::TabId;
 use uuid::Uuid;
 
 use super::panel::Info;
-use super::tab::{Navigation, TabItem};
+use super::tab::TabItem;
 use super::workspace::Workspace;
 
 const PADDING_HORIZONTAL: f32 = 8.0;
@@ -24,11 +23,7 @@ const PADDING_VERTICAL: f32 = 5.0;
 const SPACING: f32 = 8.0;
 
 #[component]
-pub(crate) fn ArtifactBar(
-    workspace: Rc<Workspace>,
-    tab: TabId,
-    info: ReadSignal<Option<Info>>,
-) -> NodeId {
+pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
     let shown = create_memo(clone!(info -> move || {
         info.with(|info| {
             info.as_ref()
@@ -125,7 +120,7 @@ pub(crate) fn ArtifactBar(
                                 variant=ButtonVariant::Ghost
                                 on_click={move || {
                                     if let Some(source) = open_source.get_untracked() {
-                                        opened.navigate(tab, Navigation::Open(source));
+                                        opened.open(source, None);
                                     }
                                 }}
                             />

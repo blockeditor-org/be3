@@ -455,7 +455,7 @@ impl PluginEditor {
                 false => FrameChrome::None,
             },
             content: None,
-            trail: Vec::new(),
+            top_bar: false,
         };
         let action = self.frame_ui(ui, editors, frame, rect.size(), view);
         self.take_view_changes(rect, viewport);
@@ -523,7 +523,6 @@ impl PluginEditor {
                         id,
                         block_type,
                         via,
-                        from: Some(self.block.id()),
                     })
             });
         let mut statuses = Vec::new();
@@ -625,6 +624,7 @@ impl PluginEditor {
                 ui,
                 editors,
                 child.block_id,
+                child.top_bar,
                 child.rect,
                 child.clip,
                 viewport,
@@ -775,24 +775,36 @@ impl PluginEditor {
     }
 
     pub(crate) fn add_child(&self, entry: BlockEntry) -> Option<bool> {
-        self.block.add_child(entry.id)
+        self.change_child(be_block::ChildChange::Add(entry.id))
     }
 
     pub(crate) fn delete_child(&self, entry: BlockEntry) -> Option<bool> {
-        self.block.delete_child(entry.id)
+        self.change_child(be_block::ChildChange::Delete(entry.id))
     }
 
     pub(crate) fn replace_child(&self, old: Uuid, new: BlockEntry) -> Option<bool> {
+        let replace = be_block::ChildChange::Replace { old, new: new.id };
         let Some(plugin) = &self.plugin else {
-            return self.block.replace_child(old, new.id);
+            return self.change_child(replace);
         };
         if !plugin.children.replace {
             return None;
         }
         match crate::plugin_host::replace_child(&plugin.identity.id, self.instance, old, new.id) {
             Some(true) => Some(true),
-            Some(false) => self.block.replace_child(old, new.id),
+            Some(false) => self.change_child(replace),
             None => None,
+        }
+    }
+
+    fn change_child(&self, change: be_block::ChildChange) -> Option<bool> {
+        if crate::be::content_type_for(self.block_type()).is_some() {
+            return crate::be::change_child(self.id(), self.block_type(), change);
+        }
+        match change {
+            be_block::ChildChange::Add(child) => self.block.add_child(child),
+            be_block::ChildChange::Delete(child) => self.block.delete_child(child),
+            be_block::ChildChange::Replace { old, new } => self.block.replace_child(old, new),
         }
     }
 
@@ -898,24 +910,11 @@ impl PluginEditor {
         self.plugin.is_some()
     }
 
-    pub(crate) fn show_block(
-        &self,
-        id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
-        from: Option<Uuid>,
-    ) {
+    pub(crate) fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         let Some(plugin) = &self.plugin else {
             return;
         };
-        crate::plugin_host::show_block(
-            &plugin.identity.id,
-            self.instance,
-            id,
-            block_type,
-            via,
-            from,
-        );
+        crate::plugin_host::show_block(&plugin.identity.id, self.instance, id, block_type, via);
     }
 
     pub(crate) fn take_focus_report(&self) -> Option<FocusReport> {
@@ -998,7 +997,7 @@ impl PluginEditor {
                     height: content.height(),
                 }
             }),
-            trail: slot.trail.clone(),
+            top_bar: slot.top_bar,
         };
         let action = self.frame_ui(ui, editors, frame, rect.size(), view);
         self.take_view_changes(rect, viewport);

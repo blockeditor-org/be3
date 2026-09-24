@@ -10,7 +10,7 @@ fn pressing_an_arrow_key_stores_a_new_zoom() {
     settings.editor.key_press(Key::ArrowRight);
     settings.run();
 
-    assert!(settings.content.zoom() > 1.0);
+    assert!(settings.content.root().zoom() > 1.0);
     settings
         .editor
         .snapshot("pressing_an_arrow_key_stores_a_new_zoom");

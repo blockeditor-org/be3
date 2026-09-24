@@ -41,6 +41,8 @@ impl BlockHandleAccess for UnsupportedBlock {
 
     fn set_parent(&self, _parent: BlockParent) {}
 
+    fn set_name(&self, _name: Option<String>) {}
+
     fn history(&self) -> Option<&dyn BlockHistoryHandle> {
         None
     }

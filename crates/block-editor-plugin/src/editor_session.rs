@@ -13,7 +13,8 @@ use block_ui::BlockCatalog;
 use std::{collections::HashMap, marker::PhantomData, rc::Rc, sync::Arc};
 use uuid::Uuid;
 
-use crate::{EditorHost, Waker, beui_frame, beui_frame::BeuiFrame, host::BlockDrag};
+use crate::beui_frame::{BeuiFrame, FrameBar};
+use crate::{EditorHost, Waker, beui_frame, host::BlockDrag};
 
 const WHEEL_LINE: f32 = 40.0;
 const WHEEL_PAGE: f32 = 400.0;
@@ -25,6 +26,7 @@ pub(crate) struct EditorSession {
     regions: HashMap<EditorRegion, RegionState>,
     host: EditorHost,
     block: Option<(Arc<BlockClient>, Uuid)>,
+    own_block: Option<Uuid>,
     drag: Option<(EditorRegion, BlockDrag)>,
     files: Option<(EditorRegion, crate::host::FileDrop)>,
     intrinsic: Option<beui::Vec2>,
@@ -118,6 +120,7 @@ struct RegionState {
 }
 
 trait AppUi {
+    fn editor(&self) -> Option<crate::Editor>;
     fn view(&mut self) -> beui::NodeId;
     fn update(&mut self);
     fn after_layout(&mut self, document: &beui::Document);
@@ -170,6 +173,10 @@ impl<A: crate::BeuiApp> BeuiHolder<A> {
 }
 
 impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
+    fn editor(&self) -> Option<crate::Editor> {
+        self.editor.clone()
+    }
+
     fn view(&mut self) -> beui::NodeId {
         let editor = self
             .editor
@@ -330,6 +337,7 @@ impl EditorSession {
             regions: HashMap::new(),
             host: EditorHost::new(waker),
             block: None,
+            own_block: None,
             drag: None,
             files: None,
             intrinsic: None,
@@ -361,26 +369,34 @@ impl EditorSession {
         self.host.set_editable(editable);
     }
 
-    pub(crate) fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        self.host.set_block_content(content_type, bytes, applied);
+    pub(crate) fn set_block_content(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        applied: u64,
+    ) {
+        match self.own_block == Some(block) {
+            true => self.host.set_block_content(content_type, bytes, applied),
+            false => self
+                .host
+                .set_content_of(block, content_type, bytes, applied),
+        }
     }
 
-    pub(crate) fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
-        self.host.push_content_operations(operations);
+    pub(crate) fn push_content_operations(&self, block: Uuid, operations: Vec<(Vec<u8>, bool)>) {
+        match self.own_block == Some(block) {
+            true => self.host.push_content_operations(operations),
+            false => self.host.push_content_operations_of(block, operations),
+        }
     }
 
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
         self.host.set_focused_block(focused);
     }
 
-    pub(crate) fn show_block(
-        &self,
-        block_id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
-        from: Option<Uuid>,
-    ) {
-        self.host.show_block(block_id, block_type, via, from);
+    pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+        self.host.show_block(block_id, block_type, via);
     }
 
     pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
@@ -453,6 +469,8 @@ impl EditorSession {
     }
 
     pub(crate) fn connect(&mut self, client: Arc<BlockClient>, block_id: Uuid, block_type: Uuid) {
+        self.host.set_block_type(block_type);
+        self.own_block = Some(block_id);
         if block_client::blocks::watch(&client, block_id, block_type) {
             self.block = Some((Arc::clone(&client), block_id));
         }
@@ -554,10 +572,26 @@ impl EditorSession {
                 area,
             }));
         }
-        for operation in self.host.take_content_operations() {
+        for (block, operation) in self.host.take_all_content_operations() {
+            let Some(block) = block.or(self.own_block) else {
+                continue;
+            };
             messages.push(Message::Editor(EditorMessage::Operate {
                 instance,
+                block_id: block.into_bytes(),
                 operation,
+            }));
+        }
+        if let Some(watched) = self.host.take_content_watch() {
+            messages.push(Message::Editor(EditorMessage::WatchContent {
+                instance,
+                blocks: watched
+                    .into_iter()
+                    .map(|(block, content_type)| block_plugin_api::WatchedContent {
+                        block_id: block.into_bytes(),
+                        content_type: content_type.into_bytes(),
+                    })
+                    .collect(),
             }));
         }
         if let Some(accepted) = self.host.take_drag_accepted() {
@@ -622,6 +656,27 @@ impl EditorSession {
         }
         if std::mem::take(&mut self.leaving) {
             messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
+        }
+        for seeded in self.host.take_seeded_content() {
+            let (block_id, content_type, bytes) = (
+                seeded.block.into_bytes(),
+                seeded.content_type.into_bytes(),
+                seeded.bytes,
+            );
+            messages.push(Message::Editor(match seeded.replace {
+                true => EditorMessage::ReplaceContent {
+                    instance,
+                    block_id,
+                    content_type,
+                    bytes,
+                },
+                false => EditorMessage::SeedContent {
+                    instance,
+                    block_id,
+                    content_type,
+                    bytes,
+                },
+            }));
         }
         if let Some(outcome) = self.created.take() {
             messages.push(Message::Editor(EditorMessage::CreationBlock {
@@ -926,7 +981,10 @@ impl EditorSession {
         let frame = scaled(host, ratio);
         let drawn = spec.chrome == FrameChrome::Drawn;
         if region == EditorRegion::Frame && !creating && state.chrome.is_none() {
-            state.chrome = Some(BeuiFrame::build(|| app.view()));
+            let editor = app
+                .editor()
+                .expect("connect is called before the view is built");
+            state.chrome = Some(BeuiFrame::build(&editor, || app.view()));
         }
         let mut exit = false;
         let mut content_rect = None;
@@ -939,12 +997,13 @@ impl EditorSession {
                     .chrome
                     .as_mut()
                     .expect("the frame chrome was just built");
-                let set_trail = chrome.set_trail();
-                let set_shown = chrome.set_shown();
-                let trail = spec.trail.clone();
+                let set_bar = chrome.set_bar();
+                let bar = FrameBar {
+                    shown: drawn && (spec.top_bar || spec.content.is_some()),
+                    closable: spec.content.is_some(),
+                };
                 beui::reactive::with_reactive_scope(chrome.document_mut(), || {
-                    set_trail.set(trail);
-                    set_shown.set(drawn);
+                    set_bar.set(bar);
                     app.update();
                 });
                 chrome.document_mut().show(context, frame);

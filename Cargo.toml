@@ -3,6 +3,7 @@ members = [
     "crates/be-block",
     "crates/be-client",
     "crates/be-commit",
+    "crates/be-compositor",
     "crates/be-graph",
     "crates/be-model",
     "crates/be-model-derive",

@@ -65,7 +65,7 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
             frame: Some(FrameSpec {
                 chrome: FrameChrome::Drawn,
                 content: None,
-                trail: Vec::new(),
+                top_bar: false,
             }),
             ..Default::default()
         },

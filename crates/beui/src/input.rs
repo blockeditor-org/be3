@@ -220,6 +220,10 @@ pub enum Event {
     PointerMotion(Vec2),
     PointerMoved(Pos2),
     Scroll(Vec2),
+    PhysicalKey {
+        code: u32,
+        pressed: bool,
+    },
     Text(String),
     Touch {
         id: TouchId,

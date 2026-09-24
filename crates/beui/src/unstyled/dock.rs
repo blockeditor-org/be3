@@ -31,7 +31,7 @@ pub use state::{
     DockDrop, DockLayout, DockSplitter, DockState, LeafId, Side, SplitId, SurfaceId, TabId,
     TabPosition, layout_surface,
 };
-use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_at};
+use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
 
 pub const SPLITTER_THICKNESS: f32 = 6.0;
 const EDGE_ZONE: f32 = 0.22;
@@ -950,6 +950,9 @@ fn DockSplitterView(dock: Handle, surface: SurfaceId, split: SplitId) -> NodeId 
         active: active.clone(),
         focused: focused.clone(),
     });
+    let held: Rc<Cell<Option<(f32, Pos2)>>> = Rc::new(Cell::new(None));
+    let grabbed = held.clone();
+    let start = fraction.clone();
     let dragged = dock.clone();
     let stepped = dock.clone();
     view! {
@@ -978,15 +981,26 @@ fn DockSplitterView(dock: Handle, surface: SurfaceId, split: SplitId) -> NodeId 
                 }}
                 on_hover_change={move |over: bool| set_hovered.set(over)}
                 on_active_change={move |held: bool| set_active.set(held)}
+                on_press={move |press: PointerPress| {
+                    grabbed.set(Some((start.get_untracked(), press.pos)));
+                }}
                 on_drag={move |press: PointerPress| {
+                    let Some((start, from)) = held.get() else {
+                        return;
+                    };
+                    let moved = direction.main(press.pos - from);
+                    if moved == 0.0 {
+                        return;
+                    }
                     let Some(splitter) = dragged.splitter_of(surface, split) else {
                         return;
                     };
-                    let fraction = fraction_at(
+                    let fraction = fraction_moved(
                         splitter.area,
                         splitter.direction,
-                        press.pos,
                         dragged.thickness,
+                        start,
+                        moved,
                     );
                     dragged.edit(|state| state.set_split_fraction(split, fraction));
                 }}

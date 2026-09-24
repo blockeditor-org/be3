@@ -234,6 +234,10 @@ pub trait Block: Clone + Serialize + DeserializeOwned + Send + Sync + 'static {
         self.references()
     }
 
+    fn bridged_references(_references: Vec<Uuid>) -> Option<Self::Operation> {
+        None
+    }
+
     fn add_child(&self, _block_id: Uuid) -> Option<Vec<Self::Operation>> {
         None
     }

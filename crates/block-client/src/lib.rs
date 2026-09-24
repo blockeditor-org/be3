@@ -1153,6 +1153,17 @@ impl BlockClient {
         });
     }
 
+    pub fn clear_block_name(&self, id: Uuid) {
+        self.send(WorkerCommand::SetBlockProperty {
+            id,
+            key: properties::NAME,
+            value: properties::encode_name(&properties::BlockName {
+                manual: false,
+                value: String::new(),
+            }),
+        });
+    }
+
     pub fn set_block_parent(&self, id: Uuid, parent: BlockParent) {
         self.send(WorkerCommand::SetBlockParent { id, parent });
     }
@@ -1501,6 +1512,14 @@ impl<B: Block> BlockHandle<B> {
         self.set_property(properties::NAME, properties::encode_name(&name));
     }
 
+    pub fn clear_name(&self) {
+        let name = properties::BlockName {
+            manual: false,
+            value: String::new(),
+        };
+        self.set_property(properties::NAME, properties::encode_name(&name));
+    }
+
     pub fn properties(&self) -> BTreeMap<Uuid, Vec<u8>> {
         self.block.properties.read().clone()
     }
@@ -1570,8 +1589,13 @@ pub trait BlockHandleAccess {
     fn block_name(&self) -> Option<properties::BlockName>;
     fn relationships(&self) -> Option<BlockRelationships>;
     fn set_parent(&self, parent: BlockParent);
+    fn set_name(&self, name: Option<String>);
 
     fn set_implicit_name(&self, _name: Option<String>) -> bool {
+        true
+    }
+
+    fn set_references(&self, _references: Vec<Uuid>) -> bool {
         true
     }
 
@@ -1627,8 +1651,28 @@ impl<B: Block> BlockHandleAccess for BlockHandle<B> {
         BlockHandle::set_parent(self, parent);
     }
 
+    fn set_name(&self, name: Option<String>) {
+        match name {
+            Some(name) => BlockHandle::set_name(self, name),
+            None => BlockHandle::clear_name(self),
+        }
+    }
+
     fn set_implicit_name(&self, name: Option<String>) -> bool {
         BlockHandle::set_implicit_name(self, name)
+    }
+
+    fn set_references(&self, references: Vec<Uuid>) -> bool {
+        let Some(current) = self.read().map(|value| value.references()) else {
+            return false;
+        };
+        let references = normalized_references(references);
+        if normalized_references(current) != references
+            && let Some(operation) = B::bridged_references(references)
+        {
+            self.operate(operation);
+        }
+        true
     }
 
     fn add_child(&self, block_id: Uuid) -> Option<bool> {

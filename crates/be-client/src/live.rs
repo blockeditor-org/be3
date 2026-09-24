@@ -289,6 +289,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
                 Ok(())
             }
+            SessionMessage::Replaced { head } => self.adopt_replacement(head).await,
             SessionMessage::Sealed {
                 head,
                 sequence,
@@ -420,6 +421,56 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         let granted = state.is_owner(self.client);
         self.adopt(state).await?;
         Ok(granted)
+    }
+
+    pub async fn replace(&mut self, content: C) -> Result<bool, ClientError> {
+        let mut expected = self.base;
+        for _ in 0..4 {
+            match self.peer.save(self.block, &content, expected).await? {
+                Saved::Published(head) | Saved::Unchanged(head) => {
+                    if self.is_owner() {
+                        self.confirmed = content;
+                        self.replace_visible(self.confirmed.clone());
+                        self.reload = true;
+                        self.settle_at(head).await?;
+                    } else {
+                        self.replace_visible(content);
+                        let owner = self.state.owner;
+                        self.send(owner, &SessionMessage::Replaced { head }).await?;
+                    }
+                    return Ok(true);
+                }
+                Saved::Rejected { head } => expected = head,
+            }
+        }
+        Ok(false)
+    }
+
+    async fn adopt_replacement(&mut self, head: CommitId) -> Result<(), ClientError> {
+        let Role::Owner(sequencer) = &self.role else {
+            return Ok(());
+        };
+        if self.base == Some(head) {
+            return Ok(());
+        }
+        let unsealed: Vec<C::Op> = sequencer
+            .since(0)
+            .iter()
+            .filter_map(|op| C::decode_operation(&op.payload).ok())
+            .collect();
+        let mut replaced = self.peer.open_commit::<C>(head).await?;
+        for operation in &unsealed {
+            replaced.apply(operation);
+        }
+        self.confirmed = replaced;
+        self.replace_visible(self.confirmed.clone());
+        self.base = Some(head);
+        self.reload = true;
+        if unsealed.is_empty() {
+            self.settle_at(head).await
+        } else {
+            self.seal().await.map(|_| ())
+        }
     }
 
     pub async fn seal(&mut self) -> Result<Saved, ClientError> {

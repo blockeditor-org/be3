@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::audio::{Audio, AudioOperation};
+use block_editor_plugin::be_block::AudioContent;
 use block_editor_plugin::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW};
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, NodeRef, Show, Spacer, clone, component, create_memo,
@@ -20,8 +20,8 @@ const ICON_SIZE: f32 = 48.0;
 
 #[component]
 pub fn AudioView(editor: Editor) -> NodeId {
-    let audio = editor.block::<Audio>();
-    let source = audio.project(|audio| audio.source_name().to_owned());
+    let audio = editor.block_content::<AudioContent>();
+    let source = audio.project(|audio| audio.header().source_name.clone());
     let (status, set_status) = create_signal(AudioStatus::default());
     let host = editor.host().clone();
     let waker = editor.host().waker();
@@ -115,7 +115,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
 
 #[component]
 fn AudioPanel(editor: Editor) -> NodeId {
-    let audio = editor.block::<Audio>();
+    let replacing = editor.clone();
     let chooser = FileChooser::new(filter(), decode);
     let polled = Rc::clone(&chooser);
     let host = editor.host().clone();
@@ -123,7 +123,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
     editor.each_frame(move || {
         polled.poll(&host);
         if let Some(replacement) = polled.take() {
-            audio.operate(AudioOperation::Replace { audio: replacement });
+            replacing.replace_content(block, &replacement);
             host.reset_audio(block);
         }
     });

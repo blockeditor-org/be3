@@ -1,0 +1,20 @@
+[package]
+name = "be-compositor"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui" }
+bytemuck = { version = "1", features = ["derive"] }
+rustix = { version = "1", features = ["event"] }
+smithay = { version = "0.7", default-features = false, features = ["desktop", "wayland_frontend"] }
+wgpu = { version = "29", default-features = false }
+
+[dev-dependencies]
+rustix = { version = "1", features = ["event", "fs"] }
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client"] }
+
+[lints]
+workspace = true

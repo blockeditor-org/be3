@@ -4,7 +4,7 @@ use super::*;
 fn an_open_menu_is_withheld_from_the_block_under_it() {
     let (mut fixture, opened) = editor();
 
-    show(&mut fixture, opened, None, None);
+    show(&mut fixture, opened, None);
     assert!(
         fixture.test.occluders().is_empty(),
         "a workspace with no menu open withholds nothing from the block it shows"

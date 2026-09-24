@@ -36,6 +36,8 @@ pub struct HostContent {
     pub applied: u64,
 }
 
+type ContentOperation = (Option<Uuid>, Vec<u8>);
+
 #[derive(Clone)]
 pub enum ContentUpdate {
     Snapshot(HostContent),
@@ -56,7 +58,6 @@ pub struct ShowRequest {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub via: Option<Uuid>,
-    pub from: Option<Uuid>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -428,6 +429,7 @@ pub struct EditorHost {
     replies: Rc<RefCell<HashMap<u64, HostReply>>>,
     next_request: Rc<Cell<u64>>,
     editable: Rc<Cell<bool>>,
+    block_type: Rc<Cell<Option<Uuid>>>,
     client_id: Rc<Cell<Uuid>>,
     view: Rc<Cell<Option<View>>>,
     view_changes: Rc<RefCell<Vec<ViewChange>>>,
@@ -449,8 +451,20 @@ pub struct EditorHost {
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     beui: Rc<Cell<BeuiFrame>>,
     next_frame: Rc<Cell<Option<Duration>>>,
-    content_updates: Rc<RefCell<Vec<ContentUpdate>>>,
-    content_operations: Rc<RefCell<Vec<Vec<u8>>>>,
+    content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
+    content_operations: Rc<RefCell<Vec<ContentOperation>>>,
+    watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
+    seeded: Rc<RefCell<Vec<SeededContent>>>,
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SeededContent {
+    pub block: Uuid,
+    pub content_type: Uuid,
+    pub bytes: Vec<u8>,
+    pub replace: bool,
 }
 
 impl EditorHost {
@@ -493,18 +507,11 @@ impl EditorHost {
         std::mem::take(&mut self.shows.borrow_mut())
     }
 
-    pub fn show_block(
-        &self,
-        block_id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
-        from: Option<Uuid>,
-    ) {
+    pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.shows.borrow_mut().push(ShowRequest {
             block_id,
             block_type,
             via,
-            from,
         });
     }
 
@@ -722,32 +729,136 @@ impl EditorHost {
         self.editable.get()
     }
 
+    pub fn block_type(&self) -> Option<Uuid> {
+        self.block_type.get()
+    }
+
+    pub fn set_block_type(&self, block_type: Uuid) {
+        self.block_type.set(Some(block_type));
+    }
+
     pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        self.content_updates
-            .borrow_mut()
-            .push(ContentUpdate::Snapshot(HostContent {
+        self.update_content(
+            None,
+            ContentUpdate::Snapshot(HostContent {
                 content_type,
                 bytes,
                 applied,
-            }));
+            }),
+        );
+    }
+
+    pub fn set_content_of(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
+        self.update_content(
+            Some(block),
+            ContentUpdate::Snapshot(HostContent {
+                content_type,
+                bytes,
+                applied,
+            }),
+        );
     }
 
     pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
-        self.content_updates
-            .borrow_mut()
-            .push(ContentUpdate::Operations(operations));
+        self.update_content(None, ContentUpdate::Operations(operations));
     }
 
-    pub(crate) fn take_content_updates(&self) -> Vec<ContentUpdate> {
-        std::mem::take(&mut self.content_updates.borrow_mut())
+    pub fn push_content_operations_of(&self, block: Uuid, operations: Vec<(Vec<u8>, bool)>) {
+        self.update_content(Some(block), ContentUpdate::Operations(operations));
+    }
+
+    fn update_content(&self, block: Option<Uuid>, update: ContentUpdate) {
+        self.content_updates
+            .borrow_mut()
+            .entry(block)
+            .or_default()
+            .push(update);
+    }
+
+    pub(crate) fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
+        self.content_updates
+            .borrow_mut()
+            .remove(&block)
+            .unwrap_or_default()
     }
 
     pub fn operate_content(&self, operation: Vec<u8>) {
-        self.content_operations.borrow_mut().push(operation);
+        self.operate_content_at(None, operation);
+    }
+
+    pub(crate) fn operate_content_at(&self, block: Option<Uuid>, operation: Vec<u8>) {
+        self.content_operations
+            .borrow_mut()
+            .push((block, operation));
     }
 
     pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
+        self.take_operations_where(None)
+    }
+
+    pub fn take_content_operations_of(&self, block: Uuid) -> Vec<Vec<u8>> {
+        self.take_operations_where(Some(block))
+    }
+
+    fn take_operations_where(&self, block: Option<Uuid>) -> Vec<Vec<u8>> {
+        let mut held = self.content_operations.borrow_mut();
+        let (taken, kept) = std::mem::take(&mut *held)
+            .into_iter()
+            .partition::<Vec<_>, _>(|(target, _)| *target == block);
+        *held = kept;
+        taken.into_iter().map(|(_, operation)| operation).collect()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_all_content_operations(&self) -> Vec<(Option<Uuid>, Vec<u8>)> {
         std::mem::take(&mut self.content_operations.borrow_mut())
+    }
+
+    pub(crate) fn watch_content(&self, block: Uuid, content_type: Uuid) {
+        self.watched_content
+            .borrow_mut()
+            .insert(block, content_type);
+    }
+
+    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.write_content(block, content, false);
+    }
+
+    pub fn replace_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+        self.write_content(block, content, true);
+    }
+
+    fn write_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C, replace: bool) {
+        self.seeded.borrow_mut().push(SeededContent {
+            block,
+            content_type: C::CONTENT_TYPE,
+            bytes: content.encode(),
+            replace,
+        });
+        self.waker.wake();
+    }
+
+    pub fn take_seeded_content(&self) -> Vec<SeededContent> {
+        std::mem::take(&mut self.seeded.borrow_mut())
+    }
+
+    pub fn watched_content(&self) -> Vec<(Uuid, Uuid)> {
+        self.watched_content
+            .borrow()
+            .iter()
+            .map(|(block, content_type)| (*block, *content_type))
+            .collect()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_content_watch(&self) -> Option<Vec<(Uuid, Uuid)>> {
+        let watched = self.watched_content.borrow().clone();
+        let mut reported = self.reported_content.borrow_mut();
+        if reported.as_ref() == Some(&watched) {
+            return None;
+        }
+        *reported = Some(watched.clone());
+        Some(watched.into_iter().collect())
     }
 
     pub fn client_id(&self) -> Uuid {
@@ -1036,6 +1147,7 @@ impl EditorHost {
         mode: ChildMode,
         layer: ChildLayer,
         own_frame: bool,
+        top_bar: bool,
         rotation: f32,
         opacity: f32,
         intrinsic: Option<beui::Vec2>,
@@ -1053,6 +1165,7 @@ impl EditorHost {
             rect: child_rect(rect.translate(-state.origin)),
             clip: child_rect(clip.translate(-state.origin)),
             own_frame,
+            top_bar,
             corner_radius: 0.0,
             layer,
             mode,

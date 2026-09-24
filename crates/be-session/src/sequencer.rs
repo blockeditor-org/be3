@@ -40,6 +40,9 @@ pub enum SessionMessage {
         sequence: u64,
         reload: bool,
     },
+    Replaced {
+        head: CommitId,
+    },
 }
 
 #[derive(Clone, Debug, Default)]

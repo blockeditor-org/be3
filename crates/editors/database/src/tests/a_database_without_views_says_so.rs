@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_database_without_views_says_so() {
-    let (mut editor, _client, _block, _handle) = editor();
+    let (mut harness, _editor) = editor();
 
-    editor.snapshot("a_database_without_views_says_so");
+    harness.editor.snapshot("a_database_without_views_says_so");
 }

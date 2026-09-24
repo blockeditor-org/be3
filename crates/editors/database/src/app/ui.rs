@@ -1,8 +1,9 @@
 use block::{Block, BlockReference, BlockReferenceList};
-use block_client::block_ref::BlockRef;
-use block_client::blocks::database::Database;
 use block_client::blocks::database_schema::DatabaseSchema;
 use block_client::blocks::database_view::DatabaseView;
+use block_editor_plugin::be_block::BlockRef;
+use block_editor_plugin::be_block::database::DatabaseContent;
+use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_plugin::beui::reactive::{
     Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone, component,
     create_effect, create_memo, create_signal, view,
@@ -22,11 +23,11 @@ const CHROME_HEIGHT: f32 = 90.0;
 
 #[component]
 pub fn DatabaseEditor(editor: Editor) -> NodeId {
-    let database = editor.block::<Database>();
+    let database = editor.block_content::<DatabaseContent>();
     let views = watch_views(&editor);
     let loaded = views.loaded.clone();
     let rows = views.rows.clone();
-    let reference = database.project(|database| Some(database.schema_id()));
+    let reference = database.project(|database| database.root().schema);
     let own_id = editor.block_id();
     let schema = editor.resolve(create_memo(move || Some(own_id)), reference);
 
@@ -42,8 +43,13 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
     let client = editor.client().clone();
     let block_id = editor.block_id();
+    let seeding = editor.clone();
     let new_view = move || {
-        client.create_block(DatabaseView::new(BlockRef::Direct(block_id)));
+        let view = client.create_block(DatabaseView::with_references(vec![block_id]));
+        seeding.seed_content(
+            view.id(),
+            &DatabaseViewContent::new(&database_view::DatabaseView::of(BlockRef::Direct(block_id))),
+        );
     };
 
     let chrome = editor.chrome_shown();
