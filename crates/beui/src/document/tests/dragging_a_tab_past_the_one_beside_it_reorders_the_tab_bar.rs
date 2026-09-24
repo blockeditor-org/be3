@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{Entry, TabId, dock_state};
 
 #[test]
 fn dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar() {
@@ -15,8 +15,8 @@ fn dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar() {
     let state = dock_state(harness.document(), dock);
     let leaf = state.leaves(state.main())[0];
     assert_eq!(
-        state.tabs(leaf),
-        vec![TabId::new(2), TabId::new(1)],
+        state.entries(leaf),
+        vec![Entry::Tab(TabId::new(2)), Entry::Tab(TabId::new(1))],
         "a tab dropped past the one beside it takes the place after it"
     );
     assert_eq!(

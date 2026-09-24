@@ -679,13 +679,7 @@ impl Document {
                         paint::paint(self, &ctx.painter(), &self.rects, root);
                     }
                     ctx.flush_top();
-                    let overlays: Vec<NodeId> = self
-                        .overlay_stack
-                        .iter()
-                        .chain(self.passive_overlays.iter())
-                        .copied()
-                        .collect();
-                    for overlay in overlays {
+                    for overlay in self.overlays_bottom_up() {
                         if let Some(content) = self.overlay_content(overlay)
                             && self.rects.contains_key(&content)
                         {

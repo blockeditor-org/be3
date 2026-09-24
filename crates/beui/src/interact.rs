@@ -75,24 +75,12 @@ pub(crate) fn interact(
     }
     if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
-    {
-        let under: Vec<NodeId> = if doc.overlay_stack.is_empty() {
-            vec![root]
-        } else {
-            doc.overlay_stack.iter().rev().copied().collect()
-        };
-        let layers: Vec<NodeId> = doc
-            .floating_overlays()
-            .into_iter()
-            .rev()
-            .chain(under)
-            .collect();
-        if let Some(captor) = layers
+        && let Some(captor) = doc
+            .pointer_layers(root)
             .into_iter()
             .find_map(|layer| captor(doc, rects, layer, pos))
-        {
-            doc.capture_pointer(captor);
-        }
+    {
+        doc.capture_pointer(captor);
     }
     let wheel_target = (input.scroll != Vec2::ZERO)
         .then(|| {
@@ -193,8 +181,9 @@ pub(crate) fn interact(
             })
         })
         .collect();
+    let modal = doc.modal_open();
     for (content, shadowed) in floating.into_iter().zip(shadowed) {
-        let above = match shadowed {
+        let above = match shadowed || modal {
             false => input,
             true => InteractInput {
                 pointer_pos: None,
@@ -396,14 +385,8 @@ fn target(
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
 ) -> Option<NodeId> {
     let pos = pos?;
-    let under: Vec<NodeId> = match doc.overlay_stack.is_empty() {
-        true => vec![root],
-        false => doc.overlay_stack.iter().rev().copied().collect(),
-    };
-    doc.floating_overlays()
+    doc.pointer_layers(root)
         .into_iter()
-        .rev()
-        .chain(under)
         .find_map(|layer| match layer == root {
             true => deepest(doc, rects, root, pos, wants),
             false => doc
