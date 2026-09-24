@@ -107,6 +107,11 @@ def editor(name, module, visibility = ["PUBLIC"]):
         module = module,
         visibility = visibility,
     )
+    native.export_file(
+        name = "manifest",
+        src = "manifest.json",
+        visibility = visibility,
+    )
     plugin_tests(
         exports = _plugin_exports,
         srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),

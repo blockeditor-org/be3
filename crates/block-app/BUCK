@@ -1,4 +1,6 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
+load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 
 # The desktop app, with both of the features that are more than Rust: the
 # terminal, whose libghostty-vt crates/ghostty-vt builds on a worker, and the
@@ -26,3 +28,14 @@ cargo_test(
 )
 
 cargo_binary(env = commit, srcs = app_srcs)
+
+# The app with every plugin beside it, which is what ./scripts/build lays out
+# and what `./scripts/buck run //crates/block-app:app` runs. buck/app says how.
+app(
+    name = "app",
+    binary = ":block-app-bin",
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    modules = ["//{}:module".format(package) for package in editor_packages()],
+    precompile = per_cross_platform(True, lambda _: False),
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+)

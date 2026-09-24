@@ -1,0 +1,4 @@
+export_file(
+    name = "stage.py",
+    visibility = ["PUBLIC"],
+)

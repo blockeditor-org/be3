@@ -146,3 +146,8 @@ def cargo_wasm_facts():
         test_deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"]),
         test_features = _per_platform(crate, lambda entry: entry["test_features"]),
     )
+
+# Every editor's package, which is every workspace crate under crates/editors:
+# what the app stages as its plugins.
+def editor_packages():
+    return sorted([package for package in crates if package.startswith("crates/editors/")])

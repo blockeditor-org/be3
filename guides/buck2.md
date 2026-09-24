@@ -383,6 +383,28 @@ That replaces the build script under cargo, which shells out to a second cargo
 build for wasm32 and prints the path it wrote to. The plugin tests will want the
 same rule.
 
+## The app
+
+```
+./scripts/buck run //crates/block-app:app
+```
+
+`//crates/block-app:app` is the app as it runs: the executable, and beside it
+every editor's manifest, renamed `<id>.plugin.json`, the module it names, and
+the `.cwasm` compiled from it, which is the directory native plugin discovery
+scans and what `./scripts/build` lays out under cargo. `buck/app` is the rule.
+
+- Each module is precompiled in an action of its own, by the plugin test
+  runner's `--precompile-to`, which is `block-wasm-host`'s and so the engine
+  the app loads it with. A cross-compiled app has no precompiler that can run
+  on a worker and gets its modules alone; the app compiles each at first
+  launch, as it does any module without a current `.cwasm`.
+- The editors are every crate under `crates/editors`, from
+  `buck/cargo/crates.bzl`, so a new editor is staged with no change here.
+- On this VM, which has no WebKitGTK of its own, it runs with the sysroot's
+  libraries on `LD_LIBRARY_PATH`, and passes `./scripts/run --smoke`'s check:
+  still running after ten seconds in a virtual display.
+
 ## Cross-compiling
 
 ```
@@ -659,10 +681,10 @@ target with `--target` is what makes wasmtime stop looking.
   `wgpu-hal` and `eframe` all build for `buck/platforms:wasi`, with the app's
   feature set. What is left is `block-app` for wasm, wasm-bindgen after it, and
   the JS shims in `scripts/internal/web`.
-- **Nothing stages the plugins.** `scripts/internal/common.sh` copies each
-  manifest beside the modules as `<id>.plugin.json` and writes a `plugins.json`
-  index for the browser and Android. There is no buck2 rule for that yet, which
-  is what running `block-app` from buck2 is waiting on.
+- **The browser's and Android's plugin index.** `//crates/block-app:app`
+  stages the plugins the way native discovery reads them; the `plugins.json`
+  the browser and an APK read instead is still written by
+  `scripts/internal/common.sh`.
 - **`BLOCK_APP_COMMIT` is `unknown`.** Under cargo, `block-app`'s build script
   asks git for the commit; a worker has no checkout to ask. Passing it in as
   config would rebuild the app on every commit, which is only worth it once
