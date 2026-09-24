@@ -15,8 +15,7 @@ def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:
             out.as_output(),
             ctx.attrs.resolver,
             ctx.attrs.snapshot,
-            ",".join(ctx.attrs.architectures),
-            ctx.attrs.packages,
+            ["{}:{}:{}".format(name, architecture, ",".join(packages)) for name, (architecture, packages) in ctx.attrs.sets.items()],
         ),
         category = "deb_lock",
     )
@@ -24,9 +23,8 @@ def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:
 
 deb_lock = rule(
     attrs = {
-        "architectures": attrs.list(attrs.string()),
-        "packages": attrs.list(attrs.string()),
         "resolver": attrs.source(),
+        "sets": attrs.dict(attrs.string(), attrs.tuple(attrs.string(), attrs.list(attrs.string()))),
         "snapshot": attrs.string(),
     },
     impl = _deb_lock_impl,

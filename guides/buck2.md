@@ -163,6 +163,14 @@ Ubuntu's own packages. The worker's image is only what runs the tools.
 
 A new system library is a line in `buck/sysroot/BUCK` and a `./scripts/buckify`.
 
+What a test loads but nothing compiles against is a set of its own, resolved
+from the same snapshot into its own sysroot, so that adding to it leaves the
+compile sysroot, and every cache key built on it, alone.
+`buck/sysroot:amd64-vulkan` is the Vulkan loader and Mesa's software driver,
+lavapipe: beui's renderer tests put its libraries on `LD_LIBRARY_PATH` and
+name `buck/sysroot/lavapipe_icd.json` in `VK_ICD_FILENAMES`, and draw through
+it on a worker.
+
 A test that loads one of these at run time, on a worker whose image does not
 have it, gets the sysroot's library directory through `LD_LIBRARY_PATH`; today
 that is `block-app`'s. A binary built here links against the same libraries a
@@ -227,18 +235,18 @@ the platform properties every action carries.
 
 ### Tests
 
-Most tests run on the workers as well. Three kinds stay on the machine that
-asked, because a worker cannot do what they do:
+Most tests run on the workers as well, beui's renderer tests among them, on
+lavapipe (below). Two kinds stay on the machine that asked, because a worker
+cannot do what they do:
 
 - **The plugin tests** read the accepted paintings out of `snapshots/` in the
   working tree and write the ones that changed back into it, and may open a
   graphics adapter. They are labelled `plugin`, which is how
   `./scripts/verify --tests` and `--plugin-tests` tell them apart.
-- **`beui`'s renderer tests** draw through a real graphics adapter, and the
-  container has none. Its `rust_test` says `remote_execution = "disabled"`.
 - **`block-plugin-api`'s `every_editor_manifest_parses`** walks
   `crates/editors` in the working tree, and the editors are packages of their
-  own rather than its inputs. Same attribute.
+  own rather than its inputs. Its `rust_test` says
+  `remote_execution = "disabled"`.
 
 buck2 keeps every test local unless it is told otherwise, so `./scripts/buck`
 adds `--unstable-allow-compatible-tests-on-re` to a test run. "Compatible" is
@@ -669,9 +677,10 @@ target with `--target` is what makes wasmtime stop looking.
   Adding a platform is the cross-compiling section above again: an entry in
   `cross.bzl`, a reindeer platform, a plan in `buckify.bxl`, a cxx toolchain,
   and whatever its build scripts need.
-- **The GPU tests.** beui's renderer tests and the plugin tests' GPU half
-  still run locally. Mesa's software Vulkan is a sysroot package away; what is
-  left is pointing the Vulkan loader at it on a worker.
+- **The plugin tests' GPU half.** The plugin tests run locally, because they
+  write accepted paintings into `snapshots/`, so what they draw through is this
+  machine's device. beui's renderer tests run on a worker, on lavapipe from
+  `buck/sysroot:amd64-vulkan`.
 - **The lint pass.** clippy has no gate yet (above), and rustfmt and
   `fix-rust-source` have no buck2 story yet.
 - **`./scripts/check`.** It is `cargo check`. `rust-project check` is its

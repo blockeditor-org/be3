@@ -146,10 +146,9 @@ jobs:
         if: always()
 
   # The tests run through buck2 on BuildBuddy: every test binary is built on a
-  # worker and most tests run there too, so nothing here compiles and this
-  # runner needs no toolchain. What it does need is a graphics device for the
-  # tests that stay on it - beui's renderer - and libvulkan1 and the mesa
-  # drivers are the software one.
+  # worker and most tests run there too - beui's renderer tests on lavapipe
+  # from buck/sysroot - so nothing here compiles and this runner needs no
+  # toolchain and no graphics device.
   test:
     name: tests
     runs-on: ubuntu-24.04
@@ -158,12 +157,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libvulkan1 mesa-vulkan-drivers
 
       - uses: ./.github/actions/buck2
 

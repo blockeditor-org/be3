@@ -30,31 +30,56 @@ wanted = [
     "libwebkit2gtk-4.1-dev",
 ]
 
+# What a test loads that nothing is compiled or linked against: the Vulkan
+# loader and Mesa's software driver, lavapipe, which is the graphics device
+# beui's renderer tests draw through on a worker. A set of its own rather than
+# part of the one above, whose sysroot is an input of every compile and link on
+# the host, so that adding to it does not change their cache keys.
+vulkan = [
+    "libvulkan1",
+    "mesa-vulkan-drivers",
+]
+
 deb_lock(
     name = "lock",
-    architectures = ["amd64", "arm64"],
-    packages = wanted,
     resolver = "resolve.py",
+    sets = {
+        "amd64": ("amd64", wanted),
+        "amd64-vulkan": ("amd64", vulkan),
+        "arm64": ("arm64", wanted),
+    },
     snapshot = snapshot,
 )
 
-# The amd64 packages keep the names they had before there was a second
-# architecture; arm64's are prefixed. A package that is the same for both - an
-# _all.deb - is downloaded once, whichever name asks for it.
+# The amd64 packages keep the names they had before there was a second set;
+# the others' are prefixed. A package two sets share is downloaded once,
+# whichever name asks for it.
+set_prefixes = {
+    "amd64": "",
+    "amd64-vulkan": "vulkan-",
+    "arm64": "arm64-",
+}
+
 [
     http_file(
-        name = prefix + name.replace("+", "p") + ".deb",
+        name = set_prefixes[set_name] + name.replace("+", "p") + ".deb",
         sha256 = sha256,
         size_bytes = size_bytes,
         urls = [url],
     )
-    for architecture, prefix in [("amd64", ""), ("arm64", "arm64-")]
-    for name, url, sha256, size_bytes in packages[architecture]
+    for set_name in sorted(packages)
+    for name, url, sha256, size_bytes in packages[set_name]
 ]
 
 deb_sysroot(
     name = "amd64",
     packages = [":" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages["amd64"]],
+    visibility = ["PUBLIC"],
+)
+
+deb_sysroot(
+    name = "amd64-vulkan",
+    packages = [":vulkan-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages.get("amd64-vulkan", [])],
     visibility = ["PUBLIC"],
 )
 
@@ -71,5 +96,15 @@ pkg_config(
     name = "pkg-config",
     sysroot = per_cross_platform(":amd64", lambda name: ":arm64" if name == "linux_arm64" else None),
     triple = per_cross_platform("x86_64-linux-gnu", lambda name: "aarch64-linux-gnu" if name == "linux_arm64" else None),
+    visibility = ["PUBLIC"],
+)
+
+# Lavapipe's Vulkan driver manifest, for a test to name with VK_ICD_FILENAMES.
+# Mesa's own names its library by its absolute path on an installed system; this
+# names it by file name, which the loader looks up the way the dynamic linker
+# does, so a test that puts :amd64-vulkan's libraries on LD_LIBRARY_PATH gets
+# the driver from there.
+export_file(
+    name = "lavapipe_icd.json",
     visibility = ["PUBLIC"],
 )
