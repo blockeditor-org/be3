@@ -25,6 +25,7 @@ pub mod map;
 pub mod model;
 pub mod paint;
 pub mod pdf;
+pub mod pixel_art;
 pub mod presentation;
 pub mod streamed;
 pub mod text;
@@ -54,6 +55,7 @@ pub use map::{Map, MapContent};
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 pub use pdf::{PdfContent, PdfHeader};
+pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use presentation::{Presentation, PresentationContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,

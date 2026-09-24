@@ -3,7 +3,9 @@ use block_client::{
     BlockClient, BlockHandle, DynamicArtifactDescriptor,
     blocks::{image::Image, pixel_art::PixelArt},
 };
-use block_editor_plugin::be_block::ImageContent;
+use block_editor_plugin::ContentProjection;
+use block_editor_plugin::be_block::pixel_art::Artwork;
+use block_editor_plugin::be_block::{ImageContent, PixelArtContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
 use block_editor_plugin::beui::styled::{Caption, NumberInput, use_theme};
@@ -55,12 +57,12 @@ pub fn descriptor(source_id: Uuid) -> DynamicArtifactDescriptor {
     }
 }
 
-pub fn generate_initial(art: &PixelArt, source_name: &str) -> Result<ImageContent, String> {
+pub fn generate_initial(art: &Artwork, source_name: &str) -> Result<ImageContent, String> {
     generate(art, source_name, &ImageSettings::default())
 }
 
 fn generate(
-    art: &PixelArt,
+    art: &Artwork,
     source_name: &str,
     settings: &ImageSettings,
 ) -> Result<ImageContent, String> {
@@ -82,7 +84,7 @@ fn generate(
     ))
 }
 
-fn magnified(art: &PixelArt, scale: u32) -> Vec<u8> {
+fn magnified(art: &Artwork, scale: u32) -> Vec<u8> {
     let pixels = art.rgba_bytes();
     if scale == 1 {
         return pixels.to_vec();
@@ -171,7 +173,8 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
 
 pub struct Regeneration {
     host: EditorHost,
-    source: BlockHandle<PixelArt>,
+    source: ContentProjection<PixelArtContent>,
+    named: BlockHandle<PixelArt>,
     target: Uuid,
     settings: ImageSettings,
 }
@@ -192,17 +195,17 @@ impl Regeneration {
         let artifact = ImageArtifact::decode(data)?;
         Ok(Self {
             host: host.clone(),
-            source: client.get_block::<PixelArt>(artifact.source),
+            source: host.content_of::<PixelArtContent>(artifact.source),
+            named: client.get_block::<PixelArt>(artifact.source),
             target: target_id,
             settings: artifact.settings,
         })
     }
 
     pub fn poll(&mut self) -> Option<Result<(), String>> {
-        let source = self.source.read()?;
-        let name = self.source.name().unwrap_or_else(|| "Pixel Art".to_owned());
+        let source = self.source.read(|content| content.root().artwork())?;
+        let name = self.named.name().unwrap_or_else(|| "Pixel Art".to_owned());
         let generated = generate(&source, &name, &self.settings);
-        drop(source);
         Some(generated.map(|image| self.host.replace_content(self.target, &image)))
     }
 }

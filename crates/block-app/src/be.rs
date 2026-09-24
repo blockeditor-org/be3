@@ -242,6 +242,7 @@ const MIGRATED: &[Migrated] = &[
     migrated::<block_client::blocks::paint_snapshot::PaintSnapshot, be_block::PaintSnapshotContent>(
     ),
     migrated::<block_client::blocks::pdf::Pdf, be_block::PdfContent>(),
+    migrated_with_history::<block_client::blocks::pixel_art::PixelArt, be_block::PixelArtContent>(),
     migrated_with_history::<
         block_client::blocks::presentation::Presentation,
         be_block::PresentationContent,
