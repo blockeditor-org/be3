@@ -45,6 +45,8 @@ pub struct ShownPresence {
     pub value: Option<Vec<u8>>,
 }
 
+type Peers = (u64, Vec<PeerPresence>);
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PeerPresence {
     pub client: u64,
@@ -470,7 +472,7 @@ pub struct EditorHost {
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
     seeded: Rc<RefCell<Vec<SeededContent>>>,
     shown: Rc<RefCell<Vec<ShownPresence>>>,
-    peers: Rc<RefCell<HashMap<Option<Uuid>, (u64, Vec<PeerPresence>)>>>,
+    peers: Rc<RefCell<HashMap<Option<Uuid>, Peers>>>,
     next_peers: Rc<Cell<u64>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,

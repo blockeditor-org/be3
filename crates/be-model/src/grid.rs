@@ -120,7 +120,7 @@ impl Cells {
         let mut reshaped = Self::blank(self.size, bounds);
         for (x, y) in bounds.points() {
             if let Some(value) = self.get(x, y) {
-                reshaped.set(x, y, &value.to_vec());
+                reshaped.set(x, y, value);
             }
         }
         *self = reshaped;

@@ -219,7 +219,7 @@ impl Tree {
                     return None;
                 };
                 let (back, forward) = held.inverse_paint(cells);
-                (!forward.is_empty()).then(|| {
+                (!forward.is_empty()).then_some({
                     (
                         Change::Paint {
                             object: *object,
