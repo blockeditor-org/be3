@@ -1840,10 +1840,9 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
         EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
-        EditorMessage::ShowPresence { value, .. } => match value {
-            Some(value) => blob(value),
-            None => Ok(()),
-        },
+        EditorMessage::ShowPresence {
+            value: Some(value), ..
+        } => blob(value),
         EditorMessage::PeerPresence { peers, .. } => {
             collection(peers.len())?;
             for peer in peers {
