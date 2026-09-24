@@ -114,9 +114,9 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
         targeted target_rows target_scale target_pointer target_drag host_drag content_rect
         target_placed target_offset
         -> move || {
+            let _ = target_rows.get();
             let video = targeted.video()?;
             let rows: Vec<ClipRow> = timeline::lane_rows(&video);
-            let _ = target_rows.get();
             let content = content_rect.get();
             let scale = target_scale.get();
             if let Some(drag) = target_drag.get() {

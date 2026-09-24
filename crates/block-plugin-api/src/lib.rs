@@ -465,6 +465,7 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         block_id: [u8; 16],
         content_type: [u8; 16],
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
         applied: u64,
     },
@@ -476,6 +477,7 @@ pub enum EditorMessage {
     Operate {
         instance: EditorInstanceId,
         block_id: [u8; 16],
+        #[serde(with = "serde_bytes")]
         operation: Vec<u8>,
     },
     WatchContent {
@@ -486,12 +488,14 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         block_id: [u8; 16],
         content_type: [u8; 16],
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     ReplaceContent {
         instance: EditorInstanceId,
         block_id: [u8; 16],
         content_type: [u8; 16],
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     ViewChanged {
@@ -657,10 +661,12 @@ pub enum EditorMessage {
         account_id: [u8; 16],
         workspace_id: [u8; 16],
         client_id: [u8; 16],
+        #[serde(with = "serde_bytes")]
         data: Vec<u8>,
     },
     ArtifactSettings {
         instance: EditorInstanceId,
+        #[serde(with = "serde_bytes")]
         data: Vec<u8>,
     },
     ArtifactDescribed {
@@ -669,10 +675,12 @@ pub enum EditorMessage {
     },
     ArtifactEdited {
         instance: EditorInstanceId,
+        #[serde(with = "serde_bytes")]
         data: Vec<u8>,
     },
     RegenerateArtifact {
         instance: EditorInstanceId,
+        #[serde(with = "serde_bytes")]
         data: Vec<u8>,
     },
     ArtifactRegenerated {
@@ -926,6 +934,7 @@ pub struct WatchedContent {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentOperation {
+    #[serde(with = "serde_bytes")]
     pub operation: Vec<u8>,
     pub mine: bool,
 }
@@ -1044,6 +1053,7 @@ pub enum WebViewEvent {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DroppedFile {
     pub name: String,
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
 }
 
