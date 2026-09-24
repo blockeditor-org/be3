@@ -1,25 +1,10 @@
-use block::{Block, NoHistory};
+use block::Block;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::block_ref::BlockRef;
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-pub struct ApprovedPainting {
-    pub path: String,
-    pub hash: String,
-    pub snapshot: BlockRef,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PaintReview {
-    approved: Vec<ApprovedPainting>,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-pub enum PaintReviewOperation {
-    Approve { painting: ApprovedPainting },
-    Forget { path: String },
+    references: Vec<Uuid>,
 }
 
 impl PaintReview {
@@ -27,63 +12,38 @@ impl PaintReview {
         Self::default()
     }
 
-    pub fn approved(&self) -> &[ApprovedPainting] {
-        &self.approved
+    pub fn with_references(references: Vec<Uuid>) -> Self {
+        Self { references }
     }
+}
 
-    pub fn approval(&self, path: &str) -> Option<&ApprovedPainting> {
-        self.approved
-            .iter()
-            .find(|painting| painting.path == *path)
-    }
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "operation", rename_all = "snake_case")]
+pub enum PaintReviewOperation {
+    SetReferences { references: Vec<Uuid> },
 }
 
 impl Block for PaintReview {
     type Operation = PaintReviewOperation;
-    type History = NoHistory;
+    type History = block::NoHistory;
 
     const TYPE_ID: Uuid = Uuid::from_u128(0x7061_696e_742d_7265_7669_6577_2d62_0001);
+    const CRDT: bool = true;
 
-    fn apply_operation(review: &mut Self, operation: &Self::Operation) {
+    fn apply_operation(block: &mut Self, operation: &Self::Operation) {
         match operation {
-            PaintReviewOperation::Approve { painting } => {
-                match review
-                    .approved
-                    .iter_mut()
-                    .find(|approved| approved.path == painting.path)
-                {
-                    Some(approved) => *approved = painting.clone(),
-                    None => {
-                        let index = review
-                            .approved
-                            .partition_point(|approved| approved.path < painting.path);
-                        review.approved.insert(index, painting.clone());
-                    }
-                }
-            }
-            PaintReviewOperation::Forget { path } => {
-                review.approved.retain(|approved| approved.path != *path);
+            PaintReviewOperation::SetReferences { references } => {
+                block.references.clone_from(references);
             }
         }
     }
 
     fn references(&self) -> Vec<Uuid> {
-        self.approved
-            .iter()
-            .filter_map(|approved| approved.snapshot.as_direct())
-            .collect()
+        self.references.clone()
     }
 
-    fn delete_child(&self, block_id: Uuid) -> Option<Vec<Self::Operation>> {
-        Some(
-            self.approved
-                .iter()
-                .filter(|approved| approved.snapshot.as_direct() == Some(block_id))
-                .map(|approved| PaintReviewOperation::Forget {
-                    path: approved.path.clone(),
-                })
-                .collect(),
-        )
+    fn bridged_references(references: Vec<Uuid>) -> Option<Self::Operation> {
+        Some(PaintReviewOperation::SetReferences { references })
     }
 }
 

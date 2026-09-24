@@ -7,7 +7,7 @@ use std::{
 
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
-use beui::reactive::{KeyedStore, ReadSignal, batch, create_signal, on_cleanup};
+use beui::reactive::{KeyedStore, ReadSignal, WriteSignal, batch, create_signal, on_cleanup};
 
 use crate::{EditorHost, host::ContentUpdate};
 
@@ -39,6 +39,7 @@ pub struct ContentProjection<C: LiveEdit> {
     next_watcher: Cell<u64>,
     touched: RefCell<Vec<Touched>>,
     revision: Cell<u64>,
+    loaded_signals: RefCell<Vec<WriteSignal<bool>>>,
 }
 
 impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
@@ -55,6 +56,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             next_watcher: Cell::new(0),
             touched: RefCell::new(Vec::new()),
             revision: Cell::new(0),
+            loaded_signals: RefCell::new(Vec::new()),
         }
     }
 
@@ -64,6 +66,12 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
 
     pub fn block(&self) -> Option<uuid::Uuid> {
         self.block
+    }
+
+    pub fn loaded(&self) -> ReadSignal<bool> {
+        let (loaded, set_loaded) = create_signal(self.loaded.get());
+        self.loaded_signals.borrow_mut().push(set_loaded);
+        loaded
     }
 
     pub fn revision(&self) -> Option<u64> {
@@ -188,7 +196,11 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
                         }
                     }
                     *self.confirmed.borrow_mut() = confirmed;
-                    self.loaded.set(true);
+                    if !self.loaded.replace(true) {
+                        for loaded in self.loaded_signals.borrow_mut().drain(..) {
+                            loaded.set(true);
+                        }
+                    }
                     self.rebuild();
                 }
                 ContentUpdate::Operations(operations) => {
