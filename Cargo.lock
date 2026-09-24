@@ -193,12 +193,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
-name = "allocator-fallback"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e71cc5ea7477547d3f9f0b81c0513943dbdd24ae1bb113eb2762f585345bdfa"
-
-[[package]]
 name = "alsa"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -962,7 +956,6 @@ dependencies = [
  "block",
  "block-server",
  "chacha20poly1305",
- "eips",
  "flate2",
  "futures-channel",
  "futures-util",
@@ -1373,12 +1366,6 @@ dependencies = [
  "libc",
  "shlex 2.0.1",
 ]
-
-[[package]]
-name = "cell-ref"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47f7098fc9ddf34917fc95dc99e1222d7e434bda84ba47376f115d0ac075f4c4"
 
 [[package]]
 name = "cesu8"
@@ -2312,21 +2299,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
-name = "eips"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e492560ce691d9dd405a73a58b1f6317ab5d29f521356ebf478b9c4ff1c3e92a"
-dependencies = [
- "cell-ref",
- "fixed-bump",
- "fixed-typed-arena",
- "integral_constant",
- "serde",
- "skippy",
- "tagged-pointer",
-]
-
-[[package]]
 name = "either"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2488,24 +2460,6 @@ name = "fix-rust-source"
 version = "0.1.0"
 dependencies = [
  "ra_ap_syntax",
-]
-
-[[package]]
-name = "fixed-bump"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4337f328d0d2d3472286aa3077316a1a25dc2bed525ac0368f62dfdeb662e69c"
-dependencies = [
- "allocator-fallback",
-]
-
-[[package]]
-name = "fixed-typed-arena"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c93a94e2fc30f1c9fac937b7459ebb58523f140ebdf644138f2aa84f89eb9b66"
-dependencies = [
- "integral_constant",
 ]
 
 [[package]]
@@ -3574,12 +3528,6 @@ name = "input-sys"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36eee07d8e02bd95bf52b2e642cf13d33701b94c6e4b04fbf1d1fb07e9cb19e7"
-
-[[package]]
-name = "integral_constant"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b399b469566c64af457e866e3411ccb11e4945f1f26d798523d3baa3a1ffd47"
 
 [[package]]
 name = "io-extras"
@@ -6020,18 +5968,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 
 [[package]]
-name = "skippy"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ef4ddf054298311d5ed79249af8c0a68fc7130f3088baea791ac7a7e8435177"
-dependencies = [
- "allocator-fallback",
- "cell-ref",
- "integral_constant",
- "tagged-pointer",
-]
-
-[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6363,12 +6299,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tagged-pointer"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aae4105b706d399250b34d1b88902bc6f6252bb4b110b6addf32e6d90d9d4c82"
-
-[[package]]
 name = "tao-macros"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6453,6 +6383,7 @@ dependencies = [
  "block-editor-plugin",
  "block-ui-test",
  "serde",
+ "similar",
  "text-editor-core",
  "uuid",
 ]

@@ -13,7 +13,7 @@ fn an_unmigrated_block_type_has_no_content_in_the_new_stack() {
         Some(ChecklistContent::CONTENT_TYPE)
     );
     assert_eq!(
-        content_type_for(block_client::blocks::text::TextDocument::TYPE_ID),
+        content_type_for(block_client::blocks::pan_zoom::PanZoom::TYPE_ID),
         None
     );
 

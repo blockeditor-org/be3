@@ -1,9 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use block::{Block, BlockParent, BlockReferenceList};
-use block_client::{
-    BlockClient, ManagementClient, blocks::text::TextDocument, presence::PresenceKind,
-};
+use block_client::{BlockClient, ManagementClient, presence::PresenceKind};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, net::TcpListener};
 use uuid::Uuid;
@@ -13,7 +11,6 @@ mod a_peers_colour_and_cursor_arrive_under_one_client_id;
 mod a_tunnelled_client_shares_the_hosts_connection;
 mod batched_updates_are_observed_together;
 mod client_orders_parent_assignment_after_creation_and_reference_updates;
-mod crdt_text_clients_converge_after_concurrent_insertions;
 mod presence_a_plugin_publishes_never_comes_back_to_it;
 mod real_clients_synchronize_through_the_real_server;
 

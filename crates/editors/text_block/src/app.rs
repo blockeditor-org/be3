@@ -14,6 +14,7 @@ use beui::reactive::{
     view,
 };
 use block_client::blocks::text::TextDocument;
+use block_editor_plugin::be_block::TextContent;
 use block_editor_plugin::{Creation, Editor};
 use uuid::Uuid;
 
@@ -35,7 +36,9 @@ impl block_editor_plugin::BeuiApp for TextApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(TextDocument::new()).id())
+        let block = creation.client().create_block(TextDocument::new());
+        creation.seed_content(block.id(), &TextContent::default());
+        Ok(block.id())
     }
 }
 

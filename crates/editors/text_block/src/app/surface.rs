@@ -167,7 +167,7 @@ fn paste_key(state: &Shared, press: KeyPress) -> bool {
 
 fn drop_target(state: &Shared, drag: Option<Drag>) -> Option<usize> {
     let drag = drag?;
-    if drag.block_id == state.block.id() {
+    if drag.block_id == state.block_id {
         return None;
     }
     let byte = state.text.byte_at(drag.position)?;
@@ -179,13 +179,12 @@ fn drop_target(state: &Shared, drag: Option<Drag>) -> Option<usize> {
 }
 
 fn remote_cursors(state: &Shared) -> Vec<RemoteTextCursor> {
-    let colors = state.presence_colors();
     let core = state.text.core();
     state
         .remote_cursors()
         .into_iter()
-        .filter_map(|(client_id, cursor)| {
-            let color = colors.get(&client_id).copied()?;
+        .filter_map(|(_, cursor)| {
+            let color = cursor.color;
             let selection =
                 core.selection_range(&CursorPosition::range(cursor.anchor, cursor.focus))?;
             let caret = core.position_index(cursor.focus)?;
@@ -202,7 +201,7 @@ fn poll_drag(state: &Shared) {
     let Some(drag) = state.editor.drag().get_untracked() else {
         return;
     };
-    if drag.block_id == state.block.id() {
+    if drag.block_id == state.block_id {
         return;
     }
     state.editor.accept_drag(true);

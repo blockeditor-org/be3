@@ -325,7 +325,7 @@ fn pick_block(state: &Shared) {
             };
             picked
                 .client
-                .set_block_parent(block.id, BlockParent::Uuid(picked.block.id()));
+                .set_block_parent(block.id, BlockParent::Uuid(picked.block_id));
             let types = picked.host().block_types();
             let name = match picked.client.cached_block(block.id) {
                 Some(cached) => BlockLabel::for_cached(types.as_ref(), &cached).name,

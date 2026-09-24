@@ -144,7 +144,7 @@ struct Migrated {
     seed: worker::Seed,
     replace: worker::Seed,
     name: fn(&[u8]) -> Option<String>,
-    references: fn(&[u8]) -> Vec<Uuid>,
+    references: fn(&[u8], Uuid) -> Vec<Uuid>,
     child: ChildOperations,
 }
 
@@ -196,9 +196,9 @@ fn child_operations<C: be_block::LiveEdit>(
     Some(operations.iter().map(C::encode_operation).collect())
 }
 
-fn content_references<C: be_block::BlockContent>(bytes: &[u8]) -> Vec<Uuid> {
+fn content_references<C: be_block::BlockContent>(bytes: &[u8], workspace: Uuid) -> Vec<Uuid> {
     C::decode(bytes)
-        .map(|content| content.references())
+        .map(|content| content.references_in(workspace))
         .unwrap_or_default()
 }
 
@@ -247,6 +247,7 @@ const MIGRATED: &[Migrated] = &[
         block_client::blocks::presentation::Presentation,
         be_block::PresentationContent,
     >(),
+    migrated::<block_client::blocks::text::TextDocument, be_block::TextContent>(),
     migrated_with_history::<block_client::blocks::video::Video, be_block::VideoContent>(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
@@ -270,7 +271,8 @@ pub(crate) fn references_of(content: &Content) -> Option<Vec<Uuid>> {
     let migrated = MIGRATED
         .iter()
         .find(|migrated| migrated.content_type == content.content_type)?;
-    Some((migrated.references)(&content.bytes))
+    let workspace = stack().lock().unwrap().as_ref()?.workspace;
+    Some((migrated.references)(&content.bytes, workspace))
 }
 
 pub(crate) fn block_type_of(content_type: Uuid) -> Option<Uuid> {

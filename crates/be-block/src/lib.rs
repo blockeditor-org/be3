@@ -7,6 +7,7 @@ use uuid::Uuid;
 pub mod audio;
 pub mod blob;
 pub mod block_ref;
+pub mod block_url;
 pub mod browser_tab;
 pub mod calendar;
 pub mod canvas;
@@ -60,7 +61,7 @@ pub use presentation::{Presentation, PresentationContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
-pub use text::{TextContent, TextHeader, TextLanguage, TextOp};
+pub use text::{TextContent, TextHeader, TextIndentation, TextLanguage, TextOp};
 pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
 pub use video::{VideoContent, VideoProject};
 
@@ -90,6 +91,11 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 
     fn references(&self) -> Vec<Uuid> {
         Vec::new()
+    }
+
+    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
+        let _ = workspace;
+        self.references()
     }
 
     fn name(&self) -> Option<String> {
