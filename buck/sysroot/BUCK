@@ -13,7 +13,7 @@ load(":packages.bzl", "packages")
 # and the worker's image is not part of what a program is made of.
 #
 # The packages come from a snapshot of the archive, which pins every index for
-# good. ./scripts/buck run //:buckify resolves what is asked for below into its dependency
+# good. ./scripts/buck run //:lock-sysroot resolves what is asked for below into its dependency
 # closure and writes packages.bzl; a new system library is a line here and a
 # buckify.
 
@@ -116,5 +116,10 @@ pkg_config(
 # the driver from there.
 export_file(
     name = "lavapipe_icd.json",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "lock.sh",
     visibility = ["PUBLIC"],
 )

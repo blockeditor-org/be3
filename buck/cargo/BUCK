@@ -1,7 +1,8 @@
 load("//buck/tools:defs.bzl", "rust_sysroot")
 load(":cargo_install.bzl", "cargo_install")
 
-# reindeer, and the cargo it and generate.py run, for ./scripts/buck run //:buckify.
+# reindeer, and the cargo it and generate.py run, for buckify.bxl, which
+# ./scripts/buck runs whenever the rules it generates would change.
 #
 # Nothing here is part of the build: buckify.bxl beside this file is what uses
 # it, to regenerate third-party/rust/BUCK and crates.bzl on a worker. Every

@@ -1,6 +1,7 @@
 # Regenerates the two files buck2 reads the workspace's Cargo.toml files
 # through, on a worker, and prints the directory they are in.
-# ./scripts/buck run //:buckify copies them into the repository:
+# ./scripts/buck copies them into place whenever their inputs change, and
+# git ignores them (scripts/internal/common.sh):
 #
 #   - third-party/rust/BUCK, the rules for every third-party crate, which
 #     reindeer writes;
@@ -12,10 +13,10 @@
 # Cargo.lock and the layout of each crate: whether it has a src/lib.rs, a
 # build.rs, an examples/ directory. It never reads a source file. So the
 # manifests, the lockfile, reindeer.toml, the fixups and generate.py are the
-# action's real inputs, and every other file under crates/ is only a path,
-# recreated empty where cargo will look for it. An edit to a source file
-# therefore leaves the action's key alone and is answered from the cache;
-# adding a file, a dependency or a crate is what runs it again.
+# action's real inputs, and of the rest only the paths cargo discovers targets
+# at are recreated, empty (_discovered below). Editing or adding an ordinary
+# source file therefore leaves the action's key alone and is answered from the
+# cache; a dependency, a crate or a new target is what runs it again.
 #
 # A BXL script rather than a rule because the manifests belong to seventy-odd
 # packages, and a rule can only take the files of its own; a script can take
@@ -31,6 +32,26 @@ def _files(ctx, directory: str) -> list[str]:
             found.append(path)
     return found
 
+# Whether cargo would look for this file when it discovers a crate's targets:
+# its lib.rs, main.rs and build script, and what is under src/bin, examples,
+# tests and benches. Only these are recreated, so that adding any other source
+# file leaves the action's key, and the cache entry everyone shares, alone. A
+# target at a path its Cargo.toml names is recreated by the script instead,
+# which can read the manifest.
+def _discovered(path: str, crate_dirs: list[str]) -> bool:
+    owner = ""
+    for directory in crate_dirs:
+        if path.startswith(directory + "/") and len(directory) > len(owner):
+            owner = directory
+    if not owner:
+        return False
+    relative = path.removeprefix(owner + "/")
+    if relative in ["build.rs", "src/lib.rs", "src/main.rs"]:
+        return True
+    if relative.startswith("src/bin/") or relative.startswith("examples/") or relative.startswith("benches/"):
+        return True
+    return relative.startswith("tests/") and (relative.count("/") == 1 or relative.endswith("/main.rs"))
+
 def _output(ctx, target: str):
     configured = ctx.configured_targets(target)
     return ctx.analysis(configured).providers()[DefaultInfo].default_outputs[0]
@@ -39,12 +60,10 @@ def _impl(ctx):
     actions = ctx.bxl_actions().actions
 
     real = ["Cargo.toml", "Cargo.lock", "reindeer.toml"] + _files(ctx, "third-party/rust/fixups")
-    placeholders = []
-    for path in _files(ctx, "crates"):
-        if path.endswith("/Cargo.toml"):
-            real.append(path)
-        else:
-            placeholders.append(path)
+    files = _files(ctx, "crates")
+    crate_dirs = [path.removesuffix("/Cargo.toml") for path in files if path.endswith("/Cargo.toml")]
+    real.extend([directory + "/Cargo.toml" for directory in crate_dirs])
+    placeholders = [path for path in files if _discovered(path, crate_dirs)]
 
     workspace = actions.copied_dir(
         "workspace",
@@ -89,13 +108,20 @@ while IFS= read -r path || [ -n "$path" ]; do
     mkdir -p "$(dirname "$path")"
     : > "$path"
 done < "$layout"
+for manifest in $(find crates -name Cargo.toml); do
+    sed -n 's/^[[:space:]]*path[[:space:]]*=[[:space:]]*"\\([^"]*\\.rs\\)".*/\\1/p' "$manifest" | while IFS= read -r relative; do
+        path="$(dirname "$manifest")/$relative"
+        mkdir -p "$(dirname "$path")"
+        [ -e "$path" ] || : > "$path"
+    done
+done
 export CARGO_HOME="$scratch/cargo-home"
 
 PATH="$toolchain/bin:$PATH" "$reindeer"     --cargo-path "$toolchain/bin/cargo" --rustc-path "$toolchain/bin/rustc"     buckify --stdout > "$out/BUCK"
 
 plugins=""
 excluded=""
-for manifest in crates/editors/*/manifest.json; do
+for manifest in crates/editors/*/Cargo.toml; do
     name="$(basename "$(dirname "$manifest")")"
     plugins="$plugins -p $name"
     excluded="$excluded --exclude $name"

@@ -345,6 +345,60 @@ assert_buildbuddy_key() {
     exit 1
 }
 
+# The rules buck2 reads the workspace's Cargo.toml files through -
+# third-party/rust/BUCK and buck/cargo/crates.bzl - are generated rather than
+# checked in. buck/cargo/buckify.bxl makes them on a worker from the manifests,
+# Cargo.lock, reindeer.toml, the fixups and the layout of crates/, so everyone
+# on the same Cargo.lock shares one cache entry: about two seconds on a fresh
+# checkout, and a minute or so the first time anyone builds a new dependency.
+#
+# What decides whether to run it is a hash of those same inputs, kept beside
+# the files; most runs only compare it. The files are written only when they
+# change, so buck2 does not re-read them for nothing.
+generated_rules=('third-party/rust/BUCK' 'buck/cargo/crates.bzl')
+
+generated_rules_inputs() {
+    (
+        cd "$repository"
+        printf '%s\n' "$buck2_version"
+        find crates third-party/rust/fixups -type f | LC_ALL=C sort
+        {
+            printf '%s\0' Cargo.toml Cargo.lock reindeer.toml buck/cargo/BUCK buck/cargo/buckify.bxl buck/cargo/generate.py buck/tools/BUCK
+            find crates -name Cargo.toml -print0
+            find third-party/rust/fixups -type f -print0
+        } | LC_ALL=C sort -z | xargs -0 cat
+    ) | sha256sum | cut -d ' ' -f 1
+}
+
+ensure_generated_rules() {
+    local buck2="$1" stamp="$repository/target/generated-rules.sha256" fingerprint path generated
+    fingerprint="$(generated_rules_inputs)"
+    local current=true
+    for path in "${generated_rules[@]}"; do
+        [[ -f "$repository/$path" ]] || current=false
+    done
+    if $current && [[ "$(cat "$stamp" 2> /dev/null)" == "$fingerprint" ]]; then
+        return 0
+    fi
+    echo 'Generating the rules for the workspace'"'"'s crates...' >&2
+    generated="$("$buck2" bxl //buck/cargo/buckify.bxl:main 2> "$repository/target/generated-rules.log" | tail -n 1)" || true
+    if [[ ! -f "$generated/BUCK" || ! -f "$generated/crates.bzl" ]]; then
+        cat "$repository/target/generated-rules.log" >&2
+        echo 'Generating the rules for the workspace'"'"'s crates failed.' >&2
+        exit 1
+    fi
+    write_if_changed "$generated/BUCK" "$repository/third-party/rust/BUCK"
+    write_if_changed "$generated/crates.bzl" "$repository/buck/cargo/crates.bzl"
+    printf '%s\n' "$fingerprint" > "$stamp"
+}
+
+write_if_changed() {
+    if ! cmp -s "$1" "$2"; then
+        cp "$1" "$2.partial"
+        mv -f "$2.partial" "$2"
+    fi
+}
+
 # An older ./scripts/buck wrote .buckconfig.local, and one left behind would
 # point buck2 at a cache that is gone. A file a person wrote is left alone.
 remove_generated_buck_config_local() {

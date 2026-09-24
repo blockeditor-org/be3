@@ -41,7 +41,7 @@ import time
 
 import importlib.util
 
-# Starlark files a person wrote. The files //:buckify writes are left out,
+# Starlark files a person wrote. The generated ones are left out,
 # because a formatter that rewrote them would put it and the check that they
 # are current permanently at odds.
 STARLARK_ROOTS = ["buck", "crates", "third-party/system", "third-party/pdfium", "BUCK.v2", "PACKAGE"]

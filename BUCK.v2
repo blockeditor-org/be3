@@ -18,7 +18,7 @@ export_file(
 #
 #   ./scripts/buck run //:verify [-- --check] [-- --lint|--tests|--plugin-tests]
 #   ./scripts/buck run //:check
-#   ./scripts/buck run //:buckify
+#   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:rust-project
 tool(
     name = "verify",
@@ -42,10 +42,10 @@ tool(
 )
 
 tool(
-    name = "buckify",
+    name = "lock-sysroot",
     command = [
-        "python3",
-        "$(location //buck/dev:buckify.py)",
+        "sh",
+        "$(location //buck/sysroot:lock.sh)",
     ],
 )
 
