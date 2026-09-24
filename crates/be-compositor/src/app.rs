@@ -1,13 +1,17 @@
+use std::cell::RefCell;
 use std::process::{Child, Command as Process, Stdio};
+use std::rc::Rc;
 
 use beui::reactive::{build, view, with_reactive_scope};
 use beui::{
     App, Color32, Context, CursorIcon, Document, Event, PointerButton, Pos2, Rect, Setup, Waker,
 };
-use smithay::input::pointer::CursorImageStatus;
+use smithay::backend::renderer::utils::with_renderer_surface_state;
+use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
+use smithay::wayland::compositor::with_states;
 
 use crate::clients::{Clients, Command};
-use crate::render::{Gpu, Textures, WindowDraw};
+use crate::render::{Gpu, SurfaceTexture, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{ServerEvent, WindowId};
 use crate::ui::Workspace;
@@ -18,11 +22,21 @@ const BUTTON_MIDDLE: u32 = 0x112;
 const BUTTON_SIDE: u32 = 0x113;
 const BUTTON_EXTRA: u32 = 0x114;
 
+pub enum Sprite {
+    Hidden,
+    Arrow,
+    Client {
+        texture: Rc<SurfaceTexture>,
+        size: beui::Vec2,
+        hotspot: beui::Vec2,
+    },
+}
+
 pub struct Compositor {
     server: Server,
     clients: Clients,
     document: Document,
-    textures: Textures,
+    textures: Rc<RefCell<Textures>>,
     watch: Option<Watch>,
     waker: Option<Waker>,
     launches: Vec<String>,
@@ -44,7 +58,7 @@ impl Compositor {
             server,
             clients,
             document,
-            textures: Textures::default(),
+            textures: Rc::new(RefCell::new(Textures::default())),
             watch: None,
             waker: None,
             launches,
@@ -90,9 +104,9 @@ impl Compositor {
         self.server.dispatch();
         let events = self.server.state.take_events();
         for surface in self.server.state.take_committed() {
-            self.textures.upload(&surface);
+            self.textures.borrow_mut().upload(&surface);
         }
-        self.textures.prune();
+        self.textures.borrow_mut().prune();
         let clients = self.clients.clone();
         let mut redraw = Vec::new();
         with_reactive_scope(&mut self.document, || {
@@ -111,10 +125,27 @@ impl Compositor {
         });
         let windows = self.server.state.windows();
         self.configured.retain(|id, _| windows.contains(id));
+        let mapping: Vec<(WindowId, beui::Vec2)> = redraw
+            .iter()
+            .filter(|id| !self.clients.mapped(**id))
+            .filter_map(|id| Some((*id, self.server.state.mapped_size(*id)?)))
+            .collect();
+        if !mapping.is_empty() {
+            let clients = self.clients.clone();
+            with_reactive_scope(&mut self.document, || {
+                for (id, size) in mapping {
+                    clients.map(id, size);
+                }
+            });
+        }
         if redraw.is_empty() {
             return;
         }
-        let drawings: Vec<_> = redraw
+        self.redraw(redraw);
+    }
+
+    fn redraw(&mut self, windows: Vec<WindowId>) {
+        let drawings: Vec<_> = windows
             .into_iter()
             .map(|id| (id, self.drawing(id)))
             .collect();
@@ -126,15 +157,76 @@ impl Compositor {
         });
     }
 
+    pub fn replace_gpu(
+        &mut self,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+    ) {
+        let mut textures = Textures::default();
+        textures.set_gpu(Gpu::new(device, queue, format));
+        *self.textures.borrow_mut() = textures;
+        let windows = self.server.state.windows();
+        let mut surfaces: Vec<_> = windows
+            .iter()
+            .flat_map(|id| self.server.state.layers(*id))
+            .map(|layer| layer.surface)
+            .collect();
+        if let CursorImageStatus::Surface(surface) = self.server.state.cursor() {
+            surfaces.push(surface.clone());
+        }
+        for surface in surfaces {
+            self.textures.borrow_mut().upload(&surface);
+        }
+        self.redraw(windows);
+    }
+
+    pub fn gpu(&self) -> Option<Rc<Gpu>> {
+        self.textures.borrow().gpu()
+    }
+
+    pub fn sprite(&self, icon: CursorIcon) -> Sprite {
+        if self.server.state.pointer_window().is_none() {
+            return match icon {
+                CursorIcon::None => Sprite::Hidden,
+                _ => Sprite::Arrow,
+            };
+        }
+        let surface = match self.server.state.cursor() {
+            CursorImageStatus::Hidden => return Sprite::Hidden,
+            CursorImageStatus::Named(_) => return Sprite::Arrow,
+            CursorImageStatus::Surface(surface) => surface.clone(),
+        };
+        let Some(current) = self.textures.borrow().get(&surface) else {
+            return Sprite::Arrow;
+        };
+        let size = with_renderer_surface_state(&surface, |state| state.surface_size()).flatten();
+        let hotspot = with_states(&surface, |states| {
+            states
+                .data_map
+                .get::<CursorImageSurfaceData>()
+                .map(|data| data.lock().unwrap().hotspot)
+        });
+        match (size, hotspot) {
+            (Some(size), Some(hotspot)) => Sprite::Client {
+                texture: current.texture,
+                size: beui::vec2(size.w as f32, size.h as f32),
+                hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
+            },
+            _ => Sprite::Arrow,
+        }
+    }
+
     fn drawing(&self, id: WindowId) -> Option<beui::Drawing> {
-        let gpu = self.textures.gpu()?;
+        let textures = self.textures.borrow();
+        let gpu = textures.gpu()?;
         let signals = self.clients.signals(id)?;
         let layers = self
             .server
             .state
             .layers(id)
             .into_iter()
-            .filter_map(|layer| Some((self.textures.get(&layer.surface)?, layer)))
+            .filter_map(|layer| Some((textures.get(&layer.surface)?, layer)))
             .collect();
         Some(WindowDraw::drawing(
             gpu,
@@ -231,7 +323,7 @@ impl Compositor {
         self.server.state.pointer_motion(local);
     }
 
-    fn apply(&mut self) {
+    fn apply(&mut self, context: &Context) {
         let focused = self.clients.focused();
         if self.server.state.keyboard_window() != focused {
             let previous = self.server.state.keyboard_window();
@@ -256,6 +348,15 @@ impl Compositor {
                     }
                     self.configured.insert(id, (size, activated));
                     self.server.state.configure(id, size.into(), activated);
+                }
+                Command::Fit(id) => {
+                    let clients = self.clients.clone();
+                    let fitted = with_reactive_scope(&mut self.document, || clients.fit(id));
+                    if fitted {
+                        context.request_repaint();
+                    } else {
+                        self.clients.push(Command::Configure(id));
+                    }
                 }
                 Command::Close(id) => self.server.state.close(id),
                 Command::Launch(line) => self.launch(&line),
@@ -285,15 +386,32 @@ fn clone_clients(clients: &Clients) -> impl FnOnce() -> beui::NodeId + use<> {
     }
 }
 
-impl App for Compositor {
-    fn setup(&mut self, setup: &Setup) {
-        self.textures.set_gpu(Gpu::new(
-            setup.device.clone(),
-            setup.queue.clone(),
-            setup.format,
-        ));
-        self.waker = Some(setup.waker.clone());
-        let waker = setup.waker.clone();
+impl Compositor {
+    pub fn start(
+        &mut self,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+        waker: Waker,
+    ) {
+        self.textures
+            .borrow_mut()
+            .set_gpu(Gpu::new(device, queue, format));
+        let dmabuf = self.textures.borrow().dmabuf_formats();
+        if let Some((formats, render_node)) = dmabuf {
+            let textures = self.textures.clone();
+            self.server.state.enable_dmabuf(
+                formats,
+                render_node,
+                Some(Box::new(move |dmabuf| {
+                    textures.borrow_mut().import(dmabuf).is_some()
+                })),
+            );
+            if let Some(render_node) = render_node {
+                self.server.state.enable_explicit_sync(render_node);
+            }
+        }
+        self.waker = Some(waker.clone());
         match self.server.watch(move || waker.wake()) {
             Ok(watch) => self.watch = Some(watch),
             Err(error) => eprintln!("be-compositor: could not watch the display: {error}"),
@@ -301,6 +419,17 @@ impl App for Compositor {
         for line in std::mem::take(&mut self.launches) {
             self.launch(&line);
         }
+    }
+}
+
+impl App for Compositor {
+    fn setup(&mut self, setup: &Setup) {
+        self.start(
+            setup.device.clone(),
+            setup.queue.clone(),
+            setup.format,
+            setup.waker.clone(),
+        );
     }
 
     fn update(&mut self, context: &Context, rect: Rect) {
@@ -311,7 +440,7 @@ impl App for Compositor {
         self.keyboard(context);
         self.document.show(context, rect);
         self.pointer(context);
-        self.apply();
+        self.apply(context);
         self.server.flush();
         if let Some(watch) = &self.watch {
             watch.resume();

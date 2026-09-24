@@ -1,6 +1,3 @@
 use super::*;
 
-mod append_operation_records_the_authenticated_actor;
-mod plain_apply_operation_is_never_used_for_a_real_actor;
-mod serialization_round_trips;
-mod the_module_it_plays_is_referenced;
+mod stores_only_its_references;

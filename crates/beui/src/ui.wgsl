@@ -1,6 +1,6 @@
 struct Uniforms {
     screen: vec2<f32>,
-    padding: vec2<f32>,
+    origin: vec2<f32>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -71,7 +71,7 @@ fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
 
     var fragment: Fragment;
     fragment.position = vec4<f32>(
-        point / uniforms.screen * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0),
+        (point - uniforms.origin) / uniforms.screen * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0),
         0.0,
         1.0,
     );

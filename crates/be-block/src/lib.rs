@@ -14,14 +14,18 @@ pub mod counter;
 pub mod database;
 pub mod database_schema;
 pub mod database_view;
+pub mod game;
 pub mod hotbar;
 pub mod image;
+pub mod map;
 pub mod model;
+pub mod paint;
 pub mod pdf;
 pub mod presentation;
 pub mod streamed;
 pub mod text;
 pub mod ui_settings;
+pub mod video;
 
 pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
@@ -35,9 +39,12 @@ pub use counter::{Counter, CounterContent};
 pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
+pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader, ImageOp};
+pub use map::{Map, MapContent};
 pub use model::Root;
+pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 pub use pdf::{PdfContent, PdfHeader};
 pub use presentation::{Presentation, PresentationContent};
 pub use streamed::{
@@ -45,6 +52,7 @@ pub use streamed::{
 };
 pub use text::{TextContent, TextHeader, TextLanguage, TextOp};
 pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
+pub use video::{VideoContent, VideoProject};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {
