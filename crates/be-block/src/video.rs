@@ -413,7 +413,7 @@ impl Root for VideoProject {
         self.video()
             .clips
             .iter()
-            .filter_map(|clip| Some(clip.block_id))
+            .map(|clip| clip.block_id)
             .filter(|block| seen.insert(*block))
             .collect()
     }

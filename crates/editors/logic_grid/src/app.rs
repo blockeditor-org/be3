@@ -606,7 +606,7 @@ pub(super) struct LogicGridEditor {
     grid: Grid,
     observed_revision: Option<u64>,
 
-    hotbar_block: Option<RootSetting<Hotbar>>,
+    hotbar_block: Option<RootSetting<Hotbar, block_editor_plugin::be_block::HotbarContent>>,
 
     hotbar_needs_write: bool,
 

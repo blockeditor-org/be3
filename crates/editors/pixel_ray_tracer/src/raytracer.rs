@@ -1,4 +1,4 @@
-use block_client::blocks::pixel_ray_tracer::{
+use block_editor_plugin::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_PALETTE, PIXEL_RAY_TRACER_SIZE, Point, RayEntity, RaySettings,
 };
 

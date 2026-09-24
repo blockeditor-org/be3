@@ -16,6 +16,6 @@ fn a_new_view_starts_as_a_spreadsheet() {
         .expect("the view was given content");
     let view = DatabaseViewContent::decode(&view.bytes).unwrap().root();
     assert_eq!(view.kind, DatabaseViewKind::Spreadsheet);
-    let database = view.database.and_then(|database| Some(database));
+    let database = view.database;
     assert!(seeded.iter().any(|seeded| Some(seeded.block) == database));
 }

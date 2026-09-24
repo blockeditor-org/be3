@@ -188,7 +188,7 @@ impl Root for LogicGameProgress {
         let mut seen = HashSet::new();
         self.solutions
             .iter()
-            .filter_map(|solution| Some(solution.block?))
+            .filter_map(|solution| solution.block)
             .filter(|block| seen.insert(*block))
             .collect()
     }

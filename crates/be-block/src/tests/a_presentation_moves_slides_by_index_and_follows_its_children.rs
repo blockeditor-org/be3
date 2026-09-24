@@ -26,17 +26,11 @@ fn a_presentation_moves_slides_by_index_and_follows_its_children() {
     let slide = ObjectId::new();
     let edit = presentation.root().insert(slide, 0, third);
     presentation.apply(&edit);
-    assert_eq!(
-        shown(&presentation),
-        [third, first, second].map(|block| Some(block))
-    );
+    assert_eq!(shown(&presentation), [third, first, second].map(Some));
 
     let edit = presentation.root().move_to(slide, 2);
     presentation.apply(&edit);
-    assert_eq!(
-        shown(&presentation),
-        [first, second, third].map(|block| Some(block))
-    );
+    assert_eq!(shown(&presentation), [first, second, third].map(Some));
 
     let replacement = Uuid::new_v4();
     for change in [
@@ -52,10 +46,7 @@ fn a_presentation_moves_slides_by_index_and_follows_its_children() {
             .expect("a presentation takes children");
         presentation.apply(&edit);
     }
-    assert_eq!(
-        shown(&presentation),
-        [second, replacement].map(|block| Some(block))
-    );
+    assert_eq!(shown(&presentation), [second, replacement].map(Some));
     assert_eq!(
         BlockContent::references(&presentation),
         [second, replacement]

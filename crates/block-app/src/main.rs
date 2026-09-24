@@ -213,8 +213,8 @@ struct BlockApp {
     account: Account,
     client: Arc<BlockClient>,
     root_settings: RootSettings,
-    file_tree: RootSetting<FileTree>,
-    workspace_ui: RootSetting<WorkspaceUi>,
+    file_tree: RootSetting<FileTree, be_block::FileTreeContent>,
+    workspace_ui: RootSetting<WorkspaceUi, be_block::WorkspaceUiContent>,
     shell: Option<Uuid>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
@@ -1155,10 +1155,11 @@ impl BlockApp {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
-        self.file_tree.ensure(&self.client, self.client_id);
+        self.file_tree
+            .ensure(&self.client, &be::Store, self.client_id);
         let id = self
             .workspace_ui
-            .ensure(&self.client, self.client_id)
+            .ensure(&self.client, &be::Store, self.client_id)
             .map(BlockHandle::id)?;
         self.block_types.insert(id, WorkspaceUi::TYPE_ID);
         if !self.editors.contains_key(&id) {
@@ -1576,17 +1577,16 @@ impl BlockApp {
 
     fn sync_ui_settings(&mut self, context: &beui::Context) {
         if self.ui_settings.is_none() {
-            let Some(root_settings) = self.root_settings.find(&self.client) else {
+            let Some(root_settings) = self.root_settings.find() else {
                 context.set_zoom_factor(1.0);
                 return;
             };
-            let Some(settings) = root_settings.read() else {
+            let Some(settings) =
+                block_client::root_settings::SettingsStore::settings(&be::Store, root_settings)
+            else {
                 return;
             };
-            let Some(id) = settings
-                .resolve(UiSettings::TYPE_ID, self.client_id)
-                .and_then(|reference| Some(reference))
-            else {
+            let Some(id) = settings.resolve(UiSettings::TYPE_ID, self.client_id) else {
                 context.set_zoom_factor(1.0);
                 return;
             };

@@ -10,6 +10,12 @@ use block_editor_plugin::block_ui::BlockLabel;
 use block_editor_plugin::{ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
+struct PendingSlide {
+    block: Uuid,
+    slide: Uuid,
+    index: usize,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Slide {
     pub target: Option<ChildTarget>,
@@ -22,7 +28,7 @@ pub struct Slides {
     store: KeyedStore<Uuid, Slide>,
     selected: ReadSignal<Option<Uuid>>,
     set_selected: WriteSignal<Option<Uuid>>,
-    pending: Rc<RefCell<Vec<(Uuid, (Uuid, usize))>>>,
+    pending: Rc<RefCell<Vec<PendingSlide>>>,
 }
 
 impl Slides {
@@ -141,10 +147,11 @@ impl Slides {
                     return;
                 };
                 let slide_id = Uuid::new_v4();
-                slides
-                    .pending
-                    .borrow_mut()
-                    .push((picked.id, (slide_id, index)));
+                slides.pending.borrow_mut().push(PendingSlide {
+                    block: picked.id,
+                    slide: slide_id,
+                    index,
+                });
                 slides.set_selected.set(Some(slide_id));
             },
         );
@@ -152,11 +159,16 @@ impl Slides {
 
     fn refresh(&self, dependencies: &block_client::ReferenceList) {
         let inserts: Vec<_> = std::mem::take(&mut *self.pending.borrow_mut());
-        for (block_id, (slide_id, index)) in inserts {
+        for PendingSlide {
+            block,
+            slide,
+            index,
+        } in inserts
+        {
             if let Some(edit) = self.block.read(|presentation| {
                 presentation
                     .root()
-                    .insert(ObjectId::from_uuid(slide_id), index, block_id)
+                    .insert(ObjectId::from_uuid(slide), index, block)
             }) {
                 self.block.operate(edit);
             }
@@ -180,8 +192,7 @@ impl Slides {
         let items: Vec<_> = entries
             .into_iter()
             .map(|(id, block)| {
-                let resolved = block;
-                let reference = resolved.and_then(|id| metadata.get(&id));
+                let reference = block.and_then(|id| metadata.get(&id));
                 let slide = match reference {
                     Some(reference) => Slide {
                         target: Some(ChildTarget::new(reference.id, reference.block_type)),
@@ -190,11 +201,11 @@ impl Slides {
                     None => self
                         .known(id)
                         .filter(|slide| {
-                            slide.target.map(|target| target.id) == resolved && resolved.is_some()
+                            slide.target.map(|target| target.id) == block && block.is_some()
                         })
                         .unwrap_or_else(|| Slide {
                             target: None,
-                            name: match resolved {
+                            name: match block {
                                 Some(_) => "Loading…".to_owned(),
                                 None => "Broken link".to_owned(),
                             },

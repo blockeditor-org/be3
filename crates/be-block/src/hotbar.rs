@@ -110,10 +110,7 @@ impl Root for Hotbar {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x686f_7462_6172_2d63_6f6e_7465_6e74_0001);
 
     fn references(&self) -> Vec<Uuid> {
-        self.component_refs()
-            .into_iter()
-            .filter_map(|compiled| Some(compiled))
-            .collect()
+        self.component_refs().into_iter().filter_map(Some).collect()
     }
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {

@@ -20,9 +20,6 @@ impl block_editor_plugin::BeuiApp for WorkspaceIndexApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation
-            .client()
-            .create_block(WorkspaceIndex::default())
-            .id())
+        Ok(creation.client().create_block(WorkspaceIndex).id())
     }
 }

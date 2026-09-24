@@ -326,7 +326,7 @@ impl Review {
             review
                 .root()
                 .approval(path)
-                .and_then(|approved| Some(approved.snapshot))
+                .map(|approved| approved.snapshot)
         }) else {
             return false;
         };

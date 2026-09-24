@@ -42,7 +42,7 @@ struct Work {
             Rc<ContentProjection<LogicGridContent>>,
         ),
     >,
-    hotbar: Option<RootSetting<Hotbar>>,
+    hotbar: Option<RootSetting<Hotbar, block_editor_plugin::be_block::HotbarContent>>,
 }
 
 pub(crate) struct Game {
@@ -74,7 +74,7 @@ impl Game {
             let mut work = each_frame.borrow_mut();
             let Work { grids, hotbar } = &mut *work;
             let setting = hotbar.get_or_insert_with(|| RootSetting::new(&client));
-            setting.find(&client, host.client_id());
+            setting.find(&client, &reader, host.client_id());
             set_hotbar.set(setting.block().map(BlockHandle::id));
 
             let types = host.block_types();

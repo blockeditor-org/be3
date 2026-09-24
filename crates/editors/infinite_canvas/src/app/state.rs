@@ -1231,24 +1231,18 @@ impl CanvasState {
     }
 
     pub(crate) fn replace_referenced_block(&self, old: Uuid, new: Uuid) -> bool {
-        let old_reference = old;
-        let new_reference = new;
         let replaced = self
             .entities
             .get_untracked()
             .into_iter()
             .filter_map(|entity| {
                 let kind = match entity.kind {
-                    CanvasEntityKind::Block { block_id } if block_id == old_reference => {
-                        CanvasEntityKind::Block {
-                            block_id: new_reference,
-                        }
+                    CanvasEntityKind::Block { block_id } if block_id == old => {
+                        CanvasEntityKind::Block { block_id: new }
                     }
-                    CanvasEntityKind::DirectEditor { block_id, scale }
-                        if block_id == old_reference =>
-                    {
+                    CanvasEntityKind::DirectEditor { block_id, scale } if block_id == old => {
                         CanvasEntityKind::DirectEditor {
-                            block_id: new_reference,
+                            block_id: new,
                             scale,
                         }
                     }

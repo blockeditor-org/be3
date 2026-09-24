@@ -241,8 +241,7 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
     let resolving = Rc::clone(&state);
     let target = create_memo(clone!(entity resolving -> move || {
         let entity = entity.get()?;
-        let reference = reference_of(&entity)?;
-        let id = reference;
+        let id = reference_of(&entity)?;
         let block_type = resolving.block_type_of(id)?;
         Some(ChildTarget::new(id, block_type))
     }));

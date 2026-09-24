@@ -1,6 +1,8 @@
 use std::rc::Rc;
 
-use block_client::blocks::pixel_ray_tracer::{PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings};
+use block_editor_plugin::be_block::pixel_ray_tracer::{
+    PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings,
+};
 use block_editor_plugin::beui::Color32;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::accesskit::{Node, Role};

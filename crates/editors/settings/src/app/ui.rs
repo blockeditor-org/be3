@@ -1,37 +1,32 @@
-use std::sync::Arc;
-
 use block::{Block, BlockParent};
-use block_client::BlockClient;
-use block_client::blocks::settings::{ActivationCondition, Settings, SettingsOperation};
 use block_client::blocks::ui_settings::UiSettings;
+use block_editor_plugin::be_block::settings::{ActivationCondition, Settings};
+use block_editor_plugin::be_block::{SettingsContent, UiSettingsContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Frame, List, clone, component, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
-use block_editor_plugin::{BlockProjection, Editor};
+use block_editor_plugin::{ContentProjection, Editor};
 use uuid::Uuid;
 
 const PADDING: f32 = 20.0;
 
 #[component]
 pub fn SettingsView(editor: Editor) -> NodeId {
-    let settings = editor.block::<Settings>();
+    let settings = editor.block_content::<SettingsContent>();
     let client_id = editor.host().client_id();
     let loaded = settings.project(|_| true);
-    let ui_settings = settings.project(move |settings| {
-        settings
-            .resolve(UiSettings::TYPE_ID, client_id)
-            .and_then(|reference| Some(reference))
-    });
+    let ui_settings =
+        settings.project(move |settings| settings.root().resolve(UiSettings::TYPE_ID, client_id));
     let read_only = editor.read_only();
     let blocked = create_memo(clone!(loaded read_only -> move || !loaded.get() || read_only.get()));
     let host = editor.host().clone();
-    let client = editor.client().clone();
+    let creator = editor.clone();
     let open = clone!(settings ui_settings -> move || {
         let Some(id) = ui_settings
             .get_untracked()
-            .or_else(|| create_ui_settings(&client, &settings))
+            .or_else(|| create_ui_settings(&creator, &settings))
         else {
             return;
         };
@@ -58,15 +53,15 @@ pub fn SettingsView(editor: Editor) -> NodeId {
 }
 
 fn create_ui_settings(
-    client: &Arc<BlockClient>,
-    settings: &BlockProjection<Settings>,
+    editor: &Editor,
+    settings: &ContentProjection<SettingsContent>,
 ) -> Option<Uuid> {
-    let block = client.create_block(UiSettings::new());
-    settings.operate(SettingsOperation::SetEntry {
-        block_type: UiSettings::TYPE_ID,
-        activation: ActivationCondition::Fallback,
-        block: block.id(),
-    });
-    block.set_parent(BlockParent::Uuid(settings.id()));
+    let block = editor.create_with_content::<UiSettings, _>(&UiSettingsContent::default());
+    settings.operate(Settings::set_entry(
+        UiSettings::TYPE_ID,
+        ActivationCondition::Fallback,
+        block.id(),
+    ));
+    block.set_parent(BlockParent::Uuid(editor.block_id()));
     Some(block.id())
 }

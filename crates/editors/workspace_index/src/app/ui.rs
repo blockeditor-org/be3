@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use uuid::Uuid;
 
-use block_client::blocks::workspace_index::WorkspaceIndex;
+use block_editor_plugin::be_block::FolderContent;
 use block_editor_plugin::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show,
@@ -86,7 +86,7 @@ impl Cells {
 
 #[component]
 pub fn FolderEditor(editor: Editor) -> NodeId {
-    let index = editor.block::<WorkspaceIndex>();
+    let index = editor.block_content::<FolderContent>();
     let (mode, set_mode) = create_signal(FolderView::default());
     let (sort, set_sort) = create_signal(FolderSort::default());
     let (descending, set_descending) = create_signal(false);

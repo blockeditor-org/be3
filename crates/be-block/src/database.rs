@@ -132,7 +132,7 @@ impl Root for Database {
         self.schema
             .into_iter()
             .chain(self.block_references())
-            .filter_map(|reference| Some(reference))
+            .filter_map(Some)
             .filter(|reference| seen.insert(*reference))
             .collect()
     }

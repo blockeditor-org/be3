@@ -146,7 +146,7 @@ fn world_point(
     >,
     editor: &block_editor_plugin::Editor,
     artwork: Rect,
-) -> Option<block_client::blocks::pixel_ray_tracer::Point> {
+) -> Option<block_editor_plugin::be_block::pixel_ray_tracer::Point> {
     let camera = view.get_untracked()?;
     let _ = editor;
     Some(screen_to_world(camera.to_canvas(at), artwork))

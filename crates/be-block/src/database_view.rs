@@ -71,10 +71,7 @@ impl Root for DatabaseView {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6462_7669_6577_2d63_6f6e_7465_6e74_0001);
 
     fn references(&self) -> Vec<Uuid> {
-        self.database
-            .and_then(|database| Some(database))
-            .into_iter()
-            .collect()
+        self.database.into_iter().collect()
     }
 }
 

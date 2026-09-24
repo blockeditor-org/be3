@@ -54,7 +54,7 @@ pub(crate) struct Workspace {
     set_error: WriteSignal<Option<String>>,
     files: ReadSignal<Option<Uuid>>,
     set_files: WriteSignal<Option<Uuid>>,
-    file_tree: RefCell<RootSetting<FileTree>>,
+    file_tree: RefCell<RootSetting<FileTree, block_editor_plugin::be_block::FileTreeContent>>,
     handles: RefCell<HashMap<Uuid, Box<dyn BlockHandleAccess>>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
@@ -145,7 +145,7 @@ impl Workspace {
         let files = self
             .file_tree
             .borrow_mut()
-            .find(self.client(), self.host().client_id())
+            .find(self.client(), &self.editor, self.host().client_id())
             .map(BlockHandle::id);
         self.set_files.set(files);
         self.refresh_titles();

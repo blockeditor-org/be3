@@ -863,3 +863,19 @@ impl Creation {
         run(&self.0.each_frame);
     }
 }
+
+impl block_client::root_settings::SettingsStore for Editor {
+    fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
+        self.content_of::<be_block::SettingsContent>(block)
+            .read(|settings| settings.root().clone())
+    }
+
+    fn seed(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
+        self.0.host.seed_bytes(block, content_type, bytes, false);
+    }
+
+    fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {
+        self.content_of::<be_block::SettingsContent>(block)
+            .operate(edit);
+    }
+}

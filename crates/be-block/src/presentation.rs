@@ -60,7 +60,7 @@ impl Root for Presentation {
         let mut seen = HashSet::new();
         self.slides
             .iter()
-            .filter_map(|slide| Some(slide.block?))
+            .filter_map(|slide| slide.block)
             .filter(|block| seen.insert(*block))
             .collect()
     }

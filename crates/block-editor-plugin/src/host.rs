@@ -856,10 +856,20 @@ impl EditorHost {
     }
 
     fn write_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C, replace: bool) {
+        self.seed_bytes(block, C::CONTENT_TYPE, content.encode(), replace);
+    }
+
+    pub(crate) fn seed_bytes(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        replace: bool,
+    ) {
         self.seeded.borrow_mut().push(SeededContent {
             block,
-            content_type: C::CONTENT_TYPE,
-            bytes: content.encode(),
+            content_type,
+            bytes,
             replace,
         });
         self.waker.wake();

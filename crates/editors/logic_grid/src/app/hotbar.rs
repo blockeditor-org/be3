@@ -111,15 +111,15 @@ impl LogicGridEditor {
     }
 
     pub(super) fn sync_hotbar(&mut self, client: Option<&BlockClient>, client_id: Uuid) -> bool {
-        if let Some(client) = client {
+        if let (Some(client), Some(editor)) = (client, self.store.editor().cloned()) {
             let pending = self.hotbar_needs_write;
             let root = self
                 .hotbar_block
                 .get_or_insert_with(|| RootSetting::new(client));
             if pending {
-                root.ensure(client, client_id);
+                root.ensure(client, &editor, client_id);
             } else {
-                root.find(client, client_id);
+                root.find(client, &editor, client_id);
             }
         }
         if self.hotbar_needs_write {
@@ -395,7 +395,7 @@ pub(super) fn hotbar_slot_to_block(slot: &HotbarSlot) -> BlockHotbarSlot {
 fn pinned_components(slots: &[Item<BlockHotbarSlot>]) -> Vec<Uuid> {
     let mut pinned = Vec::new();
     for slot in slots {
-        pinned.extend(slot.compiled().and_then(|compiled| Some(compiled)));
+        pinned.extend(slot.compiled());
         pinned.extend(pinned_components(&slot.slots));
     }
     pinned

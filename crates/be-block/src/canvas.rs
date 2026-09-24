@@ -530,7 +530,7 @@ impl Root for Canvas {
                 references.extend(Some(block_id));
             }
             for component in held.components.iter() {
-                references.extend(component.schema.and_then(|schema| Some(schema)));
+                references.extend(component.schema);
                 references.extend(component.values.values().filter_map(|value| match value {
                     DatabaseValue::Block(reference) => Some(reference),
                     _ => None,
@@ -546,7 +546,6 @@ impl Root for Canvas {
         match change {
             ChildChange::Add(_) => None,
             ChildChange::Delete(old) => {
-                let old = old;
                 let mut changes: Vec<Change> = self
                     .child_entities(old)
                     .map(|held| Change::remove(held.id))

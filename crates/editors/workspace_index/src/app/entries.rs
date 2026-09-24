@@ -3,10 +3,10 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use block::BlockReferenceList;
-use block_client::blocks::workspace_index::{WorkspaceIndex, WorkspaceIndexOperation};
+use block_editor_plugin::be_block::FolderContent;
 use block_editor_plugin::beui::reactive::{Memo, ReadSignal, create_memo, create_signal, untrack};
 use block_editor_plugin::block_ui::{BlockLabel, BlockTypes};
-use block_editor_plugin::{BlockProjection, Editor};
+use block_editor_plugin::{ContentProjection, Editor};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -49,14 +49,14 @@ pub(crate) struct Folder {
 impl Folder {
     pub(crate) fn watch(
         editor: &Editor,
-        index: &BlockProjection<WorkspaceIndex>,
+        index: &ContentProjection<FolderContent>,
         sort: ReadSignal<FolderSort>,
         descending: ReadSignal<bool>,
     ) -> Self {
         let references = editor
             .client()
             .watch_references(BlockReferenceList::References(editor.block_id()));
-        let referenced = index.project(|index| index.entries().to_vec());
+        let referenced = index.project(|index| index.root().blocks());
         let (rows, set_rows) = create_signal(Vec::<Entry>::new());
         let host = editor.host().clone();
         editor.each_frame(move || {
@@ -122,9 +122,11 @@ impl Folder {
         self.adds.borrow_mut().push(block_id);
     }
 
-    pub(crate) fn poll_adds(&self, index: &BlockProjection<WorkspaceIndex>) {
+    pub(crate) fn poll_adds(&self, index: &ContentProjection<FolderContent>) {
         for reference in std::mem::take(&mut *self.adds.borrow_mut()) {
-            index.operate(WorkspaceIndexOperation::Add(reference));
+            if let Some(edit) = index.read(|index| index.root().add(reference)) {
+                index.operate(edit);
+            }
         }
     }
 }

@@ -251,7 +251,42 @@ const MIGRATED: &[Migrated] = &[
     migrated_with_history::<block_client::blocks::video::Video, be_block::VideoContent>(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
+    migrated_with_history::<block_client::blocks::settings::Settings, be_block::SettingsContent>(),
+    migrated::<block_client::blocks::workspace_index::WorkspaceIndex, be_block::FolderContent>(),
+    migrated_with_history::<
+        block_client::blocks::pixel_ray_tracer::PixelRayTracer,
+        be_block::PixelRayTracerContent,
+    >(),
+    migrated::<block_client::blocks::file_tree::FileTree, be_block::FileTreeContent>(),
+    migrated::<block_client::blocks::pan_zoom::PanZoom, be_block::PanZoomContent>(),
+    migrated::<block_client::blocks::scene_3d::Scene3D, be_block::Scene3dContent>(),
+    migrated::<block_client::blocks::workspace_ui::WorkspaceUi, be_block::WorkspaceUiContent>(),
 ];
+
+pub(crate) struct Store;
+
+impl block_client::root_settings::SettingsStore for Store {
+    fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
+        hold(block, block_client::blocks::settings::Settings::TYPE_ID);
+        let content = content(block)?;
+        <be_block::SettingsContent as be_block::BlockContent>::decode(&content.bytes)
+            .ok()
+            .map(|document| document.root().clone())
+    }
+
+    fn seed(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
+        seed(block, content_type, bytes);
+    }
+
+    fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {
+        hold(block, block_client::blocks::settings::Settings::TYPE_ID);
+        send(Command::Operate(
+            block,
+            None,
+            <be_block::SettingsContent as be_block::LiveEdit>::encode_operation(&edit),
+        ));
+    }
+}
 
 pub(crate) fn content_type_for(block_type: Uuid) -> Option<Uuid> {
     MIGRATED

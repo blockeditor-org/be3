@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn an_unmigrated_block_type_has_no_content_in_the_new_stack() {
+fn an_unknown_content_type_has_no_content_in_the_new_stack() {
     use block::Block;
 
     assert_eq!(
@@ -12,10 +12,7 @@ fn an_unmigrated_block_type_has_no_content_in_the_new_stack() {
         content_type_for(block_client::blocks::checklist::Checklist::TYPE_ID),
         Some(ChecklistContent::CONTENT_TYPE)
     );
-    assert_eq!(
-        content_type_for(block_client::blocks::pan_zoom::PanZoom::TYPE_ID),
-        None
-    );
+    assert_eq!(content_type_for(Uuid::from_u128(0xdead_beef)), None);
 
     let harness = Harness::start();
     harness.connect();

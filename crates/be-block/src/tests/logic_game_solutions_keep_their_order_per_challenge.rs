@@ -61,12 +61,11 @@ fn logic_game_solutions_keep_their_order_per_challenge() {
     assert_eq!(view.level(first).unwrap().solutions, [a, c]);
     assert_eq!(view.quiz(2).unwrap().sums, [Some(true), None]);
 
-    let a_id = Some(a).unwrap();
     let replaced = Uuid::new_v4();
     let edit = game
         .root()
         .child_edit(ChildChange::Replace {
-            old: a_id,
+            old: a,
             new: replaced,
         })
         .unwrap();

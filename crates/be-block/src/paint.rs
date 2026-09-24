@@ -82,7 +82,7 @@ impl Root for PaintReview {
     fn references(&self) -> Vec<Uuid> {
         self.approvals
             .values()
-            .filter_map(|approval| Some(approval.snapshot))
+            .map(|approval| approval.snapshot)
             .collect()
     }
 

@@ -178,7 +178,7 @@ impl Root for Map {
         let mut seen = HashSet::new();
         self.points()
             .into_iter()
-            .filter_map(|point| Some(point.block_id))
+            .map(|point| point.block_id)
             .filter(|block| seen.insert(*block))
             .collect()
     }
