@@ -6,11 +6,13 @@ use block::Block as _;
 use block_client::blocks::deterministic_game::DeterministicGame as GameBlock;
 use block_client::blocks::game_module::GameModule;
 use block_editor_plugin::ContentProjection;
-use block_editor_plugin::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
-use game_api::GameAction;
+use block_editor_plugin::be_block::{
+    DeterministicGame, DeterministicGameContent, GameModuleContent,
+};
 use block_editor_plugin::beui::reactive::{clone, create_signal, view};
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{BlockFilter, BlockPicker, Creation, Editor};
+use game_api::GameAction;
 use game_host::Game;
 use uuid::Uuid;
 
@@ -199,8 +201,10 @@ impl GameCreation {
             .creation
             .client()
             .create_block(GameBlock::with_references(vec![module]));
-        self.creation
-            .seed_content(block.id(), &DeterministicGameContent::new(&DeterministicGame::of(module)));
+        self.creation.seed_content(
+            block.id(),
+            &DeterministicGameContent::new(&DeterministicGame::of(module)),
+        );
         Ok(block.id())
     }
 }

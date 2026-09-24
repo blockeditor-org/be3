@@ -1,6 +1,8 @@
 use std::rc::Rc;
 
-use block_client::blocks::video::{MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect};
+use block_editor_plugin::be_block::video::{
+    MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect,
+};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::ICON_LINK_OFF;
 use block_editor_plugin::beui::reactive::{

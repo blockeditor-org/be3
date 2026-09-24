@@ -4,7 +4,9 @@ use block::Block as _;
 use block_client::BlockClient;
 use block_client::blocks::deterministic_game::DeterministicGame as GameBlock;
 use block_client::blocks::game_module::GameModule;
-use block_editor_plugin::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
+use block_editor_plugin::be_block::{
+    DeterministicGame, DeterministicGameContent, GameModuleContent,
+};
 use block_editor_plugin::{Creation, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;

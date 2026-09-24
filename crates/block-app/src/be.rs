@@ -236,6 +236,7 @@ const MIGRATED: &[Migrated] = &[
         block_client::blocks::presentation::Presentation,
         be_block::PresentationContent,
     >(),
+    migrated_with_history::<block_client::blocks::video::Video, be_block::VideoContent>(),
     migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
     migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
 ];

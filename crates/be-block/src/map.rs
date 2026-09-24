@@ -7,10 +7,9 @@ use uuid::Uuid;
 use crate::{BlockRef, ChildChange, Root};
 
 pub const MAX_LATITUDE: f64 = 85.051_128_78;
-                                                         
+
 pub const MIN_REGION_SPAN: f64 = 0.000_01;
 
-                                     
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct MapCoordinate {
     pub longitude: f64,
@@ -26,8 +25,6 @@ impl MapCoordinate {
     }
 }
 
-                                                                            
-                 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct MapRegion {
     pub west: f64,
@@ -46,7 +43,6 @@ impl MapRegion {
         }
     }
 
-                                                                    
     pub const WORLD: Self = Self::new(-180.0, -MAX_LATITUDE, 180.0, MAX_LATITUDE);
 
     pub fn center(self) -> MapCoordinate {
@@ -57,7 +53,6 @@ impl MapRegion {
     }
 }
 
-                                            
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MapColor {
@@ -70,7 +65,6 @@ pub enum MapColor {
     },
 }
 
-                                                       
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MapPoint {
     pub id: Uuid,
@@ -237,8 +231,6 @@ fn normalized_region(region: MapRegion) -> MapRegion {
     MapRegion::new(west, south, east, north)
 }
 
-                                                                         
-                                  
 fn ordered_span(low: f64, high: f64, limit_low: f64, limit_high: f64) -> (f64, f64) {
     let (mut low, mut high) = (low.min(high), low.max(high));
     if high - low >= MIN_REGION_SPAN {
@@ -263,4 +255,3 @@ fn clamp_finite(value: f64, low: f64, high: f64) -> f64 {
         0.0
     }
 }
-

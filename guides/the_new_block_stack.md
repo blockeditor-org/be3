@@ -307,12 +307,17 @@ values, and every algorithm is written once against that table:
 `be-block` (`model.rs`), so a type built this way is registered with
 `migrated_with_history` and has undo from the start. Every migrated editor's
 content is built this way: the counter, the checklist, the calendar, the browser
-tab, the UI settings, the three database types, the presentation and the
-hotbar. Text still implements the traits by hand, which remains possible for
+tab, the UI settings, the three database types, the presentation, the hotbar,
+the deterministic game, the map and the video. Text still implements the traits by hand, which remains possible for
 content that does not fit, such as a type that is better as a CRDT. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
 so a push and a navigation made at the same time still agree on which page is
-current. The database schema shows the other direction: its fields and enum
+current. The video shows what identity buys a tree: a clip attached to another
+is an object in that clip's list, so reattaching it is a move, a move that
+would make a cycle is refused by the model, and removing a clip takes what is
+attached to it. Its editor still speaks in `VideoOperation`s, which
+`VideoProject::edit_for` turns into edits against the content it is shown, and
+reads a flattened `Video` for its timeline. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
 store, so renaming a field or an option changes nothing that points at it.
 

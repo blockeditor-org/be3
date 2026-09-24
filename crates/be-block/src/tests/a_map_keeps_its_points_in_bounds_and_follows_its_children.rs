@@ -55,8 +55,11 @@ fn a_map_keeps_its_points_in_bounds_and_follows_its_children() {
         &merged,
         [
             root.child_edit(ChildChange::Delete(park)).unwrap(),
-            root.child_edit(ChildChange::Replace { old: cafe, new: copy })
-                .unwrap(),
+            root.child_edit(ChildChange::Replace {
+                old: cafe,
+                new: copy,
+            })
+            .unwrap(),
         ],
     );
     assert_eq!(BlockContent::references(&merged), [copy]);

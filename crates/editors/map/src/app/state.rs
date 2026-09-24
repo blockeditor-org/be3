@@ -8,9 +8,9 @@ use block_client::ReferenceList;
 use block_client::block_ref::BlockRef;
 use block_client::blocks::image::Image as ImageBlock;
 use block_client::blocks::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
-use block_editor_plugin::be_block::{Edit, Map, MapContent};
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_editor_plugin::be_block::ImageContent;
+use block_editor_plugin::be_block::{Edit, Map, MapContent};
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
@@ -374,11 +374,11 @@ impl MapState {
         let landed = self.pending_points.borrow_mut().poll();
         for (reference, (point_id, position)) in landed {
             self.record(Map::add(&MapPoint {
-                    id: point_id,
-                    block_id: reference,
-                    position,
-                    color: MapColor::Default,
-                }));
+                id: point_id,
+                block_id: reference,
+                position,
+                color: MapColor::Default,
+            }));
         }
     }
 

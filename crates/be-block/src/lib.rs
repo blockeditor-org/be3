@@ -25,6 +25,7 @@ pub mod presentation;
 pub mod streamed;
 pub mod text;
 pub mod ui_settings;
+pub mod video;
 
 pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
@@ -51,6 +52,7 @@ pub use streamed::{
 };
 pub use text::{TextContent, TextHeader, TextLanguage, TextOp};
 pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
+pub use video::{VideoContent, VideoProject};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {
