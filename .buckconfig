@@ -61,3 +61,9 @@ cas_address = remote.buildbuddy.io:443
 engine_address = remote.buildbuddy.io:443
 http_headers = x-buildbuddy-api-key:$BUILDBUDDY_API_KEY
 tls = true
+
+# What buck2 does not watch or read as part of the workspace: git's own
+# directory, whose every fetch would otherwise be a file change, and the
+# directories cargo, the web bundle and buck2 itself write into.
+[project]
+ignore = .git, target, dist, buck-out
