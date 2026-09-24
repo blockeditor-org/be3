@@ -23,24 +23,6 @@ permissions:
   contents: read
 
 env:
-  CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 0
-  # A default cargo build - the web and Android builds are cargo's - leaves out
-  # the debug terminal, which needs a Zig toolchain and a Ghostty checkout
-  # before cargo can link anything, the embedded browser and cvl2. What ships
-  # is still the whole of it, so every job here asks for a full build. buck2,
-  # which builds everything else, always builds the whole app.
-  BE3_FULL: 1
-  # scripts/internal/common.sh routes rustc through sccache against a shared
-  # object store, reading with a key that is public and writing only when it is
-  # handed one that is not. Every job takes the write key from here, so any run
-  # that has the secret fills the cache for the ones that don't: a pull request
-  # from a fork sees an empty value and reads the same cache read-only.
-  #
-  # That store answers a compilation wherever it runs, which is what a fork's
-  # first run and every cold runner live on. Only the web and Android jobs
-  # compile with cargo; everything else is buck2's, and BuildBuddy caches it.
-  BUNNY_SCCACHE_PASSWORD: ${{ secrets.BUNNY_SCCACHE_PASSWORD }}
   # BuildBuddy, which runs every buck2 action. A pull request from a fork sees
   # an empty value, and ./scripts/buck says so rather than building.
   BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
@@ -204,62 +186,25 @@ jobs:
         with:
           persist-credentials: false
 
-      # The WASI sysroot is built against by clang, not by rustc, so the build
-      # needs a local LLVM of at least version 19: FreeType's setjmp/longjmp
-      # calls are lowered by `-wasm-enable-sjlj`, and older LLVMs lower those
-      # to env.saveSetjmp/testSetjmp/getTempRet0 JS imports that no browser
-      # (and no import map here) provides. LLVM 19+ lowers them to
-      # __wasm_setjmp/__wasm_setjmp_test/__wasm_longjmp instead, which resolve
-      # entirely inside the wasm module against libsetjmp.a.
-      - name: Install LLVM
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-20 llvm-20
-          echo /usr/lib/llvm-20/bin >> "$GITHUB_PATH"
-
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: wasm32-unknown-unknown, wasm32-wasip1-threads
-
-      - uses: ./.github/actions/sccache
-
-      # The build script installs this itself when it is missing; a prebuilt one
-      # is much faster. The version has to match the wasm-bindgen crate.
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
-        with:
-          tool: wasm-bindgen-cli@0.2.122
-
-      - uses: ./.github/actions/wasi-sysroot
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: wasm32-wasip1-threads
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
+      # buck2 builds the app for WASI and the gpu shim on BuildBuddy's workers,
+      # with the WASI sysroot, libghostty-vt and wasm-bindgen it brings itself.
+      - uses: ./.github/actions/buck2
 
       # The plugin modules are the same bytes on every platform, so the plugin
       # job builds them once for all of them and this bundle goes without. What
       # is served is the app; the modules reach it from somewhere else.
-      - run: ./scripts/build --target web --release --no-plugins
-
-      - uses: ./.github/actions/sccache-report
-        if: always()
+      - run: ./scripts/buck build -c be3.profile=release //crates/block-app:web-dist --out dist/web
 
       - uses: actions/upload-artifact@v7
         with:
           name: block-web
-          path: target/web
+          path: dist/web
           retention-days: 14
 
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
         with:
-          path: target/web
+          path: dist/web
 
   plugins:
     name: plugin modules
@@ -298,88 +243,26 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      # android/gradle/wrapper/gradle-wrapper.jar is the one binary committed to
-      # this repository, and it runs before any build script does. This checks
-      # it byte for byte against the wrapper jars Gradle publishes, so a commit
-      # that quietly swapped it fails here rather than executing.
-      - uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-
-      # The runner image ships an Android SDK, but not the NDK release the app
-      # is built against. Every package is pinned to an exact version, and
-      # sdkmanager checks each one against the checksum in Google's repository
-      # manifest, so what is asked for here is the whole of what arrives.
-      #
-      # The NDK is the only one of these the stable channel does not list, so it
-      # is the only one fetched with --channel=3. Asking for the canary channel
-      # for all of them meant a typo in any version string could resolve to a
-      # canary build of something that has a perfectly good stable release.
-      - name: Install the Android SDK packages
-        run: |
-          sdkmanager="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$sdkmanager" --licenses > /dev/null
-          "$sdkmanager" --install \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
-          "$sdkmanager" --channel=3 --install "ndk;29.0.14206865"
-
-      # Nothing here is compiled to wasm any more, so this job wants neither
-      # wasm target, neither the WASI sysroot nor the LLVM that builds against
-      # it, and not the plugin compiler either, which is wasmtime with a
-      # Cranelift backend for every architecture rather than just this one.
-      # That was most of what this job spent its time on.
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: aarch64-linux-android
-
-      - uses: ./.github/actions/sccache
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: aarch64-linux-android
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
-
-      # No gradle-version: the wrapper the build runs through names it, and this
-      # step is here for the dependency cache it keeps between runs. Naming a
-      # version here as well would install a second Gradle that nothing uses,
-      # and would be a copy of the version to keep in step with the wrapper.
-      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      # buck2 builds the app for Android and assembles the APK on BuildBuddy's
+      # workers, with the NDK, the SDK's build tools and a JDK it brings itself.
+      # Only the signing below runs here, with the JDK and apksigner buck2
+      # downloads for it.
+      - uses: ./.github/actions/buck2
 
       # A freshly generated keystore would sign every CI build with a different
       # key, and Android refuses to install an update signed with a different
       # key than the one already on the device. Restore a persisted keystore
       # from a repo secret instead, so successive CI builds stay installable
-      # as updates over one another. Fork PRs don't get repo secrets, so fall
-      # back to a throwaway keystore there (and locally) just to keep the
-      # build working; those builds won't share a key with the real ones.
+      # as updates over one another. Fork PRs don't get repo secrets; there the
+      # signing step makes a throwaway keystore just to keep the build working,
+      # and those builds won't share a key with the real ones.
       - name: Restore the debug keystore
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
-          mkdir -p target
           if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
+            mkdir -p target
             echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > target/android-debug.keystore
-          else
-            keytool -genkeypair -v \
-              -keystore target/android-debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000
           fi
 
       # A CI build sharing the app's real package name would either silently
@@ -394,19 +277,16 @@ jobs:
       # will fetch them rather than carry them; until it does, the app there
       # finds no editors, which is where it already stood.
       - run: >-
-          ./scripts/build --target android
-          --android-sdk "$ANDROID_SDK_ROOT"
-          --application-id com.be3.block.ci
-          --label "Block (CI)"
-          --no-plugins
-
-      - uses: ./.github/actions/sccache-report
-        if: always()
+          ./scripts/buck run
+          -c be3.android_id=com.be3.block.ci
+          -c "be3.android_label=Block (CI)"
+          //crates/block-app:android-dist --
+          --out dist/block-app.apk
 
       - uses: actions/upload-artifact@v7
         with:
           name: block-app-android-aarch64
-          path: target/debug/apk/block-app.apk
+          path: dist/block-app.apk
           retention-days: 14
 
   # Every platform's app and server, cross-compiled on BuildBuddy's Linux

@@ -11,16 +11,11 @@ version: 2
 # compromised upstream, minus the security fixes.
 updates:
   - package-ecosystem: github-actions
-    # Plain "/" is only the workflows. The composite actions under
-    # .github/actions have `uses:` of their own, and dependabot looks for them
-    # in the directory holding the action.yml rather than finding them from the
-    # root, so each one is named. .github/actions/sccache-report runs only a
-    # shell script and has nothing to update.
+    # Plain "/" is only the workflows. Of the composite actions under
+    # .github/actions, buck2 uses nothing and verify only GitHub's own
+    # upload-artifact, so neither is named.
     directories:
       - /
-      - /.github/actions/ghostty-vt
-      - /.github/actions/rust-toolchain
-      - /.github/actions/sccache
     schedule:
       interval: weekly
     # One pull request for all of them. These land together or not at all, and

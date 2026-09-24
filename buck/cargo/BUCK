@@ -102,3 +102,16 @@ rust_sysroot(
     ],
     visibility = ["PUBLIC"],
 )
+
+# wasm-bindgen, which writes the JavaScript the browser loads block-app's web
+# bundle and the gpu shim through. The version has to be the one Cargo.lock has
+# for the wasm-bindgen crate: the two agree on a schema that changes between
+# releases, and the tool refuses a module built against any other.
+cargo_install(
+    name = "wasm-bindgen",
+    binary = "wasm-bindgen",
+    package = "wasm-bindgen-cli",
+    toolchain = ":cargo",
+    version = "0.2.122",
+    visibility = ["PUBLIC"],
+)

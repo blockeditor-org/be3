@@ -1,3 +1,7 @@
+# The web bundle behind TLS, for a deployment: BE3_WEB_ROOT is the directory
+# `./scripts/buck build //crates/block-app:web-dist --out DIR` wrote, and
+# BE3_BACKEND_URL where block-server listens. serve.py beside this is the same
+# arrangement on this machine.
 {$BE3_DOMAIN_NAME} {
     handle /api* {
         reverse_proxy {$BE3_BACKEND_URL}
@@ -11,7 +15,7 @@
             Cross-Origin-Embedder-Policy require-corp
         }
         file_server {
-            root target/web
+            root {$BE3_WEB_ROOT}
         }
     }
 }

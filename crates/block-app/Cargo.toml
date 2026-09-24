@@ -43,8 +43,7 @@ exported = true
 # the terminal needs a Zig toolchain and a Ghostty checkout before cargo can
 # link anything at all, and the embedded browser only needs a large dependency
 # tree. Neither is on by default, so a plain cargo build works without either
-# prerequisite. buck2 always turns both on, and CI's cargo builds - the web and
-# Android ones - set BE3_FULL, so what ships is still the whole app.
+# prerequisite. buck2, which is what builds the app, always turns both on.
 default = []
 terminal = ["dep:ghostty-vt"]
 web-view = ["dep:wry"]

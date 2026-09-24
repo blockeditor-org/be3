@@ -3,16 +3,15 @@ load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 
 # libghostty-vt, the terminal emulator behind block-app's debug terminal.
 #
-# It is Zig rather than Rust. scripts/internal/build-ghostty-vt.sh is what
-# builds it for cargo, and it is what builds it here too: this runs the script
-# on a worker, in a copy of the three files it reads laid out the way it
+# It is Zig rather than Rust, and scripts/internal/build-ghostty-vt.sh is what
+# builds it: this runs the script on a worker, in a copy of the three files it reads laid out the way it
 # expects to find them, and keeps the archive. The script downloads Zig and
 # Ghostty itself, pinned by hash and by commit, and Zig fetches Ghostty's own
 # dependencies, so this is the one action that needs the network. Its inputs
 # pin everything it downloads, which is what makes its result safe to cache.
 #
 # Zig cross-compiles, so every platform's archive is built on the same Linux
-# worker; the triple is the only thing that differs, and the archive's name,
+# worker, the web bundle's freestanding wasm one included; the triple is the only thing that differs, and the archive's name,
 # which is MSVC's convention on Windows. Whatever it is called, it is the one
 # archive in the directory, and the linker takes it by path. For Windows, Zig is
 # pointed at the MSVC runtime and SDK buck/tools lays out, with a libc file; for
@@ -21,7 +20,11 @@ load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 genrule(
     name = "libghostty-vt.a",
     cmd = "triple="
-    + per_cross_platform("x86_64-unknown-linux-gnu", cross_triple)
+    + per_cross_platform(
+        "x86_64-unknown-linux-gnu",
+        cross_triple,
+        {"root//buck/platforms:wasi_setting": "wasm32-wasip1-threads"},
+    )
     + "\nwindows_sdk="
     + per_cross_platform(
         "",
@@ -55,7 +58,7 @@ genrule(
             } > "$GHOSTTY_ZIG_LIBC"
         fi
         cp -RL "$SRCDIR/scripts" "$repository/" || { ls -laR "$SRCDIR" >&2; exit 1; }
-        BE3_NO_SCCACHE=1 bash "$repository/scripts/internal/build-ghostty-vt.sh" \\
+        bash "$repository/scripts/internal/build-ghostty-vt.sh" \\
             --triple "$triple" > /dev/null
         cp "$repository/target/ghostty-vt/$triple/"*ghostty-vt*.* "$OUT"
         rm -rf "$repository"

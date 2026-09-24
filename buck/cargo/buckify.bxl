@@ -60,11 +60,14 @@ def _impl(ctx):
     out = actions.declare_output("generated", dir = True)
 
     # The builds buck2 stands in for, as cargo would be asked for them.
-    # The host is the workspace with block-app's terminal and without its
-    # embedded browser, less the plugins, which are only ever wasm, and the two
-    # crates buck2 does not build. The plugins are every editor and
-    # block-editor-plugin, for wasm32-wasip1-threads. The games are the three
-    # rule crates, for wasm32-unknown-unknown. Android, Linux on arm64, the two
+    # The host is the workspace with block-app's full - the terminal and the
+    # embedded browser - less the plugins, which are only ever wasm, the gpu
+    # shim, which is only ever the browser's, and test-third-party. The web
+    # bundle's app is block-app's library for wasm32-wasip1-threads. The
+    # plugins are every editor and block-editor-plugin, for the same triple but
+    # a plan of their own, since cargo builds them in a call of their own: the
+    # two want different wgpu. The games are the three rule crates, and the
+    # browser's gpu shim, for wasm32-unknown-unknown. Android, Linux on arm64, the two
     # Macs and the two Windows are the host's build again, for their triples. `cargo test` rather than `cargo
     # build` where there are tests, so that the plan has the dev-dependencies
     # and the features they unify. --unit-graph is nightly's, which is why the
@@ -108,8 +111,9 @@ plan() {
 "$nightly/bin/cargo" metadata --no-deps --format-version 1 --locked > "$scratch/metadata.json"
 plan test --workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim \
     --exclude test-third-party --features block-app/full > "$scratch/host.json"
-plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin > "$scratch/wasi.json"
-plan build --target wasm32-unknown-unknown $games > "$scratch/wasm32.json"
+plan build --target wasm32-wasip1-threads -p block-app --lib --features block-app/full > "$scratch/wasi.json"
+plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin > "$scratch/wasi-guest.json"
+plan build --target wasm32-unknown-unknown $games -p block-gpu-shim > "$scratch/wasm32.json"
 host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim --exclude test-third-party"
 plan test --target aarch64-linux-android $host_packages --features block-app/full > "$scratch/android-arm64.json"
 plan test --target aarch64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/linux-arm64.json"
@@ -118,7 +122,7 @@ plan test --target x86_64-apple-darwin $host_packages --features block-app/full 
 plan test --target aarch64-pc-windows-msvc $host_packages --features block-app/full > "$scratch/windows-arm64.json"
 plan test --target x86_64-pc-windows-msvc $host_packages --features block-app/full > "$scratch/windows-x86_64.json"
 python3 "$generate" "$scratch/metadata.json" \
-    "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasm32=$scratch/wasm32.json" \
+    "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasm32=$scratch/wasm32.json" \
     "android-arm64=$scratch/android-arm64.json" "linux-arm64=$scratch/linux-arm64.json" "macos-arm64=$scratch/macos-arm64.json" "macos-x86_64=$scratch/macos-x86_64.json" \
     "windows-arm64=$scratch/windows-arm64.json" "windows-x86_64=$scratch/windows-x86_64.json" \
     > "$out/crates.bzl"

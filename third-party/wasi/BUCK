@@ -8,8 +8,7 @@
 # there they find the machine's headers.
 #
 # It is downloaded rather than vendored, like every crate in third-party/rust,
-# and checked against the same hash scripts/internal/common.sh pins for the
-# cargo build - so both builds are against the same bytes.
+# and checked against the hash pinned here.
 http_archive(
     name = "sysroot",
     sha256 = "063bc1b56582b9923e08ac9b89e58789618d851763f01530b3ff20b9e5df0ca3",

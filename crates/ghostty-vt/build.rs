@@ -26,11 +26,9 @@ fn main() {
     let archive = directory.join(file);
     if !archive.is_file() {
         panic!(
-            "{} does not exist. It is built by scripts/internal/build-ghostty-vt.sh, which \
-             a full build runs for you: set BE3_FULL=1, as CI does for the web and \
-             Android builds in CI. buck2 builds it by itself. You can also run the \
-             script yourself with --triple {target}, or point GHOSTTY_VT_LIBRARY_DIRECTORY at \
-             a directory holding the archive.",
+            "{} does not exist. buck2 builds it by itself; for a cargo build, run \
+             scripts/internal/build-ghostty-vt.sh --triple {target}, or point \
+             GHOSTTY_VT_LIBRARY_DIRECTORY at a directory holding the archive.",
             archive.display()
         );
     }

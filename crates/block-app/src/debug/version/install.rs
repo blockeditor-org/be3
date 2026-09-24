@@ -30,10 +30,10 @@ impl Install {
     }
 
     pub(super) fn poll(&mut self) {
-        if self.result.is_none() {
-            if let Ok(result) = self.receiver.try_recv() {
-                self.result = Some(result);
-            }
+        if self.result.is_none()
+            && let Ok(result) = self.receiver.try_recv()
+        {
+            self.result = Some(result);
         }
     }
 

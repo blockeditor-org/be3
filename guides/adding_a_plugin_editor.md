@@ -123,7 +123,7 @@ Nothing to edit but the editor's BUCK file, which is one `editor()` call naming 
 
 7. Verification
 
-./scripts/buck run //:verify lints every editor as the wasm guest it ships as and runs its tests there. ./scripts/build --target web builds the browser's half of the bootstrap and every plugin as the guest it actually ships as. A plugin can be driven without a GUI: ./scripts/buck run //crates/block-wasm-host:instantiate-example -- "$(./scripts/buck build //crates/editors/foo:module --show-full-output | tail -1 | cut -d' ' -f2)" takes it through the handshake, opens an instance, asks for a frame and fails unless it presented a surface.
+./scripts/buck run //:verify lints every editor as the wasm guest it ships as and runs its tests there. ./scripts/buck build //crates/block-app:web builds the browser's half of the bootstrap and every plugin as the guest it actually ships as. A plugin can be driven without a GUI: ./scripts/buck run //crates/block-wasm-host:instantiate-example -- "$(./scripts/buck build //crates/editors/foo:module --show-full-output | tail -1 | cut -d' ' -f2)" takes it through the handshake, opens an instance, asks for a frame and fails unless it presented a surface.
 
 An editor that draws with the GPU rather than with beui's own shapes uses a beui::Viewport holding a Drawing (guides/beui.md): the gpu work sits behind a Draw the beui renderer runs while it paints, and a headless test, which builds no renderer, never opens a device. A snapshot never holds what it drew, so a test of one asserts on the block and on what the editor paints around it.
 

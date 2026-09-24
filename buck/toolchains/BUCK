@@ -215,7 +215,7 @@ pinned_rust_toolchain(
     # OPT_LEVEL it is building for, which cc-rs and libm both ask.
     #
     # `-c be3.profile=release` is Cargo's release profile instead, which is
-    # what ./scripts/build --release asks for: optimised, no debug info, and on
+    # what CI's release builds ask for: optimised, no debug info, and on
     # wasm the plugin-release profile, which is the same with symbols stripped.
     rustc_flags = select({
         "DEFAULT": _release if _profile == "release" else ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],

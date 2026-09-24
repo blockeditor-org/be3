@@ -98,6 +98,20 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model:be-model",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -250,6 +264,30 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-session:be-session",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:futures-channel",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:js-sys",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wasm-bindgen",
+                    "//third-party/rust:wasm-bindgen-futures",
+                    "//third-party/rust:web-sys",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -374,6 +412,19 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:similar",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-store:be-store",
@@ -685,6 +736,19 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -796,6 +860,20 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-model-derive:be-model-derive",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
@@ -923,6 +1001,18 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -1022,6 +1112,21 @@ crates = {
                 "test_features": [],
             },
             "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
@@ -1449,6 +1554,20 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -1567,6 +1686,21 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:chacha20poly1305",
+                    "//third-party/rust:postcard",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305",
@@ -2129,6 +2263,31 @@ crates = {
                     "//third-party/rust:bytemuck",
                     "//third-party/rust:freetype",
                     "//third-party/rust:harfbuzz_rs",
+                    "//third-party/rust:js-sys",
+                    "//third-party/rust:unicode-script",
+                    "//third-party/rust:wasm-bindgen",
+                    "//third-party/rust:wasm-bindgen-futures",
+                    "//third-party/rust:web-sys",
+                    "//third-party/rust:wgpu",
+                ],
+                "examples": {},
+                "features": [
+                    "render",
+                    "web",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui_macros:beui_macros",
+                    "//crates/reactive:reactive",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:accesskit",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:freetype",
+                    "//third-party/rust:harfbuzz_rs",
                     "//third-party/rust:unicode-script",
                     "//third-party/rust:wgpu",
                 ],
@@ -2419,6 +2578,18 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -2513,6 +2684,17 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:serde",
@@ -3022,6 +3204,47 @@ crates = {
                     "web-view",
                 ],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/beui:beui",
+                    "//crates/block-client:block-client",
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block:block",
+                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/logicgame:logicgame",
+                    "//crates/reactive:reactive",
+                    "//crates/tabletop_games/host:game-host",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:bytemuck",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:image",
+                    "//third-party/rust:js-sys",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wasm-bindgen",
+                    "//third-party/rust:wasm-bindgen-futures",
+                    "//third-party/rust:web-sys",
+                    "//third-party/rust:wgpu",
+                ],
+                "examples": {},
+                "features": [
+                    "default",
+                    "full",
+                    "terminal",
+                    "web-view",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {
                     "block-app": [
@@ -3390,6 +3613,35 @@ crates = {
                     "//third-party/rust:web-sys",
                 ],
                 "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/block:block",
+                    "//crates/logicgame:logicgame",
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:base64",
+                    "//third-party/rust:chacha20poly1305",
+                    "//third-party/rust:eips",
+                    "//third-party/rust:flate2",
+                    "//third-party/rust:futures-channel",
+                    "//third-party/rust:futures-util",
+                    "//third-party/rust:js-sys",
+                    "//third-party/rust:parking_lot",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:sha2",
+                    "//third-party/rust:tokio",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wasm-bindgen",
+                    "//third-party/rust:wasm-bindgen-futures",
+                    "//third-party/rust:web-sys",
+                ],
+                "examples": {},
                 "features": [
                     "hosted",
                 ],
@@ -3687,7 +3939,7 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
@@ -3820,7 +4072,18 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
-            "wasi": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:serde",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:bincode",
@@ -3927,7 +4190,7 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
@@ -4033,6 +4296,17 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//third-party/rust:wgpu",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -4068,7 +4342,24 @@ crates = {
             "proc_macro": False,
         },
         "name": "block-gpu-shim",
-        "platforms": {},
+        "platforms": {
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/block-gpu-abi:block-gpu-abi",
+                    "//crates/block-gpu-host:block-gpu-host",
+                    "//third-party/rust:js-sys",
+                    "//third-party/rust:wasm-bindgen",
+                    "//third-party/rust:wasm-bindgen-futures",
+                    "//third-party/rust:web-sys",
+                    "//third-party/rust:wgpu",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
         "version": "0.1.0",
     },
     "crates/block-plugin-api": {
@@ -4153,6 +4444,19 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:serde_json",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:bincode",
@@ -4282,7 +4586,7 @@ crates = {
                 ],
                 "test_features": [],
             },
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/block-client:block-client",
@@ -4745,7 +5049,7 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -4878,7 +5182,7 @@ crates = {
                 ],
                 "test_features": [],
             },
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5302,7 +5606,7 @@ crates = {
         },
         "name": "audio_block",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5331,7 +5635,7 @@ crates = {
         },
         "name": "browser_tab",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5360,7 +5664,7 @@ crates = {
         },
         "name": "calendar",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5390,7 +5694,7 @@ crates = {
         },
         "name": "checklist",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5420,7 +5724,7 @@ crates = {
         },
         "name": "compiled_logic",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5451,7 +5755,7 @@ crates = {
         },
         "name": "counter",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5481,7 +5785,7 @@ crates = {
         },
         "name": "database",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5511,7 +5815,7 @@ crates = {
         },
         "name": "database_schema",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5540,7 +5844,7 @@ crates = {
         },
         "name": "database_view",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5570,7 +5874,7 @@ crates = {
         },
         "name": "deterministic_game",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5603,7 +5907,7 @@ crates = {
         },
         "name": "file_tree",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5633,7 +5937,7 @@ crates = {
         },
         "name": "game_module",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5663,7 +5967,7 @@ crates = {
         },
         "name": "hotbar",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5693,7 +5997,7 @@ crates = {
         },
         "name": "image_block",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5723,7 +6027,7 @@ crates = {
         },
         "name": "infinite_canvas",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5755,7 +6059,7 @@ crates = {
         },
         "name": "logic_game",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5786,7 +6090,7 @@ crates = {
         },
         "name": "logic_grid",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5821,7 +6125,7 @@ crates = {
         },
         "name": "map",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5852,7 +6156,7 @@ crates = {
         },
         "name": "paint_review",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5884,7 +6188,7 @@ crates = {
         },
         "name": "pan_zoom",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5913,7 +6217,7 @@ crates = {
         },
         "name": "pdf",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5940,7 +6244,7 @@ crates = {
         },
         "name": "pixel_art",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -5973,7 +6277,7 @@ crates = {
         },
         "name": "pixel_ray_tracer",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6002,7 +6306,7 @@ crates = {
         },
         "name": "presentation",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6032,7 +6336,7 @@ crates = {
         },
         "name": "scene_3d",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6063,7 +6367,7 @@ crates = {
         },
         "name": "settings",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6093,7 +6397,7 @@ crates = {
         },
         "name": "text_block",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6125,7 +6429,7 @@ crates = {
         },
         "name": "ui_settings",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6154,7 +6458,7 @@ crates = {
         },
         "name": "version_control_data",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6184,7 +6488,7 @@ crates = {
         },
         "name": "version_control_worktree",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6214,7 +6518,7 @@ crates = {
         },
         "name": "video_block",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6244,7 +6548,7 @@ crates = {
         },
         "name": "workspace_index",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6274,7 +6578,7 @@ crates = {
         },
         "name": "workspace_ui",
         "platforms": {
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui:beui",
@@ -6472,6 +6776,14 @@ crates = {
                 ],
                 "test_features": [],
             },
+            "wasi": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [],
@@ -6582,6 +6894,19 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rand_chacha",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:rand",
@@ -6768,7 +7093,7 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
-            "wasi": {
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:bincode",
@@ -7059,6 +7384,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/reactive_macros:reactive_macros",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -7179,6 +7514,18 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2",
+                    "//third-party/rust:quote",
+                    "//third-party/rust:syn",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -7288,6 +7635,20 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:rand",
+                    "//third-party/rust:rand_chacha",
+                    "//third-party/rust:serde",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:bincode",
@@ -7423,6 +7784,19 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/tabletop_games/api:game-api",
+                    "//third-party/rust:bincode",
+                    "//third-party/rust:uuid",
+                    "//third-party/rust:wasmi",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [
                     "//crates/tabletop_games/api:game-api",
@@ -7961,6 +8335,23 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde",
+                    "//third-party/rust:similar",
+                    "//third-party/rust:tree-sitter",
+                    "//third-party/rust:tree-sitter-md",
+                    "//third-party/rust:tree-sitter-rust",
+                    "//third-party/rust:tree-sitter-zig",
+                    "//third-party/rust:unicode-segmentation",
+                    "//third-party/rust:uuid",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
@@ -8054,6 +8445,14 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
                 "binaries": {},
                 "deps": [],
                 "examples": {},

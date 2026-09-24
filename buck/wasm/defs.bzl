@@ -35,6 +35,16 @@ wasi_transition = transition(
     refs = {"wasi_guest": "root//buck/platforms:wasi_guest"},
 )
 
+# The app's wasi: block-app's web bundle, which draws to the page with a real
+# wgpu backend.
+def _wasi_app_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    return refs.wasi[PlatformInfo]
+
+wasi_app_transition = transition(
+    impl = _wasi_app_transition_impl,
+    refs = {"wasi": "root//buck/platforms:wasi"},
+)
+
 # rustc calls a cdylib a shared library whatever it is compiling for, so on
 # wasm the "shared" output is the .wasm. Renaming it here is what makes the
 # path a person reads in an error message the one they expected.
@@ -62,19 +72,36 @@ wasi_module = rule(
     impl = _wasm_module_impl,
 )
 
+wasi_app_module = rule(
+    attrs = {
+        "library": attrs.transition_dep(cfg = wasi_app_transition),
+        "module": attrs.option(attrs.string(), default = None),
+    },
+    impl = _wasm_module_impl,
+)
+
 # rustc links a cdylib with --no-entry, which leaves the module without the
 # symbols a host needs to stand one up: lld strips the ones that describe a
 # thread's own storage, and there is no _start left to run libc's constructors
 # through. The host lays out thread storage itself and calls __wasm_call_ctors
-# itself, so a plugin has to export them. scripts/internal/common.sh passes the
-# same list through RUSTFLAGS for the cargo build.
-_plugin_exports = [
+# itself, so a plugin has to export them.
+plugin_exports = [
     "-Clink-arg=--export=__heap_base",
     "-Clink-arg=--export=__tls_base",
     "-Clink-arg=--export=__tls_size",
     "-Clink-arg=--export=__tls_align",
     "-Clink-arg=--export=__wasm_init_tls",
     "-Clink-arg=--export=__wasm_call_ctors",
+]
+
+# What block-app's web bundle is linked with, which is what cargo's web build
+# gives it through RUSTFLAGS: the exports above, which wasm-bindgen needs to
+# set up a thread's storage when it prepares the module for threads, and
+# wasi-libc's setjmp and its libc++ built without exceptions, which the C and
+# C++ the app links - FreeType's error handling and HarfBuzz - need.
+wasi_app_flags = plugin_exports + [
+    "-Clink-arg=-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
+    "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
 ]
 
 # One editor: the guest, and the module the app loads it as.
@@ -96,7 +123,7 @@ def editor(name, module, visibility = ["PUBLIC"]):
         env = facts.env,
         features = facts.features,
         preferred_linkage = "shared",
-        rustc_flags = _plugin_exports,
+        rustc_flags = plugin_exports,
         srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
         visibility = visibility,
@@ -113,7 +140,7 @@ def editor(name, module, visibility = ["PUBLIC"]):
         visibility = visibility,
     )
     plugin_tests(
-        exports = _plugin_exports,
+        exports = plugin_exports,
         srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
     )
 

@@ -54,12 +54,14 @@ target = "x86_64-pc-windows-msvc"
 execution-platform = false
 features = ["default", "full"]
 
-# The plugins. WASI with threads, which is what the plugin host runs.
+# block-app's web bundle. WASI with threads, which is what the browser's
+# half of crates/block-app/web gives it, with the app's full, as on the host.
 [platform.wasi]
 target = "wasm32-wasip1-threads"
 execution-platform = false
+features = ["default", "full"]
 
-# The plugins, again. The same triple as above, because it is the same triple:
+# The plugins. The same triple as above, because it is the same triple:
 # what tells them apart is the plugin_guest cfg, which nothing but this file and
 # the fixups keyed on it know about. Cargo resolves both the same way; the
 # fixups are what then give wgpu and egui-wgpu the guest's feature set rather

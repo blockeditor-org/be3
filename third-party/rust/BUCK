@@ -6061,6 +6061,11 @@ cargo.rust_library(
     named_deps = {
         "wasmtime_core": ":wasmtime-internal-core-48",
     },
+    platform = {
+        "linux-x86_64": dict(
+            features = ["arm64"],
+        ),
+    },
     rustc_flags = ["@$(location :cranelift-codegen-0.135-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
@@ -6124,6 +6129,11 @@ cargo.rust_binary(
         "timing",
         "unwind",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["arm64"],
+        ),
+    },
     visibility = [],
     deps = [
         ":cranelift-codegen-meta-0.135",
@@ -6161,6 +6171,11 @@ buildscript_run(
         "timing",
         "unwind",
     ],
+    platform = {
+        "linux-x86_64": dict(
+            features = ["arm64"],
+        ),
+    },
     version = "0.135.1",
 )
 

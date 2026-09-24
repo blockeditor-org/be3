@@ -1,14 +1,14 @@
 # buck2
 
 buck2 builds and tests the workspace, and every action it runs, runs on
-BuildBuddy. This guide says what it covers, how to run it, why it is set up the
-way it is, and what is still cargo's.
+BuildBuddy. This guide says what it covers, how to run it, and why it is set up
+the way it is.
 
 Every command a person runs is a buck2 target, from `./scripts/buck`: the
-checks, the lint pass, the tests, the app, and every platform's release build.
-cargo is left with the web bundle and the Android APK, which
-`./scripts/build --target web|android` and `./scripts/run` still make; the last
-section says what is missing for each.
+checks, the lint pass, the tests, the app, every platform's release build, the
+web bundle and the Android APK. cargo builds nothing; what is left of it is
+`Cargo.toml`, the one place a dependency is declared, which buck2 reads through
+cargo's own plans.
 
 ## What buck2 builds
 
@@ -18,12 +18,14 @@ section says what is missing for each.
 - Every first-party crate and its tests: the `be-*` stack, `block*`, `beui`,
   `reactive`, `text-editor-core`, the games' api and host, the tools, and
   `block-app` itself, with its terminal and its embedded browser.
-- libghostty-vt, the Zig library behind the terminal, built on a worker by the
-  same script cargo's build uses.
+- libghostty-vt, the Zig library behind the terminal, built on a worker by
+  `scripts/internal/build-ghostty-vt.sh`.
 - The three game modules, as WebAssembly, and the native tests that drive them
   through the host.
 - All thirty-three editors, as the wasm plugins the app loads, and their tests,
   compiled to wasm and run through the same host `block-app` runs a plugin in.
+- `block-app` for the browser, with the gpu shim and the JavaScript
+  wasm-bindgen writes for both, and the APK for Android.
 - All of the above for Android, Linux on arm64, macOS on arm64 and x86_64,
   and Windows on arm64 and x86_64, cross-compiled on the same Linux workers
   (below).
@@ -42,6 +44,9 @@ section says what is missing for each.
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
 | `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: the app, the server and PDFium; add `--target-platforms root//buck/platforms:PLATFORM`, `-c be3.profile=release` and `-c be3.commit=SHA` |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, which every platform shares |
+| `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle, with every plugin; `:web-dist` is CI's, without them |
+| `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `block-server` behind it, on http://127.0.0.1:8080 |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed with adb and started; without `--install` it is only written to `target/android/block-app.apk`. `:android-dist` is CI's, without the plugins |
 | `./scripts/buck run //:buckify` | regenerates the files made from `Cargo.toml` and `buck/sysroot/BUCK` |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 
@@ -338,10 +343,9 @@ instead. `buck/tools/wasm-ld` drops `-fuse-ld=lld` on the way through, because
 own FIXME says so - and a linux link is what the prelude thinks it is building.
 
 **The C dependencies compile to wasm.** `third-party/wasi:sysroot` is the WASI
-sysroot as an `http_archive`, checked against the same hash
-`scripts/internal/common.sh` pins for the cargo build, and `buck/toolchains/BUCK`
-has a cxx toolchain pointed at it with the flags the cargo build passes - the
-setjmp lowering FreeType needs, the `-pthread` that marks the objects as using
+sysroot as an `http_archive`, pinned by hash, and `buck/toolchains/BUCK` has a
+cxx toolchain pointed at it with the flags the C needs - the setjmp lowering
+FreeType needs, the `-pthread` that marks the objects as using
 atomics, and the rest. Rust needs none of it: rustc's own wasip1 standard
 library is self-contained, and a pure-Rust module links without the sysroot at
 all. `beui` builds for `wasm32-wasip1-threads` through this, freetype and
@@ -351,7 +355,7 @@ The wasm C compiler is the host one aimed elsewhere: the same downloaded
 clang-20, with `--target=wasm32-wasip1-threads` in the tool itself rather than
 in the toolchain's flags, because the prelude's cxx toolchain has flags for C
 and for C++ and none for assembly. FreeType's setjmp lowering is why it is
-clang 20: it needs 19 or newer, which is also what the cargo build picks.
+clang 20: it needs 19 or newer.
 
 **reindeer resolves the third-party crates once per platform**, and
 `reindeer.toml` names all four. The platform names are not free: a buck2
@@ -376,8 +380,8 @@ its handles behind trait objects that are neither `Send` nor `Sync`, and
 `fragile-send-sync-non-atomic-wasm` - which the app has, because this target's
 cfg carries no `"atomics"` - makes wgpu assert that they are both.
 
-cargo keeps them apart by resolving features once per call and making two calls.
-reindeer resolves once per platform, so the platforms are what differ:
+cargo kept them apart by resolving features once per call and making two
+calls. reindeer resolves once per platform, so the platforms are what differ:
 
 - `buck/constraints/BUCK` has a `wasm_role` setting with a `guest` value.
 - `buck/platforms:wasi_guest` is `buck/platforms:wasi` plus that value, and
@@ -386,6 +390,9 @@ reindeer resolves once per platform, so the platforms are what differ:
   `plugin_guest` cfg that nothing but the fixups reads. Cargo resolves both
   platforms identically; the fixups on `wgpu` and `egui-wgpu` are keyed on
   `cfg(plugin_guest)` and are what then give each one its own feature set.
+- `buck/cargo/crates.bzl` has a plan for each as well, `wasi` for the app and
+  `wasi-guest` for the plugins, which `buck/cargo/defs.bzl` tells apart by
+  `buck/platforms:wasi_setting` and `:wasi_guest_setting`.
 
 Everything else follows: `wgpu-types` loses `fragile-send-sync-non-atomic-wasm`
 on the guest and `wgpu-core` and `wgpu-hal` appear only on the app's, because
@@ -403,8 +410,8 @@ env = {"GAME_WASM": "$(location :module)"}
 ```
 
 That replaces the build script under cargo, which shells out to a second cargo
-build for wasm32 and prints the path it wrote to. The plugin tests will want the
-same rule.
+build for wasm32 and prints the path it wrote to. The plugin tests, the web
+bundle and the APK use the same rules.
 
 ## The app
 
@@ -435,6 +442,59 @@ other build says `unknown`, so that a commit does not recompile the app.
 - On this VM, which has no WebKitGTK of its own, it runs with the sysroot's
   libraries on `LD_LIBRARY_PATH`, and passes `./scripts/buck run //crates/block-app:smoke`'s check:
   still running after ten seconds in a virtual display.
+
+### The web bundle
+
+```
+./scripts/buck build //crates/block-app:web --out dist/web
+./scripts/buck run //crates/block-app:web-serve
+```
+
+`:web` is the same `buck/app` rule with no executable. What the browser loads
+instead is `block-app`'s library built for `buck/platforms:wasi` and
+`block-gpu-shim` built for `wasm32-unknown-unknown`, each with the JavaScript
+`wasm-bindgen` writes for it, in an action of its own; beside them go the page
+and the shims in `crates/block-app/web`, every plugin, and `plugins.json`, the
+list of the manifests, since a browser cannot list a directory. The app on
+wasi is linked with what wasm-bindgen needs to prepare it for threads - the
+thread-storage exports a plugin has too - and wasi-libc's setjmp
+(`wasi_app_flags` in `buck/wasm/defs.bzl`). libghostty-vt is built for it as
+a freestanding wasm archive.
+
+`wasm-bindgen` is `buck/cargo:wasm-bindgen`, `cargo install` of
+`wasm-bindgen-cli` on a worker at the version `Cargo.lock` has for the crate;
+the two have to agree. `:web-dist` is what CI publishes: no plugins, and an
+index of none. `:web-serve` runs `crates/block-app/web/serve.py`, which serves
+the bundle with the two cross-origin isolation headers the module's shared
+memory needs and passes `/api`, WebSocket and all, through to a
+`block-server` it starts. `web/Caddyfile` is the same for a deployment.
+
+### The APK
+
+```
+./scripts/buck run //crates/block-app:android -- --install
+```
+
+`buck/android` makes an APK on a worker without Gradle: aapt2 links the
+manifest against `android.jar`, javac and d8 turn `MainActivity` into
+`classes.dex`, the native libraries - `block-app`'s `[cdylib]`, transitioned to
+`android_arm64`, and the NDK's `libc++_shared.so` - go in stored, and the
+assets are `:android-assets`, the plugins with each module precompiled for
+`aarch64-linux-android`; zipalign `-P 16` then puts each library on a 16 KB
+page. The JDK, the SDK's build tools and platform, and the platform tools for
+adb are pinned downloads in `buck/android/BUCK`.
+
+What runs here is the signing, `buck/android/sign.py`, because the key is this
+machine's: `target/android-debug.keystore`, made on first use, which
+`--keystore` changes. CI restores its own from a secret and builds with
+`-c be3.android_id=com.be3.block.ci -c "be3.android_label=Block (CI)"`, so its
+builds install beside a developer's. The JDK and the tools are Linux x86_64
+builds, so signing and installing run on a Linux x86_64 machine.
+
+Precompiling for the device needs a host wasmtime that can emit arm64, which
+cargo got from a precompiler built with `block-wasm-host`'s `all-arch`. buck2
+builds one wasmtime for the host, so the fixup on `cranelift-codegen` gives
+that one the arm64 backend beside its own.
 
 ## Cross-compiling
 
@@ -474,13 +534,12 @@ list with `per_cross_platform`.
   the release build moves to a worker that is a Mac or runs Asahi Linux on
   one. rustc gets `SDKROOT` rather than asking `xcrun`, and
   `-Csplit-debuginfo=unpacked`, because the default runs `dsymutil`.
-- **Android** compiles against the sysroot of NDK r29, the NDK the APK build
-  uses, at API level 26, and links the NDK's compiler runtime, which is its
+- **Android** compiles against the sysroot of NDK r29 at API level 26, and links the NDK's compiler runtime, which is its
   clang's and so is named as the resource directory for the link alone.
   `buck/tools:android-ndk` downloads the 780 MB NDK on a worker, checks it,
   and keeps the 86 MB of it the build reads. The app is `block-app`'s
   `[cdylib]`, `libblock_app_lib.so`, the library the APK carries; it needs
-  `libc++_shared.so` beside it, as cargo's build does. Ghostty's build finds
+  `libc++_shared.so` beside it, which the APK carries. Ghostty's build finds
   an NDK itself, and is shown the same one. oboe-sys compiles Oboe with cc-rs,
   which appends a `--target` with no API level unless one is visible in the
   compiler's command, so the fixup puts the versioned one in its `CXXFLAGS`.
@@ -698,19 +757,8 @@ the artifact then only loads on a machine with the same ones - but it is
 compiled on a worker and loaded here, and the two rarely match. Naming the
 target with `--target` is what makes wasmtime stop looking.
 
-## What is still cargo's
+## What is left
 
-- **The web bundle.** The third-party half of it is there: `wgpu`,
-  `wgpu-core` and `wgpu-hal` build for `buck/platforms:wasi`, with the app's
-  feature set. What is left is `block-app` for wasm, wasm-bindgen after it,
-  and the JS shims in `scripts/internal/web`.
-- **The APK.** buck2 builds the app's library for Android,
-  `//crates/block-app:block-app[cdylib]`; what is left is handing it, and
-  `libc++_shared.so`, to the Gradle build in `android/` in place of cargo's.
-- **The browser's and Android's plugin index.** `//crates/block-app:app` and
-  `:plugins` stage the plugins the way native discovery reads them; the
-  `plugins.json` the browser and an APK read instead is still written by
-  `scripts/internal/common.sh`.
 - **The macOS `.app`.** The Mac builds are the executable and its libraries,
   as they were under cargo.
 

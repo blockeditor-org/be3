@@ -2,13 +2,9 @@
 /external/
 shelley.db*
 /block-data/
-/android/.gradle/
-/android/build/
-/android/app/build/
-/android/app/src/main/jniLibs/
-/android/app/src/main/assets/
 /.zig-cache/
 /buck-out
 /.buckconfig.local
 /rust-project.json
 /.buildbuddy-api-key
+/dist/

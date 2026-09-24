@@ -3,15 +3,12 @@
 # Installs what a fresh Ubuntu machine needs to build, test and run the project.
 #
 # Everything here is idempotent, so running it again on a machine that is
-# already set up only reports what is already there. It assumes apt and an
-# unrestricted network: the Rust toolchain, buck2, Zig and Ghostty's
-# dependencies are all fetched from the internet.
+# already set up only reports what is already there. It assumes apt.
 #
-# Building, checking, linting and testing the workspace is buck2's, which runs
-# on BuildBuddy and brings its own compilers, so for that this installs buck2
-# and the libraries the app loads when it runs here. The rest - a Rust
-# toolchain, clang, sccache - is for the web and Android builds, which are
-# still cargo's.
+# Everything the project builds, buck2 builds, on BuildBuddy's workers with
+# compilers it brings itself, so what this machine needs is buck2, Python for
+# the commands that run as buck2 targets, and the libraries the app and the
+# plugin tests load when they run here.
 #
 # Usage:
 #   ./scripts/setup
@@ -30,7 +27,7 @@ time_script 'Setup'
 
 if [[ "$(uname -s)" != 'Linux' ]] || ! command -v apt-get > /dev/null; then
     echo 'This script only knows how to set up Ubuntu. Install the equivalents of' >&2
-    echo 'the packages it lists by hand, then run ./scripts/verify.' >&2
+    echo 'the packages it lists by hand, then run ./scripts/internal/install-buck2.sh.' >&2
     exit 1
 fi
 
@@ -42,23 +39,11 @@ fi
 
 # What each group is for, since none of it is obvious from the names:
 #
-# The compiler cargo drives, and what the -sys crates locate libraries with.
-packages=(build-essential pkg-config)
-# Fetching anything at all, and, on a full build, unpacking the Zig release
-# build-ghostty-vt.sh wants, which is .tar.xz. zstd is what the buck2 release
-# is compressed with.
-packages+=(curl git tar xz-utils zstd)
-# The web build, and every plugin's tests, compile HarfBuzz for
-# wasm32-wasip1-threads with clang and archive it with llvm-ar, neither of
-# which comes from rustup. The build scripts take the newest clang on PATH, so
-# a machine that already has one new enough needs no package at all; 24.04
-# ships 18 as plain clang, which is older than the setjmp lowering FreeType
-# needs, so there a newer pair is installed instead of that default one, which
-# nothing would have used. An LLVM is several hundred megabytes of apt, so
-# installing the one that gets used is worth asking which that is.
-if ! wasm_clang_installed; then
-    packages+=(clang-20 llvm-20)
-fi
+# Fetching buck2, which is a zstd stream, and the checkout itself.
+packages=(curl git zstd)
+# What `./scripts/buck run` starts: //:verify, //:check and the rest are
+# Python, and so is what signs an APK and serves the web bundle.
+packages+=(python3)
 # What the app loads when it runs here: ALSA for audio, GTK for the native file
 # dialog, and WebKitGTK for the embedded browser. buck2 compiles and links
 # against its own copies of them, in buck/sysroot, so only the libraries are
@@ -82,7 +67,8 @@ packages+=(
 # carry theirs - but the GTK dialogs and the window manager the app runs under
 # still want one, and a machine with no font at all is a confusing one to debug.
 packages+=(fonts-dejavu-core fonts-dejavu-mono)
-# ./scripts/run --smoke starts the app against a virtual display.
+# ./scripts/buck run //crates/block-app:smoke starts the app against a virtual
+# display.
 packages+=(xvfb)
 
 missing=()
@@ -100,97 +86,15 @@ else
     DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y "${missing[@]}"
 fi
 
-# Everything cargo compiles - the web and Android builds - goes through sccache, which answers from the project's shared store
-# whatever some other machine has already built. Sourcing common.sh above found
-# nothing to point cargo at; configuring it again is what picks up what was just
-# installed.
-#
-# Nothing here depends on the cache, so a machine that cannot reach it is set up
-# the slow way rather than turned away.
-step 'Installing sccache'
-if "$internal/install-sccache.sh"; then
-    configure_sccache
-fi
-if [[ -z "${RUSTC_WRAPPER:-}" ]]; then
-    echo 'Building without a shared compiler cache.'
-elif [[ "${SCCACHE_S3_RW_MODE:-}" == 'READ_WRITE' ]]; then
-    echo 'Building through sccache, reading and writing the shared cache.'
-else
-    echo 'Building through sccache, reading the shared cache. Set BUNNY_SCCACHE_PASSWORD'
-    echo 'to a zone password that may write to fill it as well.'
-fi
-
-# rust-toolchain.toml pins the channel and the wasm targets, so installing
-# rustup is enough to get all three; any cargo call in the repository then
-# fetches them. Asking for the toolchain here means that download happens now
-# rather than in the middle of the first build.
-#
-# rustup-init is fetched at a pinned version and checked against a hash rather
-# than piping https://sh.rustup.rs into a shell. That form runs whatever is
-# served at the moment it is run, without ever writing it down, so there is no
-# version to review and nothing left afterwards to say what ran. These hashes
-# are the ones static.rust-lang.org publishes alongside the binaries
-# (rustup-init.sha256), not ones recomputed from these downloads.
-rustup_version='1.29.1'
-rustup_sha256_x86_64='dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71'
-rustup_sha256_aarch64='15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433'
-if ! command -v rustup > /dev/null; then
-    # This script already refused anything but Linux above, so these are the
-    # only two rustup-init builds it can ever want.
-    case "$(uname -m)" in
-        x86_64 | amd64)
-            rustup_triple='x86_64-unknown-linux-gnu'
-            rustup_sha256="$rustup_sha256_x86_64"
-            ;;
-        aarch64 | arm64)
-            rustup_triple='aarch64-unknown-linux-gnu'
-            rustup_sha256="$rustup_sha256_aarch64"
-            ;;
-        *)
-            echo "No rustup-init is pinned here for $(uname -m)." >&2
-            echo 'Install Rust from https://rustup.rs by hand, then run this again.' >&2
-            exit 1
-            ;;
-    esac
-
-    step "Installing Rust $rustup_version from https://static.rust-lang.org"
-    rustup_init="$repository/target/tools/rustup-init"
-    mkdir -p "$(dirname "$rustup_init")"
-    download_verified \
-        "https://static.rust-lang.org/rustup/archive/$rustup_version/$rustup_triple/rustup-init" \
-        "$rustup_init" \
-        "$rustup_sha256"
-    chmod +x "$rustup_init"
-    # --no-modify-path, because the PATH line below is what this shell needs and
-    # a profile it has already read would not help it. What is pinned here is
-    # the installer that bootstraps rustup, not a ceiling on the rustup a
-    # machine keeps: `rustup self update` moves it on from this version.
-    "$rustup_init" -y --no-modify-path
-    rm -f "$rustup_init"
-    # The installer only edits the shell profile, which this shell already read.
-    PATH="$HOME/.cargo/bin:$PATH"
-    export PATH
-fi
-
-step 'Installing the pinned Rust toolchain'
-rustup show active-toolchain
-
-# rustup installs a toolchain with neither of these, and ./scripts/verify runs
-# both. A default profile would carry them, but the one a machine already has is
-# whatever it was set up with, so ask for them by name.
-step 'Installing rustfmt and clippy'
-rustup component add rustfmt clippy
-
-# buck2 builds and tests the workspace on BuildBuddy's workers, and
-# ./scripts/verify runs the tests through it; guides/buck2.md says what it
-# covers. Both of these are downloads of a pinned release, so they cost
-# seconds. reindeer is not installed here: it builds from source, takes minutes,
-# and only ./scripts/buckify needs it - which is only after a Cargo.toml change.
+# buck2 builds and tests the workspace on BuildBuddy's workers;
+# guides/buck2.md says what it covers. It is a download of a pinned release, so
+# it costs seconds.
 step 'Installing buck2'
 "$internal/install-buck2.sh"
 
 end_step
 echo ''
-echo 'Setup finished. Set BUILDBUDDY_API_KEY - every build runs on BuildBuddy, and'
-echo 'guides/buck2.md says more - then check the workspace compiles with'
-echo './scripts/check, and run ./scripts/verify before committing.'
+echo 'Setup finished. Every build runs on BuildBuddy, so put its API key in'
+echo 'BUILDBUDDY_API_KEY or in ~/.config/be3/buildbuddy-api-key - guides/buck2.md'
+echo 'says more - then check the workspace compiles with'
+echo './scripts/buck run //:check, and run ./scripts/buck run //:verify before committing.'

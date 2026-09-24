@@ -14,6 +14,12 @@
 # The executable takes the name cargo gives it - block-app, not the crate's
 # block_app - with the platform's extension. With no binary, the directory is
 # the plugins alone.
+#
+# The web bundle is this rule too, with no executable: what the browser loads
+# instead is each of `bindgen`'s modules with the JavaScript wasm-bindgen writes
+# for it, one action a module, beside the page and the shims in `files`. The
+# browser cannot list a directory, so `index` writes plugins.json, the names
+# of the manifests staged beside them, for it to find the plugins through.
 def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name, dir = True)
     command = cmd_args("python3", ctx.attrs._stage, out.as_output())
@@ -47,6 +53,25 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
                 identifier = wasm.basename,
             )
             command.add(cmd_args("--artifact=", artifact, delimiter = ""))
+    for module in ctx.attrs.bindgen:
+        wasm = module[DefaultInfo].default_outputs[0]
+        bindings = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + "-bindings", dir = True)
+        ctx.actions.run(
+            cmd_args(
+                ctx.attrs.wasm_bindgen[RunInfo],
+                "--target",
+                "web",
+                "--no-typescript",
+                "--out-dir",
+                bindings.as_output(),
+                wasm,
+            ),
+            category = "wasm_bindgen",
+            identifier = wasm.basename,
+        )
+        command.add(cmd_args("--tree=", bindings, delimiter = ""))
+    if ctx.attrs.index:
+        command.add("--index")
     ctx.actions.run(command, category = "app")
     providers = [DefaultInfo(default_output = out)]
     if name:
@@ -56,15 +81,18 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
 app = rule(
     attrs = {
         "binary": attrs.option(attrs.dep(), default = None),
+        "bindgen": attrs.list(attrs.dep(), default = []),
         "executable_name": attrs.string(default = ""),
         # More executables to put beside the app, by the name cargo gives each.
         "extra_binaries": attrs.dict(attrs.string(), attrs.dep(), default = {}),
         "files": attrs.list(attrs.source(), default = []),
+        "index": attrs.bool(default = False),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),
         "precompile": attrs.bool(default = True),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         "precompiler": attrs.dep(providers = [RunInfo]),
+        "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.py")),
     },
     impl = _app_impl,

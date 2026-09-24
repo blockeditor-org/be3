@@ -10,9 +10,8 @@ load(":defs.bzl", "llvm_tree", "rust_sysroot", "tool")
 # container is. guides/buck2.md says why none of it is taken from the machine
 # that asked for the build.
 #
-# The versions are the ones cargo uses: rust-toolchain.toml's Rust, and the
-# clang-20 that newest_wasm_clang in scripts/internal/common.sh picks on Ubuntu
-# 24.04, which is the distribution the container is.
+# The versions are rust-toolchain.toml's Rust, and clang-20, which is Ubuntu
+# 24.04's, the distribution the container is.
 
 # Each download is pinned by its size as well as its hash. With both, buck2
 # knows the file's digest without asking the server anything, so a build whose
@@ -302,7 +301,7 @@ http_file(
     for arch in ["x86_64", "aarch64"]
 ]
 
-# Android's NDK r29, the version ./scripts/build uses: the aarch64 sysroot and
+# Android's NDK r29: the aarch64 sysroot and
 # the compiler runtime clang links into an Android program, which
 # android-ndk.py downloads, checks and keeps on a worker - the NDK is a 780 MB
 # zip, and an action whose input it was would move all of it to every worker

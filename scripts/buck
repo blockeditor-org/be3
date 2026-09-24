@@ -16,11 +16,6 @@
 
 set -euo pipefail
 
-# Sourcing common.sh turns sccache on for the cargo build: RUSTC_WRAPPER, CC and
-# CXX pointed at it, and its store's credentials. Whatever is exported here is
-# in the environment of the daemon this starts and so of every test it runs
-# locally, and none of it is anything buck2 should see.
-export BE3_NO_SCCACHE=1
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 cd "$repository"
 
