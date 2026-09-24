@@ -3,9 +3,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use block::Block as _;
-use block_client::BlockHandle;
 use block_client::blocks::deterministic_game::{DeterministicGame, DeterministicGameOperation};
 use block_client::blocks::game_module::GameModule;
+use block_editor_plugin::ContentProjection;
+use block_editor_plugin::be_block::GameModuleContent;
 use block_editor_plugin::beui::reactive::{clone, create_signal, view};
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{BlockFilter, BlockPicker, BlockProjection, Creation, Editor};
@@ -32,8 +33,7 @@ struct BlockGame {
     editor: Editor,
     block: Rc<BlockProjection<DeterministicGame>>,
     player: Uuid,
-    module: RefCell<Option<BlockHandle<GameModule>>>,
-    module_changes: RefCell<Option<BlockWatch<GameModule>>>,
+    module: RefCell<Option<(Uuid, Rc<ContentProjection<GameModuleContent>>)>>,
     loaded: RefCell<Option<Loaded>>,
 }
 
@@ -46,7 +46,6 @@ impl BlockGame {
             block,
             player,
             module: RefCell::new(None),
-            module_changes: RefCell::new(None),
             loaded: RefCell::new(None),
         }
     }
@@ -56,14 +55,12 @@ impl BlockGame {
             .module
             .borrow()
             .as_ref()
-            .is_some_and(|handle| handle.id() == module)
+            .is_some_and(|(followed, _)| *followed == module)
         {
             return;
         }
-        let handle = self.editor.client().get_block::<GameModule>(module);
-        let waker = self.editor.host().waker();
-        *self.module_changes.borrow_mut() = Some(BlockWatch::new(&handle, move || waker.wake()));
-        *self.module.borrow_mut() = Some(handle);
+        let projection = self.editor.content_of::<GameModuleContent>(module);
+        *self.module.borrow_mut() = Some((module, projection));
         *self.loaded.borrow_mut() = None;
     }
 
@@ -76,25 +73,28 @@ impl BlockGame {
         drop(state);
 
         self.follow(module);
-        let handle = self
+        let (_, projection) = self
             .module
             .borrow()
             .clone()
             .expect("the module was followed");
-        let revision = handle.revision();
+        let Some(revision) = projection.revision() else {
+            return GameSnapshot::Loading;
+        };
         let stale = self
             .loaded
             .borrow()
             .as_ref()
             .is_none_or(|loaded| loaded.module != module || loaded.revision != revision);
         if stale {
-            let Some(block) = handle.read() else {
+            let Some(game) = projection.read(|module| Game::load(module.data()).map(Arc::new))
+            else {
                 return GameSnapshot::Loading;
             };
             *self.loaded.borrow_mut() = Some(Loaded {
                 module,
                 revision,
-                game: Game::load(block.data()).map(Arc::new),
+                game,
             });
         }
 
@@ -110,10 +110,17 @@ impl BlockGame {
         }
     }
 
-    fn settle(&self) {
-        if let Some(changes) = self.module_changes.borrow_mut().as_mut() {
-            changes.take();
-        }
+    fn module_changed(&self) -> bool {
+        let Some((_, projection)) = self.module.borrow().clone() else {
+            return false;
+        };
+        let revision = projection.revision();
+        revision.is_some()
+            && self
+                .loaded
+                .borrow()
+                .as_ref()
+                .is_none_or(|loaded| Some(loaded.revision) != revision)
     }
 }
 
@@ -158,11 +165,8 @@ impl GameCreation {
             self.creation
                 .client()
                 .get_block::<GameModule>(module)
-                .read()
-                .map_or_else(
-                    || "Loading...".to_owned(),
-                    |module| module.source_name().to_owned(),
-                )
+                .name()
+                .unwrap_or_else(|| "Game module".to_owned())
         });
         CreationSnapshot {
             chosen,
@@ -200,18 +204,10 @@ impl block_editor_plugin::BeuiApp for DeterministicGameApp {
         });
         let changes = RefCell::new(changes);
         let (snapshot, set_snapshot) = create_signal(game.snapshot());
-        game.settle();
         editor.each_frame(clone!(game -> move || {
             let played = changes.borrow_mut().take();
-            let rebuilt = game
-                .module_changes
-                .borrow_mut()
-                .as_mut()
-                .is_some_and(BlockWatch::take);
-            if played || rebuilt {
-                let shown = game.snapshot();
-                game.settle();
-                set_snapshot.set(shown);
+            if played || game.module_changed() {
+                set_snapshot.set(game.snapshot());
             }
         }));
         let model: Rc<dyn GameModel> = game;

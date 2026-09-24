@@ -217,8 +217,15 @@ const MIGRATED: &[Migrated] = &[
         block_client::blocks::database_view::DatabaseView,
         be_block::DatabaseViewContent,
     >(),
+    migrated::<block_client::blocks::game_module::GameModule, be_block::GameModuleContent>(),
     migrated_with_history::<block_client::blocks::hotbar::Hotbar, be_block::HotbarContent>(),
     migrated::<block_client::blocks::image::Image, be_block::ImageContent>(),
+    migrated_with_history::<
+        block_client::blocks::paint_review::PaintReview,
+        be_block::PaintReviewContent,
+    >(),
+    migrated::<block_client::blocks::paint_snapshot::PaintSnapshot, be_block::PaintSnapshotContent>(
+    ),
     migrated::<block_client::blocks::pdf::Pdf, be_block::PdfContent>(),
     migrated_with_history::<
         block_client::blocks::presentation::Presentation,

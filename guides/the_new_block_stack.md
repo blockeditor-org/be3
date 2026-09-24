@@ -318,8 +318,9 @@ store, so renaming a field or an option changes nothing that points at it.
 
 A file is the other shape that does not fit a document: a small header and a
 payload that can be megabytes. `Blob<K>` is that shape once, for any `BlobKind`
-that names a content type and a header: `ImageContent`, `AudioContent` and
-`PdfContent` are each a `Blob` of their own kind. It encodes as a `Streamed`
+that names a content type and a header: `ImageContent`, `AudioContent`,
+`PdfContent`, `GameModuleContent` and `PaintSnapshotContent` are each a `Blob`
+of their own kind. It encodes as a `Streamed`
 type, its only live edit is `BlobOp::SetHeader` (the image editor records what
 it decoded that way), and an offline merge takes whichever side changed it.
 The payload never travels as an operation, because a session relays operations
@@ -329,7 +330,11 @@ and a new file for an existing block from `ReplaceContent` (below).
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
-in `crates/be-client/src/tests/`.
+in `crates/be-client/src/tests/`. An editor's tests stand in for the host with
+`block_ui_test::ContentHarness`, which holds the content of the editor's block
+and of any block it watches, applies what the editor sends, and takes the
+content it seeds or replaces; `ContentStore` is the same store handed to a test
+fixture that needs to read or write it between runs.
 
 ## Running it
 
@@ -482,7 +487,9 @@ way. `editor.create_with_content::<B, C>(&content)` and
 emptied old type with its first content, from code and from the new-block
 dialog's file picker. `ContentProjection::revision` counts the changes an editor
 has seen, for code like the PDF pane that re-renders on a change rather than
-projecting.
+projecting, and `ContentProjection::loaded` is a signal that turns true when the
+first snapshot arrives, for a view that must tell an empty block from one that
+has not loaded yet.
 
 An editor that follows a block chosen by its content, rather than a fixed one,
 uses `editor.related_content::<C>(block)`: given a `Memo<Option<Uuid>>` it
@@ -564,6 +571,11 @@ the old client - and it is what the key wrapping below replaces.
 
 - A migrated block's references reach the old graph only while an editor holds
   the block, like its name.
+- Operations carry no author. The old server stamps each operation with the
+  account that sent it, and the deterministic game relies on that to record who
+  made a move, so it stays on the old stack until the new one can say who wrote
+  an operation (the session owner sequences everything, so this wants signed
+  operations rather than a field the sender fills in).
 - A migrated block's content is not in the old workspace index, so nothing but
   the editor can read it: no preview and no search. Only its name is carried
   across, and only while an editor has it open.
