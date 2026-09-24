@@ -28,6 +28,12 @@ wanted = [
     "libasound2-dev",
     "libgtk-3-dev",
     "libwebkit2gtk-4.1-dev",
+    # be-compositor's session backend: displays through GBM, input through
+    # libinput, a seat through libseat, and devices found through udev.
+    "libgbm-dev",
+    "libinput-dev",
+    "libseat-dev",
+    "libudev-dev",
 ]
 
 # What a test loads that nothing is compiled or linked against: the Vulkan
