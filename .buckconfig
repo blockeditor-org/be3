@@ -20,8 +20,9 @@ buck = none
 [external_cells]
 prelude = bundled
 
+# Linux on x86_64, whichever machine asks: buck/platforms/BUCK says why.
 [parser]
-target_platform_detector_spec = target:root//...->prelude//platforms:default
+target_platform_detector_spec = target:root//...->root//buck/platforms:linux_x86_64
 
 # Where actions run: on BuildBuddy's workers. buck/platforms/BUCK is the
 # platform, and buck/tools the compilers it runs.
@@ -52,7 +53,7 @@ sqlite_materializer_state = true
 #
 # The key is named rather than written: buck2 expands $BUILDBUDDY_API_KEY from
 # the environment the daemon was started in, so a daemon started without it,
-# or with a different one, has to be restarted with buck2 killall.
+# or with a different one, has to be restarted with ./scripts/buck killall.
 # ./scripts/buck refuses to start one without it.
 [buck2_re_client]
 action_cache_address = remote.buildbuddy.io:443

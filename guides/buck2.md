@@ -56,15 +56,38 @@ built or downloaded what it needs: rustfmt, starlark_fmt, fix-rust-source,
 rust-project. A command that builds more - clippy, the tests - calls
 `./scripts/buck` itself; `buck2 run` lets go of buck2 before it starts one.
 
-`./scripts/buck` is buck2 with two checks in front: that there is a BuildBuddy
-API key, since there is nowhere else to build, and that no `.buckconfig.local`
-an older copy of it wrote is left behind. It also lets a test run put its tests
-on the workers (below). The key is `BUILDBUDDY_API_KEY` from the environment,
-or else the contents of `.buildbuddy-api-key` at the root of the checkout,
-which git ignores, or of `~/.config/be3/buildbuddy-api-key`. Calling `buck2`
-directly works too, once the key is in the environment.
+`./scripts/buck` is the pinned buck2 with a few things in front of it. It runs
+under bash on Linux, on macOS - whose bash 3.2 it keeps to - and in Git Bash
+on Windows.
 
-**Restart the daemon when the key changes**, with `buck2 killall`. `.buckconfig`
+- **buck2 itself.** The pinned release lives in the checkout, at
+  `target/tools/buck2-<version>/`, and `./scripts/internal/install-buck2.sh`
+  puts it there the first time `./scripts/buck` finds it missing, with the
+  zstd command or, failing that, Python 3.14's zstd. Checking is one test of a
+  file, so it costs nothing on every other run, and moving the version
+  installs the new one. A `buck2` on `PATH` is not used: every buck2 carries
+  the prelude it was built with.
+- **The key**, since there is nowhere else to build: `BUILDBUDDY_API_KEY` from
+  the environment, or else the contents of `.buildbuddy-api-key` at the root
+  of the checkout, which git ignores, or of `~/.config/be3/buildbuddy-api-key`.
+  With none of them, a person at a terminal is asked for it, and it is saved
+  to `.buildbuddy-api-key`; anything without a terminal on both stdin and
+  stderr - CI, a pipe, an agent's shell - gets told what to set instead.
+- **Tests** are allowed onto the workers (below).
+- **`run` builds for this machine.** Every build is for Linux on x86_64
+  unless it says otherwise, wherever it is asked for: `.buckconfig` names
+  `buck/platforms:linux_x86_64` as the default target platform, so a Mac or
+  Windows machine builds, tests and caches exactly what CI and a Linux machine
+  do. buck2's own default would follow the machine instead. What `run` starts
+  has to run here, though, so on anything but Linux on x86_64 `./scripts/buck
+  run` adds `--target-platforms` for this machine - `macos_arm64`,
+  `windows_x86_64` and the rest in `buck/platforms` - unless the command names
+  one itself. The `//:` commands are Python, so `//:check` and `//:buckify`
+  work from any of them; `//:verify` and `//:rust-project` run tools that are
+  Linux builds.
+- An older copy of it wrote `.buckconfig.local`; one left behind is removed.
+
+**Restart the daemon when the key changes**, with `./scripts/buck killall`. `.buckconfig`
 names the variable rather than holding the key, and buck2 expands it from the
 environment of the daemon, which is the one it was started with.
 
@@ -74,8 +97,8 @@ any `Cargo.toml` or `Cargo.lock`, or `buck/sysroot/BUCK`; CI fails if any of
 them disagrees. Nothing else needs touching for a new dependency: a crate's
 `BUCK` file takes its dependencies from `crates.bzl` (below).
 
-buck2 itself is installed by `./scripts/internal/install-buck2.sh`, a
-download. Every other tool is one buck2 downloads or builds; reindeer is built
+buck2 itself is a download `./scripts/buck` makes the first time it runs.
+Every other tool is one buck2 downloads or builds; reindeer is built
 and run on a worker.
 
 ### Generated from Cargo.toml

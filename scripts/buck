@@ -5,31 +5,62 @@
 # Every action runs on BuildBuddy's workers, so what this machine needs is
 # buck2 and the key; the compilers are downloads the workers are handed.
 # .buckconfig says how buck2 reaches BuildBuddy and guides/buck2.md says why
-# there is no other way to run it.
+# there is no other way to run it. It runs under bash on Linux, on macOS and in
+# Git Bash on Windows.
 #
-# Everything after the script name is handed to buck2 unchanged, except that a
-# test run is allowed to put its tests on the workers.
+# The pinned buck2 is installed the first time this runs, and the key asked for
+# the first time it is missing, when there is a person at the terminal to ask.
+#
+# Everything after the script name is handed to buck2 unchanged, except that:
+#   - a test run is allowed to put its tests on the workers;
+#   - on a machine that is not Linux on x86_64, `run` builds what it runs for
+#     this machine, unless the command names --target-platforms itself.
+#     Everything else is built for Linux on x86_64 wherever it is asked for, so
+#     that it is the same build, and the same cache entries, everywhere.
 #
 # Usage:
 #   ./scripts/buck build //crates/...
 #   ./scripts/buck test //crates/...
+#   ./scripts/buck run //crates/block-app:app
 
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 cd "$repository"
 
-assert_command buck2 'Run ./scripts/internal/install-buck2.sh.'
+buck2="$(buck2_path)"
+if [[ ! -x "$buck2" ]]; then
+    "$internal/install-buck2.sh" >&2
+fi
 assert_buildbuddy_key
 remove_generated_buck_config_local
+
+command="${1:-}"
 
 # buck2 runs every test locally, whatever its executor says, until it is told
 # otherwise. This tells it to send the ones it calls compatible: a test that
 # runs from the project root with project-relative paths, which is every Rust
 # test and none of the plugin tests. guides/buck2.md says why those stay here.
-if [[ "${1:-}" == 'test' ]]; then
+if [[ "$command" == 'test' ]]; then
     shift
-    exec buck2 test --unstable-allow-compatible-tests-on-re "$@"
+    exec "$buck2" test --unstable-allow-compatible-tests-on-re "$@"
 fi
 
-exec buck2 "$@"
+if [[ "$command" == 'run' ]]; then
+    host="$(host_target_platform || true)"
+    if [[ -n "$host" && "$host" != 'linux_x86_64' ]]; then
+        named=false
+        for argument in "$@"; do
+            case "$argument" in
+                --) break ;;
+                --target-platforms | --target-platforms=*) named=true ;;
+            esac
+        done
+        if ! $named; then
+            shift
+            exec "$buck2" run --target-platforms "root//buck/platforms:$host" "$@"
+        fi
+    fi
+fi
+
+exec "$buck2" "$@"

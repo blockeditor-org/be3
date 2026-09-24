@@ -9,7 +9,7 @@ description: >-
 runs:
   using: composite
   steps:
-    # It lands in ~/.cargo/bin, which GitHub's Ubuntu runners already have on
-    # PATH.
+    # ./scripts/buck would install it by itself on first use; installing it
+    # here is only so that the download is a step of its own in the log.
     - shell: bash
       run: ./scripts/internal/install-buck2.sh

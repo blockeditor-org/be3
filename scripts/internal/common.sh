@@ -234,6 +234,44 @@ buck2_triple() {
     esac
 }
 
+# A path as a native Windows program can open it. Git Bash hands out /c/...
+# paths, which Windows' own programs - Python among them - cannot read, so a
+# path that travels to one as an argument goes through here. Anywhere else it
+# is the path as it is.
+native_path() {
+    if command -v cygpath > /dev/null 2>&1; then
+        cygpath -m "$1"
+    else
+        echo "$1"
+    fi
+}
+
+# Where the pinned buck2 is installed: inside the checkout, under a directory
+# named after the version, so ./scripts/buck can tell it is there with one test
+# of a file, and moving the version installs the new one rather than running
+# the old.
+buck2_path() {
+    echo "$repository/target/tools/buck2-$buck2_version/buck2$(buck2_binary_suffix)"
+}
+
+# The target platform in buck/platforms for this machine, for what
+# ./scripts/buck runs here. Builds are for Linux on x86_64 wherever they are
+# asked for; something that is to run on this machine is built for it instead.
+host_target_platform() {
+    local architecture
+    case "$(uname -m)" in
+        x86_64 | amd64) architecture='x86_64' ;;
+        aarch64 | arm64) architecture='arm64' ;;
+        *) return 1 ;;
+    esac
+    case "$(uname -s)" in
+        Linux) echo "linux_$architecture" ;;
+        Darwin) echo "macos_$architecture" ;;
+        MINGW* | MSYS* | CYGWIN*) echo "windows_$architecture" ;;
+        *) return 1 ;;
+    esac
+}
+
 # Upstream names the Windows binaries .exe.zst and everything else .zst.
 buck2_release_suffix() {
     case "$(uname -s)" in
@@ -269,23 +307,41 @@ buck2_release_sha256() {
 # that holds it: .buildbuddy-api-key at the root of the checkout, which git
 # ignores, or ~/.config/be3/buildbuddy-api-key. Either way it is exported, which
 # is how .buckconfig's $BUILDBUDDY_API_KEY reaches the daemon.
+#
+# With none of them, a person at a terminal is asked for the key, and it is
+# saved to .buildbuddy-api-key for next time. Anything else - a pipe, CI, an
+# agent's shell - has nobody to answer, so it is told what to set instead of
+# waiting for input that will not come.
 assert_buildbuddy_key() {
-    local file
+    local file key
     if [[ -z "${BUILDBUDDY_API_KEY:-}" ]]; then
         for file in "$repository/.buildbuddy-api-key" "${XDG_CONFIG_HOME:-$HOME/.config}/be3/buildbuddy-api-key"; do
             if [[ -f "$file" ]]; then
                 BUILDBUDDY_API_KEY="$(tr -d '[:space:]' < "$file")"
-                export BUILDBUDDY_API_KEY
                 break
             fi
         done
     fi
+    if [[ -z "${BUILDBUDDY_API_KEY:-}" && -t 0 && -t 2 ]]; then
+        echo 'buck2 runs every build on BuildBuddy, and needs an API key for it.' >&2
+        echo 'Find one under Settings at https://app.buildbuddy.io.' >&2
+        read -r -s -p 'BuildBuddy API key: ' key
+        echo '' >&2
+        key="$(printf '%s' "$key" | tr -d '[:space:]')"
+        if [[ -n "$key" ]]; then
+            (umask 077 && printf '%s\n' "$key" > "$repository/.buildbuddy-api-key")
+            echo "Saved it to $repository/.buildbuddy-api-key, which git ignores." >&2
+            BUILDBUDDY_API_KEY="$key"
+        fi
+    fi
     if [[ -n "${BUILDBUDDY_API_KEY:-}" ]]; then
+        export BUILDBUDDY_API_KEY
         return 0
     fi
     echo 'buck2 runs every build on BuildBuddy, and there is no BuildBuddy API key.' >&2
     echo 'Set BUILDBUDDY_API_KEY, or write the key to .buildbuddy-api-key at the root' >&2
-    echo 'of the checkout or to ~/.config/be3/buildbuddy-api-key. guides/buck2.md has more.' >&2
+    echo 'of the checkout or to ~/.config/be3/buildbuddy-api-key. Run ./scripts/buck' >&2
+    echo 'from a terminal to be asked for it. guides/buck2.md has more.' >&2
     exit 1
 }
 
