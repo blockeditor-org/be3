@@ -117,11 +117,14 @@ impl BinaryAdditionQuiz {
         row: QuizRow,
         values: Vec<Option<bool>>,
     ) {
-        crate::app::operate(block, LogicGameOperation::SetQuizRow {
-            problem,
-            row,
-            values,
-        });
+        crate::app::operate(
+            block,
+            LogicGameOperation::SetQuizRow {
+                problem,
+                row,
+                values,
+            },
+        );
     }
 }
 

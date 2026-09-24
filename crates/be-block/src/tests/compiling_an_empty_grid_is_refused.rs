@@ -1,7 +1,7 @@
 use logicgame::grid::LogicGrid as Grid;
 
-use super::*;
-use crate::blocks::compiled_logic::CompileError;
+use crate::compiled_logic::{CompileError, CompiledLogic};
+use uuid::Uuid;
 
 #[test]
 fn compiling_an_empty_grid_is_refused() {

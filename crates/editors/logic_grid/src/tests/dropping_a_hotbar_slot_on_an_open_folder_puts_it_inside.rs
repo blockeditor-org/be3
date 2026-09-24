@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn dropping_a_hotbar_slot_on_an_open_folder_puts_it_inside() {
-    let (mut editor, _block) = editor();
+    let mut editor = editor();
     editor.key_press(Key::Four);
     editor.run();
     assert!(

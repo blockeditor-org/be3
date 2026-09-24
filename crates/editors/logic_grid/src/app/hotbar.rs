@@ -132,9 +132,9 @@ impl LogicGridEditor {
         else {
             return false;
         };
-        if let Some(client) = client {
+        if client.is_some() {
             for compiled in pinned_components(&slots) {
-                self.ensure_compiled(client, compiled);
+                self.ensure_compiled(compiled);
             }
         }
         let rebuilt = if slots.is_empty() {
@@ -159,7 +159,7 @@ impl LogicGridEditor {
 
     fn hotbar_content(&self) -> Option<Rc<ContentProjection<HotbarContent>>> {
         let id = self.hotbar_block.as_ref()?.block()?.id();
-        Some(self.hotbar_editor.as_ref()?.content_of::<HotbarContent>(id))
+        Some(self.store.editor()?.content_of::<HotbarContent>(id))
     }
 
     fn hotbar_slot_from_block(&self, slot: &Item<BlockHotbarSlot>) -> Option<HotbarSlot> {

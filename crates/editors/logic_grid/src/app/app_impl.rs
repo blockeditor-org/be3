@@ -17,7 +17,9 @@ impl block_editor_plugin::BeuiApp for LogicGridApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(LogicGrid::new()).id())
+        let block = creation.client().create_block(LogicGrid::new());
+        creation.seed_content(block.id(), &LogicGridContent::default());
+        Ok(block.id())
     }
 
     fn connect_artifact(artifacts: &Artifacts) {
@@ -25,12 +27,13 @@ impl block_editor_plugin::BeuiApp for LogicGridApp {
             Rc::new(RefCell::default());
         let failure: Rc<RefCell<Option<String>>> = Rc::new(RefCell::default());
         let client = artifacts.client().clone();
+        let host = artifacts.host().clone();
         let block_id = artifacts.block_id();
         let block_type = artifacts.block_type();
         let started = Rc::clone(&regeneration);
         let reported = Rc::clone(&failure);
         artifacts.on_regenerate(move |data| {
-            match dynamic_artifact::regenerate(&client, block_id, block_type, data) {
+            match dynamic_artifact::regenerate(&host, &client, block_id, block_type, data) {
                 Ok(started_regeneration) => {
                     *started.borrow_mut() = Some(started_regeneration);
                     reported.borrow_mut().take();

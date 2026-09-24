@@ -89,7 +89,10 @@ impl LogicGameProgress {
             .into_iter()
             .map(|challenge| Level {
                 challenge,
-                solutions: self.solutions_of(challenge).map(|(_, block)| block).collect(),
+                solutions: self
+                    .solutions_of(challenge)
+                    .map(|(_, block)| block)
+                    .collect(),
                 completed: self.completed.get(&challenge).copied().unwrap_or(false),
             })
             .collect();
@@ -104,7 +107,10 @@ impl LogicGameProgress {
         LogicGame { levels, quiz }
     }
 
-    fn solutions_of(&self, challenge: ChallengeId) -> impl Iterator<Item = (ObjectId, BlockRef)> + '_ {
+    fn solutions_of(
+        &self,
+        challenge: ChallengeId,
+    ) -> impl Iterator<Item = (ObjectId, BlockRef)> + '_ {
         self.solutions.iter().filter_map(move |solution| {
             (solution.challenge == Some(challenge)).then_some((solution.id, solution.block?))
         })

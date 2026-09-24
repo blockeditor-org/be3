@@ -1,5 +1,3 @@
-use block::Block;
-use block_client::blocks::logic_grid::LogicGridOperation;
 use logicgame::grid::{
     Component, ComponentKind, ComponentOrientation, InputId, OutputId, Point, Scale,
 };
@@ -9,7 +7,7 @@ use super::*;
 #[test]
 fn compiling_a_grid_produces_a_component_named_after_it() {
     let source_id = Uuid::new_v4();
-    let mut grid = LogicGrid::new();
+    let mut grid = Grid::new();
     for (index, kind) in [
         ComponentKind::Input {
             scale: Scale::ONE,
@@ -32,7 +30,7 @@ fn compiling_a_grid_produces_a_component_named_after_it() {
             orientation: ComponentOrientation::Up,
             kind,
         };
-        LogicGrid::apply_operation(&mut grid, &LogicGridOperation::AddComponent { component });
+        grid.insert_component(component);
     }
 
     let compiled = generate_initial(source_id, &grid).unwrap();

@@ -7,13 +7,15 @@ use block::{Block, BlockParent};
 use block_client::BlockHandle;
 use block_client::block_ref::BlockRef;
 use block_client::blocks::hotbar::Hotbar;
-use block_editor_plugin::be_block::logic_game::LogicGameOperation;
 use block_client::blocks::logic_grid::LogicGrid;
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_client::root_settings::RootSetting;
+use block_editor_plugin::ContentProjection;
+use block_editor_plugin::Editor;
+use block_editor_plugin::be_block::logic_game::LogicGameOperation;
+use block_editor_plugin::be_block::{LogicGridContent, LogicGridDocument, ObjectId};
 use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
 use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::Editor;
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;
 
@@ -37,7 +39,13 @@ pub(crate) struct Level {
 struct Work {
     cache: ReferenceResolutionCache,
     started: ReferenceClassificationQueue<(ChallengeId, usize)>,
-    grids: HashMap<Uuid, BlockHandle<LogicGrid>>,
+    grids: HashMap<
+        Uuid,
+        (
+            BlockHandle<LogicGrid>,
+            Rc<ContentProjection<LogicGridContent>>,
+        ),
+    >,
     hotbar: Option<RootSetting<Hotbar>>,
 }
 
@@ -67,6 +75,7 @@ impl Game {
         let host = editor.host().clone();
         let game = Rc::clone(&block);
         let block_id = editor.block_id();
+        let reader = editor.clone();
         editor.each_frame(move || {
             let mut work = each_frame.borrow_mut();
             work.cache.poll();
@@ -77,11 +86,14 @@ impl Game {
                 hotbar,
             } = &mut *work;
             for (solution, (challenge, index)) in started.poll() {
-                crate::app::operate(&game, LogicGameOperation::InsertSolution {
-                    challenge,
-                    solution,
-                    index,
-                });
+                crate::app::operate(
+                    &game,
+                    LogicGameOperation::InsertSolution {
+                        challenge,
+                        solution,
+                        index,
+                    },
+                );
             }
             let setting = hotbar.get_or_insert_with(|| RootSetting::new(&client));
             setting.find(&client, host.client_id());
@@ -100,13 +112,16 @@ impl Game {
                             let id = cache.resolve(&client, block_id, reference);
                             if let Some(id) = id {
                                 listed.push(id);
-                                grids
-                                    .entry(id)
-                                    .or_insert_with(|| client.get_block::<LogicGrid>(id));
+                                grids.entry(id).or_insert_with(|| {
+                                    (
+                                        client.get_block::<LogicGrid>(id),
+                                        reader.content_of::<LogicGridContent>(id),
+                                    )
+                                });
                             }
                             let handle = id.and_then(|id| grids.get(&id));
-                            let label =
-                                handle.map(|handle| BlockLabel::for_handle(types.as_ref(), handle));
+                            let label = handle
+                                .map(|(handle, _)| BlockLabel::for_handle(types.as_ref(), handle));
                             Solution {
                                 reference,
                                 id,
@@ -119,8 +134,12 @@ impl Game {
                                 ),
                                 automatic: label.is_none_or(|label| label.automatic),
                                 completed: handle
-                                    .and_then(BlockHandle::read)
-                                    .is_some_and(|grid| grid.completed()),
+                                    .and_then(|(_, grid)| {
+                                        grid.read(|grid| {
+                                            grid.field(ObjectId::ROOT, LogicGridDocument::COMPLETED)
+                                        })
+                                    })
+                                    .unwrap_or(false),
                             }
                         })
                         .collect(),
@@ -130,10 +149,13 @@ impl Game {
             grids.retain(|id, _| listed.contains(id));
             for level in &rows {
                 if level.solutions.iter().any(|solution| solution.completed) && !level.completed {
-                    crate::app::operate(&game, LogicGameOperation::SetCompleted {
-                        challenge: level.challenge,
-                        completed: true,
-                    });
+                    crate::app::operate(
+                        &game,
+                        LogicGameOperation::SetCompleted {
+                            challenge: level.challenge,
+                            completed: true,
+                        },
+                    );
                 }
             }
             set_levels.set(rows);
@@ -166,15 +188,22 @@ impl Game {
     }
 
     pub(crate) fn remove(&self, challenge: ChallengeId, solution: BlockRef) {
-        crate::app::operate(&self.block, LogicGameOperation::RemoveSolution {
-            challenge,
-            solution,
-        });
+        crate::app::operate(
+            &self.block,
+            LogicGameOperation::RemoveSolution {
+                challenge,
+                solution,
+            },
+        );
     }
 
     pub(crate) fn start(&self, challenge: ChallengeId, index: usize) {
         let client = self.editor.client();
-        let solution = client.create_block(LogicGrid::for_challenge(challenge));
+        let solution = self
+            .editor
+            .create_with_content::<LogicGrid, _>(&LogicGridContent::new(
+                &LogicGridDocument::for_challenge(challenge),
+            ));
         solution.set_name(format!("{} {}", challenge.name(), index + 1));
         solution.set_parent(BlockParent::Uuid(self.editor.block_id()));
         let id = solution.id();
