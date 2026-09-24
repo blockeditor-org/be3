@@ -63,6 +63,54 @@ rust_sysroot(
     components = [":rustc-component", ":clippy-component"] + [":rust-std-" + target for target in sorted(rust_std)],
 )
 
+# rustfmt, for ./scripts/verify to run on this machine: the formatter and the
+# rustc libraries it loads, in a sysroot of their own so that the compiler's is
+# unchanged by it.
+http_archive(
+    name = "rustfmt-component",
+    sha256 = "8922a03e68265a74a8040590e28b173fb5d9d49655bb6eacfd880fbd3bef0dc3",
+    size_bytes = 2484924,
+    strip_prefix = "rustfmt-{}-{}/rustfmt-preview".format(rust_version, rust_host),
+    urls = ["https://static.rust-lang.org/dist/rustfmt-{}-{}.tar.xz".format(rust_version, rust_host)],
+)
+
+rust_sysroot(
+    name = "rustfmt-sysroot",
+    components = [":rustc-component", ":rustfmt-component"],
+)
+
+tool(
+    name = "rustfmt",
+    command = ["$(location :rustfmt-sysroot)/bin/rustfmt"],
+    visibility = ["PUBLIC"],
+)
+
+# starlark_fmt, the BUCK files' formatter, from the buck2 release
+# scripts/internal/common.sh pins. The release is a bare zstd stream, which
+# http_archive does not unpack and the worker has no zstd for, so Ubuntu's own
+# zstd is taken out of its package to do it.
+http_file(
+    name = "zstd.deb",
+    sha256 = "bb14385ff3d6df723a686778dc5f87849f720a0add261b5de9bcd4915a490b2a",
+    size_bytes = 644352,
+    urls = ["https://snapshot.ubuntu.com/ubuntu/20260915T000000Z/pool/main/libz/libzstd/zstd_1.5.5+dfsg2-2build1_amd64.deb"],
+)
+
+http_file(
+    name = "starlark_fmt.zst",
+    sha256 = "7235fa17c2d937da5c509a7576049239a1aca854369863075cebf9ff181033ca",
+    size_bytes = 2512157,
+    urls = ["https://github.com/facebook/buck2/releases/download/2026-09-15/starlark_fmt-x86_64-unknown-linux-gnu.zst"],
+)
+
+genrule(
+    name = "starlark_fmt",
+    cmd = "dpkg-deb -x $(location :zstd.deb) $TMP/zstd && $TMP/zstd/usr/bin/zstd -dq $(location :starlark_fmt.zst) -o $OUT && chmod +x $OUT",
+    executable = True,
+    out = "starlark_fmt",
+    visibility = ["PUBLIC"],
+)
+
 # The targets that are cross-compiled, each with a sysroot of its own: the same
 # rustc with only that target's standard library beside it. Adding one to the
 # sysroot above would change the compiler every existing action names, and so

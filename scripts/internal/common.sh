@@ -844,15 +844,6 @@ buck2_sha256_aarch64_apple_darwin='aacdf7cabe34b9b5dc74866b8dcf7410cdbae3ad2dcce
 buck2_sha256_x86_64_pc_windows_msvc='1f0619b285ee3cbdc562a38b70f2636f73e8233b2f5156aef93e9e8a00079e2c'
 buck2_sha256_aarch64_pc_windows_msvc='58edb0718e3b89a3f875129cc72640f2f4cb80487ec42057eb88447519dff0cf'
 
-# The Starlark formatter from the same release, which ./scripts/verify runs over
-# the BUCK files the way it runs rustfmt over the Rust.
-starlark_fmt_sha256_x86_64_unknown_linux_gnu='7235fa17c2d937da5c509a7576049239a1aca854369863075cebf9ff181033ca'
-starlark_fmt_sha256_aarch64_unknown_linux_gnu='4b8c37092d8586c145b4429ad2b3f8a671c78084dc29186f7c2ed6827d8ef170'
-starlark_fmt_sha256_x86_64_apple_darwin='3f891528bf55f25b69b2d4b7659084478e3d0a03c01b97c12f4c9eb3d6ba90a5'
-starlark_fmt_sha256_aarch64_apple_darwin='188446c453f654572268734d5bc784501b975a9410efa4b0f1f0e884aa4f09e2'
-starlark_fmt_sha256_x86_64_pc_windows_msvc='c9c4d71775c64ffa7989ea4fcbb63b0ac04128e62bd05b519e6bd32b9fcc52b3'
-starlark_fmt_sha256_aarch64_pc_windows_msvc='a16de34be943ba1772879a84d68469019b958f2086c55dd949f0973ad39cf2ec'
-
 # The triple the buck2 release is named after, for this machine.
 buck2_triple() {
     local architecture
@@ -925,6 +916,34 @@ remove_generated_buck_config_local() {
     fi
 }
 
+# Builds one buck2 target and prints the path of its output, for a tool buck2
+# downloads - rustfmt, starlark_fmt - that a script then runs here.
+buck_output() {
+    local log
+    log="$(mktemp)"
+    if ! "$repository/scripts/buck" build "$1" --show-full-output > "$log" 2>&1; then
+        cat "$log" >&2
+        rm -f "$log"
+        return 1
+    fi
+    awk '$1 ~ /^root\/\// { print $2 }' "$log" | tail -n 1
+    rm -f "$log"
+}
+
+# Every Rust source file in the workspace's crates, tracked or new. rustfmt is
+# handed all of them rather than each crate's root, because a module declared
+# inside a macro - block-client's block_types! - is invisible from the root and
+# cargo fmt never formatted it.
+rust_files() {
+    git -C "$repository" ls-files --cached --others --exclude-standard -- 'crates/*.rs' \
+        | while read -r file; do [[ -f "$repository/$file" ]] && echo "$file"; done
+}
+
+# rustfmt, the one rust-toolchain.toml pins, which buck2 downloads.
+rustfmt() {
+    "$repository/scripts/buck" run --console=none //buck/tools:rustfmt -- --edition 2024 "$@"
+}
+
 # Every Starlark file a person wrote: the BUCK file beside each crate, and the
 # toolchain and platform definitions. The files ./scripts/buckify writes -
 # third-party/rust/BUCK, buck/cargo/crates.bzl and buck/sysroot/packages.bzl -
@@ -941,9 +960,10 @@ starlark_files() {
 # file would change is its diff subcommand writing one to stdout; a file that
 # is already formatted writes nothing there.
 check_starlark_formatting() {
-    local file unformatted=()
+    local file unformatted=() formatter
+    formatter="$(buck_output //buck/tools:starlark_fmt)" || return 1
     while read -r file; do
-        if [[ -n "$(starlark_fmt --config "$repository/buck/starlark_fmt.json" diff "$file" 2> /dev/null)" ]]; then
+        if [[ -n "$("$formatter" --config "$repository/buck/starlark_fmt.json" diff "$file" 2> /dev/null)" ]]; then
             unformatted+=("$file")
         fi
     done < <(starlark_files)

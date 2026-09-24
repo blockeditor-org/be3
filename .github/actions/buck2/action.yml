@@ -1,17 +1,15 @@
 name: Install the buck2 tools
 description: >-
-  Installs buck2 and starlark_fmt from the pinned release.
+  Installs buck2 from the pinned release.
 
-# buck2 and starlark_fmt are prebuilt releases checked against the hashes in
-# scripts/internal/common.sh, so installing them is a download and costs
-# seconds. Nothing else is needed: reindeer runs on a BuildBuddy worker.
+# buck2 is a prebuilt release checked against the hash in
+# scripts/internal/common.sh, so installing it is a download and costs seconds.
+# Nothing else is needed: every other tool is one buck2 downloads or builds.
 
 runs:
   using: composite
   steps:
-    # Both land in ~/.cargo/bin, which GitHub's Ubuntu runners already have on
+    # It lands in ~/.cargo/bin, which GitHub's Ubuntu runners already have on
     # PATH.
     - shell: bash
-      run: |
-        ./scripts/internal/install-buck2.sh
-        ./scripts/internal/install-starlark-fmt.sh
+      run: ./scripts/internal/install-buck2.sh

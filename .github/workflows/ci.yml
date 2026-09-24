@@ -97,53 +97,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # block-app links GTK and WebKitGTK for the file picker and the embedded
-      # browser, and ALSA for audio playback, so the workspace does not
-      # compile without their headers. Clippy links nothing, but the build
-      # scripts that ask pkg-config for those libraries still run.
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
-
-      # Each game's build script builds the same crate again as a wasm module
-      # the host loads, so even a native check of one needs the wasm target.
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
-
-      # Declared before every other cache in the job; the action says why.
-      - uses: ./.github/actions/cargo-cache
-
-      - uses: ./.github/actions/sccache
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: x86_64-unknown-linux-gnu
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
-
-      # ./scripts/verify formats the BUCK files as well as the Rust, and skips
-      # that silently when the formatter is not installed. Only the formatter is
-      # needed for it, not buck2 itself.
-      - name: Install starlark_fmt
-        run: |
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          ./scripts/internal/install-starlark-fmt.sh
+      # The lint pass is buck2's: clippy runs on BuildBuddy's workers, and
+      # rustfmt, starlark_fmt and fix-rust-source are what buck2 downloads or
+      # builds there. The runner needs buck2 and nothing else.
+      - uses: ./.github/actions/buck2
 
       - uses: ./.github/actions/verify
         with:
           part: lint
-
-      - uses: ./.github/actions/sccache-report
-        if: always()
 
   # The tests run through buck2 on BuildBuddy: every test binary is built on a
   # worker and most tests run there too - beui's renderer tests on lavapipe

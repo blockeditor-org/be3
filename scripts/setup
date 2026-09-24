@@ -203,9 +203,6 @@ rustup component add rustfmt clippy
 step 'Installing buck2'
 "$internal/install-buck2.sh"
 
-step 'Installing starlark_fmt'
-"$internal/install-starlark-fmt.sh"
-
 # The one prerequisite that is not a package, and the only one a full build
 # alone has: block-app links this, and cargo builds none of it. The script
 # fetches a Zig toolchain and a Ghostty checkout the first time, which is half a

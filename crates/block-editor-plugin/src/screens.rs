@@ -42,10 +42,11 @@ impl Screens {
     }
 
     fn client(&mut self, account_id: Uuid, workspace_id: Uuid) -> Arc<BlockClient> {
-        if let Some(existing) = &self.client {
-            if existing.account_id == account_id && existing.workspace_id == workspace_id {
-                return Arc::clone(&existing.client);
-            }
+        if let Some(existing) = &self.client
+            && existing.account_id == account_id
+            && existing.workspace_id == workspace_id
+        {
+            return Arc::clone(&existing.client);
         }
         let (endpoint, carrier) = block_client::tunnel_channel();
         let waker = self.waker.clone();

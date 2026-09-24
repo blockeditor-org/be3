@@ -1,0 +1,19 @@
+# Every first-party Rust target's clippy diagnostics, in every configuration
+# the workspace builds it in: the host's, and the wasm ones the plugins and the
+# games are compiled for, which the host's targets reach through transitions.
+# Prints one "label<TAB>path" line per target; buck/lint/clippy.py reads them.
+#
+#   buck2 bxl //buck/lint/clippy.bxl:clippy
+def _impl(ctx: bxl.Context):
+    targets = ctx.cquery().eval('kind("^rust_(library|binary|test)$", //crates/...)')
+    outputs = {}
+    for target in targets:
+        sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
+        if "clippy.json" not in sub_targets:
+            continue
+        outputs[str(target.label)] = sub_targets["clippy.json"][DefaultInfo].default_outputs[0]
+    paths = ctx.output.ensure_multiple(outputs.values())
+    for label, path in zip(outputs.keys(), paths):
+        ctx.output.print(label, path.abs_path(), sep = "\t")
+
+clippy = bxl_main(cli_args = {}, impl = _impl)

@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use beui::{Draw, DrawAt, Drawing};
 use bytemuck::{Pod, Zeroable};
@@ -108,10 +107,10 @@ struct GridRenderer {
     wire_pipeline: wgpu::RenderPipeline,
     wire_value_bind_group_layout: wgpu::BindGroupLayout,
     wire_value_bind_group: wgpu::BindGroup,
-    background_vertex_buffer: Arc<wgpu::Buffer>,
-    vertex_buffer: Arc<wgpu::Buffer>,
-    wire_vertex_buffer: Arc<wgpu::Buffer>,
-    value_vertex_buffer: Arc<wgpu::Buffer>,
+    background_vertex_buffer: wgpu::Buffer,
+    vertex_buffer: wgpu::Buffer,
+    wire_vertex_buffer: wgpu::Buffer,
+    value_vertex_buffer: wgpu::Buffer,
     wire_value_texture: wgpu::Texture,
     background_vertex_capacity: usize,
     vertex_capacity: usize,
@@ -234,30 +233,30 @@ impl GridRenderer {
             cache: None,
         });
         let vertex_capacity = 1;
-        let background_vertex_buffer = Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
+        let background_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("logic background vertex buffer"),
             size: std::mem::size_of::<RenderVertex>() as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }));
-        let vertex_buffer = Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
+        });
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("logic triangle vertex buffer"),
             size: std::mem::size_of::<RenderVertex>() as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }));
-        let wire_vertex_buffer = Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
+        });
+        let wire_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("logic wire vertex buffer"),
             size: std::mem::size_of::<WireVertex>() as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }));
-        let value_vertex_buffer = Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
+        });
+        let value_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("logic value vertex buffer"),
             size: std::mem::size_of::<WireVertex>() as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }));
+        });
         let wire_value_size = [1, 1];
         let wire_value_texture = create_wire_value_texture(device, wire_value_size);
         let wire_value_view =
@@ -448,17 +447,17 @@ fn prepare_vertex_buffer<T: Pod>(
     queue: &wgpu::Queue,
     label: &'static str,
     vertices: &[T],
-    buffer: &mut Arc<wgpu::Buffer>,
+    buffer: &mut wgpu::Buffer,
     capacity: &mut usize,
 ) {
     if vertices.len() > *capacity {
         *capacity = vertices.len().next_power_of_two();
-        *buffer = Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
+        *buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some(label),
             size: (*capacity * std::mem::size_of::<T>()) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }));
+        });
     }
     if !vertices.is_empty() {
         queue.write_buffer(buffer, 0, bytemuck::cast_slice(vertices));

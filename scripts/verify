@@ -3,7 +3,7 @@
 # Fixes Rust source layout, strips comments, lints, formats and tests.
 #
 # Runs the Rust source fixer, clippy and rustfmt over the whole workspace, and
-# the test suite through buck2 on BuildBuddy.
+# the test suite, all through buck2 on BuildBuddy.
 #
 # By default source layout and comments are fixed, clippy applies the fixes it
 # can, rustfmt rewrites the sources and the plugin tests accept whatever
@@ -11,10 +11,9 @@
 # reports, which is what CI wants. Either way the run fails if a Rust source
 # violation or clippy warning survives.
 #
-# The tests are buck2's, so they need BUILDBUDDY_API_KEY: every test binary is
-# built on BuildBuddy's workers and most tests run there too. The lint pass is
-# still cargo's, because it lints the embedded browser, which buck2 does not
-# build. guides/buck2.md says why.
+# Everything is buck2's, so it needs BUILDBUDDY_API_KEY: clippy runs and every
+# test binary is built on BuildBuddy's workers, most tests run there too, and
+# the formatters are downloads buck2 makes. Nothing here needs cargo.
 #
 # A run that writes is a person's, and it is quiet: what they want out of it is
 # the failures, and they can see their own machine working. --check is CI's,
@@ -88,25 +87,7 @@ fi
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 cd "$repository"
 
-quiet=(--quiet)
-if $ci; then
-    quiet=()
-fi
-
 failed=false
-
-# block-app links libghostty-vt, the terminal emulator behind the debug
-# terminal window. It is Zig rather than Rust, so nothing cargo does builds it,
-# and clippy cannot link the app without it. A default build does not compile
-# the terminal at all, so this is a full build's cost alone. buck2 builds its
-# own copy on a worker, so the tests need none of this.
-if $lint; then
-    host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
-    if ! ensure_ghostty_vt "$host_triple"; then
-        echo 'Verification failed.'
-        exit 1
-    fi
-fi
 
 # Every command announces itself and says what it cost, the way the build
 # scripts do. A person reads a local run for the failures and already knows
@@ -121,55 +102,43 @@ t() {
 }
 
 if $lint; then
+    # Every tool here is one buck2 builds or downloads: rustfmt and
+    # starlark_fmt from their pinned releases, fix-rust-source from the
+    # workspace, and clippy on BuildBuddy's workers. They run on this checkout,
+    # because what they rewrite is its sources.
+    mapfile -t rust_sources < <(rust_files)
     if $check; then
-        t 'cargo fmt' cargo fmt --all --check
+        t 'rustfmt' rustfmt --check "${rust_sources[@]}"
     else
-        t 'cargo fmt' cargo fmt --all
+        t 'rustfmt' rustfmt "${rust_sources[@]}"
     fi
 
     if $check; then
-        t 'crates/fix-rust-source' cargo run -p fix-rust-source -- --check
+        t 'crates/fix-rust-source' "$repository/scripts/buck" run --console=none \
+            //crates/fix-rust-source:fix-rust-source-bin -- --check
     else
-        t 'crates/fix-rust-source' cargo run "${quiet[@]}" -p fix-rust-source
+        t 'crates/fix-rust-source' "$repository/scripts/buck" run --console=none \
+            //crates/fix-rust-source:fix-rust-source-bin
     fi
 
     # The BUCK files, formatted the way the Rust is.
-    #
-    # Nothing here needs buck2 itself, only the formatter, and a checkout
-    # without one says so rather than failing: the BUCK files are a small part
-    # of a build cargo does not use yet.
-    if command -v starlark_fmt > /dev/null 2>&1; then
-        if $check; then
-            t 'starlark_fmt' check_starlark_formatting
-        else
-            t 'starlark_fmt' starlark_fmt --config buck/starlark_fmt.json fmt $(starlark_files)
-        fi
+    if $check; then
+        t 'starlark_fmt' check_starlark_formatting
     else
-        echo 'Skipping starlark_fmt: it is not installed (scripts/internal/install-starlark-fmt.sh).'
+        format_starlark() {
+            "$(buck_output //buck/tools:starlark_fmt)" --config buck/starlark_fmt.json fmt $(starlark_files)
+        }
+        t 'starlark_fmt' format_starlark
     fi
 
-    # Tests and examples are linted too, so a warning cannot hide in them. The
-    # plugins are in, because linting them natively is the only lint they get
-    # from this run. What is out is --all-features: the one workspace feature it
-    # turned on that is not on already is block-wasm-host/all-arch, which builds
-    # Cranelift for every architecture instead of this one and has no
-    # first-party code behind it to lint.
-    workspace_selection
-    clippy_targets=("${selection[@]}" --all-targets)
-
+    # clippy over every first-party target, tests included, in every
+    # configuration it is built in: the host's and the plugins' and games'
+    # wasm, whose wasm-only code a native cargo clippy never saw.
+    # buck/lint/clippy.py says how --fix works without cargo.
     if $check; then
-        t 'cargo clippy' cargo clippy "${clippy_targets[@]}" -- -D warnings
+        t 'clippy' python3 buck/lint/clippy.py "$repository/scripts/buck"
     else
-        # Fix mode forces every target to be checked even when nothing changed,
-        # so only pay for it when the cacheable check finds something it can fix.
-        if ! run_step 'cargo clippy' cargo clippy "${quiet[@]}" "${clippy_targets[@]}" -- -D warnings; then
-            # The tree is expected to be mid-change; fixing only a pristine
-            # checkout would make the script useless during development.
-            t 'applying clippy fixes' cargo clippy "${quiet[@]}" --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
-            # cargo clippy --fix caps lints while applying suggestions, so run
-            # clippy again to make any warnings that remain fail verification.
-            t 'cargo clippy' cargo clippy "${quiet[@]}" "${clippy_targets[@]}" -- -D warnings
-        fi
+        t 'clippy' python3 buck/lint/clippy.py "$repository/scripts/buck" --fix
     fi
 fi
 
@@ -209,10 +178,11 @@ fi
 # in case one of the previous commands leaves stuff unformatted. It belongs to
 # the lint pass, which is where the commands that rewrite sources are.
 if $lint; then
+    mapfile -t rust_sources < <(rust_files)
     if $check; then
-        t 'format one more time' cargo fmt --all --check
+        t 'format one more time' rustfmt --check "${rust_sources[@]}"
     else
-        t 'format one more time' cargo fmt --all
+        t 'format one more time' rustfmt "${rust_sources[@]}"
     fi
 fi
 

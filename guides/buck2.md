@@ -530,31 +530,36 @@ paths this project never used go with it - doctests, the `[expand]`,
 `[doc-coverage]` and profiling subtargets - and the cwd is still remapped, by
 the action wrapper rather than by `-Zremap-cwd-prefix`.
 
-## Clippy
+## The lint pass
 
-The rust toolchain carries `clippy_driver`, so every rust target has a
-`clippy.txt` subtarget:
+`./scripts/verify --lint` is buck2's, and needs no cargo:
 
-```
-./scripts/buck build '//crates/reactive:reactive[clippy.txt]'
-```
+- **rustfmt** is `//buck/tools:rustfmt`, the pinned release in a sysroot of
+  its own, run here over every Rust file in the workspace's crates - every file
+  rather than each crate's root, because rustfmt cannot see a module a macro
+  declares, and `block-client` declares its blocks' that way.
+- **fix-rust-source** is `//crates/fix-rust-source:fix-rust-source-bin`, run
+  here with `buck2 run`.
+- **starlark_fmt** is `//buck/tools:starlark_fmt`, from the buck2 release
+  `scripts/internal/common.sh` pins, decompressed on a worker by Ubuntu's own
+  zstd.
+- **clippy** is `buck/lint/clippy.py`. `buck/lint/clippy.bxl` builds every
+  first-party Rust target's `[clippy.json]` subtarget on the workers, in every
+  configuration it is built in - the host's, and through the transitions the
+  plugins' and games' wasm, whose wasm-only code a native `cargo clippy` never
+  linted. The script reports each finding once, and with `--fix` applies the
+  suggestions clippy marks machine-applicable first, the way `cargo clippy
+  --fix` does, and lints again.
 
 The lint levels are on the toolchain in `buck/toolchains/BUCK` -
 `deny_lints = ["warnings"]` and the one allow that Cargo.toml's
 `[workspace.lints]` sets - and `clippy.toml` at the root is clippy's own
-configuration, which is a separate thing and is empty. It exists because clippy
-under buck2 is handed a configuration directory rather than left to search for
-one, and a directory without a `clippy.toml` in it is an error rather than a
-default.
+configuration, which is empty. It exists because clippy under buck2 is handed a
+configuration directory rather than left to search for one, and a directory
+without a `clippy.toml` in it is an error rather than a default.
 
-One thing to know before building anything on this: **the subtarget writes the
-diagnostics to a file and the build still succeeds**. A lint gate has to build
-the subtarget for every target and then check that each output is empty; a
-green `buck2 build` says nothing about whether clippy was happy.
-
-`./scripts/verify` still lints with cargo. Moving it needs a gate on the
-subtarget that solves the empty-file problem above, and an answer for
-`cargo clippy --fix`.
+A clippy subtarget writes its diagnostics to a file and succeeds whatever they
+say, which is why the gate is the script rather than `buck2 build`.
 
 ## How the build is laid out
 
@@ -682,8 +687,6 @@ target with `--target` is what makes wasmtime stop looking.
   write accepted paintings into `snapshots/`, so what they draw through is this
   machine's device. beui's renderer tests run on a worker, on lavapipe from
   `buck/sysroot:amd64-test`.
-- **The lint pass.** clippy has no gate yet (above), and rustfmt and
-  `fix-rust-source` have no buck2 story yet.
 - **`./scripts/check`.** It is `cargo check`. `rust-project check` is its
   buck2 counterpart for one file, and `./scripts/buck build //crates/...` for
   everything.
