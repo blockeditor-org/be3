@@ -31,6 +31,9 @@ pub struct BlockSummary {
     pub parent: BlockParent,
     pub head: Option<CommitId>,
     pub access: Access,
+    pub references: Vec<Uuid>,
+    #[serde(with = "serde_bytes")]
+    pub metadata: Vec<u8>,
 }
 
 pub type ClientId = u64;
@@ -137,6 +140,17 @@ pub enum ClientMessage {
         block: Uuid,
         content_type: Uuid,
         parent: BlockParent,
+        #[serde(with = "serde_bytes")]
+        metadata: Vec<u8>,
+    },
+    ListBlocks {
+        request: u64,
+    },
+    SetMetadata {
+        request: u64,
+        block: Uuid,
+        #[serde(with = "serde_bytes")]
+        metadata: Vec<u8>,
     },
     Publish {
         request: u64,
@@ -244,6 +258,8 @@ impl ClientMessage {
             | Self::GetObjectRange { request, .. }
             | Self::MissingObjects { request, .. }
             | Self::CreateBlock { request, .. }
+            | Self::ListBlocks { request }
+            | Self::SetMetadata { request, .. }
             | Self::Publish { request, .. }
             | Self::ReadBlock { request, .. }
             | Self::SetParent { request, .. }
@@ -354,6 +370,12 @@ pub enum ServerMessage {
     BlockDeleted {
         block: Uuid,
     },
+    BlockChanged {
+        block: BlockSummary,
+    },
+    BlockRemoved {
+        block: Uuid,
+    },
     SessionChanged {
         block: Uuid,
         state: SessionState,
@@ -387,6 +409,8 @@ impl ServerMessage {
             | Self::Session { request, .. } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
+            | Self::BlockChanged { .. }
+            | Self::BlockRemoved { .. }
             | Self::SessionChanged { .. }
             | Self::Relayed { .. } => None,
         }

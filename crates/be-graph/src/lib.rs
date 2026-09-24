@@ -38,6 +38,7 @@ pub struct BlockNode {
     pub head: Option<CommitId>,
     pub references: Vec<Uuid>,
     pub grants: BTreeMap<Uuid, Access>,
+    pub metadata: Vec<u8>,
 }
 
 impl BlockNode {
@@ -49,6 +50,7 @@ impl BlockNode {
             head: None,
             references: Vec::new(),
             grants: BTreeMap::new(),
+            metadata: Vec::new(),
         }
     }
 }
@@ -122,6 +124,11 @@ impl BlockGraph {
 
     pub fn set_head(&mut self, id: Uuid, head: CommitId) -> Result<(), GraphError> {
         self.node_mut(id)?.head = Some(head);
+        Ok(())
+    }
+
+    pub fn set_metadata(&mut self, id: Uuid, metadata: Vec<u8>) -> Result<(), GraphError> {
+        self.node_mut(id)?.metadata = metadata;
         Ok(())
     }
 

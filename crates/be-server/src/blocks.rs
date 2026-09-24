@@ -56,6 +56,8 @@ fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockS
         parent: node.parent,
         head: node.head,
         access: effective_access(graph, identity, block),
+        references: node.references.clone(),
+        metadata: node.metadata.clone(),
     })
 }
 
@@ -66,16 +68,20 @@ impl ServerStore {
         block: Uuid,
         content_type: Uuid,
         parent: BlockParent,
+        metadata: Vec<u8>,
     ) -> Result<BlockSummary, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
             if let BlockParent::Block(target) = parent {
                 require_edit(graph, identity, target)?;
             }
-            graph.insert(block, BlockNode::new(content_type, identity.account, parent))?;
+            let mut node = BlockNode::new(content_type, identity.account, parent);
+            node.metadata.clone_from(&metadata);
+            graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
             database.execute(
-                "INSERT INTO blocks (workspace_id, id, content_type, author, parent_kind, parent_id, head)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL)",
+                "INSERT INTO blocks
+                    (workspace_id, id, content_type, author, parent_kind, parent_id, head, metadata)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7)",
                 params![
                     identity.workspace.to_string(),
                     block.to_string(),
@@ -83,9 +89,40 @@ impl ServerStore {
                     identity.account.to_string(),
                     kind,
                     parent_id,
+                    metadata,
                 ],
             )?;
             summary(graph, identity, block).ok_or(ServerError::Corrupt)
+        })
+        .await
+    }
+
+    pub async fn set_metadata(
+        &self,
+        identity: Identity,
+        block: Uuid,
+        metadata: Vec<u8>,
+    ) -> Result<BlockSummary, ServerError> {
+        self.with_graph(identity.workspace, move |graph, database| {
+            require_edit(graph, identity, block)?;
+            database.execute(
+                "UPDATE blocks SET metadata = ?3 WHERE workspace_id = ?1 AND id = ?2",
+                params![identity.workspace.to_string(), block.to_string(), metadata],
+            )?;
+            graph.set_metadata(block, metadata)?;
+            summary(graph, identity, block).ok_or(ServerError::Corrupt)
+        })
+        .await
+    }
+
+    pub async fn list_blocks(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
+        self.with_graph(identity.workspace, move |graph, _| {
+            Ok(graph
+                .ids()
+                .into_iter()
+                .filter_map(|block| summary(graph, identity, block))
+                .filter(|block| block.access.can_know_exists())
+                .collect())
         })
         .await
     }

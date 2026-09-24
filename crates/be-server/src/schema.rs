@@ -40,6 +40,7 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
             parent_kind     INTEGER NOT NULL CHECK (parent_kind IN (0, 1, 2)),
             parent_id       TEXT,
             head            TEXT,
+            metadata        BLOB NOT NULL DEFAULT x'',
             PRIMARY KEY (workspace_id, id)
         );
 

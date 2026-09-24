@@ -387,6 +387,7 @@ impl Connection {
                     workspace,
                     role,
                 });
+                self.hub.join_workspace(self.client, workspace).await;
                 Ok(ServerMessage::WorkspaceOpened {
                     request,
                     workspace,
@@ -433,13 +434,30 @@ impl Connection {
                 block,
                 content_type,
                 parent,
-            } => Ok(ServerMessage::Block {
-                request,
-                block: self
+                metadata,
+            } => {
+                let identity = self.identity()?;
+                let block = self
                     .store
-                    .create_block(self.identity()?, block, content_type, parent)
-                    .await?,
+                    .create_block(identity, block, content_type, parent, metadata)
+                    .await?;
+                self.changed(identity, block.clone()).await;
+                Ok(ServerMessage::Block { request, block })
+            }
+            ClientMessage::ListBlocks { request } => Ok(ServerMessage::Blocks {
+                request,
+                blocks: self.store.list_blocks(self.identity()?).await?,
             }),
+            ClientMessage::SetMetadata {
+                request,
+                block,
+                metadata,
+            } => {
+                let identity = self.identity()?;
+                let block = self.store.set_metadata(identity, block, metadata).await?;
+                self.changed(identity, block.clone()).await;
+                Ok(ServerMessage::Block { request, block })
+            }
             ClientMessage::Publish {
                 request,
                 block,
@@ -452,6 +470,7 @@ impl Connection {
                 references_removed,
             } => {
                 let identity = self.identity()?;
+                let relinked = !references_added.is_empty() || !references_removed.is_empty();
                 let outcome = self
                     .store
                     .publish(
@@ -466,6 +485,9 @@ impl Connection {
                         references_removed,
                     )
                     .await?;
+                if relinked && matches!(outcome, PublishOutcome::Published(_)) {
+                    self.reannounce(identity, block).await;
+                }
                 Ok(match outcome {
                     PublishOutcome::Published(head) => {
                         self.hub
@@ -493,9 +515,9 @@ impl Connection {
                 block,
                 parent,
             } => {
-                self.store
-                    .set_parent(self.identity()?, block, parent)
-                    .await?;
+                let identity = self.identity()?;
+                self.store.set_parent(identity, block, parent).await?;
+                self.reannounce(identity, block).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListChildren { request, parent } => Ok(ServerMessage::Blocks {
@@ -526,14 +548,25 @@ impl Connection {
                 })
             }
             ClientMessage::DeleteBlock { request, block } => {
-                self.store.delete_block(self.identity()?, block).await?;
+                let identity = self.identity()?;
+                self.store.delete_block(identity, block).await?;
+                self.reannounce(identity, block).await;
                 self.hub
                     .broadcast(block, self.client, ServerMessage::BlockDeleted { block })
                     .await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::CollectDetached { request } => {
-                let collected = self.store.collect_detached(self.identity()?).await?;
+                let identity = self.identity()?;
+                let collected = self.store.collect_detached(identity).await?;
+                for block in &collected.blocks {
+                    self.hub
+                        .announce(
+                            identity.workspace,
+                            ServerMessage::BlockRemoved { block: *block },
+                        )
+                        .await;
+                }
                 Ok(ServerMessage::Collected {
                     request,
                     blocks: collected.blocks,
@@ -546,9 +579,11 @@ impl Connection {
                 account,
                 access,
             } => {
+                let identity = self.identity()?;
                 self.store
-                    .set_access(self.identity()?, block, account, access)
+                    .set_access(identity, block, account, access)
                     .await?;
+                self.reannounce(identity, block).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListAccess { request, block } => Ok(ServerMessage::AccessList {
@@ -659,6 +694,18 @@ impl Connection {
                 }
                 Ok(ServerMessage::Ok { request })
             }
+        }
+    }
+
+    async fn changed(&self, identity: Identity, block: be_protocol::BlockSummary) {
+        self.hub
+            .announce(identity.workspace, ServerMessage::BlockChanged { block })
+            .await;
+    }
+
+    async fn reannounce(&self, identity: Identity, block: Uuid) {
+        if let Ok(summary) = self.store.read_block(identity, block).await {
+            self.changed(identity, summary).await;
         }
     }
 
