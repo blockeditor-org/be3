@@ -76,6 +76,7 @@ members = [
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
     "crates/fix-rust-source",
+    "crates/buck-tools",
     "crates/wasi-threads",
 ]
 resolver = "3"

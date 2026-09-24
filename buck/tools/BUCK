@@ -291,7 +291,7 @@ http_file(
 # runtime (86 of its 780 MB), so no action takes the whole zip as an input.
 genrule(
     name = "android-ndk",
-    cmd = "python3 $(location :android-ndk.py) "
+    cmd = "sh $(location :android-ndk.sh) "
     + "https://dl.google.com/android/repository/android-ndk-r29-linux.zip "
     + "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf $OUT",
     out = "ndk",
@@ -299,7 +299,7 @@ genrule(
 )
 
 export_file(
-    name = "android-ndk.py",
+    name = "android-ndk.sh",
 )
 
 # clang for each cross-compiled platform, with the target in the command: the

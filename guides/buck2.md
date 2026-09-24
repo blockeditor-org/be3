@@ -47,9 +47,9 @@ four things in front of the pinned buck2:
   dependencies, features and targets, from cargo's plans) are not checked in.
   `./scripts/buck` hashes their inputs and, when that changes, runs
   `buck/cargo/buckify.bxl` on a worker and copies the result into place. The
-  action is keyed on the manifests, `Cargo.lock`, `reindeer.toml`, the fixups
-  and the paths cargo discovers targets at, so it is shared through the cache:
-  a few seconds on a fresh checkout, about a minute for the first person to
+  action is keyed on the manifests, `Cargo.lock`, `reindeer.toml`, the fixups,
+  the paths cargo discovers targets at and `crates/buck-tools`, which writes
+  `crates.bzl`, so it is shared through the cache: a few seconds on a fresh checkout, about a minute for the first person to
   change a dependency.
 - **Platforms.** Everything is built for Linux x86_64 wherever it is asked for
   (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
@@ -69,7 +69,10 @@ It also lets `test` put tests on the workers (below).
 - `buck/platforms`: the execution platform (a BuildBuddy worker) and every
   target platform; `cross.bzl` lists the cross-compiled ones.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
-- `buck/cargo`: `crates.bzl`'s generator and the macros that read it.
+- `buck/cargo`: the BXL that writes the generated rules and the macros that
+  read them.
+- `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
+  sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
 - `buck/app`, `buck/android`: how the app, the web bundle and the APK are
   laid out.
@@ -173,7 +176,7 @@ A native target depends on a wasm one through a transition in
   `plugins.json` the browser finds the plugins through. `:web-serve` runs Caddy
   (`buck/tools:caddy`) with `web/Caddyfile`; a deployment uses the same
   Caddyfile with `BE3_DOMAIN_NAME` and `BE3_WEB_ROOT`.
-- The APK is assembled on a worker without Gradle (`buck/android/apk.py`):
+- The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64, and `zipalign -P 16`. Signing runs locally
   with `target/android-debug.keystore`, made on first use; CI restores its own

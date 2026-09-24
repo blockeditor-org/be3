@@ -1,5 +1,5 @@
 export_file(
-    name = "stage.py",
+    name = "stage.sh",
     visibility = ["PUBLIC"],
 )
 

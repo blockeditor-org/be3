@@ -1,20 +1,52 @@
 # The rules behind buck/sysroot/BUCK.
 
-# Resolves the package closure on a worker, which fetches the snapshot's
-# package indices itself. ./scripts/buck run //:buckify copies what this writes to
-# buck/sysroot/packages.bzl. The snapshot and the packages are the whole input,
-# so the answer is cached until one of them changes.
+# Resolves the package closure on a worker: the snapshot's package indexes
+# are downloaded for each architecture, and buck-tools resolves what each set
+# asks for into packages.bzl, which ./scripts/buck run //:lock-sysroot copies
+# into place. Every architecture comes from the one archive: the snapshot of
+# ubuntu-ports refuses anonymous requests, and the main archive's has the same
+# packages at the same versions.
+_suites = ["noble", "noble-updates", "noble-security"]
+
+_components = ["main", "universe"]
+
 def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("packages.bzl")
+    base = "https://snapshot.ubuntu.com/ubuntu/" + ctx.attrs.snapshot
+    indexes = " ".join(["dists/{}/{}".format(suite, component) for suite in _suites for component in _components])
+    script = (
+        """
+set -eu
+out="$1"; resolver="$2"; base="$3"; shift 3
+scratch="$(mktemp -d)"
+for set in "$@"; do
+    architecture="$(echo "$set" | cut -d: -f2)"
+    directory="$scratch/$architecture"
+    [ -d "$directory" ] && continue
+    mkdir -p "$directory"
+    number=0
+    for index in """
+        + indexes
+        + """; do
+        curl --fail --silent --show-error --location --retry 5 \
+            --output "$directory/$number.xz" "$base/$index/binary-$architecture/Packages.xz"
+        xz --decompress "$directory/$number.xz"
+        number=$((number + 1))
+    done
+done
+"$resolver" resolve "$base" "$scratch" "$@" > "$out"
+rm -rf "$scratch"
+"""
+    )
     ctx.actions.run(
         cmd_args(
             "sh",
             "-c",
-            'out="$1"; shift; python3 "$@" > "$out"',
+            script,
             "--",
             out.as_output(),
-            ctx.attrs.resolver,
-            ctx.attrs.snapshot,
+            ctx.attrs._resolver[RunInfo],
+            base,
             ["{}:{}:{}".format(name, architecture, ",".join(packages)) for name, (architecture, packages) in ctx.attrs.sets.items()],
         ),
         category = "deb_lock",
@@ -23,9 +55,9 @@ def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:
 
 deb_lock = rule(
     attrs = {
-        "resolver": attrs.source(),
         "sets": attrs.dict(attrs.string(), attrs.tuple(attrs.string(), attrs.list(attrs.string()))),
         "snapshot": attrs.string(),
+        "_resolver": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:buck-tools-bin", providers = [RunInfo])),
     },
     impl = _deb_lock_impl,
 )

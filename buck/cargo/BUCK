@@ -1,7 +1,7 @@
 load("//buck/tools:defs.bzl", "rust_sysroot")
 load(":cargo_install.bzl", "cargo_install")
 
-# reindeer, and the cargo and nightly it and generate.py run in buckify.bxl
+# reindeer, and the cargo and nightly it and buck-tools run in buckify.bxl
 # (--unit-graph is nightly-only), pinned like buck/tools.
 
 # The commit reindeer is built from, and the nightly its rust-toolchain asks for.

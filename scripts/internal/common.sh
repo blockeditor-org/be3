@@ -363,8 +363,9 @@ generated_rules_inputs() {
         printf '%s\n' "$buck2_version"
         find crates third-party/rust/fixups -type f | LC_ALL=C sort
         {
-            printf '%s\0' Cargo.toml Cargo.lock reindeer.toml buck/cargo/BUCK buck/cargo/buckify.bxl buck/cargo/generate.py buck/tools/BUCK
+            printf '%s\0' Cargo.toml Cargo.lock reindeer.toml buck/cargo/BUCK buck/cargo/buckify.bxl buck/tools/BUCK
             find crates -name Cargo.toml -print0
+            find crates/buck-tools/src -type f -print0
             find third-party/rust/fixups -type f -print0
         } | LC_ALL=C sort -z | xargs -0 cat
     ) | sha256sum | cut -d ' ' -f 1

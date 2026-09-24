@@ -1,9 +1,9 @@
 # Generates third-party/rust/BUCK (reindeer) and buck/cargo/crates.bzl
-# (generate.py, from cargo's plans) on a worker and prints their directory;
+# (crates/buck-tools' generate, from cargo's plans) on a worker and prints their directory;
 # ./scripts/buck copies them into place when their inputs change.
 #
 # The action's inputs are the manifests, Cargo.lock, reindeer.toml, the fixups
-# and generate.py, plus empty files at the paths cargo discovers targets at
+# and buck-tools' sources, plus empty files at the paths cargo discovers targets at
 # (_discovered). Editing or adding an ordinary source file leaves its key, and
 # the cache entry everyone shares, alone. It is BXL because a rule can only take
 # its own package's files.
@@ -45,7 +45,9 @@ def _impl(ctx):
     files = _files(ctx, "crates")
     crate_dirs = [path.removesuffix("/Cargo.toml") for path in files if path.endswith("/Cargo.toml")]
     real.extend([directory + "/Cargo.toml" for directory in crate_dirs])
-    placeholders = [path for path in files if _discovered(path, crate_dirs)]
+    tools = [path for path in files if path.startswith("crates/buck-tools/src/")]
+    real.extend(tools)
+    placeholders = [path for path in files if _discovered(path, crate_dirs) and path not in tools]
 
     workspace = actions.copied_dir(
         "workspace",
@@ -56,7 +58,6 @@ def _impl(ctx):
     reindeer = _output(ctx, "root//buck/cargo:reindeer")
     cargo = _output(ctx, "root//buck/cargo:cargo")
     nightly = _output(ctx, "root//buck/cargo:nightly")
-    generate = ctx.fs.source("buck/cargo/generate.py")
 
     out = actions.declare_output("generated", dir = True)
 
@@ -74,7 +75,6 @@ layout="$(pwd)/$3"
 reindeer="$(pwd)/$4"
 toolchain="$(cd "$5" && pwd)"
 nightly="$(cd "$6" && pwd)"
-generate="$(pwd)/$7"
 scratch="$(mktemp -d)"
 mkdir -p "$out"
 cp -RL "$workspace/." "$scratch/workspace"
@@ -136,7 +136,9 @@ plan test --target aarch64-apple-darwin $host_packages --features block-app/full
 plan test --target x86_64-apple-darwin $host_packages --features block-app/full > "$scratch/macos-x86_64.json"
 plan test --target aarch64-pc-windows-msvc $host_packages --features block-app/full > "$scratch/windows-arm64.json"
 plan test --target x86_64-pc-windows-msvc $host_packages --features block-app/full > "$scratch/windows-x86_64.json"
-python3 "$generate" "$scratch/metadata.json" \
+CARGO_TARGET_DIR="$scratch/target" PATH="$toolchain/bin:$PATH" \
+    "$toolchain/bin/cargo" build --quiet --release --locked -p buck-tools
+"$scratch/target/release/buck-tools" generate "$scratch/metadata.json" \
     "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasm32=$scratch/wasm32.json" \
     "android-arm64=$scratch/android-arm64.json" "linux-arm64=$scratch/linux-arm64.json" "macos-arm64=$scratch/macos-arm64.json" "macos-x86_64=$scratch/macos-x86_64.json" \
     "windows-arm64=$scratch/windows-arm64.json" "windows-x86_64=$scratch/windows-x86_64.json" \
@@ -155,7 +157,6 @@ rm -rf "$scratch"
             reindeer,
             cargo,
             nightly,
-            generate,
         ),
         category = "buckify",
     )

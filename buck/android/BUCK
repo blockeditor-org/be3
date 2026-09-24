@@ -46,11 +46,6 @@ http_archive(
 )
 
 export_file(
-    name = "apk.py",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
-    name = "sign.py",
+    name = "sign.sh",
     visibility = ["PUBLIC"],
 )

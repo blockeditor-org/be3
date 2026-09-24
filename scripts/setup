@@ -6,8 +6,8 @@
 # already set up only reports what is already there. It assumes apt.
 #
 # Everything the project builds, buck2 builds, on BuildBuddy's workers with
-# compilers it brings itself, so what this machine needs is buck2, Python for
-# the commands that run as buck2 targets, and the libraries the app and the
+# compilers it brings itself, so what this machine needs is buck2, the Python
+# buck2's own rules run their helpers with, and the libraries the app and the
 # plugin tests load when they run here.
 #
 # Usage:
@@ -41,8 +41,8 @@ fi
 #
 # Fetching buck2, which is a zstd stream, and the checkout itself.
 packages=(curl git zstd)
-# What `./scripts/buck run` starts: //:verify, //:check and the rest are
-# Python, and so is what signs an APK and serves the web bundle.
+# buck2's prelude runs Python helpers around the actions and tests it runs
+# here rather than on a worker.
 packages+=(python3)
 # What the app loads when it runs here: ALSA for audio, GTK for the native file
 # dialog, and WebKitGTK for the embedded browser. buck2 compiles and links

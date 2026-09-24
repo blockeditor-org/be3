@@ -114,19 +114,15 @@ app(
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 
-# The bundle served here by Caddy, with block-server behind it (web/serve.py).
+# The bundle served here by Caddy, with block-server behind it (web/serve.sh).
 tool(
     name = "web-serve",
     command = [
-        "python3",
-        "$(location :serve.py)",
-        "--caddy",
+        "sh",
+        "$(location :serve.sh)",
         "$(location //buck/tools:caddy)",
-        "--caddyfile",
         "$(location :Caddyfile)",
-        "--bundle",
         "$(location :web)",
-        "--server",
         "$(location //crates/block-server:block-server-bin)",
     ],
 )
@@ -137,8 +133,8 @@ export_file(
 )
 
 export_file(
-    name = "serve.py",
-    src = "web/serve.py",
+    name = "serve.sh",
+    src = "web/serve.sh",
 )
 
 # The Android app: the APK is built unsigned on a worker, with the plugins
@@ -189,15 +185,11 @@ app(
     tool(
         name = name,
         command = [
-            "python3",
-            "$(location //buck/android:sign.py)",
-            "--jdk",
+            "sh",
+            "$(location //buck/android:sign.sh)",
             "$(location //buck/android:jdk)",
-            "--build-tools",
             "$(location //buck/android:build-tools)",
-            "--platform-tools",
             "$(location //buck/android:platform-tools)",
-            "--unsigned",
             "$(location {})".format(apk),
         ],
     )

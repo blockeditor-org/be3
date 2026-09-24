@@ -1196,6 +1196,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "buck-tools"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "serde_json",
+ "zip",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

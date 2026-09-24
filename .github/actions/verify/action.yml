@@ -26,9 +26,14 @@ runs:
     - name: Run //:verify --${{ inputs.part }}
       shell: bash
       env:
-        MODE: ${{ github.event_name == 'pull_request' && '--ci' || '--check' }}
+        CHECK: ${{ github.event_name != 'pull_request' }}
         PART: ${{ inputs.part }}
-      run: ./scripts/buck run //:verify -- "$MODE" "--$PART"
+      run: |
+        if [ "$CHECK" = true ]; then
+          ./scripts/buck run //:verify -- --check "--$PART"
+        else
+          ./scripts/buck run //:verify -- "--$PART"
+        fi
 
     # Everything a fix can do shows up in git: an edited file, a moved one, and
     # an untracked one such as a painting that was accepted for the first time,

@@ -1,4 +1,4 @@
-# An APK, made on a worker without Gradle by apk.py, unsigned; sign.py signs it
+# An APK, made on a worker without Gradle by buck-tools apk, unsigned; sign.sh signs it
 # locally. Only the native library is built for Android, through the
 # transition; the NDK's libc++_shared.so goes beside it.
 
@@ -14,8 +14,8 @@ def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name + ".apk")
     library = ctx.attrs.library[DefaultInfo].sub_targets["cdylib"][DefaultInfo].default_outputs[0]
     command = cmd_args(
-        "python3",
-        ctx.attrs._apk,
+        ctx.attrs._apk[RunInfo],
+        "apk",
         out.as_output(),
         "--jdk",
         ctx.attrs._jdk,
@@ -62,7 +62,7 @@ android_apk = rule(
         "target_sdk": attrs.int(),
         "version_code": attrs.int(),
         "version_name": attrs.string(),
-        "_apk": attrs.default_only(attrs.source(default = "root//buck/android:apk.py")),
+        "_apk": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:buck-tools-bin", providers = [RunInfo])),
         "_build_tools": attrs.default_only(attrs.source(default = "root//buck/android:build-tools")),
         "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
         "_ndk": attrs.default_only(attrs.source(default = "root//buck/tools:android-ndk")),

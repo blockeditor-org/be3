@@ -1,4 +1,4 @@
-# The app as it runs (buck/app/stage.py): the executable under cargo's name, and
+# The app as it runs (buck/app/stage.sh): the executable under cargo's name, and
 # beside it every plugin, each module precompiled in an action of its own by
 # plugin-test-runner, block-wasm-host's own engine, on the host only;
 # cross-compiled apps compile their modules at first launch. With no binary it
@@ -7,7 +7,7 @@
 # finds the plugins through.
 def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name, dir = True)
-    command = cmd_args("python3", ctx.attrs._stage, out.as_output())
+    command = cmd_args("sh", ctx.attrs._stage, out.as_output())
     name = None
     if ctx.attrs.binary:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
@@ -78,7 +78,7 @@ app = rule(
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         "precompiler": attrs.dep(providers = [RunInfo]),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
-        "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.py")),
+        "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.sh")),
     },
     impl = _app_impl,
 )
