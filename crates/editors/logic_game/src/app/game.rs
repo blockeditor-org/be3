@@ -5,10 +5,8 @@ use std::sync::Arc;
 
 use block::{Block, BlockParent};
 use block_client::BlockHandle;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::hotbar::Hotbar;
 use block_client::blocks::logic_grid::LogicGrid;
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_client::root_settings::RootSetting;
 use block_editor_plugin::ContentProjection;
 use block_editor_plugin::Editor;
@@ -21,7 +19,7 @@ use uuid::Uuid;
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Solution {
-    pub(crate) reference: BlockRef,
+    pub(crate) reference: Uuid,
     pub(crate) id: Option<Uuid>,
     pub(crate) name: String,
     pub(crate) automatic: bool,
@@ -37,8 +35,6 @@ pub(crate) struct Level {
 
 #[derive(Default)]
 struct Work {
-    cache: ReferenceResolutionCache,
-    started: ReferenceClassificationQueue<(ChallengeId, usize)>,
     grids: HashMap<
         Uuid,
         (
@@ -52,7 +48,6 @@ struct Work {
 pub(crate) struct Game {
     editor: Editor,
     block: crate::app::GameBlock,
-    work: Rc<RefCell<Work>>,
     levels: Memo<Vec<Level>>,
     hotbar: Memo<Option<Uuid>>,
 }
@@ -74,27 +69,10 @@ impl Game {
         let client = Arc::clone(editor.client());
         let host = editor.host().clone();
         let game = Rc::clone(&block);
-        let block_id = editor.block_id();
         let reader = editor.clone();
         editor.each_frame(move || {
             let mut work = each_frame.borrow_mut();
-            work.cache.poll();
-            let Work {
-                cache,
-                started,
-                grids,
-                hotbar,
-            } = &mut *work;
-            for (solution, (challenge, index)) in started.poll() {
-                crate::app::operate(
-                    &game,
-                    LogicGameOperation::InsertSolution {
-                        challenge,
-                        solution,
-                        index,
-                    },
-                );
-            }
+            let Work { grids, hotbar } = &mut *work;
             let setting = hotbar.get_or_insert_with(|| RootSetting::new(&client));
             setting.find(&client, host.client_id());
             set_hotbar.set(setting.block().map(BlockHandle::id));
@@ -109,7 +87,7 @@ impl Game {
                     solutions: solutions
                         .into_iter()
                         .map(|reference| {
-                            let id = cache.resolve(&client, block_id, reference);
+                            let id = Some(reference);
                             if let Some(id) = id {
                                 listed.push(id);
                                 grids.entry(id).or_insert_with(|| {
@@ -163,7 +141,6 @@ impl Game {
         Self {
             editor: editor.clone(),
             block,
-            work,
             levels: create_memo(move || levels.get()),
             hotbar: create_memo(move || hotbar.get()),
         }
@@ -187,7 +164,7 @@ impl Game {
         self.editor.host().open_block(id, LogicGrid::TYPE_ID);
     }
 
-    pub(crate) fn remove(&self, challenge: ChallengeId, solution: BlockRef) {
+    pub(crate) fn remove(&self, challenge: ChallengeId, solution: Uuid) {
         crate::app::operate(
             &self.block,
             LogicGameOperation::RemoveSolution {
@@ -198,7 +175,6 @@ impl Game {
     }
 
     pub(crate) fn start(&self, challenge: ChallengeId, index: usize) {
-        let client = self.editor.client();
         let solution = self
             .editor
             .create_with_content::<LogicGrid, _>(&LogicGridContent::new(
@@ -207,10 +183,14 @@ impl Game {
         solution.set_name(format!("{} {}", challenge.name(), index + 1));
         solution.set_parent(BlockParent::Uuid(self.editor.block_id()));
         let id = solution.id();
-        self.work
-            .borrow_mut()
-            .started
-            .push(client, self.editor.block_id(), id, (challenge, index));
+        crate::app::operate(
+            &self.block,
+            LogicGameOperation::InsertSolution {
+                challenge,
+                solution: id,
+                index,
+            },
+        );
         self.editor.host().open_block(id, LogicGrid::TYPE_ID);
     }
 }

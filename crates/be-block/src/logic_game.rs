@@ -5,12 +5,12 @@ use logicgame::challenges::{CHALLENGES, ChallengeId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Level {
     pub challenge: ChallengeId,
-    pub solutions: Vec<BlockRef>,
+    pub solutions: Vec<Uuid>,
     pub completed: bool,
 }
 
@@ -52,12 +52,12 @@ impl LogicGame {
 pub enum LogicGameOperation {
     InsertSolution {
         challenge: ChallengeId,
-        solution: BlockRef,
+        solution: Uuid,
         index: usize,
     },
     RemoveSolution {
         challenge: ChallengeId,
-        solution: BlockRef,
+        solution: Uuid,
     },
     SetCompleted {
         challenge: ChallengeId,
@@ -80,7 +80,7 @@ pub struct LogicGameProgress {
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Solution {
     pub challenge: Option<ChallengeId>,
-    pub block: Option<BlockRef>,
+    pub block: Option<Uuid>,
 }
 
 impl LogicGameProgress {
@@ -107,10 +107,7 @@ impl LogicGameProgress {
         LogicGame { levels, quiz }
     }
 
-    fn solutions_of(
-        &self,
-        challenge: ChallengeId,
-    ) -> impl Iterator<Item = (ObjectId, BlockRef)> + '_ {
+    fn solutions_of(&self, challenge: ChallengeId) -> impl Iterator<Item = (ObjectId, Uuid)> + '_ {
         self.solutions.iter().filter_map(move |solution| {
             (solution.challenge == Some(challenge)).then_some((solution.id, solution.block?))
         })
@@ -135,7 +132,7 @@ impl LogicGameProgress {
                 solution,
                 index,
             } => {
-                let existing: Vec<(ObjectId, BlockRef)> = self.solutions_of(*challenge).collect();
+                let existing: Vec<(ObjectId, Uuid)> = self.solutions_of(*challenge).collect();
                 if existing.iter().any(|(_, block)| block == solution) {
                     return Edit::default();
                 }
@@ -191,7 +188,7 @@ impl Root for LogicGameProgress {
         let mut seen = HashSet::new();
         self.solutions
             .iter()
-            .filter_map(|solution| solution.block?.as_direct())
+            .filter_map(|solution| Some(solution.block?))
             .filter(|block| seen.insert(*block))
             .collect()
     }
@@ -202,15 +199,15 @@ impl Root for LogicGameProgress {
             ChildChange::Delete(old) => Some(
                 self.solutions
                     .iter()
-                    .filter(|solution| solution.block == Some(BlockRef::Direct(old)))
+                    .filter(|solution| solution.block == Some(old))
                     .map(|solution| Change::remove(solution.id))
                     .collect(),
             ),
             ChildChange::Replace { old, new } => Some(
                 self.solutions
                     .iter()
-                    .filter(|solution| solution.block == Some(BlockRef::Direct(old)))
-                    .map(|solution| Solution::BLOCK.set(solution.id, &Some(BlockRef::Direct(new))))
+                    .filter(|solution| solution.block == Some(old))
+                    .map(|solution| Solution::BLOCK.set(solution.id, &Some(new)))
                     .collect(),
             ),
         }

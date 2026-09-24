@@ -1,14 +1,11 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use block::{BlockParent, BlockReference, BlockReferenceList};
 use block_client::ReferenceList;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::image::Image as ImageBlock;
 use block_client::blocks::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::be_block::{Edit, Map, MapContent};
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
@@ -55,8 +52,7 @@ pub(crate) struct MapState {
     tiles: RefCell<HashMap<TileId, TileState>>,
     picker: RefCell<BlockPicker>,
     paster: RefCell<ImagePaster>,
-    reference_cache: RefCell<ReferenceResolutionCache>,
-    pending_points: RefCell<ReferenceClassificationQueue<(Uuid, MapCoordinate)>>,
+    pending_points: RefCell<Vec<(Uuid, (Uuid, MapCoordinate))>>,
     pending_position: Cell<Option<MapCoordinate>>,
     paste_asked: Cell<bool>,
     dragged: Cell<Option<(Uuid, Vec2)>>,
@@ -76,8 +72,6 @@ pub(crate) struct MapState {
     set_import_error: WriteSignal<Option<String>>,
     pub(crate) labels: ReadSignal<HashMap<Uuid, BlockLabel>>,
     set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
-    pub(crate) resolved: ReadSignal<HashMap<BlockRef, Option<Uuid>>>,
-    set_resolved: WriteSignal<HashMap<BlockRef, Option<Uuid>>>,
     pub(crate) revision: ReadSignal<u64>,
     set_revision: WriteSignal<u64>,
 }
@@ -93,7 +87,6 @@ impl MapState {
         let (last_error, set_last_error) = create_signal(None);
         let (import_error, set_import_error) = create_signal(None);
         let (labels, set_labels) = create_signal(HashMap::new());
-        let (resolved, set_resolved) = create_signal(HashMap::new());
         let (revision, set_revision) = create_signal(0);
         Rc::new(Self {
             dependencies: editor
@@ -106,8 +99,7 @@ impl MapState {
             tiles: RefCell::new(HashMap::new()),
             picker: RefCell::new(BlockPicker::default()),
             paster: RefCell::new(ImagePaster::default()),
-            reference_cache: RefCell::new(ReferenceResolutionCache::default()),
-            pending_points: RefCell::new(ReferenceClassificationQueue::default()),
+            pending_points: RefCell::new(Vec::new()),
             pending_position: Cell::new(None),
             paste_asked: Cell::new(false),
             dragged: Cell::new(None),
@@ -127,8 +119,6 @@ impl MapState {
             set_import_error,
             labels,
             set_labels,
-            resolved,
-            set_resolved,
             revision,
             set_revision,
         })
@@ -186,12 +176,9 @@ impl MapState {
 
     pub(crate) fn add_point(&self, block_id: Uuid, position: MapCoordinate) {
         let point_id = Uuid::new_v4();
-        self.pending_points.borrow_mut().push(
-            self.editor.client(),
-            self.block_id(),
-            block_id,
-            (point_id, position),
-        );
+        self.pending_points
+            .borrow_mut()
+            .push((block_id, (point_id, position)));
         self.set_selected.set(Some(point_id));
     }
 
@@ -242,13 +229,8 @@ impl MapState {
         }
     }
 
-    pub(crate) fn label_of(&self, block: BlockRef) -> Option<BlockLabel> {
-        let resolved = self.resolved.get().get(&block).copied().flatten()?;
-        self.labels.get().get(&resolved).cloned()
-    }
-
-    pub(crate) fn resolved_id(&self, block: BlockRef) -> Option<Uuid> {
-        self.resolved.get().get(&block).copied().flatten()
+    pub(crate) fn label_of(&self, block: Uuid) -> Option<BlockLabel> {
+        self.labels.get().get(&block).cloned()
     }
 
     pub(crate) fn ask_to_paste(&self) {
@@ -349,29 +331,10 @@ impl MapState {
         if self.labels.get_untracked() != labels {
             self.set_labels.set(labels);
         }
-        self.reference_cache.borrow_mut().poll();
-        let client = Arc::clone(self.editor.client());
-        let referencing = self.block_id();
-        let resolved: HashMap<BlockRef, Option<Uuid>> = self
-            .points
-            .get_untracked()
-            .iter()
-            .map(|point| {
-                (
-                    point.block_id,
-                    self.reference_cache
-                        .borrow_mut()
-                        .resolve(&client, referencing, point.block_id),
-                )
-            })
-            .collect();
-        if self.resolved.get_untracked() != resolved {
-            self.set_resolved.set(resolved);
-        }
     }
 
     fn poll_pending_points(&self) {
-        let landed = self.pending_points.borrow_mut().poll();
+        let landed = std::mem::take(&mut *self.pending_points.borrow_mut());
         for (reference, (point_id, position)) in landed {
             self.record(Map::add(&MapPoint {
                 id: point_id,

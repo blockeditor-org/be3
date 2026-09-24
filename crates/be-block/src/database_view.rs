@@ -2,7 +2,7 @@ use be_model::{Document, Edit, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockRef, Root};
+use crate::Root;
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum SortDirection {
@@ -26,7 +26,7 @@ pub enum DatabaseViewKind {
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct DatabaseView {
-    pub database: Option<BlockRef>,
+    pub database: Option<Uuid>,
     pub sort: Option<DatabaseViewSort>,
     pub kind: DatabaseViewKind,
     pub kanban_field: Option<Uuid>,
@@ -35,14 +35,14 @@ pub struct DatabaseView {
 }
 
 impl DatabaseView {
-    pub fn of(database: BlockRef) -> Self {
+    pub fn of(database: Uuid) -> Self {
         Self {
             database: Some(database),
             ..Self::default()
         }
     }
 
-    pub fn set_database(database: BlockRef) -> Edit {
+    pub fn set_database(database: Uuid) -> Edit {
         Self::DATABASE.set(ObjectId::ROOT, &Some(database)).into()
     }
 
@@ -72,7 +72,7 @@ impl Root for DatabaseView {
 
     fn references(&self) -> Vec<Uuid> {
         self.database
-            .and_then(|database| database.as_direct())
+            .and_then(|database| Some(database))
             .into_iter()
             .collect()
     }

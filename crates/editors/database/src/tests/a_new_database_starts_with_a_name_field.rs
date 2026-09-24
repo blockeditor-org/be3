@@ -21,10 +21,7 @@ fn a_new_database_starts_with_a_name_field() {
             .expect("the block was given content")
     };
     let database = DatabaseContent::decode(&seeded_as(id)).unwrap().root();
-    let schema_id = database
-        .schema
-        .and_then(|schema| schema.as_direct())
-        .unwrap();
+    let schema_id = database.schema.and_then(|schema| Some(schema)).unwrap();
     let schema = DatabaseSchemaContent::decode(&seeded_as(schema_id)).unwrap();
     let fields = schema.root().fields();
     assert_eq!(fields.len(), 1);

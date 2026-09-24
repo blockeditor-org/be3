@@ -1,6 +1,6 @@
 use std::rc::Rc;
+use uuid::Uuid;
 
-use block_client::block_ref::BlockRef;
 use block_editor_plugin::Editor;
 use block_editor_plugin::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
 use block_editor_plugin::beui::reactive::ClickCallback;
@@ -186,7 +186,7 @@ fn Solutions(
     let read_only = editor.read_only();
     let keys = create_memo(clone!(level -> move || {
         level.get().map_or_else(Vec::new, |level| {
-            level.solutions.iter().map(|solution| solution.reference).collect::<Vec<BlockRef>>()
+            level.solutions.iter().map(|solution| solution.reference).collect::<Vec<Uuid>>()
         })
     }));
     let start = clone!(game level -> move || {
@@ -196,7 +196,7 @@ fn Solutions(
     view! {
         <List spacing=4.0>
             <ForEach keys={keys}>
-                {move |reference: BlockRef| {
+                {move |reference: Uuid| {
                     let solution = solution_of(level.clone(), reference);
                     view! {
                         <SolutionRow
@@ -227,7 +227,7 @@ fn Solutions(
 fn SolutionRow(
     game: Rc<Game>,
     challenge: ChallengeId,
-    reference: BlockRef,
+    reference: Uuid,
     solution: Memo<Option<Solution>>,
 ) -> NodeId {
     let name = create_memo(clone!(solution -> move || {
@@ -273,7 +273,7 @@ fn level_of(levels: Memo<Vec<Level>>, challenge: ChallengeId) -> Memo<Option<Lev
     })
 }
 
-fn solution_of(level: Memo<Option<Level>>, reference: BlockRef) -> Memo<Option<Solution>> {
+fn solution_of(level: Memo<Option<Level>>, reference: Uuid) -> Memo<Option<Solution>> {
     create_memo(move || {
         level.get().and_then(|level| {
             level

@@ -1,5 +1,5 @@
 use crate::logic_game::{LogicGameContent, LogicGameOperation, QuizRow};
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 use logicgame::challenges::CHALLENGES;
 use uuid::Uuid;
 
@@ -11,7 +11,7 @@ fn run(content: &mut LogicGameContent, operation: LogicGameOperation) {
 #[test]
 fn logic_game_solutions_keep_their_order_per_challenge() {
     let [first, second] = [CHALLENGES[0], CHALLENGES[1]];
-    let [a, b, c, other] = [(); 4].map(|_| BlockRef::Direct(Uuid::new_v4()));
+    let [a, b, c, other] = [(); 4].map(|_| Uuid::new_v4());
     let mut game = LogicGameContent::default();
     for (challenge, solution, index) in [
         (first, a, 0),
@@ -61,7 +61,7 @@ fn logic_game_solutions_keep_their_order_per_challenge() {
     assert_eq!(view.level(first).unwrap().solutions, [a, c]);
     assert_eq!(view.quiz(2).unwrap().sums, [Some(true), None]);
 
-    let a_id = a.as_direct().unwrap();
+    let a_id = Some(a).unwrap();
     let replaced = Uuid::new_v4();
     let edit = game
         .root()
@@ -73,6 +73,6 @@ fn logic_game_solutions_keep_their_order_per_challenge() {
     game.apply(&edit);
     assert_eq!(
         game.root().game().level(first).unwrap().solutions,
-        [BlockRef::Direct(replaced), c]
+        [replaced, c]
     );
 }

@@ -215,10 +215,7 @@ fn PointMarker(state: Rc<MapState>, id: Uuid, selected: Memo<bool>) -> CanvasIte
         };
         match named.label_of(point.block_id) {
             Some(label) => label.name,
-            None => match named.resolved_id(point.block_id) {
-                Some(_) => "Loading…".to_owned(),
-                None => "Broken link".to_owned(),
-            },
+            None => "Loading…".to_owned(),
         }
     }));
     view! {

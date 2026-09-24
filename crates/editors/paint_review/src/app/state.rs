@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use block::BlockParent;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::paint_snapshot::PaintSnapshot;
 use block_editor_plugin::be_block::paint::{ApprovedPainting, PaintReview};
 use block_editor_plugin::be_block::{
@@ -327,7 +326,7 @@ impl Review {
             review
                 .root()
                 .approval(path)
-                .and_then(|approved| approved.snapshot.as_direct())
+                .and_then(|approved| Some(approved.snapshot))
         }) else {
             return false;
         };
@@ -341,14 +340,14 @@ impl Review {
         let reference = match approved {
             Some(id) => {
                 self.editor.replace_content(id, &snapshot);
-                BlockRef::Direct(id)
+                id
             }
             None => {
                 let created = self
                     .editor
                     .create_with_content::<PaintSnapshot, _>(&snapshot);
                 created.set_parent(BlockParent::Uuid(self.editor.block_id()));
-                BlockRef::Direct(created.id())
+                created.id()
             }
         };
         self.block
@@ -367,7 +366,7 @@ impl Review {
         let Some(approval) = self.approval(path) else {
             return;
         };
-        if let Some(id) = approval.snapshot.as_direct() {
+        if let Some(id) = Some(approval.snapshot) {
             self.editor
                 .client()
                 .get_block::<PaintSnapshot>(id)
@@ -398,7 +397,7 @@ impl Review {
                 let approval = self
                     .approval(path)
                     .ok_or_else(|| Some(format!("{path} has never been approved")))?;
-                let id = approval.snapshot.as_direct().ok_or_else(|| {
+                let id = Some(approval.snapshot).ok_or_else(|| {
                     Some("the approved painting is not on this workspace".to_owned())
                 })?;
                 self.editor

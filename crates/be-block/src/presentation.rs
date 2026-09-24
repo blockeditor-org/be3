@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use uuid::Uuid;
 
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Presentation {
@@ -12,7 +12,7 @@ pub struct Presentation {
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Slide {
-    pub block: Option<BlockRef>,
+    pub block: Option<Uuid>,
 }
 
 impl Presentation {
@@ -27,7 +27,7 @@ impl Presentation {
         before.last().map_or(Anchor::Start, |id| Anchor::After(*id))
     }
 
-    pub fn insert(&self, slide: ObjectId, index: usize, block: BlockRef) -> Edit {
+    pub fn insert(&self, slide: ObjectId, index: usize, block: Uuid) -> Edit {
         Self::SLIDES
             .insert_as(
                 slide,
@@ -48,7 +48,7 @@ impl Presentation {
             .into()
     }
 
-    pub fn set_block(slide: ObjectId, block: BlockRef) -> Edit {
+    pub fn set_block(slide: ObjectId, block: Uuid) -> Edit {
         Slide::BLOCK.set(slide, &Some(block)).into()
     }
 }
@@ -60,7 +60,7 @@ impl Root for Presentation {
         let mut seen = HashSet::new();
         self.slides
             .iter()
-            .filter_map(|slide| slide.block?.as_direct())
+            .filter_map(|slide| Some(slide.block?))
             .filter(|block| seen.insert(*block))
             .collect()
     }
@@ -69,17 +69,15 @@ impl Root for Presentation {
         let showing = |block: Uuid| {
             self.slides
                 .iter()
-                .filter(move |slide| slide.block == Some(BlockRef::Direct(block)))
+                .filter(move |slide| slide.block == Some(block))
         };
         Some(match change {
-            ChildChange::Add(block) => {
-                self.insert(ObjectId::new(), self.slides.len(), BlockRef::Direct(block))
-            }
+            ChildChange::Add(block) => self.insert(ObjectId::new(), self.slides.len(), block),
             ChildChange::Delete(block) => showing(block)
                 .map(|slide| Change::remove(slide.id))
                 .collect(),
             ChildChange::Replace { old, new } => showing(old)
-                .flat_map(|slide| Self::set_block(slide.id, BlockRef::Direct(new)).0)
+                .flat_map(|slide| Self::set_block(slide.id, new).0)
                 .collect(),
         })
     }

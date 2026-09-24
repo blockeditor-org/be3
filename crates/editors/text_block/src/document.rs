@@ -1,6 +1,6 @@
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use block_client::{BLOCK_URL_MAX_BYTES, block_ref::BlockRef, parse_block_urls};
+use block_client::{BLOCK_URL_MAX_BYTES, parse_block_urls};
 use block_editor_plugin::Waker;
 use block_editor_plugin::be_block::{self, TextContent, TextOp};
 use similar::{Algorithm, DiffOp, capture_diff_slices};
@@ -186,7 +186,7 @@ impl BlockDocument {
         let length = reference.to_string().len();
         parse_block_urls(&self.read_state().bytes)
             .into_iter()
-            .filter(|url| url.reference == BlockRef::Direct(reference))
+            .filter(|url| url.block == reference)
             .map(|url| url.range.end - length..url.range.end)
             .collect()
     }

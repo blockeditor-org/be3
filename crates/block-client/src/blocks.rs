@@ -56,9 +56,6 @@ block_types! {
     settings::Settings;
     text::TextDocument;
     ui_settings::UiSettings;
-    version_control_data::VersionControlData;
-    version_control_object::VersionControlObject;
-    version_control_worktree::VersionControlWorktree;
     video::Video;
     web_browser_tab::WebBrowserTab;
     workspace_index::WorkspaceIndex;

@@ -178,7 +178,7 @@ impl LogicGridEditor {
                     .collect(),
             },
             SlotKind::Component { name, compiled } => {
-                let compiled = compiled.as_direct()?;
+                let compiled = *compiled;
                 HotbarSlot::Component {
                     name: name.clone(),
                     compiled,
@@ -387,7 +387,7 @@ pub(super) fn hotbar_slot_to_block(slot: &HotbarSlot) -> BlockHotbarSlot {
             BlockHotbarSlot::folder(name.clone(), slots.iter().map(hotbar_slot_to_block))
         }
         HotbarSlot::Component { name, compiled, .. } => {
-            BlockHotbarSlot::component(name.clone(), BlockRef::Direct(*compiled))
+            BlockHotbarSlot::component(name.clone(), *compiled)
         }
     }
 }
@@ -395,7 +395,7 @@ pub(super) fn hotbar_slot_to_block(slot: &HotbarSlot) -> BlockHotbarSlot {
 fn pinned_components(slots: &[Item<BlockHotbarSlot>]) -> Vec<Uuid> {
     let mut pinned = Vec::new();
     for slot in slots {
-        pinned.extend(slot.compiled().and_then(|compiled| compiled.as_direct()));
+        pinned.extend(slot.compiled().and_then(|compiled| Some(compiled)));
         pinned.extend(pinned_components(&slot.slots));
     }
     pinned

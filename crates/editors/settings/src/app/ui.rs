@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use block::{Block, BlockParent};
 use block_client::BlockClient;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::settings::{ActivationCondition, Settings, SettingsOperation};
 use block_client::blocks::ui_settings::UiSettings;
 use block_editor_plugin::beui::NodeId;
@@ -23,7 +22,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let ui_settings = settings.project(move |settings| {
         settings
             .resolve(UiSettings::TYPE_ID, client_id)
-            .and_then(|reference| reference.as_direct())
+            .and_then(|reference| Some(reference))
     });
     let read_only = editor.read_only();
     let blocked = create_memo(clone!(loaded read_only -> move || !loaded.get() || read_only.get()));
@@ -66,7 +65,7 @@ fn create_ui_settings(
     settings.operate(SettingsOperation::SetEntry {
         block_type: UiSettings::TYPE_ID,
         activation: ActivationCondition::Fallback,
-        block: BlockRef::Direct(block.id()),
+        block: block.id(),
     });
     block.set_parent(BlockParent::Uuid(settings.id()));
     Some(block.id())

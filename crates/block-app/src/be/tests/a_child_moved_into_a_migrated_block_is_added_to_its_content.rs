@@ -1,10 +1,11 @@
 use super::*;
+use uuid::Uuid;
 
-use be_block::{BlockRef, ChildChange, PresentationContent};
+use be_block::{ChildChange, PresentationContent};
 use block::Block;
 use block_client::blocks::presentation::Presentation;
 
-fn slides_of(shared: &Shared, block: Uuid) -> Option<Vec<Option<BlockRef>>> {
+fn slides_of(shared: &Shared, block: Uuid) -> Option<Vec<Option<Uuid>>> {
     let held = shared.blocks.get(&block)?;
     let presentation = PresentationContent::decode(&held.bytes).ok()?;
     Some(
@@ -36,7 +37,7 @@ fn a_child_moved_into_a_migrated_block_is_added_to_its_content() {
         Some(true)
     );
     wait_until("added the child", |shared| {
-        slides_of(shared, block) == Some(vec![Some(BlockRef::Direct(first))])
+        slides_of(shared, block) == Some(vec![Some(first)])
     });
 
     assert_eq!(
@@ -51,6 +52,6 @@ fn a_child_moved_into_a_migrated_block_is_added_to_its_content() {
         Some(true)
     );
     wait_until("replaced the child", |shared| {
-        slides_of(shared, block) == Some(vec![Some(BlockRef::Direct(second))])
+        slides_of(shared, block) == Some(vec![Some(second)])
     });
 }

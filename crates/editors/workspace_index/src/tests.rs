@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use block::Block;
 use block_client::BlockClient;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::counter::Counter;
 use block_client::blocks::workspace_index::{WorkspaceIndex, WorkspaceIndexOperation};
 use block_editor_plugin::{Drag, Editor, EditorHost};
@@ -26,7 +25,7 @@ fn editor(entries: usize) -> (Fixture, Vec<Uuid>) {
     let mut children = Vec::new();
     for _ in 0..entries {
         let child = client.create_block(Counter::default());
-        folder.operate(WorkspaceIndexOperation::Add(BlockRef::Direct(child.id())));
+        folder.operate(WorkspaceIndexOperation::Add(child.id()));
         children.push(child.id());
     }
     let host = EditorHost::default();

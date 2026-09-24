@@ -1,7 +1,6 @@
 use block::{Block, BlockParent, BlockReferenceList};
 use uuid::Uuid;
 
-use crate::block_ref::BlockRef;
 use crate::blocks::settings::{ActivationCondition, Settings, SettingsOperation};
 use crate::{BlockClient, BlockHandle, ReferenceList};
 
@@ -61,7 +60,7 @@ impl<T: Block + Default> RootSetting<T> {
         if self.block.is_none() {
             let id = {
                 let settings = self.settings.find(client)?.read()?;
-                settings.resolve(T::TYPE_ID, client_id)?.as_direct()?
+                Some(settings.resolve(T::TYPE_ID, client_id)?)?
             };
             self.block = Some(client.get_block::<T>(id));
         }
@@ -78,7 +77,7 @@ impl<T: Block + Default> RootSetting<T> {
         settings.operate(SettingsOperation::SetEntry {
             block_type: T::TYPE_ID,
             activation: ActivationCondition::Fallback,
-            block: BlockRef::Direct(block.id()),
+            block: block.id(),
         });
         block.set_parent(BlockParent::Uuid(settings.id()));
         self.block = Some(block);

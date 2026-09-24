@@ -1,18 +1,11 @@
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::Arc;
 
 use beui::Vec2;
 use beui::unstyled::TextWidget;
-use block_client::{
-    BlockClient, block_ref::BlockRef, block_ref_url,
-    blocks::version_control_worktree::VersionControlWorktreeMembership, parse_block_urls,
-};
-use block_editor_plugin::{
-    EditorHost, Task,
-    block_ui::{self, BlockLabel},
-};
-use text_editor_core::{EditorCommand, TextLanguage};
+use block_client::{block_url, parse_block_urls};
+use block_editor_plugin::block_ui::{self, BlockLabel};
+use text_editor_core::TextLanguage;
 use uuid::Uuid;
 
 use super::state::State;
@@ -50,95 +43,11 @@ impl ResolvedEmbed {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ParsedEmbed {
     pub range: Range<usize>,
-    pub reference: BlockRef,
+    pub reference: Uuid,
     pub large: bool,
 }
 
-pub(crate) struct PendingEmbed {
-    pub task: Task<BlockRef>,
-    pub source_name: String,
-    pub markdown: bool,
-}
-
-#[derive(Default)]
-pub(crate) struct EmbedReferenceCache {
-    resolved: HashMap<BlockRef, Option<Uuid>>,
-    pending: Vec<(BlockRef, Task<Option<Uuid>>)>,
-}
-
-impl EmbedReferenceCache {
-    fn poll(&mut self) {
-        let mut finished = Vec::new();
-        self.pending.retain_mut(|(reference, task)| {
-            if !task.finished() {
-                task.poll();
-            }
-            if !task.finished() {
-                return true;
-            }
-            finished.push((*reference, task.take().flatten()));
-            false
-        });
-        for (reference, resolved) in finished {
-            self.resolved.insert(reference, resolved);
-        }
-    }
-
-    fn resolve(
-        &mut self,
-        host: &EditorHost,
-        client: &Arc<BlockClient>,
-        referencing_id: Uuid,
-        reference: BlockRef,
-    ) -> Option<Uuid> {
-        if let Some(id) = reference.as_direct() {
-            return Some(id);
-        }
-        if let Some(resolved) = self.resolved.get(&reference) {
-            return *resolved;
-        }
-        if !self
-            .pending
-            .iter()
-            .any(|(pending, _)| *pending == reference)
-        {
-            let client = Arc::clone(client);
-            let task = host.spawn(async move {
-                client
-                    .resolve_reference(
-                        referencing_id,
-                        &reference,
-                        &VersionControlWorktreeMembership,
-                    )
-                    .await
-            });
-            self.pending.push((reference, task));
-        }
-        None
-    }
-}
-
-pub(crate) fn poll_pending_embeds(state: &State) {
-    let mut finished = Vec::new();
-    state.pending_embeds.borrow_mut().retain_mut(|pending| {
-        let Some(reference) = pending.task.take() else {
-            return !pending.task.finished();
-        };
-        finished.push((reference, pending.source_name.clone(), pending.markdown));
-        false
-    });
-    for (reference, source_name, markdown) in finished {
-        let directive =
-            image_embed_directive(state.workspace_id, &reference, &source_name, markdown);
-        state
-            .text
-            .execute(EditorCommand::InsertText(directive.as_bytes()));
-        state.text.reveal_cursor();
-    }
-}
-
 pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
-    state.references.borrow_mut().poll();
     let markdown = state.text.language() == TextLanguage::Markdown;
     let parsed = parse_embeds(&state.text.bytes(), state.workspace_id, markdown);
     let references = state.dependencies.read();
@@ -155,19 +64,12 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
         })
         .collect::<HashMap<_, _>>();
     let block_id = state.block_id;
-    let host = state.host().clone();
-    let types = host.block_types();
+    let types = state.host().block_types();
     parsed
         .into_iter()
-        .filter_map(|embed| {
-            let id = state
-                .references
-                .borrow_mut()
-                .resolve(&host, &state.client, block_id, embed.reference)
-                .unwrap_or(Uuid::nil());
-            (id != block_id).then_some((embed, id))
-        })
-        .map(|(embed, id)| {
+        .filter(|embed| embed.reference != block_id)
+        .map(|embed| {
+            let id = embed.reference;
             let metadata = referenced.get(&id).cloned().or_else(|| {
                 state.client.cached_block(id).map(|block| {
                     (
@@ -213,11 +115,11 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
 
 pub(crate) fn image_embed_directive(
     workspace_id: Uuid,
-    reference: &BlockRef,
+    reference: &Uuid,
     source_name: &str,
     markdown: bool,
 ) -> String {
-    let url = block_ref_url(workspace_id, reference);
+    let url = block_url(workspace_id, *reference);
     if markdown {
         format!("![{source_name}]({url})")
     } else {
@@ -228,17 +130,14 @@ pub(crate) fn image_embed_directive(
 pub(crate) fn parse_embeds(bytes: &[u8], workspace_id: Uuid, markdown: bool) -> Vec<ParsedEmbed> {
     parse_block_urls(bytes)
         .into_iter()
-        .filter(|url| {
-            url.workspace_id
-                .is_none_or(|url_workspace| url_workspace == workspace_id)
-        })
+        .filter(|url| url.workspace_id == workspace_id)
         .map(|url| {
             let image_range = markdown
                 .then(|| markdown_image_range(bytes, &url.range))
                 .flatten();
             ParsedEmbed {
                 range: url.range,
-                reference: url.reference,
+                reference: url.block,
                 large: image_range.is_some(),
             }
         })

@@ -5,7 +5,7 @@ use crate::canvas::{
     CanvasTransform, InfiniteCanvasOperation,
 };
 use crate::database::DatabaseValue;
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 use uuid::Uuid;
 
 fn entity(kind: CanvasEntityKind, components: Vec<CanvasComponent>) -> CanvasEntity {
@@ -22,7 +22,7 @@ fn entity(kind: CanvasEntityKind, components: Vec<CanvasComponent>) -> CanvasEnt
 
 fn component(schema: Uuid, values: &[(Uuid, DatabaseValue)]) -> CanvasComponent {
     CanvasComponent {
-        schema_id: BlockRef::Direct(schema),
+        schema_id: schema,
         values: values.iter().cloned().collect::<BTreeMap<_, _>>(),
     }
 }
@@ -47,17 +47,14 @@ fn canvas_children_are_removed_repointed_or_merged() {
                 ],
             ),
             component(new, &[(kept, DatabaseValue::String("new".into()))]),
-            component(
-                linked,
-                &[(kept, DatabaseValue::Block(BlockRef::Direct(shown)))],
-            ),
+            component(linked, &[(kept, DatabaseValue::Block(shown))]),
         ],
     );
     let mut content = CanvasContent::default();
     for entity in [
         entity(
             CanvasEntityKind::DirectEditor {
-                block_id: BlockRef::Direct(shown),
+                block_id: shown,
                 scale: 1.0,
             },
             Vec::new(),
@@ -76,7 +73,7 @@ fn canvas_children_are_removed_repointed_or_merged() {
     let components = &entities[1].components;
     assert_eq!(components.len(), 2);
     let merged = &components[0];
-    assert_eq!(merged.schema_id, BlockRef::Direct(new));
+    assert_eq!(merged.schema_id, new);
     assert_eq!(merged.values[&kept], DatabaseValue::String("new".into()));
     assert_eq!(merged.values[&moved], DatabaseValue::String("moved".into()));
 

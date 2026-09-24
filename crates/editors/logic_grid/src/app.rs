@@ -25,7 +25,6 @@ use block::Block;
 use block_client::root_settings::RootSetting;
 use block_client::{
     BlockClient,
-    block_ref::BlockRef,
     blocks::{
         compiled_logic::CompiledLogic as CompiledBlock, hotbar::Hotbar, logic_grid::LogicGrid,
     },

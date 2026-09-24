@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use block_client::blocks::text::TextDocument;
-use block_client::{BlockClient, block_ref::BlockRef, block_url};
+use block_client::{BlockClient, block_url};
 use block_editor_plugin::be_block::TextContent;
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};

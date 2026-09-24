@@ -1,10 +1,10 @@
 use super::*;
-use block_editor_plugin::be_block::BlockRef;
 use block_editor_plugin::be_block::hotbar::SlotKind;
+use uuid::Uuid;
 
 #[test]
 fn unpinning_a_component_from_the_hotbar_takes_its_row_away() {
-    let adder = BlockRef::Direct(Uuid::new_v4());
+    let adder = Uuid::new_v4();
     let mut editor = editor(vec![
         HotbarSlot::component("Adder", adder),
         HotbarSlot::folder("Memory", [HotbarSlot::component("Latch", adder)]),

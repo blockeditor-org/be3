@@ -4,8 +4,6 @@ use std::rc::Rc;
 
 use block::BlockReferenceList;
 use block_client::ReferenceList;
-use block_client::block_ref::BlockRef;
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_editor_plugin::be_block::Edit;
 use block_editor_plugin::be_block::database::{DatabaseContent, DatabaseRow, DatabaseValue};
 use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseSchemaContent};
@@ -28,7 +26,7 @@ pub struct Selection {
     pub field: Option<Uuid>,
 }
 
-type Pending = Rc<RefCell<ReferenceClassificationQueue<(usize, Uuid)>>>;
+type Pending = Rc<RefCell<Vec<(Uuid, (usize, Uuid))>>>;
 
 pub struct ViewData {
     editor: Editor,
@@ -54,13 +52,11 @@ pub struct ViewData {
 impl ViewData {
     pub fn new(editor: &Editor) -> Data {
         let view = editor.block_content::<DatabaseViewContent>();
-        let view_id = editor.block_id();
-        let own_id = create_memo(move || Some(view_id));
         let database_ref = view.project(|view| view.root().database);
-        let database_id = editor.resolve(own_id, database_ref);
+        let database_id = create_memo(move || database_ref.get());
         let database = editor.related_content::<DatabaseContent>(database_id.clone());
         let schema_ref = database.project(|database| database.root().schema);
-        let schema_id = editor.resolve(database_id.clone(), schema_ref);
+        let schema_id = create_memo(move || schema_ref.get());
         let schema = editor.related_content::<DatabaseSchemaContent>(schema_id.clone());
 
         let rows = database.project(|database| {
@@ -179,34 +175,23 @@ impl ViewData {
         }) else {
             return;
         };
-        let Some(database_id) = self.database.id() else {
-            return;
-        };
-        let client = self.editor.client().clone();
         let pending = Rc::clone(&self.pending);
         let set_error = self.set_error.clone();
         self.editor.pick_block(
             value_block_filter(&name, request),
             move |picked| match picked {
-                Ok(picked) => pending.borrow_mut().push(
-                    &client,
-                    database_id,
-                    picked.id,
-                    (row, request.field_id),
-                ),
+                Ok(picked) => pending
+                    .borrow_mut()
+                    .push((picked.id, (row, request.field_id))),
                 Err(error) => set_error.set(Some(error)),
             },
         );
     }
 
     fn poll_pending(&self) {
-        let (finished, failed) = self.pending.borrow_mut().poll_with_failures();
+        let finished = std::mem::take(&mut *self.pending.borrow_mut());
         for (reference, (row_index, field_id)) in finished {
             self.set_cell(row_index, field_id, Some(DatabaseValue::Block(reference)));
-        }
-        if !failed.is_empty() {
-            self.set_error
-                .set(Some("Could not classify the selected block".to_owned()));
         }
     }
 }
@@ -231,7 +216,6 @@ fn watch_labels(
 ) -> Memo<BlockLabels> {
     let (labels, set_labels) = create_signal(BlockLabels::new());
     let watched: RefCell<Option<(Uuid, ReferenceList)>> = RefCell::new(None);
-    let cache = RefCell::new(ReferenceResolutionCache::default());
     let client = editor.client().clone();
     let host = editor.host().clone();
     editor.each_frame(move || {
@@ -259,22 +243,17 @@ fn watch_labels(
                 )
             })
             .collect();
-        let mut cache = cache.borrow_mut();
-        cache.poll();
         set_labels.set(rows.with_untracked(|rows| {
             row_references(rows)
                 .into_iter()
-                .filter_map(|reference| {
-                    let id = cache.resolve(&client, database_id, reference)?;
-                    Some((reference, known.get(&id)?.clone()))
-                })
+                .filter_map(|reference| Some((reference, known.get(&reference)?.clone())))
                 .collect()
         }));
     });
     create_memo(move || labels.get())
 }
 
-fn row_references(rows: &[DatabaseRow]) -> Vec<BlockRef> {
+fn row_references(rows: &[DatabaseRow]) -> Vec<Uuid> {
     rows.iter()
         .flat_map(|row| row.values().values())
         .filter_map(|value| match value {

@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use block_client::block_ref::BlockRef;
 use block_client::blocks::infinite_canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
@@ -194,7 +193,7 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
         };
         let reference = reference_of(&entity);
         let label = reference.and_then(|reference| drawn.label_of(reference));
-        let loading = reference.is_some_and(|reference| drawn.resolve(reference).is_some());
+        let loading = reference.is_some();
         let paint = EntityPaint {
             covered: drawn.child_state(entity.id).available,
             camera: Camera::of(Some(camera.get()), block_editor_plugin::beui::Pos2::ZERO),
@@ -243,7 +242,7 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
     let target = create_memo(clone!(entity resolving -> move || {
         let entity = entity.get()?;
         let reference = reference_of(&entity)?;
-        let id = resolving.resolve(reference)?;
+        let id = reference;
         let block_type = resolving.block_type_of(id)?;
         Some(ChildTarget::new(id, block_type))
     }));
@@ -343,7 +342,7 @@ fn content_bounds(entity: CanvasEntity) -> Rect {
     }
 }
 
-fn reference_of(entity: &CanvasEntity) -> Option<BlockRef> {
+fn reference_of(entity: &CanvasEntity) -> Option<Uuid> {
     match entity.kind {
         CanvasEntityKind::Block { block_id } | CanvasEntityKind::DirectEditor { block_id, .. } => {
             Some(block_id)

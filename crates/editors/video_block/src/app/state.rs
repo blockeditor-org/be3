@@ -1,13 +1,10 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::time::Instant;
 
 use block::{BlockParent, BlockReference, BlockReferenceList};
 use block_client::ReferenceList;
-use block_client::block_ref::BlockRef;
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_editor_plugin::be_block::VideoContent;
 use block_editor_plugin::be_block::video::{
     DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
@@ -36,8 +33,7 @@ pub(crate) struct VideoState {
     dependencies: ReferenceList,
     picker: RefCell<BlockPicker>,
     picker_attachment: Cell<Option<Uuid>>,
-    reference_cache: RefCell<ReferenceResolutionCache>,
-    pending_clips: RefCell<ReferenceClassificationQueue<PendingClip>>,
+    pending_clips: RefCell<Vec<(Uuid, PendingClip)>>,
     play_origin: Cell<Option<(Instant, u64)>>,
     aspect_ratios: RefCell<HashMap<Uuid, f32>>,
     fit_requested: Cell<bool>,
@@ -54,8 +50,6 @@ pub(crate) struct VideoState {
     set_pixels_per_frame: WriteSignal<f32>,
     pub(crate) drag: ReadSignal<Option<ClipDrag>>,
     set_drag: WriteSignal<Option<ClipDrag>>,
-    pub(crate) resolved: ReadSignal<HashMap<BlockRef, Option<Uuid>>>,
-    set_resolved: WriteSignal<HashMap<BlockRef, Option<Uuid>>>,
     pub(crate) labels: ReadSignal<HashMap<Uuid, BlockLabel>>,
     set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
 }
@@ -71,7 +65,6 @@ impl VideoState {
         let (playing, set_playing) = create_signal(false);
         let (pixels_per_frame, set_pixels_per_frame) = create_signal(DEFAULT_PIXELS_PER_FRAME);
         let (drag, set_drag) = create_signal(None);
-        let (resolved, set_resolved) = create_signal(HashMap::new());
         let (labels, set_labels) = create_signal(HashMap::new());
         Rc::new(Self {
             dependencies: editor
@@ -81,8 +74,7 @@ impl VideoState {
             block,
             picker: RefCell::new(BlockPicker::default()),
             picker_attachment: Cell::new(None),
-            reference_cache: RefCell::new(ReferenceResolutionCache::default()),
-            pending_clips: RefCell::new(ReferenceClassificationQueue::default()),
+            pending_clips: RefCell::new(Vec::new()),
             play_origin: Cell::new(None),
             aspect_ratios: RefCell::new(HashMap::new()),
             fit_requested: Cell::new(false),
@@ -99,8 +91,6 @@ impl VideoState {
             set_pixels_per_frame,
             drag,
             set_drag,
-            resolved,
-            set_resolved,
             labels,
             set_labels,
         })
@@ -141,17 +131,13 @@ impl VideoState {
         self.set_drag.set(drag);
     }
 
-    pub(crate) fn target(&self, block: BlockRef) -> Option<ChildTarget> {
-        let id = self.resolved.get().get(&block).copied().flatten()?;
-        let label = self.labels.get().get(&id).cloned()?;
-        Some(ChildTarget::new(id, label.block_type))
+    pub(crate) fn target(&self, block: Uuid) -> Option<ChildTarget> {
+        let label = self.labels.get().get(&block).cloned()?;
+        Some(ChildTarget::new(block, label.block_type))
     }
 
-    pub(crate) fn name_of(&self, block: BlockRef) -> String {
-        let Some(id) = self.resolved.get().get(&block).copied().flatten() else {
-            return "Broken link".to_owned();
-        };
-        match self.labels.get().get(&id) {
+    pub(crate) fn name_of(&self, block: Uuid) -> String {
+        match self.labels.get().get(&block) {
             Some(label) => label.name.clone(),
             None => "Loading…".to_owned(),
         }
@@ -276,12 +262,9 @@ impl VideoState {
         };
         let clip_id = Uuid::new_v4();
         self.set_selected.set(Some(clip_id));
-        self.pending_clips.borrow_mut().push(
-            self.editor.client(),
-            self.block_id(),
-            block_id,
-            (clip_id, length, attachment, index),
-        );
+        self.pending_clips
+            .borrow_mut()
+            .push((block_id, (clip_id, length, attachment, index)));
     }
 
     pub(crate) fn adopt(&self, block_id: Uuid) {
@@ -339,7 +322,7 @@ impl VideoState {
     }
 
     fn poll_pending_clips(&self) {
-        let landed = self.pending_clips.borrow_mut().poll();
+        let landed = std::mem::take(&mut *self.pending_clips.borrow_mut());
         for (reference, (clip_id, length, attachment, index)) in landed {
             self.operate(VideoOperation::InsertClip {
                 clip: VideoClip {
@@ -379,25 +362,6 @@ impl VideoState {
             .collect();
         if self.labels.get_untracked() != labels {
             self.set_labels.set(labels);
-        }
-        self.reference_cache.borrow_mut().poll();
-        let client = Arc::clone(self.editor.client());
-        let referencing = self.block_id();
-        let resolved: HashMap<BlockRef, Option<Uuid>> = self
-            .clips
-            .get_untracked()
-            .iter()
-            .map(|clip| {
-                (
-                    clip.block_id,
-                    self.reference_cache
-                        .borrow_mut()
-                        .resolve(&client, referencing, clip.block_id),
-                )
-            })
-            .collect();
-        if self.resolved.get_untracked() != resolved {
-            self.set_resolved.set(resolved);
         }
     }
 }

@@ -4,6 +4,7 @@ use block_client::BlockClient;
 use block_client::blocks::database::Database as DatabaseBlock;
 use block_client::blocks::database_schema::DatabaseSchema as SchemaBlock;
 use block_client::blocks::database_view::DatabaseView as ViewBlock;
+use block_editor_plugin::be_block::Edit;
 use block_editor_plugin::be_block::database::{
     Database, DatabaseColor, DatabaseContent, DatabaseValue,
 };
@@ -13,7 +14,6 @@ use block_editor_plugin::be_block::database_schema::{
 use block_editor_plugin::be_block::database_view::{
     DatabaseView, DatabaseViewContent, DatabaseViewKind,
 };
-use block_editor_plugin::be_block::{BlockRef, Edit};
 use block_editor_plugin::beui::Key;
 use block_editor_plugin::{
     BeuiApp, Creation, Editor, EditorHost,
@@ -103,11 +103,11 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
     let mut harness = ContentHarness::new(BeuiTest::new(editor), host);
     harness.hold(
         None,
-        DatabaseViewContent::new(&DatabaseView::of(BlockRef::Direct(database.id()))),
+        DatabaseViewContent::new(&DatabaseView::of(database.id())),
     );
     harness.hold(
         Some(database.id()),
-        DatabaseContent::new(&Database::with_schema(BlockRef::Direct(schema.id()))),
+        DatabaseContent::new(&Database::with_schema(schema.id())),
     );
     harness.hold(Some(schema.id()), schema_content);
     for _ in 0..6 {

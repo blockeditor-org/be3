@@ -1,13 +1,9 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use block::BlockReferenceList;
-use block_client::BlockClient;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::workspace_index::{WorkspaceIndex, WorkspaceIndexOperation};
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_editor_plugin::beui::reactive::{Memo, ReadSignal, create_memo, create_signal, untrack};
 use block_editor_plugin::block_ui::{BlockLabel, BlockTypes};
 use block_editor_plugin::{BlockProjection, Editor};
@@ -35,7 +31,7 @@ impl FolderSort {
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Entry {
-    pub(crate) reference: BlockRef,
+    pub(crate) reference: Uuid,
     pub(crate) id: Option<Uuid>,
     pub(crate) block_type: Option<Uuid>,
     pub(crate) name: String,
@@ -47,8 +43,7 @@ pub(crate) struct Entry {
 
 pub(crate) struct Folder {
     entries: Memo<Vec<Entry>>,
-    adds: RefCell<ReferenceClassificationQueue<()>>,
-    client: Arc<BlockClient>,
+    adds: RefCell<Vec<Uuid>>,
 }
 
 impl Folder {
@@ -63,13 +58,8 @@ impl Folder {
             .watch_references(BlockReferenceList::References(editor.block_id()));
         let referenced = index.project(|index| index.entries().to_vec());
         let (rows, set_rows) = create_signal(Vec::<Entry>::new());
-        let cache = RefCell::new(ReferenceResolutionCache::default());
-        let client = Arc::clone(editor.client());
-        let block_id = editor.block_id();
         let host = editor.host().clone();
         editor.each_frame(move || {
-            let mut cache = cache.borrow_mut();
-            cache.poll();
             let metadata: HashMap<_, _> = references
                 .read()
                 .into_iter()
@@ -80,7 +70,7 @@ impl Folder {
                 .get_untracked()
                 .into_iter()
                 .map(|reference| {
-                    let id = cache.resolve(&client, block_id, reference);
+                    let id = Some(reference);
                     let found = id.and_then(|id| metadata.get(&id));
                     let label = found.map(|found| BlockLabel::for_reference(types.as_ref(), found));
                     Entry {
@@ -113,7 +103,6 @@ impl Folder {
         Self {
             entries: create_memo(move || rows.get()),
             adds: RefCell::default(),
-            client: Arc::clone(editor.client()),
         }
     }
 
@@ -129,14 +118,12 @@ impl Folder {
             })
     }
 
-    pub(crate) fn add(&self, folder: Uuid, block_id: Uuid) {
-        self.adds
-            .borrow_mut()
-            .push(&self.client, folder, block_id, ());
+    pub(crate) fn add(&self, block_id: Uuid) {
+        self.adds.borrow_mut().push(block_id);
     }
 
     pub(crate) fn poll_adds(&self, index: &BlockProjection<WorkspaceIndex>) {
-        for (reference, ()) in self.adds.borrow_mut().poll() {
+        for reference in std::mem::take(&mut *self.adds.borrow_mut()) {
             index.operate(WorkspaceIndexOperation::Add(reference));
         }
     }
@@ -152,7 +139,7 @@ fn sort_entries(entries: &mut [Entry], sort: FolderSort, descending: bool) {
     if sort == FolderSort::Intrinsic {
         return;
     }
-    let order: HashMap<BlockRef, usize> = entries
+    let order: HashMap<Uuid, usize> = entries
         .iter()
         .enumerate()
         .map(|(index, entry)| (entry.reference, index))

@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
 use block_client::BlockClient;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::database::DatabaseValue;
 use block_client::blocks::infinite_canvas::{
     CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,

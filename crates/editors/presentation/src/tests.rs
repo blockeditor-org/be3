@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use block_client::BlockClient;
 use block_client::blocks::presentation::Presentation as PresentationBlock;
+use block_editor_plugin::be_block::ObjectId;
 use block_editor_plugin::be_block::presentation::PresentationContent;
-use block_editor_plugin::be_block::{BlockRef, ObjectId};
 use block_editor_plugin::beui::Key;
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
@@ -29,7 +29,7 @@ fn editor(count: usize) -> (Harness, Editor) {
     for index in 0..count {
         let edit = content
             .root()
-            .insert(ObjectId::new(), index, BlockRef::Direct(Uuid::new_v4()));
+            .insert(ObjectId::new(), index, Uuid::new_v4());
         content.apply(&edit);
     }
     let host = EditorHost::default();

@@ -7,19 +7,16 @@ use beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
 use block::{BlockParent, BlockReferenceList};
-use block_client::{
-    BlockClient, ReferenceList, block_ref::BlockRef, blocks::image::Image,
-    presence::pick_free_color,
-};
+use block_client::{BlockClient, ReferenceList, blocks::image::Image, presence::pick_free_color};
 use block_editor_plugin::be_block::{ImageContent, TextContent};
-use block_editor_plugin::{ChildState, ContentProjection, Editor, EditorHost, ImagePaster, Task};
+use block_editor_plugin::{ChildState, ContentProjection, Editor, EditorHost, ImagePaster};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
 use crate::document::{BlockDocument, inside_block_url};
 use crate::presence::TextCursor;
 
-use super::embeds::{EmbedReferenceCache, PendingEmbed, ResolvedEmbed, resolve_embeds};
+use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
 
 pub(crate) const DIRECT_EDITOR_WIDTH: f32 = 600.0;
 
@@ -40,8 +37,6 @@ pub(crate) struct State {
     pub text: TextAreaState,
     pub dependencies: ReferenceList,
     pub paster: RefCell<ImagePaster>,
-    pub references: RefCell<EmbedReferenceCache>,
-    pub pending_embeds: RefCell<Vec<PendingEmbed>>,
     pub embed_sizes: RefCell<HashMap<Uuid, Vec2>>,
     pub embed_children: RefCell<HashMap<FocusedEmbed, ChildState>>,
     pub published_cursor: Cell<Option<TextCursor>>,
@@ -96,8 +91,6 @@ impl State {
             text,
             dependencies,
             paster: RefCell::new(ImagePaster::default()),
-            references: RefCell::new(EmbedReferenceCache::default()),
-            pending_embeds: RefCell::new(Vec::new()),
             embed_sizes: RefCell::new(HashMap::new()),
             embed_children: RefCell::new(HashMap::new()),
             published_cursor: Cell::new(None),
@@ -185,22 +178,11 @@ impl State {
     }
 
     pub fn insert_image_embed(&self, id: Uuid, source_name: &str) {
-        let client = Arc::clone(&self.client);
-        let referencing_id = self.block_id;
-        let task: Task<BlockRef> = self.host().spawn(async move {
-            client
-                .classify_reference(
-                    referencing_id,
-                    id,
-                    &block_client::blocks::version_control_worktree::VersionControlWorktreeMembership,
-                )
-                .await
-        });
-        self.pending_embeds.borrow_mut().push(PendingEmbed {
-            task,
-            source_name: source_name.to_owned(),
-            markdown: self.text.language() == TextLanguage::Markdown,
-        });
+        let markdown = self.text.language() == TextLanguage::Markdown;
+        let directive = image_embed_directive(self.workspace_id, &id, source_name, markdown);
+        self.text
+            .execute(EditorCommand::InsertText(directive.as_bytes()));
+        self.text.reveal_cursor();
     }
 
     pub fn remote_cursors(&self) -> Vec<(u64, TextCursor)> {

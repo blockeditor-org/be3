@@ -3,7 +3,6 @@ use std::sync::Arc;
 use block_client::BlockClient;
 use block_client::blocks::database::Database as DatabaseBlock;
 use block_client::blocks::database_schema::DatabaseSchema as SchemaBlock;
-use block_editor_plugin::be_block::BlockRef;
 use block_editor_plugin::be_block::database::{Database, DatabaseContent};
 use block_editor_plugin::{Creation, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
@@ -25,7 +24,7 @@ fn editor() -> (ContentHarness<DatabaseApp>, Editor) {
     let mut harness = ContentHarness::new(BeuiTest::new(editor.clone()), host);
     harness.hold(
         None,
-        DatabaseContent::new(&Database::with_schema(BlockRef::Direct(schema.id()))),
+        DatabaseContent::new(&Database::with_schema(schema.id())),
     );
     harness.run();
     (harness, editor)

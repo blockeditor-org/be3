@@ -6,7 +6,7 @@ fn replacing_a_referenced_block_rewrites_the_entity() {
     let new = Uuid::from_u128(0x0200_0000_0000_4000_8000_0000_0000_0012);
     let mut referencing = entity(Uuid::from_u128(3));
     referencing.kind = CanvasEntityKind::DirectEditor {
-        block_id: BlockRef::Direct(old),
+        block_id: old,
         scale: 1.0,
     };
     let mut editor = editor(std::slice::from_ref(&referencing));
@@ -20,7 +20,7 @@ fn replacing_a_referenced_block_rewrites_the_entity() {
     assert_eq!(
         kinds,
         [CanvasEntityKind::DirectEditor {
-            block_id: BlockRef::Direct(new),
+            block_id: new,
             scale: 1.0,
         }]
     );

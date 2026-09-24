@@ -14,7 +14,7 @@ fn settings_set_entry_replaces_existing_entry_for_same_activation() {
         &SettingsOperation::SetEntry {
             block_type,
             activation: ActivationCondition::Fallback,
-            block: BlockRef::Direct(first),
+            block: first,
         },
     );
     Settings::apply_operation(
@@ -22,13 +22,13 @@ fn settings_set_entry_replaces_existing_entry_for_same_activation() {
         &SettingsOperation::SetEntry {
             block_type,
             activation: ActivationCondition::Fallback,
-            block: BlockRef::Direct(second),
+            block: second,
         },
     );
 
     assert_eq!(settings.entries(block_type).len(), 1);
     assert_eq!(
         settings.resolve(block_type, Uuid::new_v4()),
-        Some(BlockRef::Direct(second))
+        Some(second)
     );
 }

@@ -4,7 +4,7 @@ use be_model::{Anchor, Change, Document, Edit, Item, List, Map, Model, ObjectId}
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct DatabaseColor {
@@ -19,7 +19,7 @@ pub enum DatabaseValue {
     String(String),
     Number(f64),
     Enum(Uuid),
-    Block(BlockRef),
+    Block(Uuid),
     Boolean(bool),
     Color(DatabaseColor),
     Datetime(i64),
@@ -27,7 +27,7 @@ pub enum DatabaseValue {
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct Database {
-    pub schema: Option<BlockRef>,
+    pub schema: Option<Uuid>,
     pub rows: List<DatabaseRow>,
 }
 
@@ -47,14 +47,14 @@ impl DatabaseRow {
 }
 
 impl Database {
-    pub fn with_schema(schema: BlockRef) -> Self {
+    pub fn with_schema(schema: Uuid) -> Self {
         Self {
             schema: Some(schema),
             rows: List::default(),
         }
     }
 
-    pub fn set_schema(schema: BlockRef) -> Edit {
+    pub fn set_schema(schema: Uuid) -> Edit {
         Self::SCHEMA.set(ObjectId::ROOT, &Some(schema)).into()
     }
 
@@ -93,7 +93,7 @@ impl Database {
         changes.into_iter().collect()
     }
 
-    pub fn block_references(&self) -> impl Iterator<Item = BlockRef> + '_ {
+    pub fn block_references(&self) -> impl Iterator<Item = Uuid> + '_ {
         self.rows
             .iter()
             .flat_map(|row| row.values.values())
@@ -111,11 +111,9 @@ impl Root for Database {
         let (old, new) = match change {
             ChildChange::Add(_) => return None,
             ChildChange::Delete(old) => (old, None),
-            ChildChange::Replace { old, new } => {
-                (old, Some(DatabaseValue::Block(BlockRef::Direct(new))))
-            }
+            ChildChange::Replace { old, new } => (old, Some(DatabaseValue::Block(new))),
         };
-        let old = DatabaseValue::Block(BlockRef::Direct(old));
+        let old = DatabaseValue::Block(old);
         Some(
             self.rows
                 .iter()
@@ -134,7 +132,7 @@ impl Root for Database {
         self.schema
             .into_iter()
             .chain(self.block_references())
-            .filter_map(|reference| reference.as_direct())
+            .filter_map(|reference| Some(reference))
             .filter(|reference| seen.insert(*reference))
             .collect()
     }

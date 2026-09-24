@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use block::BlockParent;
 use block_client::BlockClient;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::paint_review::PaintReview as ReviewBlock;
 use block_client::blocks::paint_snapshot::PaintSnapshot;
 use block_editor_plugin::be_block::paint::PaintReview;
@@ -97,10 +96,8 @@ impl Review {
                 data,
             ),
         );
-        self.store.edit::<PaintReviewContent>(
-            None,
-            &PaintReview::approve(path, hash, BlockRef::Direct(created.id())),
-        );
+        self.store
+            .edit::<PaintReviewContent>(None, &PaintReview::approve(path, hash, created.id()));
     }
 
     fn remove(&self, path: &str) {
@@ -109,7 +106,7 @@ impl Review {
 
     fn approved(&self, path: &str) -> Option<PaintSnapshotContent> {
         let approval = self.review().approval(path).cloned()?;
-        let id = approval.snapshot.as_direct()?;
+        let id = approval.snapshot;
         let snapshot = self.store.content::<PaintSnapshotContent>(Some(id));
         assert_eq!(approval.hash, snapshot.header().hash);
         assert_eq!(path, snapshot.header().path);
@@ -117,7 +114,7 @@ impl Review {
     }
 
     fn reference(&self, path: &str) -> Option<Uuid> {
-        self.review().approval(path)?.snapshot.as_direct()
+        Some(self.review().approval(path)?.snapshot)
     }
 
     fn orphaned(&self, id: Uuid) -> bool {

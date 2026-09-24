@@ -11,7 +11,6 @@ use beui::styled::{
 };
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
-use block_client::block_ref::BlockRef;
 use block_client::blocks::database::{DatabaseColor, DatabaseValue};
 use block_client::blocks::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
@@ -28,7 +27,7 @@ use crate::DateTimeRow;
 const SPACING: f32 = 6.0;
 const FIELD_SPACING: f32 = 12.0;
 
-pub type ValueLabels = HashMap<BlockRef, BlockLabel>;
+pub type ValueLabels = HashMap<Uuid, BlockLabel>;
 pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 
 #[component]
@@ -605,7 +604,6 @@ fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
 }
 
 pub fn create_database(creation: &crate::Creation) -> Uuid {
-    use be_block::BlockRef;
     use be_block::database::{Database, DatabaseContent};
     use be_block::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
     use block::BlockParent;
@@ -620,7 +618,7 @@ pub fn create_database(creation: &crate::Creation) -> Uuid {
     ));
     creation.seed_content(
         database.id(),
-        &DatabaseContent::new(&Database::with_schema(BlockRef::Direct(schema.id()))),
+        &DatabaseContent::new(&Database::with_schema(schema.id())),
     );
     schema.set_parent(BlockParent::Uuid(database.id()));
     database.id()

@@ -1,9 +1,10 @@
 use super::*;
+use uuid::Uuid;
 
 use std::time::Duration;
 
+use be_block::BlockContent;
 use be_block::database_view::{DatabaseView, DatabaseViewContent};
-use be_block::{BlockContent, BlockRef};
 use block::Block;
 use block_client::blocks::database_view::DatabaseView as ViewBlock;
 
@@ -12,16 +13,12 @@ fn seed(instances: &mut Instances, block: Uuid, database: Uuid) {
         instance: INSTANCE,
         block_id: block.into_bytes(),
         content_type: DatabaseViewContent::CONTENT_TYPE.into_bytes(),
-        bytes: DatabaseViewContent::new(&DatabaseView::of(BlockRef::Direct(database))).encode(),
+        bytes: DatabaseViewContent::new(&DatabaseView::of(database)).encode(),
     });
 }
 
 fn database_in(bytes: &[u8]) -> Option<Uuid> {
-    DatabaseViewContent::decode(bytes)
-        .ok()?
-        .root()
-        .database?
-        .as_direct()
+    DatabaseViewContent::decode(bytes).ok()?.root().database
 }
 
 #[test]

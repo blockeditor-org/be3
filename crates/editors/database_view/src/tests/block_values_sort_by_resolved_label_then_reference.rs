@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn block_values_sort_by_resolved_label_then_reference() {
-    let first = BlockRef::Direct(Uuid::from_u128(1));
-    let second = BlockRef::Direct(Uuid::from_u128(2));
+    let first = Uuid::from_u128(1);
+    let second = Uuid::from_u128(2);
     let labels = HashMap::from([
         (
             first,

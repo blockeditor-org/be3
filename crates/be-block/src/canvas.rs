@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::database::DatabaseValue;
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct CanvasPoint {
@@ -62,10 +62,10 @@ pub enum CanvasEntityKind {
         points: Vec<CanvasPoint>,
     },
     Block {
-        block_id: BlockRef,
+        block_id: Uuid,
     },
     DirectEditor {
-        block_id: BlockRef,
+        block_id: Uuid,
         scale: f32,
     },
 }
@@ -150,7 +150,7 @@ impl Default for CanvasEntityStyle {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct CanvasComponent {
-    pub schema_id: BlockRef,
+    pub schema_id: Uuid,
     pub values: BTreeMap<Uuid, DatabaseValue>,
 }
 
@@ -218,7 +218,7 @@ pub struct Entity {
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct Component {
-    pub schema: Option<BlockRef>,
+    pub schema: Option<Uuid>,
     pub values: Map<Uuid, DatabaseValue>,
 }
 
@@ -385,7 +385,7 @@ impl Canvas {
         Edit(changes)
     }
 
-    fn child_entities(&self, old: BlockRef) -> impl Iterator<Item = &be_model::Item<Entity>> {
+    fn child_entities(&self, old: Uuid) -> impl Iterator<Item = &be_model::Item<Entity>> {
         self.entities.iter().filter(move |held| {
             matches!(
                 held.kind,
@@ -527,12 +527,12 @@ impl Root for Canvas {
                 | CanvasEntityKind::DirectEditor { block_id, .. },
             ) = &held.kind
             {
-                references.extend(block_id.as_direct());
+                references.extend(Some(block_id));
             }
             for component in held.components.iter() {
-                references.extend(component.schema.and_then(|schema| schema.as_direct()));
+                references.extend(component.schema.and_then(|schema| Some(schema)));
                 references.extend(component.values.values().filter_map(|value| match value {
-                    DatabaseValue::Block(reference) => reference.as_direct(),
+                    DatabaseValue::Block(reference) => Some(reference),
                     _ => None,
                 }));
             }
@@ -546,7 +546,7 @@ impl Root for Canvas {
         match change {
             ChildChange::Add(_) => None,
             ChildChange::Delete(old) => {
-                let old = BlockRef::Direct(old);
+                let old = old;
                 let mut changes: Vec<Change> = self
                     .child_entities(old)
                     .map(|held| Change::remove(held.id))
@@ -567,7 +567,7 @@ impl Root for Canvas {
                 Some(Edit(changes))
             }
             ChildChange::Replace { old, new } => {
-                let (old, new) = (BlockRef::Direct(old), BlockRef::Direct(new));
+                let (old, new) = (old, new);
                 let mut changes = Vec::new();
                 for held in self.child_entities(old) {
                     let kind = match held.kind.clone()? {

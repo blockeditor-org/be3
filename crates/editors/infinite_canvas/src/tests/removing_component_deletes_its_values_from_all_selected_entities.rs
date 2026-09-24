@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn removing_component_deletes_its_values_from_all_selected_entities() {
-    let schema_id = BlockRef::Direct(Uuid::new_v4());
+    let schema_id = Uuid::new_v4();
     let field_id = Uuid::new_v4();
     let [first_id, second_id] = std::array::from_fn(|_| Uuid::new_v4());
     let mut entities = [entity(first_id), entity(second_id)];

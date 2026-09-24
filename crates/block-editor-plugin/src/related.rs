@@ -2,10 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use beui::reactive::{Memo, ReadSignal, batch, create_memo, create_signal};
+use beui::reactive::{Memo, ReadSignal, batch, create_signal};
 use block::Block;
-use block_client::references::ReferenceResolutionCache;
-use block_client::{BlockClient, BlockHandle, block_ref::BlockRef};
+use block_client::{BlockClient, BlockHandle};
 use block_reactive::BlockWatch;
 use uuid::Uuid;
 
@@ -149,25 +148,5 @@ impl Editor {
         let pumped = Rc::clone(&related);
         self.each_frame(move || pumped.pump(id.get_untracked()));
         related
-    }
-
-    pub fn resolve(
-        &self,
-        referencing: Memo<Option<Uuid>>,
-        reference: ReadSignal<Option<BlockRef>>,
-    ) -> Memo<Option<Uuid>> {
-        let (resolved, set_resolved) = create_signal(None::<Uuid>);
-        let cache = RefCell::new(ReferenceResolutionCache::default());
-        let client = Arc::clone(self.client());
-        self.each_frame(move || {
-            let mut cache = cache.borrow_mut();
-            cache.poll();
-            let found = referencing.get_untracked().and_then(|referencing| {
-                let reference = reference.get_untracked()?;
-                cache.resolve(&client, referencing, reference)
-            });
-            set_resolved.set(found);
-        });
-        create_memo(move || resolved.get())
     }
 }

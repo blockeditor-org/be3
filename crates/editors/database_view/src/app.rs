@@ -1,7 +1,6 @@
 use block::BlockParent;
 use block_client::blocks::database::Database;
 use block_client::blocks::database_view::DatabaseView;
-use block_editor_plugin::be_block::BlockRef;
 use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
@@ -41,7 +40,7 @@ impl block_editor_plugin::BeuiApp for DatabaseViewApp {
             .create_block(DatabaseView::with_references(vec![database]));
         creation.seed_content(
             view.id(),
-            &DatabaseViewContent::new(&database_view::DatabaseView::of(BlockRef::Direct(database))),
+            &DatabaseViewContent::new(&database_view::DatabaseView::of(database)),
         );
         creation
             .client()

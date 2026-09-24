@@ -15,7 +15,7 @@ fn settings_resolve_prefers_client_specific_entry_over_fallback() {
         &SettingsOperation::SetEntry {
             block_type,
             activation: ActivationCondition::Fallback,
-            block: BlockRef::Direct(fallback_block),
+            block: fallback_block,
         },
     );
     Settings::apply_operation(
@@ -23,12 +23,12 @@ fn settings_resolve_prefers_client_specific_entry_over_fallback() {
         &SettingsOperation::SetEntry {
             block_type,
             activation: ActivationCondition::Client(client_id),
-            block: BlockRef::Direct(client_block),
+            block: client_block,
         },
     );
 
     assert_eq!(
         settings.resolve(block_type, client_id),
-        Some(BlockRef::Direct(client_block))
+        Some(client_block)
     );
 }

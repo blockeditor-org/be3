@@ -1,9 +1,9 @@
 use super::*;
 use crate::presentation::PresentationContent;
-use crate::{BlockRef, ChildChange, ObjectId, Root};
+use crate::{ChildChange, ObjectId, Root};
 use uuid::Uuid;
 
-fn shown(presentation: &PresentationContent) -> Vec<Option<BlockRef>> {
+fn shown(presentation: &PresentationContent) -> Vec<Option<Uuid>> {
     presentation
         .root()
         .slides
@@ -24,20 +24,18 @@ fn a_presentation_moves_slides_by_index_and_follows_its_children() {
         presentation.apply(&edit);
     }
     let slide = ObjectId::new();
-    let edit = presentation
-        .root()
-        .insert(slide, 0, BlockRef::Direct(third));
+    let edit = presentation.root().insert(slide, 0, third);
     presentation.apply(&edit);
     assert_eq!(
         shown(&presentation),
-        [third, first, second].map(|block| Some(BlockRef::Direct(block)))
+        [third, first, second].map(|block| Some(block))
     );
 
     let edit = presentation.root().move_to(slide, 2);
     presentation.apply(&edit);
     assert_eq!(
         shown(&presentation),
-        [first, second, third].map(|block| Some(BlockRef::Direct(block)))
+        [first, second, third].map(|block| Some(block))
     );
 
     let replacement = Uuid::new_v4();
@@ -56,7 +54,7 @@ fn a_presentation_moves_slides_by_index_and_follows_its_children() {
     }
     assert_eq!(
         shown(&presentation),
-        [second, replacement].map(|block| Some(BlockRef::Direct(block)))
+        [second, replacement].map(|block| Some(block))
     );
     assert_eq!(
         BlockContent::references(&presentation),

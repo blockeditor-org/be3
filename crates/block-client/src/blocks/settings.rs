@@ -4,7 +4,6 @@ use block::Block;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::block_ref::BlockRef;
 
                                                                        
                                                                           
@@ -21,7 +20,7 @@ pub enum ActivationCondition {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SettingEntry {
     pub activation: ActivationCondition,
-    pub block: BlockRef,
+    pub block: Uuid,
 }
 
                                                                            
@@ -41,7 +40,7 @@ pub enum SettingsOperation {
     SetEntry {
         block_type: Uuid,
         activation: ActivationCondition,
-        block: BlockRef,
+        block: Uuid,
     },
 }
 
@@ -59,7 +58,7 @@ impl Settings {
                                                                           
                                                                      
                      
-    pub fn resolve(&self, block_type: Uuid, client_id: Uuid) -> Option<BlockRef> {
+    pub fn resolve(&self, block_type: Uuid, client_id: Uuid) -> Option<Uuid> {
         let entries = self.entries(block_type);
         entries
             .iter()
@@ -100,7 +99,7 @@ impl Block for Settings {
         self.entries
             .values()
             .flatten()
-            .filter_map(|entry| entry.block.as_direct())
+            .filter_map(|entry| Some(entry.block))
             .collect()
     }
 }

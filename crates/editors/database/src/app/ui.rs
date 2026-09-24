@@ -1,7 +1,6 @@
 use block::{Block, BlockReference, BlockReferenceList};
 use block_client::blocks::database_schema::DatabaseSchema;
 use block_client::blocks::database_view::DatabaseView;
-use block_editor_plugin::be_block::BlockRef;
 use block_editor_plugin::be_block::database::DatabaseContent;
 use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_plugin::beui::reactive::{
@@ -28,8 +27,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let loaded = views.loaded.clone();
     let rows = views.rows.clone();
     let reference = database.project(|database| database.root().schema);
-    let own_id = editor.block_id();
-    let schema = editor.resolve(create_memo(move || Some(own_id)), reference);
+    let schema = create_memo(move || reference.get());
 
     let sized = editor.clone();
     create_effect(clone!(rows -> move || {
@@ -48,7 +46,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
         let view = client.create_block(DatabaseView::with_references(vec![block_id]));
         seeding.seed_content(
             view.id(),
-            &DatabaseViewContent::new(&database_view::DatabaseView::of(BlockRef::Direct(block_id))),
+            &DatabaseViewContent::new(&database_view::DatabaseView::of(block_id)),
         );
     };
 

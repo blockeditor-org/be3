@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use block_client::BlockClient;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::counter::Counter;
 use block_client::blocks::video::Video as VideoBlock;
 use block_editor_plugin::be_block::VideoContent;
@@ -42,7 +41,7 @@ impl Fixture {
         let operation = VideoOperation::InsertClip {
             clip: VideoClip {
                 id,
-                block_id: BlockRef::Direct(source.id()),
+                block_id: source.id(),
                 length: 30,
                 attachment: None,
                 effects: Vec::new(),

@@ -8,7 +8,7 @@ use beui::{Key, KeyPress, NodeId, Rect, Vec2};
 use block_editor_plugin::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
 
-use super::embeds::{ResolvedEmbed, poll_pending_embeds};
+use super::embeds::ResolvedEmbed;
 use super::large_embed::{LargeEmbed, embed_is_live};
 use super::state::{FocusedEmbed, Shared};
 
@@ -85,7 +85,6 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
 
     let frame_state = state.clone();
     each_frame(move || {
-        poll_pending_embeds(&frame_state);
         poll_paste(&frame_state);
         poll_drag(&frame_state);
         frame_state.poll_external_edit();

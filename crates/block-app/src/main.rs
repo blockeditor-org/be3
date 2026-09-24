@@ -1585,7 +1585,7 @@ impl BlockApp {
             };
             let Some(id) = settings
                 .resolve(UiSettings::TYPE_ID, self.client_id)
-                .and_then(|reference| reference.as_direct())
+                .and_then(|reference| Some(reference))
             else {
                 context.set_zoom_factor(1.0);
                 return;

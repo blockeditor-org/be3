@@ -364,9 +364,8 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
     let target = Rc::clone(&state);
     let block = create_memo(clone!(point target -> move || {
         let point = point.get()?;
-        let id = target.resolved_id(point.block_id)?;
         let label = target.label_of(point.block_id)?;
-        Some(ChildTarget::new(id, label.block_type))
+        Some(ChildTarget::new(point.block_id, label.block_type))
     }));
     let openable = create_memo(clone!(block -> move || block.get().is_none()));
     let back = Rc::clone(&state);
@@ -536,9 +535,6 @@ fn point_name(state: &MapState, point: Option<MapPoint>) -> String {
     };
     match state.label_of(point.block_id) {
         Some(label) => label.name,
-        None => match state.resolved_id(point.block_id) {
-            Some(_) => "Loading…".to_owned(),
-            None => "Broken link".to_owned(),
-        },
+        None => "Loading…".to_owned(),
     }
 }

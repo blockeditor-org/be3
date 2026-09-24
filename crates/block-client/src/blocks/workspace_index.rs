@@ -2,7 +2,6 @@ use block::Block;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::block_ref::BlockRef;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BlockEntry {
@@ -11,18 +10,18 @@ pub struct BlockEntry {
 
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct WorkspaceIndex {
-    entries: Vec<BlockRef>,
+    entries: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum WorkspaceIndexOperation {
-    Add(BlockRef),
-    Remove(BlockRef),
-    Replace { old: BlockRef, new: BlockRef },
+    Add(Uuid),
+    Remove(Uuid),
+    Replace { old: Uuid, new: Uuid },
 }
 
 impl WorkspaceIndex {
-    pub fn entries(&self) -> &[BlockRef] {
+    pub fn entries(&self) -> &[Uuid] {
         &self.entries
     }
 }
@@ -58,14 +57,11 @@ impl Block for WorkspaceIndex {
     }
 
     fn references(&self) -> Vec<Uuid> {
-        self.entries
-            .iter()
-            .filter_map(BlockRef::as_direct)
-            .collect()
+        self.entries.clone()
     }
 
     fn add_child(&self, block_id: Uuid) -> Option<Vec<Self::Operation>> {
-        let reference = BlockRef::Direct(block_id);
+        let reference = block_id;
         if self.entries.contains(&reference) {
             return Some(Vec::new());
         }
@@ -73,7 +69,7 @@ impl Block for WorkspaceIndex {
     }
 
     fn delete_child(&self, block_id: Uuid) -> Option<Vec<Self::Operation>> {
-        let reference = BlockRef::Direct(block_id);
+        let reference = block_id;
         if !self.entries.contains(&reference) {
             return Some(Vec::new());
         }
@@ -81,8 +77,8 @@ impl Block for WorkspaceIndex {
     }
 
     fn replace_child(&self, old: Uuid, new: Uuid) -> Option<Vec<Self::Operation>> {
-        let old = BlockRef::Direct(old);
-        let new = BlockRef::Direct(new);
+        let old = old;
+        let new = new;
         if !self.entries.contains(&old) {
             return Some(Vec::new());
         }

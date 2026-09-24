@@ -77,13 +77,8 @@ impl TextContent {
         let mut seen = std::collections::HashSet::new();
         crate::block_url::parse_block_urls(&self.bytes)
             .into_iter()
-            .filter_map(|url| {
-                let id = url.reference.as_direct()?;
-                let from = url.workspace_id?;
-                workspace
-                    .is_none_or(|workspace| from == workspace)
-                    .then_some(id)
-            })
+            .filter(|url| workspace.is_none_or(|workspace| url.workspace_id == workspace))
+            .map(|url| url.block)
             .filter(|id| seen.insert(*id))
             .collect()
     }

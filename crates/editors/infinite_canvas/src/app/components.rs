@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use block::Block;
 use block_client::BlockHandle;
-use block_client::block_ref::BlockRef;
 use block_client::blocks::database::DatabaseValue;
 use block_client::blocks::database_schema::DatabaseSchema;
 use block_editor_plugin::be_block::database_schema::DatabaseSchemaContent;
@@ -41,7 +40,7 @@ pub(crate) fn CanvasComponents(state: Rc<CanvasState>) -> NodeId {
         <Accordion title="Components" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=SPACING>
                 <ForEach keys={schemas}>
-                    {move |schema_id: BlockRef| {
+                    {move |schema_id: Uuid| {
                         let state = Rc::clone(&rows);
                         view! {
                             <ComponentRow state schema_id />
@@ -63,14 +62,12 @@ pub(crate) fn CanvasComponents(state: Rc<CanvasState>) -> NodeId {
 }
 
 #[component]
-fn ComponentRow(state: Rc<CanvasState>, schema_id: BlockRef) -> NodeId {
-    let resolved = create_memo(clone!(state -> move || state.resolve(schema_id)));
+fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
     let schema = state
         .editor()
-        .related_content::<DatabaseSchemaContent>(resolved.clone());
+        .related_content::<DatabaseSchemaContent>(create_memo(move || Some(schema_id)));
     let fields = schema.project(|schema| schema.root().fields());
     let fields = create_memo(clone!(fields -> move || fields.get()));
-    let loading = create_memo(clone!(resolved -> move || resolved.get().is_none()));
     let named = create_memo(clone!(state -> move || {
         state
             .label_of(schema_id)
@@ -149,15 +146,12 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: BlockRef) -> NodeId {
             remove_component(entities, selected, schema_id);
         });
     });
-    let open_schema = clone!(opening resolved -> move || {
-        if let Some(id) = resolved.get_untracked() {
-            opening
-                .editor()
-                .host()
-                .open_block(id, DatabaseSchema::TYPE_ID);
-        }
+    let open_schema = clone!(opening -> move || {
+        opening
+            .editor()
+            .host()
+            .open_block(schema_id, DatabaseSchema::TYPE_ID);
     });
-    let unresolved = create_memo(clone!(resolved -> move || resolved.get().is_none()));
     let changed = clone!(changing -> move |change: DatabaseValueChange| {
         changing.edit_components(|entities, selected| {
             set_component_value(entities, selected, schema_id, change.field_id, change.value);
@@ -173,9 +167,6 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: BlockRef) -> NodeId {
     view! {
         <List spacing=6.0>
             <Caption content={named} />
-            <Show condition={loading}>
-                <Caption content="Loading schema…" />
-            </Show>
             <Show condition={partial.clone()}>
                 <List spacing=6.0>
                     <Caption content={coverage} />
@@ -194,7 +185,6 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: BlockRef) -> NodeId {
                 <Button
                     label="Open schema"
                     variant=ButtonVariant::Secondary
-                    disabled={unresolved}
                     @test_id={open_id}
                     on_click={open_schema}
                 />

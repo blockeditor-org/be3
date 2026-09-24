@@ -1,6 +1,6 @@
 use super::*;
 use crate::paint::{PaintReview, PaintReviewContent};
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 use uuid::Uuid;
 
 #[test]
@@ -9,8 +9,8 @@ fn a_review_forgets_or_repoints_an_approval_with_its_snapshot() {
     let review = edited(
         &PaintReviewContent::default(),
         [
-            PaintReview::approve("ui/button.paint", "b1", BlockRef::Direct(button)),
-            PaintReview::approve("ui/dialog.paint", "d1", BlockRef::Direct(dialog)),
+            PaintReview::approve("ui/button.paint", "b1", button),
+            PaintReview::approve("ui/dialog.paint", "d1", dialog),
         ],
     );
     assert_eq!(BlockContent::references(&review), [button, dialog]);
@@ -31,5 +31,5 @@ fn a_review_forgets_or_repoints_an_approval_with_its_snapshot() {
     assert_eq!(approved.len(), 1);
     assert_eq!(approved[0].path, "ui/dialog.paint");
     assert_eq!(approved[0].hash, "d1");
-    assert_eq!(approved[0].snapshot, BlockRef::Direct(copy));
+    assert_eq!(approved[0].snapshot, copy);
 }

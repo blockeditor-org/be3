@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn setting_component_value_writes_the_same_value_to_all_selected_entities() {
-    let schema_id = BlockRef::Direct(Uuid::new_v4());
+    let schema_id = Uuid::new_v4();
     let [first_id, second_id, unselected_id] = std::array::from_fn(|_| Uuid::new_v4());
     let mut entities = [entity(first_id), entity(second_id), entity(unselected_id)];
     let selected = HashSet::from([first_id, second_id]);
@@ -10,7 +10,7 @@ fn setting_component_value_writes_the_same_value_to_all_selected_entities() {
     let values = [
         DatabaseValue::String("alpha".to_owned()),
         DatabaseValue::Boolean(false),
-        DatabaseValue::Block(BlockRef::Direct(Uuid::new_v4())),
+        DatabaseValue::Block(Uuid::new_v4()),
         DatabaseValue::Datetime(-1),
     ];
 

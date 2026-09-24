@@ -1,17 +1,14 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use block::Block;
 use block_client::blocks::compiled_logic::CompiledLogic;
-use block_client::references::ReferenceResolutionCache;
+use block_editor_plugin::be_block::Item;
 use block_editor_plugin::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
-use block_editor_plugin::be_block::{BlockRef, Item};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::{ICON_DELETE, ICON_FOLDER};
 use block_editor_plugin::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
-    create_memo, create_signal, view,
+    create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Body, Caption, Icon, IconButton, Scroll, use_theme};
 use block_editor_plugin::{BlockLink, ChildTarget, ContentProjection, Editor};
@@ -35,7 +32,7 @@ enum RowKind {
     Folder(String),
     Component {
         name: String,
-        compiled: BlockRef,
+        compiled: Uuid,
         block: Option<ChildTarget>,
     },
 }
@@ -44,28 +41,10 @@ enum RowKind {
 pub fn HotbarView(editor: Editor) -> NodeId {
     let hotbar = editor.block_content::<HotbarContent>();
     let pinned = hotbar.project(|hotbar| hotbar.root().slots.to_vec());
-    let references = hotbar.project(|hotbar| hotbar.root().component_refs());
-    let (resolved, set_resolved) = create_signal(HashMap::<BlockRef, Option<Uuid>>::new());
-    let cache = RefCell::new(ReferenceResolutionCache::default());
-    let client = editor.client().clone();
-    let referencing = editor.block_id();
-    editor.each_frame(clone!(references -> move || {
-        let mut cache = cache.borrow_mut();
-        cache.poll();
-        let resolved = references.with(|references| {
-            references
-                .iter()
-                .map(|reference| {
-                    (*reference, cache.resolve(&client, referencing, *reference))
-                })
-                .collect()
-        });
-        set_resolved.set(resolved);
-    }));
 
-    let rows = create_memo(clone!(pinned resolved -> move || {
+    let rows = create_memo(clone!(pinned -> move || {
         let mut rows = Vec::new();
-        pinned.with(|slots| resolved.with(|resolved| flatten(slots, 0, resolved, &mut rows)));
+        pinned.with(|slots| flatten(slots, 0, &mut rows));
         rows
     }));
     let keys =
@@ -182,12 +161,7 @@ fn SlotRow(
     }
 }
 
-fn flatten(
-    slots: &[Item<HotbarSlot>],
-    depth: usize,
-    resolved: &HashMap<BlockRef, Option<Uuid>>,
-    rows: &mut Vec<Row>,
-) {
+fn flatten(slots: &[Item<HotbarSlot>], depth: usize, rows: &mut Vec<Row>) {
     for slot in slots {
         let kind = match &slot.kind {
             SlotKind::Builtin { tool } => RowKind::Note(tool.clone()),
@@ -196,14 +170,10 @@ fn flatten(
             SlotKind::Component { name, compiled } => RowKind::Component {
                 name: name.clone(),
                 compiled: *compiled,
-                block: resolved
-                    .get(compiled)
-                    .copied()
-                    .flatten()
-                    .map(|id| ChildTarget::new(id, CompiledLogic::TYPE_ID)),
+                block: Some(ChildTarget::new(*compiled, CompiledLogic::TYPE_ID)),
             },
         };
         rows.push(Row { depth, kind });
-        flatten(&slot.slots, depth + 1, resolved, rows);
+        flatten(&slot.slots, depth + 1, rows);
     }
 }

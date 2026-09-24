@@ -7,7 +7,7 @@ fn a_direct_editor_entity_draws_the_frame_it_reserves() {
     let counter = client.create_block(Counter::default());
     let mut placed = entity(Uuid::from_u128(1));
     placed.kind = CanvasEntityKind::DirectEditor {
-        block_id: BlockRef::Direct(counter.id()),
+        block_id: counter.id(),
         scale: 1.0,
     };
     placed.transform =
