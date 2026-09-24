@@ -7,13 +7,13 @@ use block::{Block, BlockParent};
 use block_client::BlockHandle;
 use block_client::block_ref::BlockRef;
 use block_client::blocks::hotbar::Hotbar;
-use block_client::blocks::logic_game::{LogicGame, LogicGameOperation};
+use block_editor_plugin::be_block::logic_game::LogicGameOperation;
 use block_client::blocks::logic_grid::LogicGrid;
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_client::root_settings::RootSetting;
 use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
 use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::{BlockProjection, Editor};
+use block_editor_plugin::Editor;
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;
 
@@ -43,16 +43,18 @@ struct Work {
 
 pub(crate) struct Game {
     editor: Editor,
-    block: Rc<BlockProjection<LogicGame>>,
+    block: crate::app::GameBlock,
     work: Rc<RefCell<Work>>,
     levels: Memo<Vec<Level>>,
     hotbar: Memo<Option<Uuid>>,
 }
 
 impl Game {
-    pub(crate) fn watch(editor: &Editor, block: Rc<BlockProjection<LogicGame>>) -> Self {
+    pub(crate) fn watch(editor: &Editor, block: crate::app::GameBlock) -> Self {
         let stored = block.project(|game| {
-            game.levels()
+            game.root()
+                .game()
+                .levels()
                 .iter()
                 .map(|level| (level.challenge, level.solutions.clone(), level.completed))
                 .collect::<Vec<_>>()
@@ -75,7 +77,7 @@ impl Game {
                 hotbar,
             } = &mut *work;
             for (solution, (challenge, index)) in started.poll() {
-                game.operate(LogicGameOperation::InsertSolution {
+                crate::app::operate(&game, LogicGameOperation::InsertSolution {
                     challenge,
                     solution,
                     index,
@@ -128,7 +130,7 @@ impl Game {
             grids.retain(|id, _| listed.contains(id));
             for level in &rows {
                 if level.solutions.iter().any(|solution| solution.completed) && !level.completed {
-                    game.operate(LogicGameOperation::SetCompleted {
+                    crate::app::operate(&game, LogicGameOperation::SetCompleted {
                         challenge: level.challenge,
                         completed: true,
                     });
@@ -164,7 +166,7 @@ impl Game {
     }
 
     pub(crate) fn remove(&self, challenge: ChallengeId, solution: BlockRef) {
-        self.block.operate(LogicGameOperation::RemoveSolution {
+        crate::app::operate(&self.block, LogicGameOperation::RemoveSolution {
             challenge,
             solution,
         });

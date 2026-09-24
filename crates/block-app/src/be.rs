@@ -224,6 +224,10 @@ const MIGRATED: &[Migrated] = &[
     migrated::<block_client::blocks::game_module::GameModule, be_block::GameModuleContent>(),
     migrated_with_history::<block_client::blocks::hotbar::Hotbar, be_block::HotbarContent>(),
     migrated::<block_client::blocks::image::Image, be_block::ImageContent>(),
+    migrated_with_history::<
+        block_client::blocks::logic_game::LogicGame,
+        be_block::LogicGameContent,
+    >(),
     migrated_with_history::<block_client::blocks::map::Map, be_block::MapContent>(),
     migrated_with_history::<
         block_client::blocks::paint_review::PaintReview,
