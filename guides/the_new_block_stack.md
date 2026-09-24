@@ -571,11 +571,12 @@ the old client - and it is what the key wrapping below replaces.
 
 - A migrated block's references reach the old graph only while an editor holds
   the block, like its name.
-- Operations carry no author. The old server stamps each operation with the
-  account that sent it, and the deterministic game relies on that to record who
-  made a move, so it stays on the old stack until the new one can say who wrote
-  an operation (the session owner sequences everything, so this wants signed
-  operations rather than a field the sender fills in).
+- Nothing vouches for who wrote an item. The deterministic game stores the
+  account behind each move as a field the sender fills in, so a player can move
+  as someone else; the old server stamped it. Signing operations would not be
+  enough, because the session owner sequences and relays everything: the items a
+  block stores have to carry their own signatures, checked by whoever reads
+  them. That wants doing when a chat block makes it matter.
 - A migrated block's content is not in the old workspace index, so nothing but
   the editor can read it: no preview and no search. Only its name is carried
   across, and only while an editor has it open.

@@ -7,14 +7,15 @@ use block::{BlockParent, BlockReference, BlockReferenceList};
 use block_client::ReferenceList;
 use block_client::block_ref::BlockRef;
 use block_client::blocks::image::Image as ImageBlock;
-use block_client::blocks::map::{Map, MapColor, MapCoordinate, MapOperation, MapPoint, MapRegion};
+use block_client::blocks::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
+use block_editor_plugin::be_block::{Edit, Map, MapContent};
 use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::{
-    BlockFilter, BlockPicker, BlockProjection, Editor, ImagePaster, PastedImage,
+    BlockFilter, BlockPicker, ContentProjection, Editor, ImagePaster, PastedImage,
 };
 use uuid::Uuid;
 
@@ -48,7 +49,7 @@ impl TileState {
 pub(crate) struct MapState {
     editor: Editor,
     preview: bool,
-    block: Rc<BlockProjection<Map>>,
+    block: Rc<ContentProjection<MapContent>>,
     dependencies: ReferenceList,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,
@@ -60,7 +61,6 @@ pub(crate) struct MapState {
     paste_asked: Cell<bool>,
     dragged: Cell<Option<(Uuid, Vec2)>>,
     pending_file_drop: Cell<Option<MapCoordinate>>,
-    grouped_edit: Cell<bool>,
     fit_requested: Cell<bool>,
     view_center: Cell<MapCoordinate>,
     pub(crate) points: ReadSignal<Vec<MapPoint>>,
@@ -84,10 +84,10 @@ pub(crate) struct MapState {
 
 impl MapState {
     pub(crate) fn new(editor: &Editor, preview: bool) -> Rc<Self> {
-        let block = editor.block::<Map>();
-        let points = block.project(|map| map.points().to_vec());
-        let preview_region = block.project(|map| map.preview_region());
-        let displayed_region = block.project_or(MapRegion::WORLD, |map| map.displayed_region());
+        let block = editor.block_content::<MapContent>();
+        let points = block.project(|map| map.root().points());
+        let preview_region = block.project(|map| map.root().preview_region);
+        let displayed_region = block.project(|map| map.root().displayed_region());
         let (selected, set_selected) = create_signal(None);
         let (visible_region, set_visible_region) = create_signal(MapRegion::WORLD);
         let (last_error, set_last_error) = create_signal(None);
@@ -112,7 +112,6 @@ impl MapState {
             paste_asked: Cell::new(false),
             dragged: Cell::new(None),
             pending_file_drop: Cell::new(None),
-            grouped_edit: Cell::new(false),
             fit_requested: Cell::new(true),
             view_center: Cell::new(MapRegion::WORLD.center()),
             points,
@@ -140,7 +139,7 @@ impl MapState {
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
-        self.block.handle().id()
+        self.editor.block_id()
     }
 
     pub(crate) fn types(&self) -> Rc<BlockCatalog> {
@@ -174,22 +173,15 @@ impl MapState {
         self.set_revision.update(|revision| *revision += 1);
     }
 
-    pub(crate) fn record(&self, operation: MapOperation) {
-        self.grouped_edit.set(false);
-        self.block.handle().finish_history_group();
-        self.block.operate(operation);
-    }
-
-    pub(crate) fn record_grouped(&self, operation: MapOperation) {
-        self.grouped_edit.set(true);
-        self.block.operate_grouped([operation]);
+    pub(crate) fn record(&self, edit: Edit) {
+        self.block.operate(edit);
     }
 
     pub(crate) fn remove_point(&self, id: Uuid) {
         if self.selected.get_untracked() == Some(id) {
             self.set_selected.set(None);
         }
-        self.record(MapOperation::RemovePoints { ids: vec![id] });
+        self.record(Map::remove(&[id]));
     }
 
     pub(crate) fn add_point(&self, block_id: Uuid, position: MapCoordinate) {
@@ -288,16 +280,11 @@ impl MapState {
             return;
         }
         point.position = position;
-        self.record_grouped(MapOperation::UpdatePoints {
-            points: vec![point],
-        });
+        self.record(Map::update(&[point]));
     }
 
     pub(crate) fn release(&self) {
-        if self.dragged.take().is_some() {
-            self.grouped_edit.set(false);
-            self.block.handle().finish_history_group();
-        }
+        self.dragged.take();
     }
 
     pub(crate) fn pan(&self, delta: Vec2) {
@@ -386,14 +373,12 @@ impl MapState {
     fn poll_pending_points(&self) {
         let landed = self.pending_points.borrow_mut().poll();
         for (reference, (point_id, position)) in landed {
-            self.record(MapOperation::AddPoint {
-                point: MapPoint {
+            self.record(Map::add(&MapPoint {
                     id: point_id,
                     block_id: reference,
                     position,
                     color: MapColor::Default,
-                },
-            });
+                }));
         }
     }
 

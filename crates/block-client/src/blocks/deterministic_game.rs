@@ -1,58 +1,49 @@
-use block::{Block, NoHistory};
-use game_api::GameAction;
+use block::Block;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DeterministicGame {
-    module: Uuid,
-    actions: Vec<GameAction>,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(tag = "operation", rename_all = "snake_case")]
-pub enum DeterministicGameOperation {
-    Append { action: Vec<u8> },
+    references: Vec<Uuid>,
 }
 
 impl DeterministicGame {
-    pub fn new(module: Uuid) -> Self {
-        Self {
-            module,
-            actions: Vec::new(),
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn module(&self) -> Uuid {
-        self.module
+    pub fn with_references(references: Vec<Uuid>) -> Self {
+        Self { references }
     }
+}
 
-    pub fn actions(&self) -> &[GameAction] {
-        &self.actions
-    }
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "operation", rename_all = "snake_case")]
+pub enum DeterministicGameOperation {
+    SetReferences { references: Vec<Uuid> },
 }
 
 impl Block for DeterministicGame {
     type Operation = DeterministicGameOperation;
-    type History = NoHistory;
+    type History = block::NoHistory;
 
     const TYPE_ID: Uuid = Uuid::from_u128(0x6465_742d_6761_6d65_2d62_6c6f_636b_0001);
+    const CRDT: bool = true;
 
     fn apply_operation(block: &mut Self, operation: &Self::Operation) {
-        Self::apply_authored_operation(block, operation, Uuid::nil());
-    }
-
-    fn apply_authored_operation(block: &mut Self, operation: &Self::Operation, author: Uuid) {
         match operation {
-            DeterministicGameOperation::Append { action } => block.actions.push(GameAction {
-                actor: author,
-                action: action.clone(),
-            }),
+            DeterministicGameOperation::SetReferences { references } => {
+                block.references.clone_from(references);
+            }
         }
     }
 
     fn references(&self) -> Vec<Uuid> {
-        vec![self.module]
+        self.references.clone()
+    }
+
+    fn bridged_references(references: Vec<Uuid>) -> Option<Self::Operation> {
+        Some(DeterministicGameOperation::SetReferences { references })
     }
 }
 
