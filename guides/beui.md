@@ -624,6 +624,25 @@ stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 any other tab list and scroll the tab they reach into view when a pane has more
 tabs than it has room for.
 
+A place in a tab bar holds an `Entry`: either a `Tab` or a `Group`. A group is a
+tab that holds a dock tree of its own, so choosing it shows that tree in the
+pane's body - one pane with a second tab bar under the first, or panes split
+side by side - and the same drops work inside it as anywhere else. Dropping a
+tab onto the middle of another tab groups the two (onto a group, it joins the
+group); the outer edge of a pane showing a group still splits the outer pane,
+so the drop zones of the group sit inside a thin band that belongs to its
+parent. A tab's menu offers "Group with next tab" and "Split with next tab",
+and a group's own menu ungroups it, closes every tab in it, or floats it into a
+window as a whole. The tree tidies itself after every change: a group left with
+a single tab turns back into that tab, and a tab bar left holding only a group
+takes the group's tabs, or its split, in its place, so nothing is nested for
+longer than it holds more than one thing. `entries`, `active_entry`, `locate`,
+`group_tabs`, `tree_leaves`, `surface_of` and `is_nested` read groups back, and
+`drop_entry`, `group_with_next`, `split_with_next` and `ungroup` change them;
+`layout_tree` lays a group's tree out the way `layout_surface` lays out a
+surface's. `find`, `all_tabs`, `surface_tabs` and `show` look through groups,
+and showing a tab inside one selects the group in every bar above it.
+
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
 the panel keeps its nodes, its scroll position, its caret and its state when
