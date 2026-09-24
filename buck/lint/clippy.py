@@ -3,7 +3,7 @@
 # clippy over the workspace through buck2, which is what ./scripts/verify's lint
 # pass runs.
 #
-# buck/lint/clippy.bxl builds every first-party Rust target's [clippy.json] -
+# buck/lint/workspace.bxl builds every first-party Rust target's [clippy.json] -
 # rustc's JSON diagnostics - in every configuration the workspace builds it in,
 # on BuildBuddy's workers. This reads them. A file compiled in more than one
 # configuration or target is diagnosed more than once, so each finding is
@@ -25,7 +25,7 @@ import sys
 
 def diagnostics(buck):
     listing = subprocess.run(
-        [buck, "bxl", "//buck/lint/clippy.bxl:clippy"],
+        [buck, "bxl", "//buck/lint/workspace.bxl:subtarget", "--", "--subtarget", "clippy.json"],
         check=True,
         stdout=subprocess.PIPE,
         text=True,

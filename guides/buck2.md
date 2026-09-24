@@ -543,7 +543,7 @@ the action wrapper rather than by `-Zremap-cwd-prefix`.
 - **starlark_fmt** is `//buck/tools:starlark_fmt`, from the buck2 release
   `scripts/internal/common.sh` pins, decompressed on a worker by Ubuntu's own
   zstd.
-- **clippy** is `buck/lint/clippy.py`. `buck/lint/clippy.bxl` builds every
+- **clippy** is `buck/lint/clippy.py`. `buck/lint/workspace.bxl` builds every
   first-party Rust target's `[clippy.json]` subtarget on the workers, in every
   configuration it is built in - the host's, and through the transitions the
   plugins' and games' wasm, whose wasm-only code a native `cargo clippy` never
@@ -687,9 +687,6 @@ target with `--target` is what makes wasmtime stop looking.
   write accepted paintings into `snapshots/`, so what they draw through is this
   machine's device. beui's renderer tests run on a worker, on lavapipe from
   `buck/sysroot:amd64-test`.
-- **`./scripts/check`.** It is `cargo check`. `rust-project check` is its
-  buck2 counterpart for one file, and `./scripts/buck build //crates/...` for
-  everything.
 - **No web bundle.** The third-party half of it is there: `wgpu`, `wgpu-core`,
   `wgpu-hal` and `eframe` all build for `buck/platforms:wasi`, with the app's
   feature set. What is left is `block-app` for wasm, wasm-bindgen after it, and
