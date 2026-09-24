@@ -45,7 +45,7 @@ fn the_canvas_paints_the_entities_it_holds() {
     arrow.kind = CanvasEntityKind::Line;
     arrow.style.arrow_end = true;
 
-    let (mut editor, _block) = editor(&[rectangle, turned, label, arrow]);
+    let mut editor = editor(&[rectangle, turned, label, arrow]);
     editor.run();
 
     editor.snapshot("the_canvas_paints_the_entities_it_holds");

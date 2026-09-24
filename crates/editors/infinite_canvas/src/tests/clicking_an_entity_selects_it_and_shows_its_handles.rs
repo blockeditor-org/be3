@@ -12,7 +12,7 @@ fn clicking_an_entity_selects_it_and_shows_its_handles() {
         blue: 90,
         alpha: 255,
     });
-    let (mut editor, _block) = editor(std::slice::from_ref(&rectangle));
+    let mut editor = editor(std::slice::from_ref(&rectangle));
 
     editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();

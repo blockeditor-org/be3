@@ -12,12 +12,12 @@ fn the_actions_menu_deletes_the_selection() {
         blue: 90,
         alpha: 255,
     });
-    let (mut editor, block) = editor(std::slice::from_ref(&rectangle));
+    let mut editor = editor(std::slice::from_ref(&rectangle));
 
     editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     editor.click("infinite-canvas.delete");
     editor.run();
 
-    assert!(entities(&block).is_empty());
+    assert!(entities(&editor).is_empty());
 }

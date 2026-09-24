@@ -1,10 +1,10 @@
+use be_block::CanvasContent;
+use be_block::canvas::Canvas;
 use beui::icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE};
 use beui::{Vec2, vec2};
-use block::Block;
 use block_client::blocks::infinite_canvas::{
     CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
-    CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform, InfiniteCanvas,
-    InfiniteCanvasOperation,
+    CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform,
 };
 use uuid::Uuid;
 
@@ -121,19 +121,12 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
     }
 }
 
-pub fn build_template_canvas(template: SlideTemplate) -> InfiniteCanvas {
-    let mut canvas = InfiniteCanvas::new();
-    InfiniteCanvas::apply_operation(
-        &mut canvas,
-        &InfiniteCanvasOperation::SetPreviewRegion {
-            region: Some(CanvasPreviewRegion::new(
-                CanvasPoint::default(),
-                CanvasPoint::new(DEFAULT_SLIDE_SIZE.x, DEFAULT_SLIDE_SIZE.y),
-            )),
-        },
-    );
-    for entity in template_entities(template) {
-        InfiniteCanvas::apply_operation(&mut canvas, &InfiniteCanvasOperation::Add { entity });
-    }
-    canvas
+pub fn build_template_canvas(template: SlideTemplate) -> CanvasContent {
+    CanvasContent::new(&Canvas::with_entities(
+        template_entities(template),
+        Some(CanvasPreviewRegion::new(
+            CanvasPoint::default(),
+            CanvasPoint::new(DEFAULT_SLIDE_SIZE.x, DEFAULT_SLIDE_SIZE.y),
+        )),
+    ))
 }

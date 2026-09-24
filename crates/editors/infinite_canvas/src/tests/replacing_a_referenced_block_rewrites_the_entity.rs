@@ -9,11 +9,11 @@ fn replacing_a_referenced_block_rewrites_the_entity() {
         block_id: BlockRef::Direct(old),
         scale: 1.0,
     };
-    let (mut editor, block) = editor(std::slice::from_ref(&referencing));
+    let mut editor = editor(std::slice::from_ref(&referencing));
 
     assert!(editor.replace_child(old, new));
 
-    let kinds = entities(&block)
+    let kinds = entities(&editor)
         .into_iter()
         .map(|entity| entity.kind)
         .collect::<Vec<_>>();
