@@ -161,6 +161,7 @@ trait BlockContent {                    // durable form and the edges it declare
     fn encode(&self) -> Vec<u8>;
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
     fn references(&self) -> Vec<Uuid> { Vec::new() }
+    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> { self.references() }
     fn name(&self) -> Option<String> { None }
 }
 trait LiveEdit: BlockContent {          // optional: what a session carries
@@ -197,6 +198,11 @@ rescheduled.
 `Streamed` types encode as `[u32 header length][header][payload]`, which is what
 lets a reader take the header and then a byte range. `ImageContent` and
 `TextContent` are the two ported types.
+
+`references_in` is `references` for one workspace, and it is what the peer and
+the old-graph bridge call. Text uses it: a block URL names its workspace, and a
+URL pasted from another workspace is a link, not a reference. The URL format
+itself lives in `be_block::block_url`, and `block_client` re-exports it.
 
 ### be-client
 
@@ -263,8 +269,11 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of four things. A `Count` is a counter whose concurrent changes
-add up. A `List<T>` holds objects of a `Model` type `T`. A `Map<K, V>` holds
+A field is one of five things. A `Count` is a counter whose concurrent changes
+add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
+coordinates, for pixel data: its bounds are part of its value, so a resize moves
+the bounds and keeps every cell at its coordinates, `paint` sets cells and
+`reshape` sets the bounds. A `List<T>` holds objects of a `Model` type `T`. A `Map<K, V>` holds
 values by key, each key its own register: two people setting different keys
 both keep theirs, which is how a database row holds a cell per schema field.
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
@@ -302,14 +311,21 @@ values, and every algorithm is written once against that table:
   people's edits alone. A removed object is put back with everything under it,
   after the sibling it followed. Consecutive sets of the same fields absorb into
   one step.
+- **Grids.** A paint is a list of cells, each optionally conditional on what the
+  cell held, so a paint's undo repaints only the cells nobody has painted since,
+  and a burst of paints into one grid undoes as one stroke. An offline merge
+  takes the bounds the way it takes a register and then merges each coordinate
+  on its own, so a paint made during a resize lands where it was painted, and a
+  crop's undo repaints what the crop dropped.
 
 `Document<R>` implements `BlockContent`, `LiveEdit`, `Merge` and `Undo` in
 `be-block` (`model.rs`), so a type built this way is registered with
 `migrated_with_history` and has undo from the start. Every migrated editor's
 content is built this way: the counter, the checklist, the calendar, the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
-the deterministic game, the map and the video. Text still implements the traits by hand, which remains possible for
-content that does not fit, such as a type that is better as a CRDT. The browser tab shows a register holding an
+the deterministic game, the map, the video, the logic game, the logic grid,
+compiled logic, the infinite canvas and pixel art. Text still implements the
+traits by hand, which remains possible for content that does not fit. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
 so a push and a navigation made at the same time still agree on which page is
 current. The video shows what identity buys a tree: a clip attached to another
@@ -317,7 +333,15 @@ is an object in that clip's list, so reattaching it is a move, a move that
 would make a cycle is refused by the model, and removing a clip takes what is
 attached to it. Its editor still speaks in `VideoOperation`s, which
 `VideoProject::edit_for` turns into edits against the content it is shown, and
-reads a flattened `Video` for its timeline. The database schema shows the other direction: its fields and enum
+reads a flattened `Video` for its timeline. The logic game, the logic grid, the
+canvas and pixel art are ported the same way: the editor keeps its old operation
+enum as a command, and `edit_for` on the content turns a command into an edit
+against the content as it is now. The logic grid computes that by applying the
+command to the grid it reads back and writing the fields that differ, so its
+components merge field by field and its wires, stored as a set of segments,
+merge segment by segment and are normalized when read. The canvas keeps its
+layering as the order of its entity list, so bringing an entity to the front is
+a move. Pixel art keeps its pixels in a `Grid`. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
 store, so renaming a field or an option changes nothing that points at it.
 
@@ -572,10 +596,56 @@ devices of one workspace read each other's bytes. That is a placeholder, not a
 design - it is no more secret from the server than `crypto::STATIC_KEY` is in
 the old client - and it is what the key wrapping below replaces.
 
+### Presence
+
+Presence is what a peer shows the others while it is there - a cursor, a
+selection - and it is never saved. `SessionMessage::Presence { kind, value }`
+carries one kind of it to everyone in the session, sealed like every other
+session message. `Live::set_presence` shows a value (or takes it away with
+`None`) and only sends when it changed, `Live::presence` is what the other peers
+show, keyed by their `ClientId` and the kind, and a peer never sees its own.
+When `SessionChanged` names a participant it has not seen, a peer shows that
+participant what it is showing, so a late joiner sees everyone at once; when a
+participant leaves, what it showed is dropped.
+
+The worker publishes each block's peers into `Shared::presence` when a session
+says they changed, and the host passes them to the instances holding that block
+as `EditorMessage::PeerPresence`. A plugin shows presence with
+`EditorMessage::ShowPresence`, which the host takes from any instance that holds
+the block and may view it, and takes away again when the instance closes. On the
+plugin side that is `editor.show(Some(&value))` and `editor.peers::<P>()`, a
+signal of every peer's value of one `PresenceKind`. The text editor's cursors
+and the canvas's pointers and selections work this way, and each carries the
+colour its peer picked with `pick_free_color`, because the old stack's
+`UserActive` colour is keyed by the old stack's client ids.
+
+### Editors with their own model
+
+The text editor cannot hand its state to a projection: `text_editor_core` wants
+a `Document` with an anchor per byte, so a cursor stays on its character while
+other people type. `text_block::document::BlockDocument` keeps the bytes and
+their anchors itself, turns each local edit into `TextOp::Delete` and
+`TextOp::Insert` that the editor pushes into its `ContentProjection` every
+frame, and adopts a change from elsewhere by diffing the projection's text
+against its own: unchanged bytes keep their anchors, and only inserted bytes get
+new ones. Its undo is its own too, because it has to give the text core back its
+cursors. Each step remembers the anchors either side of the text it replaced
+and both versions of that text, so undo finds the text wherever it has moved to
+and skips it when someone else has changed it since.
+
+Dynamic artifacts reach new-stack content from the artifact session through the
+host: `EditorHost::content_of` gives a regeneration a projection of its source,
+and `EditorHost::replace_content` writes the result. Compiled logic and the
+pixel art export regenerate this way.
+
 ## What is not built yet
 
 - A migrated block's references reach the old graph only while an editor holds
   the block, like its name.
+- Version control snapshots a block through the old client, so for a migrated
+  block it records only the emptied old value, not the content.
+- Undo in the text editor lives in the editor, so it is gone when the editor
+  closes, and the app's undo command does nothing for text.
 - Nothing vouches for who wrote an item. The deterministic game stores the
   account behind each move as a field the sender fills in, so a player can move
   as someone else; the old server stamped it. Signing operations would not be
