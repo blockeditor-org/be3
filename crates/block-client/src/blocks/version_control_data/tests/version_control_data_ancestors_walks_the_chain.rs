@@ -1,4 +1,4 @@
-use super::{apply, author, VersionControlData, VersionControlDataOperation, MAIN_BRANCH};
+use super::{MAIN_BRANCH, VersionControlData, VersionControlDataOperation, apply, author};
 
 #[test]
 fn version_control_data_ancestors_walks_the_chain() {

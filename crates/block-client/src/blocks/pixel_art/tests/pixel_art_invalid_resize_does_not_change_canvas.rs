@@ -1,6 +1,6 @@
 use block::Block;
 
-use super::{PixelArt, PixelArtAnchor, PixelArtOperation, MAX_PIXEL_ART_SIZE};
+use super::{MAX_PIXEL_ART_SIZE, PixelArt, PixelArtAnchor, PixelArtOperation};
 
 #[test]
 fn pixel_art_invalid_resize_does_not_change_canvas() {

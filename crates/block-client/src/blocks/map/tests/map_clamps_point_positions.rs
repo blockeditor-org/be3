@@ -2,7 +2,7 @@ use crate::block_ref::BlockRef;
 use block::Block;
 use uuid::Uuid;
 
-use super::{Map, MapCoordinate, MapOperation, MapPoint, MAX_LATITUDE};
+use super::{MAX_LATITUDE, Map, MapCoordinate, MapOperation, MapPoint};
 
 #[test]
 fn map_clamps_point_positions() {

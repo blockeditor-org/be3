@@ -8,19 +8,22 @@ use uuid::Uuid;
 #[test]
 fn direct_editor_serialization_round_trips() {
     let operation = InfiniteCanvasOperation::Add {
-        entity: CanvasEntity { id: Uuid::new_v4(),
-        transform: CanvasTransform::new(
-            CanvasPoint::new(10.0, 20.0),
-            CanvasPoint::new(448.0, 112.0),
-            0.0,
-        ),
-        kind: CanvasEntityKind::DirectEditor {
-            block_id: BlockRef::Direct(Uuid::new_v4()),
-            scale: 2.0,
+        entity: CanvasEntity {
+            id: Uuid::new_v4(),
+            transform: CanvasTransform::new(
+                CanvasPoint::new(10.0, 20.0),
+                CanvasPoint::new(448.0, 112.0),
+                0.0,
+            ),
+            kind: CanvasEntityKind::DirectEditor {
+                block_id: BlockRef::Direct(Uuid::new_v4()),
+                scale: 2.0,
+            },
+            style: CanvasEntityStyle::default(),
+            group_id: None,
+            locked: false,
+            components: Vec::new(),
         },
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false, components: Vec::new() },
     };
 
     let json = serde_json::to_vec(&operation).unwrap();

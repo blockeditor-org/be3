@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{sample, Video, VideoEffect, VideoOperation};
+use super::{Video, VideoEffect, VideoOperation, sample};
 use block::Block;
 
 #[test]
@@ -12,8 +12,7 @@ fn video_serialization_round_trips() {
             frame_rate: super::VideoFrameRate::new(24, 1),
         },
     );
-                                                                             
-                            
+
     let mut effected = video.clip(attached).unwrap().clone();
     effected.effects.push(VideoEffect {
         id: Uuid::new_v4(),

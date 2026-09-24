@@ -1,11 +1,10 @@
-use super::{sample, Video, VideoAttachment, VideoOperation};
+use super::{Video, VideoAttachment, VideoOperation, sample};
 use block::Block;
 
 #[test]
 fn video_attachment_cycles_are_refused() {
     let (mut video, first, second, attached) = sample();
 
-                                                                     
     let mut cycled = video.clip(first).unwrap().clone();
     cycled.attachment = Some(VideoAttachment::new(attached, 0));
     Video::apply_operation(
@@ -16,7 +15,6 @@ fn video_attachment_cycles_are_refused() {
     );
     assert_eq!(video.clip(first).unwrap().attachment, None);
 
-                                      
     let mut looped = video.clip(attached).unwrap().clone();
     looped.attachment = Some(VideoAttachment::new(attached, 4));
     Video::apply_operation(
@@ -30,7 +28,6 @@ fn video_attachment_cycles_are_refused() {
         Some(VideoAttachment::new(first, 2))
     );
 
-                                                                            
     let mut reattached = video.clip(attached).unwrap().clone();
     reattached.attachment = Some(VideoAttachment::new(second, 1));
     Video::apply_operation(

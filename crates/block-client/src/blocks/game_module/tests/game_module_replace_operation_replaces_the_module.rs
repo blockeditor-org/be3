@@ -1,6 +1,6 @@
 use block::Block;
 
-use super::{wasm_bytes, GameModule, GameModuleOperation};
+use super::{GameModule, GameModuleOperation, wasm_bytes};
 
 #[test]
 fn game_module_replace_operation_replaces_the_module() {

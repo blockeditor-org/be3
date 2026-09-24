@@ -1,4 +1,4 @@
-use super::{wasm_bytes, GameModule};
+use super::{GameModule, wasm_bytes};
 
 #[test]
 fn game_module_serialization_round_trips_the_bytes() {

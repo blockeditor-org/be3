@@ -1,8 +1,8 @@
 use block::Block;
 
 use super::{
-    PixelRayTracer, PixelRayTracerOperation, PixelUpdate, Point, RayEntity, RaySettings,
-    PIXEL_RAY_TRACER_BACKGROUND,
+    PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracer, PixelRayTracerOperation, PixelUpdate, Point,
+    RayEntity, RaySettings,
 };
 
 mod pixel_ray_tracer_history_undoes_and_redoes_entity_changes;

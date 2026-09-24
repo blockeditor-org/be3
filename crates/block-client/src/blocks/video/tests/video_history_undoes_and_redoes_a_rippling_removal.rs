@@ -1,8 +1,8 @@
 use uuid::Uuid;
 
 use super::{Video, VideoClip, VideoOperation};
-use crate::block_ref::BlockRef;
 use crate::BlockClient;
+use crate::block_ref::BlockRef;
 
 #[test]
 fn video_history_undoes_and_redoes_a_rippling_removal() {
@@ -22,7 +22,6 @@ fn video_history_undoes_and_redoes_a_rippling_removal() {
     });
     assert_eq!(block.read().unwrap().clips().len(), 1);
 
-                                                                             
     block.undo();
     assert_eq!(block.read().unwrap().timeline(), before);
     assert_eq!(

@@ -32,9 +32,7 @@ impl PaintReview {
     }
 
     pub fn approval(&self, path: &str) -> Option<&ApprovedPainting> {
-        self.approved
-            .iter()
-            .find(|painting| painting.path == *path)
+        self.approved.iter().find(|painting| painting.path == *path)
     }
 }
 

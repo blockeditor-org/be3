@@ -1,6 +1,6 @@
 use block::Block;
 
-use super::{wasm_bytes, GameModule};
+use super::{GameModule, wasm_bytes};
 
 #[test]
 fn game_module_implicit_name_uses_source_name() {

@@ -30,7 +30,6 @@ fn map_adds_updates_and_removes_points() {
     );
     assert_eq!(map.point(point.id), Some(moved));
 
-                                                                
     Map::apply_operation(
         &mut map,
         &MapOperation::UpdatePoints {

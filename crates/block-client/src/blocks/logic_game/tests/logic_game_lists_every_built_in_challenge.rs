@@ -13,8 +13,9 @@ fn logic_game_lists_every_built_in_challenge() {
             .collect::<Vec<_>>(),
         CHALLENGES.to_vec()
     );
-    assert!(game
-        .levels()
-        .iter()
-        .all(|level| level.solutions.is_empty() && !level.completed));
+    assert!(
+        game.levels()
+            .iter()
+            .all(|level| level.solutions.is_empty() && !level.completed)
+    );
 }

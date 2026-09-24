@@ -51,8 +51,6 @@ fn wire(start: (i64, i64), end: (i64, i64)) -> Wire {
     .unwrap()
 }
 
-                                                                               
-                                                     
 fn add(block: &BlockHandle<LogicGrid>, make: impl FnOnce(ComponentId) -> Component) -> ComponentId {
     let id = block.read().unwrap().next_component_id();
     block.operate(LogicGridOperation::AddComponent {

@@ -1,19 +1,16 @@
 use std::collections::{BTreeMap, HashSet};
 
 use block::{Block, BlockHistory, HistoryDirection};
-use logicgame::challenges::{ChallengeId, CHALLENGES};
+use logicgame::challenges::{CHALLENGES, ChallengeId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::block_ref::BlockRef;
 
-                                                                             
-                                       
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Level {
     pub challenge: ChallengeId,
-                                                                           
-                     
+
     pub solutions: Vec<BlockRef>,
     pub completed: bool,
 }
@@ -28,9 +25,6 @@ impl Level {
     }
 }
 
-                                                                                
-                                                                          
-                                           
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct QuizProblem {
     pub carries: Vec<Option<bool>>,
@@ -44,9 +38,6 @@ pub enum QuizRow {
     Sums,
 }
 
-                                                                               
-                                                                               
-                                                                                 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct LogicGame {
     levels: Vec<Level>,
@@ -110,7 +101,6 @@ impl Default for LogicGame {
 }
 
 impl LogicGame {
-                                                                           
     pub fn new() -> Self {
         Self {
             levels: CHALLENGES.into_iter().map(Level::new).collect(),
@@ -153,10 +143,11 @@ impl Block for LogicGame {
                 index,
             } => {
                 if let Some(level) = game.level_mut(*challenge)
-                    && !level.solutions.contains(solution) {
-                        let index = (*index).min(level.solutions.len());
-                        level.solutions.insert(index, *solution);
-                    }
+                    && !level.solutions.contains(solution)
+                {
+                    let index = (*index).min(level.solutions.len());
+                    level.solutions.insert(index, *solution);
+                }
             }
             LogicGameOperation::RemoveSolution {
                 challenge,

@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{Video, VideoClip, VideoFrameRate, VideoOperation, MAX_CLIP_LENGTH};
+use super::{MAX_CLIP_LENGTH, Video, VideoClip, VideoFrameRate, VideoOperation};
 use crate::block_ref::BlockRef;
 use block::Block;
 

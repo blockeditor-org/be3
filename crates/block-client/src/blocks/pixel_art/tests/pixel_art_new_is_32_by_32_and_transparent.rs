@@ -1,4 +1,4 @@
-use super::{PixelArt, PixelColor, DEFAULT_PIXEL_ART_SIZE};
+use super::{DEFAULT_PIXEL_ART_SIZE, PixelArt, PixelColor};
 
 #[test]
 fn pixel_art_new_is_32_by_32_and_transparent() {

@@ -1,12 +1,11 @@
 use block::Block;
 
-use super::{Map, MapOperation, MapRegion, MAX_LATITUDE, MIN_REGION_SPAN};
+use super::{MAX_LATITUDE, MIN_REGION_SPAN, Map, MapOperation, MapRegion};
 
 #[test]
 fn map_normalizes_preview_region() {
     let mut map = Map::new();
-                                                                             
-                                    
+
     Map::apply_operation(
         &mut map,
         &MapOperation::SetPreviewRegion {
@@ -18,7 +17,6 @@ fn map_normalizes_preview_region() {
         Some(MapRegion::new(-5.0, 40.0, 10.0, MAX_LATITUDE))
     );
 
-                                                          
     Map::apply_operation(
         &mut map,
         &MapOperation::SetPreviewRegion {

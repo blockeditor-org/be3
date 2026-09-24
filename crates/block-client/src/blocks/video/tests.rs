@@ -68,8 +68,6 @@ async fn identity(url: &str) -> (Uuid, String, Uuid) {
     (session.account.id, session.token, workspace.id)
 }
 
-                                                                            
-                                                                             
 fn sample() -> (Video, Uuid, Uuid, Uuid) {
     let mut video = Video::new();
     let first = VideoClip::new(BlockRef::Direct(Uuid::new_v4()), 10);

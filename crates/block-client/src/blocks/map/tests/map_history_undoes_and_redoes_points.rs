@@ -1,8 +1,8 @@
 use uuid::Uuid;
 
 use super::{Map, MapCoordinate, MapOperation, MapPoint};
-use crate::block_ref::BlockRef;
 use crate::BlockClient;
+use crate::block_ref::BlockRef;
 
 #[test]
 fn map_history_undoes_and_redoes_points() {

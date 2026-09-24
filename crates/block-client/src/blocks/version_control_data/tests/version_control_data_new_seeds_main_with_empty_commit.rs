@@ -1,4 +1,4 @@
-use super::{author, empty_tree_hash, VersionControlData, MAIN_BRANCH};
+use super::{MAIN_BRANCH, VersionControlData, author, empty_tree_hash};
 
 #[test]
 fn version_control_data_new_seeds_main_with_empty_commit() {

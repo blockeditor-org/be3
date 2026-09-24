@@ -1,4 +1,4 @@
-use super::{apply, author, CommitId, VersionControlData, VersionControlDataOperation};
+use super::{CommitId, VersionControlData, VersionControlDataOperation, apply, author};
 
 #[test]
 fn version_control_data_append_commit_ignores_dangling_parent() {

@@ -11,18 +11,12 @@ use crate::block_ref::BlockRef;
 
 const EDIT_BURST_DELAY: Duration = Duration::from_millis(750);
 
-                                                          
 pub const DEFAULT_CLIP_SECONDS: f64 = 5.0;
 
-                                                                            
-                                                                               
 pub const MAX_CLIP_LENGTH: u64 = 1_000_000;
 
-                                                                   
 const MAX_FRAME_RATE_PART: u32 = 1_000_000;
 
-                                                                               
-                                  
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct VideoFrameRate {
     pub numerator: u32,
@@ -43,12 +37,10 @@ impl VideoFrameRate {
         f64::from(self.numerator) / f64::from(self.denominator)
     }
 
-                                                  
     pub fn seconds(self, frames: u64) -> f64 {
         frames as f64 / self.frames_per_second()
     }
 
-                                                 
     pub fn frames(self, seconds: f64) -> u64 {
         if !seconds.is_finite() || seconds <= 0.0 {
             return 0;
@@ -70,8 +62,6 @@ impl Default for VideoFrameRate {
     }
 }
 
-                                                                             
-                                
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct VideoAttachment {
     pub clip_id: Uuid,
@@ -84,8 +74,6 @@ impl VideoAttachment {
     }
 }
 
-                                                                       
-                                                                        
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct VideoEffect {
     pub id: Uuid,
@@ -93,17 +81,14 @@ pub struct VideoEffect {
     pub enabled: bool,
 }
 
-                                                
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct VideoClip {
     pub id: Uuid,
-                                 
+
     pub block_id: BlockRef,
-                                                        
+
     pub length: u64,
-                                                                               
-                                                                            
-                                                                          
+
     pub attachment: Option<VideoAttachment>,
     pub effects: Vec<VideoEffect>,
 }
@@ -124,7 +109,6 @@ impl VideoClip {
         self
     }
 
-                                                                    
     pub fn parent(&self) -> Option<Uuid> {
         self.attachment.map(|attachment| attachment.clip_id)
     }
@@ -139,13 +123,12 @@ impl VideoClip {
     }
 }
 
-                                                                        
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct VideoClipTiming {
     pub id: Uuid,
     pub start: u64,
     pub length: u64,
-                                                                           
+
     pub depth: usize,
 }
 
@@ -159,8 +142,6 @@ impl VideoClipTiming {
     }
 }
 
-                                                                               
-                                                                                
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Video {
     frame_rate: VideoFrameRate,
@@ -170,28 +151,14 @@ pub struct Video {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum VideoOperation {
-                                                                      
-    InsertClip {
-        clip: VideoClip,
-        index: usize,
-    },
-                                                                
-    RemoveClips {
-        ids: Vec<Uuid>,
-    },
-                                                                              
-                                                                 
-    UpdateClips {
-        clips: Vec<VideoClip>,
-    },
-                                                               
-    MoveClip {
-        clip_id: Uuid,
-        index: usize,
-    },
-    SetFrameRate {
-        frame_rate: VideoFrameRate,
-    },
+    InsertClip { clip: VideoClip, index: usize },
+
+    RemoveClips { ids: Vec<Uuid> },
+
+    UpdateClips { clips: Vec<VideoClip> },
+
+    MoveClip { clip_id: Uuid, index: usize },
+    SetFrameRate { frame_rate: VideoFrameRate },
 }
 
 impl Video {
@@ -211,7 +178,6 @@ impl Video {
         self.clips.iter().find(|clip| clip.id == id)
     }
 
-                                                                              
     pub fn children(&self, parent: Option<Uuid>) -> Vec<&VideoClip> {
         self.clips
             .iter()
@@ -219,7 +185,6 @@ impl Video {
             .collect()
     }
 
-                                                                 
     pub fn sibling_index(&self, clip_id: Uuid) -> Option<usize> {
         let clip = self.clip(clip_id)?;
         self.children(clip.parent())
@@ -227,9 +192,6 @@ impl Video {
             .position(|sibling| sibling.id == clip_id)
     }
 
-                                                                          
-                                                                               
-                      
     pub fn timeline(&self) -> Vec<VideoClipTiming> {
         let mut timings = Vec::with_capacity(self.clips.len());
         let mut visited = HashSet::new();
@@ -249,8 +211,6 @@ impl Video {
         visited: &mut HashSet<Uuid>,
         timings: &mut Vec<VideoClipTiming>,
     ) {
-                                                                          
-                                                
         if !visited.insert(clip.id) {
             return;
         }
@@ -266,7 +226,6 @@ impl Video {
         }
     }
 
-                                                 
     pub fn duration(&self) -> u64 {
         self.timeline()
             .iter()
@@ -281,7 +240,6 @@ impl Video {
             .find(|timing| timing.id == clip_id)
     }
 
-                                                   
     pub fn visible_at(&self, frame: u64) -> Vec<Uuid> {
         self.timeline()
             .iter()
@@ -290,13 +248,10 @@ impl Video {
             .collect()
     }
 
-                                                                              
-                                                                       
     fn removal_order(&self, ids: &[Uuid]) -> Vec<Uuid> {
         let mut removed: HashSet<Uuid> = ids.iter().copied().collect();
         let mut order = Vec::new();
-                                                                               
-                                                                      
+
         for timing in self.timeline() {
             let attached_to_removed = self
                 .clip(timing.id)
@@ -310,8 +265,6 @@ impl Video {
         order
     }
 
-                                                                           
-                                  
     fn sibling_position(&self, parent: Option<Uuid>, index: usize) -> usize {
         self.clips
             .iter()
@@ -322,8 +275,6 @@ impl Video {
             .unwrap_or(self.clips.len())
     }
 
-                                                                             
-                        
     fn creates_cycle(&self, clip_id: Uuid, parent: Uuid) -> bool {
         let mut visited = HashSet::new();
         let mut current = Some(parent);
@@ -336,8 +287,6 @@ impl Video {
         false
     }
 
-                                                                             
-                                                  
     fn accepted_attachment(
         &self,
         clip_id: Uuid,
@@ -362,8 +311,7 @@ impl Block for Video {
                     return;
                 }
                 let mut inserted = clip.clone().normalized();
-                                                                            
-                                                   
+
                 inserted.attachment = video.accepted_attachment(inserted.id, inserted.attachment);
                 let position = video.sibling_position(inserted.parent(), *index);
                 video.clips.insert(position, inserted);
@@ -379,10 +327,8 @@ impl Block for Video {
                         continue;
                     };
                     let attachment = match update.attachment {
-                                                                           
                         None => None,
-                                                                             
-                                                                               
+
                         attachment => video
                             .accepted_attachment(update.id, attachment)
                             .or(existing),
@@ -471,8 +417,7 @@ enum VideoHistoryChange {
         clip: VideoClip,
         index: usize,
     },
-                                                                             
-                                                                
+
     Remove {
         clips: Vec<(VideoClip, usize)>,
     },
@@ -541,13 +486,17 @@ impl BlockHistory<Video> for VideoHistory {
             return Err(next);
         }
         let (
-            [VideoHistoryChange::Update {
-                after: previous_after,
-                ..
-            }],
-            [VideoHistoryChange::Update {
-                after: next_after, ..
-            }],
+            [
+                VideoHistoryChange::Update {
+                    after: previous_after,
+                    ..
+                },
+            ],
+            [
+                VideoHistoryChange::Update {
+                    after: next_after, ..
+                },
+            ],
         ) = (previous.changes.as_mut_slice(), next.changes.as_slice())
         else {
             return Err(next);
@@ -582,7 +531,6 @@ impl BlockHistory<Video> for VideoHistory {
     }
 }
 
-                                                     
 fn change_for(
     current: &Video,
     next: &Video,
@@ -706,8 +654,6 @@ fn operations_for(
     }
 }
 
-                                                                           
-                             
 fn rebase_clip(current: &VideoClip, expected: &VideoClip, desired: &VideoClip) -> VideoClip {
     let mut result = current.clone();
     if result.block_id == expected.block_id {
