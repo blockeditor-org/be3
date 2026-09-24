@@ -49,8 +49,8 @@ four things in front of the pinned buck2:
   `buck/cargo/buckify.bxl` on a worker and copies the result into place. The
   action is keyed on the manifests, `Cargo.lock`, `reindeer.toml`, the fixups,
   the paths cargo discovers targets at and `crates/buck-tools`, which writes
-  `crates.bzl`, so it is shared through the cache: a few seconds on a fresh checkout, about a minute for the first person to
-  change a dependency.
+  `crates.bzl`, so it is shared through the cache: a few seconds on a fresh
+  checkout, about a minute for the first person to change a dependency.
 - **Platforms.** Everything is built for Linux x86_64 wherever it is asked for
   (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
   CI's cache. `run` is the exception: on another machine it builds for that
