@@ -154,7 +154,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
             )
         })
         .collect::<HashMap<_, _>>();
-    let block_id = state.block.id();
+    let block_id = state.block_id;
     let host = state.host().clone();
     let types = host.block_types();
     parsed

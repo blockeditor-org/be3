@@ -417,7 +417,7 @@ impl<S: ObjectStore> Peer<S> {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
         };
-        let references = content.references();
+        let references = content.references_in(self.workspace());
         let manifest = self
             .commits
             .vault()

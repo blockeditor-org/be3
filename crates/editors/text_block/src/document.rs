@@ -1,15 +1,9 @@
-use std::{
-    mem::size_of,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use block::Block;
-use block_client::{
-    BLOCK_URL_MAX_BYTES, BlockHandle, BlockReadGuard, HistoryMetadata,
-    block_ref::BlockRef,
-    blocks::text::{self, TextDocument, TextOperation},
-    parse_block_urls,
-};
+use block_client::{BLOCK_URL_MAX_BYTES, block_ref::BlockRef, parse_block_urls};
+use block_editor_plugin::Waker;
+use block_editor_plugin::be_block::{self, TextContent, TextOp};
+use similar::{Algorithm, DiffOp, capture_diff_slices};
 use text_editor_core::{
     Anchor, CursorPosition, Document, DocumentEdit, DocumentRead, TextIndentation, TextLanguage,
 };
@@ -18,40 +12,183 @@ use uuid::Uuid;
 #[cfg(test)]
 mod tests;
 
-pub struct BlockDocument {
-    block: BlockHandle<TextDocument>,
-    known_revision: AtomicU64,
+#[derive(Clone)]
+struct Replace {
+    left: Option<Anchor>,
+    right: Option<Anchor>,
+    before: Vec<u8>,
+    before_anchors: Vec<Anchor>,
+    after: Vec<u8>,
+    after_anchors: Vec<Anchor>,
 }
 
-impl BlockDocument {
-    pub fn new(block: BlockHandle<TextDocument>) -> Self {
-        let known_revision = AtomicU64::new(block.revision());
-        Self {
-            block,
-            known_revision,
+struct Group {
+    replaces: Vec<Replace>,
+    cursors: Vec<CursorPosition>,
+}
+
+#[derive(Default)]
+struct State {
+    bytes: Vec<u8>,
+    anchors: Vec<Anchor>,
+    language: TextLanguage,
+    indentation: TextIndentation,
+    revision: u64,
+    outgoing: Vec<TextOp>,
+    undo: Vec<Group>,
+    redo: Vec<Group>,
+    group_open: bool,
+    external: bool,
+}
+
+impl State {
+    fn splice(&mut self, index: usize, delete: usize, bytes: &[u8], anchors: &[Anchor]) -> Replace {
+        let left = index.checked_sub(1).map(|previous| self.anchors[previous]);
+        let right = self.anchors.get(index + delete).copied();
+        let before: Vec<u8> = self
+            .bytes
+            .splice(index..index + delete, bytes.iter().copied())
+            .collect();
+        let before_anchors: Vec<Anchor> = self
+            .anchors
+            .splice(index..index + delete, anchors.iter().copied())
+            .collect();
+        if delete > 0 {
+            self.outgoing
+                .push(TextOp::delete(index as u64, delete as u64));
+        }
+        if !bytes.is_empty() {
+            self.outgoing.push(TextOp::Insert {
+                at: index as u64,
+                bytes: bytes.to_vec(),
+            });
+        }
+        self.revision += 1;
+        Replace {
+            left,
+            right,
+            before,
+            before_anchors,
+            after: bytes.to_vec(),
+            after_anchors: anchors.to_vec(),
         }
     }
 
+    fn index_of(&self, anchor: Anchor) -> Option<usize> {
+        self.anchors.iter().position(|held| *held == anchor)
+    }
+
+    fn step(&mut self, replace: &Replace, forward: bool) {
+        let (expected, wanted, anchors) = match forward {
+            true => (&replace.before, &replace.after, &replace.after_anchors),
+            false => (&replace.after, &replace.before, &replace.before_anchors),
+        };
+        let start = match replace.left {
+            Some(left) => match self.index_of(left) {
+                Some(index) => index + 1,
+                None => return,
+            },
+            None => 0,
+        };
+        let end = match replace.right {
+            Some(right) => match self.index_of(right) {
+                Some(index) => index,
+                None => return,
+            },
+            None => self.bytes.len(),
+        };
+        if end < start || self.bytes[start..end] != expected[..] {
+            return;
+        }
+        self.splice(start, end - start, wanted, anchors);
+    }
+
+    fn adopt(&mut self, content: &TextContent) -> bool {
+        let mut changed = false;
+        let language = editor_language(content.language());
+        if self.language != language {
+            self.language = language;
+            changed = true;
+        }
+        let indentation = editor_indentation(content.indentation());
+        if self.indentation != indentation {
+            self.indentation = indentation;
+            changed = true;
+        }
+        let incoming = content.bytes();
+        if self.bytes != incoming {
+            let mut anchors = Vec::with_capacity(incoming.len());
+            for operation in capture_diff_slices(Algorithm::Myers, &self.bytes, incoming) {
+                match operation {
+                    DiffOp::Equal { old_index, len, .. } => {
+                        anchors.extend_from_slice(&self.anchors[old_index..old_index + len]);
+                    }
+                    DiffOp::Insert { new_len, .. } | DiffOp::Replace { new_len, .. } => {
+                        anchors.extend((0..new_len).map(|_| Anchor::new()));
+                    }
+                    DiffOp::Delete { .. } => {}
+                }
+            }
+            self.bytes = incoming.to_vec();
+            self.anchors = anchors;
+            self.external = true;
+            changed = true;
+        }
+        if changed {
+            self.revision += 1;
+        }
+        changed
+    }
+}
+
+pub struct BlockDocument {
+    state: RwLock<State>,
+    waker: Waker,
+}
+
+impl BlockDocument {
+    pub fn new(waker: Waker) -> Self {
+        Self {
+            state: RwLock::new(State::default()),
+            waker,
+        }
+    }
+
+    fn read_state(&self) -> RwLockReadGuard<'_, State> {
+        self.state
+            .read()
+            .expect("the text document lock was poisoned")
+    }
+
+    fn write_state(&self) -> RwLockWriteGuard<'_, State> {
+        self.state
+            .write()
+            .expect("the text document lock was poisoned")
+    }
+
+    pub fn adopt(&self, content: &TextContent) -> bool {
+        self.write_state().adopt(content)
+    }
+
+    pub fn take_operations(&self) -> Vec<TextOp> {
+        std::mem::take(&mut self.write_state().outgoing)
+    }
+
     pub fn take_external_edit(&self) -> bool {
-        let revision = self.block.revision();
-        self.known_revision.swap(revision, Ordering::Relaxed) != revision
+        std::mem::take(&mut self.write_state().external)
+    }
+
+    pub fn bytes(&self) -> Vec<u8> {
+        self.read_state().bytes.clone()
     }
 
     pub fn reference_ranges(&self, reference: Uuid) -> Vec<std::ops::Range<usize>> {
-        let Some(document) = self.block.read() else {
-            return Vec::new();
-        };
         let length = reference.to_string().len();
-        parse_block_urls(document.bytes())
+        parse_block_urls(&self.read_state().bytes)
             .into_iter()
             .filter(|url| url.reference == BlockRef::Direct(reference))
             .map(|url| url.range.end - length..url.range.end)
             .collect()
-    }
-
-    fn mark_edited(&self) {
-        self.known_revision
-            .store(self.block.revision(), Ordering::Relaxed);
     }
 }
 
@@ -65,184 +202,194 @@ pub fn inside_block_url(bytes: &[u8], index: usize) -> bool {
 
 impl Document for BlockDocument {
     fn read(&self) -> Option<Box<dyn DocumentRead + '_>> {
-        Some(Box::new(BlockRead {
-            document: self.block.read()?,
+        Some(Box::new(Read {
+            state: self.read_state(),
         }))
     }
 
     fn revision(&self) -> u64 {
-        self.block.revision()
+        self.read_state().revision
     }
 
     fn set_language(&self, language: TextLanguage) {
-        self.block
-            .operate(TextDocument::set_language_operation(block_language(
-                language,
-            )));
-        self.mark_edited();
+        let mut state = self.write_state();
+        state.language = language;
+        state.revision += 1;
+        state
+            .outgoing
+            .push(TextOp::SetLanguage(block_language(language)));
+        self.waker.wake();
     }
 
     fn set_indentation(&self, indentation: TextIndentation) {
-        self.block
-            .operate(TextDocument::set_indentation_operation(block_indentation(
-                indentation,
-            )));
-        self.mark_edited();
+        let mut state = self.write_state();
+        state.indentation = indentation;
+        state.revision += 1;
+        state
+            .outgoing
+            .push(TextOp::SetIndentation(block_indentation(indentation)));
+        self.waker.wake();
     }
 
     fn edit(&self, cursors: Vec<CursorPosition>, edit: &mut dyn FnMut(&mut dyn DocumentEdit)) {
-        let bytes = cursors.len() * size_of::<CursorPosition>();
-        let metadata = HistoryMetadata::new(cursors, bytes);
-        self.block
-            .edit_crdt_grouped_with_history_metadata(Some(metadata), |transaction| {
-                let mut edit_transaction = BlockEdit {
-                    document: transaction.current().clone(),
-                    operations: Vec::new(),
-                };
-                edit(&mut edit_transaction);
-                if !edit_transaction.operations.is_empty() {
-                    transaction.apply(TextDocument::group_edit_operations(
-                        edit_transaction.operations,
-                    ));
-                }
-            });
-        self.mark_edited();
+        let mut state = self.write_state();
+        let mut transaction = Edit {
+            state: &mut state,
+            replaces: Vec::new(),
+        };
+        edit(&mut transaction);
+        let replaces = transaction.replaces;
+        if replaces.is_empty() {
+            return;
+        }
+        state.redo.clear();
+        let open = state.group_open;
+        if open && let Some(group) = state.undo.last_mut() {
+            group.replaces.extend(replaces);
+        } else {
+            state.undo.push(Group { replaces, cursors });
+        }
+        state.group_open = true;
+        self.waker.wake();
     }
 
     fn finish_history_group(&self) {
-        self.block.finish_history_group();
+        self.write_state().group_open = false;
     }
 
     fn undo(&self) -> Option<Vec<CursorPosition>> {
-        let metadata = self.block.undo_with_history_metadata();
-        self.mark_edited();
-        history_cursors(metadata)
+        let mut state = self.write_state();
+        state.group_open = false;
+        let group = state.undo.pop()?;
+        for replace in group.replaces.iter().rev() {
+            state.step(replace, false);
+        }
+        let cursors = group.cursors.clone();
+        state.redo.push(group);
+        self.waker.wake();
+        Some(cursors)
     }
 
     fn redo(&self) -> Option<Vec<CursorPosition>> {
-        let metadata = self.block.redo_with_history_metadata();
-        self.mark_edited();
-        history_cursors(metadata)
+        let mut state = self.write_state();
+        state.group_open = false;
+        let group = state.redo.pop()?;
+        for replace in &group.replaces {
+            state.step(replace, true);
+        }
+        let cursors = group.cursors.clone();
+        state.undo.push(group);
+        self.waker.wake();
+        Some(cursors)
     }
 }
 
-fn history_cursors(metadata: Option<HistoryMetadata>) -> Option<Vec<CursorPosition>> {
-    let cursors = metadata?.downcast::<Vec<CursorPosition>>()?;
-    Some(cursors.as_ref().clone())
+struct Read<'a> {
+    state: RwLockReadGuard<'a, State>,
 }
 
-struct BlockRead<'a> {
-    document: BlockReadGuard<'a, TextDocument>,
-}
-
-impl DocumentRead for BlockRead<'_> {
+impl DocumentRead for Read<'_> {
     fn len(&self) -> usize {
-        self.document.len()
+        self.state.bytes.len()
     }
 
     fn chunk(&self, index: usize) -> &[u8] {
-        self.document.bytes().get(index..).unwrap_or_default()
+        self.state.bytes.get(index..).unwrap_or_default()
     }
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.document.item_id(index).map(Anchor)
+        self.state.anchors.get(index).copied()
     }
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.document.item_index(anchor.0)
+        self.state.index_of(anchor)
     }
 
     fn language(&self) -> TextLanguage {
-        editor_language(self.document.language())
+        self.state.language
     }
 
     fn indentation(&self) -> TextIndentation {
-        editor_indentation(self.document.indentation())
+        self.state.indentation
     }
 }
 
-struct BlockEdit {
-    document: TextDocument,
-    operations: Vec<TextOperation>,
+struct Edit<'a> {
+    state: &'a mut State,
+    replaces: Vec<Replace>,
 }
 
-impl DocumentRead for BlockEdit {
+impl DocumentRead for Edit<'_> {
     fn len(&self) -> usize {
-        self.document.len()
+        self.state.bytes.len()
     }
 
     fn chunk(&self, index: usize) -> &[u8] {
-        self.document.bytes().get(index..).unwrap_or_default()
+        self.state.bytes.get(index..).unwrap_or_default()
     }
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.document.item_id(index).map(Anchor)
+        self.state.anchors.get(index).copied()
     }
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.document.item_index(anchor.0)
+        self.state.index_of(anchor)
     }
 
     fn language(&self) -> TextLanguage {
-        editor_language(self.document.language())
+        self.state.language
     }
 
     fn indentation(&self) -> TextIndentation {
-        editor_indentation(self.document.indentation())
+        self.state.indentation
     }
 }
 
-impl DocumentEdit for BlockEdit {
+impl DocumentEdit for Edit<'_> {
     fn document(&self) -> &dyn DocumentRead {
         self
     }
 
     fn replace(&mut self, index: usize, delete: usize, insert: &[u8]) {
-        for _ in 0..delete.min(self.document.len().saturating_sub(index)) {
-            let Ok(operation) = self.document.remove_operation(index) else {
-                break;
-            };
-            TextDocument::apply_operation(&mut self.document, &operation);
-            self.operations.push(operation);
+        let index = index.min(self.state.bytes.len());
+        let delete = delete.min(self.state.bytes.len() - index);
+        if delete == 0 && insert.is_empty() {
+            return;
         }
-        for (offset, byte) in insert.iter().enumerate() {
-            let Ok(operation) = self.document.insert_operation(index + offset, *byte) else {
-                break;
-            };
-            TextDocument::apply_operation(&mut self.document, &operation);
-            self.operations.push(operation);
-        }
+        let anchors: Vec<Anchor> = insert.iter().map(|_| Anchor::new()).collect();
+        let replace = self.state.splice(index, delete, insert, &anchors);
+        self.replaces.push(replace);
     }
 }
 
-pub const fn block_language(language: TextLanguage) -> text::TextLanguage {
+pub const fn block_language(language: TextLanguage) -> be_block::TextLanguage {
     match language {
-        TextLanguage::Markdown => text::TextLanguage::Markdown,
-        TextLanguage::PlainText => text::TextLanguage::PlainText,
-        TextLanguage::Rust => text::TextLanguage::Rust,
-        TextLanguage::Zig => text::TextLanguage::Zig,
+        TextLanguage::Markdown => be_block::TextLanguage::Markdown,
+        TextLanguage::PlainText => be_block::TextLanguage::PlainText,
+        TextLanguage::Rust => be_block::TextLanguage::Rust,
+        TextLanguage::Zig => be_block::TextLanguage::Zig,
     }
 }
 
-pub const fn editor_language(language: text::TextLanguage) -> TextLanguage {
+pub const fn editor_language(language: be_block::TextLanguage) -> TextLanguage {
     match language {
-        text::TextLanguage::Markdown => TextLanguage::Markdown,
-        text::TextLanguage::PlainText => TextLanguage::PlainText,
-        text::TextLanguage::Rust => TextLanguage::Rust,
-        text::TextLanguage::Zig => TextLanguage::Zig,
+        be_block::TextLanguage::Markdown => TextLanguage::Markdown,
+        be_block::TextLanguage::PlainText => TextLanguage::PlainText,
+        be_block::TextLanguage::Rust => TextLanguage::Rust,
+        be_block::TextLanguage::Zig => TextLanguage::Zig,
     }
 }
 
-pub const fn block_indentation(indentation: TextIndentation) -> text::TextIndentation {
+pub const fn block_indentation(indentation: TextIndentation) -> be_block::TextIndentation {
     match indentation {
-        TextIndentation::Tabs => text::TextIndentation::Tabs,
-        TextIndentation::Spaces { width } => text::TextIndentation::Spaces { width },
+        TextIndentation::Tabs => be_block::TextIndentation::Tabs,
+        TextIndentation::Spaces { width } => be_block::TextIndentation::Spaces { width },
     }
 }
 
-pub const fn editor_indentation(indentation: text::TextIndentation) -> TextIndentation {
+pub const fn editor_indentation(indentation: be_block::TextIndentation) -> TextIndentation {
     match indentation {
-        text::TextIndentation::Tabs => TextIndentation::Tabs,
-        text::TextIndentation::Spaces { width } => TextIndentation::Spaces { width },
+        be_block::TextIndentation::Tabs => TextIndentation::Tabs,
+        be_block::TextIndentation::Spaces { width } => TextIndentation::Spaces { width },
     }
 }

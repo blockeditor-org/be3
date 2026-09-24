@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use block_client::blocks::text::TextDocument;
-use block_client::{BlockClient, BlockHandle, block_ref::BlockRef, block_url};
+use block_client::{BlockClient, block_ref::BlockRef, block_url};
+use block_editor_plugin::be_block::TextContent;
 use block_editor_plugin::{Editor, EditorHost};
-use block_ui_test::BeuiTest;
+use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 
 use crate::app::TextApp;
@@ -19,30 +20,21 @@ mod switching_to_hex_view_shows_the_bytes;
 mod the_intrinsic_size_follows_the_width_it_was_given;
 mod typing_inserts_text_into_the_document;
 
-fn editor(text: &str) -> (BeuiTest<TextApp>, BlockHandle<TextDocument>) {
+fn editor(text: &str) -> ContentHarness<TextApp> {
     let client = Arc::new(BlockClient::new(ACCOUNT_ID, WORKSPACE_ID));
     let block = client.create_block(TextDocument::new());
-    let mut core =
-        text_editor_core::Core::new(Arc::new(crate::document::BlockDocument::new(block.clone())));
-    let start = core.position(0);
-    core.execute_command(text_editor_core::EditorCommand::SetSelection {
-        anchor: start,
-        focus: start,
-    });
-    core.execute_command(text_editor_core::EditorCommand::InsertText(text.as_bytes()));
-
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, client, block.id());
-    (BeuiTest::new(editor), block)
+    let editor = Editor::new(host.clone(), client, block.id());
+    let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
+    editor.hold(None, TextContent::from(text));
+    editor.run();
+    editor.run();
+    editor
 }
 
-fn text(block: &BlockHandle<TextDocument>) -> String {
-    block
-        .read()
-        .expect("the document is loaded")
-        .text_lossy()
-        .into_owned()
+fn text(editor: &ContentHarness<TextApp>) -> String {
+    editor.content::<TextContent>(None).text()
 }
 
 const ACCOUNT_ID: Uuid = Uuid::from_u128(0x11ac_c001_0000_4000_8000_0000_0000_0001);

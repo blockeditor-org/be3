@@ -6,13 +6,13 @@ use std::sync::Arc;
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
-use block::{BlockParent, BlockReferenceList, ClientId};
+use block::{BlockParent, BlockReferenceList};
 use block_client::{
-    BlockClient, BlockHandle, ReferenceList, block_ref::BlockRef, blocks::image::Image,
-    blocks::text::TextDocument, presence::PresenceColor, presence::UserActive,
+    BlockClient, ReferenceList, block_ref::BlockRef, blocks::image::Image,
+    presence::pick_free_color,
 };
-use block_editor_plugin::be_block::ImageContent;
-use block_editor_plugin::{ChildState, Editor, EditorHost, ImagePaster, Task};
+use block_editor_plugin::be_block::{ImageContent, TextContent};
+use block_editor_plugin::{ChildState, ContentProjection, Editor, EditorHost, ImagePaster, Task};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
@@ -32,7 +32,9 @@ pub(crate) struct FocusedEmbed {
 pub(crate) struct State {
     pub editor: Editor,
     pub client: Arc<BlockClient>,
-    pub block: BlockHandle<TextDocument>,
+    pub block_id: Uuid,
+    content: Rc<ContentProjection<TextContent>>,
+    adopted: Cell<Option<u64>>,
     pub document: Arc<BlockDocument>,
     pub workspace_id: Uuid,
     pub text: TextAreaState,
@@ -61,7 +63,8 @@ pub(crate) struct State {
     pub presence_revision: ReadSignal<u64>,
     set_presence_revision: WriteSignal<u64>,
     presence_counter: Cell<u64>,
-    remote_cursors: RefCell<Vec<(ClientId, TextCursor)>>,
+    peers: ReadSignal<Vec<(u64, TextCursor)>>,
+    remote_cursors: RefCell<Vec<(u64, TextCursor)>>,
 }
 
 pub(crate) type Shared = Rc<State>;
@@ -69,22 +72,26 @@ pub(crate) type Shared = Rc<State>;
 impl State {
     pub fn new(editor: Editor) -> Shared {
         let client = Arc::clone(editor.client());
-        let block = client.get_block::<TextDocument>(editor.block_id());
-        let document = Arc::new(BlockDocument::new(block.clone()));
+        let block_id = editor.block_id();
+        let content = editor.block_content::<TextContent>();
+        let document = Arc::new(BlockDocument::new(editor.host().waker()));
         let text = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
         text.core_mut().config.inside_atomic_unit = inside_block_url;
-        let dependencies = client.watch_references(BlockReferenceList::References(block.id()));
+        let dependencies = client.watch_references(BlockReferenceList::References(block_id));
         let (embeds, set_embeds) = create_signal(Vec::new());
         let (hex_view, set_hex_view) = create_signal(false);
         let (hex_insert_mode, set_hex_insert_mode) = create_signal(false);
         let (import_error, set_import_error) = create_signal(None);
         let (presence_revision, set_presence_revision) = create_signal(0);
         let (focused_embed, set_focused_embed) = create_signal(None);
-        Rc::new(Self {
+        let state = Rc::new(Self {
             workspace_id: client.workspace_id(),
+            peers: editor.peers::<TextCursor>(),
             editor,
             client,
-            block,
+            block_id,
+            content,
+            adopted: Cell::new(None),
             document,
             text,
             dependencies,
@@ -112,11 +119,38 @@ impl State {
             set_presence_revision,
             presence_counter: Cell::new(0),
             remote_cursors: RefCell::new(Vec::new()),
-        })
+        });
+        let pumped = Rc::downgrade(&state);
+        state.editor.each_frame(move || {
+            if let Some(state) = pumped.upgrade() {
+                state.pump();
+            }
+        });
+        state.pump();
+        state
     }
 
     pub fn host(&self) -> &EditorHost {
         self.editor.host()
+    }
+
+    pub fn pump(&self) {
+        for operation in self.document.take_operations() {
+            self.content.operate(operation);
+        }
+        let revision = self.content.revision();
+        if revision.is_none() || revision == self.adopted.get() {
+            return;
+        }
+        let first = self.adopted.replace(revision).is_none();
+        self.content.read(|content| self.document.adopt(content));
+        if first {
+            let start = self.text.core().position(0);
+            self.text.execute(EditorCommand::SetSelection {
+                anchor: start,
+                focus: start,
+            });
+        }
     }
 
     pub fn poll_external_edit(&self) {
@@ -145,15 +179,14 @@ impl State {
     }
 
     pub fn create_image_block(&self, image: &ImageContent) -> Uuid {
-        let block = self.client.create_block(Image::new());
-        self.host().seed_content(block.id(), image);
-        block.set_parent(BlockParent::Uuid(self.block.id()));
+        let block = self.editor.create_with_content::<Image, _>(image);
+        block.set_parent(BlockParent::Uuid(self.block_id));
         block.id()
     }
 
     pub fn insert_image_embed(&self, id: Uuid, source_name: &str) {
         let client = Arc::clone(&self.client);
-        let referencing_id = self.block.id();
+        let referencing_id = self.block_id;
         let task: Task<BlockRef> = self.host().spawn(async move {
             client
                 .classify_reference(
@@ -170,23 +203,14 @@ impl State {
         });
     }
 
-    pub fn presence_colors(&self) -> HashMap<ClientId, PresenceColor> {
-        self.client
-            .presence::<UserActive>(self.block.id())
-            .into_iter()
-            .map(|(client_id, user)| (client_id, user.color))
-            .collect()
-    }
-
-    pub fn remote_cursors(&self) -> Vec<(ClientId, TextCursor)> {
+    pub fn remote_cursors(&self) -> Vec<(u64, TextCursor)> {
         self.remote_cursors.borrow().clone()
     }
 
     pub fn poll_presence(&self, visible: bool) {
         if !visible {
             if self.published_cursor.take().is_some() {
-                self.client
-                    .set_presence::<TextCursor>(self.block.id(), None);
+                self.editor.show::<TextCursor>(None);
             }
             if !self.remote_cursors.borrow().is_empty() {
                 self.remote_cursors.borrow_mut().clear();
@@ -195,16 +219,28 @@ impl State {
             return;
         }
         if let Some(cursor) = self.text.core().cursor_positions().first() {
+            let color = self.published_cursor.get().map_or_else(
+                || {
+                    pick_free_color(
+                        self.peers
+                            .get_untracked()
+                            .iter()
+                            .map(|(_, peer)| peer.color),
+                    )
+                },
+                |published| published.color,
+            );
             let published = TextCursor {
                 anchor: cursor.pos.anchor,
                 focus: cursor.pos.focus,
+                color,
             };
             if self.published_cursor.get() != Some(published) {
                 self.published_cursor.set(Some(published));
-                self.client.set_presence(self.block.id(), Some(&published));
+                self.editor.show(Some(&published));
             }
         }
-        let mut remote = self.client.presence::<TextCursor>(self.block.id());
+        let mut remote = self.peers.get_untracked();
         remote.sort_by_key(|(client_id, _)| *client_id);
         if *self.remote_cursors.borrow() != remote {
             *self.remote_cursors.borrow_mut() = remote;
@@ -217,7 +253,7 @@ impl State {
         self.set_presence_revision.set(self.presence_counter.get());
     }
 
-    pub fn presence_cursor_rect(&self, client_id: ClientId) -> Option<Rect> {
+    pub fn presence_cursor_rect(&self, client_id: u64) -> Option<Rect> {
         let cursor = self
             .remote_cursors
             .borrow()
@@ -234,6 +270,7 @@ impl State {
             ranges: &ranges,
             replacement: new.to_string().as_bytes(),
         });
+        self.pump();
         true
     }
 }
