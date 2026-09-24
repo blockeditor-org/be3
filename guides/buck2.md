@@ -52,9 +52,11 @@ cargo's own plans.
 
 The root `BUCK.v2` file defines the `//:` commands, each a script in `buck/dev`
 that says what it does, started from the repository's root once buck2 has
-built or downloaded what it needs: rustfmt, starlark_fmt, fix-rust-source,
-rust-project. A command that builds more - clippy, the tests - calls
-`./scripts/buck` itself; `buck2 run` lets go of buck2 before it starts one.
+built or downloaded what it needs, like `//:rust-project`'s rust-project. A
+command that builds more calls `./scripts/buck` itself - `buck2 run` lets go of
+buck2 before it starts one - and `//:verify` does that for its tools too:
+rustfmt, starlark_fmt and fix-rust-source are built only for the lint pass, so
+a run of the tests alone never fetches them.
 
 `./scripts/buck` is the pinned buck2 with a few things in front of it. It runs
 under bash on Linux, on macOS - whose bash 3.2 it keeps to - and in Git Bash

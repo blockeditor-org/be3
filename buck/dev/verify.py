@@ -8,8 +8,8 @@
 # violation or clippy warning survives.
 #
 # Everything is buck2's: the tools this runs - rustfmt, starlark_fmt,
-# fix-rust-source - are the ones //:verify's command names, which buck2 builds
-# or downloads before it starts this; clippy runs and every test binary is
+# fix-rust-source - it asks buck2 to build or download when it lints, and only
+# then; clippy runs and every test binary is
 # built on BuildBuddy's workers, and most tests run there too.
 #
 # A run that writes is a person's, and it is quiet: what they want out of it is
@@ -76,6 +76,36 @@ def starlark_files():
     return sorted(found)
 
 
+LINT_TOOLS = {
+    "rustfmt": ("//buck/tools:rustfmt-sysroot", "bin/rustfmt"),
+    "starlark_fmt": ("//buck/tools:starlark_fmt", None),
+    "fix-rust-source": ("//crates/fix-rust-source:fix-rust-source-bin", None),
+}
+
+
+def lint_tools(buck):
+    # Built for this machine's buck2 configuration, which is where the
+    # formatters run, and asked for in one command, so they come down side by
+    # side. --show-full-output prints each target beside its absolute path.
+    targets = [target for target, _ in LINT_TOOLS.values()]
+    result = subprocess.run([buck, "build", "--show-full-output"] + targets, stdout=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        sys.exit("The lint pass's tools did not build.")
+    printed = result.stdout
+    built = {}
+    for line in printed.splitlines():
+        parts = line.split(" ", 1)
+        if len(parts) == 2:
+            built[parts[0]] = parts[1]
+    paths = {}
+    for name, (target, inside) in LINT_TOOLS.items():
+        label = "root" + target
+        if label not in built:
+            sys.exit("buck2 printed no output for {}".format(target))
+        paths[name] = os.path.join(built[label], inside) if inside else built[label]
+    return paths
+
+
 class Run:
     def __init__(self):
         self.failed = False
@@ -102,9 +132,6 @@ def main():
     parser.add_argument("--lint", action="store_true")
     parser.add_argument("--tests", action="store_true")
     parser.add_argument("--plugin-tests", action="store_true")
-    parser.add_argument("--rustfmt", required=True, help=argparse.SUPPRESS)
-    parser.add_argument("--starlark-fmt", required=True, help=argparse.SUPPRESS)
-    parser.add_argument("--fix-rust-source", required=True, help=argparse.SUPPRESS)
     parser.add_argument("--clippy-module", required=True, help=argparse.SUPPRESS)
     arguments = parser.parse_args()
 
@@ -119,28 +146,35 @@ def main():
     buck = os.path.abspath("scripts/buck")
     run = Run()
 
+    # The lint pass's tools, built only when there is a lint pass: rustfmt and
+    # starlark_fmt are downloads and fix-rust-source a build, and the tests
+    # need none of them, so a run of the tests alone does not fetch them.
+    tools = {}
+    if arguments.lint:
+        tools = lint_tools(buck)
+
     def rustfmt():
         flags = ["--check"] if check else []
-        return run.command([arguments.rustfmt, "--edition", "2024"] + flags + rust_files())
+        return run.command([tools["rustfmt"], "--edition", "2024"] + flags + rust_files())
 
     if arguments.lint:
         run.step("rustfmt", rustfmt)
         run.step(
             "crates/fix-rust-source",
-            lambda: run.command([arguments.fix_rust_source] + (["--check"] if check else [])),
+            lambda: run.command([tools["fix-rust-source"]] + (["--check"] if check else [])),
         )
 
         def starlark():
             config = "buck/starlark_fmt.json"
             if not check:
-                return run.command([arguments.starlark_fmt, "--config", config, "fmt"] + starlark_files())
+                return run.command([tools["starlark_fmt"], "--config", config, "fmt"] + starlark_files())
             # starlark_fmt has no check mode and always exits zero; what says a
             # file would change is its diff subcommand writing one.
             unformatted = [
                 path
                 for path in starlark_files()
                 if subprocess.run(
-                    [arguments.starlark_fmt, "--config", config, "diff", path],
+                    [tools["starlark_fmt"], "--config", config, "diff", path],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
                 ).stdout.strip()

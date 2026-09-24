@@ -25,13 +25,9 @@ tool(
     command = [
         "python3",
         "$(location //buck/dev:verify.py)",
-        "--rustfmt",
-        "$(location //buck/tools:rustfmt-sysroot)/bin/rustfmt",
-        "--starlark-fmt",
-        "$(location //buck/tools:starlark_fmt)",
-        "--fix-rust-source",
-        "$(location //crates/fix-rust-source:fix-rust-source-bin)",
-        # verify.py imports it from beside itself.
+        # verify.py imports it from beside itself. The formatters and
+        # fix-rust-source are not named here: it builds them itself when it
+        # lints, so a run of the tests alone never downloads them.
         "--clippy-module",
         "$(location //buck/dev:clippy.py)",
     ],
