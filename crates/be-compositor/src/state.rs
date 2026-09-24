@@ -7,13 +7,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use smithay::backend::allocator::dmabuf::Dmabuf;
 use smithay::backend::allocator::{Buffer as _, Format};
+use smithay::backend::drm::DrmDeviceFd;
 use smithay::delegate_compositor;
 use smithay::delegate_dmabuf;
+use smithay::delegate_drm_syncobj;
+use smithay::utils::DeviceFd;
 use smithay::wayland::compositor::{
     Blocker, BlockerState, BufferAssignment, SurfaceAttributes, add_blocker, add_pre_commit_hook,
 };
 use smithay::wayland::dmabuf::{
     DmabufFeedbackBuilder, DmabufGlobal, DmabufHandler, DmabufState, ImportNotifier, get_dmabuf,
+};
+use smithay::wayland::drm_syncobj::{
+    DrmSyncobjCachedState, DrmSyncobjHandler, DrmSyncobjState, supports_syncobj_eventfd,
 };
 
 use crate::server::{Waiter, readable};
@@ -103,6 +109,7 @@ pub struct State {
     dmabuf: DmabufState,
     dmabuf_formats: Vec<Format>,
     dmabuf_check: Option<Box<dyn FnMut(&Dmabuf) -> bool>>,
+    syncobj: Option<DrmSyncobjState>,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -154,6 +161,7 @@ impl State {
             dmabuf: DmabufState::new(),
             dmabuf_formats: Vec::new(),
             dmabuf_check: None,
+            syncobj: None,
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -210,7 +218,45 @@ impl State {
         }
     }
 
+    pub fn enable_explicit_sync(&mut self, render_node: u64) -> bool {
+        let Some(path) = device_path(render_node) else {
+            return false;
+        };
+        let opened = rustix::fs::open(
+            &path,
+            rustix::fs::OFlags::RDWR | rustix::fs::OFlags::CLOEXEC,
+            rustix::fs::Mode::empty(),
+        );
+        let Ok(fd) = opened else {
+            return false;
+        };
+        let device = DrmDeviceFd::new(DeviceFd::from(fd));
+        if !supports_syncobj_eventfd(&device) {
+            return false;
+        }
+        self.syncobj = Some(DrmSyncobjState::new::<Self>(&self.handle, device));
+        true
+    }
+
+    pub fn explicit_sync(&self) -> bool {
+        self.syncobj.is_some()
+    }
+
     fn pre_commit(&mut self, surface: &WlSurface) {
+        let acquire = with_states(surface, |states| {
+            states
+                .cached_state
+                .get::<DrmSyncobjCachedState>()
+                .pending()
+                .acquire_point
+                .clone()
+        });
+        if let Some(acquire) = acquire {
+            if let Ok(fd) = acquire.eventfd() {
+                self.block_on(surface, fd.as_fd());
+            }
+            return;
+        }
         let dmabuf = with_states(surface, |states| {
             let mut cached = states.cached_state.get::<SurfaceAttributes>();
             match cached.pending().buffer.as_ref() {
@@ -641,6 +687,20 @@ impl Blocker for FlagBlocker {
     }
 }
 
+fn device_path(device: u64) -> Option<std::path::PathBuf> {
+    std::fs::read_dir("/dev/dri")
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| rustix::fs::stat(path).is_ok_and(|stat| stat.st_rdev == device))
+}
+
+impl DrmSyncobjHandler for State {
+    fn drm_syncobj_state(&mut self) -> Option<&mut DrmSyncobjState> {
+        self.syncobj.as_mut()
+    }
+}
+
 impl DmabufHandler for State {
     fn dmabuf_state(&mut self) -> &mut DmabufState {
         &mut self.dmabuf
@@ -910,3 +970,4 @@ delegate_xdg_decoration!(State);
 delegate_cursor_shape!(State);
 delegate_viewporter!(State);
 delegate_dmabuf!(State);
+delegate_drm_syncobj!(State);

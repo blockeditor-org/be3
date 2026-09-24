@@ -331,6 +331,9 @@ impl Compositor {
                     textures.borrow_mut().import(dmabuf).is_some()
                 })),
             );
+            if let Some(render_node) = render_node {
+                self.server.state.enable_explicit_sync(render_node);
+            }
         }
         self.waker = Some(waker.clone());
         match self.server.watch(move || waker.wake()) {

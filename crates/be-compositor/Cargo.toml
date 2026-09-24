@@ -9,7 +9,7 @@ ash = "0.38"
 beui = { path = "../beui" }
 bytemuck = { version = "1", features = ["derive"] }
 rustix = { version = "1", features = ["event", "fs"] }
-smithay = { version = "0.7", default-features = false, features = ["desktop", "wayland_frontend"] }
+smithay = { version = "0.7", default-features = false, features = ["backend_drm", "desktop", "wayland_frontend"] }
 wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]
