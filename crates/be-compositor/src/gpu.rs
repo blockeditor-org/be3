@@ -460,6 +460,49 @@ unsafe fn libc_close(fd: std::os::fd::RawFd) {
     drop(unsafe { <std::os::fd::OwnedFd as std::os::fd::FromRawFd>::from_raw_fd(fd) });
 }
 
+pub fn adapter_for(node: u64) -> Option<wgpu::Adapter> {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::VULKAN,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
+    pollster::block_on(instance.enumerate_adapters(wgpu::Backends::VULKAN))
+        .into_iter()
+        .find(|adapter| nodes(adapter).contains(&node))
+}
+
+fn nodes(adapter: &wgpu::Adapter) -> Vec<u64> {
+    let Some(hal) = (unsafe { adapter.as_hal::<Api>() }) else {
+        return Vec::new();
+    };
+    let instance = hal.shared_instance().raw_instance();
+    let physical = hal.raw_physical_device();
+    let supported =
+        unsafe { instance.enumerate_device_extension_properties(physical) }.unwrap_or_default();
+    let has = supported.iter().any(|extension| {
+        extension.extension_name_as_c_str() == Ok(ash::ext::physical_device_drm::NAME)
+    });
+    if !has {
+        return Vec::new();
+    }
+    let mut drm = vk::PhysicalDeviceDrmPropertiesEXT::default();
+    let mut properties = vk::PhysicalDeviceProperties2::default().push_next(&mut drm);
+    unsafe { instance.get_physical_device_properties2(physical, &mut properties) };
+    let mut nodes = Vec::new();
+    if drm.has_primary != 0 {
+        nodes.push(rustix::fs::makedev(
+            drm.primary_major as u32,
+            drm.primary_minor as u32,
+        ));
+    }
+    if drm.has_render != 0 {
+        nodes.push(rustix::fs::makedev(
+            drm.render_major as u32,
+            drm.render_minor as u32,
+        ));
+    }
+    nodes
+}
+
 fn render_node(instance: &ash::Instance, physical: vk::PhysicalDevice) -> Option<u64> {
     let supported = unsafe { instance.enumerate_device_extension_properties(physical) }.ok()?;
     let has = supported.iter().any(|extension| {

@@ -6,10 +6,12 @@ use beui::reactive::{build, view, with_reactive_scope};
 use beui::{
     App, Color32, Context, CursorIcon, Document, Event, PointerButton, Pos2, Rect, Setup, Waker,
 };
-use smithay::input::pointer::CursorImageStatus;
+use smithay::backend::renderer::utils::with_renderer_surface_state;
+use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
+use smithay::wayland::compositor::with_states;
 
 use crate::clients::{Clients, Command};
-use crate::render::{Gpu, Textures, WindowDraw};
+use crate::render::{Gpu, SurfaceTexture, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{ServerEvent, WindowId};
 use crate::ui::Workspace;
@@ -19,6 +21,16 @@ const BUTTON_RIGHT: u32 = 0x111;
 const BUTTON_MIDDLE: u32 = 0x112;
 const BUTTON_SIDE: u32 = 0x113;
 const BUTTON_EXTRA: u32 = 0x114;
+
+pub enum Sprite {
+    Hidden,
+    Arrow,
+    Client {
+        texture: Rc<SurfaceTexture>,
+        size: beui::Vec2,
+        hotspot: beui::Vec2,
+    },
+}
 
 pub struct Compositor {
     server: Server,
@@ -129,7 +141,11 @@ impl Compositor {
         if redraw.is_empty() {
             return;
         }
-        let drawings: Vec<_> = redraw
+        self.redraw(redraw);
+    }
+
+    fn redraw(&mut self, windows: Vec<WindowId>) {
+        let drawings: Vec<_> = windows
             .into_iter()
             .map(|id| (id, self.drawing(id)))
             .collect();
@@ -139,6 +155,66 @@ impl Compositor {
                 clients.draw(id, drawing);
             }
         });
+    }
+
+    pub fn replace_gpu(
+        &mut self,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+    ) {
+        let mut textures = Textures::default();
+        textures.set_gpu(Gpu::new(device, queue, format));
+        *self.textures.borrow_mut() = textures;
+        let windows = self.server.state.windows();
+        let mut surfaces: Vec<_> = windows
+            .iter()
+            .flat_map(|id| self.server.state.layers(*id))
+            .map(|layer| layer.surface)
+            .collect();
+        if let CursorImageStatus::Surface(surface) = self.server.state.cursor() {
+            surfaces.push(surface.clone());
+        }
+        for surface in surfaces {
+            self.textures.borrow_mut().upload(&surface);
+        }
+        self.redraw(windows);
+    }
+
+    pub fn gpu(&self) -> Option<Rc<Gpu>> {
+        self.textures.borrow().gpu()
+    }
+
+    pub fn sprite(&self, icon: CursorIcon) -> Sprite {
+        if self.server.state.pointer_window().is_none() {
+            return match icon {
+                CursorIcon::None => Sprite::Hidden,
+                _ => Sprite::Arrow,
+            };
+        }
+        let surface = match self.server.state.cursor() {
+            CursorImageStatus::Hidden => return Sprite::Hidden,
+            CursorImageStatus::Named(_) => return Sprite::Arrow,
+            CursorImageStatus::Surface(surface) => surface.clone(),
+        };
+        let Some(current) = self.textures.borrow().get(&surface) else {
+            return Sprite::Arrow;
+        };
+        let size = with_renderer_surface_state(&surface, |state| state.surface_size()).flatten();
+        let hotspot = with_states(&surface, |states| {
+            states
+                .data_map
+                .get::<CursorImageSurfaceData>()
+                .map(|data| data.lock().unwrap().hotspot)
+        });
+        match (size, hotspot) {
+            (Some(size), Some(hotspot)) => Sprite::Client {
+                texture: current.texture,
+                size: beui::vec2(size.w as f32, size.h as f32),
+                hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
+            },
+            _ => Sprite::Arrow,
+        }
     }
 
     fn drawing(&self, id: WindowId) -> Option<beui::Drawing> {

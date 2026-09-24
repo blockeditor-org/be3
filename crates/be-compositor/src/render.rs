@@ -271,6 +271,94 @@ impl Textures {
 }
 
 impl Gpu {
+    pub fn rgba(&self, width: u32, height: u32, pixels: &[u8]) -> SurfaceTexture {
+        let format = match self.srgb {
+            true => wgpu::TextureFormat::Rgba8UnormSrgb,
+            false => wgpu::TextureFormat::Rgba8Unorm,
+        };
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let texture = self.texture(size, format, false);
+        self.queue.write_texture(
+            texture.texture.as_image_copy(),
+            pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            size,
+        );
+        texture
+    }
+
+    pub fn paint_sprite(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        target_size: (u32, u32),
+        rect: [f32; 4],
+        texture: &SurfaceTexture,
+    ) {
+        let (width, height) = (target_size.0 as f32, target_size.1 as f32);
+        let corner = |x: f32, y: f32, u: f32, v: f32| Vertex {
+            position: [x / width * 2.0 - 1.0, 1.0 - y / height * 2.0],
+            uv: [u, v],
+            opaque: f32::from(u8::from(texture.opaque)),
+        };
+        let [left, top, right, bottom] = rect;
+        let (a, b, c, d) = (
+            corner(left, top, 0.0, 0.0),
+            corner(right, top, 1.0, 0.0),
+            corner(right, bottom, 1.0, 1.0),
+            corner(left, bottom, 0.0, 1.0),
+        );
+        let vertices = [a, b, c, a, c, d];
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("sprite vertices"),
+            size: std::mem::size_of_val(&vertices) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        self.queue
+            .write_buffer(&buffer, 0, bytemuck::cast_slice(&vertices));
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("sprite"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &texture.group, &[]);
+        pass.set_vertex_buffer(0, buffer.slice(..));
+        pass.draw(0..6, 0..1);
+    }
+
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+
+    pub fn vulkan(&self) -> Option<&Vulkan> {
+        self.vulkan.as_ref()
+    }
+
     fn texture(
         &self,
         size: wgpu::Extent3d,
@@ -284,7 +372,9 @@ impl Gpu {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
         self.bind(texture, opaque)
