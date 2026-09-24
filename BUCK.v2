@@ -1,3 +1,7 @@
+# The root package. It is BUCK.v2 rather than BUCK, which buck2 reads the same
+# way, because a filesystem that ignores case - Windows', and macOS's by
+# default - cannot hold a file named BUCK beside the buck/ directory.
+
 load("//buck/tools:defs.bzl", "tool")
 
 # clippy.toml reaches the rust toolchain as a file, so it needs a target.

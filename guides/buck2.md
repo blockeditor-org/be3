@@ -50,7 +50,7 @@ cargo's own plans.
 | `./scripts/buck run //:buckify` | regenerates the files made from `Cargo.toml` and `buck/sysroot/BUCK` |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 
-The root `BUCK` file defines the `//:` commands, each a script in `buck/dev`
+The root `BUCK.v2` file defines the `//:` commands, each a script in `buck/dev`
 that says what it does, started from the repository's root once buck2 has
 built or downloaded what it needs: rustfmt, starlark_fmt, fix-rust-source,
 rust-project. A command that builds more - clippy, the tests - calls

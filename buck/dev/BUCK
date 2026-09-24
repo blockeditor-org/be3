@@ -1,5 +1,5 @@
 # The scripts behind the root package's commands - //:verify, //:check,
-# //:buckify and //:rust-project - which the root BUCK file runs.
+# //:buckify and //:rust-project - which the root BUCK.v2 file runs.
 [
     export_file(
         name = name,
