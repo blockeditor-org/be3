@@ -1,7 +1,7 @@
 # The rules behind buck/sysroot/BUCK.
 
 # Resolves the package closure on a worker, which fetches the snapshot's
-# package indices itself. ./scripts/buckify copies what this writes to
+# package indices itself. ./scripts/buck run //:buckify copies what this writes to
 # buck/sysroot/packages.bzl. The snapshot and the packages are the whole input,
 # so the answer is cached until one of them changes.
 def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:

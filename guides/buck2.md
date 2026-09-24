@@ -4,10 +4,11 @@ buck2 builds and tests the workspace, and every action it runs, runs on
 BuildBuddy. This guide says what it covers, how to run it, why it is set up the
 way it is, and what is still cargo's.
 
-`./scripts/check`, `./scripts/verify` - the lint pass and the tests - and
-`./scripts/build` and `./scripts/run` for the native app and the plugins all
-go through it, for every platform. cargo is left with the web bundle and the
-Android APK; the last section says what is missing for each.
+Every command a person runs is a buck2 target, from `./scripts/buck`: the
+checks, the lint pass, the tests, the app, and every platform's release build.
+cargo is left with the web bundle and the Android APK, which
+`./scripts/build --target web|android` and `./scripts/run` still make; the last
+section says what is missing for each.
 
 ## What buck2 builds
 
@@ -31,33 +32,46 @@ Android APK; the last section says what is missing for each.
 
 ## Running it
 
-```
-export BUILDBUDDY_API_KEY=<key>
-./scripts/buck build //crates/...
-./scripts/buck test //crates/...
-./scripts/buck test //crates/editors/checklist:test
-./scripts/buckify
-```
+| Command | What it does |
+|---|---|
+| `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm |
+| `./scripts/buck run //:verify` | the lint pass with its fixes, the tests and the plugin tests; `-- --check` writes nothing, `-- --lint`, `--tests`, `--plugin-tests` run one part |
+| `./scripts/buck test //crates/...` | the tests alone |
+| `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; `-- --env UPDATE_SNAPSHOTS=1` accepts its paintings |
+| `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
+| `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
+| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: the app, the server and PDFium; add `--target-platforms root//buck/platforms:PLATFORM`, `-c be3.profile=release` and `-c be3.commit=SHA` |
+| `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, which every platform shares |
+| `./scripts/buck run //:buckify` | regenerates the files made from `Cargo.toml` and `buck/sysroot/BUCK` |
+| `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 
-`./scripts/buck` is buck2 with two checks in front: that `BUILDBUDDY_API_KEY` is
-set, since there is nowhere else to build, and that no `.buckconfig.local` an
-older copy of it wrote is left behind. It also lets a test run put its tests on
-the workers (below). Calling `buck2` directly works too, once the key is in the
-environment.
+The root `BUCK` file defines the `//:` commands, each a script in `buck/dev`
+that says what it does, started from the repository's root once buck2 has
+built or downloaded what it needs: rustfmt, starlark_fmt, fix-rust-source,
+rust-project. A command that builds more - clippy, the tests - calls
+`./scripts/buck` itself; `buck2 run` lets go of buck2 before it starts one.
+
+`./scripts/buck` is buck2 with two checks in front: that there is a BuildBuddy
+API key, since there is nowhere else to build, and that no `.buckconfig.local`
+an older copy of it wrote is left behind. It also lets a test run put its tests
+on the workers (below). The key is `BUILDBUDDY_API_KEY` from the environment,
+or else the contents of `.buildbuddy-api-key` at the root of the checkout,
+which git ignores, or of `~/.config/be3/buildbuddy-api-key`. Calling `buck2`
+directly works too, once the key is in the environment.
 
 **Restart the daemon when the key changes**, with `buck2 killall`. `.buckconfig`
 names the variable rather than holding the key, and buck2 expands it from the
 environment of the daemon, which is the one it was started with.
 
-`./scripts/buckify` regenerates `third-party/rust/BUCK` and
-`buck/cargo/crates.bzl`. Run it after changing any `Cargo.toml` or
-`Cargo.lock`; CI fails if either disagrees with the manifests. Nothing else
-needs touching for a new dependency: a crate's `BUCK` file takes its
-dependencies from `crates.bzl` (below).
+`./scripts/buck run //:buckify` regenerates `third-party/rust/BUCK`,
+`buck/cargo/crates.bzl` and `buck/sysroot/packages.bzl`. Run it after changing
+any `Cargo.toml` or `Cargo.lock`, or `buck/sysroot/BUCK`; CI fails if any of
+them disagrees. Nothing else needs touching for a new dependency: a crate's
+`BUCK` file takes its dependencies from `crates.bzl` (below).
 
-The tools are installed by `./scripts/internal/install-buck2.sh` and
-`install-starlark-fmt.sh`, which are downloads. reindeer is not installed at
-all: `./scripts/buckify` runs it on a worker (below).
+buck2 itself is installed by `./scripts/internal/install-buck2.sh`, a
+download. Every other tool is one buck2 downloads or builds; reindeer is built
+and run on a worker.
 
 ### Generated from Cargo.toml
 
@@ -82,7 +96,7 @@ and only `render` in a build of the plugins, and `cargo metadata` would give it
 `buck/cargo/buckify.bxl` says exactly how each is asked for. Where they differ
 for a crate, the macro writes the `select()`.
 
-`buck/cargo/buckify.bxl` is what `./scripts/buckify` runs. It builds reindeer
+`buck/cargo/buckify.bxl` is what `./scripts/buck run //:buckify` runs. It builds reindeer
 on a worker - `cargo install` of the pinned commit, with the nightly reindeer's
 own rust-toolchain asks for, both in `buck/cargo/BUCK` - and then, in one
 action on a worker, runs `reindeer buckify --stdout` against
@@ -99,7 +113,7 @@ there is a `src/lib.rs`, a `build.rs`, an `examples/` directory - but never
 reads a source file, so every other file under `crates/` is passed as a path
 only and recreated empty on the worker. An edit to a source file leaves the
 action's key alone; adding a file, a dependency or a crate is what runs it
-again. With nothing changed, `./scripts/buckify` takes about a second on a live
+again. With nothing changed, `./scripts/buck run //:buckify` takes about a second on a live
 daemon.
 
 It is a BXL script rather than a rule because the manifests belong to
@@ -107,7 +121,7 @@ seventy-odd packages, and a rule can only take the files of its own package.
 
 ## rust-analyzer
 
-`./scripts/rust-project` writes `rust-project.json` at the root, which is how
+`./scripts/buck run //:rust-project` writes `rust-project.json` at the root, which is how
 rust-analyzer reads the workspace without cargo. rust-analyzer prefers it over
 `Cargo.toml` when both are there. Run it again after adding a crate or a
 dependency; the file is ignored by git, because the paths in it are this
@@ -146,7 +160,7 @@ Ubuntu's own packages. The worker's image is only what runs the tools.
 - `buck/sysroot/BUCK` names the packages the build needs and the snapshot of
   the archive they come from. snapshot.ubuntu.com serves the archive as it was
   at any moment, so a timestamp pins every package index for good.
-- `./scripts/buckify` runs `buck/sysroot/resolve.py` on a worker, which
+- `./scripts/buck run //:buckify` runs `buck/sysroot/resolve.py` on a worker, which
   resolves the dependency closure the way apt would and writes
   `buck/sysroot/packages.bzl`: the URL, hash and size of every `.deb`. It is
   checked in, like a lockfile. Today it is 441 packages, most of them GTK's
@@ -161,7 +175,7 @@ Ubuntu's own packages. The worker's image is only what runs the tools.
   it prints reach the link, where `--sysroot` finds them. alsa-sys and the
   GTK and WebKitGTK bindings are set up this way.
 
-A new system library is a line in `buck/sysroot/BUCK` and a `./scripts/buckify`.
+A new system library is a line in `buck/sysroot/BUCK` and a `./scripts/buck run //:buckify`.
 
 What a test loads but nothing compiles against is a set of its own, resolved
 from the same snapshot into its own sysroot, so that adding to it leaves the
@@ -243,7 +257,7 @@ cannot do what they do:
 - **The plugin tests** read the accepted paintings out of `snapshots/` in the
   working tree and write the ones that changed back into it, and may open a
   graphics adapter. They are labelled `plugin`, which is how
-  `./scripts/verify --tests` and `--plugin-tests` tell them apart.
+  `./scripts/buck run //:verify -- --tests` and `--plugin-tests` tell them apart.
 - **`block-plugin-api`'s `every_editor_manifest_parses`** walks
   `crates/editors` in the working tree, and the editors are packages of their
   own rather than its inputs. Its `rust_test` says
@@ -260,7 +274,7 @@ Ubuntu 24.04's, so a machine on an older one cannot run them.
 
 Arguments after `--` go to buck2's test executor rather than the test.
 `--env NAME=VALUE` sets a variable for the tests - `UPDATE_SNAPSHOTS=1` is how
-`./scripts/verify` accepts paintings - and `--test-arg` passes one through to
+`./scripts/buck run //:verify` accepts paintings - and `--test-arg` passes one through to
 the test binary, which is how to run a single test:
 
 ```
@@ -403,13 +417,13 @@ every editor's manifest, renamed `<id>.plugin.json`, the module it names, and
 the `.cwasm` compiled from it, which is the directory native plugin discovery
 scans. `buck/app` is the rule.
 
-`./scripts/build` and `./scripts/run` are this: `./scripts/build --target
-TRIPLE [--release]` builds it and the server for that platform and copies them
-under cargo's names, with PDFium from `third-party/pdfium`, into
-`target/native/TRIPLE/PROFILE`, and `--target plugins` builds
-`//crates/block-app:plugins`, the plugins alone. `--release` is
-`-c be3.profile=release`, Cargo's release profile, and passes the commit as
-`-c be3.commit=...` for the app to report.
+The executable takes cargo's name, `block-app`, and PDFium from
+`third-party/pdfium` goes beside it. `//crates/block-app:dist` is what CI
+ships for each platform - the app and `block-server`, under cargo's names, and
+PDFium, with no plugins - and `//crates/block-app:plugins` is the plugins
+alone, built once for every platform. `-c be3.profile=release` is Cargo's
+release profile, and `-c be3.commit=SHA` the commit the app reports; every
+other build says `unknown`, so that a commit does not recompile the app.
 
 - Each module is precompiled in an action of its own, by the plugin test
   runner's `--precompile-to`, which is `block-wasm-host`'s and so the engine
@@ -419,7 +433,7 @@ under cargo's names, with PDFium from `third-party/pdfium`, into
 - The editors are every crate under `crates/editors`, from
   `buck/cargo/crates.bzl`, so a new editor is staged with no change here.
 - On this VM, which has no WebKitGTK of its own, it runs with the sysroot's
-  libraries on `LD_LIBRARY_PATH`, and passes `./scripts/run --smoke`'s check:
+  libraries on `LD_LIBRARY_PATH`, and passes `./scripts/buck run //crates/block-app:smoke`'s check:
   still running after ten seconds in a virtual display.
 
 ## Cross-compiling
@@ -460,7 +474,7 @@ list with `per_cross_platform`.
   the release build moves to a worker that is a Mac or runs Asahi Linux on
   one. rustc gets `SDKROOT` rather than asking `xcrun`, and
   `-Csplit-debuginfo=unpacked`, because the default runs `dsymutil`.
-- **Android** compiles against the sysroot of NDK r29, the NDK `./scripts/build`
+- **Android** compiles against the sysroot of NDK r29, the NDK the APK build
   uses, at API level 26, and links the NDK's compiler runtime, which is its
   clang's and so is named as the resource directory for the link alone.
   `buck/tools:android-ndk` downloads the 780 MB NDK on a worker, checks it,
@@ -509,8 +523,7 @@ list with `per_cross_platform`.
 
 A macOS binary links only the system's frameworks and carries lld's ad hoc
 signature; none has been run from here, since nothing in this setup has a Mac.
-Neither is there a `.app` bundle yet; `./scripts/build` still makes the one
-that ships.
+Neither is there a `.app` bundle yet.
 
 ## The compiler is a stable one, and the build says so
 
@@ -540,24 +553,27 @@ the action wrapper rather than by `-Zremap-cwd-prefix`.
 
 ## The lint pass
 
-`./scripts/verify --lint` is buck2's, and needs no cargo:
+`./scripts/buck run //:verify -- --lint` is buck2's, and needs no cargo:
 
 - **rustfmt** is `//buck/tools:rustfmt`, the pinned release in a sysroot of
   its own, run here over every Rust file in the workspace's crates - every file
   rather than each crate's root, because rustfmt cannot see a module a macro
   declares, and `block-client` declares its blocks' that way.
-- **fix-rust-source** is `//crates/fix-rust-source:fix-rust-source-bin`, run
-  here with `buck2 run`.
+- **fix-rust-source** is `//crates/fix-rust-source:fix-rust-source-bin`.
 - **starlark_fmt** is `//buck/tools:starlark_fmt`, from the buck2 release
   `scripts/internal/common.sh` pins, decompressed on a worker by Ubuntu's own
   zstd.
-- **clippy** is `buck/lint/clippy.py`. `buck/lint/workspace.bxl` builds every
+- **clippy** is `buck/dev/clippy.py`. `buck/dev/workspace.bxl` builds every
   first-party Rust target's `[clippy.json]` subtarget on the workers, in every
   configuration it is built in - the host's, and through the transitions the
   plugins' and games' wasm, whose wasm-only code a native `cargo clippy` never
-  linted. The script reports each finding once, and with `--fix` applies the
+  linted. It reports each finding once, and in a run that writes applies the
   suggestions clippy marks machine-applicable first, the way `cargo clippy
   --fix` does, and lints again.
+
+`//:verify`'s command names the first three, so `buck2 run` builds or
+downloads them before `buck/dev/verify.py` starts; clippy and the tests are
+calls to `./scripts/buck` from inside it.
 
 The lint levels are on the toolchain in `buck/toolchains/BUCK` -
 `deny_lints = ["warnings"]` and the one allow that Cargo.toml's
@@ -586,7 +602,7 @@ say, which is why the gate is the script rather than `buck2 build`.
 - `buck/platforms/BUCK` is the execution platform: the prelude's, pointed at
   BuildBuddy's workers.
 - `third-party/rust/BUCK` is generated by reindeer from the workspace manifests.
-  It is checked in and nothing but `./scripts/buckify` should edit it. Crates
+  It is checked in and nothing but `./scripts/buck run //:buckify` should edit it. Crates
   are downloaded from crates.io at build time rather than vendored, so the
   repository carries the rules and not nine hundred crates of source.
 - `third-party/rust/fixups/<crate>/fixups.toml` is what reindeer needs told
@@ -598,7 +614,7 @@ say, which is why the gate is the script rather than `buck2 build`.
 
 ## Adding a crate
 
-Add it to the workspace in the root `Cargo.toml`, run `./scripts/buckify`, and
+Add it to the workspace in the root `Cargo.toml`, run `./scripts/buck run //:buckify`, and
 write a `BUCK` file beside its `Cargo.toml` naming the targets it has:
 
 ```
@@ -657,7 +673,7 @@ paintings are read from `snapshots/` through `CARGO_MANIFEST_DIR`, which
 `wasi_test` takes from the crate's `Cargo.toml` so that the path is the one in
 the repository rather than the staged copy a rustc action compiles against.
 A changed painting fails the test unless `UPDATE_SNAPSHOTS` is set, which
-`./scripts/verify` does through the test executor's `--env`, and the runner
+`./scripts/buck run //:verify` does through the test executor's `--env`, and the runner
 hands it to the guest.
 
 `block-editor-plugin` has a `test` of the same shape: it is the guest half of
@@ -720,7 +736,7 @@ was built with, which is why moving that version is a change to verify with a
 build rather than a number to bump.
 
 reindeer publishes no releases at all, so it is pinned by commit in
-`buck/cargo/BUCK` and built from source on a worker. Only `./scripts/buckify`
+`buck/cargo/BUCK` and built from source on a worker. Only `./scripts/buck run //:buckify`
 uses it; the file it writes is checked in.
 
 ## Why reindeer, and why it reads the workspace manifests
@@ -729,7 +745,7 @@ reindeer resolves the same dependency graph cargo does, from the same
 `Cargo.toml` files and the same `Cargo.lock`, and writes one Buck rule per
 crate. Pointing it at the workspace manifest rather than at a second manifest of
 its own is what keeps cargo the single place a dependency is declared: adding
-one is `cargo add`, then `./scripts/buckify`.
+one is `cargo add`, then `./scripts/buck run //:buckify`.
 
 Where reindeer and cargo do differ is features. cargo resolves features once for
 a whole build, so a feature a dev-dependency turns on is on for the library too;

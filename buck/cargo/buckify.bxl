@@ -1,6 +1,6 @@
 # Regenerates the two files buck2 reads the workspace's Cargo.toml files
 # through, on a worker, and prints the directory they are in.
-# ./scripts/buckify copies them into the repository:
+# ./scripts/buck run //:buckify copies them into the repository:
 #
 #   - third-party/rust/BUCK, the rules for every third-party crate, which
 #     reindeer writes;

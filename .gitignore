@@ -11,3 +11,4 @@ shelley.db*
 /buck-out
 /.buckconfig.local
 /rust-project.json
+/.buildbuddy-api-key

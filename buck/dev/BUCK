@@ -1,0 +1,9 @@
+# The scripts behind the root package's commands - //:verify, //:check,
+# //:buckify and //:rust-project - which the root BUCK file runs.
+[
+    export_file(
+        name = name,
+        visibility = ["PUBLIC"],
+    )
+    for name in ["buckify.py", "check.py", "clippy.py", "rust_project.py", "verify.py"]
+]

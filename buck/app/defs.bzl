@@ -22,6 +22,9 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
         name = ctx.attrs.executable_name + executable.extension
         command.add(cmd_args("--executable=", executable, "=", name, delimiter = ""))
+    for extra_name, binary in ctx.attrs.extra_binaries.items():
+        extra = binary[DefaultInfo].default_outputs[0]
+        command.add(cmd_args("--executable=", extra, "=", extra_name + extra.extension, delimiter = ""))
     for file in ctx.attrs.files:
         command.add(cmd_args("--file=", file, delimiter = ""))
     for manifest, module in zip(ctx.attrs.manifests, ctx.attrs.modules):
@@ -54,6 +57,8 @@ app = rule(
     attrs = {
         "binary": attrs.option(attrs.dep(), default = None),
         "executable_name": attrs.string(default = ""),
+        # More executables to put beside the app, by the name cargo gives each.
+        "extra_binaries": attrs.dict(attrs.string(), attrs.dep(), default = {}),
         "files": attrs.list(attrs.source(), default = []),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),

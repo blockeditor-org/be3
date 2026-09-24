@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#
+# The web bundle, hosted, and the Android APK, installed on the attached device
+# and launched: what is still cargo's. The native app is a buck2 target:
+#
+#   ./scripts/buck run //crates/block-app:app
+#   ./scripts/buck run //crates/block-app:smoke
 
 set -euo pipefail
 
@@ -6,23 +12,18 @@ source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
 usage() {
     cat >&2 <<'USAGE'
-Usage: ./scripts/run [--target TARGET] [options...]
+Usage: ./scripts/run --target web|android [options...]
 
-TARGET is native (the default), web or android. The web target builds the
-bundle and hosts it, and the android target installs the APK on the attached
-device and launches it.
-
-Native options:  [--release] [--smoke] [-- APPLICATION ARGUMENTS...]
 Web options:     [--release]
 Android options: [--android-sdk DIRECTORY] [--application-id ID] [--label LABEL]
 
---smoke builds the native app, starts it for ten seconds in an isolated virtual
-display and data directory, and succeeds if it remains running. It requires
-xvfb-run and timeout.
+The native app is a buck2 target:
+  ./scripts/buck run //crates/block-app:app
+  ./scripts/buck run //crates/block-app:smoke    (ten seconds in a virtual display)
 USAGE
 }
 
-target='native'
+target=''
 arguments=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -42,17 +43,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$target" in
-    native)
-        exec "$internal/run-native.sh" "${arguments[@]}"
-        ;;
-    web)
-        exec "$internal/run-web.sh" "${arguments[@]}"
-        ;;
-    android)
-        exec "$internal/run-android.sh" "${arguments[@]}"
-        ;;
+    web) exec "$internal/run-web.sh" "${arguments[@]}" ;;
+    android) exec "$internal/run-android.sh" "${arguments[@]}" ;;
     *)
-        echo "Unknown target: $target" >&2
         usage
         exit 1
         ;;

@@ -1,7 +1,7 @@
 load("//buck/tools:defs.bzl", "rust_sysroot")
 load(":cargo_install.bzl", "cargo_install")
 
-# reindeer, and the cargo it and generate.py run, for ./scripts/buckify.
+# reindeer, and the cargo it and generate.py run, for ./scripts/buck run //:buckify.
 #
 # Nothing here is part of the build: buckify.bxl beside this file is what uses
 # it, to regenerate third-party/rust/BUCK and crates.bzl on a worker. Every
@@ -68,7 +68,7 @@ rust_sysroot(
 )
 
 # buck2's rust-project, which writes the rust-project.json rust-analyzer reads
-# the workspace through: ./scripts/rust-project runs it. It is built from the
+# the workspace through: ./scripts/buck run //:rust-project runs it. It is built from the
 # commit the pinned buck2 release was, so it and the prelude it queries agree.
 cargo_install(
     name = "rust-project",

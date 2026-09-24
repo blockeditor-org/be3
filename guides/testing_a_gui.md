@@ -1,6 +1,6 @@
 GUI tests run headless: no window, no input, no server. A test builds an editor, drives it the
 way a person would, and checks two things — what the block became, and what the editor
-painted. They are fast enough to belong in ./scripts/verify: the handful that exist run in
+painted. They are fast enough to belong in ./scripts/buck run //:verify: the handful that exist run in
 well under a second.
 
 A plugin's tests run where the plugin runs: compiled to wasm32-wasip1-threads and started by
@@ -106,10 +106,10 @@ as the last costs the triangles that draw it and nothing more. Keep recordings t
 frames that say something: every frame is compared, so a frame nobody looks at is one more
 way for the test to fail.
 
-- ./scripts/verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
+- ./scripts/buck run //:verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
   a new or changed painting is written into snapshots/ rather than failing the run. On a pull
   request CI does the same, and when that writes a painting it fails the run and pushes the
-  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/verify --check, which sets nothing,
+  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/buck run //:verify -- --check, which sets nothing,
   so a painting that was never committed fails there.
 - A changed painting is for a person to review, not for you. They review it in a Paint
   review block, which reads the folder from the repository's dev branch, so a painting is
@@ -117,7 +117,7 @@ way for the test to fail.
   not git and a reviewer is not the tests: a painting nobody approved is new again the next
   time the block is opened, and one nobody had approved before it vanished is not reported
   at all.
-- cargo run -p paint-snapshot --example rasterize -- snapshots/<crate>.<name>.paint out.png
+- ./scripts/buck run //crates/paint-snapshot:rasterize-example -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write. It is for a person looking at a painting on the machine that made it; the review
   that matters still happens in a Paint review block.
@@ -127,7 +127,7 @@ way for the test to fail.
   alone.
 - The exception is a painting you cannot account for: if you do not know why one changed,
   restore the committed file and run the tests without UPDATE_SNAPSHOTS - git restore
-  snapshots/ && ./scripts/verify --check --plugin-tests - and the failure says which frame
+  snapshots/ && ./scripts/buck run //:verify -- --check --plugin-tests - and the failure says which frame
   changed and what moved in it, which is what you needed rather than the image.
 
 A snapshot never holds the glyph atlas. Each glyph carries its own coverage image, keyed by
@@ -146,7 +146,7 @@ editor paints is comparable like anything else.
 
 5. Running them
 
-./scripts/verify runs them, through buck2: ./scripts/verify --plugin-tests is the plugin
+./scripts/buck run //:verify runs them, through buck2: ./scripts/buck run //:verify -- --plugin-tests is the plugin
 tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
 wasm32-wasip1-threads against the WASI sysroot the web build uses, on BuildBuddy's workers,
 and runs the module here through crates/plugin-test-runner, which is wasmtime with the

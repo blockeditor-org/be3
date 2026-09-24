@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+#
+# The web bundle and the Android APK, which are still cargo's. Everything else
+# is a buck2 target; guides/buck2.md lists them:
+#
+#   ./scripts/buck run //crates/block-app:app
+#   ./scripts/buck build //crates/block-app:dist --out dist
+#   ./scripts/buck build //crates/block-app:plugins --out dist
 
 set -euo pipefail
 
@@ -6,22 +13,21 @@ source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
 usage() {
     cat >&2 <<'USAGE'
-Usage: ./scripts/build [--target TARGET] [options...]
+Usage: ./scripts/build --target web|android [options...]
 
-TARGET is native (the default), web, android, plugins, or a Rust target triple
-to cross-compile the native app and its plugins for.
-
-Native options:  [--release] [--triple TRIPLE] [--output DIRECTORY]
-                 [--no-client] [--no-server] [--no-plugins]
-                 [--sign-identity IDENTITY]
 Web options:     [--release] [--wasi-sysroot DIRECTORY] [--no-plugins]
 Android options: [--android-sdk DIRECTORY] [--application-id ID] [--label LABEL]
                  [--no-plugins]
-Plugin options:  [--release] [--output DIRECTORY] [--wasi-sysroot DIRECTORY]
+
+The native app and the plugins are buck2 targets:
+  ./scripts/buck run //crates/block-app:app
+  ./scripts/buck build [--target-platforms root//buck/platforms:PLATFORM] \
+      [-c be3.profile=release] //crates/block-app:dist --out DIRECTORY
+  ./scripts/buck build //crates/block-app:plugins --out DIRECTORY
 USAGE
 }
 
-target='native'
+target=''
 arguments=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -41,23 +47,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$target" in
-    native)
-        exec "$internal/build-native.sh" "${arguments[@]}"
-        ;;
-    web)
-        exec "$internal/build-web.sh" "${arguments[@]}"
-        ;;
-    android)
-        exec "$internal/build-android.sh" "${arguments[@]}"
-        ;;
-    plugins)
-        exec "$internal/build-plugins.sh" "${arguments[@]}"
-        ;;
-    *-*-*)
-        exec "$internal/build-native.sh" --triple "$target" "${arguments[@]}"
-        ;;
+    web) exec "$internal/build-web.sh" "${arguments[@]}" ;;
+    android) exec "$internal/build-android.sh" "${arguments[@]}" ;;
     *)
-        echo "Unknown target: $target" >&2
         usage
         exit 1
         ;;

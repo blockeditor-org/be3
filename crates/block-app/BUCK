@@ -1,6 +1,7 @@
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
+load("@root//buck/tools:defs.bzl", "tool")
 load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
 
 # The desktop app, with both of the features that are more than Rust: the
@@ -34,8 +35,8 @@ cargo_test(
 
 cargo_binary(env = commit, srcs = app_srcs)
 
-# The app with every plugin beside it, which is what ./scripts/build lays out
-# and what `./scripts/buck run //crates/block-app:app` runs. buck/app says how.
+# The app with every plugin beside it: `./scripts/buck run //crates/block-app:app`
+# runs it. buck/app says how it is laid out.
 app(
     name = "app",
     binary = ":block-app-bin",
@@ -56,4 +57,34 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+)
+
+# What CI ships for a platform: the app and the server, under cargo's names,
+# and PDFium, without the plugins, which :plugins builds once for every
+# platform. `-c be3.profile=release` makes it a release build, and
+# `-c be3.commit=SHA` says which commit it is:
+#
+#   ./scripts/buck build --target-platforms root//buck/platforms:macos_arm64 \
+#       -c be3.profile=release -c be3.commit="$(git rev-parse HEAD)" \
+#       //crates/block-app:dist --out dist
+app(
+    name = "dist",
+    binary = ":block-app-bin",
+    executable_name = "block-app",
+    extra_binaries = {"block-server": "//crates/block-server:block-server-bin"},
+    files = pdfium_library(),
+    manifests = [],
+    modules = [],
+    precompile = False,
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+)
+
+# The native startup smoke check: the app for ten seconds in a virtual display.
+tool(
+    name = "smoke",
+    command = [
+        "$(location //buck/app:smoke.sh)",
+        "$(location :app)/block-app",
+        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+    ],
 )

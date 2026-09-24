@@ -3,10 +3,10 @@
 # games are compiled for, which the host's targets reach through transitions.
 # Prints one "label<TAB>path" line per target.
 #
-#   buck2 bxl //buck/lint/workspace.bxl:subtarget -- --subtarget clippy.json
+#   buck2 bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.json
 #
-# buck/lint/clippy.py reads the clippy.json ones; ./scripts/check asks for
-# check, rustc's metadata-only pass, which fails on the first error.
+# buck/dev/clippy.py reads the clippy.json ones; //:check asks for check,
+# rustc's metadata-only pass, which fails on the first error.
 def _impl(ctx: bxl.Context):
     name = ctx.cli_args.subtarget
     targets = ctx.cquery().eval('kind("^rust_(library|binary|test)$", //crates/...)')

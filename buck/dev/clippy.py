@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
+# clippy over the workspace through buck2, which is what //:verify's lint pass
+# runs.
 #
-# clippy over the workspace through buck2, which is what ./scripts/verify's lint
-# pass runs.
-#
-# buck/lint/workspace.bxl builds every first-party Rust target's [clippy.json] -
+# buck/dev/workspace.bxl builds every first-party Rust target's [clippy.json] -
 # rustc's JSON diagnostics - in every configuration the workspace builds it in,
 # on BuildBuddy's workers. This reads them. A file compiled in more than one
 # configuration or target is diagnosed more than once, so each finding is
@@ -14,8 +12,6 @@
 # goes in together or not at all, one that overlaps an edit already taken is
 # left for the next run, and then clippy runs again over the result, so what is
 # reported is what the fixes did not reach.
-#
-# Usage: clippy.py BUCK [--fix]
 
 import json
 import os
@@ -25,7 +21,7 @@ import sys
 
 def diagnostics(buck):
     listing = subprocess.run(
-        [buck, "bxl", "//buck/lint/workspace.bxl:subtarget", "--", "--subtarget", "clippy.json"],
+        [buck, "bxl", "//buck/dev/workspace.bxl:subtarget", "--", "--subtarget", "clippy.json"],
         check=True,
         stdout=subprocess.PIPE,
         text=True,
@@ -107,9 +103,7 @@ def report(found):
     return len(rendered)
 
 
-def main():
-    buck = sys.argv[1]
-    fixing = "--fix" in sys.argv[2:]
+def run(buck, fixing):
     found = diagnostics(buck)
     if fixing and found:
         applied = fix(found)
@@ -119,7 +113,4 @@ def main():
     count = report(found)
     if count:
         print("clippy: {} findings.".format(count))
-        sys.exit(1)
-
-
-main()
+    return count == 0

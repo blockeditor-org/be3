@@ -141,10 +141,10 @@ Test meaningful behavior such as operation application, invalid or repeated oper
 
 ## 6. Verify
 
-`./scripts/verify` runs the full check from the workspace root: it applies the project's autofixes and runs every lint and test. CI runs the same on a pull request and pushes whatever it changes to the branch.
+`./scripts/buck run //:verify` runs the full check from the workspace root: it applies the project's autofixes and runs every lint and test. CI runs the same on a pull request and pushes whatever it changes to the branch.
 
 ```text
-./scripts/verify
+./scripts/buck run //:verify
 ```
 
 If the block needs a UI, continue with the [plugin editor guide](adding_a_plugin_editor.md).

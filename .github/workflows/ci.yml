@@ -45,7 +45,7 @@ env:
   # an empty value, and ./scripts/buck says so rather than building.
   BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
 
-# ./scripts/verify is one command locally and three jobs here. Its three parts
+# ./scripts/buck run //:verify is one command locally and three jobs here. Its three parts
 # need nothing from one another, and run together they were the longest thing in
 # this workflow by a wide margin, so everything else finished and waited. Split,
 # the wall clock is the longest part rather than the sum of all of them.
@@ -166,12 +166,12 @@ jobs:
       # workspace's Cargo.toml, and buck/sysroot/packages.bzl from
       # buck/sysroot/BUCK, and all three are checked in, so this is what says
       # they still agree. A pull request
-      # that changed a dependency and did not run ./scripts/buckify fails here
+      # that changed a dependency and did not run ./scripts/buck run //:buckify fails here
       # rather than in whichever job first tried to build the crate. reindeer
       # runs on a worker, and is a cache hit unless a manifest changed.
       - name: Check the generated third-party rules are current
         run: |
-          ./scripts/buckify
+          ./scripts/buck run //:buckify
           git diff --exit-code third-party/rust/BUCK buck/cargo/crates.bzl buck/sysroot/packages.bzl
 
       # Everything, on BuildBuddy's workers: the tests jobs above build what
@@ -276,7 +276,7 @@ jobs:
       # and the WASI sysroot it brings itself.
       - uses: ./.github/actions/buck2
 
-      - run: ./scripts/build --target plugins --release --output dist
+      - run: ./scripts/buck build -c be3.profile=release //crates/block-app:plugins --out dist
 
       # Every platform loads these same bytes, so they are uploaded once rather
       # than repeated inside each platform's archive. A manifest resolves its
@@ -420,18 +420,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The host needs no --target-platforms; buck/platforms/cross.bzl
+          # names the rest.
           - name: linux-x86_64
-            target: x86_64-unknown-linux-gnu
+            platforms: ''
           - name: linux-aarch64
-            target: aarch64-unknown-linux-gnu
+            platforms: --target-platforms=root//buck/platforms:linux_arm64
           - name: windows-x86_64
-            target: x86_64-pc-windows-msvc
+            platforms: --target-platforms=root//buck/platforms:windows_x86_64
           - name: windows-aarch64
-            target: aarch64-pc-windows-msvc
+            platforms: --target-platforms=root//buck/platforms:windows_arm64
           - name: macos-aarch64
-            target: aarch64-apple-darwin
+            platforms: --target-platforms=root//buck/platforms:macos_arm64
           - name: macos-x86_64
-            target: x86_64-apple-darwin
+            platforms: --target-platforms=root//buck/platforms:macos_x86_64
     steps:
       # persist-credentials: false, because none of these jobs push, and a
       # checkout that keeps the token leaves it readable in .git/config to
@@ -442,10 +444,16 @@ jobs:
 
       - uses: ./.github/actions/buck2
 
+      # The app and the server under cargo's names, and PDFium: what
+      # //crates/block-app:dist is. A release build, which says which commit
+      # it is.
       - name: Build
         env:
-          TARGET: ${{ matrix.target }}
-        run: ./scripts/build --target "$TARGET" --release --output dist --no-plugins
+          PLATFORMS: ${{ matrix.platforms }}
+          COMMIT: ${{ github.sha }}
+        run: >-
+          ./scripts/buck build $PLATFORMS -c be3.profile=release -c "be3.commit=$COMMIT"
+          //crates/block-app:dist --out dist
 
       - uses: actions/upload-artifact@v7
         with:
@@ -543,7 +551,7 @@ jobs:
         run: |
           author="$APP_SLUG[bot]"
           if [ "$(git log -1 --format=%an)" = "$author" ]; then
-            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/verify and commit what it changes."
+            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/buck run //:verify and commit what it changes."
             exit 1
           fi
 
@@ -552,13 +560,13 @@ jobs:
           for patch in "$RUNNER_TEMP"/autofix/*.patch; do
             git apply --index "$patch"
           done
-          git commit --quiet --message 'style: apply the fixes from ./scripts/verify'
+          git commit --quiet --message 'style: apply the fixes from ./scripts/buck run //:verify'
           git show --stat HEAD
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
 
   # The merge queue's decision logic is JavaScript rather than Rust, so
-  # ./scripts/verify's three parts do not compile it and buck2 does not
+  # ./scripts/buck run //:verify's three parts do not compile it and buck2 does not
   # run it. It is a few seconds of Node either way, and what it guards is the
   # thing that decides whether a pull request merges, so it gets a job of its
   # own and a place in the gate below.
