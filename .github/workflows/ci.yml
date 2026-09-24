@@ -96,13 +96,15 @@ jobs:
 
       # block-app links GTK and WebKitGTK for the file picker and the embedded
       # browser, and ALSA for audio playback, so the workspace does not
-      # compile without their headers. Clippy links nothing, but the build
+      # compile without their headers. be-compositor's session backend adds
+      # GBM, libinput, libseat and udev. Clippy links nothing, but the build
       # scripts that ask pkg-config for those libraries still run.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
+            libgbm-dev libinput-dev libseat-dev libudev-dev
 
       # Each game's build script builds the same crate again as a wasm module
       # the host loads, so even a native check of one needs the wasm target.
@@ -160,6 +162,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
+            libgbm-dev libinput-dev libseat-dev libudev-dev \
             libvulkan1 mesa-vulkan-drivers
 
       # Each game's build script builds the same crate again as a wasm module
@@ -221,6 +224,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
+            libgbm-dev libinput-dev libseat-dev libudev-dev \
             libvulkan1 mesa-vulkan-drivers
 
       # Every plugin's tests are compiled to wasm and run in the plugin host,

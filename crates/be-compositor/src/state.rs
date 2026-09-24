@@ -102,13 +102,15 @@ impl ClientData for ClientState {
     fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
 }
 
+pub type DmabufCheck = Box<dyn FnMut(&Dmabuf) -> bool>;
+
 pub struct State {
     handle: DisplayHandle,
     waiter: Waiter,
     blocked: Vec<Blocked>,
     dmabuf: DmabufState,
     dmabuf_formats: Vec<Format>,
-    dmabuf_check: Option<Box<dyn FnMut(&Dmabuf) -> bool>>,
+    dmabuf_check: Option<DmabufCheck>,
     syncobj: Option<DrmSyncobjState>,
     start: Instant,
     compositor: CompositorState,
@@ -194,7 +196,7 @@ impl State {
         &mut self,
         formats: Vec<Format>,
         render_node: Option<u64>,
-        check: Option<Box<dyn FnMut(&Dmabuf) -> bool>>,
+        check: Option<DmabufCheck>,
     ) {
         if formats.is_empty() {
             return;
