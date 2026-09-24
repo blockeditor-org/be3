@@ -12,6 +12,7 @@ use crate::filter::{ColorVision, Filter};
 use crate::flash;
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, Event, Key as InputKey};
+use crate::interact::Keys;
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -383,6 +384,16 @@ impl Inspector {
         self.state.picking.get() || self.grabbed.is_some() || self.state.screen_reader.get()
     }
 
+    pub(crate) fn keys(&self) -> Keys {
+        if self.state.picking.get() || self.grabbed.is_some() {
+            return Keys::Ignored;
+        }
+        match self.state.screen_reader.get() {
+            true => Keys::BesideScreenReader,
+            false => Keys::All,
+        }
+    }
+
     pub(crate) fn toggle_picking(&self) {
         self.state.toggle_picking();
     }
@@ -434,7 +445,11 @@ impl Inspector {
         let document = &mut self.document;
         if panel.is_positive() {
             ctx.scaled(scale, || {
-                document.show_content(ctx, panel.scaled(scale.recip()), true, keyboard_interactive);
+                let keys = match keyboard_interactive {
+                    true => Keys::All,
+                    false => Keys::Ignored,
+                };
+                document.show_content(ctx, panel.scaled(scale.recip()), true, keys);
             });
         }
         self.show_bar(ctx, bar);
@@ -489,7 +504,7 @@ impl Inspector {
         } = &mut self.bar;
         with_reactive_scope(document, || set_selected.set(selected));
         ctx.scaled(scale, || {
-            document.show_content(ctx, bar.scaled(scale.recip()), true, false);
+            document.show_content(ctx, bar.scaled(scale.recip()), true, Keys::Ignored);
         });
     }
 

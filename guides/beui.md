@@ -1019,15 +1019,22 @@ and then the state - checked, expanded, selected, a slider's percentage,
 "dimmed" for a disabled control. A control with nothing to name it is announced
 as its bare role, which is the point: "button" on its own is the bug.
 
-While the simulation is on the document answers no pointer or keyboard input
-directly, so a click lands nowhere and the only way through the UI is the
-simulation. Keyboard and touch drive it at the same time, with no mode to pick
-between them. From the keyboard, the left and right (or up and down) arrows walk
-an item at a time, Tab and Shift+Tab move between controls, Home and End jump to
-the ends, Enter or Space activates, Minus and Plus adjust, Page Up and Page Down
-scroll, and R repeats the current item. Walking past either end says so and
-reads the item again after it, so the readout never leaves you without the thing
-you are standing on. By touch, dragging a finger reads
+While the simulation is on the document answers no pointer input directly, so a
+click lands nowhere and the only way to reach something is the simulation. The
+keyboard is split the way a platform screen reader splits it: the reader's
+commands all hold Alt, and every other key goes to whatever the document has
+focused. Landing on a control focuses it, so walking to a text field and typing
+types into it, and the arrows, Enter and Space do what the focused control does
+with them. The reader follows focus in turn: when the document moves focus on
+its own - Tab, Shift+Tab, a dialog opening - the reader moves to the control
+that took it and reads it. Keyboard and touch drive it at the same time, with no
+mode to pick between them. From the keyboard, Alt with the left and right (or up
+and down) arrows walks an item at a time, Alt+Shift with the arrows moves
+between controls, Alt+Home and Alt+End jump to the ends, Alt+Enter or Alt+Space
+activates, Alt+Minus and Alt+Plus adjust, Alt+Page Up and Alt+Page Down scroll,
+and Alt+R repeats the current item. The document never sees those keys. Walking
+past either end says so and reads the item again after it, so the readout never
+leaves you without the thing you are standing on. By touch, dragging a finger reads
 whatever is under it, flicking left or right moves an item at a time, flicking
 up or down adjusts a value, a double tap activates, two fingers tapping repeats,
 and dragging two fingers scrolls; turning "Emulate touch with mouse" on as well

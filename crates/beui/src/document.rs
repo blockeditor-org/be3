@@ -16,7 +16,7 @@ use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::input::{Event, Key, KeyPress};
 
 use crate::inspector::{Inspector, Layout};
-use crate::interact;
+use crate::interact::{self, Keys};
 use crate::layout;
 use crate::node::{Arena, NodeId, NodeMap};
 use crate::paint::{self, PaintCache, Painted};
@@ -555,8 +555,13 @@ impl Document {
             .inspector
             .as_ref()
             .is_some_and(|inspector| inspector.document.focused_node().is_some());
+        let keys = match &self.inspector {
+            _ if inspector_has_focus => Keys::Ignored,
+            Some(inspector) => inspector.keys(),
+            None => Keys::All,
+        };
         if layout.app_visible {
-            self.show_content(ctx, layout.content, !intercepted, !inspector_has_focus);
+            self.show_content(ctx, layout.content, !intercepted, keys);
         } else {
             self.viewport = None;
         }
@@ -574,13 +579,7 @@ impl Document {
         ctx.show_mouse_simulation(viewport);
     }
 
-    pub(crate) fn show_content(
-        &mut self,
-        ctx: &Context,
-        rect: Rect,
-        interactive: bool,
-        keyboard_interactive: bool,
-    ) {
+    pub(crate) fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();
@@ -615,7 +614,7 @@ impl Document {
             context.run(|| crate::reactive::with_document(|document| document.run_frame_hooks()));
         }
 
-        if interactive {
+        if pointer || keys != Keys::Ignored {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
                 if let Some(root) = self.root {
                     let rects = Rc::clone(&self.rects);
@@ -624,14 +623,7 @@ impl Document {
                     let _guard = crate::reactive::install(self);
                     context.run(|| {
                         crate::reactive::with_document(|document| {
-                            interact::interact(
-                                document,
-                                ctx,
-                                &painter,
-                                &rects,
-                                root,
-                                keyboard_interactive,
-                            )
+                            interact::interact(document, ctx, &painter, &rects, root, pointer, keys)
                         });
                     });
                 }

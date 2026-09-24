@@ -11,13 +11,21 @@ use crate::node::{InteractInput, NodeId, NodeMap};
 
 pub(crate) const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Keys {
+    Ignored,
+    All,
+    BesideScreenReader,
+}
+
 pub(crate) fn interact(
     doc: &mut Document,
     ctx: &Context,
     painter: &Painter,
     rects: &NodeMap<Rect>,
     root: NodeId,
-    keyboard_interactive: bool,
+    pointer: bool,
+    keys: Keys,
 ) {
     let modifiers = ctx.input(|input| input.modifiers);
     let wheel = ctx.input(|input| input.scroll_delta);
@@ -51,6 +59,10 @@ pub(crate) fn interact(
         touch_scroll_target: None,
         clicks: ctx.input(|input| input.pointer.clicks()),
         modifiers,
+    };
+    let input = match pointer {
+        true => input,
+        false => without_pointer(input),
     };
 
     if input.touch_started {
@@ -98,12 +110,15 @@ pub(crate) fn interact(
     let zoom_target = (input.zoom != 1.0 || input.touch_pan != Vec2::ZERO)
         .then(|| target(doc, rects, root, input.zoom_pos, &wants_gestures))
         .flatten();
-    let (vertical, horizontal) = ctx.input(|state| {
-        (
-            state.touch.scrolling(),
-            state.touch.scrolling_horizontally(),
-        )
-    });
+    let (vertical, horizontal) = match pointer {
+        true => ctx.input(|state| {
+            (
+                state.touch.scrolling(),
+                state.touch.scrolling_horizontally(),
+            )
+        }),
+        false => (false, false),
+    };
     let touch_scroll_target = match (vertical, horizontal) {
         (true, _) => doc.touch_scroll_vertical,
         (_, true) => doc.touch_scroll_horizontal,
@@ -210,7 +225,7 @@ pub(crate) fn interact(
     }
 
     doc.validate_focus();
-    if ctx.pointer_locked() && keyboard_interactive {
+    if ctx.pointer_locked() && pointer && keys != Keys::Ignored {
         let motion = ctx.input(|input| input.pointer.motion);
         if motion != Vec2::ZERO {
             doc.motion_focused(motion);
@@ -228,7 +243,12 @@ pub(crate) fn interact(
                 }
                 continue;
             }
-            Event::Text(_) | Event::Key { .. } if !keyboard_interactive => continue,
+            Event::Text(_) | Event::Key { .. } if keys == Keys::Ignored => continue,
+            Event::Key { .. }
+                if keys == Keys::BesideScreenReader && crate::screen_reader::claims(&event) =>
+            {
+                continue;
+            }
             Event::Text(text) => {
                 doc.text_focused(&text);
                 doc.reveal_focus(painter);
@@ -291,6 +311,31 @@ pub(crate) fn interact(
     }
     if !input.pointer_down {
         doc.pointer_capture = None;
+    }
+}
+
+fn without_pointer(input: InteractInput) -> InteractInput {
+    InteractInput {
+        pointer_pos: None,
+        pointer_down: false,
+        pressed_this_frame: false,
+        released_this_frame: false,
+        secondary_pressed_this_frame: false,
+        middle_down: false,
+        middle_pressed_this_frame: false,
+        scroll: Vec2::ZERO,
+        zoom: 1.0,
+        touch_pan: Vec2::ZERO,
+        zoom_pos: None,
+        touch_started: false,
+        touch_active: false,
+        touch_ended: false,
+        touch_cancelled: false,
+        touch_dragged: false,
+        touch_scroll_delta: Vec2::ZERO,
+        touch_velocity: Vec2::ZERO,
+        clicks: 0,
+        ..input
     }
 }
 
