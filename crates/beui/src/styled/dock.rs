@@ -16,7 +16,7 @@ use crate::styled::theme::{BORDER_WIDTH, CARD_RADIUS, FONT_BODY, RADIUS, use_the
 use crate::unstyled;
 use crate::unstyled::{
     DockPanelHandle, DockPreviewHandle, DockSplitterHandle, DockState, DockTabHandle,
-    DockWindowGripHandle, DockWindowHandle, Entry, MenuItem, TabId,
+    DockWindowGripHandle, DockWindowHandle, Entry, GroupId, MenuItem, TabId,
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
@@ -41,13 +41,16 @@ pub fn DockArea(
     on_change: Callback<DockState>,
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
+    group_title: Option<Func<GroupId, Option<String>>>,
     closable: Option<Func<TabId, bool>>,
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
     let closable = closable.unwrap_or_else(|| Func::new(|_| true));
+    let group_title = group_title.unwrap_or_else(|| Func::new(|_| None));
     view! {
         <unstyled::Dock
             state
+            group_title
             group_inset=GROUP_INSET
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}
@@ -103,10 +106,12 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
         split,
         ungroup,
         floating,
+        pinned,
         ..
     } = handle;
-    let closable =
-        create_memo(move || tabs.with(|tabs| tabs.iter().all(|tab| closable.call(*tab))));
+    let closable = create_memo(move || {
+        !pinned && tabs.with(|tabs| tabs.iter().all(|tab| closable.call(*tab)))
+    });
     let alone = create_memo(clone!(has_next -> move || !has_next.get()));
     let grouped = matches!(entry, Entry::Group(_));
     let closing = close.clone();
@@ -128,7 +133,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 label="Close group"
                 disabled={create_memo(clone!(closable -> move || !closable.get()))}
             />
-            <MenuItem label="Ungroup" />
+            <MenuItem label="Ungroup" disabled={pinned} />
         },
     };
     view! {

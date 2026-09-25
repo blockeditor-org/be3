@@ -250,12 +250,114 @@ struct Surface {
 struct Group {
     id: GroupId,
     root: Node,
+    pinned: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DockTree {
+    Tabs {
+        entries: Vec<DockTreeEntry>,
+        active: usize,
+    },
+    Split {
+        direction: Direction,
+        fraction: f32,
+        first: Box<DockTree>,
+        second: Box<DockTree>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DockTreeEntry {
+    Tab(TabId),
+    Group(DockTree),
+}
+
+impl Default for DockTree {
+    fn default() -> Self {
+        DockTree::Tabs {
+            entries: Vec::new(),
+            active: 0,
+        }
+    }
+}
+
+impl DockTree {
+    pub fn tabs(&self) -> Vec<TabId> {
+        let mut tabs = Vec::new();
+        self.collect_tabs(&mut tabs);
+        tabs
+    }
+
+    fn collect_tabs(&self, out: &mut Vec<TabId>) {
+        match self {
+            DockTree::Tabs { entries, .. } => {
+                for entry in entries {
+                    match entry {
+                        DockTreeEntry::Tab(tab) => out.push(*tab),
+                        DockTreeEntry::Group(group) => group.collect_tabs(out),
+                    }
+                }
+            }
+            DockTree::Split { first, second, .. } => {
+                first.collect_tabs(out);
+                second.collect_tabs(out);
+            }
+        }
+    }
+
+    pub fn without(&self, dropped: &[TabId]) -> DockTree {
+        match self {
+            DockTree::Tabs { entries, active } => {
+                let shown = entries.get(*active);
+                let kept: Vec<DockTreeEntry> = entries
+                    .iter()
+                    .filter_map(|entry| match entry {
+                        DockTreeEntry::Tab(tab) => {
+                            (!dropped.contains(tab)).then_some(DockTreeEntry::Tab(*tab))
+                        }
+                        DockTreeEntry::Group(group) => {
+                            let group = group.without(dropped);
+                            (!group.tabs().is_empty()).then_some(DockTreeEntry::Group(group))
+                        }
+                    })
+                    .collect();
+                let active = shown
+                    .and_then(|shown| kept.iter().position(|entry| entry == shown))
+                    .unwrap_or_else(|| (*active).min(kept.len().saturating_sub(1)));
+                DockTree::Tabs {
+                    entries: kept,
+                    active,
+                }
+            }
+            DockTree::Split {
+                direction,
+                fraction,
+                first,
+                second,
+            } => {
+                let first = first.without(dropped);
+                let second = second.without(dropped);
+                match (first.tabs().is_empty(), second.tabs().is_empty()) {
+                    (false, false) => DockTree::Split {
+                        direction: *direction,
+                        fraction: *fraction,
+                        first: Box::new(first),
+                        second: Box::new(second),
+                    },
+                    (true, false) => second,
+                    (false, true) | (true, true) => first,
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockState {
     surfaces: Vec<Surface>,
     groups: Vec<Group>,
+    homes: Vec<(TabId, GroupId)>,
     focus: Option<LeafId>,
     next: u64,
 }
@@ -271,6 +373,7 @@ impl DockState {
         let mut state = Self {
             surfaces: Vec::new(),
             groups: Vec::new(),
+            homes: Vec::new(),
             focus: None,
             next: 0,
         };
@@ -720,6 +823,7 @@ impl DockState {
     }
 
     pub fn remove(&mut self, tab: TabId) -> bool {
+        self.homes.retain(|(homed, _)| *homed != tab);
         if !self.take(Entry::Tab(tab)) {
             return false;
         }
@@ -751,6 +855,9 @@ impl DockState {
             .leaf()
             .is_some_and(|leaf| self.contains_leaf(entry, leaf))
         {
+            return;
+        }
+        if !self.admits(entry, target) {
             return;
         }
         let alone = self.entries(source).len() == 1;
@@ -845,6 +952,9 @@ impl DockState {
     }
 
     pub fn ungroup(&mut self, group: GroupId) {
+        if self.is_pinned(group) {
+            return;
+        }
         let Some((holder, index)) = self.holder(group) else {
             return;
         };
@@ -904,6 +1014,7 @@ impl DockState {
                 self.groups.push(Group {
                     id: group,
                     root: Node::Leaf(inner),
+                    pinned: false,
                 });
                 if let Some(leaf) = self.leaf_mut(leaf) {
                     leaf.entries[index] = Entry::Group(group);
@@ -952,6 +1063,7 @@ impl DockState {
                 Tree::Surface(surface) => {
                     self.surfaces.retain(|candidate| candidate.id != surface);
                 }
+                Tree::Group(group) if self.is_pinned(group) => {}
                 Tree::Group(group) => {
                     self.take(Entry::Group(group));
                     self.groups.retain(|candidate| candidate.id != group);
@@ -965,7 +1077,12 @@ impl DockState {
     }
 
     fn normalize_once(&mut self) -> bool {
-        let groups: Vec<GroupId> = self.groups.iter().map(|group| group.id).collect();
+        let groups: Vec<GroupId> = self
+            .groups
+            .iter()
+            .filter(|group| !group.pinned)
+            .map(|group| group.id)
+            .collect();
         for group in groups {
             let Some((holder, index)) = self.holder(group) else {
                 self.groups.retain(|candidate| candidate.id != group);
@@ -1037,6 +1154,202 @@ impl DockState {
     fn redirect_focus(&mut self, from: LeafId, to: LeafId) {
         if self.focus == Some(from) {
             self.focus = Some(to);
+        }
+    }
+
+    pub fn is_pinned(&self, group: GroupId) -> bool {
+        self.group(group).is_some_and(|group| group.pinned)
+    }
+
+    pub fn home(&self, tab: TabId) -> Option<GroupId> {
+        self.homes
+            .iter()
+            .find_map(|(homed, group)| (*homed == tab).then_some(*group))
+    }
+
+    pub fn pinned_group_of(&self, leaf: LeafId) -> Option<GroupId> {
+        let mut leaf = leaf;
+        loop {
+            match self.tree_of(leaf)? {
+                Tree::Surface(_) => return None,
+                Tree::Group(group) if self.is_pinned(group) => return Some(group),
+                Tree::Group(group) => leaf = self.holder(group)?.0,
+            }
+        }
+    }
+
+    pub fn admits(&self, entry: Entry, target: DockDrop) -> bool {
+        let destination = match target {
+            DockDrop::Window { .. } => None,
+            DockDrop::Group { leaf, index } => match self.entries(leaf).get(index) {
+                Some(Entry::Group(group)) if self.is_pinned(*group) => Some(*group),
+                _ => self.pinned_group_of(leaf),
+            },
+            DockDrop::Tab { leaf, .. } | DockDrop::Pane { leaf } | DockDrop::Split { leaf, .. } => {
+                self.pinned_group_of(leaf)
+            }
+        };
+        let Some(destination) = destination else {
+            return true;
+        };
+        let tabs = match entry {
+            Entry::Tab(tab) => vec![tab],
+            Entry::Group(group) if self.is_pinned(group) => return false,
+            Entry::Group(group) => self.group_tabs(group),
+        };
+        tabs.into_iter()
+            .all(|tab| self.home(tab) == Some(destination))
+    }
+
+    pub fn insert_pinned_group(&mut self, leaf: LeafId, index: usize, layout: &DockTree) -> GroupId {
+        let group = GroupId(self.mint());
+        let root = Node::Leaf(self.new_leaf(Vec::new()));
+        self.groups.push(Group {
+            id: group,
+            root,
+            pinned: true,
+        });
+        if let Some(target) = self.leaf_mut(leaf) {
+            let index = index.min(target.entries.len());
+            target.entries.insert(index, Entry::Group(group));
+            target.active = index;
+        }
+        self.set_tree(Tree::Group(group), layout);
+        group
+    }
+
+    pub fn from_tree(layout: &DockTree) -> Self {
+        let mut state = Self::new(Vec::new());
+        let main = Tree::Surface(state.main());
+        state.set_tree(main, layout);
+        state
+    }
+
+    pub fn tree(&self, tree: Tree) -> Option<DockTree> {
+        self.root(tree).map(|root| self.export(root))
+    }
+
+    fn export(&self, node: &Node) -> DockTree {
+        match node {
+            Node::Leaf(leaf) => DockTree::Tabs {
+                entries: leaf
+                    .entries
+                    .iter()
+                    .map(|entry| match entry {
+                        Entry::Tab(tab) => DockTreeEntry::Tab(*tab),
+                        Entry::Group(group) => DockTreeEntry::Group(
+                            self.tree(Tree::Group(*group)).unwrap_or_default(),
+                        ),
+                    })
+                    .collect(),
+                active: leaf.active,
+            },
+            Node::Split(split) => DockTree::Split {
+                direction: split.direction,
+                fraction: split.fraction,
+                first: Box::new(self.export(&split.first)),
+                second: Box::new(self.export(&split.second)),
+            },
+        }
+    }
+
+    pub fn set_tree(&mut self, tree: Tree, layout: &DockTree) {
+        if self.tree(tree).as_ref() == Some(layout) || self.root(tree).is_none() {
+            return;
+        }
+        let shown = self
+            .focus
+            .filter(|focus| self.within(*focus, tree))
+            .and_then(|focus| self.active_entry(focus))
+            .and_then(Entry::tab);
+        let nested = self.nested_groups(tree);
+        self.groups.retain(|group| !nested.contains(&group.id));
+        let emptied = Node::Leaf(self.new_leaf(Vec::new()));
+        if let Some(root) = self.root_mut(tree) {
+            *root = emptied;
+        }
+        let incoming = layout.tabs();
+        for tab in &incoming {
+            self.take(Entry::Tab(*tab));
+        }
+        let built = self.build(layout);
+        if let Some(root) = self.root_mut(tree) {
+            *root = built;
+        }
+        if let Tree::Group(group) = tree
+            && self.is_pinned(group)
+        {
+            self.homes.retain(|(tab, _)| !incoming.contains(tab));
+            self.homes.extend(incoming.iter().map(|tab| (*tab, group)));
+        }
+        self.normalize();
+        let refocus = shown
+            .and_then(|tab| self.locate(Entry::Tab(tab)))
+            .map(|(leaf, _)| leaf);
+        match refocus {
+            Some(leaf) => self.focus = Some(leaf),
+            None => self.settle_focus(),
+        }
+    }
+
+    fn within(&self, leaf: LeafId, tree: Tree) -> bool {
+        let mut leaf = leaf;
+        loop {
+            let Some(found) = self.tree_of(leaf) else {
+                return false;
+            };
+            if found == tree {
+                return true;
+            }
+            match found {
+                Tree::Surface(_) => return false,
+                Tree::Group(group) => match self.holder(group) {
+                    Some((holder, _)) => leaf = holder,
+                    None => return false,
+                },
+            }
+        }
+    }
+
+    fn build(&mut self, layout: &DockTree) -> Node {
+        match layout {
+            DockTree::Tabs { entries, active } => {
+                let entries: Vec<Entry> = entries
+                    .iter()
+                    .map(|entry| match entry {
+                        DockTreeEntry::Tab(tab) => Entry::Tab(*tab),
+                        DockTreeEntry::Group(inner) => {
+                            let root = self.build(inner);
+                            let group = GroupId(self.mint());
+                            self.groups.push(Group {
+                                id: group,
+                                root,
+                                pinned: false,
+                            });
+                            Entry::Group(group)
+                        }
+                    })
+                    .collect();
+                let mut leaf = self.new_leaf(entries);
+                leaf.active = (*active).min(leaf.entries.len().saturating_sub(1));
+                Node::Leaf(leaf)
+            }
+            DockTree::Split {
+                direction,
+                fraction,
+                first,
+                second,
+            } => {
+                let first = self.build(first);
+                let second = self.build(second);
+                Node::Split(Split {
+                    id: SplitId(self.mint()),
+                    direction: *direction,
+                    fraction: fraction.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION),
+                    first: Box::new(first),
+                    second: Box::new(second),
+                })
+            }
         }
     }
 

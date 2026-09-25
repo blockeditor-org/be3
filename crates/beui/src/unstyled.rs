@@ -30,7 +30,8 @@ pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
     Dock, DockDrop, DockLayout, DockPanelHandle, DockPreviewHandle, DockSplitter,
-    DockSplitterHandle, DockState, DockTabHandle, DockWindowGripHandle, DockWindowHandle, Entry,
+    DockSplitterHandle, DockState, DockTabHandle, DockTree, DockTreeEntry, DockWindowGripHandle,
+    DockWindowHandle, Entry,
     GroupId, LeafId, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree,
     dock_state, layout_surface, layout_tree,
 };
