@@ -170,10 +170,6 @@ toolchain_alias(
     visibility = ["PUBLIC"],
 )
 
-# Which of Cargo's profiles the build stands in for: dev unless the command
-# says `-c be3.profile=release`.
-_profile = read_config("be3", "profile", "dev")
-
 _release = ["-Copt-level=3", "-Cdebuginfo=0"]
 
 pinned_rust_toolchain(
@@ -193,14 +189,20 @@ pinned_rust_toolchain(
     nightly_features = False,
     # Cargo's dev profile on the host, and its plugin profile on wasm, since
     # cranelift is far slower at an unoptimised module; the opt level is also what
-    # tells build scripts OPT_LEVEL. `-c be3.profile=release` is cargo's release
-    # profile.
+    # tells build scripts OPT_LEVEL. buck/constraints:release, which the
+    # <name>_release platforms carry, is cargo's release profile.
     rustc_flags = select({
-        "DEFAULT": _release if _profile == "release" else ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
-        "prelude//cpu:wasm32": (_release if _profile == "release" else ["-Copt-level=2", "-Cdebuginfo=0"]) + ["-Cstrip=debuginfo"],
+        "DEFAULT": select({
+            "DEFAULT": ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
+            "prelude//cpu:wasm32": ["-Copt-level=2", "-Cdebuginfo=0"],
+        }),
+        "root//buck/constraints:release": _release,
+    }) + select({
+        "DEFAULT": [],
+        "prelude//cpu:wasm32": ["-Cstrip=debuginfo"],
         # Packed, macOS's default, runs dsymutil after the link, which is
         # Apple's and not something a Linux worker has.
-        "prelude//os:macos": (_release if _profile == "release" else ["-Copt-level=0", "-Cdebuginfo=line-tables-only"]) + ["-Csplit-debuginfo=unpacked"],
+        "prelude//os:macos": ["-Csplit-debuginfo=unpacked"],
     }),
     rustc_target_triple = per_cross_platform(
         "x86_64-unknown-linux-gnu",
