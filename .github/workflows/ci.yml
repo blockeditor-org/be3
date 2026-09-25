@@ -291,9 +291,9 @@ jobs:
   # not this repository's to push to, and a fork's run has no secrets to push
   # with, so there the failure and its patches are the whole of the answer.
   #
-  # Not in the gate below. Whether the pull request passes was decided by
-  # verify; this only decides whether its author has to push the fix
-  # themselves.
+  # The gate below waits for this but does not judge it. Whether the pull
+  # request passes was decided by verify; this only decides whether its author
+  # has to push the fix themselves.
   autofix:
     name: push autofixes
     if: >-
@@ -509,9 +509,16 @@ jobs:
           fi
 
   # The one check the ruleset on main requires, and the only thing the merge
-  # queue in merge-queue.yml waits for. Everything above is a job this needs,
-  # so requiring this one name requires all of them, and adding a job to the
-  # list above extends the gate without anyone editing the ruleset.
+  # queue in merge-queue.yml waits for. Every job it names in needs other than
+  # autofix has to pass, so requiring this one name requires all of them, and
+  # adding a job to the check below extends the gate without anyone editing
+  # the ruleset.
+  #
+  # It waits for autofix without judging it. A failure here is what makes the
+  # merge queue give up on a pull request, and a verification the autofix job
+  # is about to fix is not one to give up on: the fix is pushed as the queue's
+  # own app, which the queue keeps queued, and CI starts again on it. Waiting
+  # means that by the time this fails, that push has already happened.
   #
   # always(), and nothing else. A job whose `if` is false does not run, and
   # GitHub reports what did not run as a skipped check run, which a required
@@ -524,12 +531,11 @@ jobs:
   ci-ok:
     name: 'CI OK'
     if: always()
-    needs: [build, verify]
+    needs: [build, verify, autofix]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to have passed
         if: >-
-          contains(needs.*.result, 'failure') ||
-          contains(needs.*.result, 'cancelled') ||
-          contains(needs.*.result, 'skipped')
+          needs.build.result != 'success' ||
+          needs.verify.result != 'success'
         run: exit 1
