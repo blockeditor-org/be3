@@ -106,6 +106,8 @@ pub struct TabPosition {
 pub const MIN_FRACTION: f32 = 0.05;
 pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
+pub const SIDEBAR_WIDTH: f32 = 180.0;
+pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Leaf {
@@ -113,6 +115,7 @@ struct Leaf {
     entries: Vec<Entry>,
     active: usize,
     vertical: bool,
+    sidebar: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -197,6 +200,7 @@ impl Node {
             entries: Vec::new(),
             active: 0,
             vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         });
         let existing = std::mem::replace(slot, placeholder);
         *slot = build(existing);
@@ -299,6 +303,7 @@ impl DockState {
             entries,
             active: 0,
             vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         }
     }
 
@@ -511,6 +516,16 @@ impl DockState {
     pub fn set_vertical(&mut self, leaf: LeafId, vertical: bool) {
         if let Some(leaf) = self.leaf_mut(leaf) {
             leaf.vertical = vertical;
+        }
+    }
+
+    pub fn sidebar_width(&self, leaf: LeafId) -> f32 {
+        self.leaf(leaf).map_or(SIDEBAR_WIDTH, |leaf| leaf.sidebar)
+    }
+
+    pub fn set_sidebar_width(&mut self, leaf: LeafId, width: f32) {
+        if let Some(leaf) = self.leaf_mut(leaf) {
+            leaf.sidebar = width.max(MIN_SIDEBAR_WIDTH);
         }
     }
 
@@ -841,7 +856,7 @@ impl DockState {
                 && landed != leaf
                 && self.entries(landed).len() == 1
             {
-                self.set_vertical(landed, moved.vertical);
+                self.dress(landed, moved.vertical, moved.sidebar);
             }
             return;
         }
@@ -871,7 +886,7 @@ impl DockState {
                     false => self.insert_entries(onto, usize::MAX, moved.entries, shown),
                 };
                 if let Some(landed) = landed {
-                    self.set_vertical(landed, moved.vertical);
+                    self.dress(landed, moved.vertical, moved.sidebar);
                 }
                 landed
             }
@@ -890,7 +905,7 @@ impl DockState {
                     self.open_window_with(Rect::from_min_size(pos, FLOATING_SIZE), moved.entries);
                 let landed = self.leaves(surface).first().copied();
                 if let Some(landed) = landed {
-                    self.set_vertical(landed, moved.vertical);
+                    self.dress(landed, moved.vertical, moved.sidebar);
                 }
                 landed
             }
@@ -906,6 +921,13 @@ impl DockState {
         }
         self.normalize();
         self.settle_focus();
+    }
+
+    fn dress(&mut self, leaf: LeafId, vertical: bool, sidebar: f32) {
+        if let Some(leaf) = self.leaf_mut(leaf) {
+            leaf.vertical = vertical;
+            leaf.sidebar = sidebar;
+        }
     }
 
     fn insert_entries(
@@ -1057,6 +1079,7 @@ impl DockState {
             entries: Vec::new(),
             active: 0,
             vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         });
         let taken = std::mem::replace(root, placeholder);
         match taken.without_leaf(leaf) {

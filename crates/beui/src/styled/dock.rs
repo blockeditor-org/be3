@@ -16,7 +16,7 @@ use crate::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use crate::unstyled;
 use crate::unstyled::{
     DockDragged, DockGripHandle, DockPanelHandle, DockPreviewHandle, DockSplitterHandle, DockState,
-    DockTabHandle, DockWindowHandle, Entry, MenuItem, TabId,
+    DockTabHandle, DockWindowHandle, Entry, MenuItem, SPLITTER_THICKNESS, TabId, sidebar_size,
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
@@ -26,7 +26,6 @@ const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 4.0;
 const WINDOW_BAR_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
-const SIDEBAR_WIDTH: f32 = 180.0;
 const GRIP_PADDING: f32 = 3.0;
 const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
@@ -245,6 +244,8 @@ fn DockPanelFace(handle: DockPanelHandle, closable: Func<TabId, bool>) -> NodeId
         vertical,
         focused,
         contents,
+        sidebar_width,
+        sidebar_splitter,
         grip,
         bar,
         close,
@@ -261,6 +262,8 @@ fn DockPanelFace(handle: DockPanelHandle, closable: Func<TabId, bool>) -> NodeId
                     focused
                     grip={grip.unwrap_or_else(|| unreachable!())}
                     tabs={bar}
+                    sidebar_width
+                    sidebar_splitter
                     title=String::new()
                     closable
                     close={move || close.call()}
@@ -282,6 +285,8 @@ fn DockWindowFace(handle: DockWindowHandle, closable: Func<TabId, bool>) -> Node
         focused,
         title,
         contents,
+        sidebar_width,
+        sidebar_splitter,
         grip,
         tabs,
         close,
@@ -295,6 +300,8 @@ fn DockWindowFace(handle: DockWindowHandle, closable: Func<TabId, bool>) -> Node
             focused
             grip
             tabs
+            sidebar_width
+            sidebar_splitter
             title
             closable
             close={move || close.call()}
@@ -309,11 +316,15 @@ fn DockChrome(
     focused: Memo<bool>,
     grip: NodeId,
     #[prop(default = None)] tabs: Prop<Option<NodeId>>,
+    sidebar_width: Memo<f32>,
+    #[prop(default = None)] sidebar_splitter: Prop<Option<NodeId>>,
     title: Prop<String>,
     closable: Memo<bool>,
     close: ClickCallback,
     body: NodeId,
 ) -> NodeId {
+    let sidebar_splitter = sidebar_splitter.peek();
+    let sidebar = sidebar_size(vertical, sidebar_width);
     let theme = use_theme();
     let outline = create_memo(clone!(theme focused -> move || match focused.get() {
         true => theme.accent.get(),
@@ -345,8 +356,11 @@ fn DockChrome(
                         title={side_title}
                         closable={side_closable}
                         close={move || side_close.call()}
-                        @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
+                        @sizing={sidebar}
                     />
+                </Show>
+                <Show condition={sidebar_splitter.is_some()}>
+                    {sidebar_splitter.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
                 </Show>
                 <Show condition={!vertical}>
                     <DockTitleBar grip tabs title closable close={move || close.call()} />

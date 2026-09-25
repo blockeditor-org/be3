@@ -617,9 +617,10 @@ grip carries the whole pane (`DockState::drop_leaf`), with the same drop targets
 a tab has. A window holds one pane, so a tab dropped anywhere inside one joins
 it rather than splitting it, and that pane's bar is the window's title bar:
 anywhere on it that is not a tab drags the window. Right-clicking a grip moves
-that pane's tabs into a sidebar beside its body (`DockState::set_vertical`); a
-window in that mode has no title bar, only the sidebar with the grip and the
-close button at its top. Windows resize from any of
+that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
+whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
+that mode has no title bar, only the sidebar with the grip and the close button
+at its top. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
 registered with `on_shortcut` so they arrive even from inside a text input in a
 panel. The bar between two panes is a tab
