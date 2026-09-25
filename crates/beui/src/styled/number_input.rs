@@ -62,6 +62,7 @@ pub fn NumberInput(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
     on_change: Callback<f64>,
+    on_preview: Callback<Option<f64>>,
 ) -> NodeId {
     let (text, set_text) = create_signal(format_number(value.peek()));
     let (editing, set_editing) = create_signal(false);
@@ -121,10 +122,8 @@ pub fn NumberInput(
         set_text.set(format_number(next));
         changed.call(next);
     });
-    let original = Rc::new(Cell::new(value.peek()));
-    let open = clone!(off set_editing original value -> move || {
+    let open = clone!(off set_editing -> move || {
         if !off.get_untracked() {
-            original.set(value.peek());
             set_editing.set(true);
         }
     });
@@ -136,40 +135,44 @@ pub fn NumberInput(
         }
     });
 
-    let restore = on_change.clone();
+    let previewed = on_preview.clone();
     let edited = clone!(set_text -> move |typed: String| {
         set_text.set(typed.clone());
-        if let Some(parsed) = parse(&typed) {
-            on_change.call(parsed.clamp(min, max));
-        }
+        previewed.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
     });
-    let close = clone!(value text set_text set_editing -> move || {
-        let shown = value.peek();
-        if parse(&text.get_untracked()) != Some(shown) {
-            set_text.set(format_number(shown));
+    let finish = clone!(value text set_text editing set_editing -> move |keep: bool| {
+        if !editing.get_untracked() {
+            return;
         }
         set_editing.set(false);
+        let typed = parse(&text.get_untracked())
+            .filter(|_| keep)
+            .map(|typed| typed.clamp(min, max));
+        let shown = value.peek();
+        match typed {
+            Some(typed) if typed != shown => {
+                set_text.set(format_number(typed));
+                on_change.call(typed);
+            }
+            _ => set_text.set(format_number(shown)),
+        }
+        on_preview.call(None);
     });
-    let submitted = clone!(close set_refocus -> move |_: String| {
+    let submitted = clone!(finish set_refocus -> move |_: String| {
         set_refocus.set(true);
-        close();
+        finish(true);
     });
-    let focus_changed = clone!(close -> move |focused: bool| {
+    let focus_changed = clone!(finish -> move |focused: bool| {
         if !focused {
-            close();
+            finish(true);
         }
     });
-    let escaped = clone!(value set_text set_editing set_refocus -> move |press: KeyPress| {
+    let escaped = clone!(set_refocus -> move |press: KeyPress| {
         if press.key != Key::Escape {
             return false;
         }
-        let before = original.get();
-        set_text.set(format_number(before));
-        if value.peek() != before {
-            restore.call(before);
-        }
         set_refocus.set(true);
-        set_editing.set(false);
+        finish(false);
         true
     });
     let button_focus = move |has_focus: bool| {
