@@ -6,7 +6,7 @@ use crate::input::{CursorIcon, Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCatcher, Focusable, Prop, ReadSignal, Render, clone, component_accessibility,
-    create_effect, create_signal, each_frame, on_cleanup, try_with_document, untrack,
+    create_effect, create_signal, on_cleanup, try_with_document, untrack, with_document,
 };
 
 pub struct PointerLockHandle {
@@ -30,8 +30,11 @@ pub fn PointerLock(
     let (hovered, set_hovered) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
 
-    create_effect(clone!(locked_read -> move || publish(locked_read.get())));
-    each_frame(clone!(locked_read -> move || publish(untrack(|| locked_read.get()))));
+    let attached = with_document(|document| document.watch_context());
+    create_effect(clone!(locked_read -> move || {
+        attached.get();
+        publish(locked_read.get());
+    }));
     on_cleanup(|| publish(false));
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
