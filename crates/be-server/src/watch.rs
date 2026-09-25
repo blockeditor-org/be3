@@ -5,6 +5,8 @@ use std::{
 
 use be_protocol::ServerMessage;
 use tokio::sync::{Mutex, mpsc::UnboundedSender};
+
+use crate::Identity;
 use uuid::Uuid;
 
 #[derive(Default)]
@@ -12,7 +14,7 @@ pub struct WatchHub {
     next: AtomicU64,
     clients: Mutex<HashMap<u64, UnboundedSender<ServerMessage>>>,
     watchers: Mutex<HashMap<Uuid, HashSet<u64>>>,
-    workspaces: Mutex<HashMap<u64, Uuid>>,
+    workspaces: Mutex<HashMap<u64, Identity>>,
 }
 
 impl WatchHub {
@@ -45,8 +47,18 @@ impl WatchHub {
         }
     }
 
-    pub async fn join_workspace(&self, client: u64, workspace: Uuid) {
-        self.workspaces.lock().await.insert(client, workspace);
+    pub async fn join_workspace(&self, client: u64, identity: Identity) {
+        self.workspaces.lock().await.insert(client, identity);
+    }
+
+    pub async fn members(&self, workspace: Uuid) -> Vec<(u64, Identity)> {
+        self.workspaces
+            .lock()
+            .await
+            .iter()
+            .filter(|(_, joined)| joined.workspace == workspace)
+            .map(|(client, identity)| (*client, *identity))
+            .collect()
     }
 
     pub async fn announce(&self, workspace: Uuid, message: ServerMessage) {
@@ -55,7 +67,7 @@ impl WatchHub {
             .lock()
             .await
             .iter()
-            .filter(|(_, joined)| **joined == workspace)
+            .filter(|(_, joined)| joined.workspace == workspace)
             .map(|(client, _)| *client)
             .collect();
         let clients = self.clients.lock().await;

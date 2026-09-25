@@ -16,11 +16,30 @@ pub enum WorkspaceRole {
     Editor,
 }
 
+impl WorkspaceRole {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Administrator => "Administrator",
+            Self::Editor => "Editor",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Workspace {
     pub id: Uuid,
     pub name: String,
     pub role: WorkspaceRole,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkspaceInvitation {
+    pub id: Uuid,
+    pub workspace: Uuid,
+    pub workspace_name: String,
+    pub email: String,
+    pub role: WorkspaceRole,
+    pub invited_by: Uuid,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -57,6 +76,7 @@ pub struct AccessEntry {
     pub account: Uuid,
     pub email: String,
     pub display_name: String,
+    pub role: WorkspaceRole,
     pub granted: Option<Access>,
     pub effective: Access,
 }
@@ -75,6 +95,8 @@ pub enum ErrorCode {
     ParentCycle,
     Storage,
     WorkspaceNotFound,
+    RegistrationDisabled,
+    InvitationNotFound,
 }
 
 impl fmt::Display for ErrorCode {
@@ -103,6 +125,9 @@ pub enum ClientMessage {
     Adopt {
         request: u64,
     },
+    Logout {
+        request: u64,
+    },
     ListWorkspaces {
         request: u64,
     },
@@ -113,6 +138,20 @@ pub enum ClientMessage {
     OpenWorkspace {
         request: u64,
         workspace: Uuid,
+    },
+    Invite {
+        request: u64,
+        workspace: Uuid,
+        email: String,
+        role: WorkspaceRole,
+    },
+    ListInvitations {
+        request: u64,
+    },
+    RespondInvitation {
+        request: u64,
+        invitation: Uuid,
+        accept: bool,
     },
 
     PutObject {
@@ -250,6 +289,10 @@ impl ClientMessage {
             | Self::Login { request, .. }
             | Self::Authenticate { request, .. }
             | Self::Adopt { request }
+            | Self::Logout { request }
+            | Self::Invite { request, .. }
+            | Self::ListInvitations { request }
+            | Self::RespondInvitation { request, .. }
             | Self::ListWorkspaces { request }
             | Self::CreateWorkspace { request, .. }
             | Self::OpenWorkspace { request, .. }
@@ -302,12 +345,17 @@ pub enum ServerMessage {
     Authenticated {
         request: u64,
         account: Uuid,
+        email: String,
         display_name: String,
         token: String,
     },
     Workspaces {
         request: u64,
         workspaces: Vec<Workspace>,
+    },
+    Invitations {
+        request: u64,
+        invitations: Vec<WorkspaceInvitation>,
     },
     WorkspaceOpened {
         request: u64,
@@ -395,6 +443,7 @@ impl ServerMessage {
             | Self::Failed { request, .. }
             | Self::Authenticated { request, .. }
             | Self::Workspaces { request, .. }
+            | Self::Invitations { request, .. }
             | Self::WorkspaceOpened { request, .. }
             | Self::Stored { request, .. }
             | Self::Object { request, .. }

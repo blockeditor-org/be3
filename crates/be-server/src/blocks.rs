@@ -1,6 +1,6 @@
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, ObjectRefs};
-use be_protocol::{AccessEntry, BlockSummary, ErrorCode, HistoryEntry};
+use be_protocol::{AccessEntry, BlockSummary, ErrorCode, HistoryEntry, WorkspaceRole};
 use be_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -15,20 +15,38 @@ pub enum PublishOutcome {
     Rejected(Option<CommitId>),
 }
 
-fn access_for(graph: &BlockGraph, member: bool, account: Uuid, block: Uuid) -> Access {
-    if graph.get(block).is_none() {
-        return Access::None;
+struct Visibility {
+    administrator: bool,
+    access: std::collections::BTreeMap<Uuid, Access>,
+}
+
+impl Visibility {
+    fn of(graph: &BlockGraph, account: Uuid, role: WorkspaceRole) -> Self {
+        let administrator = role == WorkspaceRole::Administrator;
+        Self {
+            administrator,
+            access: match administrator {
+                true => std::collections::BTreeMap::new(),
+                false => graph.access_map(account),
+            },
+        }
     }
-    let granted = graph.access(block, account);
-    if member {
-        granted.max(Access::Edit)
-    } else {
-        granted
+
+    fn access(&self, graph: &BlockGraph, block: Uuid) -> Access {
+        match (graph.contains(block), self.administrator) {
+            (false, _) => Access::None,
+            (true, true) => Access::Edit,
+            (true, false) => self.access.get(&block).copied().unwrap_or_default(),
+        }
     }
 }
 
+fn visibility(graph: &BlockGraph, identity: Identity) -> Visibility {
+    Visibility::of(graph, identity.account, identity.role)
+}
+
 fn effective_access(graph: &BlockGraph, identity: Identity, block: Uuid) -> Access {
-    access_for(graph, true, identity.account, block)
+    visibility(graph, identity).access(graph, block)
 }
 
 fn require_edit(graph: &BlockGraph, identity: Identity, block: Uuid) -> Result<(), ServerError> {
@@ -48,6 +66,10 @@ fn require_edit(graph: &BlockGraph, identity: Identity, block: Uuid) -> Result<(
 }
 
 fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockSummary> {
+    summary_with(graph, &visibility(graph, identity), block)
+}
+
+fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<BlockSummary> {
     let node = graph.get(block)?;
     Some(BlockSummary {
         id: block,
@@ -55,7 +77,7 @@ fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockS
         author: node.author,
         parent: node.parent,
         head: node.head,
-        access: effective_access(graph, identity, block),
+        access: seen.access(graph, block),
         references: node.references.clone(),
         metadata: node.metadata.clone(),
     })
@@ -117,11 +139,48 @@ impl ServerStore {
 
     pub async fn list_blocks(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
         self.with_graph(identity.workspace, move |graph, _| {
+            let seen = visibility(graph, identity);
             Ok(graph
                 .ids()
                 .into_iter()
-                .filter_map(|block| summary(graph, identity, block))
+                .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())
+                .collect())
+        })
+        .await
+    }
+
+    pub async fn graph_views(
+        &self,
+        workspace: Uuid,
+        members: Vec<Identity>,
+        blocks: Vec<Uuid>,
+        subtree: bool,
+    ) -> Result<Vec<Vec<be_protocol::ServerMessage>>, ServerError> {
+        self.with_graph(workspace, move |graph, _| {
+            let mut touched = Vec::new();
+            for block in blocks {
+                match subtree && graph.contains(block) {
+                    true => touched.extend(graph.subtree(block)),
+                    false => touched.push(block),
+                }
+            }
+            touched.sort_unstable();
+            touched.dedup();
+            Ok(members
+                .into_iter()
+                .map(|identity| {
+                    let seen = visibility(graph, identity);
+                    touched
+                        .iter()
+                        .map(|block| match summary_with(graph, &seen, *block) {
+                            Some(found) if found.access.can_know_exists() => {
+                                be_protocol::ServerMessage::BlockChanged { block: found }
+                            }
+                            _ => be_protocol::ServerMessage::BlockRemoved { block: *block },
+                        })
+                        .collect()
+                })
                 .collect())
         })
         .await
@@ -281,10 +340,11 @@ impl ServerStore {
         parent: BlockParent,
     ) -> Result<Vec<BlockSummary>, ServerError> {
         self.with_graph(identity.workspace, move |graph, _| {
+            let seen = visibility(graph, identity);
             Ok(graph
                 .children(parent)
                 .into_iter()
-                .filter_map(|block| summary(graph, identity, block))
+                .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())
                 .collect())
         })
@@ -297,10 +357,11 @@ impl ServerStore {
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
         self.with_graph(identity.workspace, move |graph, _| {
+            let seen = visibility(graph, identity);
             Ok(graph
                 .backrefs(block)
                 .into_iter()
-                .filter_map(|referrer| summary(graph, identity, referrer))
+                .filter_map(|referrer| summary_with(graph, &seen, referrer))
                 .filter(|block| block.access.can_know_exists())
                 .collect())
         })
@@ -453,7 +514,8 @@ impl ServerStore {
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             let mut entries = Vec::new();
             let mut statement = database.prepare(
-                "SELECT accounts.id, accounts.email, accounts.display_name FROM memberships
+                "SELECT accounts.id, accounts.email, accounts.display_name, memberships.role
+                 FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id
                  WHERE memberships.workspace_id = ?1",
             )?;
@@ -462,17 +524,20 @@ impl ServerStore {
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
                 ))
             })?;
             for row in rows {
-                let (account, email, display_name) = row?;
+                let (account, email, display_name, role) = row?;
                 let account = parse_uuid(&account)?;
+                let role = crate::store::decode_role(&role)?;
                 entries.push(AccessEntry {
                     account,
                     email,
                     display_name,
+                    role,
                     granted: node.grants.get(&account).copied(),
-                    effective: access_for(graph, true, account, block),
+                    effective: Visibility::of(graph, account, role).access(graph, block),
                 });
             }
             Ok(entries)

@@ -32,6 +32,14 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
             PRIMARY KEY (workspace_id, account_id)
         );
 
+        CREATE TABLE IF NOT EXISTS invitations (
+            id              TEXT PRIMARY KEY,
+            workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            email           TEXT NOT NULL,
+            role            TEXT NOT NULL CHECK (role IN ('administrator', 'editor')),
+            invited_by      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS blocks (
             workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
             id              TEXT NOT NULL,

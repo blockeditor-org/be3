@@ -10,8 +10,8 @@ use be_commit::{
 };
 use be_graph::{Access, BlockParent};
 use be_protocol::{
-    BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, ServerMessage, SessionState,
-    WorkspaceRole,
+    AccessEntry, BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, ServerMessage,
+    SessionState, WorkspaceRole,
 };
 use be_store::{ChunkerConfig, ContentKey, Hash, Manifest, ObjectStore, Vault};
 use uuid::Uuid;
@@ -695,6 +695,17 @@ impl<S: ObjectStore> Peer<S> {
             })
             .await?;
         Ok(())
+    }
+
+    pub async fn list_access(&self, block: Uuid) -> Result<Vec<AccessEntry>, ClientError> {
+        let response = self
+            .connection
+            .request(|request| ClientMessage::ListAccess { request, block })
+            .await?;
+        match response {
+            ServerMessage::AccessList { entries, .. } => Ok(entries),
+            _ => Err(ClientError::Unexpected),
+        }
     }
 
     pub async fn join_session(&self, block: Uuid) -> Result<(ClientId, SessionState), ClientError> {
