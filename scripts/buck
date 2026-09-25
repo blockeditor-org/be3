@@ -24,8 +24,8 @@ if [[ ! -x "$buck2" ]]; then
     "$internal/install-buck2.sh" >&2
 fi
 assert_buildbuddy_key
-remove_generated_buck_config_local
 mkdir -p "$repository/target"
+configure_https_proxy_relay "$buck2"
 ensure_generated_rules "$buck2"
 
 command="${1:-}"

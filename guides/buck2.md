@@ -42,6 +42,15 @@ these in front of the pinned buck2:
   none, a person at a terminal is asked for it and it is saved to
   `.buildbuddy-api-key`; without a terminal it fails and says what to set.
   After changing the key, restart the daemon with `./scripts/buck killall`.
+- **An HTTPS proxy.** buck2's remote execution client dials BuildBuddy directly
+  and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
+  `scripts/internal/re-relay` with Go (1.24 or newer), leaves it running on
+  `127.0.0.1:18980`, and writes a `.buckconfig.local` pointing buck2 at it; the
+  relay sends each call on through the proxy, over HTTP/1.1 if that is all the
+  proxy speaks. It still needs a key, though a proxy that adds BuildBuddy's
+  header itself accepts any value, such as `BUILDBUDDY_API_KEY=proxy-injected`.
+  Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
+  is left alone, and the relay is not used then.
 - **The generated rules.** `third-party/rust/BUCK` (every third-party crate,
   written by reindeer) and `buck/cargo/crates.bzl` (every workspace crate's
   dependencies, features and targets, from cargo's plans) are not checked in.
