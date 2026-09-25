@@ -679,6 +679,11 @@ impl Document {
                 }
             });
         }
+        if keys != Keys::Ignored
+            && let Some(area) = self.focused_ime_area()
+        {
+            ctx.set_ime_area(Some(area));
+        }
 
         if let Some(text) = self.copied_text.take() {
             ctx.copy_text(text);

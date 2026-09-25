@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_cancelled_touch_outside_a_dialog_leaves_it_open;
 mod a_canvas_item_moved_into_view_is_laid_out_where_it_arrives;
 mod a_canvas_lays_out_only_the_items_the_view_can_see;
 mod a_canvas_places_its_items_at_the_view_it_is_given;
@@ -25,6 +26,7 @@ mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
+mod a_focused_text_input_asks_for_the_keyboard;
 mod a_for_each_gives_a_scroll_items_of_its_own;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
