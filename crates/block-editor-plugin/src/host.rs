@@ -2,7 +2,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     rc::Rc,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -145,19 +145,27 @@ pub struct PickedFile {
     pub data: Vec<u8>,
 }
 
+type Wake = Arc<dyn Fn() + Send + Sync>;
+
 #[derive(Clone, Default)]
-pub struct Waker(Option<Arc<dyn Fn() + Send + Sync>>);
+pub struct Waker(Arc<OnceLock<Wake>>);
 
 impl Waker {
     pub fn wake(&self) {
-        if let Some(wake) = &self.0 {
+        if let Some(wake) = self.0.get() {
             wake();
         }
     }
 
+    pub fn install(&self, wake: impl Fn() + Send + Sync + 'static) -> bool {
+        self.0.set(Arc::new(wake)).is_ok()
+    }
+
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
-        Self(Some(Arc::new(wake)))
+        let waker = Self::default();
+        waker.install(wake);
+        waker
     }
 }
 

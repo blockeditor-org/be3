@@ -95,6 +95,7 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
             working.downloading.get()
                 || working.pending.get().is_some()
                 || working.loading().is_some()
+                || working.rastering()
         })),
     });
 

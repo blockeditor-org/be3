@@ -89,14 +89,21 @@ text field before typing into it. click() panics when no node has that test id, 
 usually a node that was never given one; shown() and label() ask about one without clicking
 it.
 
-run() paints one frame for each gesture queued since the last one, and step(events) paints
-one frame with exactly the events it is handed.
+run() hands the editor what was queued since the last one in the frames a person would
+produce it in, as the app batches input between frames: a click (the move to it, the press
+and the release), a key press or typed text arrives in a single frame, and a drag spans three
+- the press, the move, and the last move with the release - since beui folds a frame's
+pointer events into one position. next_frame() ends the frame being queued, and
+step(events) paints one frame with exactly the events it is handed.
 
 An editor that hands work to another thread paints a spinner until the work lands, so which
 of the two a test captures is down to whether the thread beat it to the frame: a snapshot
 that passes on an idle machine and fails when the suite is running thirty editors at once.
 settle_until paints until a predicate over the harness holds, and fails the test rather
-than the painting if it never does.
+than the painting if it never does. Between frames it waits the way the app does: for the
+editor's Waker, or for the delay the editor asked to be painted again after, and never for a
+fixed time. Work that lands without waking the editor and without asking for a frame stalls
+it until the deadline, which is the stall a person would see in the app.
 
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
@@ -193,7 +200,9 @@ While working on one editor, run its tests alone:
   ./scripts/buck test //crates/editors/checklist:test
   ./scripts/buck test //crates/editors/checklist:test -- --env UPDATE_SNAPSHOTS=1
 
-The first compares, the second accepts. A single test is a filter handed through to the
+The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
+its binary's run; the runner then lists the tests and runs each in an instance of its own, and
+reports every one that failed. A single test is a filter handed through to the
 test binary: ./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name.
 
 Cranelift compiles each test module once, as an action of its own, and leaves the machine

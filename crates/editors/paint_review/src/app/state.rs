@@ -406,6 +406,7 @@ impl Review {
     }
 
     pub(crate) fn request(&self, path: &str) {
+        let mut wanted_any = false;
         let mut kept = vec![self.difference_key(path)];
         for wanted in self.showing.get_untracked().wanted() {
             let Ok(hash) = self.hash(path, wanted) else {
@@ -419,8 +420,12 @@ impl Review {
                 continue;
             };
             self.paintings.borrow_mut().want(&hash, data);
+            wanted_any = true;
         }
         self.paintings.borrow_mut().keep(kept);
+        if wanted_any {
+            self.waker().wake();
+        }
     }
 
     pub(crate) fn forget(&self) {
@@ -447,6 +452,10 @@ impl Review {
             false => counts.take(1).next(),
         };
         count.unwrap_or(1).max(1)
+    }
+
+    pub(crate) fn rastering(&self) -> bool {
+        self.paintings.borrow().working()
     }
 
     pub(crate) fn loading(&self) -> Option<(usize, usize)> {

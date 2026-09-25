@@ -14,6 +14,7 @@ use block_plugin_api::{
     SurfaceSpec, Theme, ViewportMetrics,
 };
 use std::marker::PhantomData;
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use uuid::Uuid;
 
 use crate::input::Input;
@@ -22,8 +23,8 @@ use crate::{ContentStore, snapshot};
 mod capture;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
-const SETTLE_FRAMES: usize = 400;
-const SETTLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(2);
+const EAGER_FRAMES: usize = 8;
+const SETTLE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
 const HOST_ROUNDS: usize = 8;
 const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
@@ -40,7 +41,7 @@ pub struct BeuiTest<A: BeuiApp> {
     scale_factor: f32,
     frame: Option<block_plugin_api::FrameSpec>,
     input: Input,
-    events: Vec<Event>,
+    frames: Vec<Vec<Event>>,
     inbox: Vec<Message>,
     sent: Vec<EditorMessage>,
     output: Option<beui::FrameOutput>,
@@ -54,7 +55,34 @@ pub struct BeuiTest<A: BeuiApp> {
     draft: Vec<u8>,
     next_request: u64,
     screens: u64,
+    wakes: Arc<Wakes>,
     app: PhantomData<A>,
+}
+
+#[derive(Default)]
+struct Wakes {
+    count: Mutex<u64>,
+    woken: Condvar,
+}
+
+impl Wakes {
+    fn count(&self) -> u64 {
+        *self.count.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn wake(&self) {
+        *self.count.lock().unwrap_or_else(PoisonError::into_inner) += 1;
+        self.woken.notify_all();
+    }
+
+    fn wait_past(&self, seen: u64, deadline: std::time::Duration) {
+        let count = self.count.lock().unwrap_or_else(PoisonError::into_inner);
+        drop(
+            self.woken
+                .wait_timeout_while(count, deadline, |count| *count == seen)
+                .unwrap_or_else(PoisonError::into_inner),
+        );
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -107,6 +135,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             Adopted::Artifacts(artifacts) => Some(artifacts.block_id()),
             _ => None,
         };
+        let wakes = Arc::new(Wakes::default());
+        let woken = Arc::clone(&wakes);
+        host.waker().install(move || woken.wake());
         let mut plugin = HeadlessPlugin::new::<A>("block-ui-test", "block-ui-test", "0");
         plugin.adopt::<A>(INSTANCE, adopted);
         let store = ContentStore::new(host.workspace_id());
@@ -159,7 +190,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             scale_factor: 1.0,
             frame,
             input: Input::default(),
-            events: Vec::new(),
+            frames: Vec::new(),
             inbox: Vec::new(),
             sent: Vec::new(),
             output: None,
@@ -173,6 +204,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             draft: data,
             next_request: 0,
             screens: 0,
+            wakes,
             app: PhantomData,
         };
         let hello = test.plugin.hello();
@@ -525,12 +557,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn run(&mut self) {
-        let events = std::mem::take(&mut self.events);
-        if events.is_empty() {
+        let frames = std::mem::take(&mut self.frames);
+        if frames.is_empty() {
             self.step(Vec::new());
         }
-        for event in events {
-            self.step(vec![event]);
+        for events in frames {
+            self.step(events);
         }
         for _ in 0..HOST_ROUNDS {
             if self.inbox.is_empty() && !self.store.pending() {
@@ -541,14 +573,29 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn settle_until(&mut self, what: &str, ready: impl Fn(&Self) -> bool) {
-        for _ in 0..SETTLE_FRAMES {
+        let started = std::time::Instant::now();
+        let mut eager = 0;
+        while started.elapsed() < SETTLE_DEADLINE {
+            let seen = self.wakes.count();
             self.run();
             if ready(self) {
                 return;
             }
-            std::thread::sleep(SETTLE_PAUSE);
+            let (changed, requested) = self
+                .output
+                .as_ref()
+                .map_or((false, std::time::Duration::MAX), |output| {
+                    (output.changed, output.repaint_after)
+                });
+            if changed && eager < EAGER_FRAMES {
+                eager += 1;
+                continue;
+            }
+            eager = 0;
+            let left = SETTLE_DEADLINE.saturating_sub(started.elapsed());
+            self.wakes.wait_past(seen, requested.min(left));
         }
-        panic!("the editor drew {SETTLE_FRAMES} frames and is still waiting for {what}");
+        panic!("the editor was still waiting for {what} after {SETTLE_DEADLINE:?}");
     }
 
     pub fn step(&mut self, events: Vec<Event>) {
@@ -586,8 +633,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         for message in self.plugin.outbound() {
             self.handle(roundtrip(message, "a message the plugin sent"));
         }
+        let intrinsic = self.intrinsic;
         if let Some(viewport) = &mut self.viewport {
             viewport.settle(&mut self.sent, rect);
+            self.inbox.extend(viewport.place(rect, intrinsic));
         }
     }
 
@@ -729,7 +778,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pointer_motion(&mut self, delta: Vec2) {
-        self.events.push(Event::PointerMotion(delta));
+        self.push(Event::PointerMotion(delta));
     }
 
     pub fn intrinsic_size(&self) -> Option<Vec2> {
@@ -744,8 +793,21 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
+    fn push(&mut self, event: Event) {
+        match self.frames.last_mut() {
+            Some(frame) => frame.push(event),
+            None => self.frames.push(vec![event]),
+        }
+    }
+
+    pub fn next_frame(&mut self) {
+        if self.frames.last().is_some_and(|frame| !frame.is_empty()) {
+            self.frames.push(Vec::new());
+        }
+    }
+
     pub fn hover_at(&mut self, pos: Pos2) {
-        self.events.push(Event::PointerMoved(pos));
+        self.push(Event::PointerMoved(pos));
     }
 
     pub fn shown(&self, test_id: &str) -> bool {
@@ -794,13 +856,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn click_at(&mut self, pos: Pos2) {
         let modifiers = self.input.held();
         self.hover_at(pos);
-        self.events.push(Event::PointerButton {
+        self.push(Event::PointerButton {
             pos,
             button: PointerButton::Primary,
             pressed: true,
             modifiers,
         });
-        self.events.push(Event::PointerButton {
+        self.push(Event::PointerButton {
             pos,
             button: PointerButton::Primary,
             pressed: false,
@@ -811,16 +873,17 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn drag(&mut self, from: Pos2, to: Pos2) {
         let modifiers = self.input.held();
         self.hover_at(from);
-        self.events.push(Event::PointerButton {
+        self.push(Event::PointerButton {
             pos: from,
             button: PointerButton::Primary,
             pressed: true,
             modifiers,
         });
-        self.events.push(Event::PointerMoved(to));
-        self.events
-            .push(Event::PointerMoved(to + Vec2::new(0.0, 0.5)));
-        self.events.push(Event::PointerButton {
+        self.next_frame();
+        self.push(Event::PointerMoved(to));
+        self.next_frame();
+        self.push(Event::PointerMoved(to + Vec2::new(0.0, 0.5)));
+        self.push(Event::PointerButton {
             pos: to,
             button: PointerButton::Primary,
             pressed: false,
@@ -845,7 +908,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn touch(&mut self, phase: TouchPhase, pos: Pos2) {
-        self.events.push(Event::Touch {
+        self.push(Event::Touch {
             id: TouchId {
                 device: 1,
                 finger: 1,
@@ -863,27 +926,27 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn key_press_modifiers(&mut self, modifiers: Modifiers, key: Key) {
         let held = self.input.held();
         if modifiers != held {
-            self.events.push(Event::Modifiers(modifiers));
+            self.push(Event::Modifiers(modifiers));
         }
-        self.events.push(Event::Key {
+        self.push(Event::Key {
             key,
             pressed: true,
             repeat: false,
             modifiers,
         });
-        self.events.push(Event::Key {
+        self.push(Event::Key {
             key,
             pressed: false,
             repeat: false,
             modifiers,
         });
         if modifiers != held {
-            self.events.push(Event::Modifiers(held));
+            self.push(Event::Modifiers(held));
         }
     }
 
     pub fn text(&mut self, text: impl Into<String>) {
-        self.events.push(Event::Text(text.into()));
+        self.push(Event::Text(text.into()));
     }
 
     pub fn record(&mut self) {

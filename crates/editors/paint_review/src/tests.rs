@@ -150,15 +150,9 @@ fn stage(editor: &BeuiTest<PaintReviewApp>) -> NodeId {
 }
 
 fn settled(editor: &mut BeuiTest<PaintReviewApp>) {
-    let quiet = std::cell::Cell::new(0);
     editor.settle_until("the review to settle", |editor| {
-        let resting = !crate::app::stage::busy(editor.document(), stage(editor))
-            && !editor.shown("paint_review.notice");
-        quiet.set(match resting {
-            true => quiet.get() + 1,
-            false => 0,
-        });
-        quiet.get() >= 3
+        !crate::app::stage::busy(editor.document(), stage(editor))
+            && !editor.shown("paint_review.notice")
     });
 }
 
