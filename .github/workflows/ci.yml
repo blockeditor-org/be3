@@ -156,9 +156,10 @@ jobs:
       # Everything, on BuildBuddy's workers: the tests jobs above build what
       # they test, and this is what says the rest - the binaries, the plugin
       # and game modules - builds too. Nothing is downloaded: what this checks
-      # is that it built. Only the host: the native and android jobs
-      # cross-compile what ships for every other platform, and the rest of
-      # //crates/... - tools, examples, test binaries - runs nowhere but here.
+      # is that it built. Only the host, which is what ./scripts/buck builds
+      # for on every machine except for `run`: the native jobs build what
+      # ships and what `run` builds for each other platform, and the APKs are
+      # Android's whichever platform asks, so this builds them too.
       - run: ./scripts/buck build --materializations=none //crates/...
 
   web:
@@ -311,6 +312,17 @@ jobs:
           name: block-${{ matrix.name }}
           path: dist
           retention-days: 14
+
+      # What `./scripts/buck run //crates/block-app:app` builds on a machine
+      # of this platform: the debug app, with the plugins precompiled for it.
+      # ./scripts/buck builds everything else for Linux on x86_64 wherever it
+      # is asked, which the buck2 job already builds; run is the one command
+      # that builds for the machine, so this is what makes it a cache hit on
+      # a commit CI has seen. Nothing is downloaded.
+      - name: Build what running the app locally builds
+        env:
+          PLATFORMS: ${{ matrix.platforms }}
+        run: ./scripts/buck build $PLATFORMS --materializations=none //crates/block-app:app
 
   # A pull request's verification fixes what it can and accepts what the tests
   # paint, and each part that changed anything uploads the change as a patch
