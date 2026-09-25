@@ -71,8 +71,9 @@ these in front of the pinned buck2:
 - **One retry.** buck2 exits with 2 for an infrastructure error, such as
   BuildBuddy resetting a download partway, which buck2 does not retry itself.
   The wrapper runs such a command once more; the actions are cached by then.
-  For `run` it builds first (`run --emit-shell`) and retries that, since the
-  program's own exit status is run's.
+  For `run` it builds first (`run --command-args-file`; Windows refuses
+  `--emit-shell`) and retries that, since the program's own exit status is
+  run's.
 
 It also lets `test` put tests on the workers (below).
 
