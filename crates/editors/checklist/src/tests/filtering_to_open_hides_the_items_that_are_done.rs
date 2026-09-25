@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn filtering_to_open_hides_the_items_that_are_done() {
-    let mut checklist = Harness::new(&[("buy bread", false), ("call the vet", false)]);
+    let mut checklist = Harness::new(&[("buy milk", false), ("call the vet", false)]);
     let second = checklist.id(1);
 
     checklist.click(&format!("checklist.item.{second}.done"));
@@ -11,7 +11,7 @@ fn filtering_to_open_hides_the_items_that_are_done() {
     assert_eq!(
         checklist.items(),
         [
-            ("buy bread".to_owned(), false),
+            ("buy milk".to_owned(), false),
             ("call the vet".to_owned(), true)
         ]
     );
