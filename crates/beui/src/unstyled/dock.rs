@@ -42,6 +42,7 @@ const FLOAT_INSET: Vec2 = Vec2::new(64.0, 48.0);
 const GRAB_OFFSET: Vec2 = Vec2::new(72.0, 14.0);
 const GROUP_ZONE: f32 = 0.3;
 const OUTER_EDGE: f32 = 18.0;
+const WINDOW_KEEP_VISIBLE: f32 = 96.0;
 
 pub struct DockTabHandle {
     pub entry: Entry,
@@ -276,6 +277,16 @@ impl State {
     fn clamped_origin(&self, rect: Rect, bounds: Vec2) -> Pos2 {
         let x = rect.min.x.clamp(0.0, (bounds.x - rect.width()).max(0.0));
         let y = rect.min.y.clamp(0.0, (bounds.y - rect.height()).max(0.0));
+        pos2(x, y)
+    }
+
+    fn reachable_origin(&self, rect: Rect, bounds: Vec2, bar: f32) -> Pos2 {
+        let keep = rect.width().min(WINDOW_KEEP_VISIBLE);
+        let x = rect
+            .min
+            .x
+            .clamp(keep - rect.width(), (bounds.x - keep).max(0.0));
+        let y = rect.min.y.clamp(0.0, (bounds.y - bar).max(0.0));
         pos2(x, y)
     }
 
@@ -1288,7 +1299,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         close,
         pane,
     });
-    let grabbed: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
+    let grabbed: Rc<Cell<Option<(Rect, Pos2, f32)>>> = Rc::new(Cell::new(None));
     let bar_rect = rect.clone();
     let pressed = dock.clone();
     let start = grabbed.clone();
@@ -1297,7 +1308,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         <Overlay
             @node_ref=&overlay
             anchor={anchor}
-            placement=Placement::BelowStart
+            placement=Placement::At
             mode=OverlayMode::Floating
             traps_focus=false
             open=true
@@ -1308,7 +1319,14 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                         <ClickCatcher
                             on_press={move |press: PointerPress| {
                                 let bar = pressed.over_window_bar(surface, press.pos);
-                                start.set(bar.then(|| (bar_rect.get_untracked(), press.pos)));
+                                start.set(bar.then(|| {
+                                    let window = bar_rect.get_untracked();
+                                    let top = pressed.rect.get_untracked().min.y + window.min.y;
+                                    let height = pressed
+                                        .pane_rect(Tree::Surface(surface))
+                                        .map_or(0.0, |pane| pane.top() - top);
+                                    (window, press.pos, height)
+                                }));
                                 let titled = pressed
                                     .pane_rect(Tree::Surface(surface))
                                     .is_some_and(|pane| press.pos.y < pane.top());
@@ -1327,13 +1345,13 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 });
                             }}
                             on_drag={move |press: PointerPress| {
-                                let Some((start, from)) = grabbed.get() else {
+                                let Some((start, from, bar)) = grabbed.get() else {
                                     return;
                                 };
                                 let placed =
                                     Rect::from_min_size(start.min + (press.pos - from), start.size());
                                 let bounds = moved.rect.get_untracked().size();
-                                let origin = moved.clamped_origin(placed, bounds);
+                                let origin = moved.reachable_origin(placed, bounds, bar);
                                 moved.edit(|state| {
                                     state.set_window_rect(
                                         surface,
