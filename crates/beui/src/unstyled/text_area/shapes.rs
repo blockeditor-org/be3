@@ -12,7 +12,7 @@ use crate::reactive::layout_text;
 use super::RemoteTextCursor;
 use super::colors::TextAreaColors;
 use super::layout::{
-    BytePosition, DocumentLayout, INLINE_WIDGET_ICON_INSET, LineLayout, Run, style_size,
+    BytePosition, DocumentLayout, INLINE_WIDGET_ICON_INSET, LineLayout, Run,
 };
 use super::state::{MarkdownCheckbox, Snapshot};
 
@@ -26,7 +26,7 @@ pub(crate) const TOUCH_HANDLE_GAP: f32 = 4.0;
 pub(crate) const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 
 const COLLAPSED_ELLIPSIS_GAP: f32 = 6.0;
-const CARET_WIDTH: f32 = 2.0;
+pub(crate) const CARET_WIDTH: f32 = 2.0;
 const EMPTY_BYTE_WIDTH: f32 = 8.0;
 const CHECKBOX_RADIUS: f32 = 3.0;
 const CHECKBOX_OUTLINE: f32 = 1.5;
@@ -67,8 +67,8 @@ pub(crate) fn gutter_width(line_count: usize) -> f32 {
         + GUTTER_PADDING_RIGHT
 }
 
-pub(crate) fn origin(gutter_width: f32) -> Vec2 {
-    Vec2::new(gutter_width + PADDING.x, PADDING.y)
+pub(crate) fn origin(gutter_width: f32, padding: Vec2) -> Vec2 {
+    Vec2::new(gutter_width + padding.x, padding.y)
 }
 
 fn text(origin: Pos2, string: &str, font: FontId, color: Color32) -> Option<PageShape> {
@@ -292,23 +292,23 @@ pub(crate) fn background(
     gutter_width: f32,
     origin: Vec2,
 ) -> Page {
-    let mut shapes = vec![
-        PageShape::Rect {
-            rect: Rect::from_min_size(Pos2::ZERO, size),
-            corner_radius: 0.0,
-            color: colors.surface,
-        },
-        PageShape::Rect {
+    let mut shapes = vec![PageShape::Rect {
+        rect: Rect::from_min_size(Pos2::ZERO, size),
+        corner_radius: 0.0,
+        color: colors.surface,
+    }];
+    if gutter_width > 0.0 {
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(gutter_width, size.y)),
             corner_radius: 0.0,
             color: colors.gutter,
-        },
-        PageShape::Rect {
+        });
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_size(Pos2::new(gutter_width - 1.0, 0.0), Vec2::new(1.0, size.y)),
             corner_radius: 0.0,
             color: colors.gutter_border,
-        },
-    ];
+        });
+    }
 
     for section in snapshot.sections.iter().filter(|section| section.revealed) {
         let hidden = layout
@@ -334,7 +334,7 @@ pub(crate) fn background(
 
     let number_x = gutter_width - GUTTER_PADDING_RIGHT;
     for line in &layout.lines {
-        if line.show_line_number {
+        if line.show_line_number && gutter_width > 0.0 {
             let number = (line.document_line + 1).to_string();
             if let Some(galley) = layout_text(
                 &number,
@@ -473,7 +473,7 @@ fn run_shapes(
         galley: galley.clone(),
         color,
     });
-    let font_size = style_size(run.style);
+    let font_size = run.font_size;
     let baseline = origin.y + line.y + line.baseline;
     let thickness = (font_size / 16.0).max(1.0);
     if run.style.underline {

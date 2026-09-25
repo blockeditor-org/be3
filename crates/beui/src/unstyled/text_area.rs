@@ -1,4 +1,5 @@
 mod colors;
+mod keys;
 mod layout;
 mod shapes;
 mod state;
@@ -9,33 +10,31 @@ use std::rc::Rc;
 use accesskit::{Node, Role};
 
 use text_editor_core::{
-    CopyMode, CursorHorizontalPositionMetric, CursorLeftRightStop, DragSelectionMode,
-    EditorCommand, FindDirection, LRDirection, MarkdownCommand, MoveMode, SyntaxNodeDirection,
-    UDDirection, VerticalMoveMode,
+    CursorHorizontalPositionMetric, CursorLeftRightStop, DragSelectionMode, EditorCommand,
+    LRDirection, MarkdownCommand, MoveMode, UDDirection, VerticalMoveMode,
 };
 
 use beui_macros::{component, view};
 
-use crate::base::ScrollPosition;
+use crate::base::{ItemSize, ScrollPosition};
 use crate::color::Color32;
 use crate::document::Document;
 use crate::font::FontId;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
+use crate::input::{CursorIcon, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::page::Page;
 use crate::reactive::{
-    Callback, Canvas, CanvasItem, Children, ClickCatcher, Draw, Drawing, Focusable, Frame, Memo,
-    NodeRef, Prop, ReadSignal, WriteSignal, clone, component_accessibility, component_size,
-    copy_text, create_effect, create_memo, create_signal, request_paste, set_component_state,
-    untrack,
-    use_pixels_per_point, with_document,
+    Callback, Canvas, CanvasItem, Children, ClickCallback, ClickCatcher, Draw, Drawing, Focusable, Frame, List,
+    Memo, NodeRef, Prop, ReadSignal, Show, WriteSignal, clone, component_accessibility,
+    component_rect, component_size, create_effect, create_memo, create_signal,
+    set_component_state, untrack, use_pixels_per_point, with_document,
 };
 use crate::unstyled::Scroll;
 
 use layout::{BODY_SIZE, LayoutOptions, hit_test, layout_document};
 use shapes::{
-    PADDING, SelectionHandle, TOUCH_HANDLE_HIT_RADIUS, checkbox_at, gutter_arrow_at,
+    CARET_WIDTH, PADDING, SelectionHandle, TOUCH_HANDLE_HIT_RADIUS, checkbox_at, gutter_arrow_at,
     touch_handle_anchor, touch_handle_center,
 };
 use state::Grab;
@@ -58,17 +57,24 @@ pub struct RemoteTextCursor {
 
 struct Surface {
     state: TextAreaState,
+    single_line: bool,
     layout: Memo<TextAreaLayout>,
     gutter: Memo<f32>,
+    padding: Memo<Vec2>,
     scroll: ReadSignal<ScrollPosition>,
     set_offset: WriteSignal<f32>,
+    shift: ReadSignal<f32>,
+    set_shift: WriteSignal<f32>,
+    view_width: Memo<f32>,
     focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
     set_autoscroll: WriteSignal<bool>,
     viewport: NodeRef,
     masked: Memo<bool>,
+    disabled: Memo<bool>,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
+    on_submit: ClickCallback,
 }
 
 type Context = Rc<Surface>;
@@ -80,7 +86,7 @@ struct Parts {
 
 impl Surface {
     fn origin(&self) -> Vec2 {
-        shapes::origin(self.gutter.get_untracked())
+        self.layout().origin()
     }
 
     fn layout(&self) -> TextAreaLayout {
@@ -96,6 +102,13 @@ impl Surface {
     }
 
     fn reveal_caret(&self) {
+        if self.single_line {
+            self.state.take_reveal();
+            if self.state.take_reveal_cursor() {
+                self.reveal_across();
+            }
+            return;
+        }
         let position = self.scroll.get_untracked();
         if position.viewport <= 0.0 {
             return;
@@ -129,6 +142,34 @@ impl Surface {
         let middle = rect.center().y - position.viewport / 2.0;
         self.set_offset
             .set_unconditionally(middle.clamp(0.0, position.max_offset()));
+    }
+
+    fn reveal_across(&self) {
+        let layout = self.layout();
+        let Some(x) = self
+            .state
+            .caret_indices()
+            .first()
+            .and_then(|byte| layout.document().positions.get(*byte).copied().flatten())
+            .map(|position| position.x)
+        else {
+            return;
+        };
+        let room = self.room();
+        let mut shift = self.shift.get_untracked();
+        if x < shift {
+            shift = x;
+        }
+        if x > shift + room {
+            shift = x - room;
+        }
+        self.set_shift
+            .set(shift.clamp(0.0, (layout.size().x - room).max(0.0)));
+    }
+
+    fn room(&self) -> f32 {
+        (self.view_width.get_untracked() - self.padding.get_untracked().x * 2.0 - CARET_WIDTH)
+            .max(0.0)
     }
 
     fn selection_handles(&self) -> Option<Range<usize>> {
@@ -180,15 +221,24 @@ impl Surface {
         else {
             return (pos, None);
         };
-        let bottom = (rect.max.y - 1.0).max(rect.min.y);
-        let beyond = if pos.y < rect.min.y {
+        let (along, start, end) = match self.single_line {
+            true => (pos.x, rect.min.x, rect.max.x),
+            false => (pos.y, rect.min.y, rect.max.y),
+        };
+        let end = (end - 1.0).max(start);
+        let beyond = if along < start {
             Some(Beyond::Before)
-        } else if pos.y > bottom {
+        } else if along > end {
             Some(Beyond::After)
         } else {
             None
         };
-        (Pos2::new(pos.x, pos.y.clamp(rect.min.y, bottom)), beyond)
+        let along = along.clamp(start, end);
+        let inside = match self.single_line {
+            true => Pos2::new(along, pos.y),
+            false => Pos2::new(pos.x, along),
+        };
+        (inside, beyond)
     }
 
     fn step_beyond(&self, beyond: Option<Beyond>, mode: MoveMode) {
@@ -196,6 +246,17 @@ impl Surface {
         let Some(beyond) = beyond else {
             return;
         };
+        if self.single_line {
+            self.state.execute(EditorCommand::MoveCursorLeftRight {
+                mode,
+                direction: match beyond {
+                    Beyond::Before => LRDirection::Left,
+                    Beyond::After => LRDirection::Right,
+                },
+                stop: CursorLeftRightStop::UnicodeGraphemeCluster,
+            });
+            return;
+        }
         self.state.execute(EditorCommand::MoveCursorUpDown {
             direction: match beyond {
                 Beyond::Before => UDDirection::Up,
@@ -272,6 +333,9 @@ fn drag_handle(cx: &Context, pos: Pos2) {
 }
 
 fn press(cx: &Context, press: PointerPress) {
+    if cx.disabled.get_untracked() {
+        return;
+    }
     cx.set_focused.set(true);
     cx.state.set_touch_mode(press.touch);
     cx.state.end_grab();
@@ -318,12 +382,12 @@ fn press(cx: &Context, press: PointerPress) {
         local,
         press.clicks,
         press.modifiers.shift,
-        press.modifiers.alt != press.modifiers.ctrl,
+        !cx.single_line && press.modifiers.alt != press.modifiers.ctrl,
     );
 }
 
 fn tap(cx: &Context, press: PointerPress) {
-    if !press.touch {
+    if !press.touch || cx.disabled.get_untracked() {
         return;
     }
     match cx.state.end_grab() {
@@ -402,6 +466,9 @@ fn select_at(cx: &Context, local: Pos2, clicks: u32, extend: bool, syntax: bool)
 }
 
 fn extend(cx: &Context, press: PointerPress) {
+    if cx.disabled.get_untracked() {
+        return;
+    }
     if cx.state.grab().is_some() {
         drag_handle(cx, press.pos);
         return;
@@ -437,7 +504,15 @@ fn release(cx: &Context, active: bool) {
 }
 
 fn insert_text(cx: &Context, text: &str) {
-    if text == "\n" || text == "\r" {
+    if cx.disabled.get_untracked() {
+        return;
+    }
+    let text = match cx.single_line {
+        true => text.chars().filter(|letter| !letter.is_control()).collect(),
+        false if text == "\n" || text == "\r" => String::new(),
+        false => text.to_owned(),
+    };
+    if text.is_empty() {
         return;
     }
     cx.state.set_caret_handle(false);
@@ -445,167 +520,29 @@ fn insert_text(cx: &Context, text: &str) {
     cx.state.reveal_cursor();
 }
 
-fn key(cx: &Context, press: KeyPress) -> bool {
-    if !press.pressed {
-        return false;
-    }
-    let handled = key_command(cx, press);
-    if handled {
-        cx.state.set_caret_handle(false);
-        cx.state.reveal_cursor();
-    }
-    handled
-}
-
-fn copy(state: &TextAreaState, mode: CopyMode) {
-    let text = state.copy(mode);
-    if !text.is_empty() {
-        copy_text(text);
-    }
-}
-
-fn key_command(cx: &Context, press: KeyPress) -> bool {
-    let state = &cx.state;
-    let modifiers = press.modifiers;
-    let command = modifiers.ctrl;
-    match press.key {
-        Key::Escape if state.find_open().get_untracked() => {
-            state.close_find();
-            return true;
-        }
-        Key::C | Key::X if command && cx.masked.get_untracked() => return true,
-        Key::C if command => {
-            copy(state, CopyMode::Copy);
-            return true;
-        }
-        Key::X if command => {
-            copy(state, CopyMode::Cut);
-            return true;
-        }
-        Key::V if command => {
-            request_paste();
-            return true;
-        }
-        _ => {}
-    }
-
-    let direction = match press.key {
-        Key::ArrowLeft | Key::Home => Some(LRDirection::Left),
-        Key::ArrowRight | Key::End => Some(LRDirection::Right),
-        _ => None,
-    };
-    if let Some(direction) = direction {
-        state.execute(EditorCommand::MoveCursorLeftRight {
-            mode: match modifiers.shift {
-                true => MoveMode::Select,
-                false => MoveMode::Move,
-            },
-            direction,
-            stop: if matches!(press.key, Key::Home | Key::End) {
-                CursorLeftRightStop::Line
-            } else if modifiers.alt || modifiers.ctrl {
-                CursorLeftRightStop::Word
-            } else {
-                CursorLeftRightStop::UnicodeGraphemeCluster
-            },
-        });
-        return true;
-    }
-
-    if matches!(press.key, Key::ArrowUp | Key::ArrowDown) {
-        let direction = match press.key {
-            Key::ArrowUp => UDDirection::Up,
-            _ => UDDirection::Down,
-        };
-        if modifiers.alt && modifiers.ctrl {
-            state.execute(EditorCommand::MoveCursorUpDown {
-                direction,
-                mode: VerticalMoveMode::Duplicate,
-                metric: CursorHorizontalPositionMetric::Byte,
-                stop: CursorLeftRightStop::UnicodeGraphemeCluster,
-            });
-        } else if modifiers.alt {
-            state.execute(EditorCommand::SelectSyntaxNode(
-                match direction == UDDirection::Up {
-                    true => SyntaxNodeDirection::Parent,
-                    false => SyntaxNodeDirection::Child,
-                },
-            ));
-        } else {
-            state.execute(EditorCommand::MoveCursorUpDown {
-                direction,
-                mode: match modifiers.shift {
-                    true => VerticalMoveMode::Select,
-                    false => VerticalMoveMode::Move,
-                },
-                metric: CursorHorizontalPositionMetric::Byte,
-                stop: CursorLeftRightStop::UnicodeGraphemeCluster,
-            });
-        }
-        return true;
-    }
-
-    match press.key {
-        Key::Backspace | Key::Delete => state.execute(EditorCommand::Delete {
-            direction: match press.key {
-                Key::Backspace => LRDirection::Left,
-                _ => LRDirection::Right,
-            },
-            stop: if modifiers.alt || modifiers.ctrl {
-                CursorLeftRightStop::Word
-            } else {
-                CursorLeftRightStop::UnicodeGraphemeCluster
-            },
-        }),
-        Key::Enter if command => state.execute(EditorCommand::InsertLine(match modifiers.shift {
-            true => UDDirection::Up,
-            false => UDDirection::Down,
-        })),
-        Key::Enter => state.execute(EditorCommand::Newline),
-        Key::Tab => state.execute(EditorCommand::IndentSelection(match modifiers.shift {
-            true => LRDirection::Left,
-            false => LRDirection::Right,
-        })),
-        Key::A if command => state.execute(EditorCommand::SelectAll),
-        Key::B if command => {
-            state.execute(EditorCommand::Markdown(MarkdownCommand::Bold));
-        }
-        Key::I if command => {
-            state.execute(EditorCommand::Markdown(MarkdownCommand::Italic));
-        }
-        Key::Z if command => state.execute(match modifiers.shift {
-            true => EditorCommand::Redo,
-            false => EditorCommand::Undo,
-        }),
-        Key::Y if command => state.execute(EditorCommand::Redo),
-        Key::F if command => state.open_find(false),
-        Key::H if command => state.open_find(true),
-        Key::G if command => {
-            state.find_step(match modifiers.shift {
-                true => FindDirection::Previous,
-                false => FindDirection::Next,
-            });
-        }
-        Key::D if command && modifiers.shift => {
-            state.execute(EditorCommand::DuplicateLine(UDDirection::Down));
-        }
-        Key::D if command => {
-            state.execute(EditorCommand::DuplicateCursor(LRDirection::Right));
-        }
-        Key::BracketLeft if command && modifiers.shift => {
-            state.execute(match state.cursor_line_collapsed() {
-                true => EditorCommand::Uncollapse,
-                false => EditorCommand::Collapse,
-            });
-        }
-        _ => return false,
-    }
-    true
+#[derive(Clone)]
+struct Field {
+    cx: Context,
+    cursor: Memo<CursorIcon>,
+    set_cursor: WriteSignal<CursorIcon>,
+    autoscroll: ReadSignal<bool>,
+    tab_stop: Memo<bool>,
+    canvas_width: Memo<f32>,
+    canvas_height: Memo<f32>,
+    layer_size: Memo<Vec2>,
+    background: Memo<Page>,
+    selection: Memo<Page>,
+    text: Memo<Page>,
+    overlay: Memo<Page>,
+    on_key_override: Callback<KeyPress, bool>,
+    on_focus_change: Callback<bool>,
+    on_hover_change: Callback<bool>,
 }
 
 #[component]
 pub fn TextArea(
     state: TextAreaState,
+    #[prop(default = false)] single_line: bool,
     #[prop(default = Vec::new())] widgets: Prop<Vec<TextWidget>>,
     #[prop(default = TextAreaColors::DEFAULT)] colors: Prop<TextAreaColors>,
     #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
@@ -613,28 +550,46 @@ pub fn TextArea(
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] password: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = BODY_SIZE)] font_size: Prop<f32>,
+    #[prop(default = PADDING)] padding: Prop<Vec2>,
+    accessibility: Option<Prop<Node>>,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
     on_key_override: Callback<KeyPress, bool>,
+    on_submit: ClickCallback,
+    on_focus_change: Callback<bool>,
+    on_hover_change: Callback<bool>,
     children: Children<CanvasItem>,
 ) -> NodeId {
     let focus_request = focused;
     let size = component_size();
-    let canvas = state.canvas();
+    let placed = component_rect();
     let scale = use_pixels_per_point();
     let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
     let (offset, set_offset) = create_signal(0.0_f32);
+    let (shift, set_shift) = create_signal(0.0_f32);
     let (focused, set_focused) = create_signal(false);
     let (autoscroll, set_autoscroll) = create_signal(false);
     let viewport = NodeRef::new();
     let masked = create_memo(move || password.get());
     let placeholder = create_memo(move || placeholder.get());
+    let disabled = create_memo(move || disabled.get());
+    let font_size = create_memo(move || font_size.get());
+    let padding = create_memo(move || padding.get());
+    let view_width = create_memo(clone!(placed -> move || placed.get().width()));
+    let view_height = create_memo(clone!(placed -> move || placed.get().height()));
 
+    let role = match single_line {
+        true => Role::TextInput,
+        false => Role::MultilineTextInput,
+    };
+    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     let accessible = state.content();
     component_accessibility(create_memo(
-        clone!(state accessible masked placeholder -> move || {
+        clone!(state accessible masked placeholder disabled -> move || {
             accessible.get();
-            let mut node = Node::new(Role::MultilineTextInput);
+            let mut node = accessibility.get();
             let value = String::from_utf8_lossy(&state.bytes()).into_owned();
             node.set_value(match masked.get() {
                 true => layout::mask(&value),
@@ -643,6 +598,10 @@ pub fn TextArea(
             let placeholder = placeholder.get();
             if !placeholder.is_empty() {
                 node.set_placeholder(placeholder);
+            }
+            match disabled.get() {
+                true => node.set_disabled(),
+                false => node.clear_disabled(),
             }
             node
         }),
@@ -655,20 +614,30 @@ pub fn TextArea(
     }));
     let gutter = create_memo(clone!(scale total_lines -> move || {
         scale.get();
-        shapes::gutter_width(total_lines.get())
+        match single_line {
+            true => 0.0,
+            false => shapes::gutter_width(total_lines.get()),
+        }
     }));
-    let wrap_width = create_memo(clone!(size gutter -> move || {
-        (size.get().x - gutter.get() - PADDING.x * 2.0).max(1.0).round()
+    let wrap_width = create_memo(clone!(size gutter padding -> move || {
+        (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
     }));
-    let layout = create_memo(
-        clone!(state content wrap_width scale gutter widgets masked -> move || {
+    let document = create_memo(
+        clone!(state content wrap_width scale widgets masked font_size -> move || {
             content.get();
             scale.get();
-            let widgets = widgets.get();
+            let options = match single_line {
+                true => LayoutOptions::single_line(font_size.get()),
+                false => LayoutOptions {
+                    body_size: font_size.get(),
+                    ..LayoutOptions::wrapped(wrap_width.get())
+                },
+            };
             let options = LayoutOptions {
                 mask: masked.get(),
-                ..LayoutOptions::wrapped(wrap_width.get())
+                ..options
             };
+            let widgets = widgets.get();
             let document = state.with_snapshot(|snapshot| {
                 layout_document(
                     &snapshot.bytes,
@@ -679,48 +648,99 @@ pub fn TextArea(
                     &options,
                 )
             });
-            TextAreaLayout::new(
-                Rc::new(document.unwrap_or_default()),
-                shapes::origin(gutter.get()),
-            )
+            TextAreaLayout::new(Rc::new(document.unwrap_or_default()), Vec2::ZERO)
         }),
     );
+    let origin = create_memo(
+        clone!(document gutter padding shift view_height -> move || {
+            let padding = padding.get();
+            if !single_line {
+                return shapes::origin(gutter.get(), padding);
+            }
+            let line = document.get().size().y;
+            let height = view_height.get();
+            let top = match height > line + padding.y * 2.0 {
+                true => (height - line) / 2.0,
+                false => padding.y,
+            };
+            Vec2::new(padding.x - shift.get(), top)
+        }),
+    );
+    let layout = create_memo(clone!(document origin -> move || {
+        document.get().with_origin(origin.get())
+    }));
     create_effect(clone!(state layout -> move || state.publish_layout(layout.get())));
 
     let cx: Context = Rc::new(Surface {
         state: state.clone(),
+        single_line,
         layout: layout.clone(),
         gutter: gutter.clone(),
+        padding: padding.clone(),
         scroll: scroll.clone(),
         set_offset,
+        shift: shift.clone(),
+        set_shift: set_shift.clone(),
+        view_width: view_width.clone(),
         focused: focused.clone(),
         set_focused: set_focused.clone(),
         set_autoscroll,
         viewport: viewport.clone(),
         masked: masked.clone(),
+        disabled: disabled.clone(),
         on_widget_press,
         on_menu,
+        on_submit,
     });
+    if single_line {
+        let clamp_cx = cx.clone();
+        create_effect(clone!(document view_width -> move || {
+            let room = {
+                view_width.get();
+                untrack(|| clamp_cx.room())
+            };
+            let most = (document.get().size().x - room).max(0.0);
+            if shift.get_untracked() > most {
+                set_shift.set(most);
+            }
+        }));
+    }
 
-    let content_size = create_memo(clone!(layout gutter size -> move || {
-        let layout = layout.get();
-        let available = size.get();
-        Vec2::new(
-            (layout.size().x + gutter.get()).max(available.x),
-            layout.size().y.max(available.y),
-        )
+    let intrinsic = create_memo(clone!(document gutter padding -> move || {
+        let padding = padding.get();
+        let size = document.get().size();
+        match single_line {
+            true => Vec2::new(size.x + padding.x * 2.0 + CARET_WIDTH, size.y + padding.y * 2.0),
+            false => Vec2::new(size.x + gutter.get(), size.y),
+        }
     }));
-    let content_width = create_memo(clone!(content_size -> move || content_size.get().x));
-    let content_height = create_memo(clone!(content_size -> move || content_size.get().y));
+    let layer_size = create_memo(clone!(intrinsic size view_width view_height -> move || {
+        let intrinsic = intrinsic.get();
+        let available = match single_line {
+            true => Vec2::new(view_width.get(), view_height.get()),
+            false => size.get(),
+        };
+        Vec2::new(intrinsic.x.max(available.x), intrinsic.y.max(available.y))
+    }));
+    let (canvas_width, canvas_height) = match single_line {
+        true => (
+            create_memo(clone!(intrinsic -> move || intrinsic.get().x)),
+            create_memo(clone!(intrinsic -> move || intrinsic.get().y)),
+        ),
+        false => (
+            create_memo(clone!(layer_size -> move || layer_size.get().x)),
+            create_memo(clone!(layer_size -> move || layer_size.get().y)),
+        ),
+    };
 
-    let background = create_memo(clone!(state layout gutter colors content_size -> move || {
+    let background = create_memo(clone!(state layout gutter colors layer_size -> move || {
         let layout = layout.get();
         state.with_snapshot(|snapshot| {
             shapes::background(
                 layout.document(),
                 snapshot,
                 &colors.get(),
-                content_size.get(),
+                layer_size.get(),
                 gutter.get(),
                 layout.origin(),
             )
@@ -736,7 +756,7 @@ pub fn TextArea(
             layout.origin(),
         )
     }));
-    let text_shapes = create_memo(clone!(state layout colors placeholder -> move || {
+    let text = create_memo(clone!(state layout colors placeholder font_size -> move || {
         let layout = layout.get();
         let colors = colors.get();
         let placeholder = placeholder.get();
@@ -744,7 +764,7 @@ pub fn TextArea(
             true => shapes::placeholder(
                 layout.document(),
                 &placeholder,
-                FontId::proportional(BODY_SIZE),
+                FontId::proportional(font_size.get()),
                 &colors,
                 layout.origin(),
             ),
@@ -776,15 +796,6 @@ pub fn TextArea(
         }),
     );
 
-    let press_cx = cx.clone();
-    let tap_cx = cx.clone();
-    let drag_cx = cx.clone();
-    let release_cx = cx.clone();
-    let key_cx = cx.clone();
-    let text_cx = cx.clone();
-    let capture_cx = cx.clone();
-    let hover_cx = cx.clone();
-    let blur_cx = cx.clone();
     let focus_requests = state.focus_requests();
     let focus_writer = set_focused.clone();
     create_effect(move || {
@@ -817,61 +828,130 @@ pub fn TextArea(
         reveals.get();
         untrack(|| reveal_cx.reveal_caret());
     });
-    let (cursor, set_cursor) = create_signal(CursorIcon::Text);
+    let (hover_cursor, set_cursor) = create_signal(CursorIcon::Text);
+    let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
+        true => CursorIcon::Default,
+        false => hover_cursor.get(),
+    }));
+    let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
     let surface_color = create_memo(clone!(colors -> move || colors.get().surface));
+    let field = Field {
+        cx,
+        cursor,
+        set_cursor,
+        autoscroll,
+        tab_stop,
+        canvas_width,
+        canvas_height,
+        layer_size,
+        background,
+        selection,
+        text,
+        overlay,
+        on_key_override,
+        on_focus_change,
+        on_hover_change,
+    };
+    let scrolled = field.clone();
+    let multi_line = !single_line;
 
     view! {
         <Frame @node_ref=&viewport color={surface_color}>
-            <Scroll
-                offset={offset}
-                focus_color={Color32::TRANSPARENT}
-                on_change={move |position: ScrollPosition| set_scroll.set(position)}
-            >
-                <Focusable
-                    focused={focused.clone()}
-                    on_focus_change={move |is_focused: bool| {
-                        set_focused.set(is_focused);
-                        if !is_focused {
-                            blur(&blur_cx);
-                        }
+            <List spacing=0.0>
+                <Show condition={single_line}>
+                    {move || view! {
+                        <Editing @sizing=ItemSize::Percent(100.0) field />
                     }}
-                    on_text={move |typed: String| insert_text(&text_cx, &typed)}
-                    on_key={move |press: KeyPress| {
-                        on_key_override.call(press) || key(&key_cx, press)
-                    }}
-                >
-                    <ClickCatcher
-                        cursor={cursor}
-                        repeat_drag={autoscroll}
-                        capture_at={move |pos: Pos2| {
-                            capture_cx
-                                .local(pos)
-                                .and_then(|local| capture_cx.handle_at(local))
-                                .is_some()
-                        }}
-                        on_press={move |event: PointerPress| press(&press_cx, event)}
-                        on_click_at={move |event: PointerPress| tap(&tap_cx, event)}
-                        on_drag={move |event: PointerPress| extend(&drag_cx, event)}
-                        on_active_change={move |active: bool| release(&release_cx, active)}
-                        on_hover_move={move |event: PointerPress| {
-                            set_cursor.set(hover_cursor(&hover_cx, event.pos));
-                        }}
-                    >
-                        <Canvas
-                            @node_ref=&canvas
-                            width={content_width.clone()}
-                            height={content_height.clone()}
+                </Show>
+                <Show condition={multi_line}>
+                    {move || view! {
+                        <Scroll
+                            @sizing=ItemSize::Percent(100.0)
+                            offset={offset}
+                            focus_color={Color32::TRANSPARENT}
+                            on_change={move |position: ScrollPosition| set_scroll.set(position)}
                         >
-                            <Layer page={background} size={content_size.clone()} />
-                            <Layer page={selection} size={content_size.clone()} />
-                            <Layer page={text_shapes} size={content_size.clone()} />
-                            {children}
-                            <Layer page={overlay} size={content_size} />
-                        </Canvas>
-                    </ClickCatcher>
-                </Focusable>
-            </Scroll>
+                            <Editing field={scrolled}>
+                                {children}
+                            </Editing>
+                        </Scroll>
+                    }}
+                </Show>
+            </List>
         </Frame>
+    }
+}
+
+#[component]
+fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
+    let Field {
+        cx,
+        cursor,
+        set_cursor,
+        autoscroll,
+        tab_stop,
+        canvas_width,
+        canvas_height,
+        layer_size,
+        background,
+        selection,
+        text,
+        overlay,
+        on_key_override,
+        on_focus_change,
+        on_hover_change,
+    } = field;
+    let canvas = cx.state.canvas();
+    let focused = cx.focused.clone();
+    let set_focused = cx.set_focused.clone();
+    let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
+    let (press_cx, tap_cx, drag_cx, release_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
+    let hover_cx = cx;
+    view! {
+        <Focusable
+            focused
+            tab_stop
+            on_focus_change={move |is_focused: bool| {
+                set_focused.set(is_focused);
+                if !is_focused {
+                    blur(&blur_cx);
+                }
+                on_focus_change.call(is_focused);
+            }}
+            on_text={move |typed: String| insert_text(&text_cx, &typed)}
+            on_key={move |press: KeyPress| {
+                !key_cx.disabled.get_untracked()
+                    && (on_key_override.call(press) || keys::key(&key_cx, press))
+            }}
+        >
+            <ClickCatcher
+                cursor
+                repeat_drag={autoscroll}
+                capture_at={move |pos: Pos2| {
+                    !capture_cx.disabled.get_untracked()
+                        && capture_cx
+                            .local(pos)
+                            .and_then(|local| capture_cx.handle_at(local))
+                            .is_some()
+                }}
+                on_press={move |event: PointerPress| press(&press_cx, event)}
+                on_click_at={move |event: PointerPress| tap(&tap_cx, event)}
+                on_drag={move |event: PointerPress| extend(&drag_cx, event)}
+                on_active_change={move |active: bool| release(&release_cx, active)}
+                on_hover_change={move |hovered: bool| on_hover_change.call(hovered)}
+                on_hover_move={move |event: PointerPress| {
+                    set_cursor.set(hover_cursor(&hover_cx, event.pos));
+                }}
+            >
+                <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
+                    <Layer page={background} size={layer_size.clone()} />
+                    <Layer page={selection} size={layer_size.clone()} />
+                    <Layer page={text} size={layer_size.clone()} />
+                    {children}
+                    <Layer page={overlay} size={layer_size} />
+                </Canvas>
+            </ClickCatcher>
+        </Focusable>
     }
 }
 

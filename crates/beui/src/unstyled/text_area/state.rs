@@ -58,6 +58,13 @@ impl TextAreaLayout {
         Self { document, origin }
     }
 
+    pub(crate) fn with_origin(&self, origin: Vec2) -> Self {
+        Self {
+            document: Rc::clone(&self.document),
+            origin,
+        }
+    }
+
     pub(crate) fn document(&self) -> &DocumentLayout {
         &self.document
     }
