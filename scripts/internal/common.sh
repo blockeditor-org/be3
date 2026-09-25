@@ -183,42 +183,32 @@ download_verified() {
     exit 1
 }
 
-# The buck2 release this repository is built with, and the reindeer that
-# generates its third-party rules.
+# The Bazel release this repository is built with, which .bazelversion names
+# too.
 #
-# buck2 is a prebuilt release, checked against the hashes below the way every
-# other tool here is. A buck2 binary carries the prelude it was built with, so
-# this version pins the build rules too, which is why it is the one string that
-# has to move for a prelude change to arrive - and why moving it is a change to
-# verify with a build rather than a number to bump.
-#
-# The tag is a dated release. "latest" is a tag upstream repoints on every push
-# to main, so it is never what to pin.
-#
-# reindeer publishes no releases at all, so it is pinned by commit and built
-# from source. Nothing but ./scripts/buck run //:buckify needs it: the file it writes is
-# checked in.
-buck2_version='2026-09-15'
+# Bazel is a prebuilt release, checked against the hashes below the way every
+# other tool here is. It is the one string that has to move for a new Bazel to
+# arrive, which is a change to verify with a build rather than a number to bump.
+bazel_version='9.2.0'
 
-# The releases mirrored for this version, by the triple upstream names them
-# after. Linux and macOS are what anyone develops on; Windows is here because
-# the release exists and mirroring it costs nothing, not because anything has
-# been built there.
-buck2_sha256_x86_64_unknown_linux_gnu='1268fce33fb61273091dd5dd8c60b65de1521a3caa36b88983813e882b7ffd89'
-buck2_sha256_aarch64_unknown_linux_gnu='e35027a8e3f702fd9f080074ac64ebc80e2a0fe8d669d46d85afc31b0ec4a463'
-buck2_sha256_x86_64_apple_darwin='af1e51f198ecccfc41b9d960a2c79bb16f01e238f7169a86989caed9440fba0d'
-buck2_sha256_aarch64_apple_darwin='aacdf7cabe34b9b5dc74866b8dcf7410cdbae3ad2dccef45b7ee9851cb781528'
-buck2_sha256_x86_64_pc_windows_msvc='1f0619b285ee3cbdc562a38b70f2636f73e8233b2f5156aef93e9e8a00079e2c'
-buck2_sha256_aarch64_pc_windows_msvc='58edb0718e3b89a3f875129cc72640f2f4cb80487ec42057eb88447519dff0cf'
+# The releases for this version, by the triple they are named after here. Linux
+# and macOS are what anyone develops on; Windows is here because the release
+# exists, not because anything has been built there.
+bazel_sha256_x86_64_unknown_linux_gnu='7668a95db1250f12c40407251e4e203b4ec8bf39bc495d2f485b2d8c99048694'
+bazel_sha256_aarch64_unknown_linux_gnu='049dd21f40ad979db11c3ee68c96a42ce75f1185e69ac61ab20de1501427a410'
+bazel_sha256_x86_64_apple_darwin='14c9bcb01303b38192e0e2895051c1bcf19bf89d7e416f5aeeeb48b6b624cfbf'
+bazel_sha256_aarch64_apple_darwin='dd466352a3e4d3581b8898740ee1ff208866ccbe25f8d367c5dcb950219587e6'
+bazel_sha256_x86_64_pc_windows_msvc='5fc2f2805b8c697a54732558576938d06bab63aa0f9b6610cc01d2cae0388705'
+bazel_sha256_aarch64_pc_windows_msvc='a63eb0c625f7ed958bdc43ce583593d97e67c9ca1432dc6e463535c5aae5ffd2'
 
-# The triple the buck2 release is named after, for this machine.
-buck2_triple() {
+# The triple a release is recorded under here, for this machine.
+host_triple() {
     local architecture
     case "$(uname -m)" in
         x86_64 | amd64) architecture='x86_64' ;;
         aarch64 | arm64) architecture='aarch64' ;;
         *)
-            echo "No buck2 release is mirrored for $(uname -m)." >&2
+            echo "No Bazel release is pinned for $(uname -m)." >&2
             return 1
             ;;
     esac
@@ -228,9 +218,22 @@ buck2_triple() {
         Darwin) echo "$architecture-apple-darwin" ;;
         MINGW* | MSYS* | CYGWIN*) echo "$architecture-pc-windows-msvc" ;;
         *)
-            echo "No buck2 release is mirrored for $(uname -s)." >&2
+            echo "No Bazel release is pinned for $(uname -s)." >&2
             return 1
             ;;
+    esac
+}
+
+# The name of the release asset for a triple: upstream names them by
+# operating system and architecture.
+bazel_asset() {
+    case "$1" in
+        x86_64-unknown-linux-gnu) echo "bazel-$bazel_version-linux-x86_64" ;;
+        aarch64-unknown-linux-gnu) echo "bazel-$bazel_version-linux-arm64" ;;
+        x86_64-apple-darwin) echo "bazel-$bazel_version-darwin-x86_64" ;;
+        aarch64-apple-darwin) echo "bazel-$bazel_version-darwin-arm64" ;;
+        x86_64-pc-windows-msvc) echo "bazel-$bazel_version-windows-x86_64.exe" ;;
+        aarch64-pc-windows-msvc) echo "bazel-$bazel_version-windows-arm64.exe" ;;
     esac
 }
 
@@ -246,16 +249,16 @@ native_path() {
     fi
 }
 
-# Where the pinned buck2 is installed: inside the checkout, under a directory
-# named after the version, so ./scripts/buck can tell it is there with one test
+# Where the pinned Bazel is installed: inside the checkout, under a directory
+# named after the version, so ./scripts/bazel can tell it is there with one test
 # of a file, and moving the version installs the new one rather than running
 # the old.
-buck2_path() {
-    echo "$repository/target/tools/buck2-$buck2_version/buck2$(buck2_binary_suffix)"
+bazel_path() {
+    echo "$repository/target/tools/bazel-$bazel_version/bazel$(binary_suffix)"
 }
 
-# The target platform in buck/platforms for this machine, for what
-# ./scripts/buck runs here. Builds are for Linux on x86_64 wherever they are
+# The target platform in bazel/platforms for this machine, for what
+# ./scripts/bazel runs here. Builds are for Linux on x86_64 wherever they are
 # asked for; something that is to run on this machine is built for it instead.
 host_target_platform() {
     local architecture
@@ -272,17 +275,8 @@ host_target_platform() {
     esac
 }
 
-# Upstream names the Windows binaries .exe.zst and everything else .zst.
-buck2_release_suffix() {
-    case "$(uname -s)" in
-        MINGW* | MSYS* | CYGWIN*) echo '.exe.zst' ;;
-        *) echo '.zst' ;;
-    esac
-}
-
-# What the installed binary is called, which on Windows keeps the extension the
-# release was named with.
-buck2_binary_suffix() {
+# What an executable is called here, which on Windows has the extension.
+binary_suffix() {
     case "$(uname -s)" in
         MINGW* | MSYS* | CYGWIN*) echo '.exe' ;;
         *) echo '' ;;
@@ -291,7 +285,7 @@ buck2_binary_suffix() {
 
 # The hash pinned above for a tool on this machine, looked up by the triple with
 # its dashes turned into the underscores a shell variable name can hold.
-buck2_release_sha256() {
+release_sha256() {
     local tool="$1" triple="$2" name
     name="${tool}_sha256_${triple//-/_}"
     if [[ -z "${!name:-}" ]]; then
@@ -302,11 +296,12 @@ buck2_release_sha256() {
 }
 
 # Every action runs on BuildBuddy, so a build without the key has nowhere to
-# run. buck2 would say so only as a failed connection, well into the build. The
+# run. Bazel would say so only as a failed connection, well into the build. The
 # key is BUILDBUDDY_API_KEY from the environment, or else the first of two files
 # that holds it: .buildbuddy-api-key at the root of the checkout, which git
-# ignores, or ~/.config/be3/buildbuddy-api-key. Either way it is exported, which
-# is how .buckconfig's $BUILDBUDDY_API_KEY reaches the daemon.
+# ignores, or ~/.config/be3/buildbuddy-api-key. Bazel reads it through
+# scripts/internal/buildbuddy-credentials, which .bazelrc names, and which looks
+# in the same places; this is only what asks for it when there is none.
 #
 # With none of them, a person at a terminal is asked for the key, and it is
 # saved to .buildbuddy-api-key for next time. Anything else - a pipe, CI, an
@@ -323,7 +318,7 @@ assert_buildbuddy_key() {
         done
     fi
     if [[ -z "${BUILDBUDDY_API_KEY:-}" && -t 0 && -t 2 ]]; then
-        echo 'buck2 runs every build on BuildBuddy, and needs an API key for it.' >&2
+        echo 'Bazel runs every build on BuildBuddy, and needs an API key for it.' >&2
         echo 'Find one under Settings at https://app.buildbuddy.io.' >&2
         read -r -s -p 'BuildBuddy API key: ' key
         echo '' >&2
@@ -338,106 +333,31 @@ assert_buildbuddy_key() {
         export BUILDBUDDY_API_KEY
         return 0
     fi
-    echo 'buck2 runs every build on BuildBuddy, and there is no BuildBuddy API key.' >&2
+    echo 'Bazel runs every build on BuildBuddy, and there is no BuildBuddy API key.' >&2
     echo 'Set BUILDBUDDY_API_KEY, or write the key to .buildbuddy-api-key at the root' >&2
-    echo 'of the checkout or to ~/.config/be3/buildbuddy-api-key. Run ./scripts/buck' >&2
-    echo 'from a terminal to be asked for it. guides/buck2.md has more.' >&2
+    echo 'of the checkout or to ~/.config/be3/buildbuddy-api-key. Run ./scripts/bazel' >&2
+    echo 'from a terminal to be asked for it. guides/bazel.md has more.' >&2
     exit 1
 }
 
-# The rules buck2 reads the workspace's Cargo.toml files through -
-# third-party/rust/BUCK and buck/cargo/crates.bzl - are generated rather than
-# checked in. buck/cargo/buckify.bxl makes them on a worker from the manifests,
-# Cargo.lock, reindeer.toml, the fixups and the layout of crates/, so everyone
-# on the same Cargo.lock shares one cache entry: about two seconds on a fresh
-# checkout, and a minute or so the first time anyone builds a new dependency.
-#
-# What decides whether to run it is a hash of those same inputs, kept beside
-# the files; most runs only compare it. The files are written only when they
-# change, so buck2 does not re-read them for nothing.
-generated_rules=('third-party/rust/BUCK' 'buck/cargo/crates.bzl')
-
-generated_rules_inputs() {
-    (
-        cd "$repository"
-        printf '%s\n' "$buck2_version"
-        find crates third-party/rust/fixups -type f | LC_ALL=C sort
-        {
-            printf '%s\0' Cargo.toml Cargo.lock reindeer.toml buck/cargo/BUCK buck/cargo/buckify.bxl buck/tools/BUCK
-            find crates -name Cargo.toml -print0
-            find crates/buck-tools/src -type f -print0
-            find third-party/rust/fixups -type f -print0
-        } | LC_ALL=C sort -z | xargs -0 cat
-    ) | sha256sum | cut -d ' ' -f 1
-}
-
-ensure_generated_rules() {
-    local buck2="$1" stamp="$repository/target/generated-rules.sha256" fingerprint path generated
-    fingerprint="$(generated_rules_inputs)"
-    local current=true
-    for path in "${generated_rules[@]}"; do
-        [[ -f "$repository/$path" ]] || current=false
-    done
-    if $current && [[ "$(cat "$stamp" 2> /dev/null)" == "$fingerprint" ]]; then
-        return 0
-    fi
-    echo 'Generating the rules for the workspace'"'"'s crates...' >&2
-    if generated="$("$buck2" bxl //buck/cargo/buckify.bxl:main 2> "$repository/target/generated-rules.log")"; then
-        generated="$(printf '%s\n' "$generated" | tail -n 1)"
-    else
-        generated=''
-    fi
-    if [[ -z "$generated" || ! -f "$generated/BUCK" || ! -f "$generated/crates.bzl" ]]; then
-        cat "$repository/target/generated-rules.log" >&2
-        echo 'Generating the rules for the workspace'"'"'s crates failed.' >&2
-        exit 1
-    fi
-    write_if_changed "$generated/BUCK" "$repository/third-party/rust/BUCK"
-    write_if_changed "$generated/crates.bzl" "$repository/buck/cargo/crates.bzl"
-    printf '%s\n' "$fingerprint" > "$stamp"
-}
-
-write_if_changed() {
-    if ! cmp -s "$1" "$2"; then
-        cp "$1" "$2.partial"
-        mv -f "$2.partial" "$2"
-    fi
-}
-
-# buck2's remote execution client dials BuildBuddy itself and never reads
-# HTTPS_PROXY, so on a machine whose way out is that proxy - or where the proxy
-# is what adds the BuildBuddy key - buck2 alone cannot reach its workers. There
-# it is pointed, through .buckconfig.local, at scripts/internal/re-relay: a
-# relay on localhost, built with Go and left running in the background, that
-# sends each call on through the proxy. Without a proxy a .buckconfig.local
-# this wrote is removed, since it would point buck2 at a relay that is not
-# there. A file a person wrote is left alone either way. buck2 reads the
-# remote execution settings when its daemon starts, so the daemon is stopped
-# whenever the file changes.
+# Bazel's remote execution and build event clients dial BuildBuddy themselves
+# and never read HTTPS_PROXY, so on a machine whose way out is that proxy - or
+# where the proxy is what adds the BuildBuddy key - Bazel alone cannot reach its
+# workers. There it is pointed, through target/re-relay.bazelrc, which .bazelrc
+# imports, at scripts/internal/re-relay: a relay on localhost, built with Go and
+# left running in the background, that sends each call on through the proxy.
+# Without a proxy the file is removed, since it would point Bazel at a relay
+# that is not there.
 re_relay_address='127.0.0.1:18980'
 
 configure_https_proxy_relay() {
-    local buck2="$1"
-    local path="$repository/.buckconfig.local"
-    local marker='# @generated by ./scripts/buck: buck2 reaches BuildBuddy through scripts/internal/re-relay.'
-    local generated=false
-    if [[ -f "$path" ]] && head -1 "$path" | grep -q '@generated by ./scripts/buck'; then
-        generated=true
-    fi
+    local path="$repository/target/re-relay.bazelrc"
     if [[ -z "${HTTPS_PROXY:-${https_proxy:-}}" ]]; then
-        if $generated; then
-            rm "$path"
-            "$buck2" kill > /dev/null 2>&1 || true
-        fi
-        return 0
-    fi
-    if [[ -f "$path" ]] && ! $generated; then
-        echo 'HTTPS_PROXY is set, but .buckconfig.local was written by hand, so buck2 is' >&2
-        echo 'left to reach BuildBuddy without scripts/internal/re-relay.' >&2
+        rm -f "$path"
         return 0
     fi
 
-    assert_command go 'HTTPS_PROXY is set, and buck2 reaches BuildBuddy through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
+    assert_command go 'HTTPS_PROXY is set, and Bazel reaches BuildBuddy through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
     local version relay
     version="$(cat "$internal"/re-relay/* | cksum | cut -d ' ' -f 1)"
     relay="$repository/target/tools/re-relay-$version/re-relay$(go env GOEXE)"
@@ -449,20 +369,15 @@ configure_https_proxy_relay() {
     "$relay" ensure -listen "$re_relay_address" -upstream remote.buildbuddy.io \
         -version "$version" -log "$repository/target/re-relay.log"
 
-    local config="$repository/target/buckconfig.local.partial"
+    local config="$path.partial"
     {
-        echo "$marker"
-        echo '[buck2_re_client]'
-        echo "action_cache_address = $re_relay_address"
-        echo "cas_address = $re_relay_address"
-        echo "engine_address = $re_relay_address"
-        echo 'tls = false'
+        echo '# Written by ./scripts/bazel: Bazel reaches BuildBuddy through scripts/internal/re-relay.'
+        echo "common --remote_executor=grpc://$re_relay_address"
+        echo "common --bes_backend=grpc://$re_relay_address"
     } > "$config"
     if cmp -s "$config" "$path"; then
         rm "$config"
     else
         mv -f "$config" "$path"
-        "$buck2" kill > /dev/null 2>&1 || true
     fi
 }
-

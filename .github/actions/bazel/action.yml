@@ -1,0 +1,27 @@
+name: Install Bazel
+description: >-
+  Installs Bazel from the pinned release, and restores the repository cache
+  it fetches Rust and the crates' sources into.
+
+# Bazel is a prebuilt release checked against the hash in
+# scripts/internal/common.sh, so installing it is a download and costs seconds.
+# Everything else a build needs is fetched on BuildBuddy's workers, except the
+# Rust toolchain and the crates' sources, which Bazel fetches here: those are
+# kept between runs, keyed on the lockfile that names them.
+
+runs:
+  using: composite
+  steps:
+    # ./scripts/bazel would install it by itself on first use; installing it
+    # here is only so that the download is a step of its own in the log.
+    - shell: bash
+      run: ./scripts/internal/install-bazel.sh
+
+    - uses: actions/cache@v6
+      with:
+        path: ~/.cache/bazel-repository-cache
+        key: bazel-repositories-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock') }}
+        restore-keys: bazel-repositories-
+
+    - shell: bash
+      run: echo "common --repository_cache=$HOME/.cache/bazel-repository-cache" >> .bazelrc.local

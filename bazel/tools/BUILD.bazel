@@ -1,0 +1,169 @@
+load(":defs.bzl", "fetch", "fetch_archive", "fetch_file")
+
+# The compilers and SDKs the build runs, each fetched and laid out on a worker
+# (defs.bzl) and pinned by hash. Rust comes from rules_rust (MODULE.bazel).
+
+# Ubuntu 24.04's clang-20, from Launchpad's copy of each package rather than
+# the archive's: the archive drops a version once a newer one supersedes it,
+# and Launchpad keeps every one. Unpacked into a self-contained llvm-20 tree:
+# the binaries, the libraries they load through $ORIGIN/../lib, clang's
+# resource directory and libclang for bindgen. Symlinks within bin stay, since
+# a driver's name decides how it behaves.
+LLVM_VERSION = "20.1.2-0ubuntu1~24.04.3"
+
+LLVM_PACKAGES = {
+    "clang-20": "d3fec854d8b998510a6f525ba397123563be091939d11131ce2dff02ed9368bc",
+    "libclang-common-20-dev": "1f50ed5cb36909b83e885e5e507ccb8a54c70816f4f6574d6190cfa5cf95a891",
+    "libclang-cpp20": "0dc8f6d4cc8588e963fa86414c93f6065766211064cdc766e588c9b882b0714b",
+    "libclang1-20": "a5aed87546aa7b645f06a5269cf1cc190c1b70f6d212b4db49311d6cfc6398e2",
+    "libllvm20": "f018e71c72c7a4742fb1aff9dc98b45586f42e6ea464d4918af7e3772b7f0658",
+    "lld-20": "50d8db763d3e3526c050d01c2c8c9c94e3f94cca6f7dbdb8f9a4c65aefefcf83",
+    "llvm-20": "b7ca50166943d94c786611ebe7a0dd8f5b9a9b1f81025620cf9dfcd8aac84563",
+}
+
+fetch(
+    name = "llvm",
+    files = {
+        sha256: ["https://launchpad.net/ubuntu/+archive/primary/+files/{}_{}_amd64.deb".format(package, LLVM_VERSION)]
+        for package, sha256 in LLVM_PACKAGES.items()
+    },
+    script = """
+packages="$(mktemp -d)"
+for package in "$downloads"/*.deb; do dpkg-deb -x "$package" "$packages"; done
+mkdir -p "$out/bin" "$out/lib"
+llvm="$packages/usr/lib/llvm-20"
+cp -P "$llvm/bin/clang" "$llvm/bin/clang++" "$llvm/bin/lld" "$llvm/bin/ld.lld" "$llvm/bin/ld64.lld" \
+    "$llvm/bin/lld-link" "$llvm/bin/wasm-ld" "$llvm/bin/llvm-ar" "$llvm/bin/llvm-lib" "$llvm/bin/llvm-nm" \
+    "$llvm/bin/llvm-objcopy" "$llvm/bin/llvm-strip" "$llvm/bin/llvm-ranlib" "$out/bin/"
+cp "$packages"/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1 \
+    "$packages"/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1 "$out/lib/"
+cp "$packages"/usr/lib/x86_64-linux-gnu/libclang-20.so.20 "$out/lib/libclang.so"
+cp -R "$llvm/lib/clang" "$out/lib/"
+rm -rf "$packages"
+""",
+    visibility = ["//visibility:public"],
+)
+
+# The WASI sysroot the plugins' C (freetype, harfbuzz) and block-app's web build
+# are compiled and linked against. Rust needs none of it. The mirror of
+# https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sysroot-33.0+m.tar.gz,
+# whose GitHub download has failed on us before; the hash says they are the same.
+fetch_archive(
+    name = "wasi-sysroot",
+    sha256 = "063bc1b56582b9923e08ac9b89e58789618d851763f01530b3ff20b9e5df0ca3",
+    strip_prefix = "wasi-sysroot-33.0+m",
+    url = "https://lfs.pfg.pw/by-name/be3/wasi-sysroot-33.0+m.tar.gz",
+    visibility = ["//visibility:public"],
+)
+
+# Apple's SDK: the headers and the .tbd stubs a macOS binary is compiled and
+# linked against. It is a repackaging of the one in Xcode, which Apple's licence
+# only allows on Apple hardware; guides/bazel.md says where that leaves the
+# macOS build.
+fetch_archive(
+    name = "macos-sdk",
+    sha256 = "c15cf0f3f17d714d1aa5a642da8e118db53d79429eb015771ba816aa7c6c1cbd",
+    strip_prefix = "MacOSX15.5.sdk",
+    url = "https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz",
+    visibility = ["//visibility:public"],
+)
+
+# The MSVC C runtime and Windows SDK, laid out by xwin from a pinned channel
+# manifest that pins every package by hash: Visual Studio 17.14.41, September
+# 2026. Downloading them accepts Microsoft's Build Tools licence
+# (--accept-license). The cache is beside the output rather than in /tmp:
+# xwin moves what it unpacks into place, and a move cannot cross filesystems.
+[
+    fetch(
+        name = "windows-sdk-" + arch,
+        files = {
+            "d870eb4b2f390878af6da1ccd3cf321d22fcb72720984853b4be732ae597fc88": ["https://github.com/Jake-Shadle/xwin/releases/download/0.10.0/xwin-0.10.0-x86_64-unknown-linux-musl.tar.gz"],
+            "fca418ba94ffbcfb7a2b25f10f16f39dd09660568d21eef4bd3f274cb0b27b8c": ["https://download.visualstudio.microsoft.com/download/pr/bc92e2cb-33de-4a0c-995d-efa817f16b16/0dbdfd40c17757e64fc9f72cd9954ec8471c04fd8461a77806e5291e23239ac0/VisualStudio.17.Release.chman"],
+        },
+        script = """
+tar -xzf "$downloads/xwin-0.10.0-x86_64-unknown-linux-musl.tar.gz" -C "$downloads"
+"$downloads/xwin-0.10.0-x86_64-unknown-linux-musl/xwin" --accept-license \
+    --manifest "$downloads/VisualStudio.17.Release.chman" --arch {arch} \
+    --cache-dir "$out.cache" --http-retry 3 --log-level warn splat --output "$out"
+rm -rf "$out.cache"
+# xwin links each header and library under the other cases a case-sensitive
+# compiler or linker might ask for. The links are made copies: a directory an
+# action makes holds no link that Bazel cannot follow, and some of these only
+# resolve on the filesystem xwin wrote them on.
+find "$out" -type l | while IFS= read -r link; do
+    if target="$(readlink -f "$link")" && [ -f "$target" ]; then
+        cp --remove-destination "$target" "$link"
+    else
+        rm -f "$link"
+    fi
+done
+""".format(arch = arch),
+        visibility = ["//visibility:public"],
+    )
+    for arch in [
+        "x86_64",
+        "aarch64",
+    ]
+]
+
+# Android's NDK r29, pruned to the aarch64 sysroot and the compiler runtime
+# (86 of its 780 MB), so no action takes the whole zip as an input.
+fetch(
+    name = "android-ndk",
+    files = {"4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf": ["https://dl.google.com/android/repository/android-ndk-r29-linux.zip"]},
+    script = """
+prebuilt=android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64
+runtime="$prebuilt/lib/clang/21"
+unzip -q "$downloads/android-ndk-r29-linux.zip" -d "$downloads" \
+    "$prebuilt/sysroot/usr/include/*" \
+    "$prebuilt/sysroot/usr/lib/aarch64-linux-android/*" \
+    "$runtime/lib/linux/*aarch64-android*" \
+    "$runtime/lib/linux/aarch64/lib*"
+mkdir -p "$out/clang"
+mv "$downloads/$prebuilt/sysroot" "$out/sysroot"
+mv "$downloads/$runtime/lib" "$out/clang/lib"
+""",
+    visibility = ["//visibility:public"],
+)
+
+# Caddy, which //crates/block-app:web-serve runs on this machine, so the release
+# is the platform's the command builds for, which ./scripts/bazel run makes
+# this machine's. The same bytes as upstream's GitHub releases, mirrored.
+CADDY_VERSION = "2.11.4"
+
+CADDY_RELEASES = {
+    "linux_arm64": ("linux_arm64", "52d42ae12b3462097e9868da6dfed3c9648ae12edd3b3638102312af84cb6904", "tar.gz"),
+    "linux_x86_64": ("linux_amd64", "527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9", "tar.gz"),
+    "macos_arm64": ("mac_arm64", "9efb0af2d6cf09cfb5053c0e51721b9b3d4956d346234f39368d943d25a3c9a7", "tar.gz"),
+    "macos_x86_64": ("mac_amd64", "34bc9e5cceee8d67844ef51da624f5b79e8d070f27236e050c3f0066a2dba534", "tar.gz"),
+    "windows_arm64": ("windows_arm64", "c7f16da93728f61455f77c04eac1ff4de06a38da281ed6d3dcbfae795be2a936", "zip"),
+    "windows_x86_64": ("windows_amd64", "1708333f79e274c7697285afe6d592ab39314e0b131e9ec6bea08ad27df62ebf", "zip"),
+}
+
+[
+    fetch_archive(
+        name = "caddy-" + platform,
+        sha256 = sha256,
+        url = "https://lfs.pfg.pw/by-name/be3/caddy/caddy_{}_{}.{}".format(CADDY_VERSION, release, extension),
+    )
+    for platform, (release, sha256, extension) in CADDY_RELEASES.items()
+]
+
+alias(
+    name = "caddy",
+    actual = select({
+        "//bazel/platforms:{}_setting".format(platform): ":caddy-" + platform
+        for platform in CADDY_RELEASES
+        if platform != "linux_x86_64"
+    } | {"//conditions:default": ":caddy-linux_x86_64"}),
+    visibility = ["//visibility:public"],
+)
+
+# buildifier, the formatter of every Bazel file, which //:verify runs here.
+fetch_file(
+    name = "buildifier",
+    executable = True,
+    sha256 = "887377fc64d23a850f4d18a077b5db05b19913f4b99b270d193f3c7334b5a9a7",
+    url = "https://github.com/bazelbuild/buildtools/releases/download/v8.5.1/buildifier-linux-amd64",
+    visibility = ["//visibility:public"],
+)

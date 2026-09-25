@@ -5,7 +5,7 @@
 # deployment's TLS. Other arguments go to be-server; the default is
 # --disable-registration.
 #
-#   ./scripts/buck run //crates/block-app:web-serve [-- --listen HOST:PORT] [--backend HOST:PORT]
+#   ./scripts/bazel run //crates/block-app:web-serve [-- --listen HOST:PORT] [--backend HOST:PORT]
 set -eu
 caddy="$1" caddyfile="$2" bundle="$3" server="$4"
 shift 4

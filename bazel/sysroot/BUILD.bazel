@@ -1,0 +1,60 @@
+load(":defs.bzl", "deb_lock", "deb_sysroot", "pkg_config")
+load(":packages.bzl", "packages")
+load(":wanted.bzl", "SETS", "SNAPSHOT")
+
+# The Linux the build compiles and links against: Ubuntu 24.04's own packages -
+# glibc, libstdc++ and every system library a crate links - unpacked into a
+# sysroot the toolchains pass with --sysroot, so a worker's image is only what
+# runs the tools. They come from a snapshot of the archive, which pins every
+# index; wanted.bzl says what they are made of, and
+# `./scripts/bazel run //:lock-sysroot` resolves it into packages.bzl.
+exports_files(
+    [
+        "lavapipe_icd.json",
+        "lock.sh",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+deb_lock(
+    name = "lock",
+    sets = {name: [architecture] + wanted for name, (architecture, wanted) in SETS.items()},
+    snapshot = SNAPSHOT,
+    visibility = ["//visibility:public"],
+)
+
+deb_sysroot(
+    name = "amd64",
+    packages = packages["amd64"],
+    visibility = ["//visibility:public"],
+)
+
+# What only tests load: the Vulkan loader, lavapipe and the XKB keymaps. A set
+# of its own, so that changing it leaves every compile's key alone.
+deb_sysroot(
+    name = "amd64-test",
+    keep_xkb = True,
+    packages = packages["amd64-test"],
+    visibility = ["//visibility:public"],
+)
+
+deb_sysroot(
+    name = "arm64",
+    packages = packages["arm64"],
+    visibility = ["//visibility:public"],
+)
+
+# What a -sys crate's build script asks, for the platform it is building for
+# (third-party/rust/fixups.bzl).
+pkg_config(
+    name = "pkg-config",
+    sysroot = select({
+        "//bazel/platforms:linux_arm64_setting": ":arm64",
+        "//conditions:default": ":amd64",
+    }),
+    triple = select({
+        "//bazel/platforms:linux_arm64_setting": "aarch64-linux-gnu",
+        "//conditions:default": "x86_64-linux-gnu",
+    }),
+    visibility = ["//visibility:public"],
+)

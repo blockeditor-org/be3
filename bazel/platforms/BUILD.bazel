@@ -1,0 +1,58 @@
+load(":defs.bzl", "PLATFORMS")
+
+# The container a BuildBuddy worker runs actions in: Ubuntu 24.04's
+# buildpack-deps, pinned by digest. It brings glibc, curl, dpkg-deb and the
+# shell every action runs in; the compilers come from bazel/tools.
+WORKER = {
+    "OSFamily": "Linux",
+    "container-image": "docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549",
+}
+
+# Where every action runs: a BuildBuddy worker, Linux on x86_64 whatever the
+# machine that asked.
+platform(
+    name = "rbe",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    exec_properties = WORKER,
+    visibility = ["//visibility:public"],
+)
+
+# The same workers with the Android debug keystore, which BuildBuddy keeps as
+# the secret ANDROID_DEBUG_KEYSTORE_BASE64 and passes to an action run here in
+# that environment variable. Only bazel/android's signed_apk runs here.
+platform(
+    name = "android_signing",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+        "//bazel/constraints:android_keystore",
+    ],
+    exec_properties = WORKER | {"env-secrets": "ANDROID_DEBUG_KEYSTORE_BASE64"},
+    visibility = ["//visibility:public"],
+)
+
+# The target platforms, each with a config_setting beside it, since a select()
+# key is one setting and a platform is several constraints. Linux on x86_64 is
+# what every build is for unless it says otherwise (.bazelrc), whatever machine
+# asks, so a Mac's or a Windows machine's builds share CI's cache and its
+# tests can run on a worker.
+[
+    platform(
+        name = name,
+        constraint_values = constraints,
+        visibility = ["//visibility:public"],
+    )
+    for name, (constraints, _) in PLATFORMS.items()
+]
+
+[
+    config_setting(
+        name = name + "_setting",
+        constraint_values = constraints,
+        visibility = ["//visibility:public"],
+    )
+    for name, (constraints, _) in PLATFORMS.items()
+]

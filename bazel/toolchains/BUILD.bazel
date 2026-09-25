@@ -1,0 +1,240 @@
+load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
+load("//bazel/platforms:defs.bzl", "PLATFORMS")
+load(":cc.bzl", "clang_toolchain_config")
+load(":rust.bzl", RUST_TARGETS = "TARGETS")
+
+# The C toolchains, one per platform: clang-20 from bazel/tools for each target,
+# against the sysroot that target has. Everything built for Linux is compiled
+# and linked against bazel/sysroot rather than against the worker it runs on;
+# Android against the NDK's sysroot (its compiler runtime named as the
+# resource directory for the link alone); a Mac against Apple's SDK with
+# ld64.lld; Windows against xwin's MSVC runtime and SDK with lld-link, its
+# headers after clang's own (-idirafter), since MSVC's intrinsics headers only
+# declare what clang's define. A plugin's freetype and harfbuzz are compiled
+# against the WASI sysroot; a game module is pure Rust, on a target with no libc
+# at all. rustc links the wasm targets itself, with rust-lld.
+_WASI = [
+    "--sysroot={wasi}",
+    "-isystem",
+    "{wasi}/include/c++/v1",
+    "-pthread",
+    "-mllvm",
+    "-wasm-enable-sjlj",
+    "-mllvm",
+    "-wasm-use-legacy-eh=false",
+    "-fno-exceptions",
+    "-fno-rtti",
+    "-DHB_NO_MT",
+    "-O2",
+    "-w",
+]
+
+_WINDOWS_INCLUDES = [
+    "crt/include",
+    "sdk/include/ucrt",
+    "sdk/include/um",
+    "sdk/include/shared",
+    "sdk/include/winrt",
+]
+
+# name: (clang target, cpu, trees, compile args, link args, linker)
+TOOLCHAINS = {
+    "android_arm64": (
+        "aarch64-linux-android26",
+        "aarch64",
+        {"//bazel/tools:android-ndk": "ndk"},
+        ["--sysroot={ndk}/sysroot"],
+        [
+            "-resource-dir={ndk}/clang",
+            "-fuse-ld=lld",
+        ],
+        "clang",
+    ),
+    "linux_arm64": (
+        "aarch64-linux-gnu",
+        "aarch64",
+        {"//bazel/sysroot:arm64": "sysroot"},
+        ["--sysroot={sysroot}"],
+        ["-fuse-ld=lld"],
+        "clang",
+    ),
+    "linux_x86_64": (
+        "x86_64-linux-gnu",
+        "k8",
+        {"//bazel/sysroot:amd64": "sysroot"},
+        ["--sysroot={sysroot}"],
+        ["-fuse-ld=lld"],
+        "clang",
+    ),
+    "macos_arm64": (
+        "arm64-apple-macosx11.0",
+        "darwin_arm64",
+        {"//bazel/tools:macos-sdk": "sdk"},
+        [
+            "-isysroot",
+            "{sdk}",
+        ],
+        ["-fuse-ld=lld"],
+        "clang",
+    ),
+    "macos_x86_64": (
+        "x86_64-apple-macosx10.12",
+        "darwin_x86_64",
+        {"//bazel/tools:macos-sdk": "sdk"},
+        [
+            "-isysroot",
+            "{sdk}",
+        ],
+        ["-fuse-ld=lld"],
+        "clang",
+    ),
+    "wasi": (
+        "wasm32-wasip1-threads",
+        "wasm32",
+        {"//bazel/tools:wasi-sysroot": "wasi"},
+        _WASI,
+        [],
+        "clang",
+    ),
+    "wasm32": (
+        "wasm32-unknown-unknown",
+        "wasm32",
+        {},
+        [],
+        [],
+        "clang",
+    ),
+    "windows_arm64": (
+        "aarch64-pc-windows-msvc",
+        "arm64_windows",
+        {"//bazel/tools:windows-sdk-aarch64": "sdk"},
+        ["-idirafter{sdk}/" + include for include in _WINDOWS_INCLUDES],
+        [
+            "/libpath:{sdk}/crt/lib/aarch64",
+            "/libpath:{sdk}/sdk/lib/um/aarch64",
+            "/libpath:{sdk}/sdk/lib/ucrt/aarch64",
+        ],
+        "lld-link",
+    ),
+    "windows_x86_64": (
+        "x86_64-pc-windows-msvc",
+        "x64_windows",
+        {"//bazel/tools:windows-sdk-x86_64": "sdk"},
+        ["-idirafter{sdk}/" + include for include in _WINDOWS_INCLUDES],
+        [
+            "/libpath:{sdk}/crt/lib/x86_64",
+            "/libpath:{sdk}/sdk/lib/um/x86_64",
+            "/libpath:{sdk}/sdk/lib/ucrt/x86_64",
+        ],
+        "lld-link",
+    ),
+}
+
+# MSVC's C++ library is C++14 at the least, and a build script that asks for
+# C++11 - harfbuzz-sys's - is given C++17 on Windows.
+_MSVC_STANDARDS = {
+    "-std=c++11": "-std=c++17",
+    "-std=c++14": "-std=c++17",
+}
+
+[
+    clang_toolchain_config(
+        name = name + "_cc_config",
+        args = ["--target=" + target] + args,
+        cpu = cpu,
+        cxx_standards = _MSVC_STANDARDS if linker == "lld-link" else {},
+        link_args = link_args,
+        linker = linker,
+        target = target,
+        trees = trees,
+    )
+    for name, (target, cpu, trees, args, link_args, linker) in TOOLCHAINS.items()
+]
+
+[
+    cc_toolchain(
+        name = name + "_cc",
+        all_files = ":{}_cc_config".format(name),
+        ar_files = ":{}_cc_config".format(name),
+        as_files = ":{}_cc_config".format(name),
+        compiler_files = ":{}_cc_config".format(name),
+        dwp_files = ":{}_cc_config".format(name),
+        linker_files = ":{}_cc_config".format(name),
+        objcopy_files = ":{}_cc_config".format(name),
+        strip_files = ":{}_cc_config".format(name),
+        toolchain_config = ":{}_cc_config".format(name),
+    )
+    for name in TOOLCHAINS
+]
+
+# Registered for every platform a toolchain is, and executed on a worker. The
+# wasi one serves both wasi platforms.
+[
+    toolchain(
+        name = name,
+        exec_compatible_with = [
+            "@platforms//os:linux",
+            "@platforms//cpu:x86_64",
+        ],
+        target_compatible_with = [
+            constraint
+            for constraint in PLATFORMS[name][0]
+            if not constraint.startswith("//bazel/constraints")
+        ],
+        toolchain = ":{}_cc".format(name),
+        toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    )
+    for name in TOOLCHAINS
+]
+
+# Rust for each target (rust.bzl), and rustfmt and rust-analyzer's, all run on
+# a worker.
+_RUST_PLATFORMS = {
+    "aarch64-apple-darwin": "macos_arm64",
+    "aarch64-linux-android": "android_arm64",
+    "aarch64-pc-windows-msvc": "windows_arm64",
+    "aarch64-unknown-linux-gnu": "linux_arm64",
+    "wasm32-unknown-unknown": "wasm32",
+    "wasm32-wasip1-threads": "wasi",
+    "x86_64-apple-darwin": "macos_x86_64",
+    "x86_64-pc-windows-msvc": "windows_x86_64",
+    "x86_64-unknown-linux-gnu": "linux_x86_64",
+}
+
+[
+    toolchain(
+        name = "rust-" + triple,
+        exec_compatible_with = [
+            "@platforms//os:linux",
+            "@platforms//cpu:x86_64",
+        ],
+        target_compatible_with = [
+            constraint
+            for constraint in PLATFORMS[_RUST_PLATFORMS[triple]][0]
+            if not constraint.startswith("//bazel/constraints")
+        ],
+        toolchain = "@rust//:rust_toolchain-" + triple,
+        toolchain_type = "@rules_rust//rust:toolchain_type",
+    )
+    for triple in RUST_TARGETS
+]
+
+toolchain(
+    name = "rustfmt",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    toolchain = "@rust//:rustfmt_toolchain",
+    toolchain_type = "@rules_rust//rust/rustfmt:toolchain_type",
+)
+
+toolchain(
+    name = "rust-analyzer",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    toolchain = "@rust//:rust_analyzer_toolchain",
+    toolchain_type = "@rules_rust//rust/rust_analyzer:toolchain_type",
+)

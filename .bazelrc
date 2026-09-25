@@ -1,0 +1,65 @@
+# What Bazel needs told to build here. guides/bazel.md is the prose.
+#
+# Every action runs on BuildBuddy's workers, which run Linux on x86_64 whatever
+# the machine that asked: bazel/platforms says why. ./scripts/bazel finds the
+# API key and passes it; it also points Bazel at scripts/internal/re-relay
+# when the way out is an HTTPS proxy.
+
+common --enable_bzlmod
+common --lockfile_mode=update
+
+# BuildBuddy: its executor, cache and build event service. The key is the
+# credential helper's to find, in the places ./scripts/bazel asks for it.
+common --credential_helper=remote.buildbuddy.io=%workspace%/scripts/internal/buildbuddy-credentials
+common --credential_helper=127.0.0.1=%workspace%/scripts/internal/buildbuddy-credentials
+common --remote_executor=grpcs://remote.buildbuddy.io
+common --bes_backend=grpcs://remote.buildbuddy.io
+common --bes_results_url=https://app.buildbuddy.io/invocation/
+common --remote_timeout=10m
+common --remote_retries=5
+common --bes_upload_mode=fully_async
+common --remote_download_toplevel
+common --jobs=200
+common --remote_cache_compression
+common --experimental_remote_cache_chunking
+
+# What BuildBuddy asks for when a build goes wrong: every call to it, and every
+# action and where it ran. Both are rewritten by each command, in target/,
+# which git ignores.
+common --remote_grpc_log=target/bazel-remote-grpc.log
+common --execution_log_compact_file=target/execution_log.binpb.zst
+
+# A timing profile with each action's target and output in it.
+common --noslim_profile
+common --experimental_profile_include_target_label
+common --experimental_profile_include_primary_output
+
+# Where actions run and what they are for: a worker, and Linux on x86_64
+# unless the command names another platform.
+common --host_platform=//bazel/platforms:rbe
+common --platforms=//bazel/platforms:linux_x86_64
+common --extra_execution_platforms=//bazel/platforms:rbe,//bazel/platforms:android_signing
+common --incompatible_strict_action_env
+
+# An output directory is named after the platform it was built for, rather than
+# after a CPU every platform here claims, so the same target built for two
+# platforms in one command has two paths.
+common --experimental_platform_in_output_dir
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+
+# Cargo's release profile: `./scripts/bazel build --config=release ...`.
+common:release --compilation_mode=opt
+
+# No pipelining: rules_rust's compiles each library twice for it, once for its
+# metadata and once in full, and for some crates the two disagree, so that a
+# link finds two different copies of a crate its dependencies were checked
+# against.
+common --@rules_rust//rust/settings:pipelined_compilation=false
+
+# Tests: output only for what failed, and the plugin tests (which read and
+# write snapshots/) are the only ones that run here.
+test --test_output=errors
+test --test_verbose_timeout_warnings=false
+
+try-import %workspace%/target/re-relay.bazelrc
+try-import %workspace%/.bazelrc.local

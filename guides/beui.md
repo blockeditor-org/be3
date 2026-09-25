@@ -123,7 +123,7 @@ a missing required prop and a prop written twice at the line that wrote the tag
 rather than from inside generated code, what routes `@test_id`, `@node_ref` and
 `@sizing` to the right place, what enforces a component's child arity, and what
 keeps render props unbuilt until the component calls them. Hand-written builder chains lose the
-diagnostics, are invisible to the `view!` formatter that `./scripts/buck run //:verify`
+diagnostics, are invisible to the `view!` formatter that `./scripts/bazel run //:verify`
 runs, and read nothing like the rest of the tree. The same applies to a
 component you want to pass around: hand over a `Render`/`RenderFn` closure that
 writes a `view!`, not a half-applied builder.
@@ -570,7 +570,7 @@ bar on each pane, and tabs that can be dragged between panes or out into
 windows that float over the rest of the dock. `unstyled::Dock` underneath it
 owns the tree, the dragging and the keyboard, and paints nothing;
 `crates/beui/examples/dock.rs` is the worked example, run with
-`./scripts/buck run //crates/beui:dock-example`.
+`./scripts/bazel run //crates/beui:dock-example`.
 
 The layout is a `DockState`, which the caller keeps in a signal and hands back
 when the dock reports a change, the way `PanZoom` takes its camera:
@@ -889,8 +889,8 @@ impl App for CounterApp {
 Run the repository examples with:
 
 ```text
-./scripts/buck run //crates/beui:counter-example
-./scripts/buck run //crates/beui:demo-example
+./scripts/bazel run //crates/beui:counter-example
+./scripts/bazel run //crates/beui:demo-example
 ```
 
 Beui has three feature levels:
@@ -1409,14 +1409,14 @@ supports key presses, text, hover, pointer clicks, and touch gestures. See the
 From the workspace root, use:
 
 ```text
-./scripts/buck run //:check
-./scripts/buck run //:verify
+./scripts/bazel run //:check
+./scripts/bazel run //:verify
 ```
 
-`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/buck run //:verify`
+`./scripts/bazel run //:check` is the fast complete-workspace compile check. `./scripts/bazel run //:verify`
 is the full check, and CI runs it on a pull request and pushes whatever it changes to
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
-failure. Run `./scripts/buck run //crates/block-app:smoke` as well when a change can affect native
+failure. Run `./scripts/bazel run //crates/block-app:smoke` as well when a change can affect native
 startup or runtime integration.

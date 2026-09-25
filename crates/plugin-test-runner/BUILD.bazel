@@ -1,0 +1,5 @@
+load("//bazel/cargo:defs.bzl", "cargo_binary")
+
+# The host a plugin's tests run in, and the compiler that precompiles every
+# plugin for the app, which runs on the workers whatever the app is for.
+cargo_binary()

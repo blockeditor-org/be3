@@ -127,8 +127,9 @@ reaches the test as a trap rather than a message.
 ## 4. Getting the module into the app
 
 Each rules crate has a `module` target, which is its wasm module:
-`./scripts/buck build //crates/tabletop_games/rules/<game>:module --out <game>.wasm`
-writes it. Give a new game's `BUCK` file the same three targets
+`./scripts/bazel build //crates/tabletop_games/rules/<game>:module` writes it
+to `bazel-bin/crates/tabletop_games/rules/<game>/module.wasm`. Give a new
+game's `BUILD.bazel` file the same three targets
 `tic_tac_toe`'s has. Nothing stages them beside the app: a module reaches a
 workspace as a block. Add a Game Module block, choose the `.wasm` file with the
 system file picker, and the editor loads it

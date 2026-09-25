@@ -1,0 +1,5 @@
+# Files that replace a third-party crate's own (third-party/rust/fixups.bzl).
+exports_files(
+    glob(["**"]),
+    visibility = ["//visibility:public"],
+)

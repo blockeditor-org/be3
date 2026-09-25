@@ -1,0 +1,79 @@
+load(":defs.bzl", "bundle", "configured")
+
+# CI's build, in one command: `./scripts/bazel build --remote_download_minimal
+# //bazel/ci:everything //crates/...`, and then `build //bazel/ci:artifacts`,
+# which the first has built, for what it uploads, in
+# bazel-bin/bazel/ci/artifacts. `--//bazel/config:commit=SHA` is the commit
+# the release apps report.
+
+# The artifact name each platform's app and server upload under, and the
+# platform in bazel/platforms it is built for.
+NATIVE = {
+    "linux-aarch64": "linux_arm64",
+    "linux-x86_64": "linux_x86_64",
+    "macos-aarch64": "macos_arm64",
+    "macos-x86_64": "macos_x86_64",
+    "windows-aarch64": "windows_arm64",
+    "windows-x86_64": "windows_x86_64",
+}
+
+# What ships: each platform's release app, server and PDFium.
+[
+    configured(
+        name = "dist-" + name,
+        actual = "//crates/block-app:dist",
+        platform = "//bazel/platforms:" + platform,
+        release = True,
+    )
+    for name, platform in NATIVE.items()
+]
+
+# What `./scripts/bazel run //crates/block-app:app` builds on a machine of each
+# platform, which builds for that machine: the dev app with its plugins
+# precompiled for it. Built so that running it on a commit CI has seen is a
+# cache hit; everything else a person builds is for Linux on x86_64 wherever
+# they are, and //crates/... is that.
+[
+    configured(
+        name = "app-" + name,
+        actual = "//crates/block-app:app",
+        platform = "//bazel/platforms:" + platform,
+    )
+    for name, platform in NATIVE.items()
+]
+
+# The plugin modules every platform shares, and the web bundle without them.
+configured(
+    name = "plugins",
+    actual = "//crates/block-app:plugins",
+    platform = "//bazel/platforms:linux_x86_64",
+    release = True,
+)
+
+configured(
+    name = "web",
+    actual = "//crates/block-app:web-dist",
+    platform = "//bazel/platforms:linux_x86_64",
+    release = True,
+)
+
+# The APK CI signs, as the dev build it has always been.
+configured(
+    name = "android",
+    actual = "//crates/block-app:android-dist",
+    platform = "//bazel/platforms:linux_x86_64",
+)
+
+bundle(
+    name = "artifacts",
+    contents = {":dist-" + name: "block-" + name for name in NATIVE} | {
+        ":android": "block-app-android-aarch64/block-app.apk",
+        ":plugins": "block-plugins",
+        ":web": "block-web",
+    },
+)
+
+filegroup(
+    name = "everything",
+    srcs = [":artifacts"] + [":app-" + name for name in NATIVE],
+)

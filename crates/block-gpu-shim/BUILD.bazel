@@ -1,0 +1,18 @@
+load("//bazel/cargo:defs.bzl", "cargo_library")
+load("//bazel/wasm:defs.bzl", "wasm32_module")
+
+# The browser's half of the plugin protocol's gpu abi: a real wgpu device on a
+# plugin's canvas. It only exists in the browser, so it is only ever built for
+# wasm32-unknown-unknown, and the web bundle in crates/block-app has wasm-bindgen
+# write its JavaScript.
+cargo_library(
+    shared = True,
+    target_compatible_with = ["@platforms//cpu:wasm32"],
+)
+
+wasm32_module(
+    name = "module",
+    library = ":block-gpu-shim",
+    module = "block_gpu_shim",
+    visibility = ["//visibility:public"],
+)

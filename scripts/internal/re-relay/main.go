@@ -1,7 +1,7 @@
-// A relay between buck2 and BuildBuddy for a machine whose way out is an
-// HTTPS proxy. buck2's remote execution client dials its gRPC endpoints
-// directly and never reads HTTPS_PROXY, so where the proxy is the only way
-// out, or the one that adds credentials, buck2 is pointed at this instead:
+// A relay between Bazel and BuildBuddy for a machine whose way out is an
+// HTTPS proxy. Bazel's remote execution and build event clients dial their
+// gRPC endpoints directly and never read HTTPS_PROXY, so where the proxy is the
+// only way out, or the one that adds credentials, Bazel is pointed at this instead:
 // it takes gRPC in over cleartext HTTP/2 on localhost and sends each call on
 // through the proxy. A proxy that only speaks HTTP/1.1 drops gRPC's
 // trailers, so a call that ends without them is given the status the proxy
@@ -48,7 +48,7 @@ func main() {
 		fail("usage: re-relay serve|ensure [flags]")
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
-	listen := flags.String("listen", "127.0.0.1:18980", "the address buck2 is pointed at")
+	listen := flags.String("listen", "127.0.0.1:18980", "the address Bazel is pointed at")
 	upstream := flags.String("upstream", "remote.buildbuddy.io", "the host the calls go on to, over HTTPS on 443")
 	version := flags.String("version", "", "what ensure expects a running relay to answer")
 	logPath := flags.String("log", "", "where a relay ensure starts writes its errors")
@@ -164,13 +164,15 @@ func isClosed(err error) bool {
 
 // The proxy between here and BuildBuddy sometimes answers a call itself, with
 // an HTTP error and a page of text, when it could not reach the upstream.
-// That is not gRPC, and passed on as it was it read to buck2 as a corrupt
-// message and failed the whole build. Every call buck2 makes to remote
+// That is not gRPC, and passed on as it was it read to the client as a corrupt
+// message and failed the whole build. Every call Bazel makes to remote
 // execution is safe to make again - reads, cache lookups, uploads of content
-// named by its hash, and Execute, which runs the action again at worst - and
-// none streams in both directions, so each request body is read whole first,
-// and a call that fails before any of its answer has been passed on is made
-// again. One that still fails is UNAVAILABLE, which buck2 knows how to report.
+// named by its hash, and Execute, which runs the action again at worst - so
+// each request body is read whole first, and a call that fails before any of
+// its answer has been passed on is made again. The one call that streams both
+// ways, the build event stream, is sent whole too: Bazel sends every event
+// before it waits for the acknowledgements. One that still fails is
+// UNAVAILABLE, which Bazel knows how to report.
 const attempts = 5
 
 func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r *http.Request) {

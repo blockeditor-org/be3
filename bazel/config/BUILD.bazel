@@ -1,0 +1,10 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+
+# The commit a release build of the app reports: CI passes
+# `--//bazel/config:commit=$GITHUB_SHA`. A dev build says unknown whatever it
+# is given (crates/block-app), so a new commit does not rebuild it.
+string_flag(
+    name = "commit",
+    build_setting_default = "unknown",
+    visibility = ["//visibility:public"],
+)

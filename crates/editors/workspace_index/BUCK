@@ -1,6 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "editor")
-
-editor(
-    name = "workspace_index",
-    module = "workspace_index",
-)

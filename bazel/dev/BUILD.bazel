@@ -1,0 +1,15 @@
+load(":defs.bzl", "rustfmt")
+
+exports_files(
+    [
+        "check.sh",
+        "rust-project.sh",
+        "verify.sh",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+rustfmt(
+    name = "rustfmt",
+    visibility = ["//visibility:public"],
+)

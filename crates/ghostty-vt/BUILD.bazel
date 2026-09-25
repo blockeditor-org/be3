@@ -1,0 +1,79 @@
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
+load("//bazel/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+# libghostty-vt, block-app's terminal emulator: Zig, built on a worker by
+# scripts/internal/build-ghostty-vt.sh, which downloads Zig and Ghostty pinned
+# by hash and commit. Zig cross-compiles, so every platform's archive comes
+# from the same worker; Windows gets bazel/tools' MSVC runtime and SDK through
+# a libc file, and Android bazel/tools' NDK.
+genrule(
+    name = "libghostty-vt-archive",
+    srcs = [
+        "//scripts/internal:build-ghostty-vt.sh",
+        "//scripts/internal:common.sh",
+        "//scripts/internal:ghostty-vt.patch",
+    ],
+    outs = ["libghostty-vt.a"],
+    cmd = "triple=" + select({
+        "//bazel/platforms:android_arm64_setting": "aarch64-linux-android",
+        "//bazel/platforms:linux_arm64_setting": "aarch64-unknown-linux-gnu",
+        "//bazel/platforms:macos_arm64_setting": "aarch64-apple-darwin",
+        "//bazel/platforms:macos_x86_64_setting": "x86_64-apple-darwin",
+        "//bazel/platforms:wasi_setting": "wasm32-wasip1-threads",
+        "//bazel/platforms:windows_arm64_setting": "aarch64-pc-windows-msvc",
+        "//bazel/platforms:windows_x86_64_setting": "x86_64-pc-windows-msvc",
+        "//conditions:default": "x86_64-unknown-linux-gnu",
+    }) + "\nwindows_sdk=" + select({
+        "//bazel/platforms:windows_arm64_setting": "$(location //bazel/tools:windows-sdk-aarch64)",
+        "//bazel/platforms:windows_x86_64_setting": "$(location //bazel/tools:windows-sdk-x86_64)",
+        "//conditions:default": "",
+    }) + "\nandroid_ndk=" + select({
+        "//bazel/platforms:android_arm64_setting": "$(location //bazel/tools:android-ndk)",
+        "//conditions:default": "",
+    }) + """
+        set -eu
+        repository=`mktemp -d`
+        if [ -n "$$android_ndk" ]; then
+            ANDROID_NDK_HOME="$$repository/ndk"
+            export ANDROID_NDK_HOME
+            mkdir -p "$$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
+            ln -s "`cd "$$android_ndk" && pwd`/sysroot" "$$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+        fi
+        if [ -n "$$windows_sdk" ]; then
+            sdk=`cd "$$windows_sdk" && pwd`
+            arch="$${triple%%-*}"
+            GHOSTTY_ZIG_LIBC="$$repository/libc.txt"
+            export GHOSTTY_ZIG_LIBC
+            {
+                echo "include_dir=$$sdk/sdk/include/ucrt"
+                echo "sys_include_dir=$$sdk/crt/include"
+                echo "crt_dir=$$sdk/sdk/lib/ucrt/$$arch"
+                echo "msvc_lib_dir=$$sdk/crt/lib/$$arch"
+                echo "kernel32_lib_dir=$$sdk/sdk/lib/um/$$arch"
+                echo "gcc_dir="
+            } > "$$GHOSTTY_ZIG_LIBC"
+        fi
+        mkdir -p "$$repository/scripts/internal"
+        cp $(SRCS) "$$repository/scripts/internal/"
+        out="`pwd`/$@"
+        (cd "$$repository" && bash scripts/internal/build-ghostty-vt.sh --triple "$$triple" > /dev/null)
+        cp "$$repository/target/ghostty-vt/$$triple/"*ghostty-vt*.* "$$out"
+        rm -rf "$$repository"
+    """,
+    tags = ["requires-network"],
+    tools = select({
+        "//bazel/platforms:android_arm64_setting": ["//bazel/tools:android-ndk"],
+        "//bazel/platforms:windows_arm64_setting": ["//bazel/tools:windows-sdk-aarch64"],
+        "//bazel/platforms:windows_x86_64_setting": ["//bazel/tools:windows-sdk-x86_64"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_import(
+    name = "libghostty-vt",
+    static_library = ":libghostty-vt-archive",
+)
+
+cargo_library(link_deps = [":libghostty-vt"])
+
+cargo_test(link_deps = [":libghostty-vt"])

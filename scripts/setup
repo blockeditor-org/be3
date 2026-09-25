@@ -5,10 +5,9 @@
 # Everything here is idempotent, so running it again on a machine that is
 # already set up only reports what is already there. It assumes apt.
 #
-# Everything the project builds, buck2 builds, on BuildBuddy's workers with
-# compilers it brings itself, so what this machine needs is buck2, the Python
-# buck2's own rules run their helpers with, and the libraries the app and the
-# plugin tests load when they run here.
+# Everything the project builds, Bazel builds, on BuildBuddy's workers with
+# compilers it brings itself, so what this machine needs is Bazel and the
+# libraries the app and the plugin tests load when they run here.
 #
 # Usage:
 #   ./scripts/setup
@@ -27,7 +26,7 @@ time_script 'Setup'
 
 if [[ "$(uname -s)" != 'Linux' ]] || ! command -v apt-get > /dev/null; then
     echo 'This script only knows how to set up Ubuntu. Install the equivalents of' >&2
-    echo 'the packages it lists by hand, then run ./scripts/internal/install-buck2.sh.' >&2
+    echo 'the packages it lists by hand, then run ./scripts/internal/install-bazel.sh.' >&2
     exit 1
 fi
 
@@ -39,14 +38,11 @@ fi
 
 # What each group is for, since none of it is obvious from the names:
 #
-# Fetching buck2, which is a zstd stream, and the checkout itself.
-packages=(curl git zstd)
-# buck2's prelude runs Python helpers around the actions and tests it runs
-# here rather than on a worker.
-packages+=(python3)
+# Fetching Bazel, and the checkout itself.
+packages=(curl git)
 # What the app loads when it runs here: ALSA for audio, GTK for the native file
-# dialog, and WebKitGTK for the embedded browser. buck2 compiles and links
-# against its own copies of them, in buck/sysroot, so only the libraries are
+# dialog, and WebKitGTK for the embedded browser. Bazel compiles and links
+# against its own copies of them, in bazel/sysroot, so only the libraries are
 # needed, not their headers.
 packages+=(libasound2t64 libgtk-3-0t64 libwebkit2gtk-4.1-0)
 # wgpu opens libvulkan at runtime rather than linking it, and lavapipe out of
@@ -69,7 +65,7 @@ packages+=(
 packages+=(fonts-dejavu-core fonts-dejavu-mono)
 # be-compositor's session backend loads GBM, libinput, libseat and udev.
 packages+=(libgbm1 libinput10 libseat1 libudev1)
-# ./scripts/buck run //crates/block-app:smoke starts the app against a virtual
+# ./scripts/bazel run //crates/block-app:smoke starts the app against a virtual
 # display.
 packages+=(xvfb)
 
@@ -88,15 +84,15 @@ else
     DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y "${missing[@]}"
 fi
 
-# buck2 builds and tests the workspace on BuildBuddy's workers;
-# guides/buck2.md says what it covers. It is a download of a pinned release, so
+# Bazel builds and tests the workspace on BuildBuddy's workers;
+# guides/bazel.md says what it covers. It is a download of a pinned release, so
 # it costs seconds.
-step 'Installing buck2'
-"$internal/install-buck2.sh"
+step 'Installing Bazel'
+"$internal/install-bazel.sh"
 
 end_step
 echo ''
 echo 'Setup finished. Every build runs on BuildBuddy, so put its API key in'
-echo 'BUILDBUDDY_API_KEY or in ~/.config/be3/buildbuddy-api-key - guides/buck2.md'
+echo 'BUILDBUDDY_API_KEY or in ~/.config/be3/buildbuddy-api-key - guides/bazel.md'
 echo 'says more - then check the workspace compiles with'
-echo './scripts/buck run //:check, and run ./scripts/buck run //:verify before committing.'
+echo './scripts/bazel run //:check, and run ./scripts/bazel run //:verify before committing.'

@@ -1,0 +1,46 @@
+load("//bazel/app:defs.bzl", "tree_file")
+load("//bazel/tools:defs.bzl", "fetch_archive")
+load(":defs.bzl", "PDFIUM")
+
+# PDFium, which the PDF plugin renders pages with: a prebuilt library from
+# bblanchon/pdfium-binaries, pinned by release and hash, for each platform the
+# app is built for. The app loads it at run time from beside its executable,
+# which is where //crates/block-app:app puts it. PDFium is distributed under
+# the licences in each archive's LICENSE.
+[
+    fetch_archive(
+        name = asset,
+        sha256 = sha256,
+        url = "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8044/{}.tgz".format(asset),
+    )
+    for asset, _, sha256 in PDFIUM.values()
+]
+
+[
+    tree_file(
+        name = platform,
+        out = "{}/{}".format(
+            platform,
+            library.rsplit("/", 1)[-1],
+        ),
+        path = library,
+        tree = ":" + asset,
+    )
+    for platform, (asset, library, _) in PDFIUM.items()
+]
+
+# The PDFium library for the platform being built, for the app to stage: none
+# for Android, whose APK carries none.
+filegroup(
+    name = "pdfium",
+    srcs = select({
+        "//bazel/platforms:android_arm64_setting": [],
+        "//bazel/platforms:linux_arm64_setting": [":linux_arm64"],
+        "//bazel/platforms:macos_arm64_setting": [":macos_arm64"],
+        "//bazel/platforms:macos_x86_64_setting": [":macos_x86_64"],
+        "//bazel/platforms:windows_arm64_setting": [":windows_arm64"],
+        "//bazel/platforms:windows_x86_64_setting": [":windows_x86_64"],
+        "//conditions:default": [":linux_x86_64"],
+    }),
+    visibility = ["//visibility:public"],
+)

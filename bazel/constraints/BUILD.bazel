@@ -1,0 +1,44 @@
+# What a wasm build is for. block-app's web bundle and a plugin are both
+# wasm32-wasip1-threads, but the app links a real wgpu backend and a plugin only
+# the custom one, whose handles are neither Send nor Sync. cargo plans the two
+# as different builds, so bazel/cargo resolves each of them as a platform of
+# its own, and this is what tells them apart.
+constraint_setting(
+    name = "wasm_role",
+    default_constraint_value = ":app",
+    visibility = ["//visibility:public"],
+)
+
+constraint_value(
+    name = "app",
+    constraint_setting = ":wasm_role",
+    visibility = ["//visibility:public"],
+)
+
+constraint_value(
+    name = "guest",
+    constraint_setting = ":wasm_role",
+    visibility = ["//visibility:public"],
+)
+
+# What an action needs from its worker beyond the defaults. The signing
+# platform in bazel/platforms has this and the default one does not, so only
+# a target that asks for it with exec_compatible_with runs there.
+constraint_setting(
+    name = "worker",
+    visibility = ["//visibility:public"],
+)
+
+constraint_value(
+    name = "android_keystore",
+    constraint_setting = ":worker",
+    visibility = ["//visibility:public"],
+)
+
+# Cargo's release profile is Bazel's opt compilation mode: `--config=release`,
+# or a transition that sets it (bazel/platforms/transition.bzl).
+config_setting(
+    name = "release",
+    values = {"compilation_mode": "opt"},
+    visibility = ["//visibility:public"],
+)

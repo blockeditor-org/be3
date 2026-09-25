@@ -1,0 +1,50 @@
+load("//bazel/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
+
+beui_data = glob([
+    "assets/**/*",
+    "src/**/*.wgsl",
+])
+
+# A test includes an example's source, so the sources are the examples' too.
+beui_srcs = glob([
+    "examples/**/*.rs",
+    "src/**/*.rs",
+])
+
+cargo_library(
+    srcs = beui_srcs,
+    compile_data = beui_data,
+)
+
+# The renderer's tests draw through a real graphics adapter. On a worker that is
+# lavapipe, Mesa's software Vulkan, from bazel/sysroot's Vulkan set - the same
+# device CI's runners gave them when they ran there.
+cargo_test(
+    srcs = beui_srcs,
+    compile_data = beui_data,
+    data = [
+        "//bazel/sysroot:amd64-test",
+        "//bazel/sysroot:lavapipe_icd.json",
+    ],
+    runtime_env = {
+        "LD_LIBRARY_PATH": "$(rootpath //bazel/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(rootpath //bazel/sysroot:lavapipe_icd.json)",
+    },
+)
+
+# The examples: `./scripts/bazel run //crates/beui:<example>-example`.
+
+cargo_example(
+    "counter",
+    compile_data = beui_data,
+)
+
+cargo_example(
+    "demo",
+    compile_data = beui_data,
+)
+
+cargo_example(
+    "dock",
+    compile_data = beui_data,
+)

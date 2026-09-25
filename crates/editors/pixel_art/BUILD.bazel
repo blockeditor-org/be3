@@ -1,0 +1,6 @@
+load("//bazel/wasm:defs.bzl", "editor")
+
+editor(
+    name = "pixel_art",
+    module = "pixel_art",
+)

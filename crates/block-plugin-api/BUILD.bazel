@@ -1,0 +1,9 @@
+load("//bazel/cargo:defs.bzl", "cargo_library", "cargo_test", "editor_packages")
+
+cargo_library()
+
+# every_editor_manifest_parses reads each editor's manifest.json out of the
+# directory beside this crate, which the test's runfiles hold.
+cargo_test(
+    data = ["//{}:manifest".format(package) for package in editor_packages()],
+)

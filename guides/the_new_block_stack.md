@@ -378,8 +378,8 @@ fixture that needs to read or write it between runs.
 ## Running it
 
 ```
-./scripts/buck run //crates/be-server:be-server-bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
-./scripts/buck run //crates/be-server:be-server-bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
+./scripts/bazel run //crates/be-server:be-server-bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
+./scripts/bazel run //crates/be-server:be-server-bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
 ```
 
 `--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
@@ -387,7 +387,7 @@ fixture that needs to read or write it between runs.
 account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
 ephemeral port with a data directory under the app's, and signs in to it like
 any other server. An account on another server connects to that server's URL
-instead, and the web build always does (`./scripts/buck run
+instead, and the web build always does (`./scripts/bazel run
 //crates/block-app:web-serve` starts be-server with `--disable-registration`
 beside it).
 

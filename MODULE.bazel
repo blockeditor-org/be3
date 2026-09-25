@@ -1,0 +1,40 @@
+# The workspace as Bazel sees it. guides/bazel.md is the prose; this is the
+# part Bazel reads.
+module(name = "be3")
+
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "rules_rust", version = "0.74.0")
+bazel_dep(name = "rules_shell", version = "0.8.0")
+
+# Rust, rust-toolchain.toml's, as one repository with every target's standard
+# library (bazel/toolchains/rust.bzl). rules_rust's own toolchains unpack a
+# compiler per target, so they are turned off.
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(versions = [])
+
+rust_repository = use_extension("//bazel/toolchains:rust.bzl", "rust")
+use_repo(rust_repository, "rust")
+
+# The third-party crates, from cargo's own plans for the workspace
+# (bazel/cargo/extension.bzl), and the facts about the workspace's crates
+# that bazel/cargo/defs.bzl reads.
+cargo = use_extension("//bazel/cargo:extension.bzl", "cargo")
+use_repo(cargo, "crates")
+
+register_toolchains("//bazel/toolchains:all")
+
+register_execution_platforms(
+    "//bazel/platforms:rbe",
+    "//bazel/platforms:android_signing",
+)
+
+# rules_rust reads wasm32-wasip1-threads, the target of the plugins and of the
+# app on the web, as a system called "threads"; this reads it as the wasip1 it
+# is, with threads.
+single_version_override(
+    module_name = "rules_rust",
+    patch_strip = 1,
+    patches = ["//bazel/patches:rules_rust-wasip1-threads.patch"],
+)

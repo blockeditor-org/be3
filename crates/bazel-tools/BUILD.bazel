@@ -1,0 +1,10 @@
+load("//bazel/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+
+# The build's own tools: clippy and rust-project (for //:verify, //:check and
+# //:rust-project), resolve (the sysroot's lockfile) and apk.
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary()

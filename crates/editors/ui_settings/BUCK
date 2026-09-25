@@ -1,6 +1,0 @@
-load("@root//buck/wasm:defs.bzl", "editor")
-
-editor(
-    name = "ui_settings",
-    module = "ui_settings",
-)

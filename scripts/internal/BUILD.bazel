@@ -1,0 +1,10 @@
+# The one build script an action runs: crates/ghostty-vt builds libghostty-vt
+# with it, on a worker, the same way cargo's build does locally.
+exports_files(
+    [
+        "build-ghostty-vt.sh",
+        "common.sh",
+        "ghostty-vt.patch",
+    ],
+    visibility = ["//crates/ghostty-vt:__pkg__"],
+)

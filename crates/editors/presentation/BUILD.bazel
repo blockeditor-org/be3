@@ -1,0 +1,6 @@
+load("//bazel/wasm:defs.bzl", "editor")
+
+editor(
+    name = "presentation",
+    module = "presentation",
+)

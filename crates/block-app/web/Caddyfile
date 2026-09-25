@@ -2,7 +2,7 @@
 # the address it is served at: a domain for a deployment, which Caddy gets a
 # certificate for, or http://127.0.0.1:8080 for serve.sh beside this, which runs
 # it on this machine. BE3_WEB_ROOT is the directory
-# `./scripts/buck build //crates/block-app:web-dist --out DIR` wrote, and
+# `./scripts/bazel build //crates/block-app:web-dist` wrote under bazel-bin, and
 # BE3_BACKEND_URL where be-server listens.
 {$BE3_DOMAIN_NAME} {
 	handle /api* {

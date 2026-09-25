@@ -1,0 +1,6 @@
+load("//bazel/wasm:defs.bzl", "editor")
+
+editor(
+    name = "deterministic_game",
+    module = "deterministic_game",
+)

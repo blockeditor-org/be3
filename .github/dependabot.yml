@@ -12,9 +12,10 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     # Plain "/" is only the workflows. The one composite action under
-    # .github/actions, buck2, uses nothing, so it is not named.
+    # .github/actions, bazel, is named on its own.
     directories:
       - /
+      - /.github/actions/bazel
     schedule:
       interval: weekly
     # One pull request for all of them. These land together or not at all, and
@@ -27,8 +28,9 @@ updates:
   # One workspace, one Cargo.lock at the root. Minor and patch bumps come as a
   # single grouped pull request so a workspace this size stays one review a
   # week; a major bump gets its own, since that is where the breaking changes
-  # are. The generated buck files are rebuilt from Cargo.toml by ./scripts/buck,
-  # so most bumps need nothing else committed beside them.
+  # are. MODULE.bazel.lock records what bazel/cargo/extension.bzl made from
+  # Cargo.lock, and verification brings it up to date on the pull request, so
+  # most bumps need nothing else committed beside them.
   - package-ecosystem: cargo
     directories:
       - /
@@ -39,7 +41,7 @@ updates:
         update-types:
           - minor
           - patch
-    # The exception is wasm-bindgen: buck/cargo/BUCK installs wasm-bindgen-cli
+    # The exception is wasm-bindgen: bazel/cargo/BUILD.bazel installs wasm-bindgen-cli
     # at exactly the version Cargo.lock has, and the two refuse to work across
     # releases. js-sys and web-sys each require an exact wasm-bindgen, so a bump
     # to any of them drags it along. That family moves by hand, together with

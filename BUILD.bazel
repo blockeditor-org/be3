@@ -1,0 +1,52 @@
+load("//bazel/app:defs.bzl", "sh_command")
+
+# The root package: the commands a person runs, and the files at the root the
+# build reads.
+#
+#   ./scripts/bazel run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
+#   ./scripts/bazel run //:check
+#   ./scripts/bazel run //:lock-sysroot
+#   ./scripts/bazel run //:rust-project
+exports_files([
+    "Cargo.lock",
+    "Cargo.toml",
+    "clippy.toml",
+])
+
+# The accepted paintings the plugin tests compare against (bazel/wasm).
+filegroup(
+    name = "snapshots",
+    srcs = glob(["snapshots/**"]),
+    visibility = ["//visibility:public"],
+)
+
+# The lint pass's tools are not named here: verify.sh builds them when it
+# lints, so a run of the tests alone never fetches them.
+sh_command(
+    name = "verify",
+    src = "//bazel/dev:verify.sh",
+)
+
+# rustc's check pass, through clippy, over every first-party target in every
+# configuration it is built in: the host's, the plugins' and the games' wasm.
+sh_command(
+    name = "check",
+    src = "//bazel/dev:check.sh",
+    args = ["$(rootpath //crates/bazel-tools:bazel-tools-bin)"],
+    data = ["//crates/bazel-tools:bazel-tools-bin"],
+)
+
+sh_command(
+    name = "lock-sysroot",
+    src = "//bazel/sysroot:lock.sh",
+    args = ["$(rootpath //bazel/sysroot:lock)"],
+    data = ["//bazel/sysroot:lock"],
+)
+
+# rust-project.json, which rust-analyzer reads the workspace through.
+sh_command(
+    name = "rust-project",
+    src = "//bazel/dev:rust-project.sh",
+    args = ["$(rootpath //crates/bazel-tools:bazel-tools-bin)"],
+    data = ["//crates/bazel-tools:bazel-tools-bin"],
+)

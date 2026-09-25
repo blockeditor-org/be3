@@ -211,7 +211,7 @@ if [[ -n "$zig_cpu" ]]; then
     zig_arguments+=("-Dcpu=$zig_cpu")
 fi
 # Zig finds an MSVC installation only on Windows. A build for an MSVC target
-# anywhere else names one with a libc file, which is what buck2's build does
+# anywhere else names one with a libc file, which is what Bazel's build does
 # with the one xwin lays out.
 if [[ -n "${GHOSTTY_ZIG_LIBC:-}" ]]; then
     zig_arguments+=("--libc" "$GHOSTTY_ZIG_LIBC")

@@ -1,0 +1,262 @@
+load("//bazel/android:defs.bzl", "android_apk", "signed_apk")
+load("//bazel/app:defs.bzl", "app", "app_files", "sh_command")
+load("//bazel/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
+load("//bazel/config:defs.bzl", "commit_env")
+load("//bazel/wasm:defs.bzl", "PLUGIN_EXPORTS", "WASI_LINK_DATA", "WASI_LINK_FLAGS", "wasi_app_module")
+
+# The app, with its full features (the terminal and the embedded browser),
+# which bazel/cargo/extension.bzl asks cargo to plan for every platform.
+#
+# BLOCK_APP_COMMIT is what cargo's build script asks git for; a worker has no
+# checkout, so a release build takes `--//bazel/config:commit=SHA`. A dev build
+# says unknown whatever the command passes, so a new commit does not rebuild
+# it, and a build that asks for both profiles leaves the dev half the cache a
+# person's machine hits.
+commit_env(
+    name = "commit",
+    variable = "BLOCK_APP_COMMIT",
+)
+
+app_data = glob(
+    [
+        "assets/**/*",
+        "src/**/*.wgsl",
+    ],
+    allow_empty = True,
+)
+
+cargo_library(
+    compile_data = app_data,
+    rustc_env_files = [":commit"],
+)
+
+# On Android the app is this library, loaded by NativeActivity under cargo's
+# name for it; on the web it is the module :web runs wasm-bindgen over, with
+# the exports wasm-bindgen needs to prepare the module for threads, and
+# wasi-libc's setjmp and no-exceptions libc++ for the C and C++ it links.
+cargo_library(
+    name = "block-app-cdylib",
+    compile_data = app_data + select({
+        "//bazel/platforms:wasi_setting": WASI_LINK_DATA,
+        "//conditions:default": [],
+    }),
+    rustc_env_files = [":commit"],
+    rustc_flags = select({
+        "//bazel/platforms:wasi_setting": PLUGIN_EXPORTS + WASI_LINK_FLAGS,
+        "//conditions:default": [],
+    }),
+    shared = True,
+    target_compatible_with = select({
+        "//bazel/platforms:android_arm64_setting": [],
+        "//bazel/platforms:wasi_setting": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+# The app links system libraries the worker's image does not have - ALSA, and
+# GTK and WebKitGTK when the browser is built - so its tests load them from the
+# sysroot it was linked against.
+cargo_test(
+    compile_data = app_data,
+    data = ["//bazel/sysroot:amd64"],
+    runtime_env = {"LD_LIBRARY_PATH": "$(rootpath //bazel/sysroot:amd64)/usr/lib/x86_64-linux-gnu"},
+    rustc_env_files = [":commit"],
+)
+
+cargo_binary(
+    compile_data = app_data,
+    rustc_env_files = [":commit"],
+)
+
+EDITOR_MANIFESTS = ["//{}:manifest".format(package) for package in editor_packages()]
+
+EDITOR_MODULES = ["//{}:module".format(package) for package in editor_packages()]
+
+# The app with every plugin beside it: `./scripts/bazel run //crates/block-app:app`
+# runs it. bazel/app says how it is laid out.
+app(
+    name = "app",
+    binary = ":block-app-bin",
+    executable_name = "block-app",
+    files = ["//third-party/pdfium"],
+    manifests = EDITOR_MANIFESTS,
+    modules = EDITOR_MODULES,
+    precompile_target = select({
+        "//bazel/platforms:linux_arm64_setting": "aarch64-unknown-linux-gnu",
+        "//bazel/platforms:macos_arm64_setting": "aarch64-apple-darwin",
+        "//bazel/platforms:macos_x86_64_setting": "x86_64-apple-darwin",
+        "//bazel/platforms:windows_arm64_setting": "aarch64-pc-windows-msvc",
+        "//bazel/platforms:windows_x86_64_setting": "x86_64-pc-windows-msvc",
+        "//conditions:default": "x86_64-unknown-linux-gnu",
+    }),
+    visibility = ["//bazel/ci:__pkg__"],
+)
+
+# The plugins alone: every editor's manifest and module, for CI to ship once
+# beside every platform's app. Not precompiled, since a .cwasm is only good for
+# the machine it was compiled for.
+app_files(
+    name = "plugins",
+    manifests = EDITOR_MANIFESTS,
+    modules = EDITOR_MODULES,
+    precompile = False,
+    visibility = ["//bazel/ci:__pkg__"],
+)
+
+# What CI ships per platform: the app and server under cargo's names, and
+# PDFium; the plugins ship once, from :plugins.
+app_files(
+    name = "dist",
+    binary = ":block-app-bin",
+    executable_name = "block-app",
+    extra_binaries = {"//crates/be-server:be-server-bin": "be-server"},
+    files = ["//third-party/pdfium"],
+    precompile = False,
+    visibility = ["//bazel/ci:__pkg__"],
+)
+
+# The web bundle: the app for wasi and the gpu shim for wasm32, each through
+# wasm-bindgen, the page and shims in web/, and the plugins with the
+# plugins.json a browser finds them through. :web-dist is CI's, without them.
+wasi_app_module(
+    name = "web-module",
+    library = ":block-app-cdylib",
+    module = "block_app_lib",
+)
+
+WEB_FILES = glob([
+    "web/*.html",
+    "web/*.js",
+])
+
+app_files(
+    name = "web",
+    out = "web-bundle",
+    bindgen = [
+        ":web-module",
+        "//crates/block-gpu-shim:module",
+    ],
+    files = WEB_FILES,
+    index = True,
+    manifests = EDITOR_MANIFESTS,
+    modules = EDITOR_MODULES,
+    precompile = False,
+)
+
+# What CI publishes: the bundle without the plugins, which :plugins builds once
+# for every platform, and with an index of none, since a bundle whose
+# plugins.json cannot be fetched is an error where one with no plugins is not.
+app_files(
+    name = "web-dist",
+    bindgen = [
+        ":web-module",
+        "//crates/block-gpu-shim:module",
+    ],
+    files = WEB_FILES,
+    index = True,
+    precompile = False,
+    visibility = ["//bazel/ci:__pkg__"],
+)
+
+# The bundle served here by Caddy, with be-server behind it (web/serve.sh).
+sh_command(
+    name = "web-serve",
+    src = "web/serve.sh",
+    args = [
+        "$(rootpath //bazel/tools:caddy)",
+        "$(rootpath web/Caddyfile)",
+        "$(rootpath :web)",
+        "$(rootpath //crates/be-server:be-server-bin)",
+    ],
+    data = [
+        "web/Caddyfile",
+        ":web",
+        "//bazel/tools:caddy",
+        "//crates/be-server:be-server-bin",
+    ],
+)
+
+# The Android app: the APK is built unsigned on a worker, with the plugins
+# precompiled for the device, and :android signs it here into
+# target/android/block-app.apk (`-- --install` installs and starts it).
+# CI's APK has an id and label of its own, so that it installs beside a local
+# build rather than colliding with it: sharing the package name, it would
+# either overwrite a local install signed with the same key or fail to install
+# over one signed with another.
+app_files(
+    name = "android-assets",
+    index = True,
+    manifests = EDITOR_MANIFESTS,
+    modules = EDITOR_MODULES,
+    precompile_target = "aarch64-linux-android",
+)
+
+# What CI ships: no plugins, which :plugins builds once for every platform, and
+# an index of none.
+app_files(
+    name = "android-dist-assets",
+    index = True,
+    precompile = False,
+)
+
+[
+    android_apk(
+        name = name,
+        application_id = application_id,
+        assets = assets,
+        java = glob(["android/java/**/*.java"]),
+        label = label,
+        library = ":block-app-cdylib",
+        manifest = "android/AndroidManifest.xml",
+        min_sdk = 23,
+        package = "com.be3.block",
+        target_sdk = 35,
+        version_code = 1,
+        version_name = "0.1.0",
+    )
+    for name, assets, application_id, label in [
+        ("apk", ":android-assets", "com.be3.block", "Block"),
+        ("apk-dist", ":android-dist-assets", "com.be3.block.ci", "Block (CI)"),
+    ]
+]
+
+sh_command(
+    name = "android",
+    src = "//bazel/android:sign.sh",
+    args = [
+        "$(rootpath //bazel/android:jdk)",
+        "$(rootpath //bazel/android:build-tools)",
+        "$(rootpath //bazel/android:platform-tools)",
+        "$(rootpath :apk)",
+    ],
+    data = [
+        ":apk",
+        "//bazel/android:build-tools",
+        "//bazel/android:jdk",
+        "//bazel/android:platform-tools",
+    ],
+)
+
+# What CI ships, signed on a worker with CI's keystore, so the runner downloads
+# only the APK.
+signed_apk(
+    name = "android-dist",
+    apk = ":apk-dist",
+    exec_compatible_with = ["//bazel/constraints:android_keystore"],
+    key_version = 1,
+    visibility = ["//bazel/ci:__pkg__"],
+)
+
+# The native startup smoke check: the app for ten seconds in a virtual display.
+sh_command(
+    name = "smoke",
+    src = "//bazel/app:smoke.sh",
+    args = [
+        "$(rootpath :app)",
+        "$(rootpath //bazel/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+    ],
+    data = [
+        ":app",
+        "//bazel/sysroot:amd64",
+    ],
+)

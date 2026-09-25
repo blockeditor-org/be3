@@ -1,0 +1,33 @@
+load("//bazel/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("//bazel/wasm:defs.bzl", "wasm32_module")
+
+# The rules of one game, twice: once as a WebAssembly module, which is the only
+# form the app ever loads, and once natively so the tests can drive it through
+# the host. Cargo builds the module from a build script that shells out to a
+# second cargo; here it is a target, and the test names it as a dependency.
+cargo_library()
+
+# The module the host loads. It is only ever built for wasm32, which is what
+# target_compatible_with says: asking for it on the host skips it rather than
+# failing a link.
+cargo_library(
+    name = "tic_tac_toe_wasm",
+    shared = True,
+    target_compatible_with = ["@platforms//cpu:wasm32"],
+)
+
+# The module as the host loads it, built for wasm32 whatever the thing asking
+# for it is built for.
+wasm32_module(
+    name = "module",
+    library = ":tic_tac_toe_wasm",
+    visibility = ["//visibility:public"],
+)
+
+# The rules driven through the host, which is what the tests do. GAME_WASM is
+# the module above: under cargo a build script compiles it with a second cargo
+# call and prints where it landed, and here it is named as a dependency.
+cargo_test(
+    compile_data = [":module"],
+    env = {"GAME_WASM": "$(execpath :module)"},
+)

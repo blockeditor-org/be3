@@ -1,0 +1,17 @@
+load("//bazel/cargo:defs.bzl", "cargo_library")
+load("//bazel/wasm:defs.bzl", "plugin_tests")
+
+plugin_data = glob(
+    ["src/**/*.wgsl"],
+    allow_empty = True,
+)
+
+cargo_library(compile_data = plugin_data)
+
+# The guest half of the plugin framework, which is behind cfg(target_arch =
+# "wasm32"), so its tests only exist compiled to wasm and run the way a
+# plugin's are.
+plugin_tests(
+    srcs = glob(["src/**/*.rs"]),
+    compile_data = plugin_data,
+)

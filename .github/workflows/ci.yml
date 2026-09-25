@@ -23,24 +23,24 @@ permissions:
   contents: read
 
 env:
-  # BuildBuddy, which runs every buck2 action. A pull request from a fork sees
-  # an empty value, and ./scripts/buck says so rather than building.
+  # BuildBuddy, which runs every Bazel action. A pull request from a fork sees
+  # an empty value, and ./scripts/bazel says so rather than building.
   BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
 
-# Two jobs do the work. build is one buck2 build of everything CI builds, on
-# every platform, and uploads what ships. verify is ./scripts/buck run //:verify,
+# Two jobs do the work. build is one Bazel build of everything CI builds, on
+# every platform, and uploads what ships. verify is ./scripts/bazel run //:verify,
 # a runner for each of its three parts, which fixes what it can on a pull
-# request. autofix pushes those fixes, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
-# needs is buck2 and whatever runs here rather than there.
+# request. autofix pushes those fixes, and CI OK is the gate. Everything runs on
+# BuildBuddy's workers, so what a runner needs is Bazel and whatever runs here
+# rather than there.
 jobs:
-  # buck/ci/BUCK names what is built: //crates/... for the host, which is what
-  # ./scripts/buck builds for on every machine; each platform's release app
-  # and server; the plugins, the web bundle and the APK; and each platform's
-  # dev app, which is what `run` builds on a machine of that platform, so that
-  # running it on a commit CI has seen is a cache hit. The first command builds
-  # all of it and downloads nothing. The second downloads only what is
-  # uploaded, which the first has built; --out takes one target, and one that
-  # downloads nothing cannot be written out.
+  # bazel/ci/BUILD.bazel names what is built: //crates/... for the host, which
+  # is what ./scripts/bazel builds for on every machine; each platform's
+  # release app and server; the plugins, the web bundle and the APK; and each
+  # platform's dev app, which is what `run` builds on a machine of that
+  # platform, so that running it on a commit CI has seen is a cache hit. The
+  # first command builds all of it and downloads nothing. The second downloads
+  # only what is uploaded, which the first has built.
   build:
     name: build
     runs-on: ubuntu-24.04
@@ -52,7 +52,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/buck2
+      - uses: ./.github/actions/bazel
 
       # The commit the release apps report; the dev builds say unknown whatever
       # this is, so they stay the ones a person's machine asks for.
@@ -60,13 +60,16 @@ jobs:
         env:
           COMMIT: ${{ github.sha }}
         run: >-
-          ./scripts/buck build --materializations=none -c "be3.commit=$COMMIT"
-          //buck/ci:everything //crates/...
+          ./scripts/bazel build --remote_download_minimal "--//bazel/config:commit=$COMMIT"
+          //bazel/ci:everything //crates/...
 
       - name: Download what is uploaded
         env:
           COMMIT: ${{ github.sha }}
-        run: ./scripts/buck build -c "be3.commit=$COMMIT" //buck/ci:artifacts --out dist
+        run: |
+          ./scripts/bazel build "--//bazel/config:commit=$COMMIT" //bazel/ci:artifacts
+          cp -RL bazel-bin/bazel/ci/artifacts dist
+          chmod -R u+w dist
 
       # Each platform's app, server and PDFium. The plugins are uploaded once
       # beside them, since every platform loads the same bytes and a manifest
@@ -134,7 +137,7 @@ jobs:
         with:
           path: dist/block-web
 
-  # ./scripts/buck run //:verify, the way a person runs it: the lint pass and
+  # ./scripts/bazel run //:verify, the way a person runs it: the lint pass and
   # the tests on BuildBuddy's workers, and the plugin tests here, since they
   # read and write the accepted paintings in snapshots/. Each part has a runner
   # of its own, since they need nothing from one another and one after another
@@ -203,20 +206,20 @@ jobs:
         with:
           node-version: '22'
 
-      - uses: ./.github/actions/buck2
+      - uses: ./.github/actions/bazel
         if: ${{ !cancelled() }}
 
-      # buck/sysroot/packages.bzl is the lockfile of what buck/sysroot/BUCK
-      # asks for, and is checked in. Re-resolving it here is what says the two
+      # bazel/sysroot/packages.bzl is the lockfile of what
+      # bazel/sysroot/wanted.bzl asks for, and is checked in. Re-resolving it here is what says the two
       # still agree; on a pull request a stale one is a fix like any other.
       - name: Re-resolve the sysroot lockfile
         if: ${{ !cancelled() && matrix.part == 'lint' }}
         env:
           CHECK: ${{ github.event_name != 'pull_request' }}
         run: |
-          ./scripts/buck run //:lock-sysroot
+          ./scripts/bazel run //:lock-sysroot
           if [ "$CHECK" = true ]; then
-            git diff --exit-code buck/sysroot/packages.bzl
+            git diff --exit-code bazel/sysroot/packages.bzl
           fi
 
       - name: Run //:verify --${{ matrix.part }}
@@ -226,9 +229,9 @@ jobs:
           PART: ${{ matrix.part }}
         run: |
           if [ "$CHECK" = true ]; then
-            ./scripts/buck run //:verify -- --check "--$PART"
+            ./scripts/bazel run //:verify -- --check "--$PART"
           else
-            ./scripts/buck run //:verify -- "--$PART"
+            ./scripts/bazel run //:verify -- "--$PART"
           fi
 
       # Everything a fix can do shows up in git: an edited file, a moved one,
@@ -270,7 +273,7 @@ jobs:
       - name: Fail because verification changed the checkout
         if: ${{ !cancelled() && steps.collect.outputs.dirty == 'true' }}
         run: |
-          echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/buck run //:verify and commit what it changes.'
+          echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/bazel run //:verify and commit what it changes.'
           exit 1
 
   # A pull request's verification fixes what it can and accepts what the tests
@@ -363,7 +366,7 @@ jobs:
         run: |
           author="$APP_SLUG[bot]"
           if [ "$(git log -1 --format=%an)" = "$author" ]; then
-            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/buck run //:verify and commit what it changes."
+            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/bazel run //:verify and commit what it changes."
             exit 1
           fi
 
@@ -372,7 +375,7 @@ jobs:
           for patch in "$RUNNER_TEMP"/autofix/*.patch; do
             git apply --index "$patch"
           done
-          git commit --quiet --message 'style: apply the fixes from ./scripts/buck run //:verify'
+          git commit --quiet --message 'style: apply the fixes from ./scripts/bazel run //:verify'
           git show --stat HEAD
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"

@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+#
+# Bazel, run against BuildBuddy, on Linux, macOS or Git Bash on Windows. Before
+# starting it, this installs the pinned Bazel if it is missing, finds the
+# BuildBuddy key (asking for it at a terminal), and points Bazel at
+# scripts/internal/re-relay when the way out is an HTTPS proxy
+# (scripts/internal/common.sh). Arguments go to Bazel unchanged, except that on
+# anything but Linux x86_64 `run` builds for this machine unless it names
+# --platforms, and a command that fails with an infrastructure error is tried
+# once more.
+#
+# Usage:
+#   ./scripts/bazel build //crates/...
+#   ./scripts/bazel test //crates/...
+#   ./scripts/bazel run //crates/block-app:app
+
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
+cd "$repository"
+
+bazel="$(bazel_path)"
+if [[ ! -x "$bazel" ]]; then
+    "$internal/install-bazel.sh" >&2
+fi
+assert_buildbuddy_key
+mkdir -p "$repository/target"
+configure_https_proxy_relay
+
+command="${1:-}"
+
+# Bazel exits with 34 when remote execution failed, 36 for a local
+# environmental problem, 38 when the build event service did, and 39 when a
+# remote cache entry it was counting on is gone - none of them about the build
+# being wrong. BuildBuddy sometimes resets a download partway, which ends up as
+# one of those; the second attempt finds the actions cached.
+retrying() {
+    local status=0
+    "$@" || status=$?
+    case "$status" in
+        34 | 36 | 38 | 39)
+            echo "Bazel failed with an infrastructure error ($status); trying once more." >&2
+            status=0
+            "$@" || status=$?
+            ;;
+    esac
+    return $status
+}
+
+if [[ "$command" == 'run' ]]; then
+    shift
+    host="$(host_target_platform || true)"
+    named=false
+    for argument in "$@"; do
+        case "$argument" in
+            --) break ;;
+            --platforms | --platforms=* | --config=*) named=true ;;
+        esac
+    done
+    if [[ -n "$host" && "$host" != 'linux_x86_64' ]] && ! $named; then
+        set -- "--platforms=//bazel/platforms:$host" "$@"
+    fi
+    # The program's own exit status is run's, so only the build is retried:
+    # --script_path builds everything and writes the command it would run,
+    # which then runs without Bazel holding its lock.
+    script="$repository/target/bazel-run-$$.sh"
+    trap 'rm -f "$script"' EXIT
+    retrying "$bazel" run --script_path="$script" "$@"
+    trap - EXIT
+    exec /bin/bash -c 'script="$1"; shift; trap "rm -f \"$script\"" EXIT; "$script" "$@"' - "$script"
+fi
+
+retrying "$bazel" "$@"

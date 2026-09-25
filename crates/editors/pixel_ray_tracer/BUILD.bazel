@@ -1,0 +1,6 @@
+load("//bazel/wasm:defs.bzl", "editor")
+
+editor(
+    name = "pixel_ray_tracer",
+    module = "pixel_ray_tracer",
+)
