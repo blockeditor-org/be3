@@ -154,8 +154,7 @@ impl GameModel for BlockGame {
         } else {
             self.account
         };
-        self.block
-            .operate(DeterministicGame::play(player, effect));
+        self.block.operate(DeterministicGame::play(player, effect));
     }
 
     fn play_as(&self, seat: usize) {

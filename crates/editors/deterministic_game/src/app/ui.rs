@@ -350,16 +350,16 @@ pub(crate) fn GameCreation(
         }
     }));
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=12.0 padding_vertical=10.0>
-            <List spacing=8.0>
+        <Frame padding_horizontal=14.0 padding_vertical=14.0>
+            <List spacing=10.0 align=Align::Start>
                 <Button
-                    label="Choose game module..."
-                    variant=ButtonVariant::Secondary
+                    label="Choose game module…"
+                    variant=ButtonVariant::Primary
                     disabled={picking}
                     @test_id={"game.choose"}
                     on_click={move || creation.choose_module()}
                 />
-                <Body content={status} color={status_color} @test_id={"game.selection"} />
+                <Caption content={status} color={status_color} @test_id={"game.selection"} />
             </List>
         </Frame>
     }
