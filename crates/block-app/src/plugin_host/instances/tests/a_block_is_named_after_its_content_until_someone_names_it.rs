@@ -29,7 +29,7 @@ fn named(block: Uuid, name: &str) {
 }
 
 #[test]
-fn a_migrated_block_is_named_after_its_content_until_someone_names_it() {
+fn a_block_is_named_after_its_content_until_someone_names_it() {
     let harness = crate::be::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();

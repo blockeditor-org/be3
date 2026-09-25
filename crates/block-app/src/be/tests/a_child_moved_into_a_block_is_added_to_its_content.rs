@@ -17,7 +17,7 @@ fn slides_of(shared: &Shared, block: Uuid) -> Option<Vec<Option<Uuid>>> {
 }
 
 #[test]
-fn a_child_moved_into_a_migrated_block_is_added_to_its_content() {
+fn a_child_moved_into_a_block_is_added_to_its_content() {
     let harness = Harness::start();
     harness.connect();
     let (block, first, second) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());

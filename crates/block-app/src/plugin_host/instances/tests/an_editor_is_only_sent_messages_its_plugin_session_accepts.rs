@@ -10,7 +10,7 @@ use block_plugin_api::{
 };
 
 #[test]
-fn a_migrated_editor_is_only_sent_messages_its_plugin_session_accepts() {
+fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     let harness = crate::be::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
