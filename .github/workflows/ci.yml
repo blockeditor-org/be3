@@ -380,9 +380,10 @@ jobs:
 
   # Every painting a pull request changes, drawn before, after, and with what
   # changed marked, in one comment on the pull request that each run edits
-  # rather than adding to. The paintings compared are the ones committed on
-  # the head, so a painting the autofix job accepts shows up in the run its
-  # commit starts.
+  # rather than adding to. It runs on the commit GitHub makes by merging the
+  # head into the base, so the rasterizer is the base's even when the head
+  # branched off before it existed, and a painting the autofix job accepts
+  # shows up in the run its commit starts.
   #
   # It is two jobs for the same reason verify and autofix are. This one builds
   # and runs the rasterizer from the pull request, so it has no credentials;
@@ -399,21 +400,18 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
-      # The whole history, since what the pull request changed is measured
-      # from where it left its base rather than from wherever the base is now.
+      # The merge commit and its first parent, the base it was merged into:
+      # what differs between the two is what the pull request changed.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
+          fetch-depth: 2
           persist-credentials: false
 
       - uses: ./.github/actions/buck2
 
       - name: Collect the paintings the pull request changed
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          base="$(git merge-base "$BASE" HEAD)"
+          base="$(git rev-parse HEAD^1)"
           before="$RUNNER_TEMP/paintings/before"
           after="$RUNNER_TEMP/paintings/after"
           mkdir -p "$before" "$after"
