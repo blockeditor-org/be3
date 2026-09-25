@@ -151,10 +151,15 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         self.host
             .operate_content_at(self.block, C::encode_operation(&operation));
         self.pending.borrow_mut().push_back(operation);
+        self.notify();
     }
 
     pub(crate) fn pump(&self) {
         self.adopt();
+        self.notify();
+    }
+
+    fn notify(&self) {
         let touched = std::mem::take(&mut *self.touched.borrow_mut());
         if touched.is_empty() {
             return;
@@ -169,10 +174,9 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             .filter(|watcher| everything || watcher.key.is_none_or(|key| keys.contains(&key)))
             .cloned()
             .collect();
-        let visible = self.visible.borrow();
         batch(|| {
             for watcher in watchers {
-                (watcher.run)(&visible);
+                (watcher.run)(&self.visible.borrow());
             }
         });
     }
