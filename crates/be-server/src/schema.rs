@@ -86,6 +86,13 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
             PRIMARY KEY (workspace_id, block_id, commit_id, position)
         );
 
+        CREATE TABLE IF NOT EXISTS block_objects (
+            workspace_id    TEXT NOT NULL,
+            block_id        TEXT NOT NULL,
+            hash            TEXT NOT NULL,
+            PRIMARY KEY (workspace_id, block_id, hash)
+        );
+
         CREATE TABLE IF NOT EXISTS object_refs (
             hash            TEXT PRIMARY KEY,
             count           INTEGER NOT NULL CHECK (count >= 0)

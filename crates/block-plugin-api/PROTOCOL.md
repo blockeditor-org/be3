@@ -90,6 +90,23 @@ regeneration request carries the settings to rebuild from and is answered
 exactly once, after the instance has written the artifact through its own
 client, with success or with why it failed.
 
+Every block id a message carries is in the instance's own scope. An instance
+whose block sits inside a version control checkout names the blocks of that
+checkout by the ids their content stores, which are the same in every checkout
+of the same history, and the host translates them to and from the blocks it
+actually holds at the boundary, in both directions and for every message. A
+plugin never sees the translation and needs nothing to take part in it.
+
+An editor of a repository or a checkout asks the host to act on it with a
+version control command naming that block: adopting a block as the tree to
+version, committing, bringing the branch's changes in, switching, making a
+branch or a checkout, resolving a conflict by taking one side, and forking,
+pulling or pushing an upstream in the same workspace. The host answers every
+instance whose block is a repository or a checkout with that block's status
+whenever it changes: whether it is busy, the last error, the branches, what
+the working tree changed since its base, whether the branch has moved past the
+base, and the history.
+
 An editor instance may ask for the cursor shown over one of its regions,
 which only the host can put on the window. The request names what the cursor
 means rather than any one toolkit's spelling of it, is sent only when the

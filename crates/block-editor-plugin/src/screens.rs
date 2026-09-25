@@ -242,6 +242,13 @@ impl Screens {
                     session.set_histories(states);
                 }
             }
+            Message::Editor(EditorMessage::VersionStatus {
+                instance, status, ..
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.set_version_status(status);
+                }
+            }
             Message::Editor(EditorMessage::ArtifactStates { instance, states }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_artifacts(

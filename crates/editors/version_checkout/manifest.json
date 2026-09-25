@@ -1,0 +1,13 @@
+{
+  "id": "be3.version-checkout",
+  "name": "Checkout",
+  "version": "0.1.0",
+  "block_type": "6be37c5e-0a1d-4f6e-9c20-636b6f750001",
+  "display_name": "Checkout",
+  "icon": "",
+  "creation": "None",
+  "regions": [
+    "Frame"
+  ],
+  "entry_point": "version_checkout.wasm"
+}

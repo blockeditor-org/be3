@@ -200,6 +200,11 @@ pub enum ClientMessage {
         references_added: Vec<Uuid>,
         references_removed: Vec<Uuid>,
     },
+    HoldObjects {
+        request: u64,
+        block: Uuid,
+        objects: Vec<Hash>,
+    },
     ReadBlock {
         request: u64,
         block: Uuid,
@@ -301,6 +306,7 @@ impl ClientMessage {
             | Self::ListBlocks { request }
             | Self::SetMetadata { request, .. }
             | Self::Publish { request, .. }
+            | Self::HoldObjects { request, .. }
             | Self::ReadBlock { request, .. }
             | Self::SetParent { request, .. }
             | Self::ListChildren { request, .. }

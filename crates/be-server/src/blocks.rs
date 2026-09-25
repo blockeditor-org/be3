@@ -309,6 +309,44 @@ impl ServerStore {
         .await
     }
 
+    pub async fn hold_objects(
+        &self,
+        identity: Identity,
+        block: Uuid,
+        objects: Vec<Hash>,
+    ) -> Result<(), ServerError> {
+        for hash in &objects {
+            if !self.objects().has(*hash)? {
+                return Err(ServerError::Refused(
+                    ErrorCode::ObjectNotFound,
+                    format!("object {hash} must be uploaded before it can be held"),
+                ));
+            }
+        }
+        self.with_graph(identity.workspace, move |graph, database| {
+            require_edit(graph, identity, block)?;
+            let transaction = database.unchecked_transaction()?;
+            let workspace = identity.workspace.to_string();
+            let mut fresh = Vec::new();
+            for hash in objects {
+                let inserted = transaction.execute(
+                    "INSERT OR IGNORE INTO block_objects (workspace_id, block_id, hash)
+                     VALUES (?1, ?2, ?3)",
+                    params![workspace, block.to_string(), hash.to_hex()],
+                )?;
+                if inserted > 0 {
+                    fresh.push(hash);
+                }
+            }
+            let mut refs = self.object_refs();
+            refs.retain(&fresh);
+            persist_refs(&transaction, &refs, &fresh)?;
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn set_parent(
         &self,
         identity: Identity,
@@ -446,6 +484,13 @@ impl ServerStore {
                         commit.commit,
                     )?;
                 }
+                freed += release_held(
+                    &transaction,
+                    &mut refs,
+                    self.objects(),
+                    identity.workspace,
+                    block,
+                )?;
                 let workspace = identity.workspace.to_string();
                 transaction.execute(
                     "DELETE FROM block_edges WHERE workspace_id = ?1 AND block_id = ?2",
@@ -627,6 +672,37 @@ fn release_commit(
             block.to_string(),
             commit.hash().to_hex()
         ],
+    )?;
+    let freed = refs.release(&held);
+    persist_refs(connection, refs, &held)?;
+    for hash in &freed {
+        objects.remove(*hash)?;
+    }
+    Ok(freed.len())
+}
+
+fn release_held(
+    connection: &Connection,
+    refs: &mut ObjectRefs,
+    objects: &be_store::FileStore,
+    workspace: Uuid,
+    block: Uuid,
+) -> Result<usize, ServerError> {
+    let mut held = Vec::new();
+    {
+        let mut statement = connection
+            .prepare("SELECT hash FROM block_objects WHERE workspace_id = ?1 AND block_id = ?2")?;
+        let rows = statement
+            .query_map(params![workspace.to_string(), block.to_string()], |row| {
+                row.get::<_, String>(0)
+            })?;
+        for row in rows {
+            held.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
+        }
+    }
+    connection.execute(
+        "DELETE FROM block_objects WHERE workspace_id = ?1 AND block_id = ?2",
+        params![workspace.to_string(), block.to_string()],
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;

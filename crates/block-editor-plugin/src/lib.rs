@@ -24,15 +24,17 @@ mod runtime;
 #[cfg(target_arch = "wasm32")]
 mod screens;
 pub mod session;
+pub mod version_control;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
 pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockCommand, BlockFilter, BlockPick, ChildId,
-    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorBand,
+    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, EditorBand,
     EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, HostReply, HostRequest,
-    InteractionMode, Occluder, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
+    InteractionMode, Occluder, ResizeMode, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_ui;
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
@@ -49,6 +51,7 @@ pub use host::{
     PerformanceReporter, PickedBlock, PickedFile, SeededContent, ShowRequest, ShownPresence, Waker,
 };
 pub use related_content::RelatedContent;
+pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {
     fn view(editor: Editor) -> beui::NodeId;

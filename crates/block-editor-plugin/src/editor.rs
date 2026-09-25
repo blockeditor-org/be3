@@ -269,6 +269,9 @@ struct EditorState {
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     pick: RefCell<Option<PendingPick>>,
+    version: ReadSignal<block_plugin_api::VersionStatus>,
+    set_version: WriteSignal<block_plugin_api::VersionStatus>,
+    version_seen: Cell<u64>,
     each_frame: Rc<Work>,
     next_work: Cell<u64>,
 }
@@ -286,6 +289,8 @@ impl Editor {
         let (resized, set_resized) = create_signal(None::<Vec2>);
         let (presence_visible, set_presence_visible) = create_signal(false);
         let (revealed, set_revealed) = create_signal(None::<u64>);
+        let (version_seen, status) = host.version_status();
+        let (version, set_version) = create_signal(status);
         Self(Rc::new(EditorState {
             host,
             block,
@@ -323,6 +328,9 @@ impl Editor {
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             pick: RefCell::new(None),
+            version,
+            set_version,
+            version_seen: Cell::new(version_seen),
             each_frame: Rc::new(RefCell::new(Vec::new())),
             next_work: Cell::new(0),
         }))
@@ -347,6 +355,14 @@ impl Editor {
 
     pub fn editable(&self) -> ReadSignal<bool> {
         self.0.editable.clone()
+    }
+
+    pub fn version_status(&self) -> ReadSignal<block_plugin_api::VersionStatus> {
+        self.0.version.clone()
+    }
+
+    pub fn version(&self, command: block_plugin_api::VersionCommand) {
+        self.0.host.version(self.0.block, command);
     }
 
     pub fn read_only(&self) -> Memo<bool> {
@@ -683,6 +699,10 @@ impl Editor {
             self.0.set_presence_visible.set(visible);
         }
         self.0.set_revealed.set(self.0.pending_reveal.take());
+        let (revision, status) = self.0.host.version_status();
+        if self.0.version_seen.replace(revision) != revision {
+            self.0.set_version.set(status);
+        }
         for record in self.records() {
             if let Some(child) = record.child.get() {
                 for change in self.0.host.take_child_view_changes(child) {

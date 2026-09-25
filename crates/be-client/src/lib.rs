@@ -11,7 +11,7 @@ mod transport;
 
 pub use connection::Connection;
 pub use live::{Journaled, Live};
-pub use peer::{Credentials, Peer, PeerConfig, Saved};
+pub use peer::{Credentials, Peer, PeerConfig, Resolver, Saved};
 
 #[derive(Debug)]
 pub enum ClientError {
