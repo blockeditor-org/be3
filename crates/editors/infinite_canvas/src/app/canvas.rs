@@ -1,16 +1,16 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::canvas::{CanvasEntity, CanvasEntityKind};
+use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, Child, ClickCatcher, Draw, Drawing, Focusable, ForEach, Memo,
     ReadSignal, Show, clone, component, component_rect, create_effect, create_memo, create_signal,
     view,
 };
-use block_editor_plugin::beui::styled::use_theme;
-use block_editor_plugin::beui::{KeyPress, NodeId, PointerPress, Rect, Vec2, pos2};
-use block_editor_plugin::{ChildBlock, ChildMode, ChildState, ChildTarget, ViewChange};
+use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::{KeyPress, NodeId, PointerPress, Rect, Vec2, pos2};
+use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget, ViewChange};
 use uuid::Uuid;
 
 use crate::geometry::*;
@@ -196,7 +196,7 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
         let loading = reference.is_some();
         let paint = EntityPaint {
             covered: drawn.child_state(entity.id).available,
-            camera: Camera::of(Some(camera.get()), block_editor_plugin::beui::Pos2::ZERO),
+            camera: Camera::of(Some(camera.get()), block_editor_beui::beui::Pos2::ZERO),
             palette: palette(&theme),
             title: label
                 .as_ref()
@@ -307,7 +307,7 @@ fn entity_of(state: &Rc<CanvasState>, id: Uuid) -> Memo<Option<CanvasEntity>> {
     create_memo(move || held.displayed().into_iter().find(|entity| entity.id == id))
 }
 
-fn palette(theme: &block_editor_plugin::beui::styled::ThemeStore) -> Palette {
+fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
     Palette {
         auto: theme.text.get(),
         surface: theme.surface_raised.get(),

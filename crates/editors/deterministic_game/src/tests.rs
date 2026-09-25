@@ -1,9 +1,7 @@
-use block_editor_plugin::be_block::BlockContent;
+use block_editor_beui::be_block::BlockContent;
 
-use block_editor_plugin::be_block::{
-    DeterministicGame, DeterministicGameContent, GameModuleContent,
-};
-use block_editor_plugin::{Creation, Editor, EditorHost};
+use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
+use block_editor_beui::{Creation, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 

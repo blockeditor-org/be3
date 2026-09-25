@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::BrowserTabContent;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::be_block::BrowserTabContent;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod session;
@@ -14,7 +14,7 @@ use ui::BrowserTab;
 
 pub struct BrowserTabApp;
 
-impl block_editor_plugin::BeuiApp for BrowserTabApp {
+impl block_editor_beui::BeuiApp for BrowserTabApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <BrowserTab editor={editor} />

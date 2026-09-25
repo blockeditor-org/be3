@@ -2,13 +2,11 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block_editor_plugin::BlockParent;
-use block_editor_plugin::be_block::paint::{ApprovedPainting, PaintReview};
-use block_editor_plugin::be_block::{
-    PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader,
-};
-use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::{ContentProjection, Editor, Waker};
+use block_editor_beui::BlockParent;
+use block_editor_beui::be_block::paint::{ApprovedPainting, PaintReview};
+use block_editor_beui::be_block::{PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
+use block_editor_beui::beui::reactive::{ReadSignal, WriteSignal, create_signal};
+use block_editor_beui::{ContentProjection, Editor, Waker};
 
 use crate::download::{BRANCH, Download, Painting, Source};
 use crate::render::{Change, Paintings, Rendered};

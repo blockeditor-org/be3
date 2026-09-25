@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::FolderContent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::be_block::FolderContent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod drop;
@@ -12,7 +12,7 @@ use ui::FolderEditor;
 
 pub struct WorkspaceIndexApp;
 
-impl block_editor_plugin::BeuiApp for WorkspaceIndexApp {
+impl block_editor_beui::BeuiApp for WorkspaceIndexApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <FolderEditor editor={editor} />

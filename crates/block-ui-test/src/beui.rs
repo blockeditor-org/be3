@@ -2,8 +2,8 @@ use beui::{
     Color32, Context, Document, Event, Key, Modifiers, PointerButton, Pos2, Rect, TouchId,
     TouchPhase, Vec2,
 };
-use block_editor_plugin::beui_frame::{BeuiFrame, FrameBar};
-use block_editor_plugin::{
+use block_editor_beui::beui_frame::{BeuiFrame, FrameBar};
+use block_editor_beui::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorRegion, Occluder,
 };
 use std::marker::PhantomData;
@@ -215,7 +215,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn available_children(&mut self) {
         let region = self.region();
         self.report_children(|placement| ChildStatus {
-            instance: block_editor_plugin::EditorInstanceId(0),
+            instance: block_editor_beui::EditorInstanceId(0),
             region,
             child: placement.child,
             available: true,
@@ -223,9 +223,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             aspect_ratio: None,
             hovered: false,
             active: false,
-            interaction: block_editor_plugin::InteractionMode::Preview,
-            capabilities: block_editor_plugin::EditorCapabilities::default(),
-            resize: block_editor_plugin::ResizeMode::None,
+            interaction: block_editor_beui::InteractionMode::Preview,
+            capabilities: block_editor_beui::EditorCapabilities::default(),
+            resize: block_editor_beui::ResizeMode::None,
             error: None,
         });
     }
@@ -349,7 +349,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
-    fn editor_host(&self) -> block_editor_plugin::EditorHost {
+    fn editor_host(&self) -> block_editor_beui::EditorHost {
         match &self.region {
             Region::Frame(editor, _) | Region::Preview(editor, _) => editor.host().clone(),
             Region::Creation(creation, _) => creation.host().clone(),
@@ -546,7 +546,7 @@ impl Viewport {
 
     fn place(
         &mut self,
-        host: &block_editor_plugin::EditorHost,
+        host: &block_editor_beui::EditorHost,
         region: Rect,
         intrinsic: Option<Vec2>,
     ) {
@@ -564,25 +564,25 @@ impl Viewport {
         let size = content * self.zoom;
         let center = region.center() + self.pan;
         let view = Rect::from_min_size(center - size * 0.5, size);
-        host.set_beui_view(view, self.zoom);
+        host.set_view(view, self.zoom);
     }
 
-    fn settle(&mut self, host: &block_editor_plugin::EditorHost, region: Rect) {
+    fn settle(&mut self, host: &block_editor_beui::EditorHost, region: Rect) {
         for change in host.take_view_changes() {
-            if change != block_editor_plugin::ViewChange::ResumeAutoFit {
+            if change != block_editor_beui::ViewChange::ResumeAutoFit {
                 self.fitting = false;
             }
             match change {
-                block_editor_plugin::ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
-                block_editor_plugin::ViewChange::Zoom { factor, anchor } => {
+                block_editor_beui::ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
+                block_editor_beui::ViewChange::Zoom { factor, anchor } => {
                     let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
                     let anchor =
                         anchor.map_or(region.center(), |(x, y)| Pos2::new(x, y)) - region.center();
                     self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
                     self.zoom = zoom;
                 }
-                block_editor_plugin::ViewChange::Fit
-                | block_editor_plugin::ViewChange::ResumeAutoFit => self.fitting = true,
+                block_editor_beui::ViewChange::Fit
+                | block_editor_beui::ViewChange::ResumeAutoFit => self.fitting = true,
             }
         }
     }

@@ -1,16 +1,16 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::AudioContent;
-use block_editor_plugin::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::AudioContent;
+use block_editor_beui::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW};
+use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, NodeRef, Show, Spacer, clone, component, create_memo,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, IconButton, IconSized, use_theme,
 };
-use block_editor_plugin::beui::{NodeId, TextAlign};
-use block_editor_plugin::{AudioStatus, Editor, FileChooser, Sidebar};
+use block_editor_beui::beui::{NodeId, TextAlign};
+use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
 

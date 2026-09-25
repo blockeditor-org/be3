@@ -1,19 +1,19 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::{Calendar, CalendarContent};
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::be_block::{Calendar, CalendarContent};
+use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal, clone,
     component, create_effect, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Dialog, IconButton, Tabs, TextInput, use_theme,
 };
-use block_editor_plugin::beui::unstyled::ChoiceOption;
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{DateTimeRow, Editor, Toolbar};
+use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{DateTimeRow, Editor, Toolbar};
 
 use super::model::{
     CalendarView, EventForm, FormAction, Shown, today_days_since_epoch, week_start,
@@ -217,10 +217,10 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn EventDialog(
-    form: block_editor_plugin::beui::reactive::ReadSignal<Option<EventForm>>,
+    form: block_editor_beui::beui::reactive::ReadSignal<Option<EventForm>>,
     set_form: WriteSignal<Option<EventForm>>,
-    read_only: block_editor_plugin::beui::reactive::Memo<bool>,
-    on_operate: block_editor_plugin::beui::reactive::Callback<FormAction>,
+    read_only: block_editor_beui::beui::reactive::Memo<bool>,
+    on_operate: block_editor_beui::beui::reactive::Callback<FormAction>,
 ) -> NodeId {
     let open = create_memo(clone!(form -> move || form.get().is_some()));
     let title = create_memo(clone!(form -> move || {

@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::GameModuleContent;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::GameModuleContent;
+use block_editor_beui::beui::reactive::{
     Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, Paragraph, use_theme,
 };
-use block_editor_plugin::beui::{NodeId, TextAlign};
-use block_editor_plugin::{Editor, FileChooser, Sidebar};
+use block_editor_beui::beui::{NodeId, TextAlign};
+use block_editor_beui::{Editor, FileChooser, Sidebar};
 use game_host::Game;
 
 use super::{filter, imported};

@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::PdfContent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
+use block_editor_beui::be_block::PdfContent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
 
 mod pages;
 mod ui;
@@ -10,7 +10,7 @@ use ui::{PdfEditor, PdfPreview};
 
 pub struct PdfApp;
 
-impl block_editor_plugin::BeuiApp for PdfApp {
+impl block_editor_beui::BeuiApp for PdfApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <PdfEditor editor={editor} />
@@ -28,8 +28,8 @@ impl block_editor_plugin::BeuiApp for PdfApp {
     }
 }
 
-pub(crate) const DEFAULT_PAGE_SIZE: block_editor_plugin::beui::Vec2 =
-    block_editor_plugin::beui::Vec2::new(612.0, 792.0);
+pub(crate) const DEFAULT_PAGE_SIZE: block_editor_beui::beui::Vec2 =
+    block_editor_beui::beui::Vec2::new(612.0, 792.0);
 
 pub(crate) fn filter() -> FileFilter {
     FileFilter::new("PDF", "Document.pdf", &["pdf"], &["application/pdf"])

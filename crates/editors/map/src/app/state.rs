@@ -2,17 +2,17 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_plugin::BlockList;
-use block_editor_plugin::be_block::ImageContent;
-use block_editor_plugin::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
-use block_editor_plugin::be_block::{Edit, Map, MapContent};
-use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::beui::{Image, Pos2, Rect, Vec2};
-use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_plugin::{
+use block_editor_beui::BlockList;
+use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
+use block_editor_beui::be_block::{Edit, Map, MapContent};
+use block_editor_beui::beui::reactive::{ReadSignal, WriteSignal, create_signal};
+use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
+use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::{
     BlockFilter, BlockPicker, ContentProjection, Editor, ImagePaster, PastedImage,
 };
-use block_editor_plugin::{BlockInfo, BlockParent, BlockQuery};
+use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 
 use crate::geo::MapView;

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use block_editor_plugin::Editor;
-use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
+use block_editor_beui::Editor;
+use block_editor_beui::beui::reactive::{Memo, create_memo, create_signal};
 
 use super::entries::Folder;
 

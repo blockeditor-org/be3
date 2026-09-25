@@ -1,6 +1,6 @@
-use block_editor_plugin::be_block::TextContent;
-use block_editor_plugin::be_block::block_url::block_url;
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::be_block::TextContent;
+use block_editor_beui::be_block::block_url::block_url;
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 

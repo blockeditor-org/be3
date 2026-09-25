@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_plugin::beui::{Event, Modifiers, PointerButton};
+use block_editor_beui::beui::{Event, Modifiers, PointerButton};
 
 #[test]
 fn a_dragged_hotbar_slot_follows_the_pointer() {

@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::ObjectId;
-use block_editor_plugin::be_block::presentation::PresentationContent;
-use block_editor_plugin::beui::Key;
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::presentation::PresentationContent;
+use block_editor_beui::beui::Key;
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 

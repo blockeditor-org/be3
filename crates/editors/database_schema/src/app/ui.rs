@@ -1,21 +1,21 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::database_schema::{
+use block_editor_beui::be_block::database_schema::{
     DatabaseBlockOptions, DatabaseField, DatabaseFieldType, DatabaseNumberOptions,
     DatabaseNumberScale, DatabaseSchema, DatabaseSchemaContent,
 };
-use block_editor_plugin::beui::icons::{ICON_ADD, ICON_DELETE};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_DELETE};
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
     create_effect, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Checkbox, Heading, IconButton, NumberInput, Scroll, Select,
     Separator, TextInput, use_theme,
 };
-use block_editor_plugin::beui::unstyled::ChoiceOption;
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{ContentProjection, Editor};
+use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{ContentProjection, Editor};
 use uuid::Uuid;
 
 use super::field_line_count;

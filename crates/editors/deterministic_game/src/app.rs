@@ -1,15 +1,13 @@
-use block_editor_plugin::be_block::BlockContent;
+use block_editor_beui::be_block::BlockContent;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use block_editor_plugin::ContentProjection;
-use block_editor_plugin::be_block::{
-    DeterministicGame, DeterministicGameContent, GameModuleContent,
-};
-use block_editor_plugin::beui::reactive::{clone, create_signal, view};
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{BlockFilter, BlockList, BlockPicker, BlockQuery, Creation, Editor};
+use block_editor_beui::ContentProjection;
+use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
+use block_editor_beui::beui::reactive::{clone, create_signal, view};
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{BlockFilter, BlockList, BlockPicker, BlockQuery, Creation, Editor};
 use game_api::GameAction;
 use game_host::Game;
 use uuid::Uuid;
@@ -222,7 +220,7 @@ impl GameCreationModel for GameCreation {
 
 pub struct DeterministicGameApp;
 
-impl block_editor_plugin::BeuiApp for DeterministicGameApp {
+impl block_editor_beui::BeuiApp for DeterministicGameApp {
     fn view(editor: Editor) -> NodeId {
         let game = Rc::new(BlockGame::new(editor.clone()));
         let (snapshot, set_snapshot) = create_signal(game.snapshot());

@@ -1,16 +1,16 @@
 use std::rc::Rc;
 
-use block_editor_plugin::Toolbar;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::Toolbar;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
     ICON_CHECK, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_COMPARE, ICON_DELETE, ICON_DIFFERENCE,
     ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW, ICON_REFRESH, ICON_VERTICAL_SPLIT, ICON_ZOOM_IN,
     ICON_ZOOM_OUT,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, Frame, List, Memo, Prop, Show, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, IconButton, Slider, ToggleButton, use_theme,
 };
 

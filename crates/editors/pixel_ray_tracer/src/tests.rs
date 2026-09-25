@@ -1,8 +1,8 @@
-use block_editor_plugin::be_block::PixelRayTracerContent;
-use block_editor_plugin::be_block::pixel_ray_tracer::{
+use block_editor_beui::be_block::PixelRayTracerContent;
+use block_editor_beui::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracerOperation, PixelUpdate, Scene,
 };
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 

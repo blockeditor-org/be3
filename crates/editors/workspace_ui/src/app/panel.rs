@@ -1,17 +1,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::ICON_LOCK;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_LOCK;
+use block_editor_beui::beui::reactive::{
     Align, Dynamic, Frame, ItemSize, List, ReadSignal, clone, component, create_memo,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Caption, Heading};
-use block_editor_plugin::beui::unstyled::TabId;
-use block_editor_plugin::block_ui::BlockTypes;
-use block_editor_plugin::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
-use block_editor_plugin::{
+use block_editor_beui::beui::styled::{Caption, Heading};
+use block_editor_beui::beui::unstyled::TabId;
+use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use block_editor_beui::{
     ArtifactState, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor,
 };
 use uuid::Uuid;

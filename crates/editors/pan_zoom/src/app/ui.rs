@@ -1,12 +1,12 @@
-use block_editor_plugin::Editor;
-use block_editor_plugin::beui::icons::ICON_LEFT_PANEL_OPEN;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::Editor;
+use block_editor_beui::beui::icons::ICON_LEFT_PANEL_OPEN;
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, NodeRef,
     ReadSignal, Show, Text, WriteSignal, clone, component, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
-use block_editor_plugin::beui::unstyled;
-use block_editor_plugin::beui::{CursorIcon, NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
+use block_editor_beui::beui::unstyled;
+use block_editor_beui::beui::{CursorIcon, NodeId, Rect, Vec2, pos2, vec2};
 
 const SIDEBAR_WIDTH: f32 = 220.0;
 const RAIL_WIDTH: f32 = 44.0;
@@ -348,6 +348,6 @@ fn CardView(
     }
 }
 
-fn scaled(scale: &ReadSignal<f32>, base: f32) -> block_editor_plugin::beui::reactive::Memo<f32> {
+fn scaled(scale: &ReadSignal<f32>, base: f32) -> block_editor_beui::beui::reactive::Memo<f32> {
     create_memo(clone!(scale -> move || (base * scale.get()).max(1.0)))
 }

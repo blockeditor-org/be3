@@ -9,7 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
-block-editor-plugin = { path = "../../block-editor-plugin" }
+block-editor-beui = { path = "../../block-editor-beui" }
 paint-snapshot = { path = "../../paint-snapshot" }
 serde_json = "1"
 sha2 = "0.10"

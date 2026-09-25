@@ -2,18 +2,18 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_plugin::BlockList;
-use block_editor_plugin::BlockQuery;
-use block_editor_plugin::be_block::Edit;
-use block_editor_plugin::be_block::database::{DatabaseContent, DatabaseRow, DatabaseValue};
-use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseSchemaContent};
-use block_editor_plugin::be_block::database_view::{
+use block_editor_beui::BlockList;
+use block_editor_beui::BlockQuery;
+use block_editor_beui::be_block::Edit;
+use block_editor_beui::be_block::database::{DatabaseContent, DatabaseRow, DatabaseValue};
+use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseSchemaContent};
+use block_editor_beui::be_block::database_view::{
     DatabaseViewContent, DatabaseViewKind, DatabaseViewSort,
 };
-use block_editor_plugin::beui::reactive::{Memo, WriteSignal, clone, create_memo, create_signal};
-use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::block_ui::database::DatabaseBlockPickRequest;
-use block_editor_plugin::{BlockFilter, ContentProjection, Editor, RelatedContent};
+use block_editor_beui::beui::reactive::{Memo, WriteSignal, clone, create_memo, create_signal};
+use block_editor_beui::block_ui::BlockLabel;
+use block_editor_beui::block_ui::database::DatabaseBlockPickRequest;
+use block_editor_beui::{BlockFilter, ContentProjection, Editor, RelatedContent};
 use uuid::Uuid;
 
 use crate::sort::BlockLabels;

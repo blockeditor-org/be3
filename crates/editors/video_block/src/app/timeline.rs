@@ -1,19 +1,15 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List,
     Memo, ReadSignal, clone, component, component_rect, create_memo, create_selector,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, use_theme};
-use block_editor_plugin::beui::unstyled::{
-    DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
-};
-use block_editor_plugin::beui::{
-    CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2,
-};
-use block_editor_plugin::{ChildBlock, ChildMode};
+use block_editor_beui::beui::styled::{Body, Caption, use_theme};
+use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use block_editor_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2};
+use block_editor_beui::{ChildBlock, ChildMode};
 use uuid::Uuid;
 
 use crate::timeline::{

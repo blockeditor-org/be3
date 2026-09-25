@@ -14,13 +14,14 @@ use block_plugin_api::{
 };
 pub use block_plugin_api::{BlockFilter, FileFilter};
 use block_ui::BlockCatalog;
+use geometry::{Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
 
 pub type WebViewPlacement = (EditorRegion, Option<ChildRect>);
 
 #[derive(Clone, Copy)]
 pub struct BlockDrag {
-    pub position: beui::Pos2,
+    pub position: Pos2,
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub dropped: bool,
@@ -59,7 +60,7 @@ pub enum ContentUpdate {
 
 #[derive(Clone)]
 pub struct FileDrop {
-    pub position: beui::Pos2,
+    pub position: Pos2,
     pub files: Vec<PickedFile>,
     pub dropped: bool,
 }
@@ -224,7 +225,7 @@ impl Drop for PerformanceMeasurementGuard {
 #[derive(Clone, Copy, Default)]
 struct Region {
     region: Option<EditorRegion>,
-    origin: beui::Vec2,
+    origin: Vec2,
 }
 
 type ChildKey = (EditorRegion, Uuid, u32);
@@ -264,110 +265,30 @@ impl Children {
 
 #[derive(Clone, Copy)]
 struct View {
-    rect: beui::Rect,
+    rect: Rect,
     scale: f32,
 }
 
-#[derive(Clone, Copy)]
-struct BeuiFrame {
-    ratio: f32,
-    pixels_per_point: f32,
-    chrome: bool,
-    content: Option<beui::Rect>,
-}
-
-impl Default for BeuiFrame {
-    fn default() -> Self {
-        Self {
-            ratio: 1.0,
-            pixels_per_point: 1.0,
-            chrome: true,
-            content: None,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct BeuiView {
-    host: EditorHost,
-}
-
-impl BeuiView {
-    pub fn rect(&self) -> Option<beui::Rect> {
-        let ratio = self.host.beui.get().ratio;
-        self.host.view().map(|rect| beui_rect(rect, ratio))
-    }
-
-    pub fn scale(&self) -> f32 {
-        self.host.view_scale().unwrap_or(1.0)
-    }
-
-    pub fn canvas(&self) -> Option<beui::reactive::CanvasView> {
-        let scale = self.scale();
-        self.rect()
-            .map(|rect| beui::reactive::CanvasView::new(rect.min, scale))
-    }
-
-    pub fn pan(&self, delta: beui::Vec2) {
-        let ratio = self.host.beui.get().ratio;
-        self.host
-            .pan_view(beui::vec2(delta.x / ratio, delta.y / ratio));
-    }
-
-    pub fn zoom(&self, factor: f32, anchor: Option<beui::Pos2>) {
-        let ratio = self.host.beui.get().ratio;
-        self.host.zoom_view(
-            factor,
-            anchor.map(|anchor| beui::pos2(anchor.x / ratio, anchor.y / ratio)),
-        );
-    }
-
-    pub fn fit(&self) {
-        self.host.fit_view();
-    }
-
-    pub fn set_content(&self, rect: beui::Rect) {
-        let mut frame = self.host.beui.get();
-        frame.content = Some(rect);
-        self.host.beui.set(frame);
-    }
-}
-
-fn swept(rect: beui::Rect, rotation: f32) -> beui::Rect {
+fn swept(rect: Rect, rotation: f32) -> Rect {
     if rotation == 0.0 {
         return rect;
     }
     let center = rect.center();
     let (sin, cos) = rotation.sin_cos();
-    let turned = |corner: beui::Pos2| {
+    let turned = |corner: Pos2| {
         let offset = corner - center;
         center
-            + beui::vec2(
+            + vec2(
                 offset.x * cos - offset.y * sin,
                 offset.x * sin + offset.y * cos,
             )
     };
-    beui::Rect::from_points(&[
+    Rect::from_points(&[
         turned(rect.left_top()),
         turned(rect.right_top()),
         turned(rect.right_bottom()),
         turned(rect.left_bottom()),
     ])
-}
-
-fn host_rect(rect: beui::Rect, ratio: f32) -> beui::Rect {
-    scaled(rect, ratio.recip())
-}
-
-fn beui_rect(rect: beui::Rect, ratio: f32) -> beui::Rect {
-    scaled(rect, ratio)
-}
-
-fn scaled(rect: beui::Rect, ratio: f32) -> beui::Rect {
-    beui::Rect::from_min_max(
-        beui::pos2(rect.min.x * ratio, rect.min.y * ratio),
-        beui::pos2(rect.max.x * ratio, rect.max.y * ratio),
-    )
 }
 
 #[derive(Clone, Default)]
@@ -416,7 +337,11 @@ pub struct EditorHost {
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
-    beui: Rc<Cell<BeuiFrame>>,
+    chrome: Rc<Cell<Option<bool>>>,
+    content: Rc<Cell<Option<Rect>>>,
+    copied: Rc<RefCell<Vec<String>>>,
+    paste_requested: Rc<Cell<bool>>,
+    leaving: Rc<Cell<bool>>,
     next_frame: Rc<Cell<Option<Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
@@ -781,7 +706,7 @@ impl EditorHost {
         std::mem::take(&mut self.content_operations.borrow_mut())
     }
 
-    pub(crate) fn watch_content(&self, block: Uuid, content_type: Uuid) {
+    pub fn watch_content(&self, block: Uuid, content_type: Uuid) {
         self.watched_content
             .borrow_mut()
             .insert(block, content_type);
@@ -841,11 +766,7 @@ impl EditorHost {
         self.waker.wake();
     }
 
-    pub(crate) fn peers_since(
-        &self,
-        block: Option<Uuid>,
-        seen: u64,
-    ) -> Option<(u64, Vec<PeerPresence>)> {
+    pub fn peers_since(&self, block: Option<Uuid>, seen: u64) -> Option<(u64, Vec<PeerPresence>)> {
         let peers = self.peers.borrow();
         let (revision, held) = peers.get(&block)?;
         (*revision != seen).then(|| (*revision, held.clone()))
@@ -878,7 +799,7 @@ impl EditorHost {
         self.client_id.get()
     }
 
-    pub fn view(&self) -> Option<beui::Rect> {
+    pub fn view(&self) -> Option<Rect> {
         let origin = self.region.get().origin;
         self.view.get().map(|view| view.rect.translate(origin))
     }
@@ -887,14 +808,14 @@ impl EditorHost {
         self.view.get().map(|view| view.scale)
     }
 
-    pub fn pan_view(&self, delta: beui::Vec2) {
+    pub fn pan_view(&self, delta: Vec2) {
         self.view_changes.borrow_mut().push(ViewChange::Pan {
             x: delta.x,
             y: delta.y,
         });
     }
 
-    pub fn zoom_view(&self, factor: f32, anchor: Option<beui::Pos2>) {
+    pub fn zoom_view(&self, factor: f32, anchor: Option<Pos2>) {
         let origin = self.region.get().origin;
         self.view_changes.borrow_mut().push(ViewChange::Zoom {
             factor,
@@ -923,16 +844,6 @@ impl EditorHost {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_files(&self, drop: Option<FileDrop>) {
         *self.files.borrow_mut() = drop;
-    }
-
-    pub fn beui_drag(&self) -> Option<crate::editor::Drag> {
-        let ratio = self.beui.get().ratio;
-        self.drag().map(|drag| crate::editor::Drag {
-            position: beui::pos2(drag.position.x * ratio, drag.position.y * ratio),
-            block_id: drag.block_id,
-            block_type: drag.block_type,
-            dropped: drag.dropped,
-        })
     }
 
     pub fn accept_drag(&self, accepted: bool) {
@@ -1037,16 +948,11 @@ impl EditorHost {
         self.replies.borrow_mut().remove(&request);
     }
 
-    pub fn place_web_view(&self, rect: Option<beui::Rect>) {
+    pub fn place_web_view(&self, rect: Option<Rect>) {
         let state = self.region.get();
         let region = state.region.unwrap_or(EditorRegion::Frame);
         let rect = rect.map(|rect| child_rect(rect.translate(-state.origin)));
         self.web_view_placements.borrow_mut().push((region, rect));
-    }
-
-    pub fn place_beui_web_view(&self, rect: Option<beui::Rect>) {
-        let ratio = self.beui.get().ratio;
-        self.place_web_view(rect.map(|rect| host_rect(rect, ratio)));
     }
 
     pub fn open_web_view(&self, url: impl Into<String>) {
@@ -1116,18 +1022,36 @@ impl EditorHost {
             .then(|| self.cursor_grabbed.get())
     }
 
-    pub fn beui_view(&self) -> BeuiView {
-        BeuiView { host: self.clone() }
-    }
-
     pub fn chrome_shown(&self) -> bool {
-        self.beui.get().chrome
+        self.chrome.get().unwrap_or(true)
     }
 
     pub fn set_chrome_shown(&self, chrome: bool) {
-        let mut frame = self.beui.get();
-        frame.chrome = chrome;
-        self.beui.set(frame);
+        self.chrome.set(Some(chrome));
+    }
+
+    pub fn copy_text(&self, text: impl Into<String>) {
+        self.copied.borrow_mut().push(text.into());
+    }
+
+    pub fn take_copied_text(&self) -> Vec<String> {
+        std::mem::take(&mut self.copied.borrow_mut())
+    }
+
+    pub fn request_paste(&self) {
+        self.paste_requested.set(true);
+    }
+
+    pub fn take_paste_request(&self) -> bool {
+        self.paste_requested.take()
+    }
+
+    pub fn leave_frame(&self) {
+        self.leaving.set(true);
+    }
+
+    pub fn take_leave_frame(&self) -> bool {
+        self.leaving.take()
     }
 
     pub fn presenting(&self) -> bool {
@@ -1141,7 +1065,7 @@ impl EditorHost {
         self.present_requests.borrow_mut().push(presenting);
     }
 
-    pub fn occlude(&self, rect: beui::Rect) {
+    pub fn occlude(&self, rect: Rect) {
         let origin = self.region.get().origin;
         let mut children = self.children.borrow_mut();
         let after = children.placements.len() as u32;
@@ -1151,24 +1075,22 @@ impl EditorHost {
         });
     }
 
-    pub fn place_beui_child(
+    pub fn place_child(
         &self,
         block_id: Uuid,
         block_type: Uuid,
-        rect: beui::Rect,
-        clip: beui::Rect,
+        rect: Rect,
+        clip: Rect,
         mode: ChildMode,
         layer: ChildLayer,
         own_frame: bool,
         top_bar: bool,
         rotation: f32,
         opacity: f32,
-        intrinsic: Option<beui::Vec2>,
+        intrinsic: Option<Vec2>,
     ) -> ChildId {
-        let ratio = self.beui.get().ratio;
         let state = self.region.get();
-        let rect = host_rect(rect, ratio);
-        let clip = host_rect(clip, ratio).intersect(swept(rect, rotation));
+        let clip = clip.intersect(swept(rect, rotation));
         let mut children = self.children.borrow_mut();
         let child = children.identify(state.region.unwrap_or(EditorRegion::Frame), block_id);
         children.placements.push(ChildPlacement {
@@ -1190,11 +1112,6 @@ impl EditorHost {
             opacity: opacity.clamp(0.0, 1.0),
         });
         child
-    }
-
-    pub fn occlude_beui(&self, rect: beui::Rect) {
-        let ratio = self.beui.get().ratio;
-        self.occlude(host_rect(rect, ratio));
     }
 
     pub fn child_status(&self, child: ChildId) -> Option<ChildStatus> {
@@ -1246,8 +1163,12 @@ impl EditorHost {
         }
     }
 
-    pub(crate) fn flush_graph(&self) {
+    pub fn flush_graph(&self) {
         self.graph.flush();
+    }
+
+    pub fn defer_graph_changes_unless(&self, ready: impl Fn() -> bool + 'static) {
+        self.graph.defer_unless(Rc::new(ready));
     }
 
     pub fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {
@@ -1271,34 +1192,16 @@ impl EditorHost {
         self.editable.set(editable);
     }
 
-    pub fn set_view(&self, view: beui::Rect, scale: f32) {
+    pub fn set_view(&self, view: Rect, scale: f32) {
         self.view.set(Some(View { rect: view, scale }));
     }
 
-    pub fn set_beui_view(&self, view: beui::Rect, scale: f32) {
-        let ratio = self.beui.get().ratio;
-        let origin = self.region.get().origin;
-        self.set_view(host_rect(view, ratio).translate(-origin), scale);
+    pub fn report_content(&self, rect: Rect) {
+        self.content.set(Some(rect));
     }
 
-    pub fn begin_beui_frame(&self, ratio: f32, pixels_per_point: f32, chrome: bool) {
-        self.beui.set(BeuiFrame {
-            ratio,
-            pixels_per_point,
-            chrome,
-            content: None,
-        });
-    }
-
-    pub fn beui_pixels_per_point(&self) -> f32 {
-        self.beui.get().pixels_per_point
-    }
-
-    pub fn take_beui_content(&self) -> Option<beui::Rect> {
-        let mut frame = self.beui.get();
-        let content = frame.content.take();
-        self.beui.set(frame);
-        content
+    pub fn take_content(&self) -> Option<Rect> {
+        self.content.take()
     }
 
     pub fn take_view_changes(&self) -> Vec<ViewChange> {
@@ -1309,22 +1212,12 @@ impl EditorHost {
         self.drag.set(drag);
     }
 
-    pub fn set_beui_drag(&self, drag: Option<crate::editor::Drag>) {
-        let ratio = self.beui.get().ratio;
-        self.drag.set(drag.map(|drag| BlockDrag {
-            position: beui::pos2(drag.position.x / ratio, drag.position.y / ratio),
-            block_id: drag.block_id,
-            block_type: drag.block_type,
-            dropped: drag.dropped,
-        }));
-    }
-
     pub fn take_drag_accepted(&self) -> Option<bool> {
         self.drag_accepted.take()
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub fn begin_region(&self, region: EditorRegion, origin: beui::Vec2) {
+    pub fn begin_region(&self, region: EditorRegion, origin: Vec2) {
         self.region.set(Region {
             region: Some(region),
             origin,
@@ -1366,7 +1259,7 @@ impl EditorHost {
         self.presenting.set(presenting);
     }
 
-    pub(crate) fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
+    pub fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
         self.child_views
             .borrow_mut()
             .remove(&child)
@@ -1478,7 +1371,7 @@ pub enum PastedImage {
     Failed(String),
 }
 
-fn child_rect(rect: beui::Rect) -> ChildRect {
+fn child_rect(rect: Rect) -> ChildRect {
     ChildRect {
         x: rect.min.x,
         y: rect.min.y,

@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::{BrowserTab, BrowserTabContent, Edit, HistoryItem};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::{BrowserTab, BrowserTabContent, Edit, HistoryItem};
+use block_editor_beui::beui::reactive::{
     Memo, ReadSignal, WriteSignal, create_memo, create_signal,
 };
-use block_editor_plugin::{ContentProjection, Editor, WebViewEvent};
+use block_editor_beui::{ContentProjection, Editor, WebViewEvent};
 
 #[derive(Default)]
 struct Navigation {

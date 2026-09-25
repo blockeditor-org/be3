@@ -1,9 +1,9 @@
-use block_editor_plugin::be_block::{BlockContent, CounterContent};
+use block_editor_beui::be_block::{BlockContent, CounterContent};
 
-use block_editor_plugin::be_block::VideoContent;
-use block_editor_plugin::be_block::video::{Video, VideoClip, VideoFrameRate, VideoOperation};
-use block_editor_plugin::beui::Pos2;
-use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
+use block_editor_beui::be_block::VideoContent;
+use block_editor_beui::be_block::video::{Video, VideoClip, VideoFrameRate, VideoOperation};
+use block_editor_beui::beui::Pos2;
+use block_editor_beui::{BlockInfo, BlockParent, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 

@@ -4,15 +4,15 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use block_editor_plugin::be_block::PixelRayTracerContent;
-use block_editor_plugin::be_block::pixel_ray_tracer::{
+use block_editor_beui::be_block::PixelRayTracerContent;
+use block_editor_beui::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_SIZE, PixelRayTracerOperation, PixelUpdate, Point, RayEntity, RaySettings,
     Scene,
 };
-use block_editor_plugin::beui::Image;
-use block_editor_plugin::beui::reactive::Draw;
-use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::{ContentProjection, Editor, PerformanceReporter};
+use block_editor_beui::beui::Image;
+use block_editor_beui::beui::reactive::Draw;
+use block_editor_beui::beui::reactive::{ReadSignal, WriteSignal, create_signal};
+use block_editor_beui::{ContentProjection, Editor, PerformanceReporter};
 
 use crate::geometry::{distance, distance_to_segment, inside, pixel_at, raster_line, snap};
 use crate::overlay::{self, Preview};

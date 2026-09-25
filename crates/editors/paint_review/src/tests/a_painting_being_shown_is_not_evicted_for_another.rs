@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::Image;
+use block_editor_beui::beui::Image;
 
 use crate::render::{Painted, Paintings};
 

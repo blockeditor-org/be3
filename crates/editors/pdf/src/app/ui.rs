@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::PdfContent;
-use block_editor_plugin::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::PdfContent;
+use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo,
     NodeRef, Picture, Show, Spacer, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Body, Button, ButtonVariant, Caption, Heading, use_theme};
-use block_editor_plugin::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
-use block_editor_plugin::{Editor, FileChooser, Sidebar, Toolbar};
+use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, Heading, use_theme};
+use block_editor_beui::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
@@ -53,7 +53,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
 
     let sized = editor.clone();
     let measured = shown.clone();
-    block_editor_plugin::beui::reactive::create_effect(move || {
+    block_editor_beui::beui::reactive::create_effect(move || {
         let size = measured.get().size();
         sized.set_intrinsic_size(Some(size));
     });
@@ -96,7 +96,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <Toolbar shown={chrome.clone()}>
                 <Body content="PDF" />
-                <block_editor_plugin::beui::styled::IconButton
+                <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_BACK.to_owned()}
                     label="Previous page"
                     disabled={first}
@@ -104,7 +104,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                     on_click={back}
                 />
                 <Caption content={page_label} />
-                <block_editor_plugin::beui::styled::IconButton
+                <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_FORWARD.to_owned()}
                     label="Next page"
                     disabled={last}
@@ -148,7 +148,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
 #[component]
 fn PageCanvas(
     shown: Memo<Shown>,
-    #[prop(default = None)] view: block_editor_plugin::beui::reactive::Prop<Option<CanvasView>>,
+    #[prop(default = None)] view: block_editor_beui::beui::reactive::Prop<Option<CanvasView>>,
 ) -> NodeId {
     let size = create_memo(clone!(shown -> move || shown.get().size()));
     let width = create_memo(clone!(size -> move || size.get().x));

@@ -1,7 +1,7 @@
 use super::*;
 
 use beui::{Key, Modifiers};
-use block_editor_plugin::BlockCommand;
+use block_editor_beui::BlockCommand;
 
 #[test]
 fn ctrl_z_undoes_the_block_through_the_top_bar() {

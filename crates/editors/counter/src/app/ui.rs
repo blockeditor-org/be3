@@ -1,10 +1,10 @@
-use block_editor_plugin::Editor;
-use block_editor_plugin::be_block::{Counter as CounterModel, CounterContent, ObjectId};
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::Editor;
+use block_editor_beui::be_block::{Counter as CounterModel, CounterContent, ObjectId};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Button, ButtonVariant, Display, use_theme};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Display, use_theme};
 
 const PADDING: f32 = 20.0;
 const BUTTON_WIDTH: f32 = 44.0;

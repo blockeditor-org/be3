@@ -1,8 +1,6 @@
-use block_editor_plugin::be_block::canvas::{CanvasPoint, CanvasPreviewRegion};
-use block_editor_plugin::beui::{
-    Color32, FontId, Painter, Rect, TextAlign, TextLayout, Vec2, pos2,
-};
-use block_editor_plugin::{ResizeMode, block_ui};
+use block_editor_beui::ResizeMode;
+use block_editor_beui::be_block::canvas::{CanvasPoint, CanvasPreviewRegion};
+use block_editor_beui::beui::{Color32, FontId, Painter, Rect, TextAlign, TextLayout, Vec2, pos2};
 
 use crate::geometry::*;
 
@@ -139,7 +137,7 @@ impl Overlay {
 
     fn draw_presence(&self, painter: &Painter) {
         for selection in &self.presence.selections {
-            let color = block_ui::presence_color(selection.color);
+            let color = block_editor_beui::presence_color(selection.color);
             let corners = selection
                 .frame
                 .corners()
@@ -150,7 +148,7 @@ impl Overlay {
             let Some(pointer) = cursor.pointer else {
                 continue;
             };
-            let color = block_ui::presence_color(cursor.color);
+            let color = block_editor_beui::presence_color(cursor.color);
             let tip = self.camera.at(pointer);
             let inward = Vec2::new(0.4, 1.0);
             let length = inward.length();
@@ -168,10 +166,10 @@ impl Overlay {
     fn draw_badge(&self, painter: &Painter) {
         let glyph = match self.tool {
             Tool::Select => return,
-            Tool::Line => block_editor_plugin::beui::icons::ICON_DIAGONAL_LINE,
-            Tool::Rectangle => block_editor_plugin::beui::icons::ICON_RECTANGLE,
-            Tool::Text => block_editor_plugin::beui::icons::ICON_TEXT_FIELDS,
-            Tool::Pen => block_editor_plugin::beui::icons::ICON_DRAW,
+            Tool::Line => block_editor_beui::beui::icons::ICON_DIAGONAL_LINE,
+            Tool::Rectangle => block_editor_beui::beui::icons::ICON_RECTANGLE,
+            Tool::Text => block_editor_beui::beui::icons::ICON_TEXT_FIELDS,
+            Tool::Pen => block_editor_beui::beui::icons::ICON_DRAW,
         };
         let Some(pointer) = self.pointer else {
             return;

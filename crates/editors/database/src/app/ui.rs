@@ -1,16 +1,14 @@
-use block_editor_plugin::be_block::database::DatabaseContent;
-use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
-use block_editor_plugin::be_block::{BlockContent, DatabaseSchemaContent};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::database::DatabaseContent;
+use block_editor_beui::be_block::database_view::{self, DatabaseViewContent};
+use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
+use block_editor_beui::beui::reactive::{
     Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone, component,
     create_effect, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
-    Button, ButtonVariant, Caption, Heading, Scroll, use_theme,
-};
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{BlockInfo, BlockQuery};
-use block_editor_plugin::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, Scroll, use_theme};
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{BlockInfo, BlockQuery};
+use block_editor_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
 use uuid::Uuid;
 
 const PADDING: f32 = 20.0;

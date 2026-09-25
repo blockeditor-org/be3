@@ -53,7 +53,7 @@ works. The demo's Tree tab and the beui inspector both use it.
 `on_click`. It reads as a link rather than a button, underlines itself while
 hovered or focused, and goes muted and unclickable while `disabled`. It is the
 control for "take me to that thing", which is why
-`block_editor_plugin::BlockLink` is one: given the `Editor` and an
+`block_editor_beui::BlockLink` is one: given the `Editor` and an
 `Option<ChildTarget>`, it follows the block's name and icon and opens it in the
 host when it is clicked, showing its `fallback` while the reference has not
 resolved.

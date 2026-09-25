@@ -4,7 +4,7 @@ use beui::reactive::{
 };
 use beui::styled::{Button, ButtonVariant, Icon, use_theme};
 use beui::{NodeId, TextAlign};
-use block_editor_plugin::{
+use block_editor_beui::{
     ChildBlock, ChildMode, ChildState, ChildTarget, InteractionMode,
     block_ui::{EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT},
 };

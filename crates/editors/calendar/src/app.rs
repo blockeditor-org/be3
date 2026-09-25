@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::CalendarContent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::be_block::CalendarContent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod model;
@@ -13,7 +13,7 @@ use ui::CalendarEditor;
 
 pub struct CalendarApp;
 
-impl block_editor_plugin::BeuiApp for CalendarApp {
+impl block_editor_beui::BeuiApp for CalendarApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <CalendarEditor editor={editor} />

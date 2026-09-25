@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_plugin::beui::Key;
+use block_editor_beui::beui::Key;
 
 #[test]
 fn pressing_an_arrow_key_stores_a_new_zoom() {

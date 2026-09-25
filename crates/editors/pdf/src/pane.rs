@@ -1,6 +1,6 @@
 use std::{sync::mpsc::TryRecvError, time::Instant};
 
-use block_editor_plugin::{
+use block_editor_beui::{
     PerformanceReporter, Waker,
     beui::{Image, Pos2, Rect, Vec2},
 };

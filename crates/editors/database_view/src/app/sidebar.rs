@@ -1,20 +1,20 @@
-use block_editor_plugin::be_block::database_schema::DatabaseField;
-use block_editor_plugin::be_block::database_view::{DatabaseView, DatabaseViewKind};
-use block_editor_plugin::be_block::{BlockContent, DatabaseSchemaContent};
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::be_block::database_schema::DatabaseField;
+use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewKind};
+use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
     ICON_DESELECT, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA, ICON_VIEW_KANBAN,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Callback, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component,
     create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, Select, Separator, ToggleButton, use_theme,
 };
-use block_editor_plugin::beui::unstyled::ChoiceOption;
-use block_editor_plugin::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
-use block_editor_plugin::database::DatabaseValueEditor;
+use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
+use block_editor_beui::database::DatabaseValueEditor;
 use uuid::Uuid;
 
 use crate::app::data::Data;

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::Editor;
+use block_editor_beui::Editor;
 
 use super::*;
 

@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     ForEach, Frame, ItemSize, Keyed, List, ReadSignal, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Card, Heading, Paragraph, Scroll, use_theme,
 };
-use block_editor_plugin::beui::{NodeId, TextAlign};
+use block_editor_beui::beui::{NodeId, TextAlign};
 use game_api::{GameActionOption, GameScreen};
 
 const PAGE_PADDING: f32 = 24.0;

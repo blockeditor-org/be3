@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_plugin::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
 
 #[test]
 fn compiling_a_grid_seeds_the_component_it_creates() {

@@ -1,13 +1,13 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::PixelArtContent;
-use block_editor_plugin::be_block::pixel_art::Artwork;
-use block_editor_plugin::be_block::pixel_art::{PixelArtAnchor, PixelArtOperation, PixelColor};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::PixelArtContent;
+use block_editor_beui::be_block::pixel_art::Artwork;
+use block_editor_beui::be_block::pixel_art::{PixelArtAnchor, PixelArtOperation, PixelColor};
+use block_editor_beui::beui::reactive::{
     Memo, ReadSignal, WriteSignal, create_memo, create_signal,
 };
-use block_editor_plugin::{ContentProjection, Editor};
+use block_editor_beui::{ContentProjection, Editor};
 
 pub(crate) type ArtBlock = Rc<ContentProjection<PixelArtContent>>;
 

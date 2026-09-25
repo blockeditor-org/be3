@@ -1,7 +1,5 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use beui::{Draw, DrawAt, Drawing};
+use block_editor_plugin::PaintTarget;
+use block_editor_plugin::wgpu;
 use bytemuck::{Pod, Zeroable};
 
 use crate::camera::Camera;
@@ -49,43 +47,6 @@ struct BlitUniform {
     padding: [f32; 2],
 }
 
-#[derive(Clone, Default)]
-pub(crate) struct Scene(Rc<RefCell<Option<SceneRenderer>>>);
-
-impl Scene {
-    pub(crate) fn drawing(&self, camera: Camera) -> Drawing {
-        Drawing::new(SceneDraw {
-            scene: self.clone(),
-            camera,
-        })
-    }
-}
-
-struct SceneDraw {
-    scene: Scene,
-    camera: Camera,
-}
-
-impl Draw for SceneDraw {
-    fn prepare(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        at: DrawAt,
-    ) {
-        let mut held = self.scene.0.borrow_mut();
-        let renderer = held.get_or_insert_with(|| SceneRenderer::new(device, queue, at.format));
-        renderer.prepare(device, queue, encoder, self.camera, at);
-    }
-
-    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
-        if let Some(renderer) = self.scene.0.borrow().as_ref() {
-            renderer.blit(pass);
-        }
-    }
-}
-
 struct SceneTarget {
     size: [u32; 2],
     color_view: wgpu::TextureView,
@@ -93,7 +54,7 @@ struct SceneTarget {
     blit_bind_group: wgpu::BindGroup,
 }
 
-struct SceneRenderer {
+pub(crate) struct SceneRenderer {
     scene_pipeline: wgpu::RenderPipeline,
     blit_pipeline: wgpu::RenderPipeline,
     blit_bind_group_layout: wgpu::BindGroupLayout,
@@ -107,7 +68,11 @@ struct SceneRenderer {
 }
 
 impl SceneRenderer {
-    fn new(device: &wgpu::Device, queue: &wgpu::Queue, target_format: wgpu::TextureFormat) -> Self {
+    pub(crate) fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target_format: wgpu::TextureFormat,
+    ) -> Self {
         let scene_shader = device.create_shader_module(wgpu::include_wgsl!("renderer.wgsl"));
         let blit_shader = device.create_shader_module(wgpu::include_wgsl!("blit.wgsl"));
 
@@ -338,31 +303,34 @@ impl SceneRenderer {
         });
     }
 
-    fn prepare(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        camera: Camera,
-        at: DrawAt,
-    ) {
-        let size = [at.width().max(1), at.height().max(1)];
-        self.ensure_target(device, size);
-        let Some(target) = &self.target else {
+    pub(crate) fn paint(&mut self, target: &PaintTarget<'_>, camera: Camera) {
+        let placement = target.placement;
+        let size = [placement.width.max(1), placement.height.max(1)];
+        self.ensure_target(target.device, size);
+        let Some(scene) = &self.target else {
             return;
         };
-
-        queue.write_buffer(
+        let (x, y, width, height) = target.scissor();
+        if width == 0 || height == 0 {
+            return;
+        }
+        let rect = [
+            placement.x as f32,
+            placement.y as f32,
+            (placement.x + placement.width) as f32,
+            (placement.y + placement.height) as f32,
+        ];
+        target.queue.write_buffer(
             &self.blit_uniform_buffer,
             0,
             bytemuck::bytes_of(&BlitUniform {
-                rect: at.rect,
-                clip: at.clip,
-                screen: [at.screen.x, at.screen.y],
+                rect,
+                clip: [x as f32, y as f32, (x + width) as f32, (y + height) as f32],
+                screen: [target.width as f32, target.height as f32],
                 padding: [0.0, 0.0],
             }),
         );
-        queue.write_buffer(
+        target.queue.write_buffer(
             &self.uniform_buffer,
             0,
             bytemuck::bytes_of(&SceneUniform {
@@ -370,42 +338,61 @@ impl SceneRenderer {
             }),
         );
 
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("scene 3d pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &target.color_view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(SKY_COLOR),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &target.depth_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
+        let mut encoder = target
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("scene 3d pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &scene.color_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(SKY_COLOR),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &scene.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
                 }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        render_pass.set_pipeline(&self.scene_pipeline);
-        render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.draw(0..self.vertex_count, 0..1);
-    }
-
-    fn blit(&self, render_pass: &mut wgpu::RenderPass<'_>) {
-        let Some(target) = &self.target else {
-            return;
-        };
-        render_pass.set_pipeline(&self.blit_pipeline);
-        render_pass.set_bind_group(0, &target.blit_bind_group, &[]);
-        render_pass.draw(0..6, 0..1);
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_pipeline(&self.scene_pipeline);
+            pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            pass.draw(0..self.vertex_count, 0..1);
+        }
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("scene 3d blit"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target.view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_scissor_rect(x, y, width, height);
+            pass.set_pipeline(&self.blit_pipeline);
+            pass.set_bind_group(0, &scene.blit_bind_group, &[]);
+            pass.draw(0..6, 0..1);
+        }
+        target.queue.submit([encoder.finish()]);
     }
 }
 

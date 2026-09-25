@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{
     Frame, Func, ItemSize, List, ReadSignal, Show, clone, component, create_memo, create_signal,
     view,
 };
-use block_editor_plugin::beui::styled::{Caption, Code, Scroll, Tree, TreeRowFace};
-use block_editor_plugin::beui::unstyled::TreeItem;
+use block_editor_beui::beui::styled::{Caption, Code, Scroll, Tree, TreeRowFace};
+use block_editor_beui::beui::unstyled::TreeItem;
 use serde_json::Value;
 
 use super::panel::Info;

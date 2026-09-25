@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::{BlockContent, LiveEdit};
-use block_editor_plugin::{
+use block_editor_beui::be_block::{BlockContent, LiveEdit};
+use block_editor_beui::{
     BeuiApp, BlockInfo, BlockParent, BlockQuery, EditorHost, GraphCommand, SeededContent,
 };
 use uuid::Uuid;

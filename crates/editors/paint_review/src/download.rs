@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 #[cfg(test)]
 use std::sync::{Arc, Mutex};
 
-use block_editor_plugin::{EditorHost, FetchResult};
+use block_editor_beui::{EditorHost, FetchResult};
 use serde_json::Value;
 
 const AT_ONCE: usize = 8;

@@ -7,7 +7,7 @@ use std::{
 
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
-use beui::reactive::{KeyedStore, ReadSignal, WriteSignal, batch, create_signal, on_cleanup};
+use reactive::{KeyedStore, ReadSignal, WriteSignal, batch, create_signal, on_cleanup};
 
 use crate::{EditorHost, host::ContentUpdate};
 
@@ -43,7 +43,7 @@ pub struct ContentProjection<C: LiveEdit> {
 }
 
 impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
-    pub(crate) fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
+    pub fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
         Self {
             host,
             block,
@@ -154,7 +154,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         self.notify();
     }
 
-    pub(crate) fn pump(&self) {
+    pub fn pump(&self) {
         self.adopt();
         self.notify();
     }

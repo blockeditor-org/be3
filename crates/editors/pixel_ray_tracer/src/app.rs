@@ -1,11 +1,11 @@
-use block_editor_plugin::be_block::PixelRayTracerContent;
+use block_editor_beui::be_block::PixelRayTracerContent;
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
-use block_editor_plugin::beui::reactive::{Direction, ItemSize, List, Picture, component, view};
-use block_editor_plugin::beui::styled::{Body, Button, ButtonVariant, Caption, use_theme};
-use block_editor_plugin::beui::{ImageFit, NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, Side, Sidebar, Toolbar};
+use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
+use block_editor_beui::beui::reactive::{Direction, ItemSize, List, Picture, component, view};
+use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, use_theme};
+use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
+use block_editor_beui::{Creation, Editor, Side, Sidebar, Toolbar};
 use uuid::Uuid;
 
 pub(crate) mod canvas;
@@ -20,7 +20,7 @@ const TOOLS_WIDTH: f32 = 148.0;
 
 pub struct PixelRayTracerApp;
 
-impl block_editor_plugin::BeuiApp for PixelRayTracerApp {
+impl block_editor_beui::BeuiApp for PixelRayTracerApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <PixelRayTracerEditor editor={editor} />
@@ -84,10 +84,7 @@ fn PixelRayTracerPreview(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn RayToolbar(
-    state: Rc<RayState>,
-    shown: block_editor_plugin::beui::reactive::Prop<bool>,
-) -> NodeId {
+fn RayToolbar(state: Rc<RayState>, shown: block_editor_beui::beui::reactive::Prop<bool>) -> NodeId {
     let fit = state.editor().clone();
     let reset = Rc::clone(&state);
     let theme = use_theme();

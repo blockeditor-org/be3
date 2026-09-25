@@ -1,6 +1,6 @@
-use block_editor_plugin::be_block::LogicGameContent;
-use block_editor_plugin::be_block::logic_game::LogicGame;
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::be_block::LogicGameContent;
+use block_editor_beui::be_block::logic_game::LogicGame;
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;

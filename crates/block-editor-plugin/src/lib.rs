@@ -1,23 +1,16 @@
 pub use be_block;
-pub use beui;
+pub use geometry;
+pub use reactive;
 
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-pub mod beui_frame;
-mod block_link;
-mod child;
-mod chrome;
 mod content;
-pub mod database;
-mod datetime;
-mod editor;
 #[cfg(target_arch = "wasm32")]
-mod editor_session;
-mod file_chooser;
+pub mod editor_session;
 mod graph;
 mod host;
 #[cfg(target_arch = "wasm32")]
 mod panes;
-mod related_content;
+#[cfg(target_arch = "wasm32")]
+mod plugin;
 pub mod root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
@@ -27,54 +20,27 @@ pub mod session;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
-pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockCommand, BlockFilter, BlockPick, ChildId,
-    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorBand,
-    EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, HostReply, HostRequest,
-    InteractionMode, Occluder, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
+    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, CursorIcon, EditorBand,
+    EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FrameChrome, FrameSpec,
+    HostReply, HostRequest, InputEvent, InteractionMode, Key, Modifiers, Occluder, PointerButton,
+    ResizeMode, ScreenPlacement, TouchPhase, ViewChange, WebViewCommand, WebViewEvent, WheelUnit,
 };
 pub use block_ui;
-pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
-pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
 pub use content::ContentProjection;
-pub use datetime::DateTimeRow;
-pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit_content};
-pub use file_chooser::{FileChooser, content_file_creation};
+pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
-    Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
+    Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
     HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
     PerformanceReporter, PickedBlock, PickedFile, SeededContent, ShowRequest, ShownPresence, Waker,
 };
-pub use related_content::RelatedContent;
-
-pub trait BeuiApp: 'static {
-    fn view(editor: Editor) -> beui::NodeId;
-    fn preview_view(_editor: Editor) -> beui::NodeId {
-        beui::reactive::Frame().build()
-    }
-    fn creation_view(_creation: Creation) -> beui::NodeId {
-        beui::reactive::Frame().build()
-    }
-    fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
-        creation.create_block()
-    }
-    fn connect_artifact(_artifacts: &Artifacts) {}
-    fn describe_artifact(_data: &[u8]) -> Result<ArtifactDescription, String> {
-        Err("this editor does not generate artifacts".into())
-    }
-    fn artifact_settings_view(_artifacts: Artifacts) -> beui::NodeId {
-        beui::reactive::Frame().build()
-    }
-    fn intrinsic_size() -> Option<beui::Vec2> {
-        None
-    }
-    fn aspect_ratio() -> Option<f32> {
-        None
-    }
-}
+#[cfg(target_arch = "wasm32")]
+pub use plugin::{Frame, Instance, PaintTarget, Plugin, Region};
+#[cfg(target_arch = "wasm32")]
+pub use wgpu;
 
 #[doc(hidden)]
 pub mod __private {
@@ -84,9 +50,9 @@ pub mod __private {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn start_wasm<A: crate::BeuiApp>(manifest: &str) {
+    pub fn start_wasm<P: crate::Plugin>(manifest: &str) {
         let identity = identity(manifest);
-        if let Err(error) = crate::wasm::start::<A>(&identity.id, &identity.name, &identity.version)
+        if let Err(error) = crate::wasm::start::<P>(&identity.id, &identity.name, &identity.version)
         {
             panic!("{} could not start: {error}", identity.name);
         }
@@ -117,7 +83,7 @@ pub mod __private {
 #[cfg(target_arch = "wasm32")]
 #[macro_export]
 macro_rules! platform_entry {
-    ($app:ty, $manifest:ident) => {
+    ($plugin:ty, $manifest:ident) => {
         #[unsafe(no_mangle)]
         pub extern "C" fn plugin_initialize_tls(size: u32, align: u32) {
             $crate::__private::initialize_tls(size as usize, align as usize);
@@ -125,7 +91,7 @@ macro_rules! platform_entry {
 
         #[unsafe(no_mangle)]
         pub extern "C" fn plugin_start() {
-            $crate::__private::start_wasm::<$app>($manifest);
+            $crate::__private::start_wasm::<$plugin>($manifest);
         }
 
         #[unsafe(no_mangle)]
@@ -143,14 +109,14 @@ macro_rules! platform_entry {
 #[cfg(not(target_arch = "wasm32"))]
 #[macro_export]
 macro_rules! platform_entry {
-    ($app:ty, $manifest:ident) => {};
+    ($plugin:ty, $manifest:ident) => {};
 }
 
 #[macro_export]
-macro_rules! beui_plugin {
-    ($app:ty, $manifest:expr) => {
+macro_rules! plugin {
+    ($plugin:ty, $manifest:expr) => {
         const PLUGIN_MANIFEST: &str = include_str!($manifest);
 
-        $crate::platform_entry!($app, PLUGIN_MANIFEST);
+        $crate::platform_entry!($plugin, PLUGIN_MANIFEST);
     };
 }

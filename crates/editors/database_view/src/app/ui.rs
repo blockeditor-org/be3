@@ -1,14 +1,14 @@
-use block_editor_plugin::be_block::database_schema::DatabaseField;
-use block_editor_plugin::be_block::database_view::DatabaseViewKind;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::database_schema::DatabaseField;
+use block_editor_beui::be_block::database_view::DatabaseViewKind;
+use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, Frame, ItemSize, List, Memo, NodeRef, Show, clone, component,
     create_effect, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Body, use_theme};
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
-use block_editor_plugin::database::DatabaseValueEditor;
-use block_editor_plugin::{Editor, Sidebar, Toolbar};
+use block_editor_beui::beui::styled::{Body, use_theme};
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
+use block_editor_beui::database::DatabaseValueEditor;
+use block_editor_beui::{Editor, Sidebar, Toolbar};
 use uuid::Uuid;
 
 use crate::app::data::{Data, ViewData};

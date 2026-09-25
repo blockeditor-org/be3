@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 beui = { path = "../beui", default-features = false }
-block-editor-plugin = { path = "../block-editor-plugin" }
+block-editor-beui = { path = "../block-editor-beui" }
 paint-snapshot = { path = "../paint-snapshot" }
 uuid = "1"
 

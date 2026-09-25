@@ -1,8 +1,8 @@
-use block_editor_plugin::be_block::DatabaseSchemaContent;
-use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::be_block::DatabaseSchemaContent;
+use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod ui;
@@ -11,7 +11,7 @@ use ui::SchemaView;
 
 pub struct DatabaseSchemaApp;
 
-impl block_editor_plugin::BeuiApp for DatabaseSchemaApp {
+impl block_editor_beui::BeuiApp for DatabaseSchemaApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <SchemaView editor={editor} />

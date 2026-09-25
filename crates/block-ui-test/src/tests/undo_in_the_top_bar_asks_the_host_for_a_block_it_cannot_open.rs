@@ -1,6 +1,6 @@
 use super::*;
 
-use block_editor_plugin::{BlockCommand, BlockHistory};
+use block_editor_beui::{BlockCommand, BlockHistory};
 
 #[test]
 fn undo_in_the_top_bar_asks_the_host_for_a_block_it_cannot_open() {

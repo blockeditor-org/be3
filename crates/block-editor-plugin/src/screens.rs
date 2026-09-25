@@ -6,11 +6,15 @@ use block_ui::{BlockCatalog, BlockTypeEntry};
 use std::{collections::HashMap, rc::Rc};
 use uuid::Uuid;
 
-use crate::{Waker, editor_session::EditorSession, host::BlockDrag};
+use crate::{
+    Waker,
+    editor_session::{EditorSession, Open},
+    host::BlockDrag,
+};
 
 pub(crate) struct Screens {
     sessions: HashMap<EditorInstanceId, EditorSession>,
-    open: fn(EditorInstanceId, Waker) -> EditorSession,
+    open: Open,
     waker: Waker,
     requests: Vec<ScreenRequest>,
     layout: ScreenLayout,
@@ -19,10 +23,10 @@ pub(crate) struct Screens {
 }
 
 impl Screens {
-    pub(crate) fn new<A: crate::BeuiApp>(waker: Waker) -> Self {
+    pub(crate) fn new(open: Open, waker: Waker) -> Self {
         Self {
             sessions: HashMap::new(),
-            open: EditorSession::new::<A>,
+            open,
             waker,
             requests: Vec::new(),
             layout: ScreenLayout::default(),
@@ -55,10 +59,9 @@ impl Screens {
                 client_id,
                 editable,
             }) => {
-                let session = self
-                    .sessions
-                    .entry(*instance)
-                    .or_insert_with(|| (self.open)(*instance, self.waker.clone()));
+                let session = self.sessions.entry(*instance).or_insert_with(|| {
+                    EditorSession::new(*instance, self.waker.clone(), self.open)
+                });
                 session.set_block_types(Rc::clone(&self.block_types));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -72,10 +75,9 @@ impl Screens {
                 workspace_id,
                 client_id,
             }) => {
-                let session = self
-                    .sessions
-                    .entry(*instance)
-                    .or_insert_with(|| (self.open)(*instance, self.waker.clone()));
+                let session = self.sessions.entry(*instance).or_insert_with(|| {
+                    EditorSession::new(*instance, self.waker.clone(), self.open)
+                });
                 session.set_block_types(Rc::clone(&self.block_types));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -91,10 +93,9 @@ impl Screens {
                 client_id,
                 data,
             }) => {
-                let session = self
-                    .sessions
-                    .entry(*instance)
-                    .or_insert_with(|| (self.open)(*instance, self.waker.clone()));
+                let session = self.sessions.entry(*instance).or_insert_with(|| {
+                    EditorSession::new(*instance, self.waker.clone(), self.open)
+                });
                 session.set_block_types(Rc::clone(&self.block_types));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -111,7 +112,7 @@ impl Screens {
                 height,
             }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
-                    session.resized(beui::vec2(*width, *height));
+                    session.resized(geometry::vec2(*width, *height));
                 }
             }
             Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
@@ -306,7 +307,10 @@ impl Screens {
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_view(
-                        beui::Rect::from_min_size(beui::pos2(*x, *y), beui::vec2(*width, *height)),
+                        geometry::Rect::from_min_size(
+                            geometry::pos2(*x, *y),
+                            geometry::vec2(*width, *height),
+                        ),
                         *scale,
                     );
                 }
@@ -351,7 +355,7 @@ impl Screens {
                     session.set_drag(Some((
                         *region,
                         BlockDrag {
-                            position: beui::pos2(*x, *y),
+                            position: geometry::pos2(*x, *y),
                             block_id: Uuid::from_bytes(*block_id),
                             block_type: Uuid::from_bytes(*block_type),
                             dropped: *dropped,
@@ -404,7 +408,7 @@ impl Screens {
                     session.set_files(Some((
                         *region,
                         crate::host::FileDrop {
-                            position: beui::pos2(*x, *y),
+                            position: geometry::pos2(*x, *y),
                             files: files
                                 .iter()
                                 .map(|file| crate::PickedFile {
@@ -437,10 +441,6 @@ impl Screens {
 
     pub(crate) fn session(&mut self, instance: EditorInstanceId) -> Option<&mut EditorSession> {
         self.sessions.get_mut(&instance)
-    }
-
-    pub(crate) fn is_open(&self, instance: EditorInstanceId) -> bool {
-        self.sessions.contains_key(&instance)
     }
 
     fn screen(&self, screen: ScreenId) -> Option<(EditorInstanceId, EditorRegion)> {

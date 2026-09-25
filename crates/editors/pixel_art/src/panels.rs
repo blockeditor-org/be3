@@ -1,26 +1,26 @@
 use std::rc::Rc;
 
-use block_editor_plugin::Toolbar;
-use block_editor_plugin::be_block::pixel_art::{
+use block_editor_beui::Toolbar;
+use block_editor_beui::be_block::pixel_art::{
     MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
 };
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_ARROW_BACK, ICON_ARROW_DOWNWARD, ICON_ARROW_FORWARD, ICON_ARROW_UPWARD,
     ICON_CIRCLE, ICON_COLORIZE, ICON_CROP_SQUARE, ICON_DELETE, ICON_DIAGONAL_LINE, ICON_DOWNLOAD,
     ICON_DRAW, ICON_FIND_REPLACE, ICON_FIT_SCREEN, ICON_FORMAT_COLOR_FILL, ICON_INK_ERASER,
     ICON_NORTH_EAST, ICON_NORTH_WEST, ICON_RESIZE, ICON_SOUTH_EAST, ICON_SOUTH_WEST, ICON_SQUARE,
     ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show,
     Spacer, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Checkbox, Dialog as Modal, Heading, IconButton,
     NumberInput, TextInput, ToggleButton, use_theme,
 };
-use block_editor_plugin::beui::unstyled::Pressable;
+use block_editor_beui::beui::unstyled::Pressable;
 
 use crate::canvas::ZOOM_STEP;
 use crate::color::{parse_hex_color, swatch_color};

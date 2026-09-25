@@ -21,15 +21,10 @@ pub(crate) struct Runtime {
 }
 
 impl Runtime {
-    pub(crate) fn new<A: crate::BeuiApp>(
-        id: &str,
-        name: &str,
-        version: &str,
-        waker: Waker,
-    ) -> Self {
+    pub(crate) fn new<P: crate::Plugin>(id: &str, name: &str, version: &str, waker: Waker) -> Self {
         Self {
             session: ClientSession::new(id, name, version),
-            screens: Screens::new::<A>(waker),
+            screens: Screens::new(P::open, waker),
             surface: None,
             generation: 0,
             asked: false,

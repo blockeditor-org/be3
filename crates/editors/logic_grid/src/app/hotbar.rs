@@ -1,10 +1,8 @@
 use super::canvas::ScaleDirection;
 use super::*;
-use block_editor_plugin::ContentProjection;
-use block_editor_plugin::be_block::Item;
-use block_editor_plugin::be_block::hotbar::{
-    HotbarContent, HotbarSlot as BlockHotbarSlot, SlotKind,
-};
+use block_editor_beui::ContentProjection;
+use block_editor_beui::be_block::Item;
+use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot as BlockHotbarSlot, SlotKind};
 
 pub(super) fn default_hotbar() -> Vec<HotbarSlot> {
     vec![

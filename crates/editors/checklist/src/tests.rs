@@ -1,8 +1,8 @@
-use block_editor_plugin::be_block::{
+use block_editor_beui::be_block::{
     BlockContent, Checklist as ChecklistModel, ChecklistContent, Edit, LiveEdit, ObjectId,
 };
-use block_editor_plugin::beui::Document;
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::beui::Document;
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::{BlockContent, CounterContent};
+use block_editor_beui::be_block::{BlockContent, CounterContent};
 
-use block_editor_plugin::be_block::FolderContent;
-use block_editor_plugin::{Drag, Editor, EditorHost};
+use block_editor_beui::be_block::FolderContent;
+use block_editor_beui::{BlockDrag, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 

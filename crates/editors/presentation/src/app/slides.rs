@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::ObjectId;
-use block_editor_plugin::be_block::presentation::{Presentation, PresentationContent};
-use block_editor_plugin::beui::reactive::{KeyedStore, ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor};
+use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::presentation::{Presentation, PresentationContent};
+use block_editor_beui::beui::reactive::{KeyedStore, ReadSignal, WriteSignal, create_signal};
+use block_editor_beui::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
 struct PendingSlide {
@@ -134,7 +134,7 @@ impl Slides {
     pub fn add(self: &Rc<Self>, index: usize) {
         let slides = Rc::clone(self);
         self.editor.pick_block(
-            block_editor_plugin::BlockFilter {
+            block_editor_beui::BlockFilter {
                 name: "Slide".into(),
                 block_types: Vec::new(),
                 excluded: Vec::new(),

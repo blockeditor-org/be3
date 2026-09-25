@@ -21,15 +21,15 @@ use std::{
 
 use beui::reactive::CanvasView;
 use beui::{Color32, Key, Pos2, Rect, TextAlign, Vec2};
-use block_editor_plugin::BlockParent;
-use block_editor_plugin::ContentProjection;
-use block_editor_plugin::be_block::BlockContent;
-use block_editor_plugin::be_block::compiled_logic::CompiledLogic;
-use block_editor_plugin::be_block::logic_grid::LogicGridOperation;
-use block_editor_plugin::be_block::{
+use block_editor_beui::BlockParent;
+use block_editor_beui::ContentProjection;
+use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::be_block::compiled_logic::CompiledLogic;
+use block_editor_beui::be_block::logic_grid::LogicGridOperation;
+use block_editor_beui::be_block::{
     CompiledLogicContent, CompiledLogicDocument, LogicGridContent, ObjectId,
 };
-use block_editor_plugin::root_settings::RootSetting;
+use block_editor_beui::root_settings::RootSetting;
 use logicgame::{
     challenges::{Challenge, ChallengeId, generate_challenge},
     execution::{Component as ExecutionComponent, Instruction, Pc, Vm},
@@ -536,7 +536,7 @@ impl Selection {
 
 pub(super) enum GridStore {
     Live {
-        editor: block_editor_plugin::Editor,
+        editor: block_editor_beui::Editor,
         content: Rc<ContentProjection<LogicGridContent>>,
     },
     #[cfg(test)]
@@ -580,7 +580,7 @@ impl GridStore {
         }
     }
 
-    fn editor(&self) -> Option<&block_editor_plugin::Editor> {
+    fn editor(&self) -> Option<&block_editor_beui::Editor> {
         match self {
             Self::Live { editor, .. } => Some(editor),
             #[cfg(test)]
@@ -601,7 +601,7 @@ pub(super) struct LogicGridEditor {
     grid: Grid,
     observed_revision: Option<u64>,
 
-    hotbar_block: RootSetting<block_editor_plugin::be_block::HotbarContent>,
+    hotbar_block: RootSetting<block_editor_beui::be_block::HotbarContent>,
 
     hotbar_needs_write: bool,
 
@@ -631,7 +631,7 @@ pub(super) struct LogicGridEditor {
 const DISPLAY_NAME: &str = "Logic Grid";
 
 impl LogicGridEditor {
-    fn live(editor: &block_editor_plugin::Editor) -> Self {
+    fn live(editor: &block_editor_beui::Editor) -> Self {
         Self::new(GridStore::Live {
             editor: editor.clone(),
             content: editor.block_content::<LogicGridContent>(),
@@ -852,7 +852,7 @@ impl LogicGridEditor {
     fn detached(grid: Grid, challenge: Option<ChallengeId>) -> Self {
         let mut editor = Self::new(GridStore::Local {
             content: LogicGridContent::new(
-                &block_editor_plugin::be_block::LogicGridDocument::with_grid(&grid, challenge),
+                &block_editor_beui::be_block::LogicGridDocument::with_grid(&grid, challenge),
             ),
             revision: 0,
         });
@@ -866,7 +866,7 @@ impl LogicGridEditor {
         let challenge = self.challenge.as_ref().map(|state| state.id);
         self.store = GridStore::Local {
             content: LogicGridContent::new(
-                &block_editor_plugin::be_block::LogicGridDocument::with_grid(&grid, challenge),
+                &block_editor_beui::be_block::LogicGridDocument::with_grid(&grid, challenge),
             ),
             revision: self.store.revision().unwrap_or(0) + 1,
         };

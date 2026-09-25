@@ -1,19 +1,17 @@
-use block_editor_plugin::be_block::BlockContent;
+use block_editor_beui::be_block::BlockContent;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use block_editor_plugin::be_block::paint::PaintReview;
-use block_editor_plugin::be_block::{
-    PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader,
-};
-use block_editor_plugin::{BlockInfo, BlockParent};
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::be_block::paint::PaintReview;
+use block_editor_beui::be_block::{PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
+use block_editor_beui::{BlockInfo, BlockParent};
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness, ContentStore};
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 use uuid::Uuid;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
 
 use crate::app::{PaintReviewApp, PaintReviewEditor, Status};
 use crate::download::{Painting, Source};

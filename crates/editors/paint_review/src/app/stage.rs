@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Picture, Show, clone, component,
     create_effect, create_memo, set_component_state, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, use_theme};
-use block_editor_plugin::beui::{Document, ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::beui::styled::{Body, Caption, use_theme};
+use block_editor_beui::beui::{Document, ImageFit, NodeId, Pos2, Rect, Vec2};
 
 use crate::render::Rendered;
 

@@ -1,17 +1,17 @@
 use std::{cmp::Ordering, collections::HashMap};
 
-use block_editor_plugin::be_block::Edit;
-use block_editor_plugin::be_block::database::{
+use block_editor_beui::be_block::Edit;
+use block_editor_beui::be_block::database::{
     Database, DatabaseColor, DatabaseContent, DatabaseValue,
 };
-use block_editor_plugin::be_block::database_schema::{
+use block_editor_beui::be_block::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent,
 };
-use block_editor_plugin::be_block::database_view::{
+use block_editor_beui::be_block::database_view::{
     DatabaseView, DatabaseViewContent, DatabaseViewKind,
 };
-use block_editor_plugin::beui::Key;
-use block_editor_plugin::{
+use block_editor_beui::beui::Key;
+use block_editor_beui::{
     BeuiApp, Creation, Editor, EditorHost,
     block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
 };

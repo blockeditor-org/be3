@@ -1,5 +1,5 @@
-use block_editor_plugin::be_block::hotbar::{Hotbar, HotbarContent, HotbarSlot};
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::be_block::hotbar::{Hotbar, HotbarContent, HotbarSlot};
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 

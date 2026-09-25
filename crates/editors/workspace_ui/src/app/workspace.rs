@@ -1,24 +1,22 @@
-use block_editor_plugin::be_block::{BlockContent, FileTreeContent};
+use block_editor_beui::be_block::{BlockContent, FileTreeContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{
     Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
     component, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Caption, DockArea, Heading, use_theme};
-use block_editor_plugin::beui::unstyled::{
-    Container, DockState, LeafId, Side, TabId, narrower_than,
-};
-use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_plugin::root_settings::RootSetting;
-use block_editor_plugin::{
+use block_editor_beui::beui::styled::{Caption, DockArea, Heading, use_theme};
+use block_editor_beui::beui::unstyled::{Container, DockState, LeafId, Side, TabId, narrower_than};
+use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::root_settings::RootSetting;
+use block_editor_beui::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
     Editor, EditorHost, FocusedBlock, PickedBlock,
 };
-use block_editor_plugin::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::panel::BlockPanel;

@@ -503,7 +503,7 @@ host has sent the content once, `loaded()` is a signal that turns true when it
 has, and `revision()` counts the changes an editor has seen, for code like the
 PDF pane that re-renders on a change rather than projecting.
 
-`block_editor_plugin` re-exports `be_block`, so an editor names its content type
+`block_editor_beui` re-exports `be_block`, so an editor names its content type
 without depending on the crate itself.
 
 ### The graph on the plugin protocol
@@ -528,7 +528,7 @@ commit, before any later command for that block runs. `Creation::create` and
 `Blocks::create` make a block this way, Detached unless a parent is named;
 the host sets the parent of a block made in a creation dialog once it has the
 id. Creating a database makes two blocks this way:
-`block_editor_plugin::database::create_database` creates a schema with a Name
+`block_editor_beui::database::create_database` creates a schema with a Name
 field and a database pointing at it, and makes the schema a child of the
 database, so the graph is right before any editor opens it.
 

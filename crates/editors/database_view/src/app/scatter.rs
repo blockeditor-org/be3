@@ -1,11 +1,11 @@
-use block_editor_plugin::be_block::database::{DatabaseRow, DatabaseValue};
-use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
+use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ClickCatcher, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
     component_rect, component_size, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Caption, use_theme};
-use block_editor_plugin::beui::{NodeId, Pos2, TextAlign};
+use block_editor_beui::beui::styled::{Caption, use_theme};
+use block_editor_beui::beui::{NodeId, Pos2, TextAlign};
 use uuid::Uuid;
 
 use crate::app::data::Data;
@@ -112,7 +112,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
     view! {
         <ClickCatcher
             @test_id={"database-view.scatter"}
-            on_click_at={move |press: block_editor_plugin::beui::PointerPress| pick(press.pos)}
+            on_click_at={move |press: block_editor_beui::beui::PointerPress| pick(press.pos)}
         >
             <Canvas>
                 <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>
@@ -217,7 +217,7 @@ pub fn number_fields(data: &Data) -> Memo<Vec<DatabaseField>> {
     })
 }
 
-fn plot_area(size: block_editor_plugin::beui::Vec2) -> (f32, f32) {
+fn plot_area(size: block_editor_beui::beui::Vec2) -> (f32, f32) {
     (
         (size.x - AXIS_LEFT - AXIS_RIGHT).max(1.0),
         (size.y - AXIS_TOP - AXIS_BOTTOM).max(1.0),
