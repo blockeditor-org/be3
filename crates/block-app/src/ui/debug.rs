@@ -1,12 +1,11 @@
 use beui::reactive::{
-    Align, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize, List, Memo, Show, Spacer,
-    Text, VirtualList, clone, component, component_size, create_effect, create_memo, layout_text,
-    untrack, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, Text, VirtualList, clone,
+    component, create_memo, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Code, Heading, Link, Scroll, Spinner, use_theme,
 };
-use beui::{Color32, FontId, Key, KeyPress, Modifiers, NodeId, ScrollGesture, TextLayout};
+use beui::NodeId;
 
 use super::onboarding::ErrorText;
 use super::{UiCommand, send};
@@ -17,25 +16,8 @@ pub(crate) enum DebugWindow {
     Performance,
     Plugins,
     Version,
-    Terminal,
 }
 
-#[cfg_attr(not(feature = "terminal"), allow(dead_code))]
-#[derive(Clone, Debug)]
-pub(crate) enum TerminalInput {
-    Key(Key, Modifiers),
-    Text(String),
-    Scroll(isize),
-    Resize {
-        cols: u16,
-        rows: u16,
-        cell_width: u32,
-        cell_height: u32,
-    },
-    Retry,
-}
-
-#[cfg_attr(not(feature = "terminal"), allow(dead_code))]
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
     Open(DebugWindow),
@@ -44,7 +26,6 @@ pub(crate) enum DebugCommand {
     RefreshVersions,
     Install(u64),
     OpenUrl(String),
-    Terminal(TerminalInput),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,46 +96,12 @@ pub(crate) struct VersionView {
     pub(crate) runs: VersionRuns,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct TerminalSpan {
-    pub(crate) text: String,
-    pub(crate) color: Color32,
-    pub(crate) background: Option<Color32>,
-    pub(crate) bold: bool,
-    pub(crate) italic: bool,
-    pub(crate) underline: bool,
-}
-
-impl TerminalSpan {
-    #[cfg_attr(not(feature = "terminal"), allow(dead_code))]
-    pub(crate) fn same_style(&self, other: &Self) -> bool {
-        self.color == other.color
-            && self.background == other.background
-            && self.bold == other.bold
-            && self.italic == other.italic
-            && self.underline == other.underline
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct TerminalRow {
-    pub(crate) spans: Vec<TerminalSpan>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct TerminalView {
-    pub(crate) rows: Vec<TerminalRow>,
-    pub(crate) background: Color32,
-    pub(crate) error: Option<String>,
-}
-
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DebugView {
     pub(crate) client: Option<Vec<Line>>,
     pub(crate) performance: Option<Vec<PerformanceRow>>,
     pub(crate) plugins: Option<PluginsView>,
     pub(crate) version: Option<VersionView>,
-    pub(crate) terminal: Option<TerminalView>,
 }
 
 fn debug(command: DebugCommand) {
@@ -164,8 +111,6 @@ fn debug(command: DebugCommand) {
 const LINE_HEIGHT: f32 = 18.0;
 const PANEL_PADDING: f32 = 12.0;
 const INDENT: f32 = 14.0;
-const TERMINAL_FONT_SIZE: f32 = 13.0;
-const TERMINAL_PADDING: f32 = 6.0;
 
 #[component]
 fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
@@ -521,162 +466,6 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
                     <ErrorText text={error} />
                 </List>
             </Frame>
-        </Frame>
-    }
-}
-
-#[component]
-pub(super) fn TerminalPanel(terminal: Memo<Option<TerminalView>>) -> NodeId {
-    let error =
-        create_memo(clone!(terminal -> move || terminal.get().and_then(|terminal| terminal.error)));
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
-            <List spacing=8.0>
-                <ErrorText text={error} />
-                <Show condition={failed}>
-                    <Button
-                        label="Retry"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| debug(DebugCommand::Terminal(TerminalInput::Retry))}
-                    />
-                </Show>
-                <TerminalScreen @sizing=ItemSize::Percent(100.0) terminal />
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn TerminalScreen(terminal: Memo<Option<TerminalView>>) -> NodeId {
-    let size = component_size();
-    create_effect(move || {
-        let size = size.get();
-        let Some(cell) = layout_text(
-            "M",
-            FontId::monospace(TERMINAL_FONT_SIZE),
-            TextLayout::DEFAULT,
-        )
-        .map(|galley| galley.size()) else {
-            return;
-        };
-        if cell.x <= 0.0 || cell.y <= 0.0 {
-            return;
-        }
-        let cols = ((size.x - 2.0 * TERMINAL_PADDING) / cell.x)
-            .floor()
-            .max(1.0) as u16;
-        let rows = ((size.y - 2.0 * TERMINAL_PADDING) / cell.y)
-            .floor()
-            .max(1.0) as u16;
-        untrack(|| {
-            debug(DebugCommand::Terminal(TerminalInput::Resize {
-                cols,
-                rows,
-                cell_width: cell.x as u32,
-                cell_height: cell.y as u32,
-            }));
-        });
-    });
-    let background = create_memo(clone!(terminal -> move || {
-        terminal.get().map_or(Color32::BLACK, |terminal| terminal.background)
-    }));
-    let rows = create_memo(move || {
-        terminal
-            .get()
-            .map(|terminal| terminal.rows)
-            .unwrap_or_default()
-    });
-    let keys = create_memo(clone!(rows -> move || (0..rows.get().len()).collect::<Vec<_>>()));
-    view! {
-        <Focusable
-            on_text={|text: String| debug(DebugCommand::Terminal(TerminalInput::Text(text)))}
-            on_key={|press: KeyPress| {
-                if press.pressed {
-                    debug(DebugCommand::Terminal(TerminalInput::Key(press.key, press.modifiers)));
-                }
-                true
-            }}
-        >
-            <ClickCatcher
-                on_scroll={|gesture: ScrollGesture| {
-                    let rows = (gesture.delta.y / (TERMINAL_FONT_SIZE * 1.2)).round() as isize;
-                    if rows != 0 {
-                        debug(DebugCommand::Terminal(TerminalInput::Scroll(-rows)));
-                    }
-                }}
-            >
-                <Frame
-                    color={background}
-                    padding_horizontal=TERMINAL_PADDING
-                    padding_vertical=TERMINAL_PADDING
-                >
-                    <List spacing=0.0>
-                        <ForEach keys={keys}>
-                            {move |index: usize| {
-                                let rows = rows.clone();
-                                let row = create_memo(move || rows.get().get(index).cloned());
-                                view! {
-                                    <TerminalLine row />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
-                </Frame>
-            </ClickCatcher>
-        </Focusable>
-    }
-}
-
-#[component]
-fn TerminalLine(row: Memo<Option<TerminalRow>>) -> NodeId {
-    let keys = create_memo(clone!(row -> move || {
-        (0..row.get().map_or(0, |row| row.spans.len())).collect::<Vec<_>>()
-    }));
-    view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys={keys}>
-                {move |index: usize| {
-                    let row = row.clone();
-                    let span = create_memo(move || row.get().and_then(|row| row.spans.get(index).cloned()));
-                    view! {
-                        <TerminalCell span />
-                    }
-                }}
-            </ForEach>
-        </List>
-    }
-}
-
-#[component]
-fn TerminalCell(span: Memo<Option<TerminalSpan>>) -> NodeId {
-    let field = |read: fn(&TerminalSpan) -> bool| {
-        let span = span.clone();
-        create_memo(move || span.get().is_some_and(|span| read(&span)))
-    };
-    let bold = field(|span| span.bold);
-    let italic = field(|span| span.italic);
-    let underline = field(|span| span.underline);
-    let text =
-        create_memo(clone!(span -> move || span.get().map(|span| span.text).unwrap_or_default()));
-    let color =
-        create_memo(clone!(span -> move || span.get().map_or(Color32::WHITE, |span| span.color)));
-    let background = create_memo(move || {
-        span.get()
-            .and_then(|span| span.background)
-            .unwrap_or(Color32::TRANSPARENT)
-    });
-    view! {
-        <Frame color={background}>
-            <Text
-                string={text}
-                font_size=TERMINAL_FONT_SIZE
-                color={color}
-                monospace=true
-                bold
-                italic
-                underline
-            />
         </Frame>
     }
 }
