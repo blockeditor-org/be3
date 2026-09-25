@@ -29,8 +29,8 @@ web = [
 
 [dependencies]
 beui_macros = { path = "../beui_macros" }
-accesskit = "0.24.1"
-accesskit_winit = { version = "0.33.2", features = ["accesskit_android"], optional = true }
+accesskit = "0.25.0"
+accesskit_winit = { version = "0.34.1", features = ["accesskit_android"], optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 freetype = "0.7"
 harfbuzz_rs = "2"

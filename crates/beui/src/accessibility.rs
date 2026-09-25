@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use accesskit::{
     Action, ActionData, ActionRequest, Affine, Node, NodeId as AccessNodeId, Rect as AccessRect,
-    Role, Tree, TreeId, TreeUpdate,
+    Role, TreeId, TreeInfo, TreeUpdate,
 };
 
 use crate::Document;
@@ -72,7 +72,7 @@ pub(crate) fn tree_update(
     nodes.extend(fragments.into_iter().flat_map(|fragment| fragment.nodes));
     TreeUpdate {
         nodes,
-        tree: Some(Tree {
+        tree: Some(TreeInfo {
             root: WINDOW_NODE,
             toolkit_name: Some("beui".to_owned()),
             toolkit_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
