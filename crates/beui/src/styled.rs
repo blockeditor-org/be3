@@ -40,6 +40,8 @@ pub use chip::Chip;
 pub use color_input::{ColorInput, format_color, parse_color};
 pub use context_menu::ContextMenu;
 pub use dialog::Dialog;
+#[cfg(test)]
+pub(crate) use dock::CHROME_BORDER;
 pub use dock::DockArea;
 pub use icon_button::{IconButton, IconButtonSize};
 pub use link::Link;
