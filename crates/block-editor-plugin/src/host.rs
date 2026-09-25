@@ -373,6 +373,9 @@ fn scaled(rect: beui::Rect, ratio: f32) -> beui::Rect {
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
+    panes_offered: Rc<Cell<bool>>,
+    dock: Rc<RefCell<Option<Rc<crate::dock::DockLink>>>>,
+    shown_panes: Rc<RefCell<Vec<block_plugin_api::PaneId>>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
@@ -1207,6 +1210,42 @@ impl EditorHost {
         }
         self.creation_ready.set(ready);
         self.creation_changed.set(true);
+    }
+
+    pub fn panes_offered(&self) -> bool {
+        self.panes_offered.get()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn offer_panes(&self, offered: bool) {
+        self.panes_offered.set(offered);
+    }
+
+    pub(crate) fn set_dock(&self, link: Option<crate::dock::DockLink>) {
+        *self.dock.borrow_mut() = link.map(Rc::new);
+        self.waker.wake();
+    }
+
+    pub(crate) fn forget_dock(&self, key: u64) {
+        let mut dock = self.dock.borrow_mut();
+        if dock.as_ref().is_some_and(|link| link.key == key) {
+            *dock = None;
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn dock(&self) -> Option<Rc<crate::dock::DockLink>> {
+        self.dock.borrow().clone()
+    }
+
+    pub fn show_pane(&self, pane: block_plugin_api::PaneId) {
+        self.shown_panes.borrow_mut().push(pane);
+        self.waker.wake();
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn take_shown_panes(&self) -> Vec<block_plugin_api::PaneId> {
+        std::mem::take(&mut self.shown_panes.borrow_mut())
     }
 
     pub fn take_opens(&self) -> Vec<OpenRequest> {

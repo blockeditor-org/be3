@@ -3,9 +3,12 @@ use block_plugin_api::{
     ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
     FrameReport, FrameSpec, HostReply, ImeArea, InputEvent, Key, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize, ScreenPlacement,
-    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
+    MAX_COLLECTION_ITEMS, Message, Occluder, PaneId, PaneInfo, PaneLayout, PaneTree,
+    PointerButton, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
+    ViewportMetrics, WebViewEvent, WheelUnit,
 };
+use beui::unstyled::{DockState, TabId, Tree};
+use block_ui::panes::{dock_tree, pane_of, pane_tree, tab_of};
 use block_ui::BlockCatalog;
 use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 use uuid::Uuid;
@@ -35,6 +38,24 @@ pub(crate) struct EditorSession {
     paste_requested: bool,
     replacements: Vec<(u64, bool)>,
     generation: u64,
+    panes: HashMap<PaneId, beui::Document>,
+    detached: Vec<TabId>,
+    sent_panes: Option<PaneLayout>,
+    pane_events: Vec<PaneEvent>,
+}
+
+enum PaneEvent {
+    Arranged {
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    },
+    Closed(PaneId),
+}
+
+enum PaneAction {
+    Change(DockState),
+    Close(TabId),
 }
 
 struct ArtifactState {
@@ -331,7 +352,146 @@ impl EditorSession {
             paste_requested: false,
             replacements: Vec::new(),
             generation: 0,
+            panes: HashMap::new(),
+            detached: Vec::new(),
+            sent_panes: None,
+            pane_events: Vec::new(),
         }
+    }
+
+    pub(crate) fn offer_panes(&self, offered: bool) {
+        self.host.offer_panes(offered);
+    }
+
+    pub(crate) fn arrange_panes(
+        &mut self,
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    ) {
+        self.pane_events.push(PaneEvent::Arranged {
+            tree,
+            detached,
+            focused,
+        });
+    }
+
+    pub(crate) fn close_pane(&mut self, pane: PaneId) {
+        self.pane_events.push(PaneEvent::Closed(pane));
+    }
+
+    fn pane_actions(&mut self) -> Vec<PaneAction> {
+        let mut actions = Vec::new();
+        for event in std::mem::take(&mut self.pane_events) {
+            match event {
+                PaneEvent::Arranged {
+                    tree,
+                    detached,
+                    focused,
+                } => {
+                    let Some(layout) = dock_tree(&tree) else {
+                        continue;
+                    };
+                    let mut next = DockState::from_tree(&layout);
+                    if let Some(focused) = focused {
+                        next.show(tab_of(focused));
+                    }
+                    self.detached = detached.into_iter().map(tab_of).collect();
+                    if let Some(sent) = &mut self.sent_panes {
+                        sent.tree = tree;
+                    }
+                    actions.push(PaneAction::Change(next));
+                }
+                PaneEvent::Closed(pane) => {
+                    let tab = tab_of(pane);
+                    self.detached.retain(|detached| *detached != tab);
+                    actions.push(PaneAction::Close(tab));
+                }
+            }
+        }
+        actions
+    }
+
+    fn pane_tabs(&self) -> Vec<TabId> {
+        let Some(link) = self.host.dock() else {
+            return Vec::new();
+        };
+        let mut tabs = link.state.with_untracked(DockState::all_tabs);
+        for tab in &self.detached {
+            if !tabs.contains(tab) {
+                tabs.push(*tab);
+            }
+        }
+        tabs
+    }
+
+    fn pane_layout(&self) -> Option<PaneLayout> {
+        let link = self.host.dock()?;
+        let state = link.state.get_untracked();
+        let tree = state.tree(Tree::Surface(state.main())).unwrap_or_default();
+        let panes = beui::reactive::untrack(|| {
+            self.pane_tabs()
+                .into_iter()
+                .map(|tab| PaneInfo {
+                    pane: pane_of(tab),
+                    title: link.title.call(tab),
+                    closable: link.closable.call(tab),
+                })
+                .collect()
+        });
+        Some(PaneLayout {
+            panes,
+            tree: pane_tree(&tree),
+            focused: None,
+        })
+    }
+
+    fn retain_panes(&mut self) {
+        let tabs = self.pane_tabs();
+        let gone: Vec<PaneId> = self
+            .panes
+            .keys()
+            .filter(|pane| !tabs.contains(&tab_of(**pane)))
+            .copied()
+            .collect();
+        for pane in gone {
+            if let Some(mut document) = self.panes.remove(&pane) {
+                document.dispose();
+            }
+            self.beui.remove(&EditorRegion::Pane(pane));
+        }
+        if self.host.dock().is_none() {
+            self.detached.clear();
+            self.sent_panes = None;
+        }
+    }
+
+    fn ensure_pane(&mut self, pane: PaneId) {
+        if self.panes.contains_key(&pane) {
+            return;
+        }
+        let Some(link) = self.host.dock() else {
+            return;
+        };
+        let tab = tab_of(pane);
+        if !self.pane_tabs().contains(&tab) {
+            return;
+        }
+        let content = link.content.clone();
+        let document = beui::reactive::build(move || content.call(tab));
+        self.panes.insert(pane, document);
+    }
+
+    fn zones_pending(&self) -> bool {
+        let frame = self
+            .beui
+            .get(&EditorRegion::Frame)
+            .and_then(|region| region.chrome.as_ref())
+            .map(|chrome| chrome.document().zone());
+        frame
+            .into_iter()
+            .chain(self.panes.values().map(beui::Document::zone))
+            .any(beui::reactive::zone_pending)
     }
 
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
@@ -534,6 +694,22 @@ impl EditorSession {
 
     pub(crate) fn outbound(&mut self) -> Vec<Message> {
         let mut messages = Vec::new();
+        self.retain_panes();
+        if let Some(layout) = self.pane_layout()
+            && self.sent_panes.as_ref() != Some(&layout)
+        {
+            self.sent_panes = Some(layout.clone());
+            messages.push(Message::Editor(EditorMessage::Panes {
+                instance: self.instance,
+                layout,
+            }));
+        }
+        for pane in self.host.take_shown_panes() {
+            messages.push(Message::Editor(EditorMessage::ShowPane {
+                instance: self.instance,
+                pane,
+            }));
+        }
         let sizes = self.region_sizes();
         if !sizes.is_empty() {
             messages.push(Message::RegionSizes(sizes));
@@ -1016,6 +1192,18 @@ impl EditorSession {
         let delivered_drop = drag.is_some_and(|drag| drag.dropped);
         let delivered_files = files.as_ref().is_some_and(|files| files.dropped);
         self.host.set_files(files);
+        let actions = match region {
+            EditorRegion::Frame => self.pane_actions(),
+            _ => Vec::new(),
+        };
+        let link = self.host.dock();
+        if let EditorRegion::Pane(pane) = region {
+            self.ensure_pane(pane);
+        }
+        let mut pane_document = match region {
+            EditorRegion::Pane(pane) => self.panes.remove(&pane),
+            _ => None,
+        };
         let app = &mut self.app;
         let state = self.beui.entry(region).or_insert_with(BeuiRegion::new);
         let events = std::mem::take(&mut state.events);
@@ -1046,6 +1234,20 @@ impl EditorSession {
                 };
                 beui::reactive::with_reactive_scope(chrome.document_mut(), || {
                     set_bar.set(bar);
+                    if let Some(link) = &link {
+                        for action in actions {
+                            match action {
+                                PaneAction::Change(next) => link.on_change.call(next),
+                                PaneAction::Close(tab) => {
+                                    let mut next = link.state.get_untracked();
+                                    if next.remove(tab) {
+                                        link.on_change.call(next);
+                                    }
+                                    link.on_close.call(tab);
+                                }
+                            }
+                        }
+                    }
                     app.update();
                 });
                 chrome.document_mut().show(context, frame);
@@ -1061,12 +1263,24 @@ impl EditorSession {
                     app.artifact_settings(context, frame, draft);
                 }
             }
-            EditorRegion::Pane(_) => {}
+            EditorRegion::Pane(_) => {
+                if let Some(document) = pane_document.as_mut() {
+                    document.show(context, frame);
+                    app.after_layout(document);
+                    floating = document.overlay_rects();
+                }
+            }
         });
+        if let (EditorRegion::Pane(pane), Some(document)) = (region, pane_document) {
+            self.panes.insert(pane, document);
+        }
 
         let mut output = output;
         if let Some(delay) = self.host.take_frame_request() {
             output.repaint_after = output.repaint_after.min(delay);
+        }
+        if self.zones_pending() {
+            output.repaint_after = std::time::Duration::ZERO;
         }
         if let (Some(artifact), Some(draft)) = (self.artifact.as_mut(), draft) {
             artifact.edited |= artifact.draft != draft;

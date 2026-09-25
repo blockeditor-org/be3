@@ -184,6 +184,7 @@ struct ChildRecord {
     report: Callback<ChildState>,
     view_change: Callback<ViewChange>,
     child: Cell<Option<ChildId>>,
+    zone: u64,
 }
 
 struct PendingPick {
@@ -262,7 +263,7 @@ struct EditorState {
     set_revealed: WriteSignal<Option<u64>>,
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
-    content: RefCell<Option<NodeRef>>,
+    content: RefCell<Option<(NodeRef, u64)>>,
     projections: RefCell<std::collections::HashMap<Option<Uuid>, Rc<dyn std::any::Any>>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
@@ -503,6 +504,7 @@ impl Editor {
                 report,
                 view_change,
                 child: Cell::new(None),
+                zone: document_zone(),
             }),
         ));
         let editor = Rc::clone(&self.0);
@@ -541,7 +543,11 @@ impl Editor {
     }
 
     pub fn content(&self, node: &NodeRef) {
-        *self.0.content.borrow_mut() = Some(node.clone());
+        *self.0.content.borrow_mut() = Some((node.clone(), document_zone()));
+    }
+
+    pub fn show_pane(&self, tab: beui::unstyled::TabId) {
+        self.0.host.show_pane(block_ui::panes::pane_of(tab));
     }
 
     pub fn content_rect(&self) -> Rect {
@@ -701,19 +707,33 @@ impl Editor {
     }
 
     pub fn end_frame(&self, document: &Document) {
+        let zone = document.zone();
         for record in self.records() {
+            if record.zone != 0 && record.zone != zone {
+                continue;
+            }
             record.child.set(self.place_child(document, &record));
         }
         for rect in document.overlay_rects() {
             self.0.host.occlude_beui(rect);
         }
-        let node = self.0.content.borrow().as_ref().and_then(NodeRef::try_get);
+        let node = self
+            .0
+            .content
+            .borrow()
+            .as_ref()
+            .filter(|(_, owner)| *owner == 0 || *owner == zone)
+            .and_then(|(node, _)| node.try_get());
         let Some(rect) = node.and_then(|node| document.node_rect(node)) else {
             return;
         };
         self.0.content_rect.set(rect);
         self.0.host.beui_view().set_content(rect);
     }
+}
+
+fn document_zone() -> u64 {
+    beui::reactive::try_with_document(|document| document.zone()).unwrap_or(0)
 }
 
 impl Editor {

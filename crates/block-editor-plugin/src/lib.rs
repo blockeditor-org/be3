@@ -9,6 +9,7 @@ mod chrome;
 mod content;
 pub mod database;
 mod datetime;
+mod dock;
 mod editor;
 #[cfg(target_arch = "wasm32")]
 mod editor_session;
@@ -39,6 +40,7 @@ pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
 pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
 pub use content::ContentProjection;
 pub use datetime::DateTimeRow;
+pub use dock::EditorDock;
 pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit_content};
 pub use file_chooser::{FileChooser, content_file_creation};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
