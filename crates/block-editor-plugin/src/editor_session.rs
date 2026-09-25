@@ -1,15 +1,15 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
+use beui::unstyled::{DockState, TabId, Tree};
 use block_plugin_api::{
     ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
     FrameReport, FrameSpec, HostReply, ImeArea, InputEvent, Key, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, Message, Occluder, PaneId, PaneInfo, PaneLayout, PaneTree,
-    PointerButton, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
-    ViewportMetrics, WebViewEvent, WheelUnit,
+    MAX_COLLECTION_ITEMS, Message, Occluder, PaneId, PaneInfo, PaneLayout, PaneTree, PointerButton,
+    RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent,
+    WheelUnit,
 };
-use beui::unstyled::{DockState, TabId, Tree};
-use block_ui::panes::{dock_tree, pane_of, pane_tree, tab_of};
 use block_ui::BlockCatalog;
+use block_ui::panes::{dock_tree, pane_of, pane_tree, tab_of};
 use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 use uuid::Uuid;
 

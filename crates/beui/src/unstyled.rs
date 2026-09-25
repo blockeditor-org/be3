@@ -31,9 +31,8 @@ pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
     Dock, DockDrop, DockLayout, DockPanelHandle, DockPreviewHandle, DockSplitter,
     DockSplitterHandle, DockState, DockTabHandle, DockTree, DockTreeEntry, DockWindowGripHandle,
-    DockWindowHandle, Entry,
-    GroupId, LeafId, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree,
-    dock_state, layout_surface, layout_tree,
+    DockWindowHandle, Entry, GroupId, LeafId, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId,
+    TabPosition, Tree, dock_state, layout_surface, layout_tree,
 };
 pub(crate) use drag::Board as DragBoard;
 pub use drag::{

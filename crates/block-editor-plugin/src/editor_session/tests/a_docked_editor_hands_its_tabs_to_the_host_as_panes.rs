@@ -69,7 +69,9 @@ fn a_docked_editor_hands_its_tabs_to_the_host_as_panes() {
     let mut session = EditorSession::new::<DockingApp>(EditorInstanceId(0), Waker::default());
     session.offer_panes(true);
     session.connect(Uuid::new_v4(), Uuid::new_v4());
-    session.regions.insert(EditorRegion::Frame, region(EditorRegion::Frame));
+    session
+        .regions
+        .insert(EditorRegion::Frame, region(EditorRegion::Frame));
     session.run(EditorRegion::Frame, 1);
 
     let layout = session

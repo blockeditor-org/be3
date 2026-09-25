@@ -5,8 +5,8 @@ use std::rc::Rc;
 
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
-    Align, Frame, Func, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal,
-    clone, component, create_memo, create_signal, view,
+    Align, Frame, Func, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal, clone,
+    component, create_memo, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Caption, Heading, use_theme};
 use block_editor_plugin::beui::unstyled::{

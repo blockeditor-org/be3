@@ -6,8 +6,8 @@ use block_plugin_api::{
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FetchResult,
     FilePick, FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder, PaneId,
-    PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, ViewChange, WatchedContent,
+    PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId,
+    ScreenLayout, ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},

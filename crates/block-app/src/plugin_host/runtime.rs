@@ -9,8 +9,8 @@ use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockCommand, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId,
     EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PaneId, PaneLayout,
-    PaneTree, PluginManifest, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec, Theme,
-    ViewChange,
+    PaneTree, PluginManifest, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat,
+    SurfaceSpec, Theme, ViewChange,
 };
 use uuid::Uuid;
 
@@ -943,7 +943,10 @@ pub(crate) fn panes(plugin_id: &str, instance: EditorInstanceId) -> Option<PaneL
 }
 
 pub(crate) fn take_shown_panes(plugin_id: &str, instance: EditorInstanceId) -> Vec<PaneId> {
-    with(plugin_id, |runtime| runtime.instances.take_shown_panes(instance)).unwrap_or_default()
+    with(plugin_id, |runtime| {
+        runtime.instances.take_shown_panes(instance)
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn arrange_panes(

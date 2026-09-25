@@ -89,10 +89,13 @@ fn a_layout_the_host_rearranged_comes_back_as_the_editors_own() {
         .expect("the editor was told its new layout");
     assert_eq!(layout.all_tabs(), vec![TabId::new(2)]);
     assert_eq!(layout.focused_tab(), Some(TabId::new(2)));
-    let resent = session.outbound().into_iter().find_map(|message| match message {
-        Message::Editor(EditorMessage::Panes { layout, .. }) => Some(layout),
-        _ => None,
-    });
+    let resent = session
+        .outbound()
+        .into_iter()
+        .find_map(|message| match message {
+            Message::Editor(EditorMessage::Panes { layout, .. }) => Some(layout),
+            _ => None,
+        });
     let resent = resent.expect("the editor answers the arrangement it was given");
     assert_eq!(resent.arrangement, 1);
     assert_eq!(
@@ -104,5 +107,8 @@ fn a_layout_the_host_rearranged_comes_back_as_the_editors_own() {
     session.close_pane(PaneId(1));
     session.run(EditorRegion::Frame, 3);
 
-    assert_eq!(CLOSED.with(|closed| closed.borrow().clone()), vec![TabId::new(1)]);
+    assert_eq!(
+        CLOSED.with(|closed| closed.borrow().clone()),
+        vec![TabId::new(1)]
+    );
 }

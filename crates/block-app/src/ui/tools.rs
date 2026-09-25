@@ -65,7 +65,10 @@ fn arranged(state: &DockState, group: GroupId) -> Arranged {
     let tree = state.tree(Tree::Group(group)).unwrap_or_default();
     Arranged {
         tree: pane_tree_with(&tree, &tab_pane),
-        detached: outside(state, group).into_iter().filter_map(tab_pane).collect(),
+        detached: outside(state, group)
+            .into_iter()
+            .filter_map(tab_pane)
+            .collect(),
         focused: state.focused_tab().and_then(tab_pane),
     }
 }
@@ -127,7 +130,11 @@ fn apply(state: &mut DockState, docked: &Docked, layout: Option<&PaneLayout>) {
         }
     };
     if layout.arrangement >= docked.arrangement.get() {
-        let listed: Vec<TabId> = layout.panes.iter().map(|info| pane_tab(info.pane)).collect();
+        let listed: Vec<TabId> = layout
+            .panes
+            .iter()
+            .map(|info| pane_tab(info.pane))
+            .collect();
         for tab in pane_tabs(state) {
             if !listed.contains(&tab) {
                 state.remove(tab);

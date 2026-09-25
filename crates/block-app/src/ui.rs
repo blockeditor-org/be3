@@ -9,10 +9,10 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use block_plugin_api::{PaneId, PaneLayout, PaneTree};
 use beui::reactive::{Dynamic, Frame, List, Store, component, view};
 use beui::styled::use_theme;
 use beui::{ItemSize, NodeId};
+use block_plugin_api::{PaneId, PaneLayout, PaneTree};
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};

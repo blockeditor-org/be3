@@ -1201,7 +1201,12 @@ impl DockState {
             .all(|tab| self.home(tab) == Some(destination))
     }
 
-    pub fn insert_pinned_group(&mut self, leaf: LeafId, index: usize, layout: &DockTree) -> GroupId {
+    pub fn insert_pinned_group(
+        &mut self,
+        leaf: LeafId,
+        index: usize,
+        layout: &DockTree,
+    ) -> GroupId {
         let group = GroupId(self.mint());
         let root = Node::Leaf(self.new_leaf(Vec::new()));
         self.groups.push(Group {
@@ -1219,7 +1224,11 @@ impl DockState {
     }
 
     pub fn unpin(&mut self, group: GroupId) {
-        let Some(pinned) = self.groups.iter_mut().find(|candidate| candidate.id == group) else {
+        let Some(pinned) = self
+            .groups
+            .iter_mut()
+            .find(|candidate| candidate.id == group)
+        else {
             return;
         };
         pinned.pinned = false;
@@ -1247,9 +1256,9 @@ impl DockState {
                     .iter()
                     .map(|entry| match entry {
                         Entry::Tab(tab) => DockTreeEntry::Tab(*tab),
-                        Entry::Group(group) => DockTreeEntry::Group(
-                            self.tree(Tree::Group(*group)).unwrap_or_default(),
-                        ),
+                        Entry::Group(group) => {
+                            DockTreeEntry::Group(self.tree(Tree::Group(*group)).unwrap_or_default())
+                        }
                     })
                     .collect(),
                 active: leaf.active,

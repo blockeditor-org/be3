@@ -37,7 +37,10 @@ fn setting_a_tree_moves_its_tabs_in_and_keeps_the_focused_tab_focused() {
     state.set_tree(Tree::Group(group), &split);
 
     assert_eq!(state.tree(Tree::Group(group)), Some(split));
-    assert!(state.windows().is_empty(), "a tab set into the tree leaves its window");
+    assert!(
+        state.windows().is_empty(),
+        "a tab set into the tree leaves its window"
+    );
     assert_eq!(state.home(TabId::new(12)), Some(group));
     assert_eq!(state.focused_tab(), Some(TabId::new(11)));
 }

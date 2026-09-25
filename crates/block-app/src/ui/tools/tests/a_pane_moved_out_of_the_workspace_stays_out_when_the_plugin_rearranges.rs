@@ -23,7 +23,11 @@ fn a_pane_moved_out_of_the_workspace_stays_out_when_the_plugin_rearranges() {
         state.group_tabs(group),
         vec![pane_tab(PaneId(1)), pane_tab(PaneId(3))]
     );
-    assert_eq!(state.windows().len(), 1, "the popped out pane keeps its window");
+    assert_eq!(
+        state.windows().len(),
+        1,
+        "the popped out pane keeps its window"
+    );
 
     apply(&mut state, &docked, Some(&layout(&[1, 3], 0)));
 

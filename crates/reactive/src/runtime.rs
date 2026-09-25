@@ -167,11 +167,11 @@ pub fn enter_zone(zone: u64) -> ZoneGuard {
 
 pub fn zone_pending(zone: u64) -> bool {
     RUNTIME.with(|runtime| {
-        runtime
-            .parked
-            .borrow()
-            .get(&zone)
-            .is_some_and(|parked| parked.iter().any(|computation| computation.strong_count() > 0))
+        runtime.parked.borrow().get(&zone).is_some_and(|parked| {
+            parked
+                .iter()
+                .any(|computation| computation.strong_count() > 0)
+        })
     })
 }
 
