@@ -11,9 +11,7 @@ use crate::reactive::layout_text;
 
 use super::RemoteTextCursor;
 use super::colors::TextAreaColors;
-use super::layout::{
-    BytePosition, DocumentLayout, INLINE_WIDGET_ICON_INSET, LineLayout, Run,
-};
+use super::layout::{BytePosition, DocumentLayout, INLINE_WIDGET_ICON_INSET, LineLayout, Run};
 use super::state::{MarkdownCheckbox, Snapshot};
 
 pub(crate) const PADDING: Vec2 = Vec2::new(12.0, 8.0);
@@ -584,12 +582,8 @@ pub(crate) struct Overlay<'a> {
     pub layout: &'a DocumentLayout,
     pub colors: &'a TextAreaColors,
     pub origin: Vec2,
-    pub focused: bool,
     pub selection: &'a [Range<usize>],
-    pub carets: &'a [usize],
     pub remote: &'a [RemoteTextCursor],
-    pub touch_handles: Option<Range<usize>>,
-    pub caret_handle: Option<usize>,
     pub drop_caret: Option<usize>,
 }
 
@@ -598,12 +592,8 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
         layout,
         colors,
         origin,
-        focused,
         selection,
-        carets,
         remote,
-        touch_handles,
-        caret_handle,
         drop_caret,
     } = state;
     let mut shapes = Vec::new();
@@ -656,40 +646,6 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
         });
     }
 
-    if focused {
-        for caret in carets {
-            if let Some(rect) = caret_rect(layout, *caret, origin) {
-                shapes.push(PageShape::Rect {
-                    rect,
-                    corner_radius: 0.0,
-                    color: colors.caret,
-                });
-            }
-        }
-    }
-
-    if let Some(range) = touch_handles {
-        for (byte, handle) in [
-            (range.start, SelectionHandle::Start),
-            (range.end, SelectionHandle::End),
-        ] {
-            let Some(anchor) = touch_handle_anchor(layout, byte) else {
-                continue;
-            };
-            shapes.extend(touch_handle_shapes(anchor + origin, handle, colors.caret));
-        }
-    }
-
-    if let Some(byte) = caret_handle
-        && let Some(anchor) = touch_handle_anchor(layout, byte)
-    {
-        shapes.extend(touch_handle_shapes(
-            anchor + origin,
-            SelectionHandle::Caret,
-            colors.caret,
-        ));
-    }
-
     if let Some(byte) = drop_caret
         && let Some(rect) = caret_rect(layout, byte, origin)
     {
@@ -700,5 +656,39 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
         });
     }
 
+    Page::new(shapes)
+}
+
+pub(crate) fn carets(
+    layout: &DocumentLayout,
+    carets: &[usize],
+    color: Color32,
+    origin: Vec2,
+) -> Page {
+    Page::new(
+        carets
+            .iter()
+            .filter_map(|caret| caret_rect(layout, *caret, origin))
+            .map(|rect| PageShape::Rect {
+                rect,
+                corner_radius: 0.0,
+                color,
+            })
+            .collect(),
+    )
+}
+
+pub(crate) fn handles(
+    layout: &DocumentLayout,
+    handles: &[(SelectionHandle, usize)],
+    color: Color32,
+    origin: Vec2,
+) -> Page {
+    let mut shapes = Vec::new();
+    for (handle, byte) in handles {
+        if let Some(anchor) = touch_handle_anchor(layout, *byte) {
+            shapes.extend(touch_handle_shapes(anchor + origin, *handle, color));
+        }
+    }
     Page::new(shapes)
 }

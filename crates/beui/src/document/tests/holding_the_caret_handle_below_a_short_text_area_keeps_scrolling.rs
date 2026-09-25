@@ -41,7 +41,10 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
     };
     let line_of = |state: &TextAreaState| {
         let caret = state.caret_indices()[0];
-        state.bytes()[..caret].iter().filter(|byte| **byte == b'\n').count()
+        state.bytes()[..caret]
+            .iter()
+            .filter(|byte| **byte == b'\n')
+            .count()
     };
     let placed = line_of(&state);
     let below = pos2(handle.x, visible.bottom() + 40.0);
@@ -60,7 +63,10 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
         "holding below the edge keeps moving the caret: line {reached} then {held_line}"
     );
     assert!(
-        state.selection_ranges().iter().all(|range| range.is_empty()),
+        state
+            .selection_ranges()
+            .iter()
+            .all(|range| range.is_empty()),
         "dragging the caret handle does not select"
     );
 }

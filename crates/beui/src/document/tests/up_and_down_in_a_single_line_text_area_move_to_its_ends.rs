@@ -9,8 +9,7 @@ fn up_and_down_in_a_single_line_text_area_move_to_its_ends() {
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
     let sink = held.clone();
     let document = build(move || {
-        let document =
-            Arc::new(TextBuffer::new(b"one two")) as Arc<dyn text_editor_core::Document>;
+        let document = Arc::new(TextBuffer::new(b"one two")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         sink.replace(Some(state.clone()));
         view! {

@@ -18,4 +18,4 @@ pub(crate) mod virtual_list;
 pub use focusable::focus_within;
 pub use list::{Align, Direction, ItemSize};
 pub use offset::ScrollPosition;
-pub use text::{TextAlign, text_index_at};
+pub use text::TextAlign;

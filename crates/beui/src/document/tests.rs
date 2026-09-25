@@ -12,6 +12,7 @@ mod a_component_that_builds_no_node_owns_its_scope_through_the_value;
 mod a_component_wrapping_a_node_less_component_keeps_its_scope;
 mod a_context_menu_item_follows_the_signals_its_tag_was_written_with;
 mod a_crowded_dock_tab_bar_scrolls_rather_than_spilling;
+mod a_deadline_repaint_only_damages_the_element_that_asked_for_it;
 mod a_dialog_opens_in_the_middle_and_escape_dismisses_it;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
@@ -21,6 +22,7 @@ mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_docked_pane_lays_its_content_inside_its_border;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
+mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_for_each_gives_a_scroll_items_of_its_own;
@@ -72,6 +74,7 @@ mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
+mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
 mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
@@ -246,6 +249,7 @@ mod tapping_inside_a_selection_in_a_select_search_box_opens_its_menu;
 mod tapping_inside_a_touch_selection_opens_a_menu_that_copies_it;
 mod tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes;
 mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
+mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
 mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
 mod the_demo_catalog_survives_switching_tabs;
@@ -1142,6 +1146,21 @@ struct Counts {
     measures: Rc<Cell<usize>>,
 }
 
+const BLINK: Duration = Duration::from_millis(530);
+
+fn blinking() -> crate::reactive::Draw {
+    Rc::new(|painter: &crate::painter::Painter, rect: Rect| {
+        painter.rect_filled(rect, 0.0, Color32::WHITE);
+        painter.ctx().request_repaint_after(BLINK);
+    })
+}
+
+fn still() -> crate::reactive::Draw {
+    Rc::new(|painter: &crate::painter::Painter, rect: Rect| {
+        painter.rect_filled(rect, 0.0, Color32::WHITE);
+    })
+}
+
 fn counted(document: &mut Document, node: NodeId) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
     let counts = counted_with_measures(document, node);
     (counts.layouts, counts.paints)
@@ -1165,7 +1184,6 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
     );
     counts
 }
-mod a_blinking_caret_only_damages_the_text_it_belongs_to;
 mod a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes;
 mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;
@@ -1174,7 +1192,6 @@ mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
 mod a_scroll_only_re_measures_the_row_that_changed;
 mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
-mod caret_repaints_on_a_deadline_without_repeating_layout;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
 mod empty_choices_and_invalid_selection_do_not_break_tab_navigation;

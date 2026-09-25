@@ -307,7 +307,15 @@ drives the same document from a toolbar of its own. The state republishes
 what it shows whenever one of its own commands runs; code that changes the
 document behind it - adopting an edit that arrived from someone else - calls
 `sync()`, or `external_edit()` when the edit should also break the undo group,
-since nothing polls the document for changes. `MenuButton` is the button that opens a menu under itself, which is
+since nothing polls the document for changes. It shows a `placeholder` while
+the document is empty, masks every character under `password`, and leaves a
+caret handle under a touch tap that drags the caret and opens its menu.
+`single_line` is the same control laid out on one unwrapped line with no
+gutter, scrolled sideways to keep the caret in view, where Enter submits and
+Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
+own focus and pointer handling. `TextInput` is that single-line mode over a
+plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
+fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was.
@@ -1274,8 +1282,10 @@ presses at positions its callback accepts. Before any node handles a press the
 document asks the topmost nodes first, and only the captor receives it: focus
 stays where it is, touch scrolling does not start, and no other catcher arms.
 Paint such parts with `Painter::on_top`, which draws above the rest of the
-document, or of the overlay being painted. The touch selection handles of
-`unstyled::TextInput` use both.
+document, or of the overlay being painted, or from a `CanvasItem` with
+`clip=false`, which a canvas paints without cutting it to its own rectangle.
+The touch selection handles of `unstyled::TextArea` use `capture_at` and an
+unclipped item.
 
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control

@@ -20,7 +20,7 @@ fn keys_without_alt_reach_the_control_the_screen_reader_focused() {
 
     harness.key(Key::ArrowRight, Modifiers::ALT);
     harness.frame(Vec::new());
-    assert_eq!(harness.document().focused_node(), Some(input));
+    assert!(unstyled::text_input_focused(harness.document(), input).get_untracked());
 
     harness.type_text("hi");
     harness.key(Key::ArrowLeft, Modifiers::NONE);

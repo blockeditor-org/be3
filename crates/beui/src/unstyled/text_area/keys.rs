@@ -38,6 +38,13 @@ fn copy(state: &TextAreaState, mode: CopyMode) {
     }
 }
 
+fn selected(state: &TextAreaState) -> bool {
+    state
+        .selection_ranges()
+        .iter()
+        .any(|range| !range.is_empty())
+}
+
 fn single_line_command(cx: &Context, press: KeyPress) -> bool {
     let modifiers = press.modifiers;
     match press.key {
@@ -46,6 +53,7 @@ fn single_line_command(cx: &Context, press: KeyPress) -> bool {
             true
         }
         Key::Tab | Key::Escape => false,
+        Key::C | Key::X if modifiers.ctrl && !selected(&cx.state) => true,
         Key::ArrowUp | Key::ArrowDown if modifiers.alt => false,
         Key::B | Key::I | Key::F | Key::H | Key::G | Key::D | Key::BracketLeft
             if modifiers.ctrl =>

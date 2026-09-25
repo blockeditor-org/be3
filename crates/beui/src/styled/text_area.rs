@@ -106,6 +106,7 @@ pub fn TextArea(
                 @sizing=ItemSize::Percent(100.0)
                 child_size=ItemSize::Percent(100.0)
                 open_at={menu_at}
+                open_at_focuses=false
                 on_close={move || close_menu.set(None)}
                 items={view! {
                     <ForEach keys={actions}>

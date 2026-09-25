@@ -4,8 +4,10 @@ mod layout;
 mod shapes;
 mod state;
 
+use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use accesskit::{Node, Role};
 
@@ -24,18 +26,19 @@ use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{CursorIcon, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::page::Page;
+use crate::painter::Painter;
 use crate::reactive::{
-    Callback, Canvas, CanvasItem, Children, ClickCallback, ClickCatcher, Draw, Drawing, Focusable, Frame, List,
-    Memo, NodeRef, Prop, ReadSignal, Show, WriteSignal, clone, component_accessibility,
-    component_rect, component_size, create_effect, create_memo, create_signal,
-    set_component_state, untrack, use_pixels_per_point, with_document,
+    Callback, Canvas, CanvasItem, Child, Children, ClickCallback, ClickCatcher, Draw, Drawing,
+    Focusable, Frame, List, Memo, NodeRef, Prop, ReadSignal, Render, Show, WriteSignal, clone,
+    component_accessibility, component_rect, component_size, create_effect, create_memo,
+    create_signal, set_component_state, untrack, use_pixels_per_point, with_document,
 };
 use crate::unstyled::Scroll;
 
 use layout::{BODY_SIZE, LayoutOptions, hit_test, layout_document};
 use shapes::{
-    CARET_WIDTH, PADDING, SelectionHandle, TOUCH_HANDLE_HIT_RADIUS, checkbox_at, gutter_arrow_at,
-    touch_handle_anchor, touch_handle_center,
+    CARET_WIDTH, PADDING, SelectionHandle, TOUCH_HANDLE_GAP, TOUCH_HANDLE_HIT_RADIUS, checkbox_at,
+    gutter_arrow_at, touch_handle_anchor, touch_handle_center,
 };
 use state::Grab;
 
@@ -47,6 +50,8 @@ const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const SELECT_ALL_CLICKS: u32 = 4;
 const WORD_CLICKS: u32 = 2;
 const LINE_CLICKS: u32 = 3;
+const HANDLE_SLACK: f32 = 0.5;
+const BLINK_INTERVAL: Duration = Duration::from_millis(530);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemoteTextCursor {
@@ -185,32 +190,66 @@ impl Surface {
         if !state.touch_mode().get_untracked()
             || !state.caret_handle().get_untracked()
             || !self.focused.get_untracked()
-            || state.selection_ranges().iter().any(|range| !range.is_empty())
+            || state
+                .selection_ranges()
+                .iter()
+                .any(|range| !range.is_empty())
         {
             return None;
         }
         state.caret_indices().first().copied()
     }
 
+    fn shown_handles(&self) -> Vec<(SelectionHandle, usize)> {
+        let handles = match (self.caret_handle(), self.selection_handles()) {
+            (Some(caret), _) => vec![(SelectionHandle::Caret, caret)],
+            (None, Some(range)) => vec![
+                (SelectionHandle::Start, range.start),
+                (SelectionHandle::End, range.end),
+            ],
+            (None, None) => Vec::new(),
+        };
+        handles
+            .into_iter()
+            .filter(|(_, byte)| self.in_view(*byte))
+            .collect()
+    }
+
+    fn in_view(&self, byte: usize) -> bool {
+        let layout = self.layout();
+        let document = layout.document();
+        let Some(position) = document.positions.get(byte).copied().flatten() else {
+            return false;
+        };
+        if self.single_line {
+            let shift = self.shift.get_untracked();
+            let width = self.view_width.get_untracked() - self.padding.get_untracked().x * 2.0;
+            return (shift - HANDLE_SLACK..=shift + width + HANDLE_SLACK).contains(&position.x);
+        }
+        let scroll = self.scroll.get_untracked();
+        let Some(line) = document.lines.get(position.line) else {
+            return false;
+        };
+        let top = layout.origin().y + line.y;
+        scroll.viewport <= 0.0
+            || (top + line.height > scroll.offset && top < scroll.offset + scroll.viewport)
+    }
+
     fn handle_at(&self, local: Pos2) -> Option<SelectionHandle> {
         let layout = self.layout();
         let point = Vec2::new(local.x, local.y);
-        let hit = |byte: usize, handle: SelectionHandle| {
-            touch_handle_anchor(layout.document(), byte)
-                .map(|anchor| touch_handle_center(anchor, handle))
-                .is_some_and(|center| (point - center).length() <= TOUCH_HANDLE_HIT_RADIUS)
-        };
-        if let Some(caret) = self.caret_handle() {
-            return hit(caret, SelectionHandle::Caret).then_some(SelectionHandle::Caret);
-        }
-        let range = self.selection_handles()?;
-        if hit(range.start, SelectionHandle::Start) {
-            Some(SelectionHandle::Start)
-        } else if hit(range.end, SelectionHandle::End) {
-            Some(SelectionHandle::End)
-        } else {
-            None
-        }
+        self.shown_handles()
+            .into_iter()
+            .filter_map(|(handle, byte)| {
+                let anchor = touch_handle_anchor(layout.document(), byte)?;
+                if point.y < anchor.y - TOUCH_HANDLE_GAP {
+                    return None;
+                }
+                let distance = (point - touch_handle_center(anchor, handle)).length();
+                (distance <= TOUCH_HANDLE_HIT_RADIUS).then_some((handle, distance))
+            })
+            .min_by(|left, right| left.1.total_cmp(&right.1))
+            .map(|(handle, _)| handle)
     }
 
     fn inside(&self, pos: Pos2) -> (Pos2, Option<Beyond>) {
@@ -523,6 +562,11 @@ fn insert_text(cx: &Context, text: &str) {
 #[derive(Clone)]
 struct Field {
     cx: Context,
+    described: Memo<Node>,
+    frame: Rc<RefCell<Option<Render<Child>>>>,
+    inner: NodeRef,
+    surface_color: Memo<Color32>,
+    set_field_rect: WriteSignal<Rect>,
     cursor: Memo<CursorIcon>,
     set_cursor: WriteSignal<CursorIcon>,
     autoscroll: ReadSignal<bool>,
@@ -534,6 +578,8 @@ struct Field {
     selection: Memo<Page>,
     text: Memo<Page>,
     overlay: Memo<Page>,
+    carets: Memo<Page>,
+    handles: Memo<Page>,
     on_key_override: Callback<KeyPress, bool>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
@@ -554,6 +600,7 @@ pub fn TextArea(
     #[prop(default = BODY_SIZE)] font_size: Prop<f32>,
     #[prop(default = PADDING)] padding: Prop<Vec2>,
     accessibility: Option<Prop<Node>>,
+    frame: Option<Render<Child>>,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
     on_key_override: Callback<KeyPress, bool>,
@@ -564,7 +611,11 @@ pub fn TextArea(
 ) -> NodeId {
     let focus_request = focused;
     let size = component_size();
-    let placed = component_rect();
+    let (field_rect, set_field_rect) = create_signal(Rect::ZERO);
+    let placed = match single_line {
+        true => field_rect,
+        false => component_rect(),
+    };
     let scale = use_pixels_per_point();
     let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
     let (offset, set_offset) = create_signal(0.0_f32);
@@ -572,6 +623,10 @@ pub fn TextArea(
     let (focused, set_focused) = create_signal(false);
     let (autoscroll, set_autoscroll) = create_signal(false);
     let viewport = NodeRef::new();
+    let (outer, inner) = match single_line {
+        true => (NodeRef::new(), viewport.clone()),
+        false => (viewport.clone(), NodeRef::new()),
+    };
     let masked = create_memo(move || password.get());
     let placeholder = create_memo(move || placeholder.get());
     let disabled = create_memo(move || disabled.get());
@@ -586,7 +641,7 @@ pub fn TextArea(
     };
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     let accessible = state.content();
-    component_accessibility(create_memo(
+    let described = create_memo(
         clone!(state accessible masked placeholder disabled -> move || {
             accessible.get();
             let mut node = accessibility.get();
@@ -605,7 +660,7 @@ pub fn TextArea(
             }
             node
         }),
-    ));
+    );
 
     let content = state.content();
     let total_lines = create_memo(clone!(state content -> move || {
@@ -694,7 +749,7 @@ pub fn TextArea(
     });
     if single_line {
         let clamp_cx = cx.clone();
-        create_effect(clone!(document view_width -> move || {
+        create_effect(clone!(document view_width shift -> move || {
             let room = {
                 view_width.get();
                 untrack(|| clamp_cx.room())
@@ -756,45 +811,65 @@ pub fn TextArea(
             layout.origin(),
         )
     }));
-    let text = create_memo(clone!(state layout colors placeholder font_size -> move || {
-        let layout = layout.get();
-        let colors = colors.get();
-        let placeholder = placeholder.get();
-        let placeholder = match state.bytes().is_empty() && !placeholder.is_empty() {
-            true => shapes::placeholder(
-                layout.document(),
-                &placeholder,
-                FontId::proportional(font_size.get()),
-                &colors,
-                layout.origin(),
-            ),
-            false => None,
-        };
-        state.with_snapshot(|snapshot| {
-            shapes::content(layout.document(), snapshot, &colors, layout.origin(), placeholder)
-        })
-    }));
+    let text = create_memo(
+        clone!(state layout colors placeholder font_size -> move || {
+            let layout = layout.get();
+            let colors = colors.get();
+            let placeholder = placeholder.get();
+            let placeholder = match state.bytes().is_empty() && !placeholder.is_empty() {
+                true => shapes::placeholder(
+                    layout.document(),
+                    &placeholder,
+                    FontId::proportional(font_size.get()),
+                    &colors,
+                    layout.origin(),
+                ),
+                false => None,
+            };
+            state.with_snapshot(|snapshot| {
+                shapes::content(layout.document(), snapshot, &colors, layout.origin(), placeholder)
+            })
+        }),
+    );
     let overlay_cx = cx.clone();
     let overlay = create_memo(
-        clone!(state layout colors focused remote_cursors drop_caret -> move || {
+        clone!(state layout colors remote_cursors drop_caret -> move || {
             state.cursors().get();
-            state.touch_mode().get();
-            state.caret_handle().get();
             let layout = layout.get();
             shapes::overlay(shapes::Overlay {
                 layout: layout.document(),
                 colors: &colors.get(),
                 origin: layout.origin(),
-                focused: focused.get(),
                 selection: &state.selection_ranges(),
-                carets: &state.caret_indices(),
                 remote: &remote_cursors.get(),
-                touch_handles: overlay_cx.selection_handles(),
-                caret_handle: overlay_cx.caret_handle(),
                 drop_caret: drop_caret.get(),
             })
         }),
     );
+    let carets = create_memo(clone!(state layout colors focused -> move || {
+        state.cursors().get();
+        let layout = layout.get();
+        let carets = match focused.get() {
+            true => state.caret_indices(),
+            false => Vec::new(),
+        };
+        shapes::carets(layout.document(), &carets, colors.get().caret, layout.origin())
+    }));
+    let handles = create_memo(clone!(state layout colors focused shift scroll -> move || {
+        state.cursors().get();
+        state.touch_mode().get();
+        state.caret_handle().get();
+        focused.get();
+        shift.get();
+        scroll.get();
+        let layout = layout.get();
+        shapes::handles(
+            layout.document(),
+            &untrack(|| overlay_cx.shown_handles()),
+            colors.get().caret,
+            layout.origin(),
+        )
+    }));
 
     let focus_requests = state.focus_requests();
     let focus_writer = set_focused.clone();
@@ -803,11 +878,7 @@ pub fn TextArea(
             focus_writer.set(true);
         }
     });
-    create_effect(clone!(set_focused -> move || {
-        if focus_request.get() {
-            set_focused.set(true);
-        }
-    }));
+    create_effect(clone!(set_focused -> move || set_focused.set(focus_request.get())));
     let content = state.content();
     let shown = create_memo(clone!(state masked placeholder -> move || {
         content.get();
@@ -835,7 +906,16 @@ pub fn TextArea(
     }));
     let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
     let surface_color = create_memo(clone!(colors -> move || colors.get().surface));
+    let outer_color = create_memo(clone!(surface_color -> move || match single_line {
+        true => Color32::TRANSPARENT,
+        false => surface_color.get(),
+    }));
     let field = Field {
+        described,
+        frame: Rc::new(RefCell::new(frame)),
+        inner,
+        surface_color,
+        set_field_rect,
         cx,
         cursor,
         set_cursor,
@@ -848,6 +928,8 @@ pub fn TextArea(
         selection,
         text,
         overlay,
+        carets,
+        handles,
         on_key_override,
         on_focus_change,
         on_hover_change,
@@ -856,7 +938,7 @@ pub fn TextArea(
     let multi_line = !single_line;
 
     view! {
-        <Frame @node_ref=&viewport color={surface_color}>
+        <Frame @node_ref=&outer color={outer_color}>
             <List spacing=0.0>
                 <Show condition={single_line}>
                     {move || view! {
@@ -871,9 +953,7 @@ pub fn TextArea(
                             focus_color={Color32::TRANSPARENT}
                             on_change={move |position: ScrollPosition| set_scroll.set(position)}
                         >
-                            <Editing field={scrolled}>
-                                {children}
-                            </Editing>
+                            <Editing field={scrolled}>{children}</Editing>
                         </Scroll>
                     }}
                 </Show>
@@ -886,6 +966,11 @@ pub fn TextArea(
 fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
     let Field {
         cx,
+        described,
+        frame,
+        inner,
+        surface_color,
+        set_field_rect,
         cursor,
         set_cursor,
         autoscroll,
@@ -897,6 +982,8 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
         selection,
         text,
         overlay,
+        carets,
+        handles,
         on_key_override,
         on_focus_change,
         on_hover_change,
@@ -906,6 +993,8 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
     let set_focused = cx.set_focused.clone();
     let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
     let (press_cx, tap_cx, drag_cx, release_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
+    component_accessibility(described);
+    let single_line = cx.single_line;
     let hover_cx = cx;
     view! {
         <Focusable
@@ -943,13 +1032,37 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
                     set_cursor.set(hover_cursor(&hover_cx, event.pos));
                 }}
             >
-                <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
-                    <Layer page={background} size={layer_size.clone()} />
-                    <Layer page={selection} size={layer_size.clone()} />
-                    <Layer page={text} size={layer_size.clone()} />
-                    {children}
-                    <Layer page={overlay} size={layer_size} />
-                </Canvas>
+                {{
+                    let canvas = view! {
+                        <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
+                            <Layer page={background} size={layer_size.clone()} />
+                            <Layer page={selection} size={layer_size.clone()} />
+                            <Layer page={text} size={layer_size.clone()} />
+                            {children}
+                            <Layer page={overlay} size={layer_size.clone()} />
+                            <Caret page={carets} size={layer_size.clone()} />
+                            <Layer page={handles} size={layer_size} clip=false />
+                        </Canvas>
+                    };
+                    match single_line {
+                        false => canvas,
+                        true => {
+                            let field = view! {
+                                <FieldFrame
+                                    @node_ref=&inner
+                                    color={surface_color}
+                                    report={set_field_rect}
+                                >
+                                    {canvas}
+                                </FieldFrame>
+                            };
+                            match frame.borrow_mut().take() {
+                                Some(frame) => frame.call(field),
+                                None => field,
+                            }
+                        }
+                    }
+                }}
             </ClickCatcher>
         </Focusable>
     }
@@ -960,6 +1073,21 @@ pub fn text_area_shown(document: &Document, area: NodeId) -> String {
         .component_state::<Parts>(area)
         .shown
         .get_untracked()
+}
+
+pub fn text_area_index_at(document: &Document, area: NodeId, pos: Pos2) -> usize {
+    let cx = &document.component_state::<Parts>(area).cx;
+    let Some(canvas) = cx
+        .state
+        .canvas()
+        .try_get()
+        .and_then(|canvas| document.node_rect(canvas))
+    else {
+        return 0;
+    };
+    let layout = cx.layout.get_untracked();
+    let local = pos - canvas.min.to_vec2() - layout.origin();
+    hit_test(layout.document(), Vec2::new(local.x, local.y))
 }
 
 pub fn text_area_state(document: &Document, area: NodeId) -> TextAreaState {
@@ -979,39 +1107,66 @@ pub(crate) fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> 
     };
     let layout = cx.layout.get_untracked();
     let origin = canvas.min.to_vec2() + layout.origin();
-    let center = |byte: usize, handle: SelectionHandle| {
-        touch_handle_anchor(layout.document(), byte)
-            .map(|anchor| {
-                let center = touch_handle_center(anchor, handle) + origin;
-                Pos2::new(center.x, center.y)
-            })
-    };
-    if let Some(caret) = cx.caret_handle() {
-        return center(caret, SelectionHandle::Caret).into_iter().collect();
-    }
-    cx.selection_handles()
-        .map(|range| {
-            [
-                center(range.start, SelectionHandle::Start),
-                center(range.end, SelectionHandle::End),
-            ]
-            .into_iter()
-            .flatten()
-            .collect()
+    cx.shown_handles()
+        .into_iter()
+        .filter_map(|(handle, byte)| {
+            let anchor = touch_handle_anchor(layout.document(), byte)?;
+            let center = touch_handle_center(anchor, handle) + origin;
+            Some(Pos2::new(center.x, center.y))
         })
-        .unwrap_or_default()
+        .collect()
 }
 
 #[component]
-fn Layer(page: Memo<Page>, size: Memo<Vec2>) -> CanvasItem {
+fn Layer(page: Memo<Page>, size: Memo<Vec2>, #[prop(default = true)] clip: bool) -> CanvasItem {
     let width = create_memo(clone!(size -> move || size.get().x));
     let height = create_memo(clone!(size -> move || size.get().y));
     let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || page.get().draw()));
+    view! {
+        <CanvasItem x=0.0 y=0.0 width={width} height={height} clip>
+            <Drawing draw={draw} />
+        </CanvasItem>
+    }
+}
+
+#[component]
+fn FieldFrame(color: Memo<Color32>, report: WriteSignal<Rect>, children: Child) -> NodeId {
+    let placed = component_rect();
+    create_effect(move || report.set(placed.get()));
+    view! {
+        <Frame color>{children}</Frame>
+    }
+}
+
+#[component]
+fn Caret(page: Memo<Page>, size: Memo<Vec2>) -> CanvasItem {
+    let width = create_memo(clone!(size -> move || size.get().x));
+    let height = create_memo(clone!(size -> move || size.get().y));
+    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || blinking(page.get())));
     view! {
         <CanvasItem x=0.0 y=0.0 width={width} height={height}>
             <Drawing draw={draw} />
         </CanvasItem>
     }
+}
+
+fn blinking(page: Page) -> Draw {
+    let since = Instant::now();
+    let draw = page.draw();
+    Rc::new(move |painter: &Painter, rect: Rect| {
+        if page.is_empty() {
+            return;
+        }
+        let elapsed = since.elapsed().as_nanos();
+        let interval = BLINK_INTERVAL.as_nanos();
+        if (elapsed / interval).is_multiple_of(2) {
+            draw(painter, rect);
+        }
+        let remaining = interval - elapsed % interval;
+        painter
+            .ctx()
+            .request_repaint_after(Duration::from_nanos(remaining as u64));
+    })
 }
 
 fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {

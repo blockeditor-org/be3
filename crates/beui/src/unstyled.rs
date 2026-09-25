@@ -59,13 +59,14 @@ pub use stack::Stack;
 pub(crate) use text_area::text_area_handles;
 pub use text_area::{
     RemoteTextCursor, SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState,
-    TextWidget, text_area_shown, text_area_state,
+    TextWidget, text_area_index_at, text_area_shown, text_area_state,
 };
 #[cfg(test)]
 pub(crate) use text_input::text_input_handles;
 pub use text_input::{
     TextInput, TextInputHandle, TextInputMenu, text_input_caret, text_input_focused,
-    text_input_menu_row, text_input_selection, text_input_text, text_input_value,
+    text_input_index_at, text_input_menu_row, text_input_selection, text_input_shown,
+    text_input_text, text_input_value,
 };
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};

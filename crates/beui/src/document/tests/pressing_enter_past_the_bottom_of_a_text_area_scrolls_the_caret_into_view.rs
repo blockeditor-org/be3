@@ -34,7 +34,10 @@ fn pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view() {
     harness.frame(Vec::new());
 
     let canvas = harness.rect(state.canvas().get());
-    let caret = *state.caret_indices().first().expect("the text area has a caret");
+    let caret = *state
+        .caret_indices()
+        .first()
+        .expect("the text area has a caret");
     let rect = state
         .layout()
         .get_untracked()

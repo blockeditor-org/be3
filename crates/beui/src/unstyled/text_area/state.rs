@@ -419,7 +419,6 @@ impl TextAreaState {
         self.0.grab_offset.get()
     }
 
-
     pub fn byte_at(&self, pos: Pos2) -> Option<usize> {
         let local = self.local(pos)?;
         let layout = self.0.layout.get_untracked();

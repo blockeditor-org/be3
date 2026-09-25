@@ -12,13 +12,15 @@ fn an_empty_field_shows_its_placeholder_until_something_is_typed() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let inner = input;
-    let text = unstyled::text_input_text(harness.document(), inner);
 
-    assert_eq!(text_of(harness.document(), text), "Search");
+    assert_eq!(
+        unstyled::text_input_shown(harness.document(), inner),
+        "Search"
+    );
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("a");
     harness.frame(Vec::new());
 
-    assert_eq!(text_of(harness.document(), text), "a");
+    assert_eq!(unstyled::text_input_shown(harness.document(), inner), "a");
 }

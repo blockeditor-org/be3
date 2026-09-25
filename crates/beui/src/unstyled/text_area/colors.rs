@@ -50,6 +50,31 @@ impl SyntaxColors {
         invisible: rgb(0x43515c),
     };
 
+    pub const fn uniform(color: Color32) -> Self {
+        Self {
+            invalid: color,
+            keyword: color,
+            keyword_storage: color,
+            keyword_primitive_type: color,
+            literal: color,
+            literal_string: color,
+            comment: color,
+            punctuation: color,
+            punctuation_important: color,
+            variable: color,
+            variable_constant: color,
+            variable_mutable: color,
+            variable_function: color,
+            variable_parameter: color,
+            markdown_plain_text: color,
+            markdown_symbol: color,
+            markdown_link: color,
+            markdown_code: color,
+            unstyled: color,
+            invisible: color,
+        }
+    }
+
     pub fn scope(&self, scope: SynHlColorScope) -> Color32 {
         match scope {
             SynHlColorScope::Invalid => self.invalid,
