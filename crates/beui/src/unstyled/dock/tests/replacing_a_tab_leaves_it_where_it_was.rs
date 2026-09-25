@@ -12,8 +12,12 @@ fn replacing_a_tab_leaves_it_where_it_was() {
     );
 
     assert_eq!(
-        state.tabs(leaf),
-        vec![TabId::new(1), TabId::new(9), TabId::new(3)],
+        state.entries(leaf),
+        vec![
+            Entry::Tab(TabId::new(1)),
+            Entry::Tab(TabId::new(9)),
+            Entry::Tab(TabId::new(3))
+        ],
         "the replacement takes the place the tab had"
     );
     assert_eq!(
