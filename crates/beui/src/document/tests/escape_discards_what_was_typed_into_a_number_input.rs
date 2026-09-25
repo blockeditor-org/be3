@@ -30,7 +30,10 @@ fn escape_discards_what_was_typed_into_a_number_input() {
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert!(changes.borrow().is_empty(), "escape must not change the value");
+    assert!(
+        changes.borrow().is_empty(),
+        "escape must not change the value"
+    );
     assert_eq!(previews.borrow().last().copied(), Some(None));
     let shown = number_input_text(harness.document(), input).expect("escape closes the field");
     assert_eq!(text_of(harness.document(), shown), "7");

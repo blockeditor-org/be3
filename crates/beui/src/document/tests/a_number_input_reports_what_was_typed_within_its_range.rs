@@ -34,7 +34,10 @@ fn a_number_input_reports_what_was_typed_within_its_range() {
 
     assert_eq!(text_of(harness.document(), text), "42");
     assert_eq!(previews.borrow().last().copied(), Some(Some(10.0)));
-    assert!(changes.borrow().is_empty(), "typing only previews the value");
+    assert!(
+        changes.borrow().is_empty(),
+        "typing only previews the value"
+    );
 
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());

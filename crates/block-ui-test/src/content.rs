@@ -297,7 +297,11 @@ impl ContentStore {
 
     pub fn applied(&self, block: Option<Uuid>) -> u64 {
         self.sync();
-        self.0.borrow().blocks.get(&block).map_or(0, |held| held.applied)
+        self.0
+            .borrow()
+            .blocks
+            .get(&block)
+            .map_or(0, |held| held.applied)
     }
 
     pub fn holds(&self, block: Option<Uuid>) -> bool {
