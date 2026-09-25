@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+};
 
 use beui::reactive::{
     Canvas, CanvasItem, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, ReadSignal, Show,
@@ -16,24 +19,16 @@ pub(crate) enum SurfaceId {
     Presenting,
     Creation,
     ArtifactSettings,
+    Pane(u64),
 }
 
 impl SurfaceId {
-    const ALL: [Self; 4] = [
+    const FIXED: [Self; 4] = [
         Self::Main,
         Self::Presenting,
         Self::Creation,
         Self::ArtifactSettings,
     ];
-
-    fn index(self) -> usize {
-        match self {
-            Self::Main => 0,
-            Self::Presenting => 1,
-            Self::Creation => 2,
-            Self::ArtifactSettings => 3,
-        }
-    }
 }
 
 #[derive(Default)]
@@ -90,27 +85,50 @@ impl SurfaceHandle {
 }
 
 thread_local! {
-    static STATES: [RefCell<State>; 4] = Default::default();
-    static HANDLES: RefCell<Option<Rc<[SurfaceHandle; 4]>>> = const { RefCell::new(None) };
+    static STATES: RefCell<HashMap<SurfaceId, State>> = RefCell::new(HashMap::new());
+    static HANDLES: RefCell<HashMap<SurfaceId, SurfaceHandle>> = RefCell::new(HashMap::new());
+    static HEADLESS: Cell<Option<Rect>> = const { Cell::new(None) };
 }
 
 pub(crate) fn create_handles() {
-    let handles = Rc::new(SurfaceId::ALL.map(|_| SurfaceHandle::new()));
-    HANDLES.with(|slot| *slot.borrow_mut() = Some(handles));
+    HANDLES.with(|handles| {
+        let mut handles = handles.borrow_mut();
+        handles.clear();
+        for id in SurfaceId::FIXED {
+            handles.insert(id, SurfaceHandle::new());
+        }
+    });
 }
 
 pub(crate) fn handle(id: SurfaceId) -> SurfaceHandle {
     HANDLES.with(|handles| {
         handles
-            .borrow()
-            .as_ref()
-            .expect("the surface handles are created before the view is built")[id.index()]
-        .clone()
+            .borrow_mut()
+            .entry(id)
+            .or_insert_with(SurfaceHandle::new)
+            .clone()
     })
 }
 
+fn ids() -> Vec<SurfaceId> {
+    HANDLES.with(|handles| handles.borrow().keys().copied().collect())
+}
+
+pub(crate) fn keep_panes(panes: &[u64]) {
+    let kept = |id: &SurfaceId| match id {
+        SurfaceId::Pane(pane) => panes.contains(pane),
+        _ => true,
+    };
+    HANDLES.with(|handles| handles.borrow_mut().retain(|id, _| kept(id)));
+    STATES.with(|states| states.borrow_mut().retain(|id, _| kept(id)));
+}
+
+pub(crate) fn set_headless(rect: Option<Rect>) {
+    HEADLESS.with(|headless| headless.set(rect));
+}
+
 fn with_state<R>(id: SurfaceId, act: impl FnOnce(&mut State) -> R) -> R {
-    STATES.with(|states| act(&mut states[id.index()].borrow_mut()))
+    STATES.with(|states| act(states.borrow_mut().entry(id).or_default()))
 }
 
 pub(crate) fn with<R>(id: SurfaceId, act: impl FnOnce(&mut Ui) -> R) -> Option<R> {
@@ -119,7 +137,11 @@ pub(crate) fn with<R>(id: SurfaceId, act: impl FnOnce(&mut Ui) -> R) -> Option<R
         (state.placement, std::mem::take(&mut state.output))
     });
     let layer = match id {
-        SurfaceId::Main if !placement.is_some_and(|(rect, _)| host::floats(rect)) => 0,
+        SurfaceId::Main | SurfaceId::Pane(_)
+            if !placement.is_some_and(|(rect, _)| host::floats(rect)) =>
+        {
+            0
+        }
         _ => 1,
     };
     let result = placement.map(|(rect, clip)| {
@@ -142,7 +164,7 @@ pub(crate) fn set_height(id: SurfaceId, height: Option<f32>) {
 }
 
 pub(crate) fn commit() {
-    for id in SurfaceId::ALL {
+    for id in ids() {
         let handle = handle(id);
         let (output, used, origin, height, placement, changed) = with_state(id, |state| {
             let output = std::mem::take(&mut state.output);
@@ -185,12 +207,18 @@ pub(crate) fn commit() {
 }
 
 pub(crate) fn read_placements() {
-    for id in SurfaceId::ALL {
-        let placement = handle(id)
-            .slot
-            .placement()
-            .filter(|placement| placement.rect.is_positive())
-            .map(|placement| (placement.rect, placement.clip));
+    let headless = HEADLESS.with(Cell::get);
+    for id in ids() {
+        let placement = headless
+            .filter(|_| id == SurfaceId::Main)
+            .map(|rect| (rect, rect))
+            .or_else(|| {
+                handle(id)
+                    .slot
+                    .placement()
+                    .filter(|placement| placement.rect.is_positive())
+                    .map(|placement| (placement.rect, placement.clip))
+            });
         let shown = handle(id).shown.get_untracked();
         with_state(id, |state| {
             state.placement = if shown || id == SurfaceId::Main {

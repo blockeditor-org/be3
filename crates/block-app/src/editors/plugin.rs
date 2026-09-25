@@ -1,7 +1,8 @@
 use beui::{Pos2, Rect, Vec2, vec2};
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, ChildRect, CreationMode, EditorCapabilities, EditorInstanceId,
-    EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ViewChange,
+    EditorRegion, FrameChrome, FrameSpec, InteractionMode, PaneId, PaneLayout, PaneTree,
+    PluginManifest, ResizeMode, ViewChange,
 };
 use std::sync::{
     Arc,
@@ -481,7 +482,7 @@ impl PluginEditor {
         view: Option<EditorView>,
     ) -> Option<EditorAction> {
         let plugin = self.plugin.clone()?;
-        if !plugin.regions.contains(&region) {
+        if !plugin.regions.contains(&region) && !matches!(region, EditorRegion::Pane(_)) {
             return None;
         }
         self.opened = true;
@@ -911,6 +912,60 @@ impl PluginEditor {
     pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
         let plugin = self.plugin.as_ref()?;
         crate::plugin_host::take_artifact_watch(&plugin.identity.id, self.instance)
+    }
+
+    pub(crate) fn panes(&self) -> Option<PaneLayout> {
+        let plugin = self.plugin.as_ref()?;
+        crate::plugin_host::panes(&plugin.identity.id, self.instance)
+    }
+
+    pub(crate) fn take_shown_panes(&self) -> Vec<PaneId> {
+        let Some(plugin) = &self.plugin else {
+            return Vec::new();
+        };
+        crate::plugin_host::take_shown_panes(&plugin.identity.id, self.instance)
+    }
+
+    pub(crate) fn arrange_panes(
+        &self,
+        arrangement: u64,
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    ) {
+        if let Some(plugin) = &self.plugin {
+            crate::plugin_host::arrange_panes(
+                &plugin.identity.id,
+                self.instance,
+                arrangement,
+                tree,
+                detached,
+                focused,
+            );
+        }
+    }
+
+    pub(crate) fn close_pane(&self, pane: PaneId) {
+        if let Some(plugin) = &self.plugin {
+            crate::plugin_host::close_pane(&plugin.identity.id, self.instance, pane);
+        }
+    }
+
+    pub(crate) fn pane_ui(
+        &mut self,
+        ui: &mut Ui,
+        editors: &mut EditorAccess<'_>,
+        pane: PaneId,
+    ) -> Option<EditorAction> {
+        let size = ui.rect().size();
+        self.region_ui(
+            ui,
+            editors,
+            EditorRegion::Pane(pane),
+            Some(FrameSpec::default()),
+            size,
+            None,
+        )
     }
 
     pub(crate) fn set_artifact_states(&self, states: Vec<block_plugin_api::ArtifactState>) {

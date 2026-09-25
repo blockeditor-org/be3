@@ -11,24 +11,43 @@ pub fn tab_of(pane: PaneId) -> TabId {
 }
 
 pub fn pane_tree(tree: &DockTree) -> PaneTree {
+    pane_tree_with(tree, &|tab| Some(pane_of(tab)))
+}
+
+pub fn pane_tree_with(tree: &DockTree, pane: &dyn Fn(TabId) -> Option<PaneId>) -> PaneTree {
     let mut items = Vec::new();
-    write(tree, &mut items);
+    write(tree, pane, &mut items);
     PaneTree { items }
 }
 
-fn write(tree: &DockTree, items: &mut Vec<PaneItem>) {
+fn write(tree: &DockTree, pane: &dyn Fn(TabId) -> Option<PaneId>, items: &mut Vec<PaneItem>) {
     match tree {
         DockTree::Tabs { entries, active } => {
+            let kept: Vec<&DockTreeEntry> = entries
+                .iter()
+                .filter(|entry| match entry {
+                    DockTreeEntry::Tab(tab) => pane(*tab).is_some(),
+                    DockTreeEntry::Group(_) => true,
+                })
+                .collect();
+            let active = entries
+                .get(*active)
+                .and_then(|shown| kept.iter().position(|entry| *entry == shown))
+                .unwrap_or(0);
             items.push(PaneItem::Tabs {
-                count: entries.len() as u32,
-                active: *active as u32,
+                count: kept.len() as u32,
+                active: active as u32,
             });
-            for entry in entries {
+            for entry in kept {
                 match entry {
-                    DockTreeEntry::Tab(tab) => items.push(PaneItem::Pane(pane_of(*tab))),
+                    DockTreeEntry::Tab(tab) => {
+                        if let Some(pane) = pane(*tab) {
+                            items.push(PaneItem::Pane(pane));
+                        }
+                    }
                     DockTreeEntry::Group(group) => {
                         items.push(PaneItem::Group);
-                        write(group, items);
+                        write(group, pane, items);
                     }
                 }
             }
@@ -43,19 +62,27 @@ fn write(tree: &DockTree, items: &mut Vec<PaneItem>) {
                 horizontal: *direction == Direction::Horizontal,
                 fraction: *fraction,
             });
-            write(first, items);
-            write(second, items);
+            write(first, pane, items);
+            write(second, pane, items);
         }
     }
 }
 
 pub fn dock_tree(tree: &PaneTree) -> Option<DockTree> {
+    dock_tree_with(tree, &tab_of)
+}
+
+pub fn dock_tree_with(tree: &PaneTree, tab: &dyn Fn(PaneId) -> TabId) -> Option<DockTree> {
     let mut items = tree.items.iter().copied();
-    let read = read(&mut items, 0)?;
+    let read = read(&mut items, tab, 0)?;
     items.next().is_none().then_some(read)
 }
 
-fn read(items: &mut impl Iterator<Item = PaneItem>, depth: usize) -> Option<DockTree> {
+fn read(
+    items: &mut impl Iterator<Item = PaneItem>,
+    tab: &dyn Fn(PaneId) -> TabId,
+    depth: usize,
+) -> Option<DockTree> {
     if depth > MAX_PANE_DEPTH {
         return None;
     }
@@ -64,8 +91,8 @@ fn read(items: &mut impl Iterator<Item = PaneItem>, depth: usize) -> Option<Dock
             horizontal,
             fraction,
         } => {
-            let first = read(items, depth + 1)?;
-            let second = read(items, depth + 1)?;
+            let first = read(items, tab, depth + 1)?;
+            let second = read(items, tab, depth + 1)?;
             Some(DockTree::Split {
                 direction: match horizontal {
                     true => Direction::Horizontal,
@@ -83,8 +110,8 @@ fn read(items: &mut impl Iterator<Item = PaneItem>, depth: usize) -> Option<Dock
             let mut entries = Vec::new();
             for _ in 0..count {
                 let entry = match items.next()? {
-                    PaneItem::Pane(pane) => DockTreeEntry::Tab(tab_of(pane)),
-                    PaneItem::Group => DockTreeEntry::Group(read(items, depth + 1)?),
+                    PaneItem::Pane(pane) => DockTreeEntry::Tab(tab(pane)),
+                    PaneItem::Group => DockTreeEntry::Group(read(items, tab, depth + 1)?),
                     PaneItem::Split { .. } | PaneItem::Tabs { .. } => return None,
                 };
                 entries.push(entry);
