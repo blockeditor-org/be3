@@ -1,8 +1,8 @@
 use block_editor_plugin::be_block::{BlockContent, CounterContent};
 
 use block_editor_plugin::be_block::FolderContent;
-use block_editor_plugin::{Drag, Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_editor_plugin::{Editor, EditorHost};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::WorkspaceIndexApp;
@@ -12,8 +12,7 @@ mod dropping_a_block_reports_whether_the_folder_takes_it;
 mod every_entry_in_the_index_gets_a_cell;
 
 struct Fixture {
-    editor: ContentHarness<WorkspaceIndexApp>,
-    host: EditorHost,
+    editor: BeuiTest<WorkspaceIndexApp>,
 }
 
 fn editor(entries: usize) -> (Fixture, Vec<Uuid>) {
@@ -28,10 +27,10 @@ fn editor(entries: usize) -> (Fixture, Vec<Uuid>) {
     }
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), folder);
-    let mut editor = ContentHarness::new(BeuiTest::new(editor), host.clone());
+    let editor = Editor::new(host, folder);
+    let mut editor = BeuiTest::new(editor);
     editor.hold(None, content);
     editor.run();
     editor.run();
-    (Fixture { editor, host }, children)
+    (Fixture { editor }, children)
 }

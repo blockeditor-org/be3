@@ -121,7 +121,6 @@ pub struct FocusedBlock {
 }
 
 impl FocusedBlock {
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     fn same(&self, other: &Self) -> bool {
         self.block_id == other.block_id
             && self.block_type == other.block_type
@@ -162,7 +161,6 @@ impl Waker {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 struct PerformanceRecord {
     group: Arc<str>,
     measurement: PerformanceMeasurement,
@@ -376,15 +374,12 @@ pub struct EditorHost {
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
     artifacts: Rc<RefCell<HashMap<Uuid, ArtifactState>>>,
     watched_artifacts: Rc<RefCell<Vec<Uuid>>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_artifacts: Rc<RefCell<Option<Vec<Uuid>>>>,
     histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
     watched_history: Rc<RefCell<Vec<Uuid>>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
@@ -425,7 +420,6 @@ pub struct EditorHost {
     shown: Rc<RefCell<Vec<ShownPresence>>>,
     peers: Rc<RefCell<HashMap<Option<Uuid>, Peers>>>,
     next_peers: Rc<Cell<u64>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
@@ -441,7 +435,6 @@ pub struct SeededContent {
 }
 
 impl EditorHost {
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn new(waker: Waker) -> Self {
         Self {
             waker,
@@ -490,7 +483,6 @@ impl EditorHost {
         *self.focused.borrow_mut() = focused;
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_focus_report(&self) -> Option<FocusedBlock> {
         let focused = self.focused.borrow().clone();
         let mut reported = self.reported_focus.borrow_mut();
@@ -512,7 +504,6 @@ impl EditorHost {
         self.artifacts.borrow().get(&block_id).cloned()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
         let blocks = self.watched_artifacts.borrow().clone();
         let mut reported = self.reported_artifacts.borrow_mut();
@@ -538,7 +529,6 @@ impl EditorHost {
             .unwrap_or_default()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_history_watch(&self) -> Option<Vec<Uuid>> {
         let blocks = self.watched_history.borrow().clone();
         let mut reported = self.reported_history.borrow_mut();
@@ -602,7 +592,6 @@ impl EditorHost {
             .push((block_id, BlockCommand::SimulateAccess { access }));
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_focused_block(&self, focused: FocusedBlock) {
         *self.focused.borrow_mut() = focused;
     }
@@ -611,7 +600,6 @@ impl EditorHost {
         self.block_drags.borrow_mut().push((block_id, block_type));
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_block_drags(&self) -> Vec<(Uuid, Uuid)> {
         std::mem::take(&mut self.block_drags.borrow_mut())
     }
@@ -776,7 +764,6 @@ impl EditorHost {
         taken.into_iter().map(|(_, operation)| operation).collect()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_all_content_operations(&self) -> Vec<(Option<Uuid>, Vec<u8>)> {
         std::mem::take(&mut self.content_operations.borrow_mut())
     }
@@ -863,7 +850,6 @@ impl EditorHost {
             .collect()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_content_watch(&self) -> Option<Vec<(Uuid, Uuid)>> {
         let watched = self.watched_content.borrow().clone();
         let mut reported = self.reported_content.borrow_mut();
@@ -920,7 +906,6 @@ impl EditorHost {
         self.files.borrow().clone()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_files(&self, drop: Option<FileDrop>) {
         *self.files.borrow_mut() = drop;
     }
@@ -995,7 +980,6 @@ impl EditorHost {
         self.audio_status.borrow().clone()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_audio_commands(&self) -> Vec<(Uuid, AudioCommand)> {
         std::mem::take(&mut self.audio_commands.borrow_mut())
     }
@@ -1124,12 +1108,6 @@ impl EditorHost {
         self.beui.get().chrome
     }
 
-    pub fn set_chrome_shown(&self, chrome: bool) {
-        let mut frame = self.beui.get();
-        frame.chrome = chrome;
-        self.beui.set(frame);
-    }
-
     pub fn presenting(&self) -> bool {
         self.presenting.get()
     }
@@ -1213,7 +1191,6 @@ impl EditorHost {
         std::mem::take(&mut self.opens.borrow_mut())
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
         *self.block_types.borrow_mut() = catalog;
     }
@@ -1275,12 +1252,6 @@ impl EditorHost {
         self.view.set(Some(View { rect: view, scale }));
     }
 
-    pub fn set_beui_view(&self, view: beui::Rect, scale: f32) {
-        let ratio = self.beui.get().ratio;
-        let origin = self.region.get().origin;
-        self.set_view(host_rect(view, ratio).translate(-origin), scale);
-    }
-
     pub fn begin_beui_frame(&self, ratio: f32, pixels_per_point: f32, chrome: bool) {
         self.beui.set(BeuiFrame {
             ratio,
@@ -1309,21 +1280,10 @@ impl EditorHost {
         self.drag.set(drag);
     }
 
-    pub fn set_beui_drag(&self, drag: Option<crate::editor::Drag>) {
-        let ratio = self.beui.get().ratio;
-        self.drag.set(drag.map(|drag| BlockDrag {
-            position: beui::pos2(drag.position.x / ratio, drag.position.y / ratio),
-            block_id: drag.block_id,
-            block_type: drag.block_type,
-            dropped: drag.dropped,
-        }));
-    }
-
     pub fn take_drag_accepted(&self) -> Option<bool> {
         self.drag_accepted.take()
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub fn begin_region(&self, region: EditorRegion, origin: beui::Vec2) {
         self.region.set(Region {
             region: Some(region),
@@ -1373,7 +1333,6 @@ impl EditorHost {
             .unwrap_or_default()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn push_child_view_change(&self, child: ChildId, change: ViewChange) {
         self.child_views
             .borrow_mut()
@@ -1382,19 +1341,16 @@ impl EditorHost {
             .push(change);
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_present_requests(&self) -> Vec<bool> {
         std::mem::take(&mut self.present_requests.borrow_mut())
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_creation_ready(&self) -> Option<bool> {
         self.creation_changed
             .take()
             .then(|| self.creation_ready.get())
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_performance(&self) -> Vec<(String, Vec<PerformanceMeasurement>)> {
         let records = std::mem::take(
             &mut *self

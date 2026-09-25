@@ -15,7 +15,7 @@ use block_editor_plugin::{
     BeuiApp, Creation, Editor, EditorHost,
     block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
 };
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::{DatabaseViewApp, value_block_filter};
@@ -34,7 +34,7 @@ mod the_scatter_plot_places_and_selects_a_point_for_each_row;
 mod value_picker_filter_is_exact_and_never_includes_templates;
 
 struct Fixture {
-    harness: ContentHarness<DatabaseViewApp>,
+    harness: BeuiTest<DatabaseViewApp>,
     schema: Uuid,
     database: Uuid,
     fields: Vec<Uuid>,
@@ -95,7 +95,7 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = Editor::new(host.clone(), view);
-    let mut harness = ContentHarness::new(BeuiTest::new(editor), host);
+    let mut harness = BeuiTest::new(editor);
     harness.hold(None, DatabaseViewContent::new(&DatabaseView::of(database)));
     harness.hold(
         Some(database),

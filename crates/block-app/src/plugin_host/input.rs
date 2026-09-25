@@ -1,7 +1,7 @@
 use beui::{Event, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    DroppedFile, ImeInput, InputBatch, InputEvent, Key, Message, Modifiers, PointerButton,
-    ScreenId, ViewportMetrics, WheelUnit,
+    DroppedFile, ImeInput, InputBatch, InputEvent, Message, Modifiers, PointerButton, ScreenId,
+    ViewportMetrics, WheelUnit,
 };
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -206,7 +206,7 @@ impl InputAdapter {
                 let position = pos - rect.min;
                 push_modifiers(&mut self.modifiers, modifiers, output);
                 output.push(InputEvent::PointerButton {
-                    button: pointer_button(button),
+                    button: block_ui::input::pointer_button(button),
                     pressed,
                     x: position.x,
                     y: position.y,
@@ -249,7 +249,7 @@ impl InputAdapter {
                 output.push(InputEvent::Touch {
                     device: id.device,
                     finger: id.finger,
-                    phase: touch_phase(phase),
+                    phase: block_ui::input::touch_phase(phase),
                     x: position.x,
                     y: position.y,
                     force,
@@ -276,7 +276,7 @@ impl InputAdapter {
             } if focused => {
                 push_modifiers(&mut self.modifiers, modifiers, output);
                 output.push(InputEvent::Key {
-                    key: protocol_key(key),
+                    key: block_ui::input::protocol_key(key),
                     pressed,
                     repeat,
                 });
@@ -327,125 +327,9 @@ fn push_modifiers(
     modifiers: beui::Modifiers,
     output: &mut Vec<InputEvent>,
 ) {
-    let modifiers = Modifiers {
-        alt: modifiers.alt,
-        control: modifiers.ctrl,
-        shift: modifiers.shift,
-        command: modifiers.ctrl,
-    };
+    let modifiers = block_ui::input::protocol_modifiers(modifiers);
     if *previous != modifiers {
         *previous = modifiers;
         output.push(InputEvent::Modifiers(modifiers));
-    }
-}
-
-fn pointer_button(button: beui::PointerButton) -> PointerButton {
-    match button {
-        beui::PointerButton::Primary => PointerButton::Primary,
-        beui::PointerButton::Secondary => PointerButton::Secondary,
-        beui::PointerButton::Middle => PointerButton::Middle,
-        beui::PointerButton::Back => PointerButton::Back,
-        beui::PointerButton::Forward => PointerButton::Forward,
-    }
-}
-
-fn touch_phase(phase: beui::TouchPhase) -> block_plugin_api::TouchPhase {
-    match phase {
-        beui::TouchPhase::Start => block_plugin_api::TouchPhase::Start,
-        beui::TouchPhase::Move => block_plugin_api::TouchPhase::Move,
-        beui::TouchPhase::End => block_plugin_api::TouchPhase::End,
-        beui::TouchPhase::Cancel => block_plugin_api::TouchPhase::Cancel,
-    }
-}
-
-pub(super) fn protocol_key(key: beui::Key) -> Key {
-    match key {
-        beui::Key::ArrowDown => Key::ArrowDown,
-        beui::Key::ArrowLeft => Key::ArrowLeft,
-        beui::Key::ArrowRight => Key::ArrowRight,
-        beui::Key::ArrowUp => Key::ArrowUp,
-        beui::Key::Backspace => Key::Backspace,
-        beui::Key::BracketLeft => Key::OpenBracket,
-        beui::Key::BracketRight => Key::CloseBracket,
-        beui::Key::Delete => Key::Delete,
-        beui::Key::End => Key::End,
-        beui::Key::Enter => Key::Enter,
-        beui::Key::Escape => Key::Escape,
-        beui::Key::Home => Key::Home,
-        beui::Key::Minus => Key::Minus,
-        beui::Key::PageDown => Key::PageDown,
-        beui::Key::PageUp => Key::PageUp,
-        beui::Key::Plus => Key::Plus,
-        beui::Key::Space => Key::Space,
-        beui::Key::Tab => Key::Tab,
-        beui::Key::Zero => Key::Num0,
-        beui::Key::One => Key::Num1,
-        beui::Key::Two => Key::Num2,
-        beui::Key::Three => Key::Num3,
-        beui::Key::Four => Key::Num4,
-        beui::Key::Five => Key::Num5,
-        beui::Key::Six => Key::Num6,
-        beui::Key::Seven => Key::Num7,
-        beui::Key::Eight => Key::Num8,
-        beui::Key::Nine => Key::Num9,
-        beui::Key::Backtick => Key::Backtick,
-        beui::Key::Insert => Key::Insert,
-        beui::Key::Comma => Key::Comma,
-        beui::Key::Period => Key::Period,
-        beui::Key::Slash => Key::Slash,
-        beui::Key::Backslash => Key::Backslash,
-        beui::Key::Semicolon => Key::Semicolon,
-        beui::Key::Quote => Key::Quote,
-        beui::Key::BrowserBack => Key::BrowserBack,
-        beui::Key::A => Key::A,
-        beui::Key::B => Key::B,
-        beui::Key::C => Key::C,
-        beui::Key::D => Key::D,
-        beui::Key::E => Key::E,
-        beui::Key::F => Key::F,
-        beui::Key::G => Key::G,
-        beui::Key::H => Key::H,
-        beui::Key::I => Key::I,
-        beui::Key::J => Key::J,
-        beui::Key::K => Key::K,
-        beui::Key::L => Key::L,
-        beui::Key::M => Key::M,
-        beui::Key::N => Key::N,
-        beui::Key::O => Key::O,
-        beui::Key::P => Key::P,
-        beui::Key::Q => Key::Q,
-        beui::Key::R => Key::R,
-        beui::Key::S => Key::S,
-        beui::Key::T => Key::T,
-        beui::Key::U => Key::U,
-        beui::Key::V => Key::V,
-        beui::Key::W => Key::W,
-        beui::Key::X => Key::X,
-        beui::Key::Y => Key::Y,
-        beui::Key::Z => Key::Z,
-        beui::Key::F1 => Key::F1,
-        beui::Key::F2 => Key::F2,
-        beui::Key::F3 => Key::F3,
-        beui::Key::F4 => Key::F4,
-        beui::Key::F5 => Key::F5,
-        beui::Key::F6 => Key::F6,
-        beui::Key::F7 => Key::F7,
-        beui::Key::F8 => Key::F8,
-        beui::Key::F9 => Key::F9,
-        beui::Key::F10 => Key::F10,
-        beui::Key::F11 => Key::F11,
-        beui::Key::F12 => Key::F12,
-        beui::Key::F13 => Key::F13,
-        beui::Key::F14 => Key::F14,
-        beui::Key::F15 => Key::F15,
-        beui::Key::F16 => Key::F16,
-        beui::Key::F17 => Key::F17,
-        beui::Key::F18 => Key::F18,
-        beui::Key::F19 => Key::F19,
-        beui::Key::F20 => Key::F20,
-        beui::Key::F21 => Key::F21,
-        beui::Key::F22 => Key::F22,
-        beui::Key::F23 => Key::F23,
-        beui::Key::F24 => Key::F24,
     }
 }

@@ -3,7 +3,7 @@ use block_editor_plugin::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracerOperation, PixelUpdate, Scene,
 };
 use block_editor_plugin::{Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::PixelRayTracerApp;
@@ -14,12 +14,12 @@ mod an_editor_waiting_on_a_traced_frame_asks_to_be_stepped_again;
 mod resetting_the_artwork_clears_painted_pixels;
 mod zooming_the_view_grows_the_scene;
 
-fn editor() -> ContentHarness<PixelRayTracerApp> {
+fn editor() -> BeuiTest<PixelRayTracerApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = Editor::new(host.clone(), block);
-    let mut editor = ContentHarness::new(BeuiTest::new(editor).in_viewport(), host);
+    let mut editor = BeuiTest::new(editor).in_viewport();
     editor.hold(None, PixelRayTracerContent::default());
     editor.settle_until("the lighting to land", |editor| {
         editor.shown("pixel_ray_tracer.artwork") && !editor.wants_another_frame()
@@ -27,11 +27,11 @@ fn editor() -> ContentHarness<PixelRayTracerApp> {
     editor
 }
 
-fn scene(editor: &ContentHarness<PixelRayTracerApp>) -> Scene {
+fn scene(editor: &BeuiTest<PixelRayTracerApp>) -> Scene {
     editor.content::<PixelRayTracerContent>(None).root().scene()
 }
 
-fn operate(editor: &mut ContentHarness<PixelRayTracerApp>, operation: &PixelRayTracerOperation) {
+fn operate(editor: &mut BeuiTest<PixelRayTracerApp>, operation: &PixelRayTracerOperation) {
     let edit = editor
         .content::<PixelRayTracerContent>(None)
         .root()

@@ -1,84 +1,267 @@
 use beui::{
-    Color32, Context, Document, Event, Key, Modifiers, PointerButton, Pos2, Rect, TouchId,
-    TouchPhase, Vec2,
+    Color32, Document, Event, Key, Modifiers, PointerButton, Pos2, Rect, TouchId, TouchPhase, Vec2,
 };
-use block_editor_plugin::beui_frame::{BeuiFrame, FrameBar};
+use block_editor_plugin::be_block::LiveEdit;
+use block_editor_plugin::headless::{Adopted, HeadlessPlugin};
 use block_editor_plugin::{
-    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorRegion, Occluder,
+    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorHost,
+    EditorInstanceId, EditorRegion, HostReply, HostRequest, Occluder, PeerPresence, SeededContent,
+    ShownPresence, ViewChange, WebViewCommand,
+};
+use block_plugin_api::{
+    BlockTypeDescriptor, ChildRect, EditorMessage, FrameChrome, FrameReport, HelloAccepted,
+    InputBatch, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest, ScreenSet, SurfaceFormat,
+    SurfaceSpec, Theme, ViewportMetrics,
 };
 use std::marker::PhantomData;
+use uuid::Uuid;
 
-use crate::snapshot;
+use crate::input::Input;
+use crate::{ContentStore, snapshot};
 
 mod capture;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 const SETTLE_FRAMES: usize = 400;
 const SETTLE_PAUSE: std::time::Duration = std::time::Duration::from_millis(2);
+const HOST_ROUNDS: usize = 8;
 const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
+const INSTANCE: EditorInstanceId = EditorInstanceId(1);
+const SCREEN: ScreenId = ScreenId(1);
+const SURFACE_SIDE: u32 = 8192;
 
 pub struct BeuiTest<A: BeuiApp> {
-    region: Region,
-    context: Context,
+    plugin: HeadlessPlugin,
+    kind: Kind,
+    host: EditorHost,
+    store: ContentStore,
     size: Vec2,
-    pixels_per_point: f32,
+    scale_factor: f32,
+    frame: Option<block_plugin_api::FrameSpec>,
+    input: Input,
     events: Vec<Event>,
-    modifiers: Modifiers,
-    draft: Vec<u8>,
+    inbox: Vec<Message>,
+    sent: Vec<EditorMessage>,
     output: Option<beui::FrameOutput>,
     recording: Option<snapshot::Snapshot>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
+    report: Option<FrameReport>,
+    intrinsic: Option<Vec2>,
+    exited: bool,
+    draft: Vec<u8>,
+    next_request: u64,
+    screens: u64,
     app: PhantomData<A>,
 }
 
-enum Region {
-    Frame(Editor, BeuiFrame),
-    Preview(Editor, Document),
-    Creation(Creation, Document),
-    Settings(Artifacts, Document),
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Frame(Uuid),
+    Preview(Uuid),
+    Creation,
+    Settings,
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
     pub fn new(editor: Editor) -> Self {
-        let frame = BeuiFrame::build(&editor, {
-            let editor = editor.clone();
-            move || A::view(editor)
-        });
-        Self::for_region(Region::Frame(editor, frame))
+        let block = editor.block_id();
+        Self::open(
+            Kind::Frame(block),
+            Adopted::Editor(editor, None),
+            Vec::new(),
+        )
     }
 
-    pub fn block_id(&self) -> Option<uuid::Uuid> {
-        match &self.region {
-            Region::Frame(editor, _) | Region::Preview(editor, _) => Some(editor.block_id()),
-            Region::Creation(..) | Region::Settings(..) => None,
-        }
-    }
-
-    pub fn with_view(editor: Editor, view: impl FnOnce() -> beui::NodeId) -> Self {
-        let frame = BeuiFrame::build(&editor, view);
-        Self::for_region(Region::Frame(editor, frame))
+    pub fn with_view(editor: Editor, view: impl FnOnce() -> beui::NodeId + 'static) -> Self {
+        let block = editor.block_id();
+        Self::open(
+            Kind::Frame(block),
+            Adopted::Editor(editor, Some(Box::new(view))),
+            Vec::new(),
+        )
     }
 
     pub fn preview(editor: Editor) -> Self {
-        let document = beui::reactive::build({
-            let editor = editor.clone();
-            move || A::preview_view(editor)
-        });
-        Self::for_region(Region::Preview(editor, document))
+        let block = editor.block_id();
+        Self::open(Kind::Preview(block), Adopted::Preview(editor), Vec::new())
+    }
+
+    pub fn creation(creation: Creation) -> Self {
+        Self::open(Kind::Creation, Adopted::Creation(creation), Vec::new())
     }
 
     pub fn settings(artifacts: Artifacts, data: Vec<u8>) -> Self {
-        let document = beui::reactive::build({
-            let artifacts = artifacts.clone();
-            move || A::artifact_settings_view(artifacts)
+        Self::open(Kind::Settings, Adopted::Artifacts(artifacts), data)
+    }
+
+    fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
+        let host = match &adopted {
+            Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host().clone(),
+            Adopted::Creation(creation) => creation.host().clone(),
+            Adopted::Artifacts(artifacts) => artifacts.host().clone(),
+        };
+        let artifact = match &adopted {
+            Adopted::Artifacts(artifacts) => Some(artifacts.block_id()),
+            _ => None,
+        };
+        let mut plugin = HeadlessPlugin::new::<A>("block-ui-test", "block-ui-test", "0");
+        plugin.adopt::<A>(INSTANCE, adopted);
+        let store = ContentStore::new(host.workspace_id());
+        let block_type = host.block_type().unwrap_or_default();
+        let (account_id, workspace_id, client_id) = (
+            host.account_id().into_bytes(),
+            host.workspace_id().into_bytes(),
+            host.client_id().into_bytes(),
+        );
+        let open = match kind {
+            Kind::Frame(block) | Kind::Preview(block) => {
+                store.own(block, block_type);
+                EditorMessage::Open {
+                    instance: INSTANCE,
+                    block_id: block.into_bytes(),
+                    block_type: block_type.into_bytes(),
+                    account_id,
+                    workspace_id,
+                    client_id,
+                    editable: host.editable(),
+                }
+            }
+            Kind::Creation => EditorMessage::OpenCreation {
+                instance: INSTANCE,
+                account_id,
+                workspace_id,
+                client_id,
+            },
+            Kind::Settings => EditorMessage::OpenArtifact {
+                instance: INSTANCE,
+                block_id: artifact.unwrap_or_default().into_bytes(),
+                block_type: block_type.into_bytes(),
+                account_id,
+                workspace_id,
+                client_id,
+                data: data.clone(),
+            },
+        };
+        let frame = matches!(kind, Kind::Frame(_)).then(|| block_plugin_api::FrameSpec {
+            chrome: FrameChrome::Drawn,
+            content: None,
+            top_bar: false,
         });
-        let mut editor = Self::for_region(Region::Settings(artifacts, document));
-        editor.set_draft(data);
-        editor.run();
-        editor
+        let mut test = Self {
+            plugin,
+            kind,
+            host,
+            store,
+            size: SIZE,
+            scale_factor: 1.0,
+            frame,
+            input: Input::default(),
+            events: Vec::new(),
+            inbox: Vec::new(),
+            sent: Vec::new(),
+            output: None,
+            recording: None,
+            viewport: None,
+            children: Vec::new(),
+            occluders: Vec::new(),
+            report: None,
+            intrinsic: None,
+            exited: false,
+            draft: data,
+            next_request: 0,
+            screens: 0,
+            app: PhantomData,
+        };
+        let hello = test.plugin.hello();
+        test.deliver(roundtrip(hello, "the plugin's hello"));
+        test.deliver(Message::HelloAccepted(HelloAccepted {
+            version: PROTOCOL_VERSION,
+            host_name: "block-ui-test".to_owned(),
+            surface: Some(SurfaceSpec {
+                format: SurfaceFormat::Rgba8UnormSrgb,
+                max_side: SURFACE_SIDE,
+            }),
+            theme: Theme::default(),
+        }));
+        test.deliver(Message::Editor(open));
+        test.place();
+        test.run();
+        test
+    }
+
+    fn deliver(&mut self, message: Message) {
+        if matches!(message, Message::Hello(_)) {
+            return;
+        }
+        let message = roundtrip(message, "a message the host sent");
+        for reply in self.plugin.receive(message) {
+            if let Message::Error(error) = reply {
+                panic!("the plugin refused what the host sent: {}", error.message);
+            }
+        }
+    }
+
+    fn place(&mut self) {
+        self.screens += 1;
+        let region = self.region();
+        let metrics = ViewportMetrics {
+            logical_width: self.size.x,
+            logical_height: self.size.y,
+            visible_x: 0.0,
+            visible_y: 0.0,
+            pixel_width: (self.size.x * self.scale_factor).round() as u32,
+            pixel_height: (self.size.y * self.scale_factor).round() as u32,
+            scale_factor: self.scale_factor,
+        };
+        self.inbox.push(Message::Screens(ScreenSet {
+            request_id: self.screens,
+            screens: vec![ScreenRequest {
+                screen: SCREEN,
+                instance: INSTANCE,
+                region,
+                metrics,
+                frame: self.frame.clone(),
+            }],
+        }));
+    }
+
+    pub fn block_id(&self) -> Option<Uuid> {
+        match self.kind {
+            Kind::Frame(block) | Kind::Preview(block) => Some(block),
+            Kind::Creation | Kind::Settings => None,
+        }
+    }
+
+    pub fn host(&self) -> &EditorHost {
+        &self.host
+    }
+
+    pub fn store(&self) -> ContentStore {
+        self.store.clone()
+    }
+
+    pub fn hold<C: LiveEdit>(&mut self, block: Option<Uuid>, content: C) {
+        self.store.hold(block, content);
+    }
+
+    pub fn content<C: LiveEdit + Clone>(&self, block: Option<Uuid>) -> C {
+        self.store.content(block)
+    }
+
+    pub fn holds(&self, block: Option<Uuid>) -> bool {
+        self.store.holds(block)
+    }
+
+    pub fn edit<C: LiveEdit>(&mut self, block: Option<Uuid>, operation: &C::Op) {
+        self.store.edit::<C>(block, operation);
+        self.run();
+    }
+
+    pub fn seeded(&self) -> Vec<SeededContent> {
+        self.store.seeded()
     }
 
     pub fn draft(&self) -> &[u8] {
@@ -86,58 +269,82 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn set_draft(&mut self, data: Vec<u8>) {
-        self.draft = data;
-    }
-
-    pub fn creation(creation: Creation) -> Self {
-        let document = beui::reactive::build({
-            let creation = creation.clone();
-            move || A::creation_view(creation)
-        });
-        Self::for_region(Region::Creation(creation, document))
-    }
-
-    fn for_region(region: Region) -> Self {
-        let context = Context::new();
-        context.set_pixels_per_point(1.0);
-        let mut editor = Self {
-            region,
-            context,
-            size: SIZE,
-            pixels_per_point: 1.0,
-            events: Vec::new(),
-            modifiers: Modifiers::NONE,
-            draft: Vec::new(),
-            output: None,
-            recording: None,
-            viewport: None,
-            children: Vec::new(),
-            occluders: Vec::new(),
-            app: PhantomData,
-        };
-        editor.run();
-        editor
+        self.draft.clone_from(&data);
+        self.inbox
+            .push(Message::Editor(EditorMessage::ArtifactSettings {
+                instance: INSTANCE,
+                data,
+            }));
     }
 
     pub fn with_top_bar(mut self, closable: bool) -> Self {
-        if let Region::Frame(_, frame) = &mut self.region {
-            let set_bar = frame.set_bar();
-            beui::reactive::with_reactive_scope(frame.document_mut(), move || {
-                set_bar.set(FrameBar {
-                    shown: true,
-                    closable,
-                });
-            });
-        }
+        self.frame = Some(block_plugin_api::FrameSpec {
+            chrome: FrameChrome::Drawn,
+            content: closable.then_some(ChildRect {
+                x: 0.0,
+                y: 0.0,
+                width: self.size.x,
+                height: self.size.y,
+            }),
+            top_bar: true,
+        });
+        self.place();
         self.run();
         self
     }
 
+    pub fn set_chrome(&mut self, drawn: bool) {
+        let frame = self
+            .frame
+            .as_mut()
+            .expect("only an editor's frame has chrome");
+        frame.chrome = match drawn {
+            true => FrameChrome::Drawn,
+            false => FrameChrome::None,
+        };
+        self.place();
+        self.run();
+    }
+
+    pub fn set_view(&mut self, view: Rect, scale: f32) {
+        let view = view.translate(-self.origin());
+        self.inbox.push(Message::Editor(EditorMessage::ViewChanged {
+            instance: INSTANCE,
+            x: view.min.x,
+            y: view.min.y,
+            width: view.width(),
+            height: view.height(),
+            scale,
+        }));
+    }
+
+    pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
+        let position = position - self.origin();
+        self.inbox.push(Message::Editor(EditorMessage::DragOver {
+            instance: INSTANCE,
+            region: self.region(),
+            x: position.x,
+            y: position.y,
+            block_id: block_id.into_bytes(),
+            block_type: block_type.into_bytes(),
+            dropped,
+        }));
+    }
+
+    pub fn with_scale_factor(mut self, scale_factor: f32) -> Self {
+        self.scale_factor = scale_factor;
+        self.place();
+        self.run();
+        self
+    }
+
+    pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {
+        self.inbox.push(Message::BlockTypes(descriptors));
+        self.run();
+    }
+
     pub fn exited(&self) -> bool {
-        match &self.region {
-            Region::Frame(_, frame) => frame.exit().get(),
-            Region::Preview(..) | Region::Creation(..) | Region::Settings(..) => false,
-        }
+        self.exited
     }
 
     pub fn in_viewport(mut self) -> Self {
@@ -153,12 +360,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn document(&self) -> &Document {
-        match &self.region {
-            Region::Frame(_, frame) => frame.document(),
-            Region::Preview(_, document)
-            | Region::Creation(_, document)
-            | Region::Settings(_, document) => document,
-        }
+        self.plugin
+            .document(INSTANCE, self.region())
+            .expect("the editor has not built its view yet")
     }
 
     pub fn children(&self) -> &[ChildPlacement] {
@@ -169,53 +373,129 @@ impl<A: BeuiApp> BeuiTest<A> {
         &self.occluders
     }
 
-    pub fn replace_child(&mut self, old: uuid::Uuid, new: uuid::Uuid) -> bool {
-        let Region::Frame(editor, frame) = &mut self.region else {
-            return false;
-        };
-        let editor = editor.clone();
-        beui::reactive::with_reactive_scope(frame.document_mut(), move || {
-            editor.replace_child(old, new)
-        })
+    pub fn content_rect(&self) -> Option<Rect> {
+        let report = self.report.as_ref()?;
+        let origin = self.origin();
+        let rect = report.content;
+        Some(Rect::from_min_size(
+            Pos2::new(rect.x + origin.x, rect.y + origin.y),
+            Vec2::new(rect.width, rect.height),
+        ))
+    }
+
+    pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
+        self.next_request += 1;
+        let request_id = self.next_request;
+        self.inbox
+            .push(Message::Editor(EditorMessage::ReplaceChild {
+                instance: INSTANCE,
+                request_id,
+                old: old.into_bytes(),
+                new: new.into_bytes(),
+            }));
+        self.step(Vec::new());
+        let mut replaced = None;
+        self.sent.retain(|message| match message {
+            EditorMessage::ChildReplaced {
+                request_id: answered,
+                replaced: outcome,
+                ..
+            } if *answered == request_id => {
+                replaced = Some(*outcome);
+                false
+            }
+            _ => true,
+        });
+        replaced.expect("the plugin never answered the replacement")
     }
 
     pub fn presence_visible(&mut self, visible: bool) {
-        self.editor_handle()
-            .expect("this region has no editor")
-            .report_presence_visible(visible);
-        self.run();
-    }
-
-    pub fn reveal_presence(&mut self, client_id: u64) {
-        self.editor_handle()
-            .expect("this region has no editor")
-            .report_reveal(client_id);
+        self.inbox.push(Message::Editor(EditorMessage::Presence {
+            instance: INSTANCE,
+            visible,
+        }));
         self.run();
     }
 
     pub fn resize(&mut self, size: Vec2) {
-        self.editor_handle()
-            .expect("this region has no editor")
-            .report_resize(size);
+        self.inbox.push(Message::Editor(EditorMessage::Resized {
+            instance: INSTANCE,
+            width: size.x,
+            height: size.y,
+        }));
         self.run();
     }
 
-    fn editor_handle(&self) -> Option<&Editor> {
-        match &self.region {
-            Region::Frame(editor, _) | Region::Preview(editor, _) => Some(editor),
-            Region::Creation(..) | Region::Settings(..) => None,
-        }
+    pub fn set_histories(
+        &mut self,
+        states: impl IntoIterator<Item = (Uuid, block_editor_plugin::BlockHistory)>,
+    ) {
+        self.inbox
+            .push(Message::Editor(EditorMessage::HistoryStates {
+                instance: INSTANCE,
+                states: states
+                    .into_iter()
+                    .map(|(block, history)| block_plugin_api::HistoryState {
+                        block_id: block.into_bytes(),
+                        can_undo: history.can_undo,
+                        can_redo: history.can_redo,
+                    })
+                    .collect(),
+            }));
+    }
+
+    pub fn set_peers(&mut self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
+        let block = block
+            .or(self.block_id())
+            .expect("this editor has no block of its own; name the block");
+        self.inbox
+            .push(Message::Editor(EditorMessage::PeerPresence {
+                instance: INSTANCE,
+                block_id: block.into_bytes(),
+                peers: peers
+                    .into_iter()
+                    .map(|peer| block_plugin_api::PeerPresence {
+                        client: peer.client,
+                        kind: peer.kind.into_bytes(),
+                        value: peer.value,
+                    })
+                    .collect(),
+            }));
+    }
+
+    pub fn web_view_event(&mut self, event: block_editor_plugin::WebViewEvent) {
+        self.inbox
+            .push(Message::Editor(EditorMessage::WebViewEvent {
+                instance: INSTANCE,
+                event,
+            }));
+    }
+
+    pub fn reply(&mut self, request_id: u64, reply: HostReply) {
+        self.inbox.push(Message::Editor(EditorMessage::Replied {
+            instance: INSTANCE,
+            request_id,
+            reply,
+        }));
     }
 
     pub fn report_children(&mut self, report: impl Fn(&ChildPlacement) -> ChildStatus) {
-        let statuses: Vec<_> = self.children.iter().map(report).collect();
-        self.editor_host().set_child_statuses(statuses);
+        let statuses: Vec<ChildStatus> = self
+            .children
+            .iter()
+            .map(report)
+            .map(|status| ChildStatus {
+                instance: INSTANCE,
+                ..status
+            })
+            .collect();
+        self.inbox.push(Message::ChildStatuses(statuses));
     }
 
     pub fn available_children(&mut self) {
         let region = self.region();
         self.report_children(|placement| ChildStatus {
-            instance: block_editor_plugin::EditorInstanceId(0),
+            instance: INSTANCE,
             region,
             child: placement.child,
             available: true,
@@ -231,16 +511,32 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn rect(&self) -> Rect {
-        Rect::from_min_size(Pos2::ZERO, self.size)
+        Rect::from_min_size(Pos2::ZERO + self.origin(), self.size)
+    }
+
+    fn origin(&self) -> Vec2 {
+        self.plugin
+            .layout()
+            .placement(SCREEN)
+            .map_or(Vec2::ZERO, |placement| {
+                let scale = placement.scale_factor();
+                Vec2::new(placement.x as f32 / scale, placement.y as f32 / scale)
+            })
     }
 
     pub fn run(&mut self) {
         let events = std::mem::take(&mut self.events);
         if events.is_empty() {
-            return self.step(Vec::new());
+            self.step(Vec::new());
         }
         for event in events {
             self.step(vec![event]);
+        }
+        for _ in 0..HOST_ROUNDS {
+            if self.inbox.is_empty() && !self.store.pending() {
+                break;
+            }
+            self.step(Vec::new());
         }
     }
 
@@ -256,67 +552,173 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn step(&mut self, events: Vec<Event>) {
+        let mut inbox = std::mem::take(&mut self.inbox);
+        inbox.extend(self.store.outgoing(INSTANCE));
         let rect = self.rect();
-        let context = self.context.clone();
-        let placement = self.region();
-        let host = self.editor_host();
-        let intrinsic = self.intrinsic();
+        let intrinsic = self.intrinsic;
+        if let Some(message) = self
+            .viewport
+            .as_mut()
+            .and_then(|viewport| viewport.place(rect, intrinsic))
+        {
+            inbox.push(message);
+        }
+        let events = self.input.normalize(events, self.origin());
+        if !events.is_empty() {
+            inbox.push(Message::Input(InputBatch {
+                screen: SCREEN,
+                events,
+            }));
+        }
+        inbox.push(Message::DrawFrame);
+        for message in inbox {
+            self.deliver(message);
+        }
+        let output = self
+            .plugin
+            .draw()
+            .into_iter()
+            .find(|(placement, _)| placement.screen == SCREEN)
+            .map(|(_, output)| output);
+        if output.is_some() {
+            self.output = output;
+        }
+        for message in self.plugin.outbound() {
+            self.handle(roundtrip(message, "a message the plugin sent"));
+        }
         if let Some(viewport) = &mut self.viewport {
-            viewport.place(&host, rect, intrinsic);
+            viewport.settle(&mut self.sent, rect);
         }
-        host.begin_region(placement, beui::Vec2::ZERO);
-        let region = &mut self.region;
-        match region {
-            Region::Frame(editor, frame) => {
-                let editor = editor.clone();
-                beui::reactive::with_reactive_scope(frame.document_mut(), move || {
-                    editor.begin_frame();
-                });
+    }
+
+    fn handle(&mut self, message: Message) {
+        match message {
+            Message::Children(placements) => {
+                self.children = placements.children;
+                self.occluders = placements.occluders;
             }
-            Region::Preview(editor, document) => {
-                let editor = editor.clone();
-                beui::reactive::with_reactive_scope(document, move || editor.begin_frame());
+            Message::Frames(reports) => {
+                if let Some(report) = reports.into_iter().find(|report| report.screen == SCREEN) {
+                    self.report = Some(report);
+                }
             }
-            Region::Creation(creation, document) => {
-                let creation = creation.clone();
-                beui::reactive::with_reactive_scope(document, move || creation.begin_frame());
+            Message::Editor(message) => {
+                self.store.receive(&message);
+                match &message {
+                    EditorMessage::LeaveFrame { .. } => self.exited = true,
+                    EditorMessage::IntrinsicSize { size, .. } => {
+                        self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
+                    }
+                    EditorMessage::ArtifactEdited { data, .. } => self.draft.clone_from(data),
+                    _ => {}
+                }
+                self.sent.push(message);
             }
-            Region::Settings(artifacts, document) => {
-                let artifacts = artifacts.clone();
-                let draft = std::mem::take(&mut self.draft);
-                beui::reactive::with_reactive_scope(document, move || {
-                    artifacts.receive_settings(&draft);
-                });
-            }
+            Message::Error(error) => panic!("the plugin reported an error: {}", error.message),
+            _ => {}
         }
-        let mut output = context.run(beui::RawInput { events }, |context| match region {
-            Region::Frame(_, frame) => frame.document_mut().show(context, rect),
-            Region::Preview(_, document)
-            | Region::Creation(_, document)
-            | Region::Settings(_, document) => document.show(context, rect),
+    }
+
+    pub fn sent(&self) -> &[EditorMessage] {
+        &self.sent
+    }
+
+    pub fn take_sent(&mut self) -> Vec<EditorMessage> {
+        std::mem::take(&mut self.sent)
+    }
+
+    fn take_where<T>(&mut self, pick: impl Fn(&EditorMessage) -> Option<T>) -> Vec<T> {
+        let mut taken = Vec::new();
+        self.sent.retain(|message| match pick(message) {
+            Some(value) => {
+                taken.push(value);
+                false
+            }
+            None => true,
         });
-        match &self.region {
-            Region::Frame(editor, frame) => editor.end_frame(frame.document()),
-            Region::Preview(editor, document) => editor.end_frame(document),
-            Region::Creation(..) => {}
-            Region::Settings(artifacts, _) => {
-                self.draft = artifacts
-                    .take_settings_edit()
-                    .unwrap_or_else(|| artifacts.settings().get_untracked());
-            }
-        }
-        let (children, occluders) = self.editor_host().end_region(placement);
-        let host = self.editor_host();
-        host.grab_cursor(output.pointer_locked);
-        if let Some(viewport) = &mut self.viewport {
-            viewport.settle(&host, rect);
-        }
-        self.children = children;
-        self.occluders = occluders;
-        if let Some(delay) = host.take_frame_request() {
-            output.repaint_after = output.repaint_after.min(delay);
-        }
-        self.output = Some(output);
+        taken
+    }
+
+    pub fn take_view_changes(&mut self) -> Vec<ViewChange> {
+        self.take_where(|message| match message {
+            EditorMessage::ChangeView { change, .. } => Some(*change),
+            _ => None,
+        })
+    }
+
+    pub fn take_requests(&mut self) -> Vec<(u64, HostRequest)> {
+        self.take_where(|message| match message {
+            EditorMessage::Request {
+                request_id,
+                request,
+                ..
+            } => Some((*request_id, request.clone())),
+            _ => None,
+        })
+    }
+
+    pub fn take_opens(&mut self) -> Vec<(Uuid, Uuid, Option<Uuid>)> {
+        self.take_where(|message| match message {
+            EditorMessage::OpenBlock {
+                block_id,
+                block_type,
+                via,
+                ..
+            } => Some((
+                Uuid::from_bytes(*block_id),
+                Uuid::from_bytes(*block_type),
+                via.map(Uuid::from_bytes),
+            )),
+            _ => None,
+        })
+    }
+
+    pub fn take_block_commands(&mut self) -> Vec<(Uuid, block_editor_plugin::BlockCommand)> {
+        self.take_where(|message| match message {
+            EditorMessage::BlockCommand {
+                block_id, command, ..
+            } => Some((Uuid::from_bytes(*block_id), *command)),
+            _ => None,
+        })
+    }
+
+    pub fn take_shown_presence(&mut self) -> Vec<ShownPresence> {
+        self.take_where(|message| match message {
+            EditorMessage::ShowPresence {
+                block_id,
+                kind,
+                value,
+                ..
+            } => Some(ShownPresence {
+                block: Some(Uuid::from_bytes(*block_id)),
+                kind: Uuid::from_bytes(*kind),
+                value: value.as_ref().map(|value| value.to_vec()),
+            }),
+            _ => None,
+        })
+    }
+
+    pub fn take_web_view_commands(&mut self) -> Vec<WebViewCommand> {
+        self.take_where(|message| match message {
+            EditorMessage::WebViewCommand { command, .. } => Some(command.clone()),
+            _ => None,
+        })
+    }
+
+    pub fn take_drag_accepted(&mut self) -> Option<bool> {
+        self.take_where(|message| match message {
+            EditorMessage::DragAccepted { accepted, .. } => Some(*accepted),
+            _ => None,
+        })
+        .pop()
+    }
+
+    pub fn take_cursor_grab(&mut self) -> Option<bool> {
+        self.take_where(|message| match message {
+            EditorMessage::GrabCursor { grabbed, .. } => Some(*grabbed),
+            _ => None,
+        })
+        .pop()
     }
 
     pub fn pointer_locked(&self) -> bool {
@@ -331,29 +733,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn intrinsic_size(&self) -> Option<Vec2> {
-        self.intrinsic()
-    }
-
-    fn intrinsic(&self) -> Option<Vec2> {
-        match &self.region {
-            Region::Frame(editor, _) | Region::Preview(editor, _) => editor.intrinsic_size(),
-            Region::Creation(..) | Region::Settings(..) => None,
-        }
+        self.intrinsic
     }
 
     fn region(&self) -> EditorRegion {
-        match &self.region {
-            Region::Preview(..) => EditorRegion::Preview,
-            Region::Settings(..) => EditorRegion::ArtifactSettings,
-            Region::Frame(..) | Region::Creation(..) => EditorRegion::Frame,
-        }
-    }
-
-    fn editor_host(&self) -> block_editor_plugin::EditorHost {
-        match &self.region {
-            Region::Frame(editor, _) | Region::Preview(editor, _) => editor.host().clone(),
-            Region::Creation(creation, _) => creation.host().clone(),
-            Region::Settings(artifacts, _) => artifacts.host().clone(),
+        match self.kind {
+            Kind::Preview(_) => EditorRegion::Preview,
+            Kind::Settings => EditorRegion::ArtifactSettings,
+            Kind::Frame(_) | Kind::Creation => EditorRegion::Frame,
         }
     }
 
@@ -405,28 +792,30 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click_at(&mut self, pos: Pos2) {
+        let modifiers = self.input.held();
         self.hover_at(pos);
         self.events.push(Event::PointerButton {
             pos,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: self.modifiers,
+            modifiers,
         });
         self.events.push(Event::PointerButton {
             pos,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: self.modifiers,
+            modifiers,
         });
     }
 
     pub fn drag(&mut self, from: Pos2, to: Pos2) {
+        let modifiers = self.input.held();
         self.hover_at(from);
         self.events.push(Event::PointerButton {
             pos: from,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: self.modifiers,
+            modifiers,
         });
         self.events.push(Event::PointerMoved(to));
         self.events
@@ -435,7 +824,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             pos: to,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: self.modifiers,
+            modifiers,
         });
     }
 
@@ -472,6 +861,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn key_press_modifiers(&mut self, modifiers: Modifiers, key: Key) {
+        let held = self.input.held();
+        if modifiers != held {
+            self.events.push(Event::Modifiers(modifiers));
+        }
         self.events.push(Event::Key {
             key,
             pressed: true,
@@ -484,6 +877,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             repeat: false,
             modifiers,
         });
+        if modifiers != held {
+            self.events.push(Event::Modifiers(held));
+        }
     }
 
     pub fn text(&mut self, text: impl Into<String>) {
@@ -511,9 +907,16 @@ impl<A: BeuiApp> BeuiTest<A> {
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, self.pixels_per_point, Color32::BLACK)
+        capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
             .expect("the painting could not be rendered")
     }
+}
+
+fn roundtrip(message: Message, what: &str) -> Message {
+    let frame = block_plugin_api::encode_frame(&message)
+        .unwrap_or_else(|error| panic!("{what} could not be encoded: {error:?}"));
+    block_plugin_api::decode_frame(&frame)
+        .unwrap_or_else(|error| panic!("{what} could not be read back: {error:?}"))
 }
 
 fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<String>) {
@@ -533,6 +936,7 @@ struct Viewport {
     zoom: f32,
     pan: Vec2,
     fitting: bool,
+    sent: Option<(Rect, f32)>,
 }
 
 impl Viewport {
@@ -541,15 +945,11 @@ impl Viewport {
             zoom: 1.0,
             pan: Vec2::ZERO,
             fitting: true,
+            sent: None,
         }
     }
 
-    fn place(
-        &mut self,
-        host: &block_editor_plugin::EditorHost,
-        region: Rect,
-        intrinsic: Option<Vec2>,
-    ) {
+    fn place(&mut self, region: Rect, intrinsic: Option<Vec2>) -> Option<Message> {
         let content = intrinsic
             .unwrap_or(Vec2::ZERO)
             .max(region.size())
@@ -563,26 +963,45 @@ impl Viewport {
         }
         let size = content * self.zoom;
         let center = region.center() + self.pan;
-        let view = Rect::from_min_size(center - size * 0.5, size);
-        host.set_beui_view(view, self.zoom);
+        let view = Rect::from_min_size(center - size * 0.5, size).translate(-region.min.to_vec2());
+        if self.sent == Some((view, self.zoom)) {
+            return None;
+        }
+        self.sent = Some((view, self.zoom));
+        Some(Message::Editor(EditorMessage::ViewChanged {
+            instance: INSTANCE,
+            x: view.min.x,
+            y: view.min.y,
+            width: view.width(),
+            height: view.height(),
+            scale: self.zoom,
+        }))
     }
 
-    fn settle(&mut self, host: &block_editor_plugin::EditorHost, region: Rect) {
-        for change in host.take_view_changes() {
-            if change != block_editor_plugin::ViewChange::ResumeAutoFit {
+    fn settle(&mut self, sent: &mut Vec<EditorMessage>, region: Rect) {
+        let mut changes = Vec::new();
+        sent.retain(|message| match message {
+            EditorMessage::ChangeView { change, .. } => {
+                changes.push(*change);
+                false
+            }
+            _ => true,
+        });
+        for change in changes {
+            if change != ViewChange::ResumeAutoFit {
                 self.fitting = false;
             }
             match change {
-                block_editor_plugin::ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
-                block_editor_plugin::ViewChange::Zoom { factor, anchor } => {
+                ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
+                ViewChange::Zoom { factor, anchor } => {
                     let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
-                    let anchor =
-                        anchor.map_or(region.center(), |(x, y)| Pos2::new(x, y)) - region.center();
+                    let anchor = anchor.map_or(region.center(), |(x, y)| {
+                        Pos2::new(x, y) + region.min.to_vec2()
+                    }) - region.center();
                     self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
                     self.zoom = zoom;
                 }
-                block_editor_plugin::ViewChange::Fit
-                | block_editor_plugin::ViewChange::ResumeAutoFit => self.fitting = true,
+                ViewChange::Fit | ViewChange::ResumeAutoFit => self.fitting = true,
             }
         }
     }

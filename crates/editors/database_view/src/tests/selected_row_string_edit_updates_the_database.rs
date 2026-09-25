@@ -7,14 +7,12 @@ fn selected_row_string_edit_updates_the_database() {
 
     fixture
         .harness
-        .editor
         .click(&format!("database-view.cell.0.{field_id}"));
     fixture.run();
     fixture
         .harness
-        .editor
         .click(&format!("database-view.selected-item.field.{field_id}"));
-    fixture.harness.editor.text("alpha");
+    fixture.harness.text("alpha");
     fixture.run();
     fixture.run();
 
@@ -24,6 +22,5 @@ fn selected_row_string_edit_updates_the_database() {
     );
     fixture
         .harness
-        .editor
         .snapshot("selected_row_string_edit_updates_the_database");
 }
