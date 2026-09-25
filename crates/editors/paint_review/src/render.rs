@@ -303,7 +303,7 @@ pub fn describe(snapshot: &Snapshot, frame: usize) -> Result<String, String> {
         })
         .collect();
     Ok(format!(
-        "{width}x{height}, {} draw calls, {} textures",
+        "{width}x{height}, {} shapes, {} textures",
         frame.primitives.len(),
         textures.len()
     ))
