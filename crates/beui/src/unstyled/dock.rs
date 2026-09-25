@@ -123,6 +123,7 @@ struct State {
     set_drag: WriteSignal<Option<Drag>>,
     title: Func<TabId, String>,
     group_title: Func<GroupId, Option<String>>,
+    closable: Func<TabId, bool>,
     thickness: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
@@ -258,6 +259,9 @@ impl State {
     }
 
     fn close_tab(&self, tab: TabId) {
+        if !self.closable.call(tab) {
+            return;
+        }
         self.edit(|state| {
             state.remove(tab);
         });
@@ -609,6 +613,7 @@ pub fn Dock(
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
     group_title: Option<Func<GroupId, Option<String>>>,
+    closable: Option<Func<TabId, bool>>,
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
     #[prop(default = 0.0)] group_inset: f32,
     tab: RenderFn<DockTabHandle>,
@@ -635,6 +640,7 @@ pub fn Dock(
         set_drag,
         title,
         group_title: group_title.unwrap_or_else(|| Func::new(|_| None)),
+        closable: closable.unwrap_or_else(|| Func::new(|_| true)),
         thickness: splitter_thickness,
         group_inset,
         rect: component_rect(),

@@ -51,6 +51,7 @@ pub fn DockArea(
         <unstyled::Dock
             state
             group_title
+            closable={closable.clone()}
             group_inset=GROUP_INSET
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}
