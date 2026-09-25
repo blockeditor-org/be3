@@ -86,6 +86,7 @@ mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
 mod accessibility_exposes_and_operates_a_button;
 mod accessibility_reports_and_steps_a_slider;
+mod accessibility_updates_leave_the_tree_a_fresh_build_would_make;
 mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
@@ -95,6 +96,7 @@ mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
 mod an_icon_is_as_tall_as_the_text_it_sits_with;
+mod an_idle_frame_describes_no_accessibility_nodes_and_one_changed_row_describes_few;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
@@ -218,6 +220,7 @@ mod scrolling_a_virtual_scroll_reuses_overlapping_items;
 mod scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent;
 mod scrolling_damages_nothing_outside_the_scroll;
 mod scrolling_into_a_nested_scroll_keeps_moving_the_one_around_it;
+mod scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
@@ -272,6 +275,7 @@ mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
+mod turning_the_accessibility_tree_off_in_the_inspector_stops_building_it;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
 mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
 mod typing_into_a_focused_text_area_inserts_the_text;
@@ -605,6 +609,17 @@ impl Harness {
         let toggle = self.inspector_center("inspector.screen_reader.enabled");
         self.click(toggle);
         self.key(Key::Escape, Modifiers::NONE);
+        self.frame(Vec::new());
+    }
+
+    pub(crate) fn disable_accessibility(&mut self) {
+        self.toggle_inspector();
+        let tab = self.simulation_tab_center();
+        self.click(tab);
+        self.frame(Vec::new());
+        let toggle = self.inspector_center("inspector.accessibility.enabled");
+        self.click(toggle);
+        self.toggle_inspector();
         self.frame(Vec::new());
     }
 
