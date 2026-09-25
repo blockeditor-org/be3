@@ -6,6 +6,8 @@ use crate::geometry::{Rect, Vec2};
 use crate::input::{Event, TouchPhase};
 
 #[cfg(feature = "window")]
+mod accessibility;
+#[cfg(feature = "window")]
 mod clipboard;
 #[cfg(feature = "window")]
 mod native;
