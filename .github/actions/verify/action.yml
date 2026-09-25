@@ -1,13 +1,13 @@
 name: Verify
 description: >-
-  Runs one part of ./scripts/verify. On a pull request it runs the way a person
+  Runs one part of //:verify. On a pull request it runs the way a person
   does, fixing and accepting instead of only reporting, and anything that leaves
   changed or new in the checkout is uploaded as a patch for the autofix job in
   ci.yml to push back to the branch, and fails this job.
 
 inputs:
   part:
-    description: The part of ./scripts/verify to run, one of lint, tests or plugin-tests.
+    description: The part of //:verify to run, one of lint, tests or plugin-tests.
     required: true
 
 runs:
@@ -23,12 +23,17 @@ runs:
     # log they have to go and read. That includes a painting that changed and
     # one that is new: accepting those in CI is on purpose here, because the
     # commit that carries them is what a reviewer looks at in Paint review.
-    - name: Run ./scripts/verify --${{ inputs.part }}
+    - name: Run //:verify --${{ inputs.part }}
       shell: bash
       env:
-        MODE: ${{ github.event_name == 'pull_request' && '--ci' || '--check' }}
+        CHECK: ${{ github.event_name != 'pull_request' }}
         PART: ${{ inputs.part }}
-      run: ./scripts/verify "$MODE" "--$PART"
+      run: |
+        if [ "$CHECK" = true ]; then
+          ./scripts/buck run //:verify -- --check "--$PART"
+        else
+          ./scripts/buck run //:verify -- "--$PART"
+        fi
 
     # Everything a fix can do shows up in git: an edited file, a moved one, and
     # an untracked one such as a painting that was accepted for the first time,
@@ -71,5 +76,5 @@ runs:
       if: ${{ !cancelled() && steps.collect.outputs.dirty == 'true' }}
       shell: bash
       run: |
-        echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/verify and commit what it changes.'
+        echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/buck run //:verify and commit what it changes.'
         exit 1

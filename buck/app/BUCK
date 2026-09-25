@@ -1,0 +1,9 @@
+export_file(
+    name = "stage.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "smoke.sh",
+    visibility = ["PUBLIC"],
+)

@@ -1,4 +1,4 @@
-use super::{PixelArt, PixelColor, MAX_PIXEL_ART_PALETTE_COLORS};
+use super::{MAX_PIXEL_ART_PALETTE_COLORS, PixelArt, PixelColor};
 
 #[test]
 fn pixel_art_serialization_rejects_invalid_palette() {

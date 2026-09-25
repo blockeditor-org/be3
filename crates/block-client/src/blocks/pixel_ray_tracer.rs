@@ -1,8 +1,8 @@
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::mem::size_of;
 
 use block::{Block, BlockHistory, HistoryDirection};
-use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use uuid::Uuid;
 
 pub const PIXEL_RAY_TRACER_SIZE: u16 = 128;
@@ -258,11 +258,12 @@ impl PixelRayTracer {
                         .entities
                         .iter_mut()
                         .find(|item| item.id() == entity.id())
-                        && current != entity {
-                            current.clone_from(entity);
-                            changed = true;
-                            lighting_changed = true;
-                        }
+                    && current != entity
+                {
+                    current.clone_from(entity);
+                    changed = true;
+                    lighting_changed = true;
+                }
             }
             PixelRayTracerOperation::DeleteEntity { id } => {
                 let old = self.entities.len();

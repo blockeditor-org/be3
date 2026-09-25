@@ -1,0 +1,11 @@
+# Cargo builds one wasmi for the crate and its tests together, so the feature
+# game-host's tests ask for is on in both. Buck builds one target per rule and
+# does not unify, so it is named here - and not on wasm, where this is the game
+# host inside a plugin: a module the user picked is never text, and the error
+# the plugin paints when one will not load is the one wat is not there to
+# soften.
+['cfg(not(target_family = "wasm"))']
+features = ["wat"]
+# The feature is an optional dependency, and a feature named in a fixup does
+# not pull one in: reindeer resolved the graph before reading this.
+extra_deps = ["//third-party/rust:wat"]

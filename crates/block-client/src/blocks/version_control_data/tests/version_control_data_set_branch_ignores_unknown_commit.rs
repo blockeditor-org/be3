@@ -1,5 +1,5 @@
 use super::{
-    apply, author, CommitId, VersionControlData, VersionControlDataOperation, MAIN_BRANCH,
+    CommitId, MAIN_BRANCH, VersionControlData, VersionControlDataOperation, apply, author,
 };
 
 #[test]

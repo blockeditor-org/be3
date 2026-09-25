@@ -344,8 +344,8 @@ fixture that needs to read or write it between runs.
 ## Running it
 
 ```
-cargo run -p be-server -- --add-account you@example.com "You" hunter2hunter2 Workspace
-cargo run -p be-server -- --address 127.0.0.1:8787 --data-dir be-server-data
+./scripts/buck run //crates/be-server:be-server-bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
+./scripts/buck run //crates/be-server:be-server-bin -- --address 127.0.0.1:8787 --data-dir be-server-data
 ```
 
 Tests start their own server on an ephemeral port; see `Harness` in

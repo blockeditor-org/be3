@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "calendar",
+    module = "calendar",
+)

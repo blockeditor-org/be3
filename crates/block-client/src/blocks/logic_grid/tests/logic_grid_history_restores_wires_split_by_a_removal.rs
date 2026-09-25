@@ -9,8 +9,6 @@ fn logic_grid_history_restores_wires_split_by_a_removal() {
     let laid = block.read().unwrap().grid().wires().to_vec();
     assert_eq!(laid, vec![wire((0, 0), (8, 0))]);
 
-                                                                               
-                                                           
     block.operate(LogicGridOperation::RemoveWire {
         wire: wire((3, 0), (4, 0)),
     });

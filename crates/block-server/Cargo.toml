@@ -14,7 +14,7 @@ block = { path = "../block" }
 futures-util = "0.3"
 httparse = "1"
 indexmap = { version = "2", features = ["serde"] }
-rand = "0.8"
+rand = "0.9"
 rpassword = "7"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

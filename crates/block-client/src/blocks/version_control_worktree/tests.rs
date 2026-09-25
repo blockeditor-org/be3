@@ -9,7 +9,7 @@ use crate::block_ref::{BlockRef, WorktreeMembership};
 use crate::blocks::workspace_index::WorkspaceIndex;
 use crate::{BlockClient, ManagementClient};
 
-use super::super::version_control_data::{VersionControlData, MAIN_BRANCH};
+use super::super::version_control_data::{MAIN_BRANCH, VersionControlData};
 use super::{
     VersionControlWorktree, VersionControlWorktreeMembership, VersionControlWorktreeOperation,
 };

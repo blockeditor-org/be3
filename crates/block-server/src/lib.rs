@@ -25,7 +25,7 @@ use block::{
 };
 use futures_util::{SinkExt, StreamExt};
 use indexmap::IndexMap;
-use rand::{RngCore, rngs::OsRng};
+use rand::{TryRngCore, rngs::OsRng};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use sha2::{Digest, Sha256};
 use tokio::{
@@ -2663,7 +2663,9 @@ fn verify_password(password: &str, hash: &str) -> bool {
 
 fn generate_token() -> String {
     let mut bytes = [0u8; TOKEN_BYTES];
-    OsRng.fill_bytes(&mut bytes);
+    OsRng
+        .try_fill_bytes(&mut bytes)
+        .expect("the operating system has entropy");
     to_hex(&bytes)
 }
 

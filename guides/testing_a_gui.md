@@ -1,6 +1,6 @@
 GUI tests run headless: no window, no input, no server. A test builds an editor, drives it the
 way a person would, and checks two things — what the block became, and what the editor
-painted. They are fast enough to belong in ./scripts/verify: the handful that exist run in
+painted. They are fast enough to belong in ./scripts/buck run //:verify: the handful that exist run in
 well under a second.
 
 A plugin's tests run where the plugin runs: compiled to wasm32-wasip1-threads and started by
@@ -106,10 +106,10 @@ as the last costs the triangles that draw it and nothing more. Keep recordings t
 frames that say something: every frame is compared, so a frame nobody looks at is one more
 way for the test to fail.
 
-- ./scripts/verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
+- ./scripts/buck run //:verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
   a new or changed painting is written into snapshots/ rather than failing the run. On a pull
   request CI does the same, and when that writes a painting it fails the run and pushes the
-  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/verify --check, which sets nothing,
+  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/buck run //:verify -- --check, which sets nothing,
   so a painting that was never committed fails there.
 - A changed painting is for a person to review, not for you. They review it in a Paint
   review block, which reads the folder from the repository's dev branch, so a painting is
@@ -117,7 +117,7 @@ way for the test to fail.
   not git and a reviewer is not the tests: a painting nobody approved is new again the next
   time the block is opened, and one nobody had approved before it vanished is not reported
   at all.
-- cargo run -p paint-snapshot --example rasterize -- snapshots/<crate>.<name>.paint out.png
+- ./scripts/buck run //crates/paint-snapshot:rasterize-example -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write. It is for a person looking at a painting on the machine that made it; the review
   that matters still happens in a Paint review block.
@@ -127,7 +127,7 @@ way for the test to fail.
   alone.
 - The exception is a painting you cannot account for: if you do not know why one changed,
   restore the committed file and run the tests without UPDATE_SNAPSHOTS - git restore
-  snapshots/ && ./scripts/internal/test-plugins.sh --check - and the failure says which frame
+  snapshots/ && ./scripts/buck run //:verify -- --check --plugin-tests - and the failure says which frame
   changed and what moved in it, which is what you needed rather than the image.
 
 A snapshot never holds the glyph atlas. Each glyph carries its own coverage image, keyed by
@@ -146,26 +146,28 @@ editor paints is comparable like anything else.
 
 5. Running them
 
-./scripts/verify runs them. It prepares the non-Cargo prerequisites, builds the complete workspace,
-and then runs every plugin's tests through scripts/internal/test-plugins.sh. Do not build or
-test an editor package for the host by itself: block-app turns on the windowing features
-beui's window runner needs, and Cargo only unifies those across a whole-workspace build. The workspace run
-skips the plugin crates outright, so cargo test on one of them natively refuses to compare a
-painting rather than making one nothing would agree with.
+./scripts/buck run //:verify runs them, through buck2: ./scripts/buck run //:verify -- --plugin-tests is the plugin
+tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
+wasm32-wasip1-threads against the WASI sysroot the web build uses, on BuildBuddy's workers,
+and runs the module here through crates/plugin-test-runner, which is wasmtime with the
+plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
+spawns, and the repository itself, opened so that a test writes the painting it accepted
+into snapshots/. That last part is why a plugin test runs on this machine while the rest of
+the tests run on a worker. Do not build or test an editor package for the host by itself:
+its tests only mean anything as the wasm guest it ships as, and a native run refuses to
+compare a painting rather than making one nothing would agree with.
 
-scripts/internal/test-plugins.sh is what runs them, and is worth running by itself while
-working on an editor. It compiles each plugin's tests for wasm32-wasip1-threads against the
-WASI sysroot the web build uses, and cargo nextest starts each test through
-crates/plugin-test-runner, which is wasmtime with the plugin's own imports linked: the gpu abi
-a plugin draws through, the threads a plugin spawns, and the
-repository itself, opened so that a test writes the painting it accepted where the workspace
-run would have. Arguments go to cargo nextest run, so a single crate is -p checklist and a
-single test is -p checklist some_test_name.
+While working on one editor, run its tests alone:
 
-nextest runs every test in a process of its own, so before it starts, Cranelift compiles each
-test module that changed, several at a time, and leaves the machine code beside it as a .cwasm
-the way a build does for a plugin. Each test's process maps that in instead of compiling the
-module again, so a run that changed nothing takes seconds. A wasm build needs clang and
-llvm-ar on PATH, which ./scripts/setup installs. The runner only opens a graphics adapter when
-a test calls the gpu abi, so a machine without one still runs every test that does not, and
-what a test compares never passes through a gpu.
+  ./scripts/buck test //crates/editors/checklist:test
+  ./scripts/buck test //crates/editors/checklist:test -- --env UPDATE_SNAPSHOTS=1
+
+The first compares, the second accepts. A single test is a filter handed through to the
+test binary: ./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name.
+
+Cranelift compiles each test module once, as an action of its own, and leaves the machine
+code as a .cwasm the runner maps in, so a run that changed nothing takes seconds; that
+action is cached like any other, so a machine that never built the plugin gets it from
+BuildBuddy. The runner only opens a graphics adapter when a test calls the gpu abi, so a
+machine without one still runs every test that does not, and what a test compares never
+passes through a gpu.

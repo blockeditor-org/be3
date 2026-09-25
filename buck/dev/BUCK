@@ -1,0 +1,5 @@
+# The script behind //:verify, which the root BUCK.v2 file runs.
+export_file(
+    name = "verify.sh",
+    visibility = ["PUBLIC"],
+)

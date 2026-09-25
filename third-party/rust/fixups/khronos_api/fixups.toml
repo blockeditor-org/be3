@@ -1,0 +1,7 @@
+# The build script lists the WebGL extensions for the library to include, by
+# absolute path into the directory it ran in. Under buck2 that directory is the
+# build script's own action's and is gone by the time the library compiles, so
+# the overlay's build script copies each one into OUT_DIR, which the library's
+# compile has, and includes it from there.
+buildscript.run = true
+overlay = "overlay"

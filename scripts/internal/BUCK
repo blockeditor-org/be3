@@ -1,0 +1,19 @@
+# The one build script a buck2 action runs: crates/ghostty-vt builds
+# libghostty-vt with it, on a worker, the same way cargo's build does locally.
+export_file(
+    name = "build-ghostty-vt.sh",
+    src = "build-ghostty-vt.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "common.sh",
+    src = "common.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "ghostty-vt.patch",
+    src = "ghostty-vt.patch",
+    visibility = ["PUBLIC"],
+)

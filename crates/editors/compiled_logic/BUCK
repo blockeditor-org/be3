@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "compiled_logic",
+    module = "compiled_logic",
+)

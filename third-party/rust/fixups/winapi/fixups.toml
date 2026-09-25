@@ -1,0 +1,4 @@
+# The build script turns on the features each enabled module depends on, and
+# names the import libraries they link.
+[buildscript.run]
+rustc_link_lib = true

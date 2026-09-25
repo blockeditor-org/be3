@@ -14,8 +14,6 @@ use crate::{parse_block_urls, properties::MAX_NAME_BYTES};
 
 const TEXT_BURST_DELAY: Duration = Duration::from_millis(750);
 
-                                                                               
-                                                               
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TextLanguage {

@@ -30,12 +30,15 @@ mod infinite_canvas_tracks_block_references;
 mod rebase_entity_preserves_conflicting_remote_fields;
 
 fn block_entity(id: Uuid, block_id: BlockRef) -> CanvasEntity {
-    CanvasEntity { id,
-    transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(1.0, 1.0), 0.0),
-    kind: CanvasEntityKind::Block { block_id },
-    style: CanvasEntityStyle::default(),
-    group_id: None,
-    locked: false, components: Vec::new() }
+    CanvasEntity {
+        id,
+        transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(1.0, 1.0), 0.0),
+        kind: CanvasEntityKind::Block { block_id },
+        style: CanvasEntityStyle::default(),
+        group_id: None,
+        locked: false,
+        components: Vec::new(),
+    }
 }
 
 struct TestServer {
@@ -83,15 +86,10 @@ async fn identity(url: &str) -> (Uuid, String, Uuid) {
     (session.account.id, session.token, workspace.id)
 }
 
-
 fn direct_editor_entity(id: Uuid, block_id: Uuid) -> CanvasEntity {
     CanvasEntity {
         id,
-        transform: CanvasTransform::new(
-            CanvasPoint::default(),
-            CanvasPoint::new(1.0, 1.0),
-            0.0,
-        ),
+        transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(1.0, 1.0), 0.0),
         kind: CanvasEntityKind::DirectEditor {
             block_id: BlockRef::Direct(block_id),
             scale: 1.0,
@@ -102,5 +100,5 @@ fn direct_editor_entity(id: Uuid, block_id: Uuid) -> CanvasEntity {
         components: Vec::new(),
     }
 }
-mod replacing_a_component_schema_merges_into_an_existing_target;
 mod component_block_values_deduplicate_and_rewrite_direct_references;
+mod replacing_a_component_schema_merges_into_an_existing_target;

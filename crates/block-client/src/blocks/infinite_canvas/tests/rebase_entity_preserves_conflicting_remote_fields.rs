@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use super::{
-    rebase_entity, CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
-    CanvasPoint, CanvasTransform,
+    CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
+    CanvasTransform, rebase_entity,
 };
 use crate::block_ref::BlockRef;
 use crate::blocks::database::DatabaseValue;
@@ -46,10 +46,9 @@ fn rebase_entity_preserves_conflicting_remote_fields() {
     let mut after = before.clone();
     after.transform.center.x = 5.0;
     after.style.opacity = 0.5;
-    after.components[0].values.insert(
-        local_field,
-        DatabaseValue::String("local after".to_owned()),
-    );
+    after.components[0]
+        .values
+        .insert(local_field, DatabaseValue::String("local after".to_owned()));
     let mut remote = after.clone();
     remote.transform.center.x = 8.0;
     remote.style.foreground = CanvasColor::Rgba {
