@@ -45,7 +45,7 @@ pub use icon_button::{IconButton, IconButtonSize};
 pub use link::Link;
 pub use list_row::ListRow;
 pub use menu_button::MenuButton;
-pub use number_input::{NumberDrag, NumberInput, number_input_text, number_input_field};
+pub use number_input::{NumberDrag, NumberInput, number_input_field, number_input_text};
 pub use progress::Progress;
 pub use responsive_tabs::{ResponsiveTabs, responsive_tabs_selected};
 pub use scroll::Scroll;
