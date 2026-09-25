@@ -130,7 +130,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5b41e63a69f36d9f1f41e70464c7e5f72eee485ef26aab19f0b4f86e6c0a84c"
 dependencies = [
  "accesskit",
- "accesskit_android",
  "accesskit_ios",
  "accesskit_macos",
  "accesskit_unix",
@@ -775,6 +774,7 @@ name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "accesskit_android",
  "accesskit_winit",
  "arboard",
  "beui_macros",

@@ -1,11 +1,11 @@
 #!/bin/sh
 #
-# What `./scripts/buck run //:verify` runs: fix-rust-source, rustfmt,
-# starlark_fmt and clippy (--lint), the tests (--tests), and the plugin tests
-# (--plugin-tests), which run here because they read and write snapshots/.
-# Naming none runs all three; CI runs them on three runners. Every tool writes
-# its fixes and the plugin tests accept new paintings, unless --check, which
-# writes nothing and fails on anything that would change.
+# What `./scripts/buck run //:verify` runs: Cargo.lock, fix-rust-source,
+# rustfmt, starlark_fmt and clippy (--lint), the tests (--tests), and the
+# plugin tests (--plugin-tests), which run here because they read and write
+# snapshots/. Naming none runs all three; CI runs them on three runners.
+# Every tool writes its fixes and the plugin tests accept new paintings, unless
+# --check, which writes nothing and fails on anything that would change.
 #
 # Usage:
 #   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
@@ -58,6 +58,21 @@ file_modes() {
     fi
     echo "These files are executable; run //:verify without --check:"
     echo "$executable" | sed 's/^/  /'
+    return 1
+}
+
+# ./scripts/buck generates the rules from Cargo.lock brought up to date with the
+# manifests, and leaves that lockfile in target/, so a stale Cargo.lock builds
+# fine and only changes under cargo or rust-analyzer. It is copied over the
+# checked-in one here.
+cargo_lock() {
+    cmp -s target/Cargo.lock Cargo.lock && return 0
+    if ! $check; then
+        cp target/Cargo.lock Cargo.lock
+        return 0
+    fi
+    echo "Cargo.lock is not up to date with the manifests; run //:verify without --check:"
+    diff -u Cargo.lock target/Cargo.lock | head -n 40
     return 1
 }
 
@@ -122,6 +137,7 @@ if $lint; then
     buck_tools="$(path root//crates/buck-tools:buck-tools-bin)"
 
     step "file modes" file_modes
+    step Cargo.lock cargo_lock
     step rustfmt rustfmt
     if $check; then
         step fix-rust-source "$fix_rust_source" --check
