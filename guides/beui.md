@@ -497,9 +497,28 @@ The bubble lives in a passive `Overlay`. It paints above everything, and
 unlike a menu or a dialog it takes no input at all: it is not in the overlay
 stack, so the document under it keeps answering the pointer, Escape still
 reaches whatever it was going to reach, and clicking the control the tooltip
-describes clicks the control. The dwell is measured with `each_frame`, which
-runs a callback inside the document's reactive scope once per frame and is
-disposed with the scope that registered it.
+describes clicks the control. The dwell is a `create_timer`, started when the
+pointer arrives and stopped when it leaves, so a tooltip nobody is hovering
+costs no frames.
+
+### Time: timers and animation
+
+beui has no per-frame hook. Work runs because a signal it reads changed, and
+anything that genuinely depends on time asks for it with `create_timer(work)`.
+The timer belongs to the reactive scope that created it and is dropped with
+it. `start(delay)` schedules `work` (keeping an earlier deadline if one is
+already set), `restart(delay)` replaces the deadline, `stop()` cancels it, and
+`running()` says whether one is pending. The document runs due timers inside
+its reactive scope at the top of a frame and asks the context for a repaint
+at the next deadline, so nothing is drawn while no timer is due. `work`
+returns `Some(delay)` to run again - an animation returns
+`Some(Duration::ZERO)` for the next frame - and `None` once it has settled,
+which is what lets a scroll fling or a spinner stop costing frames. Start a
+timer from the event or effect that begins the motion rather than leaving one
+running.
+
+`pixels_per_point()` is the document's scale as a signal, for layout that
+depends on it.
 
 ### Overlays, and things that float
 
@@ -1219,7 +1238,7 @@ block_editor_plugin::beui_plugin!(CounterApp, "../manifest.json");
 
 `Editor` is everything the instance was given: the host, the block, the
 `Blocks` handle it reaches the graph through, the view the host is showing the content through, and
-`each_frame(...)` for work that is neither a content projection nor a signal. The
+signals for everything the host tells it. The
 host supplies input, fonts, clipboard integration, rendering, and the frame
 rectangle. A plugin normally depends on beui without the window runner:
 
@@ -1231,8 +1250,21 @@ Block content reaches the view through a `ContentProjection`:
 `editor.block_content::<C>()` holds the content of the editor's own block,
 `project`, `field`, `ids` and `object` derive signals from it, and `operate`
 applies an edit and sends it to the host. The framework pumps every projection
-once at the top of the frame, inside the document's reactive scope. See the
-[reactive guide](reactive.md#blocks).
+once at the top of the frame, inside the document's reactive scope, and
+`read` and `revision` track, so a memo or effect that reads them runs again
+when the content changes. See the [reactive guide](reactive.md#blocks).
+
+Nothing in an editor polls. What the host sends between frames is recorded
+by the framework and delivered at the top of the next frame as signals on
+the `Editor`: `replies()` ticks when the host answers a request (a file or
+block pick, a pasted image, a fetch), and `on_reply(f)` runs `f` each time;
+`drag()` and `files()` carry a drag or a file drop over the editor;
+`audio()`, `history(block)`, `histories()`, `artifacts()`, `focused_block()`,
+`web_view_events()` and `peers::<P>()` follow the host's state;
+`block_types()` tracks the catalog; `placed()` is the content rect as a
+signal. Work on another thread takes its `Waker` from `editor.woken()`,
+whose signal ticks once the work has woken the editor, and an effect that
+reads that signal collects the result.
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
@@ -1242,8 +1274,8 @@ A plugin with `"creation": "Dialog"` implements `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
 and shows in the host's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
-filled in. Host services such as `BlockPicker` work there too, polled from
-`creation.each_frame(...)`.
+filled in. Host services such as `BlockPicker` work there too, collected from
+`creation.on_reply(...)` when the host answers.
 
 ## Develop an unstyled component
 

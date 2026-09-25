@@ -32,6 +32,7 @@ pub mod reactive;
 mod renderer;
 mod screen_reader;
 pub mod styled;
+mod timer;
 pub mod unstyled;
 
 pub use accesskit;
