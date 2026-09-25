@@ -144,6 +144,8 @@ struct Inner {
     dragging_handle_offset: Cell<Vec2>,
     reveal_cursor: Cell<bool>,
     reveal: Cell<Option<Rect>>,
+    reveals: ReadSignal<u64>,
+    set_reveals: WriteSignal<u64>,
     content: ReadSignal<u64>,
     set_content: WriteSignal<u64>,
     content_counter: Cell<u64>,
@@ -168,6 +170,7 @@ impl TextAreaState {
         let (content, set_content) = create_signal(0);
         let (cursors, set_cursors) = create_signal(0);
         let (layout, set_layout) = create_signal(TextAreaLayout::default());
+        let (reveals, set_reveals) = create_signal(0);
         let state = Self(Rc::new(Inner {
             core: RefCell::new(core),
             snapshot: RefCell::new(Snapshot::default()),
@@ -180,6 +183,8 @@ impl TextAreaState {
             dragging_handle_offset: Cell::new(Vec2::ZERO),
             reveal_cursor: Cell::new(false),
             reveal: Cell::new(None),
+            reveals,
+            set_reveals,
             content,
             set_content,
             content_counter: Cell::new(0),
@@ -293,10 +298,16 @@ impl TextAreaState {
 
     pub fn reveal_cursor(&self) {
         self.0.reveal_cursor.set(true);
+        self.0.set_reveals.update(|reveals| *reveals += 1);
     }
 
     pub fn reveal(&self, rect: Rect) {
         self.0.reveal.set(Some(rect));
+        self.0.set_reveals.update(|reveals| *reveals += 1);
+    }
+
+    pub(crate) fn reveals(&self) -> ReadSignal<u64> {
+        self.0.reveals.clone()
     }
 
     pub(crate) fn canvas(&self) -> NodeRef {

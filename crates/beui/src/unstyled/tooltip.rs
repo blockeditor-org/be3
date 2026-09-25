@@ -1,6 +1,4 @@
-use std::cell::Cell;
-use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use beui_macros::{component, view};
 
@@ -9,7 +7,7 @@ use crate::input::PointerPress;
 use crate::node::NodeId;
 use crate::reactive::{
     Child, ClickCatcher, List, NodeRef, Prop, ReadSignal, Render, clone, create_memo,
-    create_signal, each_frame, with_document,
+    create_signal, create_timer,
 };
 
 pub const TOOLTIP_DELAY: Duration = Duration::from_millis(450);
@@ -29,32 +27,26 @@ pub fn Tooltip(
 ) -> NodeId {
     let anchor = NodeRef::new();
     let (shown, set_shown) = create_signal(false);
-    let dwelling: Rc<Cell<Option<Instant>>> = Rc::default();
     let wanted = create_memo(clone!(label disabled -> move || {
         !disabled.get() && !label.get().is_empty()
     }));
     let open = create_memo(clone!(shown wanted -> move || shown.get() && wanted.get()));
 
-    each_frame(clone!(dwelling set_shown -> move || {
-        let Some(since) = dwelling.get() else {
-            return;
-        };
-        let waited = since.elapsed();
-        if waited >= delay {
-            set_shown.set(true);
-            return;
-        }
-        with_document(|document| document.request_repaint_after(delay - waited));
+    let dwell = create_timer(clone!(set_shown -> move || {
+        set_shown.set(true);
+        None
     }));
-
-    let hover = clone!(dwelling set_shown -> move |hovered: bool| {
-        dwelling.set(hovered.then(Instant::now));
-        if !hovered {
-            set_shown.set(false);
+    let hover = clone!(dwell set_shown -> move |hovered: bool| {
+        match hovered {
+            true => dwell.restart(delay),
+            false => {
+                dwell.stop();
+                set_shown.set(false);
+            }
         }
     });
-    let press = clone!(dwelling set_shown -> move |_: PointerPress| {
-        dwelling.set(None);
+    let press = clone!(dwell set_shown -> move |_: PointerPress| {
+        dwell.stop();
         set_shown.set(false);
     });
     let bubble = content.call(TooltipHandle { label, shown });

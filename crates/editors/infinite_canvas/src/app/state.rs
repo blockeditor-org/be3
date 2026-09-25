@@ -16,11 +16,13 @@ use block_editor_plugin::be_block::canvas::{
 use block_editor_plugin::be_block::database::DatabaseValue;
 use block_editor_plugin::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_plugin::be_block::{CanvasContent, ObjectId};
-use block_editor_plugin::beui::reactive::{CanvasView, ReadSignal, WriteSignal, create_signal};
+use block_editor_plugin::beui::reactive::{
+    CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+};
 use block_editor_plugin::beui::{Pos2, Rect, Vec2};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::{
-    BlockFilter, BlockPicker, ChildState, Editor, FilePicker, ImagePaster, InteractionMode,
+    BlockFilter, ChildState, Drag, Editor, FileDrop, FilePicker, ImagePaster, InteractionMode,
     PastedImage, ResizeMode,
 };
 use block_editor_plugin::{BlockParent, BlockQuery};
@@ -203,13 +205,6 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct PendingComponentValuePick {
-    schema_id: Uuid,
-    field_id: Uuid,
-    entity_ids: Vec<Uuid>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct RemoteCursor {
     pub(crate) pointer: Option<CanvasPoint>,
@@ -233,18 +228,8 @@ pub(crate) struct CanvasState {
     preview: bool,
     content: Rc<ContentProjection<CanvasContent>>,
     dependencies: BlockList,
-    picker: RefCell<BlockPicker>,
-    component_picker: RefCell<BlockPicker>,
-    value_picker: RefCell<BlockPicker>,
     image_picker: RefCell<FilePicker>,
     paster: RefCell<ImagePaster>,
-    paste_asked: Cell<bool>,
-    pending_entities: RefCell<Vec<(Uuid, (Uuid, CanvasTransform))>>,
-    pending_components: RefCell<Vec<(Uuid, Vec<Uuid>)>>,
-    pending_values: RefCell<Vec<(Uuid, PendingComponentValuePick)>>,
-    pending_value_target: RefCell<Option<PendingComponentValuePick>>,
-    pending_component_entities: RefCell<Option<Vec<Uuid>>>,
-    pending_block_center: Cell<Option<CanvasPoint>>,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
     context_position: Cell<Option<CanvasPoint>>,
@@ -254,12 +239,7 @@ pub(crate) struct CanvasState {
     set_pointer: WriteSignal<Option<CanvasPoint>>,
     last_foreground: Cell<CanvasColor>,
     last_fill: Cell<Option<CanvasColor>>,
-    fit_selection: Cell<bool>,
-    fit_preview_region: Cell<bool>,
-    fit_entity: Cell<Option<Uuid>>,
     children: RefCell<HashMap<Uuid, ChildState>>,
-    measure: super::paint::TextMeasure,
-    measuring: Cell<Option<Uuid>>,
     pub(crate) entities: ReadSignal<Vec<CanvasEntity>>,
     pub(crate) preview_region: ReadSignal<Option<CanvasPreviewRegion>>,
     pub(crate) tool: ReadSignal<Tool>,
@@ -313,18 +293,8 @@ impl CanvasState {
             editor: editor.clone(),
             preview,
             content,
-            picker: RefCell::new(BlockPicker::default()),
-            component_picker: RefCell::new(BlockPicker::default()),
-            value_picker: RefCell::new(BlockPicker::default()),
             image_picker: RefCell::new(FilePicker::default()),
             paster: RefCell::new(ImagePaster::default()),
-            paste_asked: Cell::new(false),
-            pending_entities: RefCell::new(Vec::new()),
-            pending_components: RefCell::new(Vec::new()),
-            pending_values: RefCell::new(Vec::new()),
-            pending_value_target: RefCell::new(None),
-            pending_component_entities: RefCell::new(None),
-            pending_block_center: Cell::new(None),
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
             context_position: Cell::new(None),
@@ -334,12 +304,7 @@ impl CanvasState {
             set_pointer,
             last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
             last_fill: Cell::new(CanvasEntityStyle::default().fill),
-            fit_selection: Cell::new(false),
-            fit_preview_region: Cell::new(false),
-            fit_entity: Cell::new(None),
             children: RefCell::new(HashMap::new()),
-            measure: Rc::new(Cell::new(None)),
-            measuring: Cell::new(None),
             entities,
             preview_region,
             tool,
@@ -383,7 +348,7 @@ impl CanvasState {
     }
 
     pub(crate) fn types(&self) -> Rc<BlockCatalog> {
-        self.editor.host().block_types()
+        self.editor.block_types()
     }
 
     pub(crate) fn camera(&self) -> CanvasView {
@@ -617,49 +582,24 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn measure_text(&self, entity: Uuid) -> Option<super::paint::TextMeasure> {
-        (self.measuring.get() == Some(entity)).then(|| Rc::clone(&self.measure))
-    }
-
-    pub(crate) fn request_text_measure(&self, entity: Uuid) {
-        self.measuring.set(Some(entity));
-        self.measure.set(None);
-    }
-
-    fn settle_text_size(&self) {
-        let Some(wanted) = self.measuring.get() else {
-            return;
-        };
-        let Some((entity_id, measured)) = self.measure.take() else {
-            return;
-        };
-        self.measuring.set(None);
-        if entity_id != wanted {
-            return;
-        }
-        let Some(entity) = self
-            .entities
-            .get_untracked()
-            .into_iter()
-            .find(|entity| entity.id == entity_id)
-        else {
-            return;
-        };
+    pub(crate) fn fit_text(&self, mut entity: CanvasEntity) -> CanvasEntity {
         let CanvasEntityKind::Text { text_style, .. } = &entity.kind else {
-            return;
+            return entity;
         };
+        let text_style = *text_style;
         if text_style.wrap {
-            return;
+            return entity;
         }
-        let size = text_box_size(text_style, measured);
-        if (entity.transform.size.x - size.x).abs() < 0.5
-            && (entity.transform.size.y - size.y).abs() < 0.5
+        let Some(measured) = super::paint::measure_text(&entity, self.scale()) else {
+            return entity;
+        };
+        let size = text_box_size(&text_style, measured);
+        if (entity.transform.size.x - size.x).abs() >= 0.5
+            || (entity.transform.size.y - size.y).abs() >= 0.5
         {
-            return;
+            entity.transform.size = size;
         }
-        let mut updated = entity.clone();
-        updated.transform.size = size;
-        self.record_update(vec![entity], vec![updated], true);
+        entity
     }
 
     pub(crate) fn context_position(&self) -> Option<CanvasPoint> {
@@ -689,11 +629,15 @@ impl CanvasState {
     }
 
     pub(crate) fn request_fit_selection(&self) {
-        self.fit_selection.set(true);
+        if let Some(bounds) = self.selected_bounds() {
+            self.fit_into_view(bounds);
+        }
     }
 
     pub(crate) fn request_fit_preview_region(&self) {
-        self.fit_preview_region.set(true);
+        if let Some(region) = self.preview_region.get_untracked() {
+            self.fit_into_view(preview_region_bounds(region));
+        }
     }
 
     pub(crate) fn selected_entities(&self) -> Vec<CanvasEntity> {
@@ -1081,8 +1025,10 @@ impl CanvasState {
     }
 
     pub(crate) fn ask_to_paste(&self) {
-        self.paste_asked.set(true);
         block_editor_plugin::beui::reactive::request_paste();
+        if self.focused_editor.get_untracked().is_none() {
+            self.take_paste(true);
+        }
     }
 
     pub(crate) fn paste_text(&self, text: &str) -> bool {
@@ -1111,11 +1057,23 @@ impl CanvasState {
         true
     }
 
-    pub(crate) fn open_block_picker(&self, center: Option<CanvasPoint>) {
-        self.pending_block_center.set(center);
-        self.picker
-            .borrow_mut()
-            .open(self.editor.host(), BlockFilter::default());
+    pub(crate) fn open_block_picker(self: &Rc<Self>, center: Option<CanvasPoint>) {
+        let state = Rc::downgrade(self);
+        self.editor
+            .pick_block(BlockFilter::default(), move |picked| {
+                if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
+                    state.place_picked_block(picked.id, center);
+                }
+            });
+    }
+
+    fn place_picked_block(&self, block_id: Uuid, center: Option<CanvasPoint>) {
+        let center = center.unwrap_or_else(|| self.viewport_center());
+        self.editor
+            .blocks()
+            .set_parent(block_id, BlockParent::Block(self.block_id()));
+        self.add_direct_editor(block_id, center);
+        self.set_tool(Tool::Select);
     }
 
     pub(crate) fn open_image_picker(&self, center: Option<CanvasPoint>) {
@@ -1125,42 +1083,42 @@ impl CanvasState {
             .open(self.editor.host(), image_filter());
     }
 
-    pub(crate) fn open_component_picker(&self) {
+    pub(crate) fn open_component_picker(self: &Rc<Self>) {
         let selected = self
             .selected_entities()
             .iter()
             .map(|entity| entity.id)
-            .collect();
-        *self.pending_component_entities.borrow_mut() = Some(selected);
-        self.component_picker.borrow_mut().open(
-            self.editor.host(),
+            .collect::<HashSet<_>>();
+        let state = Rc::downgrade(self);
+        self.editor.pick_block(
             BlockFilter {
                 name: "Component".to_owned(),
                 block_types: vec![DatabaseSchemaContent::CONTENT_TYPE.into_bytes()],
                 excluded: Vec::new(),
                 templates: false,
             },
+            move |picked| {
+                if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
+                    state.attach_picked_component(&selected, picked.id);
+                }
+            },
         );
     }
 
+    fn attach_picked_component(&self, selected: &HashSet<Uuid>, reference: Uuid) {
+        let before = self.entities_among(selected);
+        let mut after = before.clone();
+        attach_component(&mut after, selected, reference);
+        self.record_update(before, after, false);
+    }
+
     pub(crate) fn open_value_picker(
-        &self,
+        self: &Rc<Self>,
         schema_id: Uuid,
         field_id: Uuid,
         block_type: Option<Uuid>,
     ) {
-        let mut entity_ids = self
-            .selection
-            .get_untracked()
-            .iter()
-            .copied()
-            .collect::<Vec<_>>();
-        entity_ids.sort_unstable();
-        *self.pending_value_target.borrow_mut() = Some(PendingComponentValuePick {
-            schema_id,
-            field_id,
-            entity_ids,
-        });
+        let selected = self.selection.get_untracked();
         let filter = match block_type {
             Some(block_type) => BlockFilter {
                 name: "Value".to_owned(),
@@ -1170,9 +1128,39 @@ impl CanvasState {
             },
             None => BlockFilter::default(),
         };
-        self.value_picker
-            .borrow_mut()
-            .open(self.editor.host(), filter);
+        let state = Rc::downgrade(self);
+        self.editor.pick_block(filter, move |picked| {
+            if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
+                state.set_picked_value(&selected, schema_id, field_id, picked.id);
+            }
+        });
+    }
+
+    fn set_picked_value(
+        &self,
+        selected: &HashSet<Uuid>,
+        schema_id: Uuid,
+        field_id: Uuid,
+        reference: Uuid,
+    ) {
+        let before = self.entities_among(selected);
+        let mut after = before.clone();
+        set_component_value(
+            &mut after,
+            selected,
+            schema_id,
+            field_id,
+            Some(DatabaseValue::Block(reference)),
+        );
+        self.record_update(before, after, false);
+    }
+
+    fn entities_among(&self, selected: &HashSet<Uuid>) -> Vec<CanvasEntity> {
+        self.entities
+            .get_untracked()
+            .into_iter()
+            .filter(|entity| selected.contains(&entity.id))
+            .collect()
     }
 
     pub(crate) fn update_selected(
@@ -1425,9 +1413,20 @@ impl CanvasState {
         let entity_id = Uuid::new_v4();
         let transform = CanvasTransform::new(center, size, 0.0);
         self.set_selection.set(HashSet::from([entity_id]));
-        self.pending_entities
-            .borrow_mut()
-            .push((block_id, (entity_id, transform)));
+        self.record(InfiniteCanvasOperation::Add {
+            entity: CanvasEntity {
+                id: entity_id,
+                transform,
+                kind: CanvasEntityKind::DirectEditor {
+                    block_id,
+                    scale: 1.0,
+                },
+                style: CanvasEntityStyle::default(),
+                group_id: None,
+                locked: false,
+                components: Vec::new(),
+            },
+        });
     }
 
     pub(crate) fn add_imported_image(&self, image: ImageContent, center: CanvasPoint) {
@@ -1634,24 +1633,65 @@ impl CanvasState {
 }
 
 impl CanvasState {
-    pub(crate) fn poll(&self) {
-        self.publish_references();
-        self.poll_pending();
-        self.poll_pickers();
-        self.poll_images();
-        self.poll_drag();
-        self.poll_files();
-        self.poll_clipboard();
+    pub(crate) fn watch(self: &Rc<Self>) {
+        let state = Rc::clone(self);
+        create_effect(move || state.publish_references());
+        let state = Rc::clone(self);
+        let drag = self.editor.drag();
+        create_effect(move || {
+            let drag = drag.get();
+            untrack(|| state.take_drag(drag));
+        });
+        let state = Rc::clone(self);
+        let files = self.editor.files();
+        create_effect(move || {
+            let drop = files.get();
+            untrack(|| state.take_files(drop));
+        });
+        let state = Rc::clone(self);
+        self.editor.on_reply(move || {
+            state.take_image_pick();
+            state.take_paste(false);
+        });
         if self.preview {
             return;
         }
-        self.autosize_direct_editors();
-        self.settle_text_size();
-        self.publish_presence();
-        self.read_presence();
-        self.poll_resize();
-        self.poll_reveal();
-        self.settle_view();
+        let state = Rc::clone(self);
+        create_effect(move || {
+            state.entities.with(|_| ());
+            state.child_states.with(|_| ());
+            untrack(|| state.autosize_direct_editors());
+        });
+        let state = Rc::clone(self);
+        let visible = self.editor.presence_visible();
+        create_effect(move || {
+            visible.with(|_| ());
+            state.pointer.with(|_| ());
+            state.selection.with(|_| ());
+            untrack(|| state.publish_presence());
+        });
+        let state = Rc::clone(self);
+        create_effect(move || {
+            state.entities.with(|_| ());
+            state.peers.with(|_| ());
+            untrack(|| state.read_presence());
+        });
+        let state = Rc::clone(self);
+        let resized = self.editor.resized();
+        create_effect(move || {
+            let Some(size) = resized.get() else {
+                return;
+            };
+            untrack(|| state.resize_preview_region(size));
+        });
+        let state = Rc::clone(self);
+        let revealed = self.editor.revealed();
+        create_effect(move || {
+            let Some(client_id) = revealed.get() else {
+                return;
+            };
+            untrack(|| state.reveal_peer(client_id));
+        });
     }
 
     fn publish_references(&self) {
@@ -1661,105 +1701,21 @@ impl CanvasState {
             .iter()
             .map(|reference| (reference.id, reference.label(catalog.as_ref())))
             .collect();
-        if self.labels.get_untracked() != labels {
-            self.set_labels.set(labels);
-        }
         let types: HashMap<Uuid, Uuid> = dependencies
             .iter()
             .map(|reference| (reference.id, reference.block_type))
             .collect();
-        if self.types.get_untracked() != types {
-            self.set_types.set(types);
-        }
-    }
-
-    fn poll_pending(&self) {
-        for (reference, (entity_id, transform)) in
-            std::mem::take(&mut *self.pending_entities.borrow_mut())
-        {
-            self.record(InfiniteCanvasOperation::Add {
-                entity: CanvasEntity {
-                    id: entity_id,
-                    transform,
-                    kind: CanvasEntityKind::DirectEditor {
-                        block_id: reference,
-                        scale: 1.0,
-                    },
-                    style: CanvasEntityStyle::default(),
-                    group_id: None,
-                    locked: false,
-                    components: Vec::new(),
-                },
-            });
-        }
-        for (reference, entity_ids) in std::mem::take(&mut *self.pending_components.borrow_mut()) {
-            let selected = entity_ids.into_iter().collect::<HashSet<_>>();
-            let before = self
-                .entities
-                .get_untracked()
-                .into_iter()
-                .filter(|entity| selected.contains(&entity.id))
-                .collect::<Vec<_>>();
-            let mut after = before.clone();
-            attach_component(&mut after, &selected, reference);
-            self.record_update(before, after, false);
-        }
-        for (reference, target) in std::mem::take(&mut *self.pending_values.borrow_mut()) {
-            if self.pending_value_target.borrow().as_ref() != Some(&target) {
-                continue;
+        untrack(|| {
+            if self.labels.get_untracked() != labels {
+                self.set_labels.set(labels);
             }
-            let selected = target.entity_ids.iter().copied().collect::<HashSet<_>>();
-            let before = self
-                .entities
-                .get_untracked()
-                .into_iter()
-                .filter(|entity| selected.contains(&entity.id))
-                .collect::<Vec<_>>();
-            let mut after = before.clone();
-            set_component_value(
-                &mut after,
-                &selected,
-                target.schema_id,
-                target.field_id,
-                Some(DatabaseValue::Block(reference)),
-            );
-            self.record_update(before, after, false);
-            self.pending_value_target.borrow_mut().take();
-        }
-    }
-
-    fn poll_pickers(&self) {
-        if let Some(Ok(picked)) = self.picker.borrow_mut().poll(self.editor.host()) {
-            let center = self
-                .pending_block_center
-                .take()
-                .unwrap_or_else(|| self.viewport_center());
-            self.add_direct_editor(picked.id, center);
-            self.editor
-                .blocks()
-                .set_parent(picked.id, BlockParent::Block(self.block_id()));
-            self.set_tool(Tool::Select);
-        }
-        if let Some(Ok(picked)) = self.component_picker.borrow_mut().poll(self.editor.host()) {
-            let entity_ids = self
-                .pending_component_entities
-                .borrow_mut()
-                .take()
-                .unwrap_or_default();
-            self.pending_components
-                .borrow_mut()
-                .push((picked.id, entity_ids));
-        }
-        let picked = self.value_picker.borrow_mut().poll(self.editor.host());
-        if let Some(Ok(picked)) = picked {
-            let target = self.pending_value_target.borrow().clone();
-            if let Some(target) = target {
-                self.pending_values.borrow_mut().push((picked.id, target));
+            if self.types.get_untracked() != types {
+                self.set_types.set(types);
             }
-        }
+        });
     }
 
-    fn poll_images(&self) {
+    fn take_image_pick(&self) {
         let picked = self
             .image_picker
             .borrow_mut()
@@ -1783,8 +1739,8 @@ impl CanvasState {
         }
     }
 
-    fn poll_drag(&self) {
-        let Some(drag) = self.editor.drag().get_untracked() else {
+    fn take_drag(&self, drag: Option<Drag>) {
+        let Some(drag) = drag else {
             return;
         };
         if drag.block_id == self.block_id() || self.focused_editor.get_untracked().is_some() {
@@ -1801,15 +1757,15 @@ impl CanvasState {
         self.add_direct_editor(drag.block_id, center);
     }
 
-    fn poll_files(&self) {
+    fn take_files(&self, drop: Option<FileDrop>) {
         if self.focused_editor.get_untracked().is_some() {
             return;
         }
-        let Some(drop) = self.editor.host().files() else {
+        let Some(drop) = drop else {
             self.pending_file_drop.set(None);
             return;
         };
-        let at = self.world_at(Pos2::new(drop.position.x, drop.position.y));
+        let at = self.world_at(drop.position);
         if !drop.dropped {
             self.pending_file_drop.set(Some(at));
             return;
@@ -1825,11 +1781,7 @@ impl CanvasState {
         }
     }
 
-    fn poll_clipboard(&self) {
-        if self.focused_editor.get_untracked().is_some() {
-            return;
-        }
-        let asked = self.paste_asked.take();
+    fn take_paste(&self, asked: bool) {
         let pasted = self.paster.borrow_mut().paste(self.editor.host(), asked);
         match pasted {
             Some(PastedImage::Image { name, data }) => {
@@ -1898,10 +1850,7 @@ impl CanvasState {
         }
     }
 
-    fn poll_resize(&self) {
-        let Some(size) = self.editor.resized().get_untracked() else {
-            return;
-        };
+    fn resize_preview_region(&self, size: Vec2) {
         let Some(region) = self.preview_region.get_untracked() else {
             return;
         };
@@ -1917,10 +1866,7 @@ impl CanvasState {
         self.set_preview_region(Some(updated));
     }
 
-    fn poll_reveal(&self) {
-        let Some(client_id) = self.editor.revealed().get_untracked() else {
-            return;
-        };
+    fn reveal_peer(&self, client_id: u64) {
         let Some((_, cursor)) = self
             .peers
             .get_untracked()
@@ -1941,29 +1887,6 @@ impl CanvasState {
         if let Some(target) = target {
             self.editor
                 .reveal(Rect::from_min_max(point(target), point(target)));
-        }
-    }
-
-    fn settle_view(&self) {
-        if self.fit_selection.take()
-            && let Some(bounds) = self.selected_bounds()
-        {
-            self.fit_into_view(bounds);
-        }
-        if let Some(id) = self.fit_entity.take()
-            && let Some(bounds) = self
-                .entities
-                .get_untracked()
-                .iter()
-                .find(|entity| entity.id == id)
-                .and_then(|entity| direct_editor_layout(entity).map(|layout| layout.content))
-        {
-            self.fit_into_view(bounds);
-        }
-        if self.fit_preview_region.take()
-            && let Some(region) = self.preview_region.get_untracked()
-        {
-            self.fit_into_view(preview_region_bounds(region));
         }
     }
 
@@ -1994,7 +1917,15 @@ impl CanvasState {
     }
 
     pub(crate) fn request_fit_entity(&self, entity: Uuid) {
-        self.fit_entity.set(Some(entity));
+        if let Some(bounds) = self
+            .entities
+            .get_untracked()
+            .iter()
+            .find(|candidate| candidate.id == entity)
+            .and_then(|candidate| direct_editor_layout(candidate).map(|layout| layout.content))
+        {
+            self.fit_into_view(bounds);
+        }
     }
 
     fn autosize_direct_editors(&self) {

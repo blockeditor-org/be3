@@ -4,7 +4,7 @@ use std::rc::Rc;
 use beui::NodeId;
 use beui::reactive::{
     Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, WriteSignal, clone,
-    create_memo, create_signal, view,
+    create_effect, create_memo, create_signal, untrack, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, use_theme};
 
@@ -89,6 +89,22 @@ impl<T: 'static> FileChooser<T> {
         }
     }
 
+    pub fn on_reply(
+        self: &Rc<Self>,
+        replies: ReadSignal<u64>,
+        host: EditorHost,
+        replied: impl Fn(&Self) + 'static,
+    ) {
+        let chooser = Rc::clone(self);
+        create_effect(move || {
+            replies.get();
+            untrack(|| {
+                chooser.poll(&host);
+                replied(&chooser);
+            });
+        });
+    }
+
     pub fn take(&self) -> Option<T> {
         self.chosen.borrow_mut().take()
     }
@@ -106,12 +122,12 @@ fn file_creation_with<T: 'static>(
     make: impl Fn(T) -> uuid::Uuid + 'static,
 ) -> NodeId {
     let chooser = FileChooser::new(filter, import);
-    let polled = Rc::clone(&chooser);
     let host = creation.host().clone();
-    creation.each_frame(move || {
-        polled.poll(&host);
-        host.set_creation_ready(polled.is_chosen());
-    });
+    chooser.on_reply(
+        creation.replies(),
+        creation.host().clone(),
+        move |chooser| host.set_creation_ready(chooser.is_chosen()),
+    );
     let made = Rc::clone(&chooser);
     creation.on_create(move || {
         let chosen = made.take().ok_or("no file was chosen")?;
