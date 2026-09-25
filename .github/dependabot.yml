@@ -25,8 +25,27 @@ updates:
         patterns:
           - '*'
 
-# Cargo is deliberately absent. Cargo.lock already pins and checksums every
-# crate, so the integrity half of what Dependabot offers is covered, and weekly
-# version bumps across a workspace this size would be noise rather than signal.
-# Security advisories are worth having, but those come from Dependabot security
-# updates, which is a repository setting rather than an entry here.
+  # One workspace, one Cargo.lock at the root. Minor and patch bumps come as a
+  # single grouped pull request so a workspace this size stays one review a
+  # week; a major bump gets its own, since that is where the breaking changes
+  # are. The generated buck files are rebuilt from Cargo.toml by ./scripts/buck,
+  # so most bumps need nothing else committed beside them.
+  - package-ecosystem: cargo
+    directories:
+      - /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        update-types:
+          - minor
+          - patch
+    # The exception is wasm-bindgen: buck/cargo/BUCK installs wasm-bindgen-cli
+    # at exactly the version Cargo.lock has, and the two refuse to work across
+    # releases. js-sys and web-sys each require an exact wasm-bindgen, so a bump
+    # to any of them drags it along. That family moves by hand, together with
+    # the pin.
+    ignore:
+      - dependency-name: wasm-bindgen*
+      - dependency-name: js-sys
+      - dependency-name: web-sys
