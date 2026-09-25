@@ -286,6 +286,7 @@ struct EditorState {
     next_child: Cell<u64>,
     pick: RefCell<Option<PendingPick>>,
     pumps: RefCell<Vec<Rc<dyn Fn()>>>,
+    web_view: Cell<Option<Option<Rect>>>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
     files: ReadSignal<Option<FileDrop>>,
@@ -348,6 +349,7 @@ impl Editor {
             next_child: Cell::new(0),
             pick: RefCell::new(None),
             pumps: RefCell::new(Vec::new()),
+            web_view: Cell::new(None),
             wakes: Rc::default(),
             pushed,
             files,
@@ -731,7 +733,7 @@ impl Editor {
     }
 
     pub fn place_web_view(&self, rect: Option<Rect>) {
-        self.0.host.place_beui_web_view(rect);
+        self.0.web_view.set(Some(rect));
     }
 
     pub fn pan(&self, delta: Vec2) {
@@ -815,6 +817,9 @@ impl Editor {
     pub fn end_frame(&self, document: &Document) {
         for record in self.records() {
             record.child.set(self.place_child(document, &record));
+        }
+        if let Some(rect) = self.0.web_view.get() {
+            self.0.host.place_beui_web_view(rect);
         }
         for rect in document.overlay_rects() {
             self.0.host.occlude_beui(rect);
