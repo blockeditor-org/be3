@@ -267,6 +267,7 @@ pub fn Draggable<P>(
     payload: Prop<Option<P>>,
     #[prop(default = DRAG_THRESHOLD)] threshold: f32,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
     on_click: ClickCallback,
     on_drag_change: Callback<bool>,
     preview: Option<RenderFn<P>>,
@@ -349,6 +350,7 @@ where
     view! {
         <ClickCatcher
             cursor
+            capture_presses
             on_press={pressed}
             on_drag={dragged}
             on_click_at={clicked}

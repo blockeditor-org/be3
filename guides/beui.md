@@ -686,7 +686,10 @@ press only becomes a drag once the pointer has travelled `threshold` from where
 it went down, and a press that never does is reported through `on_click`
 instead, so a row that is both clickable and draggable does not select itself
 at the end of a drag. `on_drag_change` says when a drag starts and ends, which
-is what a source that dims itself while it is being carried binds.
+is what a source that dims itself while it is being carried binds. Draggables
+that overlap or nest - a fanned hand of cards, a card inside the pile that
+holds it - set `capture_presses`, so a press reaches the topmost one under the
+pointer and nothing beneath it, the way `unstyled::Button` wins a press.
 
 While a drag is under way the `preview` is shown beside the pointer in a
 passive overlay, so it paints above everything and takes no input. The pointer

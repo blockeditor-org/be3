@@ -2,8 +2,10 @@ use std::convert::Infallible;
 
 use uuid::Uuid;
 
-use game_api::{GameHelper, GameScreen};
+use game_api::board::{Grid, Sprite};
+use game_api::{GameHelper, GameScreen, Move, Scene, Spot};
 
+const SIDE: u32 = 3;
 const CELL_COUNT: usize = 9;
 
 const LINES: [[usize; 3]; 8] = [
@@ -30,6 +32,27 @@ impl Symbol {
             Symbol::O => "O",
         }
     }
+
+    fn sprite(self) -> Sprite {
+        match self {
+            Symbol::X => Sprite::piece("x", 0),
+            Symbol::O => Sprite::piece("o", 1),
+        }
+    }
+}
+
+fn spot(cell: usize) -> Spot {
+    Spot::tile(cell as u32 % SIDE, cell as u32 / SIDE)
+}
+
+fn grid(board: &[Option<Symbol>; CELL_COUNT]) -> Grid {
+    let mut grid = Grid::new(SIDE, SIDE);
+    for (cell, symbol) in board.iter().enumerate() {
+        if let Some(symbol) = symbol {
+            grid.place(cell as u32 % SIDE, cell as u32 / SIDE, symbol.sprite());
+        }
+    }
+    grid
 }
 
 fn cell_label(cell: usize) -> String {
@@ -53,10 +76,11 @@ fn tic_tac_toe(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
 
     loop {
         if let Some(winner) = winning_symbol(&board) {
-            helper.action(move |_| format!("{} wins!", winner.label()), |_, _| {})?;
+            return helper
+                .game_over(|_| Scene::new(format!("{} wins!", winner.label())).on(grid(&board)));
         }
         if move_count >= CELL_COUNT {
-            helper.action(|_| "Draw!".to_owned(), |_, _| {})?;
+            return helper.game_over(|_| Scene::new("Draw!").on(grid(&board)));
         }
 
         let turn = move_count % 2;
@@ -68,20 +92,22 @@ fn tic_tac_toe(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
             None => other != Some(player),
         };
 
+        let shown = grid(&board);
         helper.action(
             move |player| {
-                if can_move(player) {
+                let description = if can_move(player) {
                     format!("Your turn ({})", symbol.label())
                 } else {
                     format!("Waiting for {}...", symbol.label())
-                }
+                };
+                Scene::new(description).on(shown.clone())
             },
             |player, action| {
                 if !can_move(player) {
                     return;
                 }
                 for (cell, value) in board.iter_mut().enumerate() {
-                    if value.is_none() && action(&cell_label(cell)) {
+                    if value.is_none() && action(Move::new(cell_label(cell)).click(spot(cell))) {
                         if players[turn].is_none() {
                             players[turn] = Some(player);
                         }
