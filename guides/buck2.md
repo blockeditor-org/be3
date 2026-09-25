@@ -172,7 +172,9 @@ A native target depends on a wasm one through a transition in
 
 - `:app` stages the executable as `block-app`, PDFium, and every editor's
   manifest (`<id>.plugin.json`), module and `.cwasm`, precompiled in an action
-  per module. Cross-compiled apps compile their modules at first launch.
+  per module for the platform the app is built for, by
+  `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
+  build the workers can run.
 - `:dist` is what CI ships per platform, and `:plugins` the plugins once for all.
 - `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
@@ -185,8 +187,8 @@ A native target depends on a wasm one through a transition in
   plugins precompiled for arm64, and `zipalign -P 16`. Signing runs locally
   with `target/android-debug.keystore`, made on first use; CI restores its own
   and passes `-c be3.android_id=com.be3.block.ci -c "be3.android_label=Block (CI)"`.
-  The host's wasmtime has cranelift's arm64 backend for that precompile (a
-  fixup on `cranelift-codegen`).
+  The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
+  (a fixup on `cranelift-codegen`).
 - The macOS builds are an executable and its libraries; the `.app` bundle
   comes with distribution.
 

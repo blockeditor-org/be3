@@ -1,7 +1,7 @@
 # The app as it runs (buck/app/stage.sh): the executable under cargo's name, and
-# beside it every plugin, each module precompiled in an action of its own by
-# plugin-test-runner, block-wasm-host's own engine, on the host only;
-# cross-compiled apps compile their modules at first launch. With no binary it
+# beside it every plugin, each module precompiled for precompile_target in an
+# action of its own by plugin-test-runner, block-wasm-host's own engine, which
+# runs on the workers whatever the app is built for. With no binary it
 # is the plugins alone. The web bundle is this rule too: `bindgen` runs
 # wasm-bindgen over each module, and `index` writes the plugins.json a browser
 # finds the plugins through.

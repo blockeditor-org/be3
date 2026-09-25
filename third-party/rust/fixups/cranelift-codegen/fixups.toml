@@ -1,9 +1,10 @@
 buildscript.run = true
 
-# The arm64 backend beside the host's own, on the host. The plugins an APK
-# carries are compiled for the device's wasmtime ahead of time, on the machine
-# that builds it - crates/block-app's android-assets - which cargo's Android
-# build did with a precompiler built with block-wasm-host's all-arch. buck2
-# builds one wasmtime for the host, so it is this one that has to know arm64.
+# The arm64 backend beside the host's own, on the host. The plugins beside an
+# arm64 app (Android's APK, the Macs, Windows and Linux on arm64) are compiled
+# for its wasmtime ahead of time, on the workers - crates/block-app's app and
+# android-assets - which cargo's Android build did with a precompiler built
+# with block-wasm-host's all-arch. buck2 builds one wasmtime for the host, so
+# it is this one that has to know arm64.
 ['cfg(all(target_arch = "x86_64", target_os = "linux"))']
 features = ["arm64"]

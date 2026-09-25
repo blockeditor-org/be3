@@ -1,7 +1,7 @@
 load("@root//buck/android:defs.bzl", "android_apk")
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
-load("@root//buck/platforms:cross.bzl", "per_cross_platform")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/tools:defs.bzl", "tool")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
@@ -47,8 +47,8 @@ app(
     files = pdfium_library(),
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
-    precompile = per_cross_platform(True, lambda _: False),
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
+    precompiler = "//crates/plugin-test-runner:precompiler",
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -147,9 +147,8 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
-    precompile = per_cross_platform(True, lambda _: False),
     precompile_target = "aarch64-linux-android",
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    precompiler = "//crates/plugin-test-runner:precompiler",
 )
 
 # What CI ships: no plugins, which :plugins builds once for every platform, and
