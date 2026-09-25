@@ -103,16 +103,7 @@ fn table(
 ) -> String {
     let count = |snapshot: Option<&Snapshot>| snapshot.map_or(0, |snapshot| snapshot.frames.len());
     let frames = count(old).max(count(new));
-    let headings: &[&str] = match (old, new) {
-        (Some(_), Some(_)) => &["Before", "After", "Changes"],
-        (Some(_), None) => &["Before"],
-        _ => &["After"],
-    };
-    let mut table = format!(
-        "| Frame | {} |\n|---|{}\n",
-        headings.join(" | "),
-        "---|".repeat(headings.len())
-    );
+    let mut table = "| Frame | Before | After | Changes |\n|---|---|---|---|\n".to_owned();
     for index in 0..frames {
         let old_frame = old.and_then(|snapshot| snapshot.frames.get(index));
         let new_frame = new.and_then(|snapshot| snapshot.frames.get(index));
@@ -120,12 +111,7 @@ fn table(
             continue;
         }
         if *rows >= MAX_ROWS {
-            let _ = writeln!(
-                table,
-                "| {} | more frames not shown |{}",
-                index + 1,
-                " |".repeat(headings.len() - 1)
-            );
+            let _ = writeln!(table, "| {} | more frames not shown | | |", index + 1);
             break;
         }
         *rows += 1;
@@ -147,16 +133,13 @@ fn table(
             Some(rendered) => image(name, index, kind, rendered, output),
             None => String::new(),
         };
-        let cells = match (old, new) {
-            (Some(_), Some(_)) => vec![
-                cell(&old_image, "before"),
-                cell(&new_image, "after"),
-                changes,
-            ],
-            (Some(_), None) => vec![cell(&old_image, "before")],
-            _ => vec![cell(&new_image, "after")],
-        };
-        let _ = writeln!(table, "| {} | {} |", index + 1, cells.join(" | "));
+        let _ = writeln!(
+            table,
+            "| {} | {} | {} | {changes} |",
+            index + 1,
+            cell(&old_image, "before"),
+            cell(&new_image, "after"),
+        );
     }
     table
 }
