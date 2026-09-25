@@ -27,69 +27,6 @@ pub use sessions::SessionRegistry;
 pub use store::{Identity, ServerStore};
 pub use watch::WatchHub;
 
-#[derive(Clone, Debug)]
-pub struct Adopted {
-    pub account: Uuid,
-    pub display_name: String,
-}
-
-pub struct Hosted {
-    store: Arc<ServerStore>,
-    hub: Arc<WatchHub>,
-    registry: Arc<SessionRegistry>,
-}
-
-impl Hosted {
-    pub fn open(data_dir: impl Into<PathBuf>) -> Result<Self, ServerError> {
-        Ok(Self {
-            store: Arc::new(ServerStore::open(data_dir.into())?),
-            hub: Arc::new(WatchHub::new()),
-            registry: Arc::new(SessionRegistry::new()),
-        })
-    }
-
-    pub async fn adopt(
-        &self,
-        account: Uuid,
-        email: &str,
-        display_name: &str,
-        workspace: Uuid,
-        workspace_name: &str,
-        role: WorkspaceRole,
-    ) -> Result<(), ServerError> {
-        self.store
-            .adopt(
-                account,
-                email,
-                display_name,
-                workspace,
-                workspace_name,
-                role,
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub async fn serve<S>(
-        &self,
-        socket: tokio_tungstenite::WebSocketStream<S>,
-        adopted: Adopted,
-    ) -> Result<(), ServerError>
-    where
-        S: AsyncRead + AsyncWrite + Unpin + Send,
-    {
-        serve_socket(
-            socket,
-            Arc::clone(&self.store),
-            Arc::clone(&self.hub),
-            Arc::clone(&self.registry),
-            Some(adopted),
-            ServerConfig::default(),
-        )
-        .await
-    }
-}
-
 #[derive(Debug)]
 pub enum ServerError {
     Refused(ErrorCode, String),
@@ -209,7 +146,6 @@ struct Connection {
     account: Option<Uuid>,
     token: Option<String>,
     identity: Option<Identity>,
-    adopted: Option<Adopted>,
     config: ServerConfig,
 }
 
@@ -229,7 +165,7 @@ async fn handle_connection(
         }),
     )
     .await?;
-    serve_socket(socket, store, hub, registry, None, config).await
+    serve_socket(socket, store, hub, registry, config).await
 }
 
 pub async fn serve_socket<S>(
@@ -237,7 +173,6 @@ pub async fn serve_socket<S>(
     store: Arc<ServerStore>,
     hub: Arc<WatchHub>,
     registry: Arc<SessionRegistry>,
-    adopted: Option<Adopted>,
     config: ServerConfig,
 ) -> Result<(), ServerError>
 where
@@ -254,7 +189,6 @@ where
         account: None,
         token: None,
         identity: None,
-        adopted,
         config,
     };
 
@@ -385,17 +319,6 @@ impl Connection {
             ClientMessage::Authenticate { request, token } => {
                 let profile = self.store.resolve_token(&token).await?;
                 self.token = Some(token.clone());
-                Ok(self.authenticated(request, profile, token))
-            }
-            ClientMessage::Adopt { request } => {
-                let Some(adopted) = self.adopted.clone() else {
-                    return Err(ServerError::Refused(
-                        ErrorCode::NotAuthenticated,
-                        "this connection carries no identity to adopt".into(),
-                    ));
-                };
-                let token = self.store.issue_session(adopted.account).await?;
-                let profile = self.store.profile(adopted.account).await?;
                 Ok(self.authenticated(request, profile, token))
             }
             ClientMessage::Logout { request } => {

@@ -122,9 +122,6 @@ pub enum ClientMessage {
         request: u64,
         token: String,
     },
-    Adopt {
-        request: u64,
-    },
     Logout {
         request: u64,
     },
@@ -288,7 +285,6 @@ impl ClientMessage {
             Self::Register { request, .. }
             | Self::Login { request, .. }
             | Self::Authenticate { request, .. }
-            | Self::Adopt { request }
             | Self::Logout { request }
             | Self::Invite { request, .. }
             | Self::ListInvitations { request }

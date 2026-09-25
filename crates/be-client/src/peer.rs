@@ -29,7 +29,6 @@ pub enum Credentials {
         password: String,
     },
     Token(String),
-    Adopted,
 }
 
 impl Credentials {
@@ -51,7 +50,6 @@ impl Credentials {
                 password,
             },
             Self::Token(token) => ClientMessage::Authenticate { request, token },
-            Self::Adopted => ClientMessage::Adopt { request },
         }
     }
 }
