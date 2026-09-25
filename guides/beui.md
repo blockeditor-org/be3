@@ -1306,6 +1306,11 @@ Compose it from base components. For an interactive control this normally means:
 6. Return the root base node directly so component state and framework slots
    attach to the node callers receive.
 
+A catcher shows the `cursor` it is given while it is hovered or held, and
+one given none leaves the cursor to the catchers around it, so a catcher
+that only listens - for a secondary press, a wheel - does not undo the
+I-beam of the text field it wraps.
+
 A catcher takes the wheel with `on_scroll` and a touch drag with
 `on_scroll_drag`, and `scroll_axis` names the axis it takes them along, so a
 vertical wheel over a horizontal strip passes through to whatever is around it

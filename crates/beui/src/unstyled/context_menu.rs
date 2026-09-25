@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use crate::base::overlay::{Overlay, OverlayAnchor, Placement};
 use crate::document::Document;
 use crate::geometry::Pos2;
-use crate::input::{CursorIcon, PointerPress};
+use crate::input::PointerPress;
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Child, Children, ClickCallback, ClickCatcher, ItemSize, List, NodeRef, Prop,
@@ -79,7 +79,6 @@ pub fn ContextMenu(
     });
     view! {
         <ClickCatcher
-            cursor=CursorIcon::Default
             on_secondary_press={move |press: PointerPress| {
                 if disabled.get() {
                     return;
