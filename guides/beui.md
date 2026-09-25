@@ -629,17 +629,22 @@ shut out rather than answering a press through it.
 Dragging a tab picks a drop target from what is under the pointer: a tab bar
 inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
-instead, which is also what "Pop out into a window" on a tab's own menu does. A window
-holds one pane, so a tab dropped anywhere inside one joins it rather than
-splitting it, and the pane's tab bar is the window's title bar: a grip, the
-tabs, and the button that closes it. Anywhere on that bar that is not a tab
-drags the window, so the grip and whatever room is left beside the tabs are
-both handles. Windows resize from any of
+instead, which is also what "Pop out into a window" on a tab's own menu does. Every pane
+and every window wears the same bar: a grip, the tabs, and a button that closes
+them all, shown only when every tab in it can close. Dragging a docked pane's
+grip carries the whole pane (`DockState::drop_leaf`), with the same drop targets
+a tab has. A window holds one pane, so a tab dropped anywhere inside one joins
+it rather than splitting it, and that pane's bar is the window's title bar:
+anywhere on it that is not a tab drags the window. Right-clicking a grip moves
+that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
+whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
+that mode has no title bar, only the sidebar with the grip and the close button
+at its top. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
 registered with `on_shortcut` so they arrive even from inside a text input in a
 panel. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
-`Choice` inside a horizontal `Scroll`, so the arrows, Home and End walk it like
+`Choice` inside a `Scroll` running the way the bar does, so the arrows, Home and End walk it like
 any other tab list and scroll the tab they reach into view when a pane has more
 tabs than it has room for.
 
