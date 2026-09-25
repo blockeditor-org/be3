@@ -4,7 +4,7 @@ use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 
 pub const DEFAULT_CLIP_SECONDS: f64 = 5.0;
 
@@ -80,7 +80,7 @@ pub struct VideoEffect {
 pub struct VideoClip {
     pub id: Uuid,
 
-    pub block_id: BlockRef,
+    pub block_id: Uuid,
 
     pub length: u64,
 
@@ -89,7 +89,7 @@ pub struct VideoClip {
 }
 
 impl VideoClip {
-    pub fn new(block_id: BlockRef, length: u64) -> Self {
+    pub fn new(block_id: Uuid, length: u64) -> Self {
         Self {
             id: Uuid::new_v4(),
             block_id,
@@ -251,7 +251,7 @@ pub struct VideoProject {
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct ClipNode {
-    pub block: Option<BlockRef>,
+    pub block: Option<Uuid>,
     pub length: u64,
     pub offset: i64,
     pub effects: Vec<VideoEffect>,
@@ -406,14 +406,14 @@ fn sibling_anchor(
 }
 
 impl Root for VideoProject {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7669_6465_6f2d_636f_6e74_656e_7400_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7669_6465_6f5f_626c_6f63_6b00_0000_0001);
 
     fn references(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();
         self.video()
             .clips
             .iter()
-            .filter_map(|clip| clip.block_id.as_direct())
+            .map(|clip| clip.block_id)
             .filter(|block| seen.insert(*block))
             .collect()
     }
@@ -424,14 +424,14 @@ impl Root for VideoProject {
             video
                 .clips()
                 .iter()
-                .filter(move |clip| clip.block_id == BlockRef::Direct(block))
+                .filter(move |clip| clip.block_id == block)
                 .cloned()
         };
         Some(
             self.edit_for(&match change {
                 ChildChange::Add(block) => VideoOperation::InsertClip {
                     clip: VideoClip::new(
-                        BlockRef::Direct(block),
+                        block,
                         video.frame_rate().frames(DEFAULT_CLIP_SECONDS).max(1),
                     ),
                     index: video.children(None).len(),
@@ -442,7 +442,7 @@ impl Root for VideoProject {
                 ChildChange::Replace { old, new } => VideoOperation::UpdateClips {
                     clips: showing(old)
                         .map(|clip| VideoClip {
-                            block_id: BlockRef::Direct(new),
+                            block_id: new,
                             ..clip
                         })
                         .collect(),

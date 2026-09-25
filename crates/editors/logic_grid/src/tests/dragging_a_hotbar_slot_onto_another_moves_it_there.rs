@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn dragging_a_hotbar_slot_onto_another_moves_it_there() {
-    let (mut editor, _block) = editor();
+    let mut editor = editor();
     assert!(editor.label("logic-grid.slot.0").contains("Wire"));
 
     let from = editor.rect_of("logic-grid.slot.0").center();

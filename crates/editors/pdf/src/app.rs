@@ -1,4 +1,3 @@
-use block_client::blocks::pdf::Pdf;
 use block_editor_plugin::be_block::PdfContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
@@ -25,7 +24,7 @@ impl block_editor_plugin::BeuiApp for PdfApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        content_file_creation::<Pdf, PdfContent>(&creation, "pdf", filter(), imported)
+        content_file_creation::<PdfContent>(&creation, "pdf", filter(), imported)
     }
 }
 

@@ -1,10 +1,9 @@
 pub mod database;
 pub mod datetime;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
-use block::BlockReference;
-use block_client::{BlockHandleAccess, CachedBlock, presence::PresenceColor};
+use be_block::presence::PresenceColor;
 use uuid::Uuid;
 
 pub const EMBEDDED_EDITOR_PADDING: f32 = 12.0;
@@ -101,10 +100,11 @@ impl BlockLabel {
     pub fn new(
         types: &dyn BlockTypes,
         block_type: Uuid,
-        name: Option<&block_client::properties::BlockName>,
+        name: Option<&str>,
+        named_by_hand: bool,
     ) -> Self {
-        let (name, automatic) = match name.filter(|name| !name.value.is_empty()) {
-            Some(name) => (name.value.clone(), !name.manual),
+        let (name, automatic) = match name.filter(|name| !name.is_empty()) {
+            Some(name) => (name.to_owned(), !named_by_hand),
             None => (
                 types
                     .display_name(block_type)
@@ -119,29 +119,5 @@ impl BlockLabel {
             name,
             automatic,
         }
-    }
-
-    pub fn for_properties(
-        types: &dyn BlockTypes,
-        block_type: Uuid,
-        properties: &BTreeMap<Uuid, Vec<u8>>,
-    ) -> Self {
-        Self::new(
-            types,
-            block_type,
-            block_client::properties::read_name(properties).as_ref(),
-        )
-    }
-
-    pub fn for_reference(types: &dyn BlockTypes, reference: &BlockReference) -> Self {
-        Self::for_properties(types, reference.block_type, &reference.properties)
-    }
-
-    pub fn for_cached(types: &dyn BlockTypes, cached: &CachedBlock) -> Self {
-        Self::for_properties(types, cached.block_type, &cached.properties)
-    }
-
-    pub fn for_handle(types: &dyn BlockTypes, handle: &dyn BlockHandleAccess) -> Self {
-        Self::new(types, handle.block_type(), handle.block_name().as_ref())
     }
 }

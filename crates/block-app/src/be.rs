@@ -3,10 +3,10 @@ use std::sync::{Arc, Condvar, Mutex, OnceLock};
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
-use block::Block;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
+mod graph;
 mod worker;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -19,7 +19,8 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use worker::{History, Shared};
+pub(crate) use graph::{Node, Query};
+pub(crate) use worker::{History, Presence, Shared};
 
 use worker::Command;
 
@@ -34,15 +35,7 @@ pub(crate) struct Config {
 
 impl Config {
     fn socket_url(&self) -> String {
-        let base = match self.server_url.split_once("://") {
-            Some(("http", host)) => format!("ws://{host}"),
-            Some(("https", host)) => format!("wss://{host}"),
-            _ => self.server_url.clone(),
-        };
-        format!(
-            "{base}/api/be?token={}&workspace={}",
-            self.token, self.workspace
-        )
+        crate::accounts::socket_url(&self.server_url)
     }
 
     fn content_key(&self) -> [u8; 32] {
@@ -136,50 +129,42 @@ pub(crate) struct Status {
 
 type ChildOperations = fn(&[u8], be_block::ChildChange) -> Option<Vec<Vec<u8>>>;
 
-struct Migrated {
-    block_type: Uuid,
+struct Kind {
     content_type: Uuid,
     join: worker::Join,
     copy: worker::Copy,
     seed: worker::Seed,
     replace: worker::Seed,
     name: fn(&[u8]) -> Option<String>,
-    references: fn(&[u8]) -> Vec<Uuid>,
     child: ChildOperations,
 }
 
-const fn migrated<B, C>() -> Migrated
+const fn kind<C>() -> Kind
 where
-    B: Block,
     C: be_block::LiveEdit + be_block::Merge + Clone + Default,
 {
-    Migrated {
-        block_type: B::TYPE_ID,
+    Kind {
         content_type: C::CONTENT_TYPE,
         join: worker::join::<C>,
         copy: worker::copy::<C>,
         seed: worker::seed::<C>,
         replace: worker::replace::<C>,
         name: content_name::<C>,
-        references: content_references::<C>,
         child: child_operations::<C>,
     }
 }
 
-const fn migrated_with_history<B, C>() -> Migrated
+const fn kind_with_history<C>() -> Kind
 where
-    B: Block,
     C: be_block::Undo + be_block::Merge + Clone + Default,
 {
-    Migrated {
-        block_type: B::TYPE_ID,
+    Kind {
         content_type: C::CONTENT_TYPE,
         join: worker::join_with_history::<C>,
         copy: worker::copy::<C>,
         seed: worker::seed::<C>,
         replace: worker::replace::<C>,
         name: content_name::<C>,
-        references: content_references::<C>,
         child: child_operations::<C>,
     }
 }
@@ -196,111 +181,67 @@ fn child_operations<C: be_block::LiveEdit>(
     Some(operations.iter().map(C::encode_operation).collect())
 }
 
-fn content_references<C: be_block::BlockContent>(bytes: &[u8]) -> Vec<Uuid> {
-    C::decode(bytes)
-        .map(|content| content.references())
-        .unwrap_or_default()
-}
-
-const MIGRATED: &[Migrated] = &[
-    migrated::<block_client::blocks::audio::Audio, be_block::AudioContent>(),
-    migrated_with_history::<block_client::blocks::calendar::Calendar, be_block::CalendarContent>(),
-    migrated_with_history::<block_client::blocks::checklist::Checklist, be_block::ChecklistContent>(
-    ),
-    migrated_with_history::<block_client::blocks::counter::Counter, be_block::CounterContent>(),
-    migrated_with_history::<block_client::blocks::database::Database, be_block::DatabaseContent>(),
-    migrated_with_history::<
-        block_client::blocks::database_schema::DatabaseSchema,
-        be_block::DatabaseSchemaContent,
-    >(),
-    migrated_with_history::<
-        block_client::blocks::database_view::DatabaseView,
-        be_block::DatabaseViewContent,
-    >(),
-    migrated_with_history::<
-        block_client::blocks::deterministic_game::DeterministicGame,
-        be_block::DeterministicGameContent,
-    >(),
-    migrated::<block_client::blocks::game_module::GameModule, be_block::GameModuleContent>(),
-    migrated_with_history::<block_client::blocks::hotbar::Hotbar, be_block::HotbarContent>(),
-    migrated::<block_client::blocks::image::Image, be_block::ImageContent>(),
-    migrated_with_history::<block_client::blocks::map::Map, be_block::MapContent>(),
-    migrated_with_history::<
-        block_client::blocks::paint_review::PaintReview,
-        be_block::PaintReviewContent,
-    >(),
-    migrated::<block_client::blocks::paint_snapshot::PaintSnapshot, be_block::PaintSnapshotContent>(
-    ),
-    migrated::<block_client::blocks::pdf::Pdf, be_block::PdfContent>(),
-    migrated_with_history::<
-        block_client::blocks::presentation::Presentation,
-        be_block::PresentationContent,
-    >(),
-    migrated_with_history::<block_client::blocks::video::Video, be_block::VideoContent>(),
-    migrated::<block_client::blocks::ui_settings::UiSettings, be_block::UiSettingsContent>(),
-    migrated::<block_client::blocks::web_browser_tab::WebBrowserTab, be_block::BrowserTabContent>(),
+const KINDS: &[Kind] = &[
+    kind::<be_block::AudioContent>(),
+    kind_with_history::<be_block::CalendarContent>(),
+    kind_with_history::<be_block::ChecklistContent>(),
+    kind::<be_block::CompiledLogicContent>(),
+    kind_with_history::<be_block::CounterContent>(),
+    kind_with_history::<be_block::DatabaseContent>(),
+    kind_with_history::<be_block::DatabaseSchemaContent>(),
+    kind_with_history::<be_block::DatabaseViewContent>(),
+    kind_with_history::<be_block::DeterministicGameContent>(),
+    kind::<be_block::GameModuleContent>(),
+    kind_with_history::<be_block::HotbarContent>(),
+    kind::<be_block::ImageContent>(),
+    kind_with_history::<be_block::CanvasContent>(),
+    kind_with_history::<be_block::LogicGameContent>(),
+    kind_with_history::<be_block::LogicGridContent>(),
+    kind_with_history::<be_block::MapContent>(),
+    kind_with_history::<be_block::PaintReviewContent>(),
+    kind::<be_block::PaintSnapshotContent>(),
+    kind::<be_block::PdfContent>(),
+    kind_with_history::<be_block::PixelArtContent>(),
+    kind_with_history::<be_block::PresentationContent>(),
+    kind::<be_block::TextContent>(),
+    kind_with_history::<be_block::VideoContent>(),
+    kind::<be_block::UiSettingsContent>(),
+    kind::<be_block::BrowserTabContent>(),
+    kind_with_history::<be_block::SettingsContent>(),
+    kind::<be_block::FolderContent>(),
+    kind_with_history::<be_block::PixelRayTracerContent>(),
+    kind::<be_block::FileTreeContent>(),
+    kind::<be_block::PanZoomContent>(),
+    kind::<be_block::Scene3dContent>(),
+    kind::<be_block::WorkspaceUiContent>(),
 ];
 
-pub(crate) fn content_type_for(block_type: Uuid) -> Option<Uuid> {
-    MIGRATED
-        .iter()
-        .find(|migrated| migrated.block_type == block_type)
-        .map(|migrated| migrated.content_type)
+fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
+    KINDS.iter().find(|kind| kind.content_type == content_type)
 }
 
 pub(crate) fn name_of(content: &Content) -> Option<String> {
-    let migrated = MIGRATED
-        .iter()
-        .find(|migrated| migrated.content_type == content.content_type)?;
-    (migrated.name)(&content.bytes)
+    (kind_of(content.content_type)?.name)(&content.bytes)
 }
 
-pub(crate) fn references_of(content: &Content) -> Option<Vec<Uuid>> {
-    let migrated = MIGRATED
-        .iter()
-        .find(|migrated| migrated.content_type == content.content_type)?;
-    Some((migrated.references)(&content.bytes))
-}
-
-pub(crate) fn block_type_of(content_type: Uuid) -> Option<Uuid> {
-    MIGRATED
-        .iter()
-        .find(|migrated| migrated.content_type == content_type)
-        .map(|migrated| migrated.block_type)
-}
-
-pub(crate) fn is_migrated(content_type: Uuid) -> bool {
-    MIGRATED
-        .iter()
-        .any(|migrated| migrated.content_type == content_type)
+pub(crate) fn is_known(content_type: Uuid) -> bool {
+    kind_of(content_type).is_some()
 }
 
 fn copy_for(content_type: Uuid) -> Option<worker::Copy> {
-    MIGRATED
-        .iter()
-        .find(|migrated| migrated.content_type == content_type)
-        .map(|migrated| migrated.copy)
+    kind_of(content_type).map(|kind| kind.copy)
 }
 
 fn replace_for(content_type: Uuid) -> Option<worker::Seed> {
-    MIGRATED
-        .iter()
-        .find(|migrated| migrated.content_type == content_type)
-        .map(|migrated| migrated.replace)
+    kind_of(content_type).map(|kind| kind.replace)
 }
 
 fn seed_for(content_type: Uuid) -> Option<worker::Seed> {
-    MIGRATED
-        .iter()
-        .find(|migrated| migrated.content_type == content_type)
-        .map(|migrated| migrated.seed)
+    kind_of(content_type).map(|kind| kind.seed)
 }
 
 fn join_for(content_type: Uuid) -> Option<worker::Join> {
-    MIGRATED
-        .iter()
-        .find(|migrated| migrated.content_type == content_type)
-        .map(|migrated| migrated.join)
+    kind_of(content_type).map(|kind| kind.join)
 }
 
 struct Stack {
@@ -379,10 +320,10 @@ pub(crate) fn close(block: Uuid) {
     }
 }
 
-pub(crate) fn hold(block: Uuid, block_type: Uuid) {
-    let Some(content_type) = content_type_for(block_type) else {
+pub(crate) fn hold(block: Uuid, content_type: Uuid) {
+    if !is_known(content_type) {
         return;
-    };
+    }
     let fresh = stack()
         .lock()
         .unwrap()
@@ -395,17 +336,15 @@ pub(crate) fn hold(block: Uuid, block_type: Uuid) {
 
 pub(crate) fn change_child(
     block: Uuid,
-    block_type: Uuid,
+    content_type: Uuid,
     change: be_block::ChildChange,
 ) -> Option<bool> {
-    let migrated = MIGRATED
-        .iter()
-        .find(|migrated| migrated.block_type == block_type)?;
+    let kind = kind_of(content_type)?;
     let Some(held) = content(block) else {
-        hold(block, block_type);
+        hold(block, content_type);
         return None;
     };
-    for operation in (migrated.child)(&held.bytes, change)? {
+    for operation in (kind.child)(&held.bytes, change)? {
         send(Command::Operate(block, None, operation));
     }
     Some(true)
@@ -419,6 +358,17 @@ pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Optio
     with_shared(|shared| {
         let content = shared.blocks.get(&block)?;
         (sent != Some(content.revision)).then(|| (content.revision, content.since(origin, sent)))
+    })?
+}
+
+pub(crate) fn show(block: Uuid, kind: Uuid, value: Option<Vec<u8>>) {
+    send(Command::Presence { block, kind, value });
+}
+
+pub(crate) fn presence_since(block: Uuid, sent: Option<u64>) -> Option<(u64, Vec<Presence>)> {
+    with_shared(|shared| {
+        let (revision, presence) = shared.presence.get(&block)?;
+        (sent != Some(*revision)).then(|| (*revision, presence.clone()))
     })?
 }
 
@@ -436,14 +386,32 @@ pub(crate) fn redo(block: Uuid) {
     send(Command::History { block, redo: true });
 }
 
-pub(crate) fn duplicate(from: Uuid, to: Uuid, block_type: Uuid) {
-    if let Some(content_type) = content_type_for(block_type) {
-        send(Command::Duplicate {
-            from,
-            to,
-            content_type,
+pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
+    let source = node(from)?;
+    kind_of(source.content_type)?;
+    let to = Uuid::new_v4();
+    let mut metadata = source.metadata.clone();
+    metadata.artifact = None;
+    let author = account().unwrap_or_default();
+    with_shared_mut(|shared| {
+        shared.graph.change(Node {
+            id: to,
+            content_type: source.content_type,
+            author,
+            parent: be_graph::BlockParent::Detached,
+            access: be_graph::Access::Edit,
+            references: source.references.clone(),
+            metadata: metadata.clone(),
+            version: 0,
         });
-    }
+    });
+    send(Command::Duplicate {
+        from,
+        to,
+        content_type: source.content_type,
+        metadata,
+    });
+    Some((to, source.content_type))
 }
 
 pub(crate) fn replace(block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
@@ -511,6 +479,130 @@ pub(crate) fn wait_for<T>(
         }
         held = changed.wait_timeout(held, remaining).unwrap().0;
     }
+}
+
+fn with_shared_mut<T>(change: impl FnOnce(&mut Shared) -> T) -> Option<T> {
+    let held = stack().lock().unwrap();
+    let stack = held.as_ref()?;
+    let mut shared = stack.shared.lock().unwrap();
+    Some(change(&mut shared))
+}
+
+pub(crate) fn account() -> Option<Uuid> {
+    stack().lock().unwrap().as_ref().map(|stack| stack.account)
+}
+
+pub(crate) fn identity() -> Option<(Uuid, Uuid)> {
+    stack()
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|stack| (stack.account, stack.workspace))
+}
+
+pub(crate) fn graph_revision() -> u64 {
+    with_shared(|shared| shared.graph.revision).unwrap_or_default()
+}
+
+pub(crate) fn graph_loaded() -> bool {
+    with_shared(|shared| shared.graph.loaded).unwrap_or_default()
+}
+
+pub(crate) fn query(query: Query) -> Vec<Node> {
+    with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
+}
+
+pub(crate) fn nodes() -> Vec<Node> {
+    with_shared(|shared| shared.graph.nodes()).unwrap_or_default()
+}
+
+pub(crate) fn node(block: Uuid) -> Option<Node> {
+    with_shared(|shared| shared.graph.get(block).cloned())?
+}
+
+pub(crate) fn access(block: Uuid) -> be_graph::Access {
+    node(block).map_or(be_graph::Access::None, |node| node.access)
+}
+
+pub(crate) fn create(
+    block: Uuid,
+    content_type: Uuid,
+    parent: be_graph::BlockParent,
+    metadata: be_block::BlockMetadata,
+    content: Option<Vec<u8>>,
+) {
+    let author = account().unwrap_or_default();
+    with_shared_mut(|shared| {
+        shared.graph.change(Node {
+            id: block,
+            content_type,
+            author,
+            parent,
+            access: be_graph::Access::Edit,
+            references: Vec::new(),
+            metadata: metadata.clone(),
+            version: 0,
+        });
+    });
+    send(Command::Create {
+        block,
+        content_type,
+        parent,
+        metadata,
+        bytes: content,
+    });
+}
+
+pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
+    with_shared_mut(|shared| shared.graph.update(block, |node| node.parent = parent));
+    send(Command::SetParent { block, parent });
+}
+
+pub(crate) fn set_metadata(block: Uuid, metadata: be_block::BlockMetadata) {
+    with_shared_mut(|shared| {
+        shared
+            .graph
+            .update(block, |node| node.metadata = metadata.clone());
+    });
+    send(Command::SetMetadata { block, metadata });
+}
+
+pub(crate) fn set_name(block: Uuid, name: Option<String>) {
+    let Some(mut metadata) = node(block).map(|node| node.metadata) else {
+        return;
+    };
+    metadata.named_by_hand = name.is_some();
+    if name.is_some() {
+        metadata.name = name;
+    }
+    set_metadata(block, metadata);
+}
+
+pub(crate) fn name_implicitly(block: Uuid, name: Option<String>) {
+    let Some(mut metadata) = node(block).map(|node| node.metadata) else {
+        return;
+    };
+    if metadata.named_by_hand || metadata.name == name {
+        return;
+    }
+    metadata.name = name;
+    set_metadata(block, metadata);
+}
+
+pub(crate) fn set_access(block: Uuid, account: Uuid, access: be_graph::Access) {
+    send(Command::SetAccess {
+        block,
+        account,
+        access,
+    });
+}
+
+pub(crate) fn list_access(
+    block: Uuid,
+) -> std::sync::mpsc::Receiver<Result<Vec<be_protocol::AccessEntry>, String>> {
+    let (reply, received) = std::sync::mpsc::channel();
+    send(Command::ListAccess { block, reply });
+    received
 }
 
 fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn choosing_a_tool_marks_it_in_the_sidebar() {
-    let (mut editor, _) = editor();
+    let mut editor = editor();
 
     assert!(pressed(&editor, "Pencil"));
     assert!(!pressed(&editor, "Eraser"));

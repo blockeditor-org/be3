@@ -3,7 +3,7 @@ use block_editor_plugin::beui::{Event, Modifiers, PointerButton};
 
 #[test]
 fn a_dragged_hotbar_slot_follows_the_pointer() {
-    let (mut editor, _block) = editor();
+    let mut editor = editor();
     let from = editor.rect_of("logic-grid.slot.0").center();
     let to = editor.rect_of("logic-grid.canvas").center();
 

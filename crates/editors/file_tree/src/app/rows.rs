@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::Arc;
 
-use block::{BlockAccess, BlockParent, BlockReference, BlockReferenceList};
-use block_client::{BlockClient, ReferenceList};
-use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal, untrack};
-use block_editor_plugin::block_ui::{BlockLabel, BlockTypes};
+use block_editor_plugin::beui::reactive::{
+    Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
+};
+use block_editor_plugin::block_ui::BlockTypes;
+use block_editor_plugin::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_plugin::{BlockSource, Editor};
 use uuid::Uuid;
 
@@ -31,7 +31,7 @@ pub(crate) struct Row {
     pub(crate) container: Option<Uuid>,
     pub(crate) source: BlockSource,
     pub(crate) is_reference: bool,
-    pub(crate) access: BlockAccess,
+    pub(crate) access: AccessLevel,
     pub(crate) dynamic_artifact: bool,
     pub(crate) parent: BlockParent,
     pub(crate) can_add: bool,
@@ -55,7 +55,7 @@ impl Row {
             container: None,
             source: BlockSource::Root,
             is_reference: false,
-            access: BlockAccess::None,
+            access: AccessLevel::None,
             dynamic_artifact: false,
             parent: BlockParent::Root,
             can_add: false,
@@ -68,46 +68,50 @@ impl Row {
 
 #[derive(Default)]
 struct Watched {
-    expanded: HashMap<Uuid, ReferenceList>,
-    orphans: Option<ReferenceList>,
+    expanded: HashMap<Uuid, BlockList>,
+    orphans: Option<BlockList>,
     block_types: HashMap<Uuid, Uuid>,
 }
 
 pub(crate) struct Tree {
-    client: Arc<BlockClient>,
+    client: Blocks,
     watched: Rc<RefCell<Watched>>,
     rows: Memo<Vec<Row>>,
     orphans_open: Memo<bool>,
     set_expanded: block_editor_plugin::beui::reactive::WriteSignal<HashSet<Uuid>>,
     set_orphans_open: block_editor_plugin::beui::reactive::WriteSignal<bool>,
+    set_remembered: WriteSignal<u64>,
 }
 
 impl Tree {
     pub(crate) fn watch(editor: &Editor) -> Rc<Self> {
-        let client = Arc::clone(editor.client());
-        let roots = client.watch_references(BlockReferenceList::Roots);
+        let client = editor.blocks();
+        let roots = client.watch(BlockQuery::Roots);
         let watched = Rc::new(RefCell::new(Watched::default()));
         let (expanded, set_expanded) = create_signal(HashSet::<Uuid>::new());
         let (orphans_open, set_orphans_open) = create_signal(false);
         let (rows, set_rows) = create_signal(Vec::<Row>::new());
+        let (remembered, set_remembered) = create_signal(0_u64);
 
         let build = Rc::clone(&watched);
         let host = editor.host().clone();
-        let building = Arc::clone(&client);
+        let building = client.clone();
         let open = expanded.clone();
         let orphans = orphans_open.clone();
-        editor.each_frame(move || {
+        create_effect(move || {
+            remembered.get();
             let mut watched = build.borrow_mut();
-            let open = open.get_untracked();
+            let open = open.get();
             watched.expanded.retain(|id, _| open.contains(id));
             for id in &open {
-                watched.expanded.entry(*id).or_insert_with(|| {
-                    building.watch_references(BlockReferenceList::References(*id))
-                });
+                watched
+                    .expanded
+                    .entry(*id)
+                    .or_insert_with(|| building.watch(BlockQuery::References(*id)));
             }
-            let showing = orphans.get_untracked();
+            let showing = orphans.get();
             if showing && watched.orphans.is_none() {
-                watched.orphans = Some(building.watch_references(BlockReferenceList::Orphans));
+                watched.orphans = Some(building.watch(BlockQuery::Detached));
             }
             if !showing {
                 watched.orphans = None;
@@ -131,6 +135,7 @@ impl Tree {
             }
             builder.push_orphans(showing);
             let rows = builder.rows;
+            drop(watched);
             set_rows.set(rows);
         });
 
@@ -141,6 +146,7 @@ impl Tree {
             orphans_open: create_memo(move || orphans_open.get()),
             set_expanded,
             set_orphans_open,
+            set_remembered,
         })
     }
 
@@ -160,9 +166,10 @@ impl Tree {
 
     pub(crate) fn remember(&self, id: Uuid, block_type: Uuid) {
         self.watched.borrow_mut().block_types.insert(id, block_type);
+        self.set_remembered.update(|count| *count += 1);
     }
 
-    pub(crate) fn client(&self) -> &Arc<BlockClient> {
+    pub(crate) fn blocks(&self) -> &Blocks {
         &self.client
     }
 
@@ -200,7 +207,7 @@ impl Tree {
 }
 
 struct Builder<'a> {
-    client: &'a Arc<BlockClient>,
+    client: &'a Blocks,
     types: &'a dyn BlockTypes,
     watched: &'a mut Watched,
     rows: Vec<Row>,
@@ -235,7 +242,7 @@ impl Builder<'_> {
 
     fn push(
         &mut self,
-        reference: BlockReference,
+        reference: BlockInfo,
         depth: usize,
         container: Option<Uuid>,
         path: &mut Vec<Uuid>,
@@ -243,25 +250,25 @@ impl Builder<'_> {
         self.watched
             .block_types
             .insert(reference.id, reference.block_type);
-        let is_reference = container.is_some_and(|id| reference.parent != BlockParent::Uuid(id));
+        let is_reference = container.is_some_and(|id| reference.parent != BlockParent::Block(id));
         let source = container.map_or_else(
             || match reference.parent {
-                BlockParent::Orphaned => BlockSource::Orphaned,
-                BlockParent::Root | BlockParent::Uuid(_) => BlockSource::Root,
+                BlockParent::Detached => BlockSource::Orphaned,
+                BlockParent::Root | BlockParent::Block(_) => BlockSource::Root,
             },
             BlockSource::Block,
         );
-        let access = self.client.block_access(reference.id);
+        let access = self.client.access(reference.id);
         let can_edit = access.can_edit();
         let can_add = self.types.child_edits(reference.block_type).add && can_edit;
         let can_delete = source != BlockSource::Orphaned
             && self.can_move_out_of(source, reference.id, is_reference);
         let unlink = self.unlink_permission(container);
-        let expandable = !is_reference && reference.references > 0;
+        let expandable = !is_reference && !reference.references.is_empty();
         let mut key_path = path.clone();
         key_path.push(reference.id);
         let expanded = expandable && self.watched.expanded.contains_key(&reference.id);
-        let label = BlockLabel::for_reference(self.types, &reference);
+        let label = reference.label(self.types);
         self.rows.push(Row {
             key: RowKey::Block(key_path.clone()),
             id: Some(reference.id),
@@ -276,7 +283,7 @@ impl Builder<'_> {
             source,
             is_reference,
             access,
-            dynamic_artifact: reference.dynamic_artifact,
+            dynamic_artifact: reference.is_artifact(),
             parent: reference.parent,
             can_add,
             can_edit,
@@ -323,7 +330,7 @@ impl Builder<'_> {
 }
 
 pub(crate) fn can_move_out_of(
-    client: &BlockClient,
+    client: &Blocks,
     types: &dyn BlockTypes,
     block_types: &HashMap<Uuid, Uuid>,
     source: BlockSource,
@@ -336,14 +343,14 @@ pub(crate) fn can_move_out_of(
             block_types
                 .get(&id)
                 .is_some_and(|block_type| types.child_edits(*block_type).delete)
-                && client.block_access(id).can_edit()
+                && client.access(id).can_edit()
         }
     };
-    can_delete && (is_reference || client.block_access(child).can_edit())
+    can_delete && (is_reference || client.access(child).can_edit())
 }
 
 pub(crate) fn unlink_permission(
-    client: &BlockClient,
+    client: &Blocks,
     types: &dyn BlockTypes,
     block_types: &HashMap<Uuid, Uuid>,
     container: Option<Uuid>,
@@ -353,7 +360,7 @@ pub(crate) fn unlink_permission(
         (Some(_), Some(block_type)) if !types.child_edits(block_type).replace => {
             Err("This container doesn't support replacing a reference")
         }
-        (Some(container), Some(_)) if !client.block_access(container).can_edit() => {
+        (Some(container), Some(_)) if !client.access(container).can_edit() => {
             Err("You don't have permission to edit this container")
         }
         (Some(_), Some(_)) => Ok(()),
@@ -361,21 +368,21 @@ pub(crate) fn unlink_permission(
     }
 }
 
-pub(crate) fn access_hint(access: BlockAccess) -> &'static str {
+pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     match access {
-        BlockAccess::Edit => "",
-        BlockAccess::View => "You can view this block, but not change it.",
-        BlockAccess::KnowExists | BlockAccess::None => {
+        AccessLevel::Edit => "",
+        AccessLevel::View => "You can view this block, but not change it.",
+        AccessLevel::KnowExists | AccessLevel::None => {
             "You can see that this block exists, but not open it."
         }
     }
 }
 
-pub(crate) fn access_marker(access: BlockAccess) -> Option<&'static str> {
+pub(crate) fn access_marker(access: AccessLevel) -> Option<&'static str> {
     match access {
-        BlockAccess::Edit => None,
-        BlockAccess::View => Some(block_editor_plugin::beui::icons::ICON_VISIBILITY),
-        BlockAccess::KnowExists | BlockAccess::None => {
+        AccessLevel::Edit => None,
+        AccessLevel::View => Some(block_editor_plugin::beui::icons::ICON_VISIBILITY),
+        AccessLevel::KnowExists | AccessLevel::None => {
             Some(block_editor_plugin::beui::icons::ICON_LOCK)
         }
     }

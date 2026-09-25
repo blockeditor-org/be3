@@ -1,8 +1,6 @@
 use super::*;
 
 use be_block::ImageContent;
-use block::Block;
-use block_client::blocks::image::Image;
 
 fn holds(shared: &Shared, block: Uuid, name: &str) -> bool {
     shared.blocks.get(&block).is_some_and(|held| {
@@ -22,7 +20,7 @@ fn replacing_content_reaches_a_block_open_or_not() {
     harness.connect();
     let (open, closed) = (Uuid::new_v4(), Uuid::new_v4());
 
-    hold(open, Image::TYPE_ID);
+    hold(open, ImageContent::CONTENT_TYPE);
     wait_until("opened the image", |shared| {
         shared.blocks.contains_key(&open)
     });
@@ -37,7 +35,7 @@ fn replacing_content_reaches_a_block_open_or_not() {
 
     replace(closed, ImageContent::CONTENT_TYPE, image("unopened.png"));
     flush();
-    hold(closed, Image::TYPE_ID);
+    hold(closed, ImageContent::CONTENT_TYPE);
     wait_until("opened what was written while it was closed", |shared| {
         holds(shared, closed, "unopened.png")
     });

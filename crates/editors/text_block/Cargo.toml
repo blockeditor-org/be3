@@ -9,10 +9,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
-block = { path = "../../block" }
-block-client = { path = "../../block-client" }
 block-editor-plugin = { path = "../../block-editor-plugin" }
 serde = { version = "1", features = ["derive"] }
+similar = "3.1"
 text-editor-core = { path = "../../text-editor-core" }
 uuid = "1"
 

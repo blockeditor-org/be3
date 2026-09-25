@@ -13,7 +13,7 @@ pub struct PdfHeader {
 pub struct PdfFile;
 
 impl BlobKind for PdfFile {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7064_662d_626c_6f63_6b2d_7479_7065_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7064_662d_626c_6f63_6b2d_7479_7065_2d01);
 
     type Header = PdfHeader;
 

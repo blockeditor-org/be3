@@ -43,12 +43,11 @@ impl LogicGridEditor {
         let program = self
             .compiled
             .get(&compiled)
-            .and_then(BlockHandle::read)
+            .and_then(|source| source.program.as_ref())
             .ok_or_else(|| format!("component {compiled} has not loaded yet"))?;
         let linked = program
             .program()
             .link_with_source(compiled, |called| self.link_compiled(called, cache))?;
-        drop(program);
         cache.insert(compiled, Rc::clone(&linked));
         Ok(linked)
     }

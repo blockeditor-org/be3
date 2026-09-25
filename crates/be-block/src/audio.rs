@@ -12,7 +12,7 @@ pub struct AudioHeader {
 pub struct AudioFile;
 
 impl BlobKind for AudioFile {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6175_6469_6f2d_626c_6f63_6b2d_7479_7002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6175_6469_6f2d_626c_6f63_6b2d_7479_7001);
 
     type Header = AudioHeader;
 

@@ -8,7 +8,7 @@ use beui::{Key, KeyPress, NodeId, Rect, Vec2};
 use block_editor_plugin::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
 
-use super::embeds::{ResolvedEmbed, poll_pending_embeds};
+use super::embeds::ResolvedEmbed;
 use super::large_embed::{LargeEmbed, embed_is_live};
 use super::state::{FocusedEmbed, Shared};
 
@@ -85,7 +85,6 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
 
     let frame_state = state.clone();
     each_frame(move || {
-        poll_pending_embeds(&frame_state);
         poll_paste(&frame_state);
         poll_drag(&frame_state);
         frame_state.poll_external_edit();
@@ -167,7 +166,7 @@ fn paste_key(state: &Shared, press: KeyPress) -> bool {
 
 fn drop_target(state: &Shared, drag: Option<Drag>) -> Option<usize> {
     let drag = drag?;
-    if drag.block_id == state.block.id() {
+    if drag.block_id == state.block_id {
         return None;
     }
     let byte = state.text.byte_at(drag.position)?;
@@ -179,13 +178,12 @@ fn drop_target(state: &Shared, drag: Option<Drag>) -> Option<usize> {
 }
 
 fn remote_cursors(state: &Shared) -> Vec<RemoteTextCursor> {
-    let colors = state.presence_colors();
     let core = state.text.core();
     state
         .remote_cursors()
         .into_iter()
-        .filter_map(|(client_id, cursor)| {
-            let color = colors.get(&client_id).copied()?;
+        .filter_map(|(_, cursor)| {
+            let color = cursor.color;
             let selection =
                 core.selection_range(&CursorPosition::range(cursor.anchor, cursor.focus))?;
             let caret = core.position_index(cursor.focus)?;
@@ -202,7 +200,7 @@ fn poll_drag(state: &Shared) {
     let Some(drag) = state.editor.drag().get_untracked() else {
         return;
     };
-    if drag.block_id == state.block.id() {
+    if drag.block_id == state.block_id {
         return;
     }
     state.editor.accept_drag(true);
@@ -218,9 +216,9 @@ fn poll_drag(state: &Shared) {
         focus: position,
     });
     let types = state.host().block_types();
-    let name = match state.client.cached_block(drag.block_id) {
-        Some(cached) => BlockLabel::for_cached(types.as_ref(), &cached).name,
-        None => BlockLabel::new(types.as_ref(), drag.block_type, None).name,
+    let name = match state.client.info(drag.block_id) {
+        Some(info) => info.label(types.as_ref()).name,
+        None => BlockLabel::new(types.as_ref(), drag.block_type, None, false).name,
     };
     state.insert_image_embed(drag.block_id, &name);
     state.text.reveal_cursor();

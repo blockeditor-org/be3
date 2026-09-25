@@ -280,8 +280,6 @@ impl Runtime {
             }
         }
         self.apply(forwarded);
-        let responses = self.instances.client_responses();
-        self.send(responses);
     }
 
     pub(super) fn apply(&mut self, messages: Vec<Message>) {
@@ -295,10 +293,6 @@ impl Runtime {
                 Message::Layout(layout) => {
                     self.layout = layout;
                     true
-                }
-                Message::Client(message) => {
-                    self.instances.client_message(message);
-                    false
                 }
                 Message::Editor(message) => self.instances.editor_message(message),
                 Message::FrameNeeded => {
@@ -523,7 +517,6 @@ pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation
     let EditorSlot {
         plugin,
         block_types,
-        client,
         client_id,
         role,
         instance,
@@ -571,7 +564,6 @@ pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation
         let screen = runtime.instances.report(
             instance,
             region,
-            &client,
             client_id,
             role,
             block_types,
@@ -734,7 +726,6 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
     let CreationSlot {
         plugin,
         block_types,
-        client,
         client_id,
         instance,
     } = slot;
@@ -749,7 +740,7 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
         }
         match runtime
             .instances
-            .report_creation(instance, &client, client_id, block_types)
+            .report_creation(instance, client_id, block_types)
         {
             true => CreationState::Ready,
             false => CreationState::Starting,
@@ -761,7 +752,6 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
     let ArtifactSlot {
         plugin,
         block_types,
-        client,
         client_id,
         instance,
         block,
@@ -779,7 +769,6 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         }
         let messages = runtime.instances.report_artifact(
             instance,
-            &client,
             client_id,
             block_types,
             block,
@@ -802,7 +791,6 @@ pub(crate) fn preview(ui: &mut Ui, slot: PreviewSlot<'_>) -> PreviewPresentation
     let PreviewSlot {
         plugin,
         block_types,
-        client,
         client_id,
         block_id,
         block_type,
@@ -834,7 +822,6 @@ pub(crate) fn preview(ui: &mut Ui, slot: PreviewSlot<'_>) -> PreviewPresentation
         let screen = runtime.instances.report(
             instance,
             EditorRegion::Preview,
-            &client,
             client_id,
             InstanceRole::Editor(EditorBlock {
                 id: block_id,

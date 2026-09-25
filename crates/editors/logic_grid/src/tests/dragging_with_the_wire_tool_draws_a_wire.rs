@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn dragging_with_the_wire_tool_draws_a_wire() {
-    let (mut editor, block) = editor();
+    let mut editor = editor();
 
     editor.click("logic-grid.slot.0");
     editor.run();
@@ -12,9 +12,9 @@ fn dragging_with_the_wire_tool_draws_a_wire() {
     editor.run();
     editor.run();
 
-    let grid = block.read().unwrap();
-    assert_eq!(grid.grid().wires().len(), 1, "the drag drew one wire");
-    let wire = grid.grid().wires()[0];
+    let grid = grid(&editor);
+    assert_eq!(grid.wires().len(), 1, "the drag drew one wire");
+    let wire = grid.wires()[0];
     assert_eq!(
         wire.start.y, wire.end.y,
         "a sideways drag draws a horizontal wire"

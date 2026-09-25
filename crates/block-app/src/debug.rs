@@ -1,5 +1,4 @@
 mod client;
-mod network;
 mod plugins;
 pub(crate) mod version;
 
@@ -7,8 +6,6 @@ pub(crate) mod version;
 mod terminal;
 
 use std::{cell::RefCell, collections::HashSet};
-
-use block_client::BlockClient;
 
 use crate::ui::{DebugCommand, DebugView, DebugWindow};
 
@@ -32,13 +29,9 @@ fn set_open(window: DebugWindow, shown: bool) {
 
 pub(crate) fn close_client_windows() {
     set_open(DebugWindow::Client, false);
-    set_open(DebugWindow::Network, false);
 }
 
-pub(crate) fn poll(client: &BlockClient) {
-    if is_open(DebugWindow::Network) {
-        client.enable_network_traffic_logging();
-    }
+pub(crate) fn poll() {
     if is_open(DebugWindow::Version) {
         version::poll();
     }
@@ -48,7 +41,7 @@ pub(crate) fn poll(client: &BlockClient) {
     }
 }
 
-pub(crate) fn command(client: &BlockClient, command: DebugCommand) {
+pub(crate) fn command(command: DebugCommand) {
     match command {
         DebugCommand::Open(window) => {
             set_open(window, true);
@@ -63,10 +56,6 @@ pub(crate) fn command(client: &BlockClient, command: DebugCommand) {
                 terminal::close();
             }
         }
-        DebugCommand::PauseSending => client.pause_sending(),
-        DebugCommand::StepSending => client.step_sending(),
-        DebugCommand::ResumeSending => client.resume_sending(),
-        DebugCommand::ClearTraffic => client.clear_network_traffic(),
         DebugCommand::KillPlugin(plugin_id) => crate::plugin_host::kill(&plugin_id),
         DebugCommand::RefreshVersions => version::refresh(),
         DebugCommand::Install(run) => version::install(run),
@@ -78,10 +67,9 @@ pub(crate) fn command(client: &BlockClient, command: DebugCommand) {
     }
 }
 
-pub(crate) fn view(client: &BlockClient) -> DebugView {
+pub(crate) fn view() -> DebugView {
     DebugView {
-        client: is_open(DebugWindow::Client).then(|| client::lines(client)),
-        network: is_open(DebugWindow::Network).then(|| network::view(client)),
+        client: is_open(DebugWindow::Client).then(client::lines),
         performance: is_open(DebugWindow::Performance).then(crate::performance::rows),
         plugins: is_open(DebugWindow::Plugins).then(plugins::view),
         version: is_open(DebugWindow::Version).then(version::view),

@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use block::BlockAccess;
 use block_editor_plugin::AccessLevel;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::{ICON_DATA_OBJECT, ICON_EDIT, ICON_LOCK, ICON_VISIBILITY};
@@ -19,13 +18,13 @@ pub(crate) fn AccessMode(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>
     let access = create_memo(clone!(info -> move || {
         info.with(|info| {
             info.as_ref()
-                .map_or(BlockAccess::None, |info| info.access)
+                .map_or(AccessLevel::None, |info| info.access)
         })
     }));
     let ceiling = create_memo(clone!(info -> move || {
         info.with(|info| {
             info.as_ref()
-                .map_or(BlockAccess::None, |info| info.ceiling)
+                .map_or(AccessLevel::None, |info| info.ceiling)
         })
     }));
     let label = create_memo(clone!(debugging access -> move || match debugging.get() {
@@ -36,10 +35,10 @@ pub(crate) fn AccessMode(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>
         true => ICON_DATA_OBJECT.to_owned(),
         false => access_glyph(access.get()).to_owned(),
     }));
-    let editing_off = create_memo(clone!(ceiling -> move || BlockAccess::Edit > ceiling.get()));
-    let viewing_off = create_memo(clone!(ceiling -> move || BlockAccess::View > ceiling.get()));
+    let editing_off = create_memo(clone!(ceiling -> move || AccessLevel::Edit > ceiling.get()));
+    let viewing_off = create_memo(clone!(ceiling -> move || AccessLevel::View > ceiling.get()));
     let knowing_off =
-        create_memo(clone!(ceiling -> move || BlockAccess::KnowExists > ceiling.get()));
+        create_memo(clone!(ceiling -> move || AccessLevel::KnowExists > ceiling.get()));
     let debug_off = create_memo(clone!(ceiling -> move || !ceiling.get().can_view()));
     let chosen = info.clone();
     view! {
@@ -76,27 +75,22 @@ pub(crate) fn AccessMode(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>
     }
 }
 
-fn chosen_access(level: AccessLevel) -> BlockAccess {
-    match level {
-        AccessLevel::Edit => BlockAccess::Edit,
-        AccessLevel::View => BlockAccess::View,
-        AccessLevel::KnowExists => BlockAccess::KnowExists,
-        AccessLevel::None => BlockAccess::None,
+fn chosen_access(level: AccessLevel) -> AccessLevel {
+    level
+}
+
+fn wording(access: AccessLevel) -> &'static str {
+    match access {
+        AccessLevel::Edit => "Editing",
+        AccessLevel::View => "Viewing",
+        AccessLevel::KnowExists | AccessLevel::None => "No access",
     }
 }
 
-fn wording(access: BlockAccess) -> &'static str {
+fn access_glyph(access: AccessLevel) -> &'static str {
     match access {
-        BlockAccess::Edit => "Editing",
-        BlockAccess::View => "Viewing",
-        BlockAccess::KnowExists | BlockAccess::None => "No access",
-    }
-}
-
-fn access_glyph(access: BlockAccess) -> &'static str {
-    match access {
-        BlockAccess::Edit => ICON_EDIT,
-        BlockAccess::View => ICON_VISIBILITY,
-        BlockAccess::KnowExists | BlockAccess::None => ICON_LOCK,
+        AccessLevel::Edit => ICON_EDIT,
+        AccessLevel::View => ICON_VISIBILITY,
+        AccessLevel::KnowExists | AccessLevel::None => ICON_LOCK,
     }
 }

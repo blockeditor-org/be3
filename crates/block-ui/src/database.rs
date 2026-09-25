@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 
-use block_client::{
-    block_ref::BlockRef,
-    blocks::{
-        database::{DatabaseColor, DatabaseRow, DatabaseValue},
-        database_schema::{DatabaseField, DatabaseFieldType, DatabaseNumberScale},
-    },
+use be_block::{
+    database::{DatabaseColor, DatabaseRow, DatabaseValue},
+    database_schema::{DatabaseField, DatabaseFieldType, DatabaseNumberScale},
 };
 use uuid::Uuid;
 
@@ -30,7 +27,7 @@ pub struct DatabaseBlockPickRequest {
 pub fn cell_text(
     row: &DatabaseRow,
     field: &DatabaseField,
-    block_labels: &HashMap<BlockRef, BlockLabel>,
+    block_labels: &HashMap<Uuid, BlockLabel>,
 ) -> String {
     match row.value(field.id) {
         Some(value) => database_value_text(value, field, block_labels),
@@ -41,7 +38,7 @@ pub fn cell_text(
 pub fn database_value_text(
     value: &DatabaseValue,
     field: &DatabaseField,
-    block_labels: &HashMap<BlockRef, BlockLabel>,
+    block_labels: &HashMap<Uuid, BlockLabel>,
 ) -> String {
     match value {
         DatabaseValue::String(value) => value.clone(),
@@ -61,17 +58,10 @@ pub fn database_value_text(
     }
 }
 
-pub fn block_reference_text(
-    reference: &BlockRef,
-    block_labels: &HashMap<BlockRef, BlockLabel>,
-) -> String {
-    block_labels.get(reference).map_or_else(
-        || match reference {
-            BlockRef::Direct(id) => id.to_string(),
-            BlockRef::RepoRelative { eternal_id, .. } => eternal_id.to_string(),
-        },
-        |label| label.name.clone(),
-    )
+pub fn block_reference_text(reference: &Uuid, block_labels: &HashMap<Uuid, BlockLabel>) -> String {
+    block_labels
+        .get(reference)
+        .map_or_else(|| reference.to_string(), |label| label.name.clone())
 }
 
 pub fn parse_cell_value(value: &str, field: &DatabaseField) -> Option<DatabaseValue> {

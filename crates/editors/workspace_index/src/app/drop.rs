@@ -23,7 +23,7 @@ pub(crate) fn watch(editor: &Editor, folder: &Rc<Folder>) -> Memo<Option<bool>> 
         if drag.dropped {
             set_state.set(None);
             if welcome {
-                folder.add(here.block_id(), drag.block_id);
+                folder.add(drag.block_id);
             }
             return;
         }

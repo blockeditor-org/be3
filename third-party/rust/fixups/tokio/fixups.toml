@@ -2,7 +2,7 @@
 # thread pool to schedule on - and says so with a compile_error naming the five
 # features it does support. What is omitted here is everything outside that
 # list, which reaches this platform only because reindeer resolves one feature
-# set per platform across the whole workspace: it is what block-server and the
+# set per platform across the whole workspace: it is what be-server and the
 # native half of block-client ask for.
 ['cfg(target_family = "wasm")']
 omit_features = [

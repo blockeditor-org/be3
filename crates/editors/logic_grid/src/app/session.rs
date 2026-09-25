@@ -20,17 +20,13 @@ pub(super) struct Session {
 
 impl Session {
     pub(super) fn new(editor: &Editor) -> Rc<Self> {
-        let block = editor.block::<LogicGrid>();
         let (version, set_version) = create_signal(0_u64);
         let (pointer, set_pointer) = create_signal(None);
         let (debug_hover, set_debug_hover) = create_signal(None);
         let (graph_hover, set_graph_hover) = create_signal(GraphHover::default());
         let session = Rc::new(Self {
             editor: editor.clone(),
-            model: RefCell::new(LogicGridEditor::with_hotbar_editor(
-                block.handle().clone(),
-                editor.clone(),
-            )),
+            model: RefCell::new(LogicGridEditor::live(editor)),
             version,
             set_version,
             pointer,
@@ -87,11 +83,10 @@ impl Session {
     }
 
     fn sync(&self) {
-        let client = self.editor.client().clone();
         let client_id = self.editor.host().client_id();
         let changed = {
             let mut model = self.model.borrow_mut();
-            let changed = model.sync(Some(&client), client_id);
+            let changed = model.sync(true, client_id);
             let passed = model.take_challenge_passed();
             if passed && self.editable() {
                 model.edit(LogicGridOperation::SetCompleted { completed: true });

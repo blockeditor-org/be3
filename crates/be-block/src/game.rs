@@ -13,7 +13,7 @@ pub struct GameModuleHeader {
 pub struct GameModuleFile;
 
 impl BlobKind for GameModuleFile {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6761_6d65_2d6d_6f64_756c_652d_6366_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6761_6d65_2d6d_6f64_756c_652d_626c_0001);
 
     type Header = GameModuleHeader;
 
@@ -25,6 +25,9 @@ impl BlobKind for GameModuleFile {
 pub type GameModuleContent = Blob<GameModuleFile>;
 
 impl Blob<GameModuleFile> {
+    pub const FILE_EXTENSIONS: &'static [&'static str] = &["wasm"];
+    pub const MIME_TYPES: &'static [&'static str] = &["application/wasm"];
+
     pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> Self {
         Self::new(
             GameModuleHeader {
@@ -64,7 +67,7 @@ impl DeterministicGame {
 }
 
 impl Root for DeterministicGame {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6465_742d_6761_6d65_2d63_6f6e_7465_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6465_742d_6761_6d65_2d62_6c6f_636b_0001);
 
     fn references(&self) -> Vec<Uuid> {
         self.module.into_iter().collect()

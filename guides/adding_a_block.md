@@ -1,145 +1,184 @@
 # Adding a block
 
-Blocks are synchronized, serialized data models. A block type belongs in this directory; its UI belongs in a plugin under `crates/editors`.
+A block's type is its content type. The content lives in `crates/be-block`, as a `be-model` document that knows how to merge, undo and address its own parts; its UI belongs in a plugin under `crates/editors`. This guide covers the content. For how documents, edits, merging and undo work underneath, read `guides/the_new_block_stack.md` ("Adding a content type"); this guide does not repeat it.
 
-## 1. Define the model and operations
+## 1. Define the model
 
-Create `my_block.rs` and define:
-
-- The block state. Derive `Clone`, `Serialize`, and `Deserialize`.
-- A serializable operation enum describing every supported mutation.
-- A history implementation, or use `block::NoHistory` when undo and redo are intentionally unavailable.
+Create `crates/be-block/src/my_block.rs`. Describe the content as structs that derive `be_model::Model`, and do not write a merge, a rebase or an undo: the derive and `Document` provide them.
 
 ```rust
-use block::Block;
-use serde::{Deserialize, Serialize};
+use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use uuid::Uuid;
 
-#[derive(Clone, Default, Deserialize, Serialize)]
+use crate::Root;
+
+#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct MyBlock {
-    value: String,
+    pub title: String,
+    pub items: List<MyItem>,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(tag = "operation", rename_all = "snake_case")]
-pub enum MyBlockOperation {
-    SetValue { value: String },
+#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
+pub struct MyItem {
+    pub text: String,
+    pub done: bool,
 }
 
+impl Root for MyBlock {
+    // Generate a new, permanent UUID. Never reuse another content type's.
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0001);
+}
+
+pub type MyBlockContent = Document<MyBlock>;
+```
+
+`CONTENT_TYPE` is the block type everywhere: it is what the server records for the block, what the app's registry is keyed by, and the `block_type` a plugin's manifest names. Once a block of it has been saved, changing it leaves that block with a type nothing opens.
+
+A field is a register (any `Serialize + DeserializeOwned + Clone + PartialEq + Default` value, set as a whole), a `Count` whose concurrent changes add up, a `List<T>` of objects of another `Model` type, a `Map<K, V>` of per-key registers, or a `Grid<T>` of fixed-size cells. The stack guide says what each one does under a merge and an undo; choose by what two people changing it at once should end up with.
+
+A block holds what it is, not what an editor makes of it. The image block keeps the file's bytes and a header saying what decoding them found - or why it failed - which the editor fills in the first time it draws the image. Nothing but the plugin then needs a decoder, and no other client has to decode the block to know its shape.
+
+## 2. Write edits as helpers
+
+The derive gives every field a typed constant (`MyItem::TEXT`, `MyBlock::ITEMS`) that builds the changes an `Edit` is made of: `set` for a register, `add` for a `Count`, `put` for a key of a `Map`, `insert` and `move_into` for a `List`, and `Change::remove` for any object. Wrap them in helpers that return `be_model::Edit`, so an editor calls `content.operate(MyBlock::set_done(id, true))` and never assembles changes itself:
+
+```rust
 impl MyBlock {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn add(text: impl Into<String>) -> (ObjectId, Edit) {
+        let item = MyItem { text: text.into(), done: false };
+        let (id, change) = Self::ITEMS.insert(ObjectId::ROOT, Anchor::End, &item);
+        (id, change.into())
     }
 
-    pub fn value(&self) -> &str {
-        &self.value
+    pub fn set_done(item: ObjectId, done: bool) -> Edit {
+        MyItem::DONE.set(item, &done).into()
     }
-}
 
-impl Block for MyBlock {
-    type Operation = MyBlockOperation;
-    type History = block::NoHistory;
-
-    // Generate a new, permanent UUID. Never reuse another block type's ID.
-    const TYPE_ID: Uuid = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0001);
-
-    fn apply_operation(block: &mut Self, operation: &Self::Operation) {
-        match operation {
-            MyBlockOperation::SetValue { value } => block.value.clone_from(value),
-        }
+    pub fn remove(item: ObjectId) -> Edit {
+        Change::remove(item).into()
     }
-}
-```
 
-Keep fields private when callers only need read access, and expose focused getters. `apply_operation` must be deterministic and must safely ignore operations that no longer apply, such as removing an already-removed item.
-
-A block holding a list gives every item a stable `id: Uuid` and addresses it by that id rather than by its position. Two clients removing what they each saw as item 2 delete two different items when the operation carries a position and the same one when it carries an id, and an insert at the head renumbers every operation still in flight. The id belongs in the operation that creates the item, so every client applies the same one; a constructor generates it, and `apply_operation` ignores an add whose id is already present so a replayed operation cannot duplicate an item. Editors key their rows on those ids, which is what lets a row survive an edit to the item next to it - see `guides/reactive.md`.
-
-```rust
-impl MyBlockOperation {
-    pub fn add(text: impl Into<String>) -> Self {
-        Self::Add { id: Uuid::new_v4(), text: text.into() }
+    pub fn clear_done(&self) -> Edit {
+        self.items
+            .iter()
+            .filter(|item| item.done)
+            .map(|item| Change::remove(item.id))
+            .collect()
     }
 }
 ```
 
-Blocks have a generic `name` property (a client-interpreted `{manual, value}` pair, opaque to the server) rather than a single hardcoded name. `implicit_name` defaults to `None`, which leaves the property unset until the user renames the block; the UI then falls back to the block type's registered display name. Override it only when the block type can derive something better from its own content:
+Every object in a `List` has an `ObjectId`, and an edit names the object, never a position: two people removing what they each saw as the second item remove the same one, and an insert at the head renumbers nothing. A helper that creates an object returns its id, so the caller can address it straight away. Editors key their rows on those ids, which is what lets a row survive an edit to the item next to it - see `guides/reactive.md`. A helper that needs the current content to decide what to write (`clear_done`, `Counter::reset`) takes `&self`; one that does not is an associated function.
 
-```rust
-fn implicit_name(&self) -> Option<String> {
-    (!self.value.trim().is_empty()).then(|| self.value.clone())
-}
-```
+`crates/be-block/src/counter.rs` and `checklist.rs` are the smallest complete examples; `calendar.rs` shows an update that only writes the fields that changed.
 
-Once a block has been manually renamed, automatic re-derivation stops touching its name - that precedence is handled for you.
+## 3. References
 
-## 2. Track block references
-
-If the state contains UUIDs of other blocks, implement `references`. This drives server-side reference validation, backreferences, dependency watches, and parent behavior.
+If the content holds the ids of other blocks, override `Root::references`. It is recorded with every commit and drives the graph: backlinks, the `References` and `Backrefs` queries editors watch, and the `KnowExists` access a member gets to a block something they can see refers to.
 
 ```rust
 fn references(&self) -> Vec<Uuid> {
-    self.items.iter().map(|item| item.block_id).collect()
+    let mut seen = HashSet::new();
+    self.slides
+        .iter()
+        .filter_map(|slide| slide.block)
+        .filter(|block| seen.insert(*block))
+        .collect()
 }
 ```
 
-Return each referenced block once unless reference multiplicity has meaning to the server. Preserve a deterministic order. Do not include ordinary UUIDs that are not block references.
+A reference is a plain `Uuid` (or `Option<Uuid>`) field: `DatabaseView` holds `database: Option<Uuid>` and returns it, `Presentation` returns each slide's block. Return each block once, in a deterministic order, and leave out ids that are not blocks, such as a database's field ids. References are for navigation and access, never for liveness: a block stays alive because its parent chain reaches the root, not because something points at it.
 
-When an editor creates a referenced child, it must update the parent block and then call `set_parent` on the child.
+## 4. Name
 
-If the block type has a natural notion of a "child" reference that the Files sidebar can add, remove, or swap by drag-and-drop, override `add_child`, `delete_child`, and `replace_child` from the `Block` trait. Each returns the operations needed (an empty `Vec` if the child is already in the requested state), or `None` if the block type doesn't support the operation:
+A block's name lives in its sealed metadata, which the server cannot read. Override `Root::name` when the content can say something better than the block type's display name:
 
 ```rust
-fn add_child(&self, block_id: Uuid) -> Option<Vec<Self::Operation>> {
-    if self.items.iter().any(|item| item.block_id == block_id) {
-        return Some(Vec::new());
-    }
-    Some(vec![MyBlockOperation::AddItem { block_id }])
+fn name(&self) -> Option<String> {
+    let title = self.title.trim().to_owned();
+    (!title.is_empty()).then_some(title)
 }
 ```
 
-`BlockHandleAccess` reads the block, calls the override, and applies the resulting operations, so the host makes the edit itself and the editor is not asked about it. An editor whose references live inside its own content rather than in a list - the text editor's block URLs - answers `App::replace_child` instead.
+Whenever an editor that may edit the block sees a new revision, the app writes this as the block's automatic name (`be::name_implicitly`). It never overrides a name someone set by hand. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
 
-## 3. Choose synchronization and history behavior
+## 5. Children
 
-Blocks are non-CRDT by default. Set `const CRDT: bool = true` only when operations can be transformed or safely merged under concurrent editing. Implement `transform_operation` when local operations need rebasing over remote operations.
-
-For undo and redo, implement `BlockHistory<MyBlock>` and set it as `type History`. A history action should record the smallest reversible change, report an approximate byte size, and emit inverse or forward operations from `operations`. Grouped operations must produce one coherent history action. See `infinite_canvas.rs` and `presentation.rs` for complete examples.
-
-## 4. Export the module
-
-Add the block type to the list in `blocks.rs`, which declares the module and
-puts the type in the erased table the app opens blocks through:
+If the type has a natural notion of a child that the Files sidebar can add, remove or swap by drag and drop, override `Root::child_edit`. It turns a `ChildChange` into an ordinary edit, and answers `None` for a change the type does not support:
 
 ```rust
-my_block::MyBlock;
+fn child_edit(&self, change: ChildChange) -> Option<Edit> {
+    Some(match change {
+        ChildChange::Add(block) => self.add_block(block),
+        ChildChange::Delete(block) => self.remove_block(block),
+        ChildChange::Replace { old, new } => self.repoint(old, new),
+    })
+}
 ```
 
-The block is now available as `block_client::blocks::my_block::MyBlock`.
+The app calls it through `be::change_child`, so the host makes the edit itself and the editor is not asked. An empty `Edit` is the answer for a child already in the requested state. `presentation.rs`, `folder.rs` and `hotbar.rs` are the examples. An editor whose references live inside content it does not model this way - the text editor's block URLs - answers `Editor::on_replace_child` instead. The plugin's manifest says which of these edits the type accepts (`children`).
 
-## 5. Add model tests
+## 6. Undo
 
-Production code ends with a plain test module declaration:
+A `Document` implements `Undo` already: every edit records a step that is taken against the state before it and reverted against the state as it is now, so undo leaves alone what someone else changed since. It is enabled per type in the app's registry (below) with `kind_with_history`. Undo belongs to the app's peer, not to the editor, so an editor gets it without writing anything.
+
+A content type that does not fit a document - text, or a file with a large payload (`Blob<K>`) - implements `BlockContent`, `LiveEdit` and `Merge` by hand in `be-block`, and `Undo` too if it wants one. Prefer a document whenever the content can be described as one.
+
+## 7. Export and register
+
+Declare the module in `crates/be-block/src/lib.rs` and re-export the root and its content type:
 
 ```rust
-#[cfg(test)]
-mod tests;
+pub mod my_block;
+
+pub use my_block::{MyBlock, MyBlockContent};
 ```
 
-Place shared imports and child declarations in `my_block/tests.rs`, and give every test its own file named after its function:
+Then add it to `KINDS` in `crates/block-app/src/be.rs`, which is the only list of the content types the app opens, copies, seeds and names:
+
+```rust
+kind_with_history::<be_block::MyBlockContent>(),
+```
+
+Use `kind::<C>()` for a type without undo. A block whose content type is not in `KINDS` has no content in the app: the host opens nothing for it and refuses content written to it.
+
+Plugins reach the type through `block_editor_plugin::be_block`, so an editor does not depend on `be-block` itself.
+
+## 8. Add model tests
+
+Tests for a content type live in `crates/be-block/src/tests/`, one test per file named after its function, declared in `crates/be-block/src/tests.rs` beside the shared imports and helpers such as `edited`, which applies a list of edits to a starting content:
 
 ```text
-my_block.rs
-my_block/
+crates/be-block/src/
+  my_block.rs
   tests.rs
   tests/
-    my_block_applies_operations.rs
-    my_block_serialization_round_trips.rs
+    a_my_block_clears_only_the_done_items.rs
+    two_my_blocks_merge_every_item_either_side_added.rs
 ```
 
-Test meaningful behavior such as operation application, invalid or repeated operations, references, serialization, and history. Do not put individual tests in the production file and do not use `#[path]`.
+```rust
+use super::*;
 
-## 6. Verify
+#[test]
+fn a_my_block_clears_only_the_done_items() {
+    let (first, add_first) = MyBlock::add("one");
+    let (_, add_second) = MyBlock::add("two");
+    let content = edited(
+        &MyBlockContent::default(),
+        [add_first, add_second, MyBlock::set_done(first, true)],
+    );
+
+    let content = edited(&content, [content.root().clear_done()]);
+
+    assert_eq!(content.root().items.len(), 1);
+    assert_eq!(MyBlockContent::decode(&content.encode()), Ok(content));
+}
+```
+
+Test what the helpers mean: an edit made against content that has since changed, references, `child_edit`, a merge of two sides (`Merge::merge3`), and an undo (`Undo::step` then `revert`) when the type has one. The model itself is tested in `crates/be-model`; do not re-test lists or registers here. Do not put tests in the production file and do not use `#[path]`.
+
+## 9. Verify
 
 `./scripts/buck run //:verify` runs the full check from the workspace root: it applies the project's autofixes and runs every lint and test. CI runs the same on a pull request and pushes whatever it changes to the branch.
 

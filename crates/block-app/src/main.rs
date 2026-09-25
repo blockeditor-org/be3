@@ -1,3 +1,4 @@
+mod accounts;
 mod app_state;
 mod be;
 mod block_label;
@@ -10,37 +11,30 @@ mod panic_guard;
 mod performance;
 mod platform;
 mod plugin_host;
+mod root_settings;
 mod share;
 mod slide_templates;
 mod surfaces;
 mod ui;
 
-use std::{collections::HashMap, error::Error, sync::Arc, time::Duration};
+use std::{collections::HashMap, error::Error, time::Duration};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{io, path::PathBuf};
 
+use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
+use be_block::metadata::MAX_NAME_BYTES;
+use be_block::{BlockContent, FileTreeContent, UiSettingsContent, WorkspaceUiContent};
+use be_graph::{Access, BlockParent};
+use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
-use block::{
-    Block, BlockAccess, BlockParent, ManagementErrorCode, Workspace, WorkspaceInvitation,
-    WorkspaceRole,
-};
-use block_client::root_settings::{RootSetting, RootSettings};
-use block_client::{
-    BlockClient, BlockHandle, DynamicArtifactDescriptor, ManagementClient, ManagementClientError,
-    Session,
-    blocks::{
-        file_tree::FileTree, ui_settings::UiSettings, workspace_index::BlockEntry,
-        workspace_ui::WorkspaceUi,
-    },
-    properties::MAX_NAME_BYTES,
-};
 use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation};
 use editors::{
     ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
     PluginEditor, SidebarDragSource, direct_editor_tab_ui,
 };
+use root_settings::{RootSetting, RootSettings};
 use share::ShareDialog;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
@@ -180,7 +174,8 @@ impl beui::App for Shell {
     }
 
     fn exiting(&mut self) {
-        block_client::shut_down_clients();
+        be::flush();
+        be::stop();
     }
 }
 
@@ -211,17 +206,16 @@ struct BlockApp {
     scheduled_workspace_list: bool,
     server_url: String,
     account: Account,
-    client: Arc<BlockClient>,
     root_settings: RootSettings,
-    file_tree: RootSetting<FileTree>,
-    workspace_ui: RootSetting<WorkspaceUi>,
+    file_tree: RootSetting<FileTreeContent>,
+    workspace_ui: RootSetting<WorkspaceUiContent>,
     shell: Option<Uuid>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: EditorRegistry,
     editors: HashMap<Uuid, PluginEditor>,
 
-    editor_access: HashMap<Uuid, BlockAccess>,
+    editor_access: HashMap<Uuid, Access>,
 
     watched_artifacts: Vec<Uuid>,
     dynamic_artifact_sessions: HashMap<Uuid, Box<dyn ArtifactSession>>,
@@ -272,26 +266,7 @@ enum WorkspaceResult {
     Invited,
 }
 
-struct WorkspaceRequestError {
-    message: String,
-    invalid_token: bool,
-}
-
-impl From<ManagementClientError> for WorkspaceRequestError {
-    fn from(error: ManagementClientError) -> Self {
-        let invalid_token = matches!(
-            error,
-            ManagementClientError::Server {
-                code: ManagementErrorCode::InvalidToken,
-                ..
-            }
-        );
-        Self {
-            message: error.to_string(),
-            invalid_token,
-        }
-    }
-}
+type WorkspaceRequestError = AccountError;
 
 struct ReauthState {
     account: Account,
@@ -389,10 +364,6 @@ impl BlockApp {
             ServerLocation::Local => url.clone(),
             ServerLocation::Remote(remote) => remote.clone(),
         };
-        let client = Arc::new(BlockClient::new(account.id, Uuid::nil()));
-        let root_settings = RootSettings::new(&client);
-        let file_tree = RootSetting::new(&client);
-        let workspace_ui = RootSetting::new(&client);
         Ok(Self {
             app_state,
             client_id,
@@ -417,10 +388,9 @@ impl BlockApp {
             scheduled_workspace_list: false,
             server_url,
             account,
-            client,
-            root_settings,
-            file_tree,
-            workspace_ui,
+            root_settings: RootSettings::default(),
+            file_tree: RootSetting::default(),
+            workspace_ui: RootSetting::default(),
             shell: None,
             ui_settings: None,
             block_types: HashMap::new(),
@@ -465,19 +435,17 @@ impl BlockApp {
         } else {
             self.local_server_url.clone()
         };
-        let client = match ManagementClient::new(requested_url) {
-            Ok(client) => client,
-            Err(error) => {
-                self.account_error = Some(error.to_string());
-                return;
-            }
-        };
+        let url = requested_url.trim().trim_end_matches('/').to_owned();
+        if url.is_empty() {
+            self.account_error = Some("a server address is required".to_owned());
+            return;
+        }
         let server = if remote {
-            ServerLocation::Remote(client.url().to_owned())
+            ServerLocation::Remote(url.clone())
         } else {
             ServerLocation::Local
         };
-        let url = client.url().to_owned();
+        let requested = url.clone();
         let AccountForm {
             register,
             email,
@@ -487,9 +455,9 @@ impl BlockApp {
         } = form;
         let receiver = platform::spawn_request(async move {
             if register {
-                client.register(email, display_name, password).await
+                accounts::register(requested, email, display_name, password).await
             } else {
-                client.login(email, password).await
+                accounts::login(requested, email, password).await
             }
             .map_err(|error| error.to_string())
         });
@@ -517,9 +485,9 @@ impl BlockApp {
             Ok(session) => {
                 let saved = SavedAccount {
                     server: pending.server,
-                    id: session.account.id,
-                    email: session.account.email,
-                    name: session.account.display_name,
+                    id: session.account,
+                    email: session.email,
+                    name: session.display_name,
                     token: session.token,
                     last_workspace_id: None,
                 };
@@ -556,9 +524,7 @@ impl BlockApp {
         };
         let token = account.token.clone();
         let _ = platform::spawn_request(async move {
-            if let Ok(client) = ManagementClient::new(url) {
-                let _ = client.logout(token).await;
-            }
+            let _ = accounts::logout(url, token).await;
         });
 
         if let Err(error) = self.app_state.remove_account(account) {
@@ -576,45 +542,30 @@ impl BlockApp {
         if self.pending_workspace_request.is_some() {
             return;
         }
-        let client = match ManagementClient::new(self.server_url.clone()) {
-            Ok(client) => client,
-            Err(error) => {
-                self.workspace_error = Some(error.to_string());
-                if matches!(operation, WorkspaceOperation::Load) {
-                    self.workspaces_load_failed = true;
-                }
-                return;
-            }
-        };
+        let url = self.server_url.clone();
         let token = self.account.token.clone();
         let receiver = platform::spawn_request(async move {
             match operation {
                 WorkspaceOperation::Load => {
-                    let workspaces = client
-                        .list_workspaces(&token)
+                    accounts::workspaces(url, token)
                         .await
-                        .map_err(WorkspaceRequestError::from)?;
-                    let invitations = client
-                        .list_invitations(&token)
-                        .await
-                        .map_err(WorkspaceRequestError::from)?;
-                    Ok(WorkspaceResult::Loaded(workspaces, invitations))
+                        .map(|(workspaces, invitations)| {
+                            WorkspaceResult::Loaded(workspaces, invitations)
+                        })
                 }
-                WorkspaceOperation::Create(name) => client
-                    .create_workspace(&token, name)
+                WorkspaceOperation::Create(name) => accounts::create_workspace(url, token, name)
                     .await
-                    .map(WorkspaceResult::Created)
-                    .map_err(WorkspaceRequestError::from),
-                WorkspaceOperation::Respond(invitation_id, accept) => client
-                    .respond_invitation(&token, invitation_id, accept)
-                    .await
-                    .map(|()| WorkspaceResult::Responded)
-                    .map_err(WorkspaceRequestError::from),
-                WorkspaceOperation::Invite(workspace_id, email, role) => client
-                    .invite(&token, workspace_id, email, role)
-                    .await
-                    .map(|_| WorkspaceResult::Invited)
-                    .map_err(WorkspaceRequestError::from),
+                    .map(WorkspaceResult::Created),
+                WorkspaceOperation::Respond(invitation, accept) => {
+                    accounts::respond_invitation(url, token, invitation, accept)
+                        .await
+                        .map(|()| WorkspaceResult::Responded)
+                }
+                WorkspaceOperation::Invite(workspace, email, role) => {
+                    accounts::invite(url, token, workspace, email, role)
+                        .await
+                        .map(|()| WorkspaceResult::Invited)
+                }
             }
         });
         self.workspace_error = None;
@@ -696,16 +647,8 @@ impl BlockApp {
             ServerLocation::Remote(url) => url.clone(),
         };
         let email = reauth.account.email.clone();
-        let client = match ManagementClient::new(url) {
-            Ok(client) => client,
-            Err(error) => {
-                self.reauth.as_mut().unwrap().error = Some(error.to_string());
-                return;
-            }
-        };
         let receiver = platform::spawn_request(async move {
-            client
-                .login(email, password)
+            accounts::login(url, email, password)
                 .await
                 .map_err(|error| error.to_string())
         });
@@ -737,9 +680,9 @@ impl BlockApp {
         match result {
             Ok(session) => {
                 let mut updated = reauth.account.clone();
-                updated.id = session.account.id;
-                updated.email = session.account.email;
-                updated.name = session.account.display_name;
+                updated.id = session.account;
+                updated.email = session.email;
+                updated.name = session.display_name;
                 updated.token = session.token;
                 if let Err(error) = self.app_state.save_account(&updated) {
                     reauth.error = Some(error.to_string());
@@ -778,8 +721,6 @@ impl BlockApp {
 
     fn open_workspace(&mut self, workspace: Workspace) {
         be::stop();
-        let client = Arc::new(BlockClient::new(self.account.id, workspace.id));
-        client.connect(self.server_url.clone(), self.account.token.clone());
         self.block_types.clear();
         self.registry = EditorRegistry::new();
         self.editors.clear();
@@ -790,12 +731,11 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.dynamic_artifact_unlink = None;
         self.share = ShareDialog::default();
-        self.root_settings = RootSettings::new(&client);
-        self.file_tree = RootSetting::new(&client);
-        self.workspace_ui = RootSetting::new(&client);
+        self.root_settings = RootSettings::default();
+        self.file_tree = RootSetting::default();
+        self.workspace_ui = RootSetting::default();
         self.shell = None;
         self.ui_settings = None;
-        self.client = client;
         self.workspace = Some(workspace.clone());
         self.account.last_workspace_id = Some(workspace.id);
         if let Some(saved) = self
@@ -828,7 +768,7 @@ impl BlockApp {
         if account == self.account {
             return;
         }
-        if self.client.network_debug_snapshot().changes_saved {
+        if be::status().unsealed == 0 {
             self.scheduled_account_switch = Some(account);
         } else {
             self.pending_destructive_action = Some(PendingDestructiveAction::Switch(account));
@@ -840,7 +780,7 @@ impl BlockApp {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
-        let client = Arc::new(BlockClient::new(account.id, Uuid::nil()));
+        be::stop();
         self.block_types.clear();
         self.registry = EditorRegistry::new();
         self.editors.clear();
@@ -867,12 +807,11 @@ impl BlockApp {
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
-        self.root_settings = RootSettings::new(&client);
-        self.file_tree = RootSetting::new(&client);
-        self.workspace_ui = RootSetting::new(&client);
+        self.root_settings = RootSettings::default();
+        self.file_tree = RootSetting::default();
+        self.workspace_ui = RootSetting::default();
         self.shell = None;
         self.ui_settings = None;
-        self.client = client;
         self.account = account;
         self.server_url = server_url;
         self.signed_in = true;
@@ -884,7 +823,7 @@ impl BlockApp {
 
     fn close_requested(&mut self) -> bool {
         be::flush();
-        if self.allow_close || self.client.network_debug_snapshot().changes_saved {
+        if self.allow_close || be::status().unsealed == 0 {
             return true;
         }
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
@@ -912,9 +851,8 @@ impl BlockApp {
 
     fn block_type_of(&self, id: Uuid) -> Option<Uuid> {
         self.block_types.get(&id).copied().or_else(|| {
-            self.client
-                .cached_block(id)
-                .map(|cached| cached.block_type)
+            be::node(id)
+                .map(|node| node.content_type)
                 .or_else(|| self.editors.get(&id).map(|editor| editor.block_type()))
         })
     }
@@ -927,8 +865,7 @@ impl BlockApp {
             return false;
         };
         self.block_types.insert(id, block_type);
-        self.editors
-            .insert(id, self.registry.open(&self.client, id, block_type));
+        self.editors.insert(id, self.registry.open(id, block_type));
         true
     }
 
@@ -949,17 +886,13 @@ impl BlockApp {
             child,
             source: None,
             destination: Some(parent),
-            parent_after: (!linked).then_some(BlockParent::Uuid(parent)),
+            parent_after: (!linked).then_some(BlockParent::Block(parent)),
             stage: TransferStage::AddDestination,
         });
     }
 
     fn set_block_parent(&mut self, id: Uuid, parent: BlockParent) {
-        if let Some(editor) = self.editors.get(&id) {
-            editor.set_parent(parent);
-        } else {
-            self.client.set_block_parent(id, parent);
-        }
+        be::set_parent(id, parent);
     }
 
     fn queue_move(
@@ -989,7 +922,7 @@ impl BlockApp {
             child,
             source: Some(source),
             destination: Some(destination),
-            parent_after: (!is_reference).then_some(BlockParent::Uuid(destination)),
+            parent_after: (!is_reference).then_some(BlockParent::Block(destination)),
             stage: TransferStage::DeleteSource,
         });
     }
@@ -1021,7 +954,7 @@ impl BlockApp {
             source: Some(source),
             destination: None,
             parent_after: (!is_reference && source != SidebarDragSource::Root)
-                .then_some(BlockParent::Orphaned),
+                .then_some(BlockParent::Detached),
             stage: TransferStage::DeleteSource,
         });
     }
@@ -1033,14 +966,13 @@ impl BlockApp {
                 let ready = match transfer.source {
                     None | Some(SidebarDragSource::Orphaned) => Some(true),
                     Some(SidebarDragSource::Root) => {
-                        self.client
-                            .set_block_parent(transfer.child, BlockParent::Orphaned);
+                        be::set_parent(transfer.child, BlockParent::Detached);
                         Some(true)
                     }
                     Some(SidebarDragSource::Block(source)) => self
                         .editors
                         .get(&source)
-                        .and_then(|editor| editor.delete_child(BlockEntry { id: transfer.child })),
+                        .and_then(|editor| editor.delete_child(transfer.child)),
                 };
                 if ready != Some(true) {
                     self.pending_transfers.push(transfer);
@@ -1052,7 +984,7 @@ impl BlockApp {
             let ready = transfer.destination.map_or(Some(true), |destination| {
                 self.editors
                     .get(&destination)
-                    .and_then(|editor| editor.add_child(BlockEntry { id: transfer.child }))
+                    .and_then(|editor| editor.add_child(transfer.child))
             });
             if ready != Some(true) {
                 self.pending_transfers.push(transfer);
@@ -1090,18 +1022,10 @@ impl BlockApp {
                     self.pending_copies.push(copy);
                     continue;
                 }
-                let Some((copy_id, block_type)) =
-                    self.editors.get(&copy.source).and_then(|editor| {
-                        editor
-                            .block()
-                            .duplicate(&self.client)
-                            .map(|copy_id| (copy_id, editor.block_type()))
-                    })
-                else {
+                let Some((copy_id, block_type)) = be::duplicate(copy.source) else {
                     self.pending_copies.push(copy);
                     continue;
                 };
-                be::duplicate(copy.source, copy_id, block_type);
                 copy.stage = CopyStage::Replace {
                     copy_id,
                     block_type,
@@ -1122,22 +1046,22 @@ impl BlockApp {
             let replaced = self
                 .editors
                 .get(&copy.container)
-                .and_then(|editor| editor.replace_child(copy.source, BlockEntry { id: copy_id }));
+                .and_then(|editor| editor.replace_child(copy.source, copy_id));
             if replaced != Some(true) {
                 self.pending_copies.push(copy);
                 continue;
             }
 
-            self.set_block_parent(copy_id, BlockParent::Uuid(copy.container));
+            self.set_block_parent(copy_id, BlockParent::Block(copy.container));
             self.show_in_shell(copy_id, block_type, Some(copy.container));
         }
     }
 
-    fn editor_access_ceiling(&self, id: Uuid) -> BlockAccess {
-        editors::editor_access_ceiling(&self.client, id)
+    fn editor_access_ceiling(&self, id: Uuid) -> Access {
+        editors::editor_access_ceiling(id)
     }
 
-    fn editor_access(&self, id: Uuid) -> BlockAccess {
+    fn editor_access(&self, id: Uuid) -> Access {
         let ceiling = self.editor_access_ceiling(id);
         self.editor_access
             .get(&id)
@@ -1155,14 +1079,12 @@ impl BlockApp {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
-        self.file_tree.ensure(&self.client, self.client_id);
-        let id = self
-            .workspace_ui
-            .ensure(&self.client, self.client_id)
-            .map(BlockHandle::id)?;
-        self.block_types.insert(id, WorkspaceUi::TYPE_ID);
+        self.file_tree.ensure(self.client_id);
+        let id = self.workspace_ui.ensure(self.client_id)?;
+        self.block_types
+            .insert(id, WorkspaceUiContent::CONTENT_TYPE);
         if !self.editors.contains_key(&id) {
-            let editor = self.registry.open(&self.client, id, WorkspaceUi::TYPE_ID);
+            let editor = self.registry.open(id, WorkspaceUiContent::CONTENT_TYPE);
             self.editors.insert(id, editor);
         }
         self.shell = Some(id);
@@ -1203,14 +1125,11 @@ impl BlockApp {
     fn act_on_artifact(&mut self, id: Uuid, action: ArtifactAction) {
         match action {
             ArtifactAction::Regenerate => {
-                let data = self
-                    .client
-                    .dynamic_artifact(id)
-                    .map(|descriptor| descriptor.data);
+                let data = artifact_of(id).map(|artifact| artifact.data);
                 if let (Some(data), Some(session)) =
                     (data, self.dynamic_artifact_sessions.get_mut(&id))
                 {
-                    session.regenerate(&self.client, &data);
+                    session.regenerate(&data);
                     self.dynamic_artifact_errors.remove(&id);
                 }
             }
@@ -1235,7 +1154,6 @@ impl BlockApp {
             let mut editors = EditorAccess::new(
                 shell,
                 access,
-                &self.client,
                 self.client_id,
                 &self.registry,
                 &mut self.editors,
@@ -1269,7 +1187,7 @@ impl BlockApp {
         let watched = self.watched_artifacts.clone();
         let mut states = Vec::new();
         for id in watched {
-            let Some(descriptor) = self.client.dynamic_artifact(id) else {
+            let Some(descriptor) = artifact_of(id) else {
                 self.dynamic_artifact_sessions.remove(&id);
                 self.forget_dynamic_artifact_dialogs(id);
                 continue;
@@ -1290,7 +1208,7 @@ impl BlockApp {
             }
             let status = session
                 .as_mut()
-                .map(|session| session.poll(&self.registry, &self.client, &descriptor.data));
+                .map(|session| session.poll(&self.registry, &descriptor.data));
             if let Some(outcome) = session.as_mut().and_then(|session| session.take_outcome()) {
                 match outcome {
                     Ok(()) => {
@@ -1345,7 +1263,7 @@ impl BlockApp {
             surfaces::set_height(SurfaceId::ArtifactSettings, None);
             return;
         };
-        let descriptor = self.client.dynamic_artifact(id);
+        let descriptor = artifact_of(id);
         let (Some(descriptor), Some(mut session)) =
             (descriptor, self.dynamic_artifact_sessions.remove(&id))
         else {
@@ -1358,9 +1276,8 @@ impl BlockApp {
             .or_insert_with(|| descriptor.data.clone());
         surfaces::set_height(SurfaceId::ArtifactSettings, Some(session.settings_height()));
         let registry = &self.registry;
-        let client = &self.client;
         surfaces::with(SurfaceId::ArtifactSettings, |ui| {
-            session.settings_ui(ui, registry, client, draft);
+            session.settings_ui(ui, registry, draft);
         });
         self.dynamic_artifact_sessions.insert(id, session);
     }
@@ -1369,22 +1286,22 @@ impl BlockApp {
         let Some(id) = self.dynamic_artifact_settings_open else {
             return;
         };
-        let Some(descriptor) = self.client.dynamic_artifact(id) else {
+        let Some(descriptor) = artifact_of(id) else {
             self.dynamic_artifact_settings_open = None;
             return;
         };
         let Some(data) = self.dynamic_artifact_settings.remove(&id) else {
             return;
         };
-        self.client.set_dynamic_artifact(
+        set_artifact(
             id,
-            DynamicArtifactDescriptor {
+            Some(be_block::ArtifactSource {
                 source_type: descriptor.source_type,
                 data: data.clone(),
-            },
+            }),
         );
         if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
-            session.regenerate(&self.client, &data);
+            session.regenerate(&data);
         }
         self.dynamic_artifact_errors.remove(&id);
         self.dynamic_artifact_settings_open = None;
@@ -1404,7 +1321,7 @@ impl BlockApp {
         let Some(id) = self.dynamic_artifact_unlink else {
             return;
         };
-        self.client.clear_dynamic_artifact(id);
+        set_artifact(id, None);
         self.dynamic_artifact_errors.remove(&id);
         self.forget_dynamic_artifact_dialogs(id);
     }
@@ -1427,12 +1344,12 @@ impl BlockApp {
     }
 
     fn block_label(&self, id: Uuid) -> BlockLabel {
-        self.client.cached_block(id).map_or_else(
+        be::node(id).map_or_else(
             || {
                 let block_type = self.block_type_of(id).unwrap_or_default();
-                BlockLabel::new(&self.registry, block_type, None)
+                BlockLabel::new(&self.registry, block_type, None, false)
             },
-            |cached| BlockLabel::for_cached(&self.registry, &cached),
+            |node| BlockLabel::for_node(&self.registry, &node),
         )
     }
 
@@ -1440,7 +1357,7 @@ impl BlockApp {
         match command {
             BlockCommand::Share => {
                 let label = self.block_label(id);
-                self.share.open(&self.client, id, label);
+                self.share.open(id, label);
             }
             BlockCommand::Rename => {
                 let name = self.block_label(id).name;
@@ -1456,12 +1373,12 @@ impl BlockApp {
             BlockCommand::CloseEditor => self.close_editor(id),
             BlockCommand::SimulateAccess { access } => {
                 let access = match access {
-                    AccessLevel::None => BlockAccess::None,
-                    AccessLevel::KnowExists => BlockAccess::KnowExists,
-                    AccessLevel::View => BlockAccess::View,
-                    AccessLevel::Edit => BlockAccess::Edit,
+                    AccessLevel::None => Access::None,
+                    AccessLevel::KnowExists => Access::KnowExists,
+                    AccessLevel::View => Access::View,
+                    AccessLevel::Edit => Access::Edit,
                 };
-                match access == BlockAccess::Edit {
+                match access == Access::Edit {
                     true => self.editor_access.remove(&id),
                     false => self.editor_access.insert(id, access),
                 };
@@ -1549,8 +1466,8 @@ impl BlockApp {
         self.poll_reauth_request();
         self.process_pending_transfers();
         self.process_pending_copies();
-        self.share.poll(&self.client);
-        debug::poll(&self.client);
+        self.share.poll();
+        debug::poll();
         self.show_shell();
         self.poll_artifacts();
         plugin_host::flush();
@@ -1576,17 +1493,14 @@ impl BlockApp {
 
     fn sync_ui_settings(&mut self, context: &beui::Context) {
         if self.ui_settings.is_none() {
-            let Some(root_settings) = self.root_settings.find(&self.client) else {
+            let Some(root_settings) = self.root_settings.find() else {
                 context.set_zoom_factor(1.0);
                 return;
             };
-            let Some(settings) = root_settings.read() else {
+            let Some(settings) = root_settings::settings(root_settings) else {
                 return;
             };
-            let Some(id) = settings
-                .resolve(UiSettings::TYPE_ID, self.client_id)
-                .and_then(|reference| reference.as_direct())
-            else {
+            let Some(id) = settings.resolve(UiSettingsContent::CONTENT_TYPE, self.client_id) else {
                 context.set_zoom_factor(1.0);
                 return;
             };
@@ -1595,7 +1509,7 @@ impl BlockApp {
         let Some(id) = self.ui_settings else {
             return;
         };
-        be::hold(id, UiSettings::TYPE_ID);
+        be::hold(id, UiSettingsContent::CONTENT_TYPE);
         let settings = be::content(id).and_then(|content| {
             <be_block::UiSettingsContent as be_block::BlockContent>::decode(&content.bytes).ok()
         });
@@ -1691,7 +1605,7 @@ impl BlockApp {
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => self.invite_open = true,
             UiCommand::SwitchWorkspace => {
-                if self.client.network_debug_snapshot().changes_saved {
+                if be::status().unsealed == 0 {
                     self.scheduled_workspace_list = true;
                 } else {
                     self.pending_destructive_action =
@@ -1719,7 +1633,8 @@ impl BlockApp {
                 if name.len() <= MAX_NAME_BYTES
                     && let Some(rename) = self.rename.take()
                 {
-                    self.client.set_block_name(rename.id, name);
+                    let name = name.trim().to_owned();
+                    be::set_name(rename.id, (!name.is_empty()).then_some(name));
                 }
             }
             UiCommand::CancelRename => self.rename = None,
@@ -1727,9 +1642,9 @@ impl BlockApp {
             UiCommand::CancelArtifactSettings => self.cancel_artifact_settings(),
             UiCommand::Unlink => self.unlink_artifact(),
             UiCommand::CancelUnlink => self.dynamic_artifact_unlink = None,
-            UiCommand::Share(command) => self.share.command(&self.client, command),
+            UiCommand::Share(command) => self.share.command(command),
             UiCommand::Picker(command) => block_picker::deliver(command),
-            UiCommand::Debug(command) => debug::command(&self.client, command),
+            UiCommand::Debug(command) => debug::command(command),
         }
     }
 
@@ -1741,7 +1656,7 @@ impl BlockApp {
             (None, true, Some(_)) => ui::Screen::Workspace,
         };
         let changes_saved = match screen {
-            ui::Screen::Workspace => self.client.network_debug_snapshot().changes_saved,
+            ui::Screen::Workspace => be::status().unsealed == 0,
             _ => true,
         };
         let accounts: Vec<_> = self
@@ -1834,7 +1749,7 @@ impl BlockApp {
                 name: rename.name.clone(),
             }),
             artifact_settings: self.dynamic_artifact_settings_open.and_then(|id| {
-                let descriptor = self.client.dynamic_artifact(id)?;
+                let descriptor = artifact_of(id)?;
                 let draft = self.dynamic_artifact_settings.get(&id);
                 let session = self.dynamic_artifact_sessions.get(&id);
                 Some(ui::ArtifactSettingsView {
@@ -1846,18 +1761,18 @@ impl BlockApp {
                 })
             }),
             unlink: self.dynamic_artifact_unlink.is_some(),
-            share: self.share.view(&self.client),
+            share: self.share.view(),
             picker: block_picker::view(),
             presenting: surfaces::handle(SurfaceId::Presenting)
                 .shown()
                 .get_untracked(),
-            debug: debug::view(&self.client),
+            debug: debug::view(),
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     fn restart(&mut self) {
-        block_client::shut_down_clients();
+        be::stop();
         match Self::new(Some(self.data_dir.clone())) {
             Ok(fresh) => *self = fresh,
             Err(error) => self.error = Some(error.to_string()),
@@ -1866,7 +1781,7 @@ impl BlockApp {
 
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
-        block_client::shut_down_clients();
+        be::stop();
         match Self::new() {
             Ok(fresh) => *self = fresh,
             Err(error) => self.error = Some(error.to_string()),
@@ -1896,7 +1811,7 @@ impl BlockApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn delete_server_database(&mut self) {
-        block_client::shut_down_clients();
+        be::stop();
         self.embedded_server = None;
         let path = self.data_dir.join("server");
         if let Err(error) = std::fs::remove_dir_all(&path)
@@ -1936,10 +1851,22 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     }
 }
 
+fn artifact_of(id: Uuid) -> Option<be_block::ArtifactSource> {
+    be::node(id)?.metadata.artifact
+}
+
+fn set_artifact(id: Uuid, artifact: Option<be_block::ArtifactSource>) {
+    let Some(mut metadata) = be::node(id).map(|node| node.metadata) else {
+        return;
+    };
+    metadata.artifact = artifact;
+    be::set_metadata(id, metadata);
+}
+
 fn drag_source(location: BlockLocation) -> SidebarDragSource {
     match location {
         BlockLocation::Root => SidebarDragSource::Root,
-        BlockLocation::Orphaned => SidebarDragSource::Orphaned,
+        BlockLocation::Detached => SidebarDragSource::Orphaned,
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
 }

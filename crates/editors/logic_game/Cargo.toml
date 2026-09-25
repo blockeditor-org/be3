@@ -9,8 +9,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
-block = { path = "../../block" }
-block-client = { path = "../../block-client" }
 block-editor-plugin = { path = "../../block-editor-plugin" }
 logicgame = { path = "../../logicgame" }
 uuid = "1"

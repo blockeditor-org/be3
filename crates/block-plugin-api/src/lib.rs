@@ -15,6 +15,7 @@ pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
+pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
 pub const DEFAULT_SURFACE_SIDE: u32 = 8192;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
@@ -498,6 +499,17 @@ pub enum EditorMessage {
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
+    ShowPresence {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        kind: [u8; 16],
+        value: Option<serde_bytes::ByteBuf>,
+    },
+    PeerPresence {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        peers: Vec<PeerPresence>,
+    },
     ViewChanged {
         instance: EditorInstanceId,
         x: f32,
@@ -755,6 +767,34 @@ pub enum EditorMessage {
         group: String,
         measurements: Vec<PerformanceMeasurement>,
     },
+    WatchBlocks {
+        instance: EditorInstanceId,
+        queries: Vec<BlockQuery>,
+    },
+    Blocks {
+        instance: EditorInstanceId,
+        query: BlockQuery,
+        blocks: Vec<BlockInfo>,
+    },
+    CreateBlock {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        content_type: [u8; 16],
+        parent: BlockLocation,
+        name: Option<String>,
+        artifact: Option<ArtifactSource>,
+        content: Option<serde_bytes::ByteBuf>,
+    },
+    SetParent {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        parent: BlockLocation,
+    },
+    SetName {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        name: Option<String>,
+    },
 }
 
 impl EditorMessage {
@@ -768,6 +808,8 @@ impl EditorMessage {
             | Self::WatchContent { instance, .. }
             | Self::SeedContent { instance, .. }
             | Self::ReplaceContent { instance, .. }
+            | Self::ShowPresence { instance, .. }
+            | Self::PeerPresence { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -818,7 +860,12 @@ impl EditorMessage {
             | Self::PasteText { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
-            | Self::Performance { instance, .. } => *instance,
+            | Self::Performance { instance, .. }
+            | Self::WatchBlocks { instance, .. }
+            | Self::Blocks { instance, .. }
+            | Self::CreateBlock { instance, .. }
+            | Self::SetParent { instance, .. }
+            | Self::SetName { instance, .. } => *instance,
         }
     }
 }
@@ -893,11 +940,42 @@ pub enum CreationOutcome {
     Failed(String),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockLocation {
     Root,
-    Orphaned,
+    Detached,
     Block([u8; 16]),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BlockQuery {
+    Roots,
+    Detached,
+    Children([u8; 16]),
+    References([u8; 16]),
+    Backrefs([u8; 16]),
+    Parents([u8; 16]),
+    Block([u8; 16]),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArtifactSource {
+    pub source_type: [u8; 16],
+    #[serde(with = "serde_bytes")]
+    pub data: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockInfo {
+    pub block_id: [u8; 16],
+    pub block_type: [u8; 16],
+    pub author: [u8; 16],
+    pub parent: BlockLocation,
+    pub name: Option<String>,
+    pub named_by_hand: bool,
+    pub references: Vec<[u8; 16]>,
+    pub access: AccessLevel,
+    pub artifact: Option<ArtifactSource>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -907,6 +985,29 @@ pub enum AccessLevel {
     View,
     #[default]
     Edit,
+}
+
+impl AccessLevel {
+    pub fn can_know_exists(self) -> bool {
+        self >= Self::KnowExists
+    }
+
+    pub fn can_view(self) -> bool {
+        self >= Self::View
+    }
+
+    pub fn can_edit(self) -> bool {
+        self == Self::Edit
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::None => "No access",
+            Self::KnowExists => "Knows it exists",
+            Self::View => "Can view",
+            Self::Edit => "Can edit",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -930,6 +1031,14 @@ pub struct ArtifactState {
 pub struct WatchedContent {
     pub block_id: [u8; 16],
     pub content_type: [u8; 16],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PeerPresence {
+    pub client: u64,
+    pub kind: [u8; 16],
+    #[serde(with = "serde_bytes")]
+    pub value: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1078,13 +1187,6 @@ pub struct AudioStatus {
     pub error: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TunnelMessage {
-    Request { payload: String },
-
-    Response { payload: String },
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Message {
     Hello(Hello),
@@ -1104,7 +1206,6 @@ pub enum Message {
     Shutdown,
     ShutdownAcknowledged,
     Editor(EditorMessage),
-    Client(TunnelMessage),
     BlockTypes(Vec<BlockTypeDescriptor>),
     Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
@@ -1153,7 +1254,7 @@ impl Message {
             | Self::FrameNeeded
             | Self::FrameReady(_)
             | Self::Children(_) => Direction::ToHost,
-            Self::Error(_) | Self::Client(_) => Direction::Either,
+            Self::Error(_) => Direction::Either,
             Self::Editor(editor) => editor.direction(),
         }
     }
@@ -1170,6 +1271,7 @@ impl EditorMessage {
             | Self::EditabilityChanged { .. }
             | Self::Content { .. }
             | Self::ContentOperations { .. }
+            | Self::PeerPresence { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1188,7 +1290,8 @@ impl EditorMessage {
             | Self::ArtifactStates { .. }
             | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
-            | Self::ChildView { .. } => Direction::ToPlugin,
+            | Self::ChildView { .. }
+            | Self::Blocks { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::Focused { .. }
             | Self::DragBlock { .. }
@@ -1220,7 +1323,12 @@ impl EditorMessage {
             | Self::WatchContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
-            | Self::Performance { .. } => Direction::ToHost,
+            | Self::ShowPresence { .. }
+            | Self::Performance { .. }
+            | Self::WatchBlocks { .. }
+            | Self::CreateBlock { .. }
+            | Self::SetParent { .. }
+            | Self::SetName { .. } => Direction::ToHost,
         }
     }
 }
@@ -1729,9 +1837,6 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        Message::Client(
-            TunnelMessage::Request { payload } | TunnelMessage::Response { payload },
-        ) => text(payload),
         Message::Children(value) => validate_children(value),
         Message::ChildStatuses(value) => {
             collection(value.len())?;
@@ -1817,6 +1922,49 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
         EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
+        EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
+        EditorMessage::Blocks { blocks, .. } => {
+            if blocks.len() > MAX_LISTED_BLOCKS {
+                return Err(DecodeError::LimitExceeded("block list"));
+            }
+            for block in blocks {
+                if let Some(name) = &block.name {
+                    string(name)?;
+                }
+                collection(block.references.len())?;
+                if let Some(artifact) = &block.artifact {
+                    descriptor(&artifact.data)?;
+                }
+            }
+            Ok(())
+        }
+        EditorMessage::CreateBlock {
+            name,
+            artifact,
+            content,
+            ..
+        } => {
+            if let Some(name) = name {
+                string(name)?;
+            }
+            if let Some(artifact) = artifact {
+                descriptor(&artifact.data)?;
+            }
+            content.as_ref().map_or(Ok(()), |content| blob(content))
+        }
+        EditorMessage::SetName {
+            name: Some(name), ..
+        } => string(name),
+        EditorMessage::ShowPresence {
+            value: Some(value), ..
+        } => blob(value),
+        EditorMessage::PeerPresence { peers, .. } => {
+            collection(peers.len())?;
+            for peer in peers {
+                blob(&peer.value)?;
+            }
+            Ok(())
+        }
         EditorMessage::ArtifactStates { states, .. } => {
             collection(states.len())?;
             for state in states {

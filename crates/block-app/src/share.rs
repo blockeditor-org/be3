@@ -1,6 +1,27 @@
-use block::{Account, BlockAccess, BlockAccessEntry, WorkspaceRole};
-use block_client::{BlockAccessRequest, BlockClient};
+use std::sync::mpsc::{Receiver, TryRecvError};
+
+use be_graph::Access as BlockAccess;
+use be_protocol::{AccessEntry as BlockAccessEntry, WorkspaceRole};
 use uuid::Uuid;
+
+type AccessRequest = Receiver<Result<Vec<BlockAccessEntry>, String>>;
+
+#[derive(Clone, Debug, PartialEq)]
+struct Account {
+    id: Uuid,
+    email: String,
+    display_name: String,
+}
+
+impl Account {
+    fn of(entry: &BlockAccessEntry) -> Self {
+        Self {
+            id: entry.account,
+            email: entry.email.clone(),
+            display_name: entry.display_name.clone(),
+        }
+    }
+}
 
 use crate::editors::BlockLabel;
 
@@ -20,7 +41,7 @@ pub struct ShareDialog {
 struct ShareState {
     id: Uuid,
     label: BlockLabel,
-    request: Option<BlockAccessRequest>,
+    request: Option<AccessRequest>,
     entries: Vec<BlockAccessEntry>,
     loaded: bool,
     error: Option<String>,
@@ -77,11 +98,11 @@ pub(crate) struct ShareView {
 }
 
 impl ShareDialog {
-    pub fn open(&mut self, client: &BlockClient, id: Uuid, label: BlockLabel) {
+    pub fn open(&mut self, id: Uuid, label: BlockLabel) {
         self.open = Some(ShareState {
             id,
             label,
-            request: Some(client.request_block_access(id)),
+            request: Some(crate::be::list_access(id)),
             entries: Vec::new(),
             loaded: false,
             error: None,
@@ -91,7 +112,7 @@ impl ShareDialog {
         });
     }
 
-    pub fn poll(&mut self, _client: &BlockClient) {
+    pub fn poll(&mut self) {
         if let Some(state) = &mut self.open {
             state.poll();
             if state.request.is_some() {
@@ -100,11 +121,11 @@ impl ShareDialog {
         }
     }
 
-    pub fn command(&mut self, client: &BlockClient, command: ShareCommand) {
+    pub fn command(&mut self, command: ShareCommand) {
         let Some(state) = &mut self.open else {
             return;
         };
-        let account_id = client.account_id();
+        let account_id = crate::be::account().unwrap_or_default();
         let mut grants = Vec::new();
         let mut reload = false;
         match command {
@@ -140,18 +161,18 @@ impl ShareDialog {
             }
         }
         for (account, access) in grants {
-            client.set_block_access(state.id, account, access);
+            crate::be::set_access(state.id, account, access);
             reload = true;
         }
         if reload {
             state.error = None;
-            state.request = Some(client.request_block_access(state.id));
+            state.request = Some(crate::be::list_access(state.id));
         }
     }
 
-    pub fn view(&self, client: &BlockClient) -> Option<ShareView> {
+    pub fn view(&self) -> Option<ShareView> {
         let state = self.open.as_ref()?;
-        let account_id = client.account_id();
+        let account_id = crate::be::account().unwrap_or_default();
         let members: Vec<Member> = state
             .entries
             .iter()
@@ -193,13 +214,13 @@ fn suggestion(account: &Account) -> Suggestion {
 fn member(entry: &BlockAccessEntry, account_id: Uuid) -> Member {
     let fixed = match entry.role {
         WorkspaceRole::Administrator => Some("Administrators can open every block"),
-        WorkspaceRole::Editor if entry.account.id == account_id => Some("This is you"),
+        WorkspaceRole::Editor if entry.account == account_id => Some("This is you"),
         WorkspaceRole::Editor => None,
     };
     Member {
-        id: entry.account.id,
-        name: entry.account.display_name.clone(),
-        email: entry.account.email.clone(),
+        id: entry.account,
+        name: entry.display_name.clone(),
+        email: entry.email.clone(),
         fixed: fixed.map(str::to_owned),
         note: match fixed {
             Some(_) => None,
@@ -216,8 +237,13 @@ fn member(entry: &BlockAccessEntry, account_id: Uuid) -> Member {
 
 impl ShareState {
     fn poll(&mut self) {
-        let Some(result) = self.request.as_mut().and_then(BlockAccessRequest::poll) else {
+        let Some(request) = self.request.as_ref() else {
             return;
+        };
+        let result = match request.try_recv() {
+            Ok(result) => result,
+            Err(TryRecvError::Empty) => return,
+            Err(TryRecvError::Disconnected) => Err("the block stack stopped".to_owned()),
         };
         self.request = None;
         match result {
@@ -238,21 +264,21 @@ impl ShareState {
                 !self
                     .pending
                     .iter()
-                    .any(|pending| pending.id == entry.account.id)
+                    .any(|pending| pending.id == entry.account)
             })
             .filter(|entry| {
                 query.is_empty()
-                    || entry.account.display_name.to_lowercase().contains(&query)
-                    || entry.account.email.to_lowercase().contains(&query)
+                    || entry.display_name.to_lowercase().contains(&query)
+                    || entry.email.to_lowercase().contains(&query)
             })
-            .map(|entry| entry.account.clone())
+            .map(Account::of)
             .collect()
     }
 }
 
 fn has_access(entry: &BlockAccessEntry, account_id: Uuid) -> bool {
     matches!(entry.role, WorkspaceRole::Administrator)
-        || entry.account.id == account_id
+        || entry.account == account_id
         || entry.granted.is_some()
         || entry.effective > BlockAccess::None
 }

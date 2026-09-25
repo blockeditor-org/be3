@@ -1,6 +1,16 @@
 use std::{env, error::Error, net::SocketAddr, path::PathBuf, process::ExitCode};
 
+use be_server::ServerConfig;
 use tokio::net::TcpListener;
+
+const USAGE: &str = "\
+Usage:
+  be-server [--addr ADDR] [--data-dir DIR] [--disable-registration]
+  be-server [--data-dir DIR] --add-account EMAIL NAME PASSWORD WORKSPACE
+
+  --addr ADDR               Address to listen on (default: 127.0.0.1:9090)
+  --data-dir DIR            Where accounts and blocks are stored (default: be-server-data)
+  --disable-registration    Refuse new accounts; provision them with --add-account instead";
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -15,16 +25,20 @@ async fn main() -> ExitCode {
 
 async fn run() -> Result<(), Box<dyn Error>> {
     let mut arguments = env::args().skip(1);
-    let mut address: SocketAddr = "127.0.0.1:8787".parse()?;
+    let mut address: SocketAddr = "127.0.0.1:9090".parse()?;
     let mut data_dir = PathBuf::from("be-server-data");
+    let mut config = ServerConfig::default();
     let mut account: Option<(String, String, String, String)> = None;
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
-            "--address" => address = arguments.next().ok_or("--address needs a value")?.parse()?,
+            "--addr" | "--address" => {
+                address = arguments.next().ok_or("--addr needs a value")?.parse()?;
+            }
             "--data-dir" => {
                 data_dir = PathBuf::from(arguments.next().ok_or("--data-dir needs a value")?);
             }
+            "--disable-registration" => config.allow_registration = false,
             "--add-account" => {
                 let email = arguments.next().ok_or("--add-account needs an email")?;
                 let display_name = arguments.next().ok_or("--add-account needs a name")?;
@@ -32,7 +46,11 @@ async fn run() -> Result<(), Box<dyn Error>> {
                 let workspace = arguments.next().ok_or("--add-account needs a workspace")?;
                 account = Some((email, display_name, password, workspace));
             }
-            other => return Err(format!("unknown argument {other}").into()),
+            "--help" => {
+                println!("{USAGE}");
+                return Ok(());
+            }
+            other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
         }
     }
 
@@ -44,7 +62,15 @@ async fn run() -> Result<(), Box<dyn Error>> {
     }
 
     let listener = TcpListener::bind(address).await?;
-    println!("be-server listening on {}", listener.local_addr()?);
-    be_server::serve(listener, data_dir).await?;
+    println!(
+        "be-server listening on {} storing data in {}{}",
+        listener.local_addr()?,
+        data_dir.display(),
+        match config.allow_registration {
+            true => "",
+            false => " (registration disabled)",
+        }
+    );
+    be_server::serve_with_config(listener, data_dir, config, std::future::pending::<()>()).await?;
     Ok(())
 }

@@ -38,6 +38,8 @@ pub struct BlockNode {
     pub head: Option<CommitId>,
     pub references: Vec<Uuid>,
     pub grants: BTreeMap<Uuid, Access>,
+    pub metadata: Vec<u8>,
+    pub version: u64,
 }
 
 impl BlockNode {
@@ -49,6 +51,8 @@ impl BlockNode {
             head: None,
             references: Vec::new(),
             grants: BTreeMap::new(),
+            metadata: Vec::new(),
+            version: 0,
         }
     }
 }
@@ -120,8 +124,19 @@ impl BlockGraph {
         Ok(())
     }
 
+    pub fn touch(&mut self, id: Uuid) -> Result<u64, GraphError> {
+        let node = self.node_mut(id)?;
+        node.version += 1;
+        Ok(node.version)
+    }
+
     pub fn set_head(&mut self, id: Uuid, head: CommitId) -> Result<(), GraphError> {
         self.node_mut(id)?.head = Some(head);
+        Ok(())
+    }
+
+    pub fn set_metadata(&mut self, id: Uuid, metadata: Vec<u8>) -> Result<(), GraphError> {
+        self.node_mut(id)?.metadata = metadata;
         Ok(())
     }
 
@@ -292,6 +307,76 @@ impl BlockGraph {
             }
         }
         best
+    }
+
+    pub fn access_map(&self, account: Uuid) -> BTreeMap<Uuid, Access> {
+        let direct = |node: &BlockNode| {
+            let granted = node.grants.get(&account).copied().unwrap_or_default();
+            match node.author == account {
+                true => Access::Edit,
+                false => granted,
+            }
+        };
+        let mut access: BTreeMap<Uuid, Access> = BTreeMap::new();
+        for (id, node) in &self.blocks {
+            let mut best = direct(node);
+            let mut seen = BTreeSet::from([*id]);
+            let mut current = node.parent.block();
+            while let Some(parent) = current {
+                if !seen.insert(parent) {
+                    break;
+                }
+                let Some(ancestor) = self.blocks.get(&parent) else {
+                    break;
+                };
+                let inherited = direct(ancestor);
+                if inherited.can_view() {
+                    best = best.max(inherited);
+                }
+                current = ancestor.parent.block();
+            }
+            access.insert(*id, best);
+        }
+        let referenced: Vec<Uuid> = self
+            .blocks
+            .iter()
+            .filter(|(id, _)| access[*id].can_view())
+            .flat_map(|(id, node)| {
+                node.references.iter().copied().filter(move |reference| {
+                    self.blocks
+                        .get(reference)
+                        .is_some_and(|child| child.parent != BlockParent::Block(*id))
+                })
+            })
+            .collect();
+        for id in referenced {
+            if let Some(level) = access.get_mut(&id) {
+                *level = (*level).max(Access::KnowExists);
+            }
+        }
+        let known: Vec<Uuid> = access
+            .iter()
+            .filter(|(_, level)| level.can_know_exists())
+            .map(|(id, _)| *id)
+            .collect();
+        for id in known {
+            let mut seen = BTreeSet::from([id]);
+            let mut current = self.blocks.get(&id).and_then(|node| node.parent.block());
+            while let Some(parent) = current {
+                if !seen.insert(parent) {
+                    break;
+                }
+                let Some(level) = access.get_mut(&parent) else {
+                    break;
+                };
+                *level = (*level).max(Access::KnowExists);
+                current = self
+                    .blocks
+                    .get(&parent)
+                    .and_then(|node| node.parent.block());
+            }
+        }
+        access
     }
 
     fn node_mut(&mut self, id: Uuid) -> Result<&mut BlockNode, GraphError> {

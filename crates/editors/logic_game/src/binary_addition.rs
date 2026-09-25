@@ -1,5 +1,4 @@
-use block_client::BlockHandle;
-use block_client::blocks::logic_game::{LogicGame, LogicGameOperation, QuizRow};
+use block_editor_plugin::be_block::logic_game::{LogicGameOperation, QuizRow};
 
 pub(crate) mod ui;
 
@@ -113,16 +112,19 @@ impl BinaryAdditionQuiz {
 
     pub(crate) fn write_row(
         &self,
-        block: &BlockHandle<LogicGame>,
+        block: &crate::app::GameBlock,
         problem: usize,
         row: QuizRow,
         values: Vec<Option<bool>>,
     ) {
-        block.operate(LogicGameOperation::SetQuizRow {
-            problem,
-            row,
-            values,
-        });
+        crate::app::operate(
+            block,
+            LogicGameOperation::SetQuizRow {
+                problem,
+                row,
+                values,
+            },
+        );
     }
 }
 

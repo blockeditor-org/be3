@@ -1,4 +1,4 @@
-use block_client::blocks::counter::Counter as CounterBlock;
+use block_editor_plugin::be_block::CounterContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};
@@ -18,6 +18,6 @@ impl block_editor_plugin::BeuiApp for CounterApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(CounterBlock::default()).id())
+        Ok(creation.create(&CounterContent::default()))
     }
 }

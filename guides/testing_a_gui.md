@@ -11,7 +11,7 @@ what the machine running the tests happens to have installed.
 1. What a GUI test may look at
 
 - The block. An editor's job is to turn gestures into operations, so the assertion is on
-  the block the operations reached, exactly as in block-e2e.
+  the content the operations reached once the test, standing in for the host, applied them.
 - The painting, as a snapshot (see 4) - one frame, or a recording of several. This catches
   what an assertion on the block cannot: a control that vanished, a panel that lost its
   contents, a colour that changed.
@@ -28,8 +28,8 @@ it an icon, or moving it to a sidebar then leaves the tests alone.
 @test_id names the node the component builds, and the frame reports the rectangle every
 named node was laid out at, which is what block-ui-test clicks. Name them
 `<editor>.<what it does>`, and where there are many of a kind, key them by whatever the
-block itself keys them by (`checklist.item.3.done` — the operation takes that index too),
-never by the order they happen to be drawn in.
+block itself keys them by (`checklist.item.{id}.done`, where `id` is the item's `ObjectId`,
+the same id the edit names), never by the order they happen to be drawn in.
 
 3. Write the test
 
@@ -37,25 +37,38 @@ Tests live inside the editor's crate, one test per file under src/tests/, like e
 test in the repository. block-ui-test's BeuiTest is built from the same Editor the view is
 handed, lays the view out over a frame of its own, and runs it headless.
 
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(Checklist::default());
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut editor = BeuiTest::new(Editor::new(host, client, block.id()));
-    editor.run();
+    let editor = Editor::new(host.clone(), block);
+    let mut test = ContentHarness::new(BeuiTest::<ChecklistApp>::new(editor), host);
+    test.hold(None, ChecklistContent::default());
+    test.run();
 
-    editor.click("checklist.draft");
-    editor.run();
-    editor.text("buy milk");
-    editor.run();
-    editor.click("checklist.add");
-    editor.run();
+    test.click("checklist.draft");
+    test.run();
+    test.text("buy milk");
+    test.run();
+    test.click("checklist.add");
+    test.run();
 
-    assert_eq!(items(&block), [("buy milk".to_owned(), false)]);
-    editor.snapshot("adding_an_item_puts_it_on_the_list");
+    let items = test.content::<ChecklistContent>(None);
+    assert_eq!(items.root().items[0].text, "buy milk");
+    test.snapshot("adding_an_item_puts_it_on_the_list");
 
-A block client that was never connected is a whole client: it creates blocks, applies
-operations and reads them back locally, so an editor test needs no server. Call run() after
+There is no server and no block store in an editor test: the test is the host.
+block_ui_test::ContentHarness wraps the BeuiTest and an EditorHost and does what the app's
+host does for the editor's block. hold(block, content) gives it the content of a block -
+None for the editor's own, Some(id) for one it watches with content_of - and run() paints a
+frame, applies every operation the editor sent to what it holds, and sends the result back
+as the snapshot the editor sees next, until nothing changes. content::<C>(block) reads what a
+block holds now, edit::<C>(block, &operation) is an edit arriving from someone else, and
+seeded() is the content the editor seeded or replaced. Its store() is a ContentStore, which
+also stands in for the graph: own and add_block put blocks in it, block reads one back, and
+created lists the blocks the editor made through its Blocks handle. A test can instead do
+the host's part itself, as the counter's and the checklist's do: take_content_operations()
+off the EditorHost, apply them to its own content, and hand the result back with
+set_block_content. Call run() after
 every gesture — the view only sees an event on the frame it is delivered in — and click a
 text field before typing into it. click() panics when no node has that test id, which is
 usually a node that was never given one; shown() and label() ask about one without clicking

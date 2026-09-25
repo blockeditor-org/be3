@@ -1,4 +1,4 @@
-use block_client::blocks::infinite_canvas::{CanvasPoint, CanvasPreviewRegion};
+use block_editor_plugin::be_block::canvas::{CanvasPoint, CanvasPreviewRegion};
 use block_editor_plugin::beui::{
     Color32, FontId, Painter, Rect, TextAlign, TextLayout, Vec2, pos2,
 };

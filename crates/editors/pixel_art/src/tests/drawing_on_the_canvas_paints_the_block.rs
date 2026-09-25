@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn drawing_on_the_canvas_paints_the_block() {
-    let (mut editor, block) = editor();
+    let mut editor = editor();
 
     let canvas = editor.rect_of("pixel-art.canvas");
     let artwork = editor.rect_of("pixel-art.artwork");
@@ -11,7 +11,7 @@ fn drawing_on_the_canvas_paints_the_block() {
         "the artwork must fill the space it is given rather than sitting in a corner"
     );
 
-    let cell = artwork.width() / f32::from(block.read().unwrap().width());
+    let cell = artwork.width() / f32::from(art_of(&editor).width());
     editor.click_at(Pos2::new(
         artwork.left() + cell * 2.5,
         artwork.top() + cell * 1.5,
@@ -19,7 +19,7 @@ fn drawing_on_the_canvas_paints_the_block() {
     editor.run();
     editor.run();
 
-    let art = block.read().unwrap();
+    let art = art_of(&editor);
     let painted = art
         .rgba_bytes()
         .as_chunks::<4>()

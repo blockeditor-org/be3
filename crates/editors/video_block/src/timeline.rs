@@ -261,7 +261,7 @@ fn reattached(
     video: &Video,
     clip: &VideoClip,
     start: u64,
-) -> Option<block_client::blocks::video::VideoClip> {
+) -> Option<block_editor_plugin::be_block::video::VideoClip> {
     let attachment = clip.attachment?;
     let parent_start = video.timing(attachment.clip_id)?.start;
     let offset =

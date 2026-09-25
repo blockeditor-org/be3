@@ -1,21 +1,20 @@
-use block::Block;
-use block_client::blocks::pixel_art::{PixelArt, PixelArtOperation, PixelColor, PixelUpdate};
+use block_editor_plugin::be_block::PixelArtContent;
+use block_editor_plugin::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 
 use super::{ImageSettings, generate};
 
 #[test]
 fn scale_setting_magnifies_the_export() {
-    let mut art = PixelArt::new();
-    PixelArt::apply_operation(
-        &mut art,
-        &PixelArtOperation::Paint {
-            pixels: vec![PixelUpdate {
-                x: 1,
-                y: 0,
-                color: PixelColor::new(12, 34, 56, 78),
-            }],
-        },
-    );
+    let blank = PixelArtContent::default();
+    let mut content = blank.clone();
+    content.apply(&blank.root().edit_for(&PixelArtOperation::Paint {
+        pixels: vec![PixelUpdate {
+            x: 1,
+            y: 0,
+            color: PixelColor::new(12, 34, 56, 78),
+        }],
+    }));
+    let art = content.root().artwork();
 
     let generated = generate(&art, "Sprite", &ImageSettings { scale: 3 }).unwrap();
     let decoded = image::load_from_memory(generated.data())

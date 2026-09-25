@@ -1,13 +1,14 @@
 use std::cell::RefCell;
 
 use beui::NodeId;
-use beui::reactive::{Memo, Prop, ReadSignal, clone, component, create_memo, create_signal, view};
+use beui::reactive::{
+    Memo, Prop, ReadSignal, clone, component, create_effect, create_memo, create_signal, view,
+};
 use beui::styled::Link;
 use beui::styled::theme::FONT_BODY;
-use block_client::BlockHandleAccess;
 use block_ui::{BlockLabel, BlockTypes};
 
-use crate::{ChildTarget, Editor};
+use crate::{BlockList, BlockQuery, ChildTarget, Editor};
 
 #[derive(Clone, Default, PartialEq)]
 pub struct BlockDisplay {
@@ -23,27 +24,33 @@ pub fn watch_block_label(
     target: Memo<Option<ChildTarget>>,
 ) -> ReadSignal<BlockDisplay> {
     let (shown, set_shown) = create_signal(BlockDisplay::default());
-    let opened = RefCell::new(None::<(ChildTarget, Box<dyn BlockHandleAccess>)>);
-    let client = editor.client().clone();
+    let shown_now = shown.clone();
+    let opened = RefCell::new(None::<(ChildTarget, BlockList)>);
+    let blocks = editor.blocks();
     let catalog = editor.host().clone();
-    editor.each_frame(move || {
-        let Some(next) = target.get_untracked() else {
+    create_effect(move || {
+        let Some(next) = target.get() else {
             opened.borrow_mut().take();
             set_shown.set(BlockDisplay::default());
             return;
         };
-        let mut handle = opened.borrow_mut();
-        if handle.as_ref().is_none_or(|(current, _)| *current != next) {
-            *handle = block_client::blocks::open(&client, next.id, next.block_type)
-                .map(|opened| (next, opened));
+        let mut list = opened.borrow_mut();
+        if list.as_ref().is_none_or(|(current, _)| *current != next) {
+            *list = Some((next, blocks.watch(BlockQuery::Block(next.id))));
         }
+        let info = list
+            .as_ref()
+            .and_then(|(_, list)| list.read().into_iter().next());
+        drop(list);
         let types = catalog.block_types();
-        let resolved = handle.is_some();
-        let label = match handle.as_ref() {
-            Some((_, opened)) => BlockLabel::for_handle(types.as_ref(), opened.as_ref()),
-            None => BlockLabel::new(types.as_ref(), next.block_type, None),
-        };
-        set_shown.set(BlockDisplay {
+        let resolved = info.is_some();
+        let label = BlockLabel::new(
+            types.as_ref(),
+            next.block_type,
+            info.as_ref().and_then(|info| info.name.as_deref()),
+            info.as_ref().is_some_and(|info| info.named_by_hand),
+        );
+        let display = BlockDisplay {
             name: label.name,
             glyph: label.icon.map(str::to_owned).unwrap_or_default(),
             type_name: types
@@ -51,7 +58,10 @@ pub fn watch_block_label(
                 .map_or_else(|| next.block_type.to_string(), str::to_owned),
             automatic: label.automatic,
             resolved,
-        });
+        };
+        if shown_now.get_untracked() != display {
+            set_shown.set(display);
+        }
     });
     shown
 }

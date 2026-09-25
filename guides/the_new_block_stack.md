@@ -1,42 +1,39 @@
-# The new block stack
+# The block stack
 
-The `be-*` crates are a replacement for `block`, `block-server` and
-`block-client`. They live beside the old stack rather than inside it: the old
-stack still runs the application, and five editors - the counter, the
-checklist, the browser tab, the UI settings and the calendar - keep their
-content in the new one. Work on them by migrating one thing at a time, not by
-rewriting the app around them.
+Every block in the app lives in the `be-*` crates: `be-store`, `be-commit`,
+`be-session`, `be-graph`, `be-protocol`, `be-model`, `be-block`, `be-client` and
+`be-server`. The app is a peer of its own (`crates/block-app/src/be.rs` and
+`be/`), the server is `be-server`, and every editor keeps its content here.
 
-If you are changing an existing editor or block type today, you want
-`guides/adding_a_block.md` and the `block` crate. This guide is for work on the
-replacement.
+To add a block type, read `guides/adding_a_block.md` first; it is the short
+version of "Adding a content type" below. This guide is for work on the stack
+itself and on how the app hosts it.
 
-## Why there is a replacement
+## Why the stack looks like this
 
-The old `Block` trait fuses five separable things into one type: the durable
-representation, the live-edit operation, undo history, the reference graph, and
-child manipulation. `const CRDT: bool` then makes a single choice that governs
-live merge, offline merge and the wire protocol together. Most of the problems
-below follow from that coupling.
+It replaced an older block system whose `Block` trait fused five separable
+things into one type: the durable representation, the live-edit operation, undo
+history, the reference graph, and child manipulation. `const CRDT: bool` then
+made a single choice that governed live merge, offline merge and the wire
+protocol together. Most of what went wrong followed from that coupling, and
+each of these is something not to bring back.
 
-- **The operation log never compacts.** `snapshot_seq` is written as `0` when a
-  block is created and nothing ever advances it, so reading a block replays
-  every operation it has ever received. It cannot be fixed in place either:
-  operations are ciphertext to the server, and compaction needs understanding.
+- **The operation log never compacted.** Reading a block replayed every
+  operation it had ever received, and it could not be fixed in place:
+  operations were ciphertext to the server, and compaction needs understanding.
   An append-only operation log and end-to-end encryption are incompatible.
-- **References cost a workspace per keystroke.** The client replays pending
-  operations to diff the full reference set, and the server deletes and rewrites
-  every `block_references` and `block_properties` row in the workspace on every
-  update. Under a CRDT the delta is also wrong, because it is computed against
-  an optimistic local state rather than the converged one.
-- **There is no local persistence.** The old client keeps unsent work in memory.
-  Closing the process loses it, so there is no offline story to preserve.
-- **Bulk data is in band.** The old image block holds a `Vec<u8>` that is
-  base64'd into JSON, wrapped in a snapshot, and shipped whole on every replace.
-- **The layering is inverted.** `version_control_object` and
-  `version_control_data` already implement a content-addressed blob store with
-  commits and branches, as block types on top of the block system. The thing
-  that should be the substrate is a guest.
+- **References cost a workspace per keystroke.** The client replayed pending
+  operations to diff the full reference set, and the server rewrote every
+  reference row in the workspace on every update. Under a CRDT the delta was
+  also wrong, because it was computed against an optimistic local state rather
+  than the converged one.
+- **There was no local persistence.** Unsent work lived in memory, so closing
+  the process lost it.
+- **Bulk data was in band.** An image was base64'd into JSON, wrapped in a
+  snapshot, and shipped whole on every replace.
+- **The layering was inverted.** Version control was a content-addressed blob
+  store with commits and branches, built as block types on top of the block
+  system. The thing that should be the substrate was a guest.
 
 ## Goals
 
@@ -145,15 +142,28 @@ postcard frames.
 - A publish writes one head update, the handful of edge rows the commit
   declares, and refcounts for chunks it actually introduced. It does not rewrite
   the workspace.
-- Workspace membership is the trust boundary: every member has `Edit` on every
-  block in the workspace. Per-block grants are recorded and reported but do not
-  restrict members yet; they are the hook for sharing with non-members.
+- Access is computed per member (`Visibility` in `blocks.rs`, over
+  `BlockGraph::access_map`). A workspace administrator edits everything. Anyone
+  else gets `Edit` on what they authored and whatever they were granted, and
+  both are inherited down through parents; a block they can see references
+  gives them `KnowExists` on it, and so does being an ancestor of anything they
+  know of, so the path to a shared block is visible without its content.
+  `SetAccess` grants, and only someone who may edit a block may grant on it.
+- Graph announcements are per member too: when a block changes, every
+  connected member of the workspace is sent the `BlockChanged` their own access
+  lets them see, or a `BlockRemoved` when it no longer does.
+- Accounts live here. `Register` (refused with `--disable-registration`),
+  `Login`, `Authenticate` with a token and `Logout`; workspaces are created
+  through it, and an administrator can `Invite` an email that the invitee sees
+  with `ListInvitations` and answers with `RespondInvitation`.
+  `--add-account EMAIL NAME PASSWORD WORKSPACE` provisions an account and its
+  workspace from the command line.
 - The graph is cached per workspace in memory and dropped on any error so it
   reloads from the database rather than drifting.
 
 ### be-block
 
-The old `Block` trait split into parts a type opts into.
+A block's content is a set of traits a type opts into.
 
 ```rust
 trait BlockContent {                    // durable form and the edges it declares
@@ -161,6 +171,7 @@ trait BlockContent {                    // durable form and the edges it declare
     fn encode(&self) -> Vec<u8>;
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
     fn references(&self) -> Vec<Uuid> { Vec::new() }
+    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> { self.references() }
     fn name(&self) -> Option<String> { None }
 }
 trait LiveEdit: BlockContent {          // optional: what a session carries
@@ -186,17 +197,23 @@ trait Streamed: BlockContent {          // optional: header plus payload
 }
 ```
 
-History and child manipulation are gone from the trait. Undo is client-local and
-against a sequencer it emits an inverse operation rather than rewinding state;
-children are graph operations. `Undo::step` is taken from the state before an
+History and child manipulation are not part of the durable form. Undo is
+client-local and against a sequencer it emits an inverse operation rather than
+rewinding state; a child change is an ordinary operation that
+`LiveEdit::child_operations` answers for. `Undo::step` is taken from the state before an
 operation, and `revert` and `reapply` turn a step into operations against the
 state as it is *now*, so an undo leaves alone whatever someone else changed
 since: the calendar undoes a rename without moving an event another peer
 rescheduled.
 
 `Streamed` types encode as `[u32 header length][header][payload]`, which is what
-lets a reader take the header and then a byte range. `ImageContent` and
-`TextContent` are the two ported types.
+lets a reader take the header and then a byte range. `TextContent` and every
+`Blob` (below) are streamed.
+
+`references_in` is `references` for one workspace, and it is what the peer
+calls when it records a commit's references. Text uses it: a block URL names its
+workspace, and a URL pasted from another workspace is a link, not a reference.
+The URL format itself lives in `be_block::block_url`.
 
 ### be-client
 
@@ -220,8 +237,7 @@ polling either.
 `Live<S, C>` is a block being edited in a session. The owner sequences and
 broadcasts; a follower applies its own edit immediately, rebases it against
 operations that arrive in between, and reconciles against the owner's echo. It
-keeps `confirmed` (server-ordered) and `visible` (`confirmed` plus pending),
-which is the same shape the old client used. `seal` writes a commit, heartbeats
+keeps `confirmed` (server-ordered) and `visible` (`confirmed` plus pending). `seal` writes a commit, heartbeats
 `clean_at`, and tells the followers with `SessionMessage::Sealed` which commit
 now holds which sequence number. `reconcile` runs the resume decision and merges
 when it has to.
@@ -263,8 +279,11 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of four things. A `Count` is a counter whose concurrent changes
-add up. A `List<T>` holds objects of a `Model` type `T`. A `Map<K, V>` holds
+A field is one of five things. A `Count` is a counter whose concurrent changes
+add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
+coordinates, for pixel data: its bounds are part of its value, so a resize moves
+the bounds and keeps every cell at its coordinates, `paint` sets cells and
+`reshape` sets the bounds. A `List<T>` holds objects of a `Model` type `T`. A `Map<K, V>` holds
 values by key, each key its own register: two people setting different keys
 both keep theirs, which is how a database row holds a cell per schema field.
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
@@ -302,14 +321,21 @@ values, and every algorithm is written once against that table:
   people's edits alone. A removed object is put back with everything under it,
   after the sibling it followed. Consecutive sets of the same fields absorb into
   one step.
+- **Grids.** A paint is a list of cells, each optionally conditional on what the
+  cell held, so a paint's undo repaints only the cells nobody has painted since,
+  and a burst of paints into one grid undoes as one stroke. An offline merge
+  takes the bounds the way it takes a register and then merges each coordinate
+  on its own, so a paint made during a resize lands where it was painted, and a
+  crop's undo repaints what the crop dropped.
 
 `Document<R>` implements `BlockContent`, `LiveEdit`, `Merge` and `Undo` in
 `be-block` (`model.rs`), so a type built this way is registered with
-`migrated_with_history` and has undo from the start. Every migrated editor's
-content is built this way: the counter, the checklist, the calendar, the browser
+`kind_with_history` and has undo from the start. Almost every content type is
+built this way: the counter, the checklist, the calendar, the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
-the deterministic game, the map and the video. Text still implements the traits by hand, which remains possible for
-content that does not fit, such as a type that is better as a CRDT. The browser tab shows a register holding an
+the deterministic game, the map, the video, the logic game, the logic grid,
+compiled logic, the infinite canvas and pixel art. Text implements the
+traits by hand, which remains possible for content that does not fit. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
 so a push and a navigation made at the same time still agree on which page is
 current. The video shows what identity buys a tree: a clip attached to another
@@ -317,7 +343,15 @@ is an object in that clip's list, so reattaching it is a move, a move that
 would make a cycle is refused by the model, and removing a clip takes what is
 attached to it. Its editor still speaks in `VideoOperation`s, which
 `VideoProject::edit_for` turns into edits against the content it is shown, and
-reads a flattened `Video` for its timeline. The database schema shows the other direction: its fields and enum
+reads a flattened `Video` for its timeline. The logic game, the logic grid, the
+canvas and pixel art work the same way: the editor speaks in an operation enum
+as a command, and `edit_for` on the content turns a command into an edit
+against the content as it is now. The logic grid computes that by applying the
+command to the grid it reads back and writing the fields that differ, so its
+components merge field by field and its wires, stored as a set of segments,
+merge segment by segment and are normalized when read. The canvas keeps its
+layering as the order of its entity list, so bringing an entity to the front is
+a move. Pixel art keeps its pixels in a `Grid`. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
 store, so renaming a field or an option changes nothing that points at it.
 
@@ -345,37 +379,84 @@ fixture that needs to read or write it between runs.
 
 ```
 ./scripts/buck run //crates/be-server:be-server-bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
-./scripts/buck run //crates/be-server:be-server-bin -- --address 127.0.0.1:8787 --data-dir be-server-data
+./scripts/buck run //crates/be-server:be-server-bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
 ```
+
+`--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
+`be-server-data`. The desktop app does not need a server of its own for a local
+account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
+ephemeral port with a data directory under the app's, and signs in to it like
+any other server. An account on another server connects to that server's URL
+instead, and the web build always does (`./scripts/buck run
+//crates/block-app:web-serve` starts be-server with `--disable-registration`
+beside it).
 
 Tests start their own server on an ephemeral port; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's
-own tests start a `block-server` instead and reach the new stack through it, the
-way the app does: `crates/block-app/src/be/tests.rs`.
+own tests do the same through the embedded server, register an account and
+create a workspace, and then start the app's peer against it the way the app
+does: `Harness` in `crates/block-app/src/be/tests.rs`.
 
-## The counter, migrated
+## How the app hosts content
 
-The counter editor is the first thing in `block-app` that keeps its content
-here. It is the shape every later migration should take, so it is worth reading
-before starting another one.
+The app is the peer, not the plugin. A plugin never sees the content key, the
+connection or the server; it is handed content and graph answers by the host,
+and hands back operations and graph commands.
 
-Identity stays where it was. `block_client::blocks::counter::Counter` is still
-the block type: it is what the new-block menu offers, what the file tree draws,
-where the block sits in the workspace, and who may edit it. It stores nothing
-any more. The count is `be_block::CounterContent`, held in the new stack under
-the same block id, and `crates/block-app/src/be.rs` is the only place that says
-which block types that is true of: `MIGRATED` pairs each old block type with its
-content type, and `content_type_for` reads it.
+### The peer and its registry
 
-The app is the peer, not the plugin. `crates/block-app/src/be/worker.rs` is the
-peer's loop, with a `Live` session per open block behind the `Session` trait, so
-the loop never names a content type; `be/native.rs` runs it on a
-thread of its own with a `FileStore` under it, and `be/web.rs` runs it on the
-browser's own executor with a `MemoryStore`, because there is no file system to
-keep objects in there and every open fetches what it needs. The plugin never
-sees the content key or the connection: it is handed content and hands back
-operation bytes, through four messages on the plugin protocol. Each names the
-block it is about, because an editor can work on more than its own block.
+`KINDS` in `crates/block-app/src/be.rs` is the only list of content types the
+app knows. Each entry is `kind::<C>()`, or `kind_with_history::<C>()` for a type
+that implements `Undo`, and it gives the worker the functions it needs without
+naming the type: join a session, copy, seed, replace, derive a name with
+`BlockContent::name`, and turn a `ChildChange` into operations. A block whose
+content type is not in `KINDS` has no content in the app: the host opens
+nothing for it and refuses content written to it.
+
+`crates/block-app/src/be/worker.rs` is the peer's loop, with a `Live` session
+per open block behind the `Session` trait, so the loop never names a content
+type; `be/native.rs` runs it on a thread of its own with a `FileStore` under it,
+and `be/web.rs` runs it on the browser's own executor with a `MemoryStore`,
+because there is no file system to keep objects in there and every open fetches
+what it needs.
+
+### The graph mirror
+
+The app keeps a mirror of the server's graph, as the account sees it, in
+`be/graph.rs`: a `Node` per block with its content type, author, parent, access,
+references and unsealed `BlockMetadata`. The worker loads it with
+`Peer::list_blocks` whenever it connects and keeps it current from the server's
+`BlockChanged` and `BlockRemoved` events, reloading it whole when it has fallen
+behind the event broadcast. `Query` (`Roots`, `Detached`,
+`Children`, `References`, `Backrefs`, `Parents`, `Block`) is how everything in
+the app asks it a question, and `be::graph_revision` says when to ask again.
+
+A change made here - `be::create`, `be::set_parent`, `be::set_metadata` - is
+applied to the mirror straight away, so the file tree and every editor see it in
+the next frame, and counts as pending for that block. While a block has a
+pending change the mirror ignores the server's echoes for it, which would
+otherwise show a state older than the one on screen; the worker settles the
+change when the server has answered, and refreshes the block from the server
+once nothing is pending.
+
+### Names
+
+A block's name lives in its metadata (`be_block::BlockMetadata`: `name`,
+`named_by_hand` and, for a dynamic artifact, the `ArtifactSource` it was made
+from), which the peer seals with the content key before the server stores it
+(`Peer::seal_metadata`). `be::set_name` names a block by hand, and clearing it
+hands the name back to the content, which renames the block the next time an
+editor sees a revision. `be::name_implicitly` is the automatic name:
+whenever an instance that may edit a block is sent a new revision of it, the
+host derives `BlockContent::name` from the content and writes it, unless the
+name was set by hand. The file tree, the block picker and the top bar read the
+name out of the mirror, so a block nobody has open keeps the name it was last
+given.
+
+### Content on the plugin protocol
+
+Content crosses the plugin protocol in four messages. Each names the block it is
+about, because an editor can work on more than its own block.
 
 - `EditorMessage::Content { block_id, content_type, bytes, applied }` - host to plugin, a
   snapshot. `applied` counts the operations *this instance* sent that the
@@ -392,9 +473,13 @@ block it is about, because an editor can work on more than its own block.
 it registers the block with `WatchContent` and hands back the same
 `ContentProjection` an editor gets for its own block, keyed by that block. The
 host opens a watched block only if the account may view it and its content type
-is migrated, keeps a content link per block per instance beside the editor's own,
-takes an `Operate` for any of them only if the account may edit that block, and
-closes a watched block in the new stack when no instance holds it any more.
+is in `KINDS`, keeps a content link per block per instance beside the editor's
+own, takes an `Operate` for any of them only if the account may edit that block,
+and closes a block in the peer when no instance holds it any more. An editor
+that follows a block chosen by its content rather than a fixed one uses
+`editor.related_content::<C>(block)`: given a `Memo<Option<Uuid>>` it projects
+whichever block that currently names. A database view follows its database and
+the database's schema this way.
 
 Operations, not snapshots, are the normal case. `Live` journals how its visible
 content changed (`Journaled::Edited`, `Applied` or `Replaced`), the worker tags
@@ -405,75 +490,52 @@ it has not seen, and falls back to a snapshot only when it is further behind
 than the log reaches or the content was replaced outright: a join, a reconcile
 or a merge. The worker only re-encodes a block when its journal says it changed.
 
-On the plugin side that is `editor.block_content::<C>()`, the `ContentProjection`
-beside `BlockProjection`, one per editor. `operate` applies an operation to what
-the view sees and queues it for the host. An operation that comes back `mine`
-only confirms what is already shown; one from anyone else is applied on top of
-it, unless an edit of this instance's is still in flight, in which case the
-visible state is rebuilt from the confirmed state and the pending edits.
-
-Applying an operation reports what it touched (`LiveEdit::apply_touching`), and
-a projection only runs when something it watches was touched. `project` watches
-everything; `project_on(key, ...)` watches one key. A hand-written content type
-reports `Touched::Everything`; a `be-model` document reports the field it
-changed and every object that contains it, so `ContentProjection<Document<R>>`
-can offer `field(object, FIELD)`, `ids(owner, LIST)` and `object::<T>(id)`,
-which run only for the field, the list or the object (and what is inside it)
-they name. The checklist's rows each watch their own item and its list watches
-only its order, so ticking one item runs one row. A watcher is dropped with the
-reactive scope that made it.
+On the plugin side that is `editor.block_content::<C>()`, one `ContentProjection`
+per editor. `operate` applies an operation to what the view sees and queues it
+for the host. An operation that comes back `mine` only confirms what is already
+shown; one from anyone else is applied on top of it, unless an edit of this
+instance's is still in flight, in which case the visible state is rebuilt from
+the confirmed state and the pending edits. Applying an operation reports what it
+touched (`LiveEdit::apply_touching`), and a projection only runs when something
+it watches was touched; `guides/reactive.md` says how `project`, `field`, `ids`
+and `object` narrow that. `ContentProjection::read` answers `None` until the
+host has sent the content once, `loaded()` is a signal that turns true when it
+has, and `revision()` counts the changes an editor has seen, for code like the
+PDF pane that re-renders on a change rather than projecting.
 
 `block_editor_plugin` re-exports `be_block`, so an editor names its content type
 without depending on the crate itself.
 
-Migrating another self-contained editor is now four steps: a content type in
-`be-block` (see Adding a content type), an entry in `MIGRATED`, the editor
-reading `editor.block_content::<C>()` instead of `editor.block::<B>()`, and the
-old block type emptied the way `Counter` and `Checklist` are. The browser tab is
-the example for an editor that reads its content outside a projection:
-`ContentProjection::read` answers `None` until the host has sent the content
-once.
+### The graph on the plugin protocol
 
-A migrated block is still named in the old stack, because that is where the file
-tree, the block picker and search look. `BlockContent::name` is the name, and
-the host carries it across: whenever an editable instance is sent a new revision,
-`Instance::name_from_content` writes it as the block's automatic name through
-`BlockHandle::set_implicit_name`, which never touches a name someone set by hand.
-An empty automatic name is how a name is taken away, because the old server has
-no way to delete a property. This is a bridge, not the design: it shows the old
-server every name, exactly as the old stack already does, and it goes away with
-the old stack, when names move into an index the server cannot read.
+A plugin asks about the graph with `EditorMessage::WatchBlocks { queries }`, a
+list of `BlockQuery`s the host answers from its mirror with `Blocks { query,
+blocks }` whenever the answer changes (`plugin_host/graph.rs`). A `BlockInfo`
+carries the block's type, author, parent (`BlockLocation`: `Root`, `Detached` or
+a block), name and whether it was named by hand, references, the account's
+access and the artifact source. It changes the graph with
+`CreateBlock { block_id, content_type, parent, name, artifact, content }`,
+`SetParent` and `SetName`, which the host takes only when the account may edit
+the block and the parent it names, and hands to `be::create`, `be::set_parent`
+and `be::set_name`. On the plugin side these are `editor.watch_blocks(query)` and
+the `Blocks` handle from `editor.blocks()`.
 
-The same bridge carries references, which the file tree, backlinks and
-`watch_references` read from the old graph. The old client derives a block's
-references from its value, so a migrated type that references other blocks
-keeps them in its otherwise empty old value: `Database`, `DatabaseSchema` and
-`DatabaseView` each hold a `references` list and nothing else, and
-`Block::bridged_references` names the operation that sets it. Whenever the host
-bridges a name it also hands `BlockContent::references` to
-`BlockHandleAccess::set_references`, for the editor's own block and for every
-block it watches, which only writes when the set changed.
+### Creating, seeding and replacing
 
-The old stack's child hooks reach a migrated block's content too. Moving a
-block into a container, deleting a child or replacing it with a copy calls
-`add_child`, `delete_child` or `replace_child` on the container's editor, and
-for a migrated type `PluginEditor` sends that to `be::change_child` instead of
-the emptied old value. The content type answers with `Root::child_edit`, which
-turns a `be_block::ChildChange` into an ordinary edit: a presentation adds or
-drops a slide, a database clears or rewrites the cells that link the block, a
-hotbar unpins or repoints a component. If the block is not open, `change_child`
-holds it and answers `None`, which the callers already treat as "not yet" and
-retry.
+A new block's first content travels with it: `CreateBlock` carries the encoded
+content, and the worker creates the block, then writes the content as its first
+commit, before any later command for that block runs. `Creation::create` and
+`Blocks::create` make a block this way, Detached unless a parent is named;
+the host sets the parent of a block made in a creation dialog once it has the
+id. Creating a database makes two blocks this way:
+`block_editor_plugin::database::create_database` creates a schema with a Name
+field and a database pointing at it, and makes the schema a child of the
+database, so the graph is right before any editor opens it.
 
-A new block's first content comes from the editor that made it. The old stack
-creates the block, and `editor.seed_content(block, &content)` (or the same on
-`Creation`) sends `EditorMessage::SeedContent`; the peer writes it as the
-block's first commit, and ignores it for a block that already has content or is
-open, so it cannot overwrite anything. Creating a database makes three blocks
-this way: `block_editor_plugin::database::create_database` seeds a schema with a
-Name field and a database pointing at it, and gives the old database block the
-schema as its reference straight away, so the graph is right before any editor
-opens it.
+`editor.seed_content(block, &content)` sends `EditorMessage::SeedContent` for a
+block that already exists; the peer writes it as the block's first commit, and
+ignores it for a block that already has content or is open, so it cannot
+overwrite anything.
 
 Replacing a block's whole content is `editor.replace_content(block, &content)`,
 which sends `EditorMessage::ReplaceContent`; the host takes it only for a block
@@ -487,57 +549,51 @@ commit and tells its followers to reload; a follower sends the owner
 reapplies whatever it had sequenced but not sealed, and seals, so a header edit
 made while someone was replacing the file is not lost. The image, audio and PDF
 editors' "replace" buttons and the pixel art export's regeneration all go this
-way. `editor.create_with_content::<B, C>(&content)` and
-`content_file_creation::<B, C>` are the shortcuts for making a block of an
-emptied old type with its first content, from code and from the new-block
-dialog's file picker. `ContentProjection::revision` counts the changes an editor
-has seen, for code like the PDF pane that re-renders on a change rather than
-projecting, and `ContentProjection::loaded` is a signal that turns true when the
-first snapshot arrives, for a view that must tell an empty block from one that
-has not loaded yet.
+way. `content_file_creation::<C>` is the creation view that makes a block of a
+file type from the file the user picks.
 
-An editor that follows a block chosen by its content, rather than a fixed one,
-uses `editor.related_content::<C>(block)`: given a `Memo<Option<Uuid>>` it
-projects whichever block that currently names, the way `related` does for an old
-block. A database view follows its database and the database's schema this way,
-resolving each `BlockRef` with `editor.resolve` as before. `BlockRef` itself now
-lives in `be-block`, and `block_client::block_ref` re-exports it.
+### Children, duplication and undo
 
-Duplicating a block is the old stack's `BlockHandleAccess::duplicate`, which
-copies an empty block for a migrated type, so the app follows it with
-`be::duplicate`: the worker copies what the source's session shows, or its head
-when it is not open, into the copy's id before anything opens the copy.
+Moving a block into a container, deleting a child or replacing it with a copy
+asks the container's content to change. `PluginEditor` sends that to
+`be::change_child`, and the content type answers with `Root::child_edit`, which
+turns a `be_block::ChildChange` into an ordinary edit: a presentation adds or
+drops a slide, a database clears or rewrites the cells that link the block, a
+hotbar unpins or repoints a component. If the block is not open, `change_child`
+holds it and answers `None`, which the callers treat as "not yet" and retry.
 
-The app can read a migrated block itself, not only through an editor: the zoom
-in `sync_ui_settings` comes from the UI settings block's content. `be::hold`
-opens a block for the app and keeps it open when the last editor showing it
-closes, because `be::close` leaves a held block alone. Nothing releases a held
-block before the stack stops, which is when the workspace changes.
+Duplicating a block is `be::duplicate`: it adds the copy to the mirror with the
+source's type, references and metadata (without its artifact source), and the
+worker copies what the source's session shows, or its head when it is not open,
+into the copy's id before anything opens the copy.
+
+The app can read a block itself, not only through an editor: the zoom in
+`sync_ui_settings` comes from the UI settings block's content. `be::hold` opens a
+block for the app and keeps it open when the last editor showing it closes,
+because `be::close` leaves a held block alone. Nothing releases a held block
+before the stack stops, which is when the workspace changes.
 
 Undo lives in the app's peer, not in an editor, because it is the one place that
 sees every edit to a block from this device, whichever editor made it. A content
-type that implements `Undo` is registered with `migrated_with_history`, and its
-session keeps an undo and a redo stack: every operation an editor sends records
-a step, a step that arrives within 750 ms of the last one may be absorbed into
-it, and `be::undo` and `be::redo` turn a step into operations the session
-applies like any other edit. Plugins reach it without knowing about the new
-stack: a plugin asks with `BlockCommand::Undo` and `BlockCommand::Redo`, and
-watches whether either is possible with `EditorMessage::WatchHistory`, which the
-host answers with `HistoryStates` whenever they change. The workspace falls back
-to that whenever the old block's handle has no history of its own, which is
-true of every migrated block.
+type registered with `kind_with_history` gets a session that keeps an undo and a
+redo stack: every operation an editor sends records a step, a step that arrives
+within 750 ms of the last one may be absorbed into it, and `be::undo` and
+`be::redo` turn a step into operations the session applies like any other edit.
+Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
+whether either is possible with `EditorMessage::WatchHistory`, which the host
+answers with `HistoryStates` whenever they change.
 
-Four things are worth copying. A migrated editor's block type keeps its old
-entry in `block_types!` with no state in it, rather than disappearing: the graph
-still needs it. The peer writes out what its sessions hold before it goes away:
-`flush()` seals and waits, `stop()` does the same and then joins the worker, and
-the close handler and every workspace change go through one of them, because a
-session that is merely dropped loses everything since the last autosave
+### What to keep true
+
+The peer writes out what its sessions hold before it goes away: `flush()` seals
+and waits, `stop()` does the same and then joins the worker, and the close
+handler and every workspace change go through one of them, because a session
+that is merely dropped loses everything since the last autosave
 (`status().unsealed` is what says whether anything is outstanding). The host
-refuses an `Operate` for a block the account may only read: the plugin holds its
-own edits behind `editable()`, but nothing between the plugin and the peer knows
-about access, so `Instances::editable` asks the old client the same question
-`Open` asked. And nothing in the worker runs on a timer. It waits on its command
+refuses an `Operate`, a `ReplaceContent` and a graph command for a block the
+account may only read: the plugin holds its own edits behind `editable()`, but
+the host does not trust it to, so `Instances::editable` asks the mirror's
+access. And nothing in the worker runs on a timer. It waits on its command
 channel and on the connection's broadcast, with one deadline for the autosave a
 dirty session is owed, so a workspace nobody is editing costs nothing;
 `status().wakes` counts the times it woke, and a test asserts that an idle peer
@@ -547,60 +603,106 @@ A connection that drops does not take the peer with it. `Connection::closed` is
 a watch the worker waits on beside its commands - the event broadcast outlives
 the socket, because the connection holds a sender of its own, so that is not the
 signal - and losing it leaves the last content on screen, backs off, connects
-again and rejoins every block that was open. What a session had not sealed when
-the socket went is lost: recovering it wants the resume path (`clean_at`,
-`Peer::fetch_history`) that be-session already has and the app does not use yet.
+again, reloads the graph and rejoins every block that was open. What a session
+had not sealed when the socket went is lost: recovering it wants the resume path
+(`clean_at`, `Peer::fetch_history`) that be-session already has and the app
+does not use yet.
 
 ### Reaching the server
 
-A browser has one origin: the one it was served from. So the new stack's server
-rides on the old one's port rather than on a second one - `block-server` opens a
-`be_server::Hosted` beside its own store and hands it every websocket upgrade
-for `/api/be`, which is the same handshake the block socket takes, with the same
-`token` and `workspace` query parameters.
+The app talks to be-server directly. `crates/block-app/src/accounts.rs` is the
+account client: it connects to `{server}/api/be` (be-server accepts the
+websocket on any path, so the suffix only matters behind a proxy that routes on
+it), registers, logs in and out, lists and creates workspaces, and invites and
+answers invitations. What comes back is an account id and a token, and the
+app's peer connects with `Credentials::Token` for the workspace it opens.
 
-That is also what removed the accounts problem. The upgrade has already been
-authenticated, so `block-server` carries the account and the workspace across
-under the same ids (`Hosted::adopt`, an upsert of the account, the workspace and
-the membership), and the peer asks for them with `ClientMessage::Adopt` instead
-of registering. A be account id is a block account id, and a be workspace id is
-a block workspace id, so there is nothing for the app to store and nothing to
-keep in step.
+The content key is not a secret yet. `Config::content_key` derives it as a hash
+of a fixed label and the workspace id, so every device of a workspace reads the
+same bytes without exchanging anything, and so could anyone who knows the
+workspace id, the server included. Content, commits and block metadata are all
+sealed with it, so "the server cannot read it" is true of the design and not
+yet of the key; the key wrapping below is what replaces it.
 
-The content key follows from that: it is derived from the workspace id, so two
-devices of one workspace read each other's bytes. That is a placeholder, not a
-design - it is no more secret from the server than `crypto::STATIC_KEY` is in
-the old client - and it is what the key wrapping below replaces.
+### Presence
+
+Presence is what a peer shows the others while it is there - a cursor, a
+selection - and it is never saved. `SessionMessage::Presence { kind, value }`
+carries one kind of it to everyone in the session, sealed like every other
+session message. `Live::set_presence` shows a value (or takes it away with
+`None`) and only sends when it changed, `Live::presence` is what the other peers
+show, keyed by their `ClientId` and the kind, and a peer never sees its own.
+When `SessionChanged` names a participant it has not seen, a peer shows that
+participant what it is showing, so a late joiner sees everyone at once; when a
+participant leaves, what it showed is dropped.
+
+The worker publishes each block's peers into `Shared::presence` when a session
+says they changed, and the host passes them to the instances holding that block
+as `EditorMessage::PeerPresence`. A plugin shows presence with
+`EditorMessage::ShowPresence`, which the host takes from any instance that holds
+the block and may view it, and takes away again when the instance closes. On the
+plugin side that is `editor.show(Some(&value))` and `editor.peers::<P>()`, a
+signal of every peer's value of one `PresenceKind` (`be_block::presence`). The
+framework shows a `UserActive` value of its own, with a colour picked by
+`pick_free_color` against the colours already showing, whenever the host says the
+block is visible. The text editor's cursors and the canvas's pointers and
+selections work the same way, and each carries a colour of its own picked the
+same way rather than joining it to the peer's `UserActive` entry.
+
+### Editors with their own model
+
+The text editor cannot hand its state to a projection: `text_editor_core` wants
+a `Document` with an anchor per byte, so a cursor stays on its character while
+other people type. `text_block::document::BlockDocument` keeps the bytes and
+their anchors itself, turns each local edit into `TextOp::Delete` and
+`TextOp::Insert` that the editor pushes into its `ContentProjection` every
+frame, and adopts a change from elsewhere by diffing the projection's text
+against its own: unchanged bytes keep their anchors, and only inserted bytes get
+new ones. Its undo is its own too, because it has to give the text core back its
+cursors. Each step remembers the anchors either side of the text it replaced
+and both versions of that text, so undo finds the text wherever it has moved to
+and skips it when someone else has changed it since.
+
+Dynamic artifacts reach content from the artifact session through the
+host: `EditorHost::content_of` gives a regeneration a projection of its source,
+and `EditorHost::replace_content` writes the result. Compiled logic and the
+pixel art export regenerate this way.
 
 ## What is not built yet
 
-- A migrated block's references reach the old graph only while an editor holds
-  the block, like its name.
+- Version control was removed with the old block system and has to be remade on
+  this stack. be-commit already keeps the history it would read: every block is
+  a commit chain, and `Peer::fetch_history` walks it.
+- Undo in the text editor lives in the editor, so it is gone when the editor
+  closes, and the app's undo command does nothing for text.
 - Nothing vouches for who wrote an item. The deterministic game stores the
   account behind each move as a field the sender fills in, so a player can move
-  as someone else; the old server stamped it. Signing operations would not be
-  enough, because the session owner sequences and relays everything: the items a
-  block stores have to carry their own signatures, checked by whoever reads
-  them. That wants doing when a chat block makes it matter.
-- A migrated block's content is not in the old workspace index, so nothing but
-  the editor can read it: no preview and no search. Only its name is carried
-  across, and only while an editor has it open.
+  as someone else. Signing operations would not be enough, because the session
+  owner sequences and relays everything: the items a block stores have to carry
+  their own signatures, checked by whoever reads them. That wants doing when a
+  chat block makes it matter.
+- Nothing reads content but the editor holding it: there is no preview built
+  from content outside an editor and no search over it. Server-side search is
+  impossible under end-to-end encryption, so it has to become client-side over
+  the local cache, or a client-built encrypted index.
+- Detached blocks are never collected by the app. be-server's
+  `CollectDetached` (`Peer::collect_detached`) removes every detached block the
+  caller may edit, with its subtree and its objects, but nothing calls it. When
+  something does, it will remove a detached block that is still referenced and
+  leave the reference dangling: liveness is the parent chain, by design, so the
+  content that references it has to cope with a block that is gone.
 - The browser peer keeps its objects in memory, so a reload refetches everything
   and a tab that closes leaves whatever a session held since its last autosave
   behind: `flush()` cannot wait there. An `ObjectStore` over IndexedDB is what
   that wants.
-- A plugin still reaches the new stack through the host rather than through a
-  peer of its own. `block-client` runs inside a plugin over a tunnel the host
-  carries; be-client has the transport split to do the same, but no tunnel.
 - Reconnecting rejoins from the server's head, so operations a session had not
   sealed when the socket dropped are gone.
-- Keys are passed in whole (`ContentKey`). There is no per-recipient key
-  wrapping, so sharing a block across accounts does not yet share its key, and
-  `crypto::STATIC_KEY` in the old client has no counterpart here on purpose.
+- The content key is derived from the workspace id (see Reaching the server), so
+  it protects nothing from the server yet. Keys are passed in whole
+  (`ContentKey`); there is no per-recipient key wrapping, so sharing a block
+  across accounts or workspaces does not share a key of its own.
 - Sessions relay through the server. Direct peer connections are a latency
   optimisation on the same protocol and can come later.
-- Server-side search is impossible under end-to-end encryption. It has to become
-  client-side over the local cache, or a client-built encrypted index.
 - The server learns the shape of the graph, object sizes and timings. It never
   learns content. If graph privacy matters later, block ids can be blinded per
   workspace, but the server still needs some graph to do access inheritance.

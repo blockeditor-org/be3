@@ -1,9 +1,9 @@
-use block::Block;
-use block_client::blocks::compiled_logic::CompiledLogic;
-use block_client::blocks::logic_grid::LogicGrid;
+use block_editor_plugin::be_block::CompiledLogicContent;
+use block_editor_plugin::be_block::compiled_logic::CompiledLogic as Program;
+use block_editor_plugin::be_block::{BlockContent, LogicGridContent};
 use block_editor_plugin::beui::reactive::{
-    ForEach, Frame, ItemSize, List, ReadSignal, Show, Text, clone, component, create_effect,
-    create_memo, view,
+    ForEach, Frame, ItemSize, List, Memo, Show, Text, clone, component, create_effect, create_memo,
+    view,
 };
 use block_editor_plugin::beui::styled::theme::FONT_SMALL;
 use block_editor_plugin::beui::styled::{Caption, Heading, Scroll, Separator, use_theme};
@@ -20,31 +20,45 @@ const CHROME_HEIGHT: f32 = 220.0;
 
 #[component]
 pub fn CompiledLogicView(editor: Editor) -> NodeId {
-    let compiled = editor.block::<CompiledLogic>();
-    let source =
-        compiled.project(|compiled| Some(ChildTarget::new(compiled.source(), LogicGrid::TYPE_ID)));
-    let calls = compiled.project(|compiled| compiled.calls().to_vec());
-    let summary = compiled.project(|compiled| {
-        let size = compiled.size();
-        format!(
-            "{} x {}   memory {}   storage {}",
-            size.width,
-            size.height,
-            compiled.program().memory_size,
-            compiled.program().storage_init.len()
-        )
-    });
-    let ports = compiled
-        .project(|compiled| -> Vec<String> { compiled.ports().iter().map(port_row).collect() });
-    let program = compiled.project(|compiled| -> Vec<String> {
-        compiled
-            .program()
-            .instructions
-            .iter()
-            .enumerate()
-            .map(|(index, instruction)| format!("{index:>4}  {instruction}"))
-            .collect()
-    });
+    let content = editor.block_content::<CompiledLogicContent>();
+    let compiled = content.project(|content| content.root().compiled);
+    let source = create_memo(clone!(compiled -> move || {
+        compiled.with(|compiled| {
+            compiled
+                .as_ref()
+                .map(|compiled| ChildTarget::new(compiled.source(), LogicGridContent::CONTENT_TYPE))
+        })
+    }));
+    let calls = create_memo(clone!(compiled -> move || {
+        compiled.with(|compiled| {
+            compiled
+                .as_ref()
+                .map(|compiled| compiled.calls().to_vec())
+                .unwrap_or_default()
+        })
+    }));
+    let summary = create_memo(clone!(compiled -> move || {
+        compiled.with(|compiled| {
+            compiled.as_ref().map(summary_of).unwrap_or_default()
+        })
+    }));
+    let ports = create_memo(clone!(compiled -> move || -> Vec<String> {
+        compiled.with(|compiled| {
+            compiled
+                .iter()
+                .flat_map(|compiled| compiled.ports().iter().map(port_row))
+                .collect()
+        })
+    }));
+    let program = create_memo(clone!(compiled -> move || -> Vec<String> {
+        compiled.with(|compiled| {
+            compiled
+                .iter()
+                .flat_map(|compiled| compiled.program().instructions.iter().enumerate())
+                .map(|(index, instruction)| format!("{index:>4}  {instruction}"))
+                .collect()
+        })
+    }));
     let no_calls = create_memo(clone!(calls -> move || calls.with(Vec::is_empty)));
     let sized = editor.clone();
     create_effect(clone!(ports calls program -> move || {
@@ -95,13 +109,13 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Calls(editor: Editor, calls: ReadSignal<Vec<Uuid>>) -> NodeId {
+fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
     let keys = create_memo(clone!(calls -> move || calls.get()));
     view! {
         <List spacing=4.0>
             <ForEach keys={keys}>
                 {move |called: Uuid| {
-                    let block = Some(ChildTarget::new(called, CompiledLogic::TYPE_ID));
+                    let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
                     view! {
                         <BlockLink
                             editor={editor.clone()}
@@ -116,7 +130,7 @@ fn Calls(editor: Editor, calls: ReadSignal<Vec<Uuid>>) -> NodeId {
 }
 
 #[component]
-fn Lines(lines: ReadSignal<Vec<String>>, #[prop(default = false)] monospace: bool) -> NodeId {
+fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> NodeId {
     let keys =
         create_memo(clone!(lines -> move || (0..lines.with(Vec::len)).collect::<Vec<usize>>()));
     let theme = use_theme();
@@ -139,6 +153,17 @@ fn Lines(lines: ReadSignal<Vec<String>>, #[prop(default = false)] monospace: boo
             </ForEach>
         </List>
     }
+}
+
+fn summary_of(compiled: &Program) -> String {
+    let size = compiled.size();
+    format!(
+        "{} x {}   memory {}   storage {}",
+        size.width,
+        size.height,
+        compiled.program().memory_size,
+        compiled.program().storage_init.len()
+    )
 }
 
 fn port_row(port: &ComponentPort) -> String {

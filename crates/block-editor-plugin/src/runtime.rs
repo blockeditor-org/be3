@@ -57,7 +57,6 @@ impl Runtime {
                 });
             }
         }
-        block_client::pump();
         let replaced = self.replace_surface(&mut outbound)?;
         if let Some(surface) = &mut self.surface {
             if draw || replaced {

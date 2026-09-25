@@ -1,8 +1,0 @@
-use super::*;
-
-mod an_implicit_name_update_clears_with_an_empty_name;
-mod an_implicit_name_update_skips_a_manual_name_and_an_unchanged_one;
-mod apply_implicit_name_clears_the_property_once_it_returns_none;
-mod apply_implicit_name_leaves_a_manual_name_untouched;
-mod apply_implicit_name_sets_an_automatic_name;
-mod read_name_returns_none_without_the_property;

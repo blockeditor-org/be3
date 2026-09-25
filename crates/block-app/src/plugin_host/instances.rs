@@ -1,6 +1,5 @@
 use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
-use block_client::{BlockClient, BlockHandleAccess, Tunnel};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
@@ -8,7 +7,7 @@ use block_plugin_api::{
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FetchResult,
     FilePick, FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, TunnelMessage, ViewChange, WatchedContent,
+    ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -47,9 +46,7 @@ pub(super) struct Instances {
 }
 
 struct Connection {
-    client: Arc<BlockClient>,
     client_id: Uuid,
-    tunnel: Tunnel,
 }
 
 struct Instance {
@@ -93,6 +90,10 @@ struct Instance {
     leaving: bool,
     content: Option<ContentLink>,
     watched: HashMap<Uuid, ContentLink>,
+    shown: std::collections::HashSet<(Uuid, Uuid)>,
+    block_queries: Vec<block_plugin_api::BlockQuery>,
+    sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
+    blocks_seen: Option<u64>,
 }
 
 struct ContentLink {
@@ -100,8 +101,8 @@ struct ContentLink {
     opened: bool,
     origin: u64,
     sent: Option<u64>,
-    bridged: Option<(u64, bool)>,
-    old_block: Option<Box<dyn BlockHandleAccess>>,
+    peers_sent: Option<u64>,
+    named: Option<u64>,
 }
 
 impl ContentLink {
@@ -111,37 +112,23 @@ impl ContentLink {
             opened: false,
             origin: crate::be::next_origin(),
             sent: None,
-            bridged: None,
-            old_block: None,
+            peers_sent: None,
+            named: None,
         }
     }
 
-    fn bridge(&mut self, client: &BlockClient, block: Uuid, block_type: Uuid) {
+    fn name(&mut self, block: Uuid) {
         let Some(content) = crate::be::content(block) else {
             return;
         };
-        if client.block_access(block) != block::BlockAccess::Edit {
+        if self.named == Some(content.revision) || !crate::be::access(block).can_edit() {
             return;
         }
-        if self.old_block.is_none() {
-            self.old_block = block_client::blocks::open(client, block, block_type);
-        }
-        let Some(old_block) = &self.old_block else {
-            return;
-        };
-        let manual = old_block.block_name().is_some_and(|name| name.manual);
-        if self.bridged == Some((content.revision, manual)) {
-            return;
-        }
-        let references = crate::be::references_of(&content).unwrap_or_default();
-        if old_block.set_implicit_name(crate::be::name_of(&content))
-            && old_block.set_references(references)
-        {
-            self.bridged = Some((content.revision, manual));
-        }
+        self.named = Some(content.revision);
+        crate::be::name_implicitly(block, crate::be::name_of(&content));
     }
 
-    fn message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
+    fn content_message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
         if crate::be::content(block).is_none() {
             if !std::mem::replace(&mut self.opened, true) {
                 crate::be::open(block, self.content_type);
@@ -172,6 +159,25 @@ impl ContentLink {
                     .collect(),
             },
         }))
+    }
+
+    fn messages(&mut self, instance: EditorInstanceId, block: Uuid, out: &mut Vec<Message>) {
+        out.extend(self.content_message(instance, block));
+        if let Some((revision, peers)) = crate::be::presence_since(block, self.peers_sent) {
+            self.peers_sent = Some(revision);
+            out.push(Message::Editor(EditorMessage::PeerPresence {
+                instance,
+                block_id: block.into_bytes(),
+                peers: peers
+                    .into_iter()
+                    .map(|peer| block_plugin_api::PeerPresence {
+                        client: peer.client,
+                        kind: peer.kind.into_bytes(),
+                        value: peer.value,
+                    })
+                    .collect(),
+            }));
+        }
     }
 }
 
@@ -251,10 +257,13 @@ impl Instance {
             next_replacement: 0,
             leaving: false,
             watched: HashMap::new(),
+            shown: std::collections::HashSet::new(),
+            block_queries: Vec::new(),
+            sent_blocks: HashMap::new(),
+            blocks_seen: None,
             content: match role {
-                InstanceRole::Editor(block) => {
-                    crate::be::content_type_for(block.block_type).map(ContentLink::new)
-                }
+                InstanceRole::Editor(block) => crate::be::is_known(block.block_type)
+                    .then(|| ContentLink::new(block.block_type)),
                 InstanceRole::Creation | InstanceRole::Artifact(_) => None,
             },
         }
@@ -262,15 +271,41 @@ impl Instance {
 }
 
 impl Instance {
-    fn content_messages(&mut self, instance: EditorInstanceId) -> Vec<Message> {
+    fn blocks_messages(&mut self, instance: EditorInstanceId) -> Vec<Message> {
+        let revision = crate::be::graph_revision();
+        if self.blocks_seen == Some(revision) || !crate::be::graph_loaded() {
+            return Vec::new();
+        }
+        self.blocks_seen = Some(revision);
         let mut messages = Vec::new();
-        if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut())
-            && let Some(message) = link.message(instance, block.id)
-        {
-            messages.push(message);
+        for query in &self.block_queries {
+            let blocks = super::graph::answer(*query);
+            if self.sent_blocks.get(query) == Some(&blocks) {
+                continue;
+            }
+            self.sent_blocks.insert(*query, blocks.clone());
+            messages.push(Message::Editor(EditorMessage::Blocks {
+                instance,
+                query: *query,
+                blocks,
+            }));
+        }
+        messages
+    }
+
+    fn watch_blocks(&mut self, queries: Vec<block_plugin_api::BlockQuery>) {
+        self.sent_blocks.retain(|query, _| queries.contains(query));
+        self.block_queries = queries;
+        self.blocks_seen = None;
+    }
+
+    fn content_messages(&mut self, instance: EditorInstanceId) -> Vec<Message> {
+        let mut messages = self.blocks_messages(instance);
+        if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
+            link.messages(instance, block.id, &mut messages);
         }
         for (block, link) in &mut self.watched {
-            messages.extend(link.message(instance, *block));
+            link.messages(instance, *block, &mut messages);
         }
         messages
     }
@@ -315,14 +350,12 @@ impl Instance {
         }))
     }
 
-    fn bridge_content(&mut self, client: &BlockClient) {
+    fn name_content(&mut self) {
         if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
-            link.bridge(client, block.id, block.block_type);
+            link.name(block.id);
         }
         for (block, link) in &mut self.watched {
-            if let Some(block_type) = crate::be::block_type_of(link.content_type) {
-                link.bridge(client, *block, block_type);
-            }
+            link.name(*block);
         }
     }
 }
@@ -499,6 +532,9 @@ impl Instances {
         let Some(entry) = self.entries.remove(&instance) else {
             return false;
         };
+        for (block, kind) in &entry.shown {
+            crate::be::show(*block, *kind, None);
+        }
         let own = entry
             .role
             .block()
@@ -513,9 +549,7 @@ impl Instances {
     }
 
     fn editable(&self, block: Uuid) -> bool {
-        self.connection.as_ref().is_some_and(|connection| {
-            connection.client.block_access(block) == block::BlockAccess::Edit
-        })
+        crate::be::access(block).can_edit()
     }
 
     fn holds_content(&self, block: Uuid) -> bool {
@@ -523,9 +557,7 @@ impl Instances {
     }
 
     fn can_view(&self, block: Uuid) -> bool {
-        self.connection
-            .as_ref()
-            .is_some_and(|connection| connection.client.block_access(block).can_view())
+        crate::be::access(block).can_view()
     }
 
     fn watch_content(&mut self, instance: EditorInstanceId, blocks: Vec<WatchedContent>) -> bool {
@@ -538,7 +570,7 @@ impl Instances {
                 )
             })
             .filter(|(block, content_type)| {
-                crate::be::is_migrated(*content_type) && self.can_view(*block)
+                crate::be::is_known(*content_type) && self.can_view(*block)
             })
             .collect();
         let Some(entry) = self.entries.get_mut(&instance) else {
@@ -568,27 +600,14 @@ impl Instances {
         true
     }
 
-    fn connect(&mut self, client: &Arc<BlockClient>, client_id: Uuid) {
-        if self
-            .connection
-            .as_ref()
-            .is_some_and(|connection| Arc::ptr_eq(&connection.client, client))
-        {
-            return;
-        }
-        let tunnel = client.open_tunnel(host::wake);
-        self.connection = Some(Connection {
-            client: Arc::clone(client),
-            client_id,
-            tunnel,
-        });
+    fn connect(&mut self, client_id: Uuid) {
+        self.connection = Some(Connection { client_id });
     }
 
     pub(super) fn report(
         &mut self,
         instance: EditorInstanceId,
         region: EditorRegion,
-        client: &Arc<BlockClient>,
         client_id: Uuid,
         role: InstanceRole,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
@@ -598,7 +617,7 @@ impl Instances {
         scale_factor: f32,
         pass: u64,
     ) -> ScreenId {
-        self.connect(client, client_id);
+        self.connect(client_id);
         if self.block_types.is_none() {
             self.block_types = Some(Arc::clone(block_types));
         }
@@ -727,11 +746,10 @@ impl Instances {
     pub(super) fn report_creation(
         &mut self,
         instance: EditorInstanceId,
-        client: &Arc<BlockClient>,
         client_id: Uuid,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
     ) -> bool {
-        self.connect(client, client_id);
+        self.connect(client_id);
         if self.block_types.is_none() {
             self.block_types = Some(Arc::clone(block_types));
         }
@@ -744,14 +762,13 @@ impl Instances {
     pub(super) fn report_artifact(
         &mut self,
         instance: EditorInstanceId,
-        client: &Arc<BlockClient>,
         client_id: Uuid,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
         block: EditorBlock,
         data: &[u8],
         resync: bool,
     ) -> Vec<Message> {
-        self.connect(client, client_id);
+        self.connect(client_id);
         if self.block_types.is_none() {
             self.block_types = Some(Arc::clone(block_types));
         }
@@ -829,7 +846,8 @@ impl Instances {
         let client = self
             .connection
             .as_ref()
-            .map(|connection| (Arc::clone(&connection.client), connection.client_id));
+            .map(|connection| connection.client_id)
+            .map(|client_id| (client_id, crate::be::identity().unwrap_or_default()));
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
@@ -859,14 +877,14 @@ impl Instances {
                 continue;
             }
             regions.sort_by_key(|request| request.screen.0);
-            let Some((client, client_id)) = &client else {
+            let Some((client_id, (account, workspace))) = client else {
                 continue;
             };
             let client_id = client_id.into_bytes();
             if !entry.opened {
                 entry.opened = true;
-                let account_id = client.account_id().into_bytes();
-                let workspace_id = client.workspace_id().into_bytes();
+                let account_id = account.into_bytes();
+                let workspace_id = workspace.into_bytes();
                 opened.push(match entry.role {
                     InstanceRole::Editor(block) => Message::Editor(EditorMessage::Open {
                         instance,
@@ -876,8 +894,7 @@ impl Instances {
                         workspace_id,
                         client_id,
                         editable: {
-                            let editable =
-                                client.block_access(block.id) == block::BlockAccess::Edit;
+                            let editable = crate::be::access(block.id).can_edit();
                             entry.reported_editable = Some(editable);
                             editable
                         },
@@ -901,7 +918,7 @@ impl Instances {
             }
             opened.append(&mut entry.deferred);
             if let InstanceRole::Editor(block) = entry.role {
-                let editable = client.block_access(block.id) == block::BlockAccess::Edit;
+                let editable = crate::be::access(block.id).can_edit();
                 if entry.reported_editable != Some(editable) {
                     entry.reported_editable = Some(editable);
                     opened.push(Message::Editor(EditorMessage::EditabilityChanged {
@@ -911,7 +928,7 @@ impl Instances {
                 }
             }
             opened.extend(entry.content_messages(instance));
-            entry.bridge_content(client);
+            entry.name_content();
             if let Some(message) = entry.history_message(instance) {
                 opened.push(message);
             }
@@ -1694,16 +1711,6 @@ impl Instances {
             .unwrap_or_default()
     }
 
-    pub(super) fn client_responses(&mut self) -> Vec<Message> {
-        let mut messages = Vec::new();
-        if let Some(connection) = &mut self.connection {
-            while let Some(payload) = connection.tunnel.try_recv() {
-                messages.push(Message::Client(TunnelMessage::Response { payload }));
-            }
-        }
-        messages
-    }
-
     pub(super) fn pending(&mut self) -> Vec<Message> {
         let mut messages = Vec::new();
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
@@ -1913,9 +1920,95 @@ impl Instances {
             } => {
                 let block = Uuid::from_bytes(block_id);
                 let content_type = Uuid::from_bytes(content_type);
-                if crate::be::is_migrated(content_type) && self.editable(block) {
+                if crate::be::is_known(content_type) && self.editable(block) {
                     crate::be::replace(block, content_type, bytes);
                 }
+                false
+            }
+            EditorMessage::WatchBlocks { instance, queries } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.watch_blocks(queries);
+                true
+            }
+            EditorMessage::CreateBlock {
+                block_id,
+                content_type,
+                parent,
+                name,
+                artifact,
+                content,
+                ..
+            } => {
+                let parent = super::graph::parent_of(parent);
+                if parent.block().is_some_and(|parent| !self.editable(parent)) {
+                    return false;
+                }
+                let block = Uuid::from_bytes(block_id);
+                if crate::be::node(block).is_some() {
+                    return false;
+                }
+                let metadata = be_block::BlockMetadata {
+                    named_by_hand: name.is_some(),
+                    name,
+                    artifact: artifact.map(|artifact| be_block::ArtifactSource {
+                        source_type: Uuid::from_bytes(artifact.source_type),
+                        data: artifact.data,
+                    }),
+                };
+                crate::be::create(
+                    block,
+                    Uuid::from_bytes(content_type),
+                    parent,
+                    metadata,
+                    content.map(|content| content.into_vec()),
+                );
+                true
+            }
+            EditorMessage::SetParent {
+                block_id, parent, ..
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                let parent = super::graph::parent_of(parent);
+                if !self.editable(block)
+                    || parent.block().is_some_and(|parent| !self.editable(parent))
+                {
+                    return false;
+                }
+                crate::be::set_parent(block, parent);
+                true
+            }
+            EditorMessage::SetName { block_id, name, .. } => {
+                let block = Uuid::from_bytes(block_id);
+                if !self.editable(block) {
+                    return false;
+                }
+                crate::be::set_name(block, name);
+                true
+            }
+            EditorMessage::ShowPresence {
+                instance,
+                block_id,
+                kind,
+                value,
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                let kind = Uuid::from_bytes(kind);
+                if !self.can_view(block) {
+                    return false;
+                }
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                if !entry.holds(block) {
+                    return false;
+                }
+                match value.is_some() {
+                    true => entry.shown.insert((block, kind)),
+                    false => entry.shown.remove(&(block, kind)),
+                };
+                crate::be::show(block, kind, value.map(|value| value.into_vec()));
                 false
             }
             EditorMessage::SeedContent {
@@ -1926,7 +2019,7 @@ impl Instances {
             } => {
                 let block = Uuid::from_bytes(block_id);
                 let content_type = Uuid::from_bytes(content_type);
-                if crate::be::is_migrated(content_type) {
+                if crate::be::is_known(content_type) {
                     crate::be::seed(block, content_type, bytes);
                 }
                 false
@@ -2248,24 +2341,6 @@ impl Instances {
         self.focus = focus;
         true
     }
-
-    pub(super) fn client_message(&mut self, message: TunnelMessage) {
-        let TunnelMessage::Request { payload } = message else {
-            return;
-        };
-        let Some(connection) = &self.connection else {
-            log(&format!(
-                "dropped a plugin client frame: the runtime has no connection: {}",
-                summary(&payload)
-            ));
-            return;
-        };
-        log(&format!(
-            "forwarding a plugin client frame: {}",
-            summary(&payload)
-        ));
-        connection.tunnel.send(payload);
-    }
 }
 
 fn host_rect(rect: block_plugin_api::ChildRect, origin: Vec2, stretch: Vec2) -> Rect {
@@ -2280,21 +2355,6 @@ fn ratio(current: f32, published: f32) -> f32 {
         true => current / published,
         false => 1.0,
     }
-}
-
-fn summary(payload: &str) -> String {
-    const LONGEST: usize = 160;
-    match payload.char_indices().nth(LONGEST) {
-        Some((end, _)) => format!("{}...", &payload[..end]),
-        None => payload.to_owned(),
-    }
-}
-
-fn log(message: &str) {
-    #[cfg(target_arch = "wasm32")]
-    web_sys::console::log_1(&format!("plugin host {message}").into());
-    #[cfg(not(target_arch = "wasm32"))]
-    eprintln!("plugin host {message}");
 }
 
 fn host_filter(filter: block_plugin_api::FileFilter) -> FileFilter {

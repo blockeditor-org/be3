@@ -1,28 +1,29 @@
+use block_editor_plugin::be_block::{BlockContent, DatabaseSchemaContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::Arc;
 
-use block::{BlockParent, BlockReferenceList, ClientId};
-use block_client::ReferenceList;
-use block_client::block_ref::BlockRef;
-use block_client::blocks::database::DatabaseValue;
-use block_client::blocks::image::Image as ImageBlock;
-use block_client::blocks::infinite_canvas::{
-    CanvasColor, CanvasComponent, CanvasCursor, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
-    CanvasLayerMove, CanvasPoint, CanvasPreviewRegion, CanvasTextStyle, CanvasTransform,
-    InfiniteCanvas, InfiniteCanvasOperation,
-};
-use block_client::presence::{PresenceColor, UserActive};
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
+use crate::presence::CanvasCursor;
+use block_editor_plugin::BlockList;
+use block_editor_plugin::ContentProjection;
 use block_editor_plugin::be_block::ImageContent;
+use block_editor_plugin::be_block::canvas::Canvas;
+use block_editor_plugin::be_block::canvas::{
+    CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
+    CanvasLayerMove, CanvasPoint, CanvasPreviewRegion, CanvasTextStyle, CanvasTransform,
+    InfiniteCanvasOperation,
+};
+use block_editor_plugin::be_block::database::DatabaseValue;
+use block_editor_plugin::be_block::presence::{PresenceColor, pick_free_color};
+use block_editor_plugin::be_block::{CanvasContent, ObjectId};
 use block_editor_plugin::beui::reactive::{CanvasView, ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::beui::{Pos2, Rect, Vec2};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::{
-    BlockFilter, BlockPicker, BlockProjection, ChildState, Editor, FilePicker, ImagePaster,
-    InteractionMode, PastedImage, ResizeMode,
+    BlockFilter, BlockPicker, ChildState, Editor, FilePicker, ImagePaster, InteractionMode,
+    PastedImage, ResizeMode,
 };
+use block_editor_plugin::{BlockParent, BlockQuery};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -204,7 +205,7 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PendingComponentValuePick {
-    schema_id: BlockRef,
+    schema_id: Uuid,
     field_id: Uuid,
     entity_ids: Vec<Uuid>,
 }
@@ -230,18 +231,17 @@ pub(crate) struct Presence {
 pub(crate) struct CanvasState {
     editor: Editor,
     preview: bool,
-    block: Rc<BlockProjection<InfiniteCanvas>>,
-    dependencies: ReferenceList,
+    content: Rc<ContentProjection<CanvasContent>>,
+    dependencies: BlockList,
     picker: RefCell<BlockPicker>,
     component_picker: RefCell<BlockPicker>,
     value_picker: RefCell<BlockPicker>,
     image_picker: RefCell<FilePicker>,
     paster: RefCell<ImagePaster>,
     paste_asked: Cell<bool>,
-    reference_cache: RefCell<ReferenceResolutionCache>,
-    pending_entities: RefCell<ReferenceClassificationQueue<(Uuid, CanvasTransform)>>,
-    pending_components: RefCell<ReferenceClassificationQueue<Vec<Uuid>>>,
-    pending_values: RefCell<ReferenceClassificationQueue<PendingComponentValuePick>>,
+    pending_entities: RefCell<Vec<(Uuid, (Uuid, CanvasTransform))>>,
+    pending_components: RefCell<Vec<(Uuid, Vec<Uuid>)>>,
+    pending_values: RefCell<Vec<(Uuid, PendingComponentValuePick)>>,
     pending_value_target: RefCell<Option<PendingComponentValuePick>>,
     pending_component_entities: RefCell<Option<Vec<Uuid>>>,
     pending_block_center: Cell<Option<CanvasPoint>>,
@@ -279,20 +279,22 @@ pub(crate) struct CanvasState {
     set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
     pub(crate) types: ReadSignal<HashMap<Uuid, Uuid>>,
     set_types: WriteSignal<HashMap<Uuid, Uuid>>,
-    pub(crate) resolved: ReadSignal<HashMap<BlockRef, Option<Uuid>>>,
-    set_resolved: WriteSignal<HashMap<BlockRef, Option<Uuid>>>,
     pub(crate) child_states: ReadSignal<HashMap<Uuid, ChildState>>,
     set_child_states: WriteSignal<HashMap<Uuid, ChildState>>,
     pub(crate) presence: ReadSignal<Presence>,
     set_presence: WriteSignal<Presence>,
+    peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
+    shown: RefCell<Option<CanvasCursor>>,
+    color: Cell<Option<PresenceColor>>,
     pub(crate) stage: Cell<Rect>,
 }
 
 impl CanvasState {
     pub(crate) fn new(editor: &Editor, preview: bool) -> Rc<Self> {
-        let block = editor.block::<InfiniteCanvas>();
-        let entities = block.project(|canvas| canvas.entities().to_vec());
-        let preview_region = block.project(InfiniteCanvas::preview_region);
+        let content = editor.block_content::<CanvasContent>();
+        let entities = content.project(|canvas| canvas.root().entities());
+        let preview_region =
+            content.project(|canvas| canvas.field(ObjectId::ROOT, Canvas::PREVIEW_REGION));
         let (tool, set_tool) = create_signal(Tool::Select);
         let (selection, set_selection) = create_signal(HashSet::new());
         let (gesture, set_gesture) = create_signal(None);
@@ -301,27 +303,25 @@ impl CanvasState {
         let (import_error, set_import_error) = create_signal(None);
         let (labels, set_labels) = create_signal(HashMap::new());
         let (types, set_types) = create_signal(HashMap::new());
-        let (resolved, set_resolved) = create_signal(HashMap::new());
         let (child_states, set_child_states) = create_signal(HashMap::new());
         let (presence, set_presence) = create_signal(Presence::default());
         let (pointer, set_pointer) = create_signal(None);
         Rc::new(Self {
             dependencies: editor
-                .client()
-                .watch_references(BlockReferenceList::References(editor.block_id())),
+                .blocks()
+                .watch(BlockQuery::References(editor.block_id())),
             editor: editor.clone(),
             preview,
-            block,
+            content,
             picker: RefCell::new(BlockPicker::default()),
             component_picker: RefCell::new(BlockPicker::default()),
             value_picker: RefCell::new(BlockPicker::default()),
             image_picker: RefCell::new(FilePicker::default()),
             paster: RefCell::new(ImagePaster::default()),
             paste_asked: Cell::new(false),
-            reference_cache: RefCell::new(ReferenceResolutionCache::default()),
-            pending_entities: RefCell::new(ReferenceClassificationQueue::default()),
-            pending_components: RefCell::new(ReferenceClassificationQueue::default()),
-            pending_values: RefCell::new(ReferenceClassificationQueue::default()),
+            pending_entities: RefCell::new(Vec::new()),
+            pending_components: RefCell::new(Vec::new()),
+            pending_values: RefCell::new(Vec::new()),
             pending_value_target: RefCell::new(None),
             pending_component_entities: RefCell::new(None),
             pending_block_center: Cell::new(None),
@@ -359,12 +359,13 @@ impl CanvasState {
             set_labels,
             types,
             set_types,
-            resolved,
-            set_resolved,
             child_states,
             set_child_states,
             presence,
             set_presence,
+            peers: editor.peers::<CanvasCursor>(),
+            shown: RefCell::new(None),
+            color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
         })
     }
@@ -378,7 +379,7 @@ impl CanvasState {
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
-        self.block.id()
+        self.editor.block_id()
     }
 
     pub(crate) fn types(&self) -> Rc<BlockCatalog> {
@@ -398,8 +399,8 @@ impl CanvasState {
         match self.preview {
             true => {
                 self.preview_region
-                    .get_untracked()
-                    .unwrap_or_else(|| preview_region_for_entities(&self.entities.get_untracked()))
+                    .get()
+                    .unwrap_or_else(|| preview_region_for_entities(&self.entities.get()))
                     .center
             }
             false => CanvasPoint::default(),
@@ -428,30 +429,16 @@ impl CanvasState {
         displayed_entities(&self.entities.get(), &self.gesture.get())
     }
 
-    pub(crate) fn resolve(&self, reference: BlockRef) -> Option<Uuid> {
-        self.resolved.get().get(&reference).copied().flatten()
-    }
-
-    pub(crate) fn peek_resolved(&self, reference: BlockRef) -> Option<Uuid> {
-        self.resolved
-            .get_untracked()
-            .get(&reference)
-            .copied()
-            .flatten()
-    }
-
-    pub(crate) fn label_of(&self, reference: BlockRef) -> Option<BlockLabel> {
-        let id = self.resolve(reference)?;
-        self.labels.get().get(&id).cloned()
+    pub(crate) fn label_of(&self, reference: Uuid) -> Option<BlockLabel> {
+        self.labels.get().get(&reference).cloned()
     }
 
     pub(crate) fn block_type_of(&self, id: Uuid) -> Option<Uuid> {
-        self.types.get().get(&id).copied().or_else(|| {
-            self.editor
-                .client()
-                .cached_block(id)
-                .map(|cached| cached.block_type)
-        })
+        self.types
+            .get()
+            .get(&id)
+            .copied()
+            .or_else(|| self.editor.blocks().info(id).map(|info| info.block_type))
     }
 
     pub(crate) fn child_state(&self, entity: Uuid) -> ChildState {
@@ -544,10 +531,19 @@ pub(crate) fn displayed_entities(
 }
 
 impl CanvasState {
+    fn operate(&self, operation: &InfiniteCanvasOperation) {
+        if let Some(edit) = self
+            .content
+            .read(|canvas| canvas.root().edit_for(operation))
+            && !edit.0.is_empty()
+        {
+            self.content.operate(edit);
+        }
+    }
+
     pub(crate) fn record(&self, operation: InfiniteCanvasOperation) {
         self.grouped_edit.set(false);
-        self.block.handle().finish_history_group();
-        self.block.operate(operation);
+        self.operate(&operation);
     }
 
     pub(crate) fn record_update(
@@ -563,16 +559,14 @@ impl CanvasState {
         match group {
             true => {
                 self.grouped_edit.set(true);
-                self.block.operate_grouped([operation]);
+                self.operate(&operation);
             }
             false => self.record(operation),
         }
     }
 
     pub(crate) fn finish_grouped_edit(&self) {
-        if self.grouped_edit.take() {
-            self.block.handle().finish_history_group();
-        }
+        self.grouped_edit.set(false);
     }
 
     pub(crate) fn default_style(&self) -> CanvasEntityStyle {
@@ -805,11 +799,10 @@ impl CanvasState {
         if duplicates.is_empty() {
             return;
         }
-        self.block.handle().finish_history_group();
         let mut selection = HashSet::new();
         for entity in duplicates {
             selection.insert(entity.id);
-            self.block.operate(InfiniteCanvasOperation::Add { entity });
+            self.operate(&InfiniteCanvasOperation::Add { entity });
         }
         self.set_selection.set(selection);
     }
@@ -1108,11 +1101,10 @@ impl CanvasState {
             payload.entities,
             CanvasPoint::new(IMPORT_CASCADE_OFFSET, IMPORT_CASCADE_OFFSET),
         );
-        self.block.handle().finish_history_group();
         let mut selection = HashSet::new();
         for entity in duplicates {
             selection.insert(entity.id);
-            self.block.operate(InfiniteCanvasOperation::Add { entity });
+            self.operate(&InfiniteCanvasOperation::Add { entity });
         }
         self.set_selection.set(selection);
         self.set_tool(Tool::Select);
@@ -1144,10 +1136,7 @@ impl CanvasState {
             self.editor.host(),
             BlockFilter {
                 name: "Component".to_owned(),
-                block_types: vec![
-                    <block_client::blocks::database_schema::DatabaseSchema as block::Block>::TYPE_ID
-                        .into_bytes(),
-                ],
+                block_types: vec![DatabaseSchemaContent::CONTENT_TYPE.into_bytes()],
                 excluded: Vec::new(),
                 templates: false,
             },
@@ -1156,7 +1145,7 @@ impl CanvasState {
 
     pub(crate) fn open_value_picker(
         &self,
-        schema_id: BlockRef,
+        schema_id: Uuid,
         field_id: Uuid,
         block_type: Option<Uuid>,
     ) {
@@ -1233,31 +1222,24 @@ impl CanvasState {
 
     pub(crate) fn set_preview_region_grouped(&self, region: CanvasPreviewRegion) {
         self.grouped_edit.set(true);
-        self.block
-            .operate_grouped([InfiniteCanvasOperation::SetPreviewRegion {
-                region: Some(region),
-            }]);
+        self.operate(&InfiniteCanvasOperation::SetPreviewRegion {
+            region: Some(region),
+        });
     }
 
     pub(crate) fn replace_referenced_block(&self, old: Uuid, new: Uuid) -> bool {
-        let old_reference = BlockRef::Direct(old);
-        let new_reference = BlockRef::Direct(new);
         let replaced = self
             .entities
             .get_untracked()
             .into_iter()
             .filter_map(|entity| {
                 let kind = match entity.kind {
-                    CanvasEntityKind::Block { block_id } if block_id == old_reference => {
-                        CanvasEntityKind::Block {
-                            block_id: new_reference,
-                        }
+                    CanvasEntityKind::Block { block_id } if block_id == old => {
+                        CanvasEntityKind::Block { block_id: new }
                     }
-                    CanvasEntityKind::DirectEditor { block_id, scale }
-                        if block_id == old_reference =>
-                    {
+                    CanvasEntityKind::DirectEditor { block_id, scale } if block_id == old => {
                         CanvasEntityKind::DirectEditor {
-                            block_id: new_reference,
+                            block_id: new,
                             scale,
                         }
                     }
@@ -1300,7 +1282,7 @@ pub(crate) fn selection_frame(
 pub(crate) fn attach_component(
     entities: &mut [CanvasEntity],
     selected: &HashSet<Uuid>,
-    schema_id: BlockRef,
+    schema_id: Uuid,
 ) {
     for entity in entities {
         if selected.contains(&entity.id)
@@ -1320,7 +1302,7 @@ pub(crate) fn attach_component(
 pub(crate) fn set_component_value(
     entities: &mut [CanvasEntity],
     selected: &HashSet<Uuid>,
-    schema_id: BlockRef,
+    schema_id: Uuid,
     field_id: Uuid,
     value: Option<DatabaseValue>,
 ) {
@@ -1345,7 +1327,7 @@ pub(crate) fn set_component_value(
 pub(crate) fn remove_component(
     entities: &mut [CanvasEntity],
     selected: &HashSet<Uuid>,
-    schema_id: BlockRef,
+    schema_id: Uuid,
 ) {
     for entity in entities {
         if selected.contains(&entity.id) {
@@ -1443,18 +1425,13 @@ impl CanvasState {
         let entity_id = Uuid::new_v4();
         let transform = CanvasTransform::new(center, size, 0.0);
         self.set_selection.set(HashSet::from([entity_id]));
-        self.pending_entities.borrow_mut().push(
-            self.editor.client(),
-            self.block_id(),
-            block_id,
-            (entity_id, transform),
-        );
+        self.pending_entities
+            .borrow_mut()
+            .push((block_id, (entity_id, transform)));
     }
 
     pub(crate) fn add_imported_image(&self, image: ImageContent, center: CanvasPoint) {
-        let block = self.editor.create_with_content::<ImageBlock, _>(&image);
-        let id = block.id();
-        block.set_parent(BlockParent::Uuid(self.block_id()));
+        let id = self.editor.create_child(&image);
         self.add_direct_editor(id, center);
     }
 
@@ -1502,14 +1479,11 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn open_referenced_block(&self, reference: BlockRef) {
-        let Some(id) = self.peek_resolved(reference) else {
+    pub(crate) fn open_referenced_block(&self, id: Uuid) {
+        let Some(block_type) = self.block_type_of(id) else {
             return;
         };
-        let Some(cached) = self.editor.client().cached_block(id) else {
-            return;
-        };
-        self.editor.host().open_block(cached.id, cached.block_type);
+        self.editor.host().open_block(id, block_type);
     }
 
     pub(crate) fn finish_gesture(&self, gesture: Gesture) {
@@ -1563,9 +1537,8 @@ impl CanvasState {
                 duplicate: true, ..
             } => {
                 let additions = preview_entities(&gesture);
-                self.block.handle().finish_history_group();
                 for entity in additions {
-                    self.block.operate(InfiniteCanvasOperation::Add { entity });
+                    self.operate(&InfiniteCanvasOperation::Add { entity });
                 }
             }
             Gesture::Move {
@@ -1686,12 +1659,7 @@ impl CanvasState {
         let dependencies = self.dependencies.read();
         let labels: HashMap<Uuid, BlockLabel> = dependencies
             .iter()
-            .map(|reference| {
-                (
-                    reference.id,
-                    BlockLabel::for_reference(catalog.as_ref(), reference),
-                )
-            })
+            .map(|reference| (reference.id, reference.label(catalog.as_ref())))
             .collect();
         if self.labels.get_untracked() != labels {
             self.set_labels.set(labels);
@@ -1703,52 +1671,12 @@ impl CanvasState {
         if self.types.get_untracked() != types {
             self.set_types.set(types);
         }
-        self.reference_cache.borrow_mut().poll();
-        let client = Arc::clone(self.editor.client());
-        let referencing = self.block_id();
-        let resolved: HashMap<BlockRef, Option<Uuid>> = self
-            .entities
-            .get_untracked()
-            .iter()
-            .filter_map(|entity| match entity.kind {
-                CanvasEntityKind::Block { block_id }
-                | CanvasEntityKind::DirectEditor { block_id, .. } => Some(block_id),
-                _ => None,
-            })
-            .chain(
-                self.entities
-                    .get_untracked()
-                    .iter()
-                    .flat_map(|entity| entity.components.clone())
-                    .map(|component| component.schema_id),
-            )
-            .chain(
-                self.entities
-                    .get_untracked()
-                    .iter()
-                    .flat_map(|entity| entity.components.clone())
-                    .flat_map(|component| component.values.into_values())
-                    .filter_map(|value| match value {
-                        DatabaseValue::Block(reference) => Some(reference),
-                        _ => None,
-                    }),
-            )
-            .map(|reference| {
-                (
-                    reference,
-                    self.reference_cache
-                        .borrow_mut()
-                        .resolve(&client, referencing, reference),
-                )
-            })
-            .collect();
-        if self.resolved.get_untracked() != resolved {
-            self.set_resolved.set(resolved);
-        }
     }
 
     fn poll_pending(&self) {
-        for (reference, (entity_id, transform)) in self.pending_entities.borrow_mut().poll() {
+        for (reference, (entity_id, transform)) in
+            std::mem::take(&mut *self.pending_entities.borrow_mut())
+        {
             self.record(InfiniteCanvasOperation::Add {
                 entity: CanvasEntity {
                     id: entity_id,
@@ -1764,7 +1692,7 @@ impl CanvasState {
                 },
             });
         }
-        for (reference, entity_ids) in self.pending_components.borrow_mut().poll() {
+        for (reference, entity_ids) in std::mem::take(&mut *self.pending_components.borrow_mut()) {
             let selected = entity_ids.into_iter().collect::<HashSet<_>>();
             let before = self
                 .entities
@@ -1776,7 +1704,7 @@ impl CanvasState {
             attach_component(&mut after, &selected, reference);
             self.record_update(before, after, false);
         }
-        for (reference, target) in self.pending_values.borrow_mut().poll() {
+        for (reference, target) in std::mem::take(&mut *self.pending_values.borrow_mut()) {
             if self.pending_value_target.borrow().as_ref() != Some(&target) {
                 continue;
             }
@@ -1808,8 +1736,8 @@ impl CanvasState {
                 .unwrap_or_else(|| self.viewport_center());
             self.add_direct_editor(picked.id, center);
             self.editor
-                .client()
-                .set_block_parent(picked.id, BlockParent::Uuid(self.block_id()));
+                .blocks()
+                .set_parent(picked.id, BlockParent::Block(self.block_id()));
             self.set_tool(Tool::Select);
         }
         if let Some(Ok(picked)) = self.component_picker.borrow_mut().poll(self.editor.host()) {
@@ -1818,23 +1746,15 @@ impl CanvasState {
                 .borrow_mut()
                 .take()
                 .unwrap_or_default();
-            self.pending_components.borrow_mut().push(
-                self.editor.client(),
-                self.block_id(),
-                picked.id,
-                entity_ids,
-            );
+            self.pending_components
+                .borrow_mut()
+                .push((picked.id, entity_ids));
         }
         let picked = self.value_picker.borrow_mut().poll(self.editor.host());
         if let Some(Ok(picked)) = picked {
             let target = self.pending_value_target.borrow().clone();
             if let Some(target) = target {
-                self.pending_values.borrow_mut().push(
-                    self.editor.client(),
-                    self.block_id(),
-                    picked.id,
-                    target,
-                );
+                self.pending_values.borrow_mut().push((picked.id, target));
             }
         }
     }
@@ -1876,8 +1796,8 @@ impl CanvasState {
         }
         let center = self.world_at(drag.position);
         self.editor
-            .client()
-            .set_block_parent(drag.block_id, BlockParent::Uuid(self.block_id()));
+            .blocks()
+            .set_parent(drag.block_id, BlockParent::Block(self.block_id()));
         self.add_direct_editor(drag.block_id, center);
     }
 
@@ -1923,32 +1843,35 @@ impl CanvasState {
     }
 
     fn publish_presence(&self) {
-        if !self.editor.presence_visible().get_untracked() {
+        let cursor = self.editor.presence_visible().get_untracked().then(|| {
+            let color = self.color.get().unwrap_or_else(|| {
+                let used = self
+                    .peers
+                    .get_untracked()
+                    .into_iter()
+                    .map(|(_, cursor)| cursor.color);
+                let color = pick_free_color(used);
+                self.color.set(Some(color));
+                color
+            });
+            CanvasCursor {
+                pointer: self.pointer.get_untracked(),
+                selection: self.selection.get_untracked().iter().copied().collect(),
+                color,
+            }
+        });
+        if *self.shown.borrow() == cursor {
             return;
         }
-        let pointer = self.pointer.get_untracked();
-        self.editor.client().set_presence(
-            self.block_id(),
-            Some(&CanvasCursor {
-                pointer,
-                selection: self.selection.get_untracked().iter().copied().collect(),
-            }),
-        );
+        self.editor.show(cursor.as_ref());
+        self.shown.replace(cursor);
     }
 
     fn read_presence(&self) {
-        let client = self.editor.client();
-        let colors: HashMap<ClientId, PresenceColor> = client
-            .presence::<UserActive>(self.block_id())
-            .into_iter()
-            .map(|(client_id, user)| (client_id, user.color))
-            .collect();
         let entities = self.entities.get_untracked();
         let mut presence = Presence::default();
-        for (client_id, cursor) in client.presence::<CanvasCursor>(self.block_id()) {
-            let Some(color) = colors.get(&client_id).copied() else {
-                continue;
-            };
+        for (_, cursor) in self.peers.get_untracked() {
+            let color = cursor.color;
             if !cursor.selection.is_empty() {
                 let selected: HashSet<_> = cursor.selection.iter().copied().collect();
                 if let Some(bounds) = entities
@@ -1999,9 +1922,8 @@ impl CanvasState {
             return;
         };
         let Some((_, cursor)) = self
-            .editor
-            .client()
-            .presence::<CanvasCursor>(self.block_id())
+            .peers
+            .get_untracked()
             .into_iter()
             .find(|(id, _)| *id == client_id)
         else {

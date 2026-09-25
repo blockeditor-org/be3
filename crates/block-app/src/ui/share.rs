@@ -1,3 +1,4 @@
+use be_graph::Access as BlockAccess;
 use beui::NodeId;
 use beui::icons::{ICON_CLOSE, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD, ICON_REFRESH};
 use beui::reactive::{
@@ -9,7 +10,6 @@ use beui::styled::{
     Scroll, Select, Spinner, TextInput,
 };
 use beui::unstyled::ChoiceOption;
-use block::BlockAccess;
 use uuid::Uuid;
 
 use super::onboarding::ErrorText;

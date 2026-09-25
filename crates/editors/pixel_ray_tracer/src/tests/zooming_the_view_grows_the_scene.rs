@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn zooming_the_view_grows_the_scene() {
-    let (mut editor, _block, _host) = editor();
+    let mut editor = editor();
     let fitted = editor.rect_of("pixel_ray_tracer.artwork");
 
     editor.click("pixel_ray_tracer.fit");

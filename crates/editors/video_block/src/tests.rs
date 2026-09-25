@@ -1,13 +1,9 @@
-use std::sync::Arc;
+use block_editor_plugin::be_block::{BlockContent, CounterContent};
 
-use block_client::BlockClient;
-use block_client::block_ref::BlockRef;
-use block_client::blocks::counter::Counter;
-use block_client::blocks::video::Video as VideoBlock;
 use block_editor_plugin::be_block::VideoContent;
 use block_editor_plugin::be_block::video::{Video, VideoClip, VideoFrameRate, VideoOperation};
 use block_editor_plugin::beui::Pos2;
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 
@@ -20,29 +16,32 @@ mod dragging_a_clip_past_the_next_one_reorders_the_base_track;
 mod timecode_counts_minutes_seconds_and_frames;
 
 struct Fixture {
-    client: Arc<BlockClient>,
     editor: ContentHarness<VideoApp>,
 }
 
 impl Fixture {
     fn new() -> Self {
-        let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-        let block = client.create_block(VideoBlock::new());
+        let block = Uuid::new_v4();
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host.clone(), Arc::clone(&client), block.id());
+        let editor = Editor::new(host.clone(), block);
         let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
         editor.hold(None, VideoContent::default());
-        Self { client, editor }
+        Self { editor }
     }
 
     fn insert(&mut self, index: usize) -> Uuid {
-        let source = self.client.create_block(Counter::default());
+        let source = Uuid::new_v4();
+        self.editor.store().add_block(BlockInfo::new(
+            source,
+            CounterContent::CONTENT_TYPE,
+            BlockParent::Detached,
+        ));
         let id = Uuid::new_v4();
         let operation = VideoOperation::InsertClip {
             clip: VideoClip {
                 id,
-                block_id: BlockRef::Direct(source.id()),
+                block_id: source,
                 length: 30,
                 attachment: None,
                 effects: Vec::new(),

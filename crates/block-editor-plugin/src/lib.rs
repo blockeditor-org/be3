@@ -13,11 +13,12 @@ mod editor;
 #[cfg(target_arch = "wasm32")]
 mod editor_session;
 mod file_chooser;
+mod graph;
 mod host;
 #[cfg(target_arch = "wasm32")]
 mod panes;
-mod related;
 mod related_content;
+pub mod root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
 #[cfg(target_arch = "wasm32")]
@@ -38,17 +39,15 @@ pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
 pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
 pub use content::ContentProjection;
 pub use datetime::DateTimeRow;
-pub use editor::{
-    Artifacts, BlockProjection, ChildState, ChildTarget, Creation, Drag, Editor, fit_content,
-};
-pub use file_chooser::{FileChooser, content_file_creation, file_creation};
+pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit_content};
+pub use file_chooser::{FileChooser, content_file_creation};
+pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
     BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
-    HostContent, ImagePaster, OpenRequest, PastedImage, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, SeededContent, ShowRequest, Task, Waker,
+    HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
+    PerformanceReporter, PickedBlock, PickedFile, SeededContent, ShowRequest, ShownPresence, Waker,
 };
-pub use related::RelatedBlock;
 pub use related_content::RelatedContent;
 
 pub trait BeuiApp: 'static {

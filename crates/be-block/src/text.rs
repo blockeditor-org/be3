@@ -6,6 +6,8 @@ use crate::{
     BlockContent, ContentError, LiveEdit, Merge, Streamed, decode_streamed, encode_streamed,
 };
 
+const MAX_NAME_BYTES: usize = 128;
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum TextLanguage {
     #[default]
@@ -15,9 +17,33 @@ pub enum TextLanguage {
     Zig,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum TextIndentation {
+    Tabs,
+    Spaces { width: u8 },
+}
+
+impl Default for TextIndentation {
+    fn default() -> Self {
+        Self::Spaces { width: 2 }
+    }
+}
+
+impl TextIndentation {
+    fn normalized(self) -> Self {
+        match self {
+            Self::Tabs => Self::Tabs,
+            Self::Spaces { width } => Self::Spaces {
+                width: width.max(1),
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct TextHeader {
     pub language: TextLanguage,
+    pub indentation: TextIndentation,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -41,6 +67,20 @@ impl TextContent {
 
     pub fn language(&self) -> TextLanguage {
         self.header.language
+    }
+
+    pub fn indentation(&self) -> TextIndentation {
+        self.header.indentation
+    }
+
+    pub fn linked_blocks(&self, workspace: Option<Uuid>) -> Vec<Uuid> {
+        let mut seen = std::collections::HashSet::new();
+        crate::block_url::parse_block_urls(&self.bytes)
+            .into_iter()
+            .filter(|url| workspace.is_none_or(|workspace| url.workspace_id == workspace))
+            .map(|url| url.block)
+            .filter(|id| seen.insert(*id))
+            .collect()
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -71,6 +111,7 @@ pub enum TextOp {
     Insert { at: u64, bytes: Vec<u8> },
     Delete { at: u64, length: u64 },
     SetLanguage(TextLanguage),
+    SetIndentation(TextIndentation),
 }
 
 impl TextOp {
@@ -87,7 +128,7 @@ impl TextOp {
 }
 
 impl BlockContent for TextContent {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7465_7874_2d62_6c6f_636b_2d74_7970_6502);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6f4d_8f85_7991_4cdf_ae41_b526_30df_014b);
 
     fn encode(&self) -> Vec<u8> {
         encode_streamed(&self.header, &self.bytes)
@@ -98,9 +139,23 @@ impl BlockContent for TextContent {
         Ok(Self { header, bytes })
     }
 
+    fn references(&self) -> Vec<Uuid> {
+        self.linked_blocks(None)
+    }
+
+    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
+        self.linked_blocks(Some(workspace))
+    }
+
     fn name(&self) -> Option<String> {
         let line = self.bytes.split(|byte| *byte == b'\n').next()?;
-        let name = String::from_utf8_lossy(line).trim().to_owned();
+        let mut name = String::new();
+        for character in String::from_utf8_lossy(line).trim().chars() {
+            if name.len() + character.len_utf8() > MAX_NAME_BYTES {
+                break;
+            }
+            name.push(character);
+        }
         (!name.is_empty()).then_some(name)
     }
 }
@@ -139,6 +194,9 @@ impl LiveEdit for TextContent {
                 self.bytes.drain(at..end);
             }
             TextOp::SetLanguage(language) => self.header.language = *language,
+            TextOp::SetIndentation(indentation) => {
+                self.header.indentation = indentation.normalized();
+            }
         }
     }
 
@@ -154,7 +212,8 @@ impl LiveEdit for TextContent {
 fn transform(ours: TextOp, theirs: &TextOp) -> Option<TextOp> {
     match (ours, theirs) {
         (TextOp::SetLanguage(language), _) => Some(TextOp::SetLanguage(language)),
-        (operation, TextOp::SetLanguage(_)) => Some(operation),
+        (TextOp::SetIndentation(indentation), _) => Some(TextOp::SetIndentation(indentation)),
+        (operation, TextOp::SetLanguage(_) | TextOp::SetIndentation(_)) => Some(operation),
         (
             TextOp::Insert { at, bytes },
             TextOp::Insert {
@@ -247,8 +306,16 @@ impl Merge for TextContent {
         } else {
             ours.header.language
         };
+        let indentation = if ours.header.indentation == base.header.indentation {
+            theirs.header.indentation
+        } else {
+            ours.header.indentation
+        };
         let outcome = merge_lines(&base.bytes, &ours.bytes, &theirs.bytes);
-        let header = TextHeader { language };
+        let header = TextHeader {
+            language,
+            indentation,
+        };
         if outcome.is_clean() {
             return MergeResult::Clean(Self {
                 header,

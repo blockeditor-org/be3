@@ -5,6 +5,8 @@ use std::{
 
 use be_protocol::ServerMessage;
 use tokio::sync::{Mutex, mpsc::UnboundedSender};
+
+use crate::Identity;
 use uuid::Uuid;
 
 #[derive(Default)]
@@ -12,6 +14,7 @@ pub struct WatchHub {
     next: AtomicU64,
     clients: Mutex<HashMap<u64, UnboundedSender<ServerMessage>>>,
     watchers: Mutex<HashMap<Uuid, HashSet<u64>>>,
+    workspaces: Mutex<HashMap<u64, Identity>>,
 }
 
 impl WatchHub {
@@ -44,7 +47,39 @@ impl WatchHub {
         }
     }
 
+    pub async fn join_workspace(&self, client: u64, identity: Identity) {
+        self.workspaces.lock().await.insert(client, identity);
+    }
+
+    pub async fn members(&self, workspace: Uuid) -> Vec<(u64, Identity)> {
+        self.workspaces
+            .lock()
+            .await
+            .iter()
+            .filter(|(_, joined)| joined.workspace == workspace)
+            .map(|(client, identity)| (*client, *identity))
+            .collect()
+    }
+
+    pub async fn announce(&self, workspace: Uuid, message: ServerMessage) {
+        let targets: Vec<u64> = self
+            .workspaces
+            .lock()
+            .await
+            .iter()
+            .filter(|(_, joined)| joined.workspace == workspace)
+            .map(|(client, _)| *client)
+            .collect();
+        let clients = self.clients.lock().await;
+        for target in targets {
+            if let Some(sender) = clients.get(&target) {
+                let _ = sender.send(message.clone());
+            }
+        }
+    }
+
     pub async fn remove(&self, client: u64) {
+        self.workspaces.lock().await.remove(&client);
         self.clients.lock().await.remove(&client);
         let mut watchers = self.watchers.lock().await;
         watchers.retain(|_, clients| {

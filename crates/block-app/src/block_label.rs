@@ -1,6 +1,6 @@
-use block_client::{BlockHandleAccess, CachedBlock, properties::BlockName};
 use uuid::Uuid;
 
+use crate::be::Node;
 use crate::editors::EditorRegistry;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,10 +15,11 @@ impl BlockLabel {
     pub(crate) fn new(
         registry: &EditorRegistry,
         block_type: Uuid,
-        name: Option<&BlockName>,
+        name: Option<&str>,
+        named_by_hand: bool,
     ) -> Self {
-        let (name, automatic) = match name.filter(|name| !name.value.is_empty()) {
-            Some(name) => (name.value.clone(), !name.manual),
+        let (name, automatic) = match name.filter(|name| !name.is_empty()) {
+            Some(name) => (name.to_owned(), !named_by_hand),
             None => (
                 registry
                     .display_name(block_type)
@@ -35,16 +36,12 @@ impl BlockLabel {
         }
     }
 
-    pub(crate) fn for_cached(registry: &EditorRegistry, cached: &CachedBlock) -> Self {
+    pub(crate) fn for_node(registry: &EditorRegistry, node: &Node) -> Self {
         Self::new(
             registry,
-            cached.block_type,
-            block_client::properties::read_name(&cached.properties).as_ref(),
+            node.content_type,
+            node.metadata.name.as_deref(),
+            node.metadata.named_by_hand,
         )
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn for_handle(registry: &EditorRegistry, handle: &dyn BlockHandleAccess) -> Self {
-        Self::new(registry, handle.block_type(), handle.block_name().as_ref())
     }
 }

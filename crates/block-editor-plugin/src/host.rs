@@ -2,10 +2,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     rc::Rc,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, TryRecvError},
-    },
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -37,6 +34,22 @@ pub struct HostContent {
 }
 
 type ContentOperation = (Option<Uuid>, Vec<u8>);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ShownPresence {
+    pub block: Option<Uuid>,
+    pub kind: Uuid,
+    pub value: Option<Vec<u8>>,
+}
+
+type Peers = (u64, Vec<PeerPresence>);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PeerPresence {
+    pub client: u64,
+    pub kind: Uuid,
+    pub value: Vec<u8>,
+}
 
 #[derive(Clone)]
 pub enum ContentUpdate {
@@ -87,7 +100,7 @@ impl BlockSource {
     fn encode(self) -> BlockLocation {
         match self {
             Self::Root => BlockLocation::Root,
-            Self::Orphaned => BlockLocation::Orphaned,
+            Self::Orphaned => BlockLocation::Detached,
             Self::Block(id) => BlockLocation::Block(id.into_bytes()),
         }
     }
@@ -146,52 +159,6 @@ impl Waker {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
         Self(Some(Arc::new(wake)))
-    }
-}
-pub struct Task<T> {
-    receiver: Receiver<T>,
-    result: Option<T>,
-    done: bool,
-}
-
-impl<T: Send + 'static> Task<T> {
-    fn spawn(waker: &Waker, future: impl std::future::Future<Output = T> + Send + 'static) -> Self {
-        let (sender, receiver) = mpsc::channel();
-        let waker = waker.clone();
-        block_client::spawn(async move {
-            let _ = sender.send(future.await);
-            waker.wake();
-        });
-        Self {
-            receiver,
-            result: None,
-            done: false,
-        }
-    }
-}
-
-impl<T> Task<T> {
-    pub fn poll(&mut self) -> Option<&T> {
-        if !self.done {
-            match self.receiver.try_recv() {
-                Ok(result) => {
-                    self.result = Some(result);
-                    self.done = true;
-                }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => self.done = true,
-            }
-        }
-        self.result.as_ref()
-    }
-
-    pub fn take(&mut self) -> Option<T> {
-        self.poll();
-        self.result.take()
-    }
-
-    pub fn finished(&self) -> bool {
-        self.done
     }
 }
 
@@ -455,8 +422,14 @@ pub struct EditorHost {
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
     seeded: Rc<RefCell<Vec<SeededContent>>>,
+    shown: Rc<RefCell<Vec<ShownPresence>>>,
+    peers: Rc<RefCell<HashMap<Option<Uuid>, Peers>>>,
+    next_peers: Rc<Cell<u64>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
+    graph: Rc<crate::graph::GraphState>,
+    account: Rc<Cell<Uuid>>,
+    workspace: Rc<Cell<Uuid>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -480,12 +453,6 @@ impl EditorHost {
         self.waker.clone()
     }
 
-    pub fn spawn<T: Send + 'static>(
-        &self,
-        future: impl std::future::Future<Output = T> + Send + 'static,
-    ) -> Task<T> {
-        Task::spawn(&self.waker, future)
-    }
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
         PerformanceReporter {
             group: Arc::from(group.into()),
@@ -820,6 +787,14 @@ impl EditorHost {
             .insert(block, content_type);
     }
 
+    pub fn content_of<C>(&self, block: Uuid) -> crate::ContentProjection<C>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        self.watch_content(block, C::CONTENT_TYPE);
+        crate::ContentProjection::new(self.clone(), Some(block))
+    }
+
     pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
         self.write_content(block, content, false);
     }
@@ -829,13 +804,51 @@ impl EditorHost {
     }
 
     fn write_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C, replace: bool) {
+        self.seed_bytes(block, C::CONTENT_TYPE, content.encode(), replace);
+    }
+
+    pub(crate) fn seed_bytes(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        replace: bool,
+    ) {
         self.seeded.borrow_mut().push(SeededContent {
             block,
-            content_type: C::CONTENT_TYPE,
-            bytes: content.encode(),
+            content_type,
+            bytes,
             replace,
         });
         self.waker.wake();
+    }
+
+    pub fn show_presence(&self, block: Option<Uuid>, kind: Uuid, value: Option<Vec<u8>>) {
+        let mut shown = self.shown.borrow_mut();
+        shown.retain(|held| held.block != block || held.kind != kind);
+        shown.push(ShownPresence { block, kind, value });
+        self.waker.wake();
+    }
+
+    pub fn take_shown_presence(&self) -> Vec<ShownPresence> {
+        std::mem::take(&mut self.shown.borrow_mut())
+    }
+
+    pub fn set_peers(&self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
+        let revision = self.next_peers.get() + 1;
+        self.next_peers.set(revision);
+        self.peers.borrow_mut().insert(block, (revision, peers));
+        self.waker.wake();
+    }
+
+    pub(crate) fn peers_since(
+        &self,
+        block: Option<Uuid>,
+        seen: u64,
+    ) -> Option<(u64, Vec<PeerPresence>)> {
+        let peers = self.peers.borrow();
+        let (revision, held) = peers.get(&block)?;
+        (*revision != seen).then(|| (*revision, held.clone()))
     }
 
     pub fn take_seeded_content(&self) -> Vec<SeededContent> {
@@ -1207,6 +1220,51 @@ impl EditorHost {
 
     pub fn set_client_id(&self, client_id: Uuid) {
         self.client_id.set(client_id);
+    }
+
+    pub fn set_account_id(&self, account: Uuid) {
+        self.account.set(account);
+    }
+
+    pub fn account_id(&self) -> Uuid {
+        self.account.get()
+    }
+
+    pub fn set_workspace_id(&self, workspace: Uuid) {
+        self.workspace.set(workspace);
+    }
+
+    pub fn workspace_id(&self) -> Uuid {
+        self.workspace.get()
+    }
+
+    pub fn blocks(&self) -> crate::graph::Blocks {
+        crate::graph::Blocks {
+            graph: Rc::clone(&self.graph),
+            waker: self.waker.clone(),
+            account: Rc::clone(&self.account),
+        }
+    }
+
+    pub(crate) fn flush_graph(&self) {
+        self.graph.flush();
+    }
+
+    pub fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {
+        self.graph.set_result(query, blocks);
+        self.waker.wake();
+    }
+
+    pub fn watched_blocks(&self) -> Vec<crate::BlockQuery> {
+        self.graph.watched()
+    }
+
+    pub fn take_block_watch(&self) -> Option<Vec<crate::BlockQuery>> {
+        self.graph.take_watch()
+    }
+
+    pub fn take_graph_commands(&self) -> Vec<crate::GraphCommand> {
+        self.graph.take_commands()
     }
 
     pub fn set_editable(&self, editable: bool) {

@@ -4,7 +4,7 @@ use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 
 pub const MAX_LATITUDE: f64 = 85.051_128_78;
 
@@ -68,13 +68,13 @@ pub enum MapColor {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MapPoint {
     pub id: Uuid,
-    pub block_id: BlockRef,
+    pub block_id: Uuid,
     pub position: MapCoordinate,
     pub color: MapColor,
 }
 
 impl MapPoint {
-    pub fn new(block_id: BlockRef, position: MapCoordinate) -> Self {
+    pub fn new(block_id: Uuid, position: MapCoordinate) -> Self {
         Self {
             id: Uuid::new_v4(),
             block_id,
@@ -92,7 +92,7 @@ pub struct Map {
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct MapPlace {
-    pub block: Option<BlockRef>,
+    pub block: Option<Uuid>,
     pub position: MapCoordinate,
     pub color: MapColor,
 }
@@ -166,19 +166,19 @@ impl Map {
     fn showing(&self, block: Uuid) -> Vec<MapPoint> {
         self.points()
             .into_iter()
-            .filter(|point| point.block_id == BlockRef::Direct(block))
+            .filter(|point| point.block_id == block)
             .collect()
     }
 }
 
 impl Root for Map {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6d61_702d_636f_6e74_656e_742d_7479_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6d61_7076_6965_7762_6c6f_636b_0000_0001);
 
     fn references(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();
         self.points()
             .into_iter()
-            .filter_map(|point| point.block_id.as_direct())
+            .map(|point| point.block_id)
             .filter(|block| seen.insert(*block))
             .collect()
     }
@@ -189,10 +189,7 @@ impl Root for Map {
                 if !self.showing(block).is_empty() {
                     return Some(Edit::default());
                 }
-                Self::add(&MapPoint::new(
-                    BlockRef::Direct(block),
-                    self.displayed_region().center(),
-                ))
+                Self::add(&MapPoint::new(block, self.displayed_region().center()))
             }
             ChildChange::Delete(block) => {
                 let ids: Vec<Uuid> = self.showing(block).iter().map(|point| point.id).collect();
@@ -203,7 +200,7 @@ impl Root for Map {
                     .showing(old)
                     .into_iter()
                     .map(|point| MapPoint {
-                        block_id: BlockRef::Direct(new),
+                        block_id: new,
                         ..point
                     })
                     .collect();

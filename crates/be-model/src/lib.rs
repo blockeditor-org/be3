@@ -6,12 +6,14 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 mod field;
+mod grid;
 mod history;
 mod merge;
 mod tree;
 
 pub use be_model_derive::Model;
 pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
+pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use tree::Tree;
 
@@ -68,6 +70,7 @@ pub enum Value {
     Count(i64),
     List(Vec<ObjectId>),
     Map(BTreeMap<Vec<u8>, Vec<u8>>),
+    Grid(Cells),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -125,6 +128,18 @@ pub enum Change {
         key: Vec<u8>,
         expected: Option<Vec<u8>>,
         value: Option<Vec<u8>>,
+    },
+    Paint {
+        object: ObjectId,
+        field: u16,
+        cells: Vec<Paint>,
+    },
+    Reshape {
+        object: ObjectId,
+        field: u16,
+        expected: Option<Bounds>,
+        bounds: Bounds,
+        cells: Vec<Paint>,
     },
     Remove {
         object: ObjectId,

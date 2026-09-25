@@ -21,8 +21,12 @@ mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
+mod an_editor_sees_only_the_blocks_it_made_or_was_given;
+mod an_invited_account_joins_the_workspace_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod blocks_publish_and_read_back_through_the_server;
+mod every_graph_change_advances_a_blocks_version;
+mod every_member_connection_hears_how_the_graph_changes;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 
@@ -131,6 +135,30 @@ impl TestClient {
     }
 
     async fn notification(&mut self) -> ServerMessage {
+        loop {
+            let next = self.next_notification().await;
+            if !matches!(
+                next,
+                ServerMessage::BlockChanged { .. } | ServerMessage::BlockRemoved { .. }
+            ) {
+                return next;
+            }
+        }
+    }
+
+    async fn graph_change(&mut self) -> ServerMessage {
+        loop {
+            let next = self.next_notification().await;
+            if matches!(
+                next,
+                ServerMessage::BlockChanged { .. } | ServerMessage::BlockRemoved { .. }
+            ) {
+                return next;
+            }
+        }
+    }
+
+    async fn next_notification(&mut self) -> ServerMessage {
         if !self.notifications.is_empty() {
             return self.notifications.remove(0);
         }
@@ -198,6 +226,7 @@ impl TestClient {
                 block,
                 content_type: CONTENT,
                 parent,
+                metadata: Vec::new(),
             })
             .await;
         assert!(

@@ -1,12 +1,12 @@
 use super::*;
-use crate::{BlockRef, ChildChange};
+use crate::ChildChange;
 use uuid::Uuid;
 
 #[test]
 fn deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it() {
     let (field, other) = (Uuid::new_v4(), Uuid::new_v4());
     let (gone, old, new) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
-    let link = |block| Some(DatabaseValue::Block(BlockRef::Direct(block)));
+    let link = |block| Some(DatabaseValue::Block(block));
     let mut database = DatabaseContent::default();
     for (row, field, value) in [
         (0, field, link(gone)),

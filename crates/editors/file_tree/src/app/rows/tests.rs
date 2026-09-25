@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
+use block_editor_plugin::EditorHost;
 use block_editor_plugin::block_ui::{BlockCatalog, BlockTypeEntry, ChildEdits};
 
 use super::*;
@@ -27,6 +27,13 @@ fn block_types() -> HashMap<Uuid, Uuid> {
     [(CONTAINER, LISTED)].into_iter().collect()
 }
 
-fn client() -> Arc<BlockClient> {
-    Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()))
+fn client() -> Blocks {
+    let host = EditorHost::default();
+    for id in [CONTAINER, LISTED] {
+        host.set_blocks(
+            BlockQuery::Block(id),
+            vec![BlockInfo::new(id, LISTED, BlockParent::Root)],
+        );
+    }
+    host.blocks()
 }

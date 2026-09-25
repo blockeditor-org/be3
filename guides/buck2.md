@@ -15,10 +15,10 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
-| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app, `block-server`, PDFium |
+| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app, `be-server`, PDFium |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
-| `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `block-server`, on http://127.0.0.1:8080 |
+| `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
 | `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's: no plugins, signed on a worker with CI's key) |
 | `./scripts/buck run //crates/beui:demo-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |

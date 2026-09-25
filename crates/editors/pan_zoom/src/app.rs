@@ -1,4 +1,4 @@
-use block_client::blocks::pan_zoom::PanZoom as PanZoomBlock;
+use block_editor_plugin::be_block::PanZoomContent;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{Creation, Editor};
@@ -17,7 +17,7 @@ impl block_editor_plugin::BeuiApp for PanZoomApp {
     }
 
     fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
-        Ok(creation.client().create_block(PanZoomBlock::default()).id())
+        Ok(creation.create(&PanZoomContent::default()))
     }
 
     fn intrinsic_size() -> Option<Vec2> {

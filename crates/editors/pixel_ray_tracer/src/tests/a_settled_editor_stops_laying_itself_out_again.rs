@@ -4,7 +4,7 @@ const FRAMES: usize = 20;
 
 #[test]
 fn a_settled_editor_stops_laying_itself_out_again() {
-    let (mut editor, _block, _host) = editor();
+    let mut editor = editor();
     for _ in 0..FRAMES {
         editor.run();
     }

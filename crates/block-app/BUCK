@@ -77,7 +77,7 @@ app(
     name = "dist",
     binary = ":block-app-bin",
     executable_name = "block-app",
-    extra_binaries = {"block-server": "//crates/block-server:block-server-bin"},
+    extra_binaries = {"be-server": "//crates/be-server:be-server-bin"},
     files = pdfium_library(),
     manifests = [],
     modules = [],
@@ -125,7 +125,7 @@ app(
     visibility = ["//buck/ci:"],
 )
 
-# The bundle served here by Caddy, with block-server behind it (web/serve.sh).
+# The bundle served here by Caddy, with be-server behind it (web/serve.sh).
 tool(
     name = "web-serve",
     command = [
@@ -134,7 +134,7 @@ tool(
         "$(location //buck/tools:caddy)",
         "$(location :Caddyfile)",
         "$(location :web)",
-        "$(location //crates/block-server:block-server-bin)",
+        "$(location //crates/be-server:be-server-bin)",
     ],
 )
 

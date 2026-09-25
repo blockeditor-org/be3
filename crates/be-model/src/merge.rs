@@ -84,6 +84,9 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
                 (Value::Map(before), Value::Map(mine), Value::Map(other)) => {
                     Value::Map(merge_entries(before, mine, other, conflicts))
                 }
+                (Value::Grid(before), Value::Grid(mine), Value::Grid(other)) => {
+                    Value::Grid(crate::Cells::merge(before, mine, other, conflicts))
+                }
                 _ => mine.clone(),
             }
         })

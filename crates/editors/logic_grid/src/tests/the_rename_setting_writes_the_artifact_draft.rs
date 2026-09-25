@@ -2,17 +2,15 @@ use super::*;
 
 #[test]
 fn the_rename_setting_writes_the_artifact_draft() {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let source = client.create_block(LogicGrid::new());
+    let source = Uuid::new_v4();
     let artifacts = Artifacts::new(
         EditorHost::default(),
-        Arc::clone(&client),
         Artifact {
             block_id: Uuid::new_v4(),
-            block_type: CompiledLogic::TYPE_ID,
+            block_type: CompiledLogicContent::CONTENT_TYPE,
         },
     );
-    let data = crate::app::descriptor_data(source.id());
+    let data = crate::app::descriptor_data(source);
     let mut settings = BeuiTest::<LogicGridApp>::settings(artifacts, data);
     assert_eq!(
         crate::app::artifact_summary(settings.draft()),

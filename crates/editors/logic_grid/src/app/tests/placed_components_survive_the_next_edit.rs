@@ -21,9 +21,9 @@ fn placed_components_survive_the_next_edit() {
     let id = editor.place(Point::new(4, 4), ComponentOrientation::Up, kind.clone());
     assert_eq!(
         editor
-            .block
-            .read()
-            .and_then(|block| block.grid().component(id).cloned())
+            .store
+            .read(|content| content.root().grid().component(id).cloned())
+            .flatten()
             .map(|component| component.kind),
         Some(kind)
     );

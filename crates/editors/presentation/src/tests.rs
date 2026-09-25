@@ -1,9 +1,5 @@
-use std::sync::Arc;
-
-use block_client::BlockClient;
-use block_client::blocks::presentation::Presentation as PresentationBlock;
+use block_editor_plugin::be_block::ObjectId;
 use block_editor_plugin::be_block::presentation::PresentationContent;
-use block_editor_plugin::be_block::{BlockRef, ObjectId};
 use block_editor_plugin::beui::Key;
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
@@ -23,18 +19,17 @@ mod the_stage_shows_the_slide_the_filmstrip_selected;
 type Harness = ContentHarness<PresentationApp>;
 
 fn editor(count: usize) -> (Harness, Editor) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(PresentationBlock::new());
+    let block = Uuid::new_v4();
     let mut content = PresentationContent::default();
     for index in 0..count {
         let edit = content
             .root()
-            .insert(ObjectId::new(), index, BlockRef::Direct(Uuid::new_v4()));
+            .insert(ObjectId::new(), index, Uuid::new_v4());
         content.apply(&edit);
     }
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), client, block.id());
+    let editor = Editor::new(host.clone(), block);
     let mut test = ContentHarness::new(BeuiTest::new(editor.clone()), host);
     test.hold(None, content);
     (test, editor)

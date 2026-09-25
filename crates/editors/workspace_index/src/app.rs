@@ -1,4 +1,4 @@
-use block_client::blocks::workspace_index::WorkspaceIndex;
+use block_editor_plugin::be_block::FolderContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};
@@ -20,9 +20,6 @@ impl block_editor_plugin::BeuiApp for WorkspaceIndexApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation
-            .client()
-            .create_block(WorkspaceIndex::default())
-            .id())
+        Ok(creation.create(&FolderContent::default()))
     }
 }

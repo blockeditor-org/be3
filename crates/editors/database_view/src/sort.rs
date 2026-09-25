@@ -1,15 +1,14 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use block_client::block_ref::BlockRef;
-use block_client::blocks::database::{DatabaseRow, DatabaseValue};
-use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType};
-use block_client::blocks::database_view::{DatabaseViewSort, SortDirection};
+use block_editor_plugin::be_block::database::{DatabaseRow, DatabaseValue};
+use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_plugin::be_block::database_view::{DatabaseViewSort, SortDirection};
 use block_editor_plugin::block_ui::BlockLabel;
 use block_editor_plugin::block_ui::database::block_reference_text;
 use uuid::Uuid;
 
-pub type BlockLabels = HashMap<BlockRef, BlockLabel>;
+pub type BlockLabels = HashMap<Uuid, BlockLabel>;
 
 pub const ROW_HEADER_WIDTH: f32 = 44.0;
 pub const ROW_HEIGHT: f32 = 28.0;
@@ -128,15 +127,8 @@ pub fn compare_database_values(
         (DatabaseValue::Datetime(a), DatabaseValue::Datetime(b)) => a.cmp(b),
         (DatabaseValue::Block(a), DatabaseValue::Block(b)) => block_reference_text(a, labels)
             .cmp(&block_reference_text(b, labels))
-            .then_with(|| block_reference_fallback(a).cmp(&block_reference_fallback(b))),
+            .then_with(|| a.cmp(b)),
         _ => Ordering::Equal,
-    }
-}
-
-fn block_reference_fallback(reference: &BlockRef) -> Uuid {
-    match reference {
-        BlockRef::Direct(id) => *id,
-        BlockRef::RepoRelative { eternal_id, .. } => *eternal_id,
     }
 }
 
