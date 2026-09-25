@@ -55,9 +55,11 @@ pub use select::{
 };
 pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
 pub use stack::Stack;
+#[cfg(test)]
+pub(crate) use text_area::text_area_handles;
 pub use text_area::{
     RemoteTextCursor, SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState,
-    TextWidget,
+    TextWidget, text_area_shown, text_area_state,
 };
 #[cfg(test)]
 pub(crate) use text_input::text_input_handles;

@@ -95,6 +95,7 @@ pub struct TextAreaColors {
     pub broken_widget: Color32,
     pub selection: Color32,
     pub caret: Color32,
+    pub placeholder: Color32,
     pub syntax: SyntaxColors,
 }
 
@@ -111,6 +112,7 @@ impl TextAreaColors {
         broken_widget: rgb(0x48373d),
         selection: rgb(0x213054),
         caret: rgb(0x5289ff),
+        placeholder: rgb(0x8c8c8c),
         syntax: SyntaxColors::DEFAULT,
     };
 }

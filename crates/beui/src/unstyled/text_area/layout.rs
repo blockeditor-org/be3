@@ -16,6 +16,7 @@ pub(crate) const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
 pub(crate) const DOCUMENT_PADDING: Vec2 = Vec2::new(24.0, 16.0);
 
 const WRAP_FALLBACK_REMAINING_WIDTH: f32 = 0.15;
+const MASK: &str = "*";
 const LINE_PADDING_TOP: f32 = 3.0;
 const LINE_PADDING_BOTTOM: f32 = 4.0;
 
@@ -32,6 +33,21 @@ pub struct TextWidget {
 impl TextWidget {
     pub(crate) fn block(&self) -> bool {
         self.block_size.is_some()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct LayoutOptions {
+    pub wrap_width: f32,
+    pub mask: bool,
+}
+
+impl LayoutOptions {
+    pub(crate) fn wrapped(wrap_width: f32) -> Self {
+        Self {
+            wrap_width,
+            mask: false,
+        }
     }
 }
 
@@ -125,6 +141,7 @@ struct LineSource<'a> {
     end: usize,
     has_newline: bool,
     trailing_from: usize,
+    mask: bool,
 }
 
 impl LineSource<'_> {
@@ -193,6 +210,14 @@ impl LineSource<'_> {
                 continue;
             }
             let style = self.style_at(index);
+            if self.mask {
+                let len = next_character(&self.bytes[index..]).map_or(1, |(_, len)| len);
+                let mut run = self.text_run(style, MASK, index..index + len)?;
+                run.mapped = false;
+                runs.push(run);
+                index += len;
+                continue;
+            }
             let byte = self.bytes[index];
             if let Some(marker) = invisible_marker(byte) {
                 let mut run = self.text_run(style, marker, index..index + 1)?;
@@ -239,6 +264,10 @@ impl LineSource<'_> {
         }
         Some(place(runs))
     }
+}
+
+pub(crate) fn mask(text: &str) -> String {
+    MASK.repeat(text.chars().count())
 }
 
 fn place(mut runs: Vec<Run>) -> Vec<Run> {
@@ -414,8 +443,9 @@ pub(crate) fn layout_document(
     widgets: &[TextWidget],
     checkboxes: &[Range<usize>],
     hidden: &[Range<usize>],
-    wrap_width: f32,
+    options: &LayoutOptions,
 ) -> Option<DocumentLayout> {
+    let wrap_width = options.wrap_width;
     let body = body_metrics()?;
     let mut lines: Vec<LineLayout> = Vec::new();
     let mut widget_layouts = Vec::new();
@@ -463,6 +493,7 @@ pub(crate) fn layout_document(
             end,
             has_newline: newline.is_some(),
             trailing_from,
+            mask: options.mask,
         };
         for (range, runs) in wrap(&source, start, wrap_width)? {
             let line_index = lines.len();

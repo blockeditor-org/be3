@@ -38,6 +38,7 @@ const REMOTE_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 pub(crate) enum SelectionHandle {
     Start,
     End,
+    Caret,
 }
 
 pub(crate) fn digit_width() -> f32 {
@@ -242,6 +243,7 @@ pub(crate) fn touch_handle_center(anchor: Vec2, handle: SelectionHandle) -> Vec2
     match handle {
         SelectionHandle::Start => anchor + Vec2::new(-TOUCH_HANDLE_RADIUS, TOUCH_HANDLE_RADIUS),
         SelectionHandle::End => anchor + Vec2::new(TOUCH_HANDLE_RADIUS, TOUCH_HANDLE_RADIUS),
+        SelectionHandle::Caret => anchor + Vec2::new(0.0, TOUCH_HANDLE_RADIUS),
     }
 }
 
@@ -261,6 +263,10 @@ fn touch_handle_shapes(anchor: Vec2, handle: SelectionHandle, color: Color32) ->
         ),
         SelectionHandle::End => Rect::from_min_size(
             Pos2::new(anchor.x, anchor.y),
+            Vec2::splat(TOUCH_HANDLE_RADIUS),
+        ),
+        SelectionHandle::Caret => Rect::from_min_size(
+            Pos2::new(anchor.x - TOUCH_HANDLE_RADIUS / 2.0, anchor.y),
             Vec2::splat(TOUCH_HANDLE_RADIUS),
         ),
     };
@@ -488,13 +494,33 @@ fn run_shapes(
     }
 }
 
+pub(crate) fn placeholder(
+    layout: &DocumentLayout,
+    placeholder: &str,
+    font: FontId,
+    colors: &TextAreaColors,
+    origin: Vec2,
+) -> Option<PageShape> {
+    let line = layout.lines.first()?;
+    let galley = layout_text(placeholder, font, TextLayout::DEFAULT)?;
+    Some(PageShape::Text {
+        origin: Pos2::new(
+            origin.x,
+            origin.y + line.y + line.baseline - galley.baseline(),
+        ),
+        galley,
+        color: colors.placeholder,
+    })
+}
+
 pub(crate) fn content(
     layout: &DocumentLayout,
     snapshot: &Snapshot,
     colors: &TextAreaColors,
     origin: Vec2,
+    placeholder: Option<PageShape>,
 ) -> Page {
-    let mut shapes = Vec::new();
+    let mut shapes = Vec::from_iter(placeholder);
     for line in &layout.lines {
         for run in &line.runs {
             if run.invisible && !run.show_when_trailing {
@@ -563,6 +589,7 @@ pub(crate) struct Overlay<'a> {
     pub carets: &'a [usize],
     pub remote: &'a [RemoteTextCursor],
     pub touch_handles: Option<Range<usize>>,
+    pub caret_handle: Option<usize>,
     pub drop_caret: Option<usize>,
 }
 
@@ -576,6 +603,7 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
         carets,
         remote,
         touch_handles,
+        caret_handle,
         drop_caret,
     } = state;
     let mut shapes = Vec::new();
@@ -650,6 +678,16 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
             };
             shapes.extend(touch_handle_shapes(anchor + origin, handle, colors.caret));
         }
+    }
+
+    if let Some(byte) = caret_handle
+        && let Some(anchor) = touch_handle_anchor(layout, byte)
+    {
+        shapes.extend(touch_handle_shapes(
+            anchor + origin,
+            SelectionHandle::Caret,
+            colors.caret,
+        ));
     }
 
     if let Some(byte) = drop_caret

@@ -18,22 +18,27 @@ use beui_macros::{component, view};
 
 use crate::base::ScrollPosition;
 use crate::color::Color32;
+use crate::document::Document;
+use crate::font::FontId;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::page::Page;
 use crate::reactive::{
     Callback, Canvas, CanvasItem, Children, ClickCatcher, Draw, Drawing, Focusable, Frame, Memo,
-    Prop, ReadSignal, WriteSignal, clone, component_accessibility, component_size, copy_text,
-    create_effect, create_memo, create_signal, request_paste, untrack, use_pixels_per_point,
+    NodeRef, Prop, ReadSignal, WriteSignal, clone, component_accessibility, component_size,
+    copy_text, create_effect, create_memo, create_signal, request_paste, set_component_state,
+    untrack,
+    use_pixels_per_point, with_document,
 };
 use crate::unstyled::Scroll;
 
-use layout::{hit_test, layout_document};
+use layout::{BODY_SIZE, LayoutOptions, hit_test, layout_document};
 use shapes::{
     PADDING, SelectionHandle, TOUCH_HANDLE_HIT_RADIUS, checkbox_at, gutter_arrow_at,
     touch_handle_anchor, touch_handle_center,
 };
+use state::Grab;
 
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use layout::TextWidget;
@@ -57,12 +62,21 @@ struct Surface {
     gutter: Memo<f32>,
     scroll: ReadSignal<ScrollPosition>,
     set_offset: WriteSignal<f32>,
+    focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
+    set_autoscroll: WriteSignal<bool>,
+    viewport: NodeRef,
+    masked: Memo<bool>,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
 }
 
 type Context = Rc<Surface>;
+
+struct Parts {
+    cx: Context,
+    shown: Memo<String>,
+}
 
 impl Surface {
     fn origin(&self) -> Vec2 {
@@ -118,77 +132,162 @@ impl Surface {
     }
 
     fn selection_handles(&self) -> Option<Range<usize>> {
-        if !self.state.touch_mode() {
+        if !self.state.touch_mode().get_untracked() {
             return None;
         }
         let range = self.state.selection_ranges().into_iter().next()?;
         (range.start != range.end).then_some(range)
     }
 
-    fn selection_handle_at(&self, local: Pos2) -> Option<SelectionHandle> {
-        let range = self.selection_handles()?;
+    fn caret_handle(&self) -> Option<usize> {
+        let state = &self.state;
+        if !state.touch_mode().get_untracked()
+            || !state.caret_handle().get_untracked()
+            || !self.focused.get_untracked()
+            || state.selection_ranges().iter().any(|range| !range.is_empty())
+        {
+            return None;
+        }
+        state.caret_indices().first().copied()
+    }
+
+    fn handle_at(&self, local: Pos2) -> Option<SelectionHandle> {
         let layout = self.layout();
         let point = Vec2::new(local.x, local.y);
-        let start = touch_handle_center(
-            touch_handle_anchor(layout.document(), range.start)?,
-            SelectionHandle::Start,
-        );
-        let end = touch_handle_center(
-            touch_handle_anchor(layout.document(), range.end)?,
-            SelectionHandle::End,
-        );
-        if (point - start).length() <= TOUCH_HANDLE_HIT_RADIUS {
+        let hit = |byte: usize, handle: SelectionHandle| {
+            touch_handle_anchor(layout.document(), byte)
+                .map(|anchor| touch_handle_center(anchor, handle))
+                .is_some_and(|center| (point - center).length() <= TOUCH_HANDLE_HIT_RADIUS)
+        };
+        if let Some(caret) = self.caret_handle() {
+            return hit(caret, SelectionHandle::Caret).then_some(SelectionHandle::Caret);
+        }
+        let range = self.selection_handles()?;
+        if hit(range.start, SelectionHandle::Start) {
             Some(SelectionHandle::Start)
-        } else if (point - end).length() <= TOUCH_HANDLE_HIT_RADIUS {
+        } else if hit(range.end, SelectionHandle::End) {
             Some(SelectionHandle::End)
         } else {
             None
         }
     }
+
+    fn inside(&self, pos: Pos2) -> (Pos2, Option<Beyond>) {
+        let Some(rect) = self
+            .viewport
+            .try_get()
+            .and_then(|node| with_document(|document| document.node_rect(node)))
+        else {
+            return (pos, None);
+        };
+        let bottom = (rect.max.y - 1.0).max(rect.min.y);
+        let beyond = if pos.y < rect.min.y {
+            Some(Beyond::Before)
+        } else if pos.y > bottom {
+            Some(Beyond::After)
+        } else {
+            None
+        };
+        (Pos2::new(pos.x, pos.y.clamp(rect.min.y, bottom)), beyond)
+    }
+
+    fn step_beyond(&self, beyond: Option<Beyond>, mode: MoveMode) {
+        self.set_autoscroll.set(beyond.is_some());
+        let Some(beyond) = beyond else {
+            return;
+        };
+        self.state.execute(EditorCommand::MoveCursorUpDown {
+            direction: match beyond {
+                Beyond::Before => UDDirection::Up,
+                Beyond::After => UDDirection::Down,
+            },
+            mode: match mode {
+                MoveMode::Select => VerticalMoveMode::Select,
+                MoveMode::Move => VerticalMoveMode::Move,
+            },
+            metric: CursorHorizontalPositionMetric::Byte,
+            stop: CursorLeftRightStop::UnicodeGraphemeCluster,
+        });
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Beyond {
+    Before,
+    After,
 }
 
 fn begin_handle_drag(cx: &Context, handle: SelectionHandle, local: Pos2) {
-    let Some(range) = cx.selection_handles() else {
-        return;
-    };
     let layout = cx.layout();
-    let (fixed_byte, moving_byte) = match handle {
-        SelectionHandle::Start => (range.end, range.start),
-        SelectionHandle::End => (range.start, range.end),
+    let (grab, moving_byte) = match handle {
+        SelectionHandle::Caret => {
+            let Some(caret) = cx.caret_handle() else {
+                return;
+            };
+            (Grab::Caret, caret)
+        }
+        SelectionHandle::Start | SelectionHandle::End => {
+            let Some(range) = cx.selection_handles() else {
+                return;
+            };
+            let (fixed, moving) = match handle {
+                SelectionHandle::Start => (range.end, range.start),
+                _ => (range.start, range.end),
+            };
+            (Grab::Selection(cx.state.core().position(fixed)), moving)
+        }
     };
-    let fixed = cx.state.core().position(fixed_byte);
-    cx.state.begin_handle_drag(fixed);
     let offset = shapes::hit_test_anchor(layout.document(), moving_byte)
         .map_or(Vec2::ZERO, |anchor| Vec2::new(local.x, local.y) - anchor);
-    cx.state.set_handle_offset(offset);
-    drag_handle(cx, local);
+    cx.state.begin_grab(grab, offset);
 }
 
-fn drag_handle(cx: &Context, local: Pos2) {
-    let Some(fixed) = cx.state.dragging_handle() else {
+fn drag_handle(cx: &Context, pos: Pos2) {
+    let Some(grab) = cx.state.grab() else {
+        return;
+    };
+    let offset = cx.state.grab_offset();
+    let (inside, beyond) = cx.inside(pos - offset);
+    let Some(local) = cx.local(inside) else {
         return;
     };
     let layout = cx.layout();
-    let offset = cx.state.handle_offset();
-    let target = hit_test(layout.document(), Vec2::new(local.x, local.y) - offset);
+    let target = hit_test(layout.document(), Vec2::new(local.x, local.y));
     let position = cx.state.core().position(target);
-    cx.state
-        .execute(EditorCommand::DragSelectionHandle { fixed, position });
+    cx.state.execute(match grab {
+        Grab::Selection(fixed) => EditorCommand::DragSelectionHandle { fixed, position },
+        Grab::Caret => EditorCommand::SetSelection {
+            anchor: position,
+            focus: position,
+        },
+    });
+    cx.step_beyond(
+        beyond,
+        match grab {
+            Grab::Selection(_) => MoveMode::Select,
+            Grab::Caret => MoveMode::Move,
+        },
+    );
+    cx.state.reveal_cursor();
 }
 
 fn press(cx: &Context, press: PointerPress) {
     cx.set_focused.set(true);
     cx.state.set_touch_mode(press.touch);
+    cx.state.end_grab();
     let (Some(local), Some(gutter_local)) = (cx.local(press.pos), cx.gutter_local(press.pos))
     else {
         return;
     };
     let layout = cx.layout();
     if press.touch
-        && let Some(handle) = cx.selection_handle_at(local)
+        && let Some(handle) = cx.handle_at(local)
     {
         begin_handle_drag(cx, handle, local);
         return;
+    }
+    if !press.touch {
+        cx.state.set_caret_handle(false);
     }
     if let Some(widget) = layout
         .document()
@@ -227,8 +326,13 @@ fn tap(cx: &Context, press: PointerPress) {
     if !press.touch {
         return;
     }
-    if cx.state.end_handle_drag() {
-        return;
+    match cx.state.end_grab() {
+        Some(Grab::Caret) => {
+            cx.on_menu.call(press.pos);
+            return;
+        }
+        Some(Grab::Selection(_)) => return,
+        None => {}
     }
     let Some(local) = cx.local(press.pos) else {
         return;
@@ -240,7 +344,9 @@ fn tap(cx: &Context, press: PointerPress) {
         cx.state.set_selecting(false);
         return;
     }
+    cx.state.set_caret_handle(true);
     select_at(cx, local, press.clicks, false, false);
+    cx.state.set_selecting(false);
 }
 
 fn select_at(cx: &Context, local: Pos2, clicks: u32, extend: bool, syntax: bool) {
@@ -296,20 +402,30 @@ fn select_at(cx: &Context, local: Pos2, clicks: u32, extend: bool, syntax: bool)
 }
 
 fn extend(cx: &Context, press: PointerPress) {
-    let Some(local) = cx.local(press.pos) else {
-        return;
-    };
-    if cx.state.dragging_handle().is_some() {
-        drag_handle(cx, local);
+    if cx.state.grab().is_some() {
+        drag_handle(cx, press.pos);
         return;
     }
     if !cx.state.selecting() || press.touch {
         return;
     }
+    let (inside, beyond) = cx.inside(press.pos);
+    let Some(local) = cx.local(inside) else {
+        return;
+    };
     let layout = cx.layout();
     let target = hit_test(layout.document(), Vec2::new(local.x, local.y));
     let position = cx.state.core().position(target);
     cx.state.execute(EditorCommand::Drag(position));
+    cx.step_beyond(beyond, MoveMode::Select);
+    cx.state.reveal_cursor();
+}
+
+fn blur(cx: &Context) {
+    cx.state.end_grab();
+    cx.state.set_selecting(false);
+    cx.set_autoscroll.set(false);
+    cx.state.external_edit();
 }
 
 fn release(cx: &Context, active: bool) {
@@ -317,13 +433,14 @@ fn release(cx: &Context, active: bool) {
         return;
     }
     cx.state.set_selecting(false);
-    cx.state.end_handle_drag();
+    cx.set_autoscroll.set(false);
 }
 
 fn insert_text(cx: &Context, text: &str) {
     if text == "\n" || text == "\r" {
         return;
     }
+    cx.state.set_caret_handle(false);
     cx.state.execute(EditorCommand::InsertText(text.as_bytes()));
     cx.state.reveal_cursor();
 }
@@ -334,6 +451,7 @@ fn key(cx: &Context, press: KeyPress) -> bool {
     }
     let handled = key_command(cx, press);
     if handled {
+        cx.state.set_caret_handle(false);
         cx.state.reveal_cursor();
     }
     handled
@@ -355,6 +473,7 @@ fn key_command(cx: &Context, press: KeyPress) -> bool {
             state.close_find();
             return true;
         }
+        Key::C | Key::X if command && cx.masked.get_untracked() => return true,
         Key::C if command => {
             copy(state, CopyMode::Copy);
             return true;
@@ -491,25 +610,43 @@ pub fn TextArea(
     #[prop(default = TextAreaColors::DEFAULT)] colors: Prop<TextAreaColors>,
     #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
     #[prop(default = None)] drop_caret: Prop<Option<usize>>,
+    #[prop(default = String::new())] placeholder: Prop<String>,
+    #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = false)] focused: Prop<bool>,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
     on_key_override: Callback<KeyPress, bool>,
     children: Children<CanvasItem>,
 ) -> NodeId {
+    let focus_request = focused;
     let size = component_size();
     let canvas = state.canvas();
     let scale = use_pixels_per_point();
     let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
     let (offset, set_offset) = create_signal(0.0_f32);
     let (focused, set_focused) = create_signal(false);
+    let (autoscroll, set_autoscroll) = create_signal(false);
+    let viewport = NodeRef::new();
+    let masked = create_memo(move || password.get());
+    let placeholder = create_memo(move || placeholder.get());
 
     let accessible = state.content();
-    component_accessibility(create_memo(clone!(state accessible -> move || {
-        accessible.get();
-        let mut node = Node::new(Role::MultilineTextInput);
-        node.set_value(String::from_utf8_lossy(&state.bytes()).into_owned());
-        node
-    })));
+    component_accessibility(create_memo(
+        clone!(state accessible masked placeholder -> move || {
+            accessible.get();
+            let mut node = Node::new(Role::MultilineTextInput);
+            let value = String::from_utf8_lossy(&state.bytes()).into_owned();
+            node.set_value(match masked.get() {
+                true => layout::mask(&value),
+                false => value,
+            });
+            let placeholder = placeholder.get();
+            if !placeholder.is_empty() {
+                node.set_placeholder(placeholder);
+            }
+            node
+        }),
+    ));
 
     let content = state.content();
     let total_lines = create_memo(clone!(state content -> move || {
@@ -524,11 +661,14 @@ pub fn TextArea(
         (size.get().x - gutter.get() - PADDING.x * 2.0).max(1.0).round()
     }));
     let layout = create_memo(
-        clone!(state content wrap_width scale gutter widgets -> move || {
+        clone!(state content wrap_width scale gutter widgets masked -> move || {
             content.get();
             scale.get();
             let widgets = widgets.get();
-            let width = wrap_width.get();
+            let options = LayoutOptions {
+                mask: masked.get(),
+                ..LayoutOptions::wrapped(wrap_width.get())
+            };
             let document = state.with_snapshot(|snapshot| {
                 layout_document(
                     &snapshot.bytes,
@@ -536,7 +676,7 @@ pub fn TextArea(
                     &widgets,
                     &snapshot.checkbox_markers,
                     &snapshot.hidden,
-                    width,
+                    &options,
                 )
             });
             TextAreaLayout::new(
@@ -553,7 +693,11 @@ pub fn TextArea(
         gutter: gutter.clone(),
         scroll: scroll.clone(),
         set_offset,
+        focused: focused.clone(),
         set_focused: set_focused.clone(),
+        set_autoscroll,
+        viewport: viewport.clone(),
+        masked: masked.clone(),
         on_widget_press,
         on_menu,
     });
@@ -592,16 +736,30 @@ pub fn TextArea(
             layout.origin(),
         )
     }));
-    let text_shapes = create_memo(clone!(state layout colors -> move || {
+    let text_shapes = create_memo(clone!(state layout colors placeholder -> move || {
         let layout = layout.get();
+        let colors = colors.get();
+        let placeholder = placeholder.get();
+        let placeholder = match state.bytes().is_empty() && !placeholder.is_empty() {
+            true => shapes::placeholder(
+                layout.document(),
+                &placeholder,
+                FontId::proportional(BODY_SIZE),
+                &colors,
+                layout.origin(),
+            ),
+            false => None,
+        };
         state.with_snapshot(|snapshot| {
-            shapes::content(layout.document(), snapshot, &colors.get(), layout.origin())
+            shapes::content(layout.document(), snapshot, &colors, layout.origin(), placeholder)
         })
     }));
     let overlay_cx = cx.clone();
     let overlay = create_memo(
         clone!(state layout colors focused remote_cursors drop_caret -> move || {
             state.cursors().get();
+            state.touch_mode().get();
+            state.caret_handle().get();
             let layout = layout.get();
             shapes::overlay(shapes::Overlay {
                 layout: layout.document(),
@@ -612,6 +770,7 @@ pub fn TextArea(
                 carets: &state.caret_indices(),
                 remote: &remote_cursors.get(),
                 touch_handles: overlay_cx.selection_handles(),
+                caret_handle: overlay_cx.caret_handle(),
                 drop_caret: drop_caret.get(),
             })
         }),
@@ -625,6 +784,33 @@ pub fn TextArea(
     let text_cx = cx.clone();
     let capture_cx = cx.clone();
     let hover_cx = cx.clone();
+    let blur_cx = cx.clone();
+    let focus_requests = state.focus_requests();
+    let focus_writer = set_focused.clone();
+    create_effect(move || {
+        if focus_requests.get() > 0 {
+            focus_writer.set(true);
+        }
+    });
+    create_effect(clone!(set_focused -> move || {
+        if focus_request.get() {
+            set_focused.set(true);
+        }
+    }));
+    let content = state.content();
+    let shown = create_memo(clone!(state masked placeholder -> move || {
+        content.get();
+        let value = String::from_utf8_lossy(&state.bytes()).into_owned();
+        match (value.is_empty(), masked.get()) {
+            (true, _) => placeholder.get(),
+            (false, true) => layout::mask(&value),
+            (false, false) => value,
+        }
+    }));
+    set_component_state(Parts {
+        cx: cx.clone(),
+        shown,
+    });
     let reveal_cx = cx.clone();
     let reveals = state.reveals();
     create_effect(move || {
@@ -635,7 +821,7 @@ pub fn TextArea(
     let surface_color = create_memo(clone!(colors -> move || colors.get().surface));
 
     view! {
-        <Frame color={surface_color}>
+        <Frame @node_ref=&viewport color={surface_color}>
             <Scroll
                 offset={offset}
                 focus_color={Color32::TRANSPARENT}
@@ -643,7 +829,12 @@ pub fn TextArea(
             >
                 <Focusable
                     focused={focused.clone()}
-                    on_focus_change={move |is_focused: bool| set_focused.set(is_focused)}
+                    on_focus_change={move |is_focused: bool| {
+                        set_focused.set(is_focused);
+                        if !is_focused {
+                            blur(&blur_cx);
+                        }
+                    }}
                     on_text={move |typed: String| insert_text(&text_cx, &typed)}
                     on_key={move |press: KeyPress| {
                         on_key_override.call(press) || key(&key_cx, press)
@@ -651,10 +842,11 @@ pub fn TextArea(
                 >
                     <ClickCatcher
                         cursor={cursor}
+                        repeat_drag={autoscroll}
                         capture_at={move |pos: Pos2| {
                             capture_cx
                                 .local(pos)
-                                .and_then(|local| capture_cx.selection_handle_at(local))
+                                .and_then(|local| capture_cx.handle_at(local))
                                 .is_some()
                         }}
                         on_press={move |event: PointerPress| press(&press_cx, event)}
@@ -681,6 +873,53 @@ pub fn TextArea(
             </Scroll>
         </Frame>
     }
+}
+
+pub fn text_area_shown(document: &Document, area: NodeId) -> String {
+    document
+        .component_state::<Parts>(area)
+        .shown
+        .get_untracked()
+}
+
+pub fn text_area_state(document: &Document, area: NodeId) -> TextAreaState {
+    document.component_state::<Parts>(area).cx.state.clone()
+}
+
+#[cfg(test)]
+pub(crate) fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
+    let cx = &document.component_state::<Parts>(area).cx;
+    let Some(canvas) = cx
+        .state
+        .canvas()
+        .try_get()
+        .and_then(|canvas| document.node_rect(canvas))
+    else {
+        return Vec::new();
+    };
+    let layout = cx.layout.get_untracked();
+    let origin = canvas.min.to_vec2() + layout.origin();
+    let center = |byte: usize, handle: SelectionHandle| {
+        touch_handle_anchor(layout.document(), byte)
+            .map(|anchor| {
+                let center = touch_handle_center(anchor, handle) + origin;
+                Pos2::new(center.x, center.y)
+            })
+    };
+    if let Some(caret) = cx.caret_handle() {
+        return center(caret, SelectionHandle::Caret).into_iter().collect();
+    }
+    cx.selection_handles()
+        .map(|range| {
+            [
+                center(range.start, SelectionHandle::Start),
+                center(range.end, SelectionHandle::End),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[component]
