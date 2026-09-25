@@ -5,6 +5,7 @@ mod state;
 
 use std::ops::Range;
 use std::rc::Rc;
+use std::time::Duration;
 
 use accesskit::{Node, Role};
 
@@ -25,7 +26,7 @@ use crate::page::Page;
 use crate::reactive::{
     Callback, Canvas, CanvasItem, Children, ClickCatcher, Draw, Drawing, Focusable, Frame, Memo,
     Prop, ReadSignal, WriteSignal, clone, component_accessibility, component_size, copy_text,
-    create_effect, create_memo, create_signal, each_frame, request_paste, with_document,
+    create_effect, create_memo, create_signal, create_timer, pixels_per_point, request_paste,
 };
 use crate::unstyled::Scroll;
 
@@ -504,14 +505,10 @@ pub fn TextArea(
 ) -> NodeId {
     let size = component_size();
     let canvas = state.canvas();
-    let (scale, set_scale) = create_signal(None::<f32>);
+    let scale = pixels_per_point();
     let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
     let (offset, set_offset) = create_signal(0.0_f32);
     let (focused, set_focused) = create_signal(false);
-    each_frame(move || {
-        let scale_now = with_document(|document| document.pixels_per_point());
-        set_scale.set(Some(scale_now));
-    });
 
     let accessible = state.content();
     component_accessibility(create_memo(clone!(state accessible -> move || {
@@ -635,11 +632,16 @@ pub fn TextArea(
     let text_cx = cx.clone();
     let capture_cx = cx.clone();
     let hover_cx = cx.clone();
-    let frame_cx = cx.clone();
+    let reveal_cx = cx.clone();
     let (cursor, set_cursor) = create_signal(CursorIcon::Text);
-    each_frame(move || {
-        frame_cx.state.sync();
-        frame_cx.reveal_caret();
+    let revealing = create_timer(move || {
+        reveal_cx.reveal_caret();
+        None
+    });
+    let reveals = state.reveals();
+    create_effect(move || {
+        reveals.get();
+        revealing.start(Duration::ZERO);
     });
     let surface_color = create_memo(clone!(colors -> move || colors.get().surface));
 

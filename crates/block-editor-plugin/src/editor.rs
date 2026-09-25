@@ -1,10 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block::presence::PresenceKind;
 use beui::reactive::{
-    Callback, CanvasView, EmbedSlot, Memo, NodeRef, Prop, ReadSignal, WriteSignal, create_memo,
-    create_signal, on_cleanup,
+    Callback, CanvasView, EmbedSlot, Memo, NodeRef, Prop, ReadSignal, WriteSignal, create_effect,
+    create_memo, create_signal, on_cleanup, untrack,
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
@@ -13,10 +15,12 @@ use block_plugin_api::{
 use block_ui::BlockCatalog;
 use uuid::Uuid;
 
+use crate::host::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use crate::{
     BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
-    EditorHost, PickedBlock,
+    EditorHost, PickedBlock, Waker,
 };
+use block_plugin_api::AudioStatus;
 
 type Regenerate = Rc<dyn Fn(&[u8])>;
 type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
@@ -191,25 +195,37 @@ struct PendingPick {
     picked: Rc<dyn Fn(Result<PickedBlock, String>)>,
 }
 
-type Work = RefCell<Vec<(u64, Rc<dyn Fn()>)>>;
+type Revision = (ReadSignal<u64>, WriteSignal<u64>);
 
-fn run(work: &Work) {
-    let callbacks = work.borrow().clone();
-    for (_, callback) in callbacks {
-        callback();
-    }
+type Wake = (Arc<AtomicU64>, WriteSignal<u64>);
+
+fn watch_replies(replies: ReadSignal<u64>, replied: impl Fn() + 'static) {
+    create_effect(move || {
+        replies.get();
+        untrack(&replied);
+    });
 }
 
-fn register(work: &Rc<Work>, next: &Cell<u64>, callback: impl Fn() + 'static) {
-    let id = next.get();
-    next.set(id + 1);
-    work.borrow_mut().push((id, Rc::new(callback)));
-    let work = Rc::downgrade(work);
-    on_cleanup(move || {
-        if let Some(work) = work.upgrade() {
-            work.borrow_mut().retain(|(existing, _)| *existing != id);
+struct Mirror([Revision; Pushed::ALL.len()]);
+
+impl Mirror {
+    fn new(host: &EditorHost) -> Self {
+        Self(Pushed::ALL.map(|pushed| create_signal(host.revision(pushed))))
+    }
+
+    fn watch(&self, pushed: Pushed) -> ReadSignal<u64> {
+        self.0[pushed as usize].0.clone()
+    }
+
+    fn track(&self, pushed: Pushed) {
+        self.0[pushed as usize].0.get();
+    }
+
+    fn sync(&self, host: &EditorHost) {
+        for pushed in Pushed::ALL {
+            self.0[pushed as usize].1.set(host.revision(pushed));
         }
-    });
+    }
 }
 
 pub fn fit_content(available: Rect, content: Vec2) -> Rect {
@@ -269,8 +285,14 @@ struct EditorState {
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     pick: RefCell<Option<PendingPick>>,
-    each_frame: Rc<Work>,
-    next_work: Cell<u64>,
+    pumps: RefCell<Vec<Rc<dyn Fn()>>>,
+    web_view: Cell<Option<Option<Rect>>>,
+    wakes: Rc<RefCell<Vec<Wake>>>,
+    pushed: Mirror,
+    files: ReadSignal<Option<FileDrop>>,
+    set_files: WriteSignal<Option<FileDrop>>,
+    placed: ReadSignal<Rect>,
+    set_placed: WriteSignal<Rect>,
 }
 
 impl Editor {
@@ -286,6 +308,9 @@ impl Editor {
         let (resized, set_resized) = create_signal(None::<Vec2>);
         let (presence_visible, set_presence_visible) = create_signal(false);
         let (revealed, set_revealed) = create_signal(None::<u64>);
+        let (files, set_files) = create_signal(None::<FileDrop>);
+        let (placed, set_placed) = create_signal(Rect::ZERO);
+        let pushed = Mirror::new(&host);
         Self(Rc::new(EditorState {
             host,
             block,
@@ -323,8 +348,14 @@ impl Editor {
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             pick: RefCell::new(None),
-            each_frame: Rc::new(RefCell::new(Vec::new())),
-            next_work: Cell::new(0),
+            pumps: RefCell::new(Vec::new()),
+            web_view: Cell::new(None),
+            wakes: Rc::default(),
+            pushed,
+            files,
+            set_files,
+            placed,
+            set_placed,
         }))
     }
 
@@ -408,7 +439,10 @@ impl Editor {
         }
         let source = Rc::new(ContentProjection::<C>::new(self.0.host.clone(), block));
         let pumped = Rc::clone(&source);
-        self.each_frame(move || pumped.pump());
+        self.0
+            .pumps
+            .borrow_mut()
+            .push(Rc::new(move || pumped.pump()));
         self.0
             .projections
             .borrow_mut()
@@ -416,8 +450,78 @@ impl Editor {
         source
     }
 
-    pub fn each_frame(&self, work: impl Fn() + 'static) {
-        register(&self.0.each_frame, &self.0.next_work, work);
+    pub fn pushed(&self, pushed: Pushed) -> ReadSignal<u64> {
+        self.0.pushed.watch(pushed)
+    }
+
+    pub fn replies(&self) -> ReadSignal<u64> {
+        self.pushed(Pushed::Replies)
+    }
+
+    pub fn on_reply(&self, replied: impl Fn() + 'static) {
+        watch_replies(self.replies(), replied);
+    }
+
+    pub fn woken(&self) -> (Waker, ReadSignal<u64>) {
+        let count = Arc::new(AtomicU64::new(0));
+        let (woken, set_woken) = create_signal(0);
+        self.0
+            .wakes
+            .borrow_mut()
+            .push((Arc::clone(&count), set_woken));
+        let wakes = Rc::downgrade(&self.0.wakes);
+        let counted = Arc::clone(&count);
+        on_cleanup(move || {
+            if let Some(wakes) = wakes.upgrade() {
+                wakes
+                    .borrow_mut()
+                    .retain(|(held, _)| !Arc::ptr_eq(held, &counted));
+            }
+        });
+        (self.0.host.waker().counting(count), woken)
+    }
+
+    pub fn audio(&self) -> Memo<AudioStatus> {
+        let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::Audio);
+        create_memo(move || {
+            revision.get();
+            host.audio()
+        })
+    }
+
+    pub fn history(&self, block: Uuid) -> Memo<BlockHistory> {
+        let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::Histories);
+        create_memo(move || {
+            revision.get();
+            host.history(block)
+        })
+    }
+
+    pub fn histories(&self) -> ReadSignal<u64> {
+        self.pushed(Pushed::Histories)
+    }
+
+    pub fn artifacts(&self) -> ReadSignal<u64> {
+        self.pushed(Pushed::Artifacts)
+    }
+
+    pub fn focused_block(&self) -> Memo<FocusedBlock> {
+        let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::Focus);
+        create_memo(move || {
+            revision.get();
+            host.focused_block()
+        })
+    }
+
+    pub fn web_view_events(&self) -> ReadSignal<u64> {
+        self.pushed(Pushed::WebView)
+    }
+
+    pub fn files(&self) -> ReadSignal<Option<FileDrop>> {
+        self.0.files.clone()
     }
 
     pub fn canvas(&self) -> ReadSignal<Option<CanvasView>> {
@@ -445,6 +549,7 @@ impl Editor {
     }
 
     pub fn block_types(&self) -> Rc<BlockCatalog> {
+        self.0.pushed.track(Pushed::Catalog);
         self.0.host.block_types()
     }
 
@@ -548,6 +653,10 @@ impl Editor {
         self.0.content_rect.get()
     }
 
+    pub fn placed(&self) -> ReadSignal<Rect> {
+        self.0.placed.clone()
+    }
+
     pub fn pixels_per_point(&self) -> ReadSignal<f32> {
         self.0.pixels_per_point.clone()
     }
@@ -571,13 +680,14 @@ impl Editor {
     {
         let (peers, set_peers) = create_signal(Vec::new());
         let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::Peers);
         let seen = Cell::new(0);
-        let last: RefCell<Vec<(u64, P)>> = RefCell::new(Vec::new());
-        self.each_frame(move || {
-            let Some((revision, held)) = host.peers_since(None, seen.get()) else {
+        create_effect(move || {
+            revision.get();
+            let Some((latest, held)) = host.peers_since(None, seen.get()) else {
                 return;
             };
-            seen.set(revision);
+            seen.set(latest);
             let decoded: Vec<(u64, P)> = held
                 .iter()
                 .filter(|peer| peer.kind == P::ID)
@@ -587,10 +697,7 @@ impl Editor {
                         .map(|value| (peer.client, value))
                 })
                 .collect();
-            if *last.borrow() != decoded {
-                last.replace(decoded.clone());
-                set_peers.set(decoded);
-            }
+            set_peers.set(decoded);
         });
         peers
     }
@@ -629,7 +736,7 @@ impl Editor {
     }
 
     pub fn place_web_view(&self, rect: Option<Rect>) {
-        self.0.host.place_beui_web_view(rect);
+        self.0.web_view.set(Some(rect));
     }
 
     pub fn pan(&self, delta: Vec2) {
@@ -663,6 +770,17 @@ impl Editor {
 
     pub fn begin_frame(&self) {
         self.0.host.flush_graph();
+        let pumps = self.0.pumps.borrow().clone();
+        for pump in pumps {
+            pump();
+        }
+        self.0.pushed.sync(&self.0.host);
+        let wakes = self.0.wakes.borrow().clone();
+        for (count, woken) in wakes {
+            woken.set(count.load(Ordering::Acquire));
+        }
+        self.0.set_files.set(self.0.host.beui_files());
+        self.0.set_placed.set(self.0.content_rect.get());
         let view = self.0.host.beui_view();
         let scale = view.scale().max(f32::EPSILON);
         self.0.set_canvas.set(view.canvas());
@@ -697,12 +815,14 @@ impl Editor {
             record.report.call(state);
         }
         self.poll_pick();
-        run(&self.0.each_frame);
     }
 
     pub fn end_frame(&self, document: &Document) {
         for record in self.records() {
             record.child.set(self.place_child(document, &record));
+        }
+        if let Some(rect) = self.0.web_view.get() {
+            self.0.host.place_beui_web_view(rect);
         }
         for rect in document.overlay_rects() {
             self.0.host.occlude_beui(rect);
@@ -712,6 +832,9 @@ impl Editor {
             return;
         };
         self.0.content_rect.set(rect);
+        if self.0.placed.get_untracked() != rect {
+            self.0.host.request_frame_in(std::time::Duration::ZERO);
+        }
         self.0.host.beui_view().set_content(rect);
     }
 }
@@ -746,17 +869,15 @@ pub struct Creation(Rc<CreationState>);
 struct CreationState {
     host: EditorHost,
     maker: RefCell<Option<Maker>>,
-    each_frame: Rc<Work>,
-    next_work: Cell<u64>,
+    pushed: Mirror,
 }
 
 impl Creation {
     pub fn new(host: EditorHost) -> Self {
         Self(Rc::new(CreationState {
+            pushed: Mirror::new(&host),
             host,
             maker: RefCell::new(None),
-            each_frame: Rc::new(RefCell::new(Vec::new())),
-            next_work: Cell::new(0),
         }))
     }
 
@@ -784,8 +905,12 @@ impl Creation {
         *self.0.maker.borrow_mut() = Some(Rc::new(make));
     }
 
-    pub fn each_frame(&self, work: impl Fn() + 'static) {
-        register(&self.0.each_frame, &self.0.next_work, work);
+    pub fn replies(&self) -> ReadSignal<u64> {
+        self.0.pushed.watch(Pushed::Replies)
+    }
+
+    pub fn on_reply(&self, replied: impl Fn() + 'static) {
+        watch_replies(self.replies(), replied);
     }
 
     pub fn create_block(&self) -> Result<Uuid, String> {
@@ -797,7 +922,7 @@ impl Creation {
     }
 
     pub fn begin_frame(&self) {
-        run(&self.0.each_frame);
+        self.0.pushed.sync(&self.0.host);
     }
 }
 

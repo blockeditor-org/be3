@@ -57,7 +57,7 @@ pub enum ContentUpdate {
     Operations(Vec<(Vec<u8>, bool)>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct FileDrop {
     pub position: beui::Pos2,
     pub files: Vec<PickedFile>,
@@ -113,7 +113,7 @@ pub struct PickedBlock {
     pub linked: bool,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct FocusedBlock {
     pub block_id: Option<Uuid>,
     pub block_type: Uuid,
@@ -121,7 +121,6 @@ pub struct FocusedBlock {
 }
 
 impl FocusedBlock {
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     fn same(&self, other: &Self) -> bool {
         self.block_id == other.block_id
             && self.block_type == other.block_type
@@ -140,7 +139,7 @@ pub struct ArtifactDescription {
     pub summary: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct PickedFile {
     pub name: String,
     pub data: Vec<u8>,
@@ -159,6 +158,14 @@ impl Waker {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
         Self(Some(Arc::new(wake)))
+    }
+
+    pub(crate) fn counting(&self, count: Arc<std::sync::atomic::AtomicU64>) -> Self {
+        let inner = self.clone();
+        Self(Some(Arc::new(move || {
+            count.fetch_add(1, std::sync::atomic::Ordering::Release);
+            inner.wake();
+        })))
     }
 }
 
@@ -370,9 +377,37 @@ fn scaled(rect: beui::Rect, ratio: f32) -> beui::Rect {
     )
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Pushed {
+    Replies,
+    Peers,
+    Histories,
+    Artifacts,
+    Audio,
+    Focus,
+    Catalog,
+    WebView,
+    Shows,
+}
+
+impl Pushed {
+    pub(crate) const ALL: [Self; 9] = [
+        Self::Replies,
+        Self::Peers,
+        Self::Histories,
+        Self::Artifacts,
+        Self::Audio,
+        Self::Focus,
+        Self::Catalog,
+        Self::WebView,
+        Self::Shows,
+    ];
+}
+
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
+    pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
@@ -453,6 +488,15 @@ impl EditorHost {
         self.waker.clone()
     }
 
+    pub fn revision(&self, pushed: Pushed) -> u64 {
+        self.pushed[pushed as usize].get()
+    }
+
+    fn push(&self, pushed: Pushed) {
+        let revision = &self.pushed[pushed as usize];
+        revision.set(revision.get() + 1);
+    }
+
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
         PerformanceReporter {
             group: Arc::from(group.into()),
@@ -480,6 +524,7 @@ impl EditorHost {
             block_type,
             via,
         });
+        self.push(Pushed::Shows);
     }
 
     pub fn focused_block(&self) -> FocusedBlock {
@@ -487,7 +532,12 @@ impl EditorHost {
     }
 
     pub fn report_focus(&self, focused: FocusedBlock) {
+        if self.focused.borrow().same(&focused) {
+            return;
+        }
         *self.focused.borrow_mut() = focused;
+        self.push(Pushed::Focus);
+        self.waker.wake();
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -551,6 +601,7 @@ impl EditorHost {
 
     pub fn set_histories(&self, states: impl IntoIterator<Item = (Uuid, BlockHistory)>) {
         *self.histories.borrow_mut() = states.into_iter().collect();
+        self.push(Pushed::Histories);
     }
 
     pub fn undo(&self, block_id: Uuid) {
@@ -570,6 +621,7 @@ impl EditorHost {
             .into_iter()
             .map(|state| (state.block_id, state))
             .collect();
+        self.push(Pushed::Artifacts);
     }
 
     pub fn regenerate_artifact(&self, block_id: Uuid) {
@@ -605,6 +657,7 @@ impl EditorHost {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_focused_block(&self, focused: FocusedBlock) {
         *self.focused.borrow_mut() = focused;
+        self.push(Pushed::Focus);
     }
 
     pub fn drag_block(&self, block_id: Uuid, block_type: Uuid) {
@@ -838,6 +891,7 @@ impl EditorHost {
         let revision = self.next_peers.get() + 1;
         self.next_peers.set(revision);
         self.peers.borrow_mut().insert(block, (revision, peers));
+        self.push(Pushed::Peers);
         self.waker.wake();
     }
 
@@ -918,6 +972,14 @@ impl EditorHost {
 
     pub fn files(&self) -> Option<FileDrop> {
         self.files.borrow().clone()
+    }
+
+    pub fn beui_files(&self) -> Option<FileDrop> {
+        let ratio = self.beui.get().ratio;
+        self.files().map(|files| FileDrop {
+            position: beui::pos2(files.position.x * ratio, files.position.y * ratio),
+            ..files
+        })
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -1002,6 +1064,7 @@ impl EditorHost {
 
     pub fn set_audio(&self, status: AudioStatus) {
         *self.audio_status.borrow_mut() = status;
+        self.push(Pushed::Audio);
     }
 
     pub fn fetch(&self, url: impl Into<String>) -> u64 {
@@ -1021,6 +1084,7 @@ impl EditorHost {
 
     pub fn set_reply(&self, request: u64, reply: HostReply) {
         self.replies.borrow_mut().insert(request, reply);
+        self.push(Pushed::Replies);
     }
 
     fn take_reply(&self, request: u64) -> Option<HostReply> {
@@ -1087,6 +1151,7 @@ impl EditorHost {
 
     pub fn push_web_view_event(&self, event: WebViewEvent) {
         self.web_view_events.borrow_mut().push(event);
+        self.push(Pushed::WebView);
     }
 
     pub fn request_frame_in(&self, delay: Duration) {
@@ -1216,6 +1281,7 @@ impl EditorHost {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
         *self.block_types.borrow_mut() = catalog;
+        self.push(Pushed::Catalog);
     }
 
     pub fn set_client_id(&self, client_id: Uuid) {

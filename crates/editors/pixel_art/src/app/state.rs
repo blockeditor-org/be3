@@ -12,7 +12,7 @@ use block_editor_plugin::{ContentProjection, Editor};
 pub(crate) type ArtBlock = Rc<ContentProjection<PixelArtContent>>;
 
 use crate::color::format_hex_color;
-use crate::drawing::{ActiveDrawing, Brush, BrushShape, CommittedPreview, PixelTool};
+use crate::drawing::{ActiveDrawing, Brush, BrushShape, PixelTool};
 
 const MAX_RECENT_COLORS: usize = 12;
 
@@ -59,9 +59,11 @@ pub(crate) struct Tools {
     pub(crate) set_resize_anchor: WriteSignal<PixelArtAnchor>,
     pub(crate) export_error: ReadSignal<Option<String>>,
     pub(crate) set_export_error: WriteSignal<Option<String>>,
-    pub(crate) drawing: RefCell<Option<ActiveDrawing>>,
-    pub(crate) committed: RefCell<Option<CommittedPreview>>,
-    pub(crate) constrained: Cell<bool>,
+    drawing: RefCell<Option<ActiveDrawing>>,
+    drawn: ReadSignal<u64>,
+    set_drawn: WriteSignal<u64>,
+    constrained: ReadSignal<bool>,
+    pub(crate) set_constrained: WriteSignal<bool>,
 }
 
 impl Tools {
@@ -82,6 +84,8 @@ impl Tools {
         let (resize_height, set_resize_height) = create_signal(32u16);
         let (resize_anchor, set_resize_anchor) = create_signal(PixelArtAnchor::Center);
         let (export_error, set_export_error) = create_signal(None::<String>);
+        let (drawn, set_drawn) = create_signal(0);
+        let (constrained, set_constrained) = create_signal(false);
         Rc::new(Self {
             editor: editor.clone(),
             block,
@@ -118,8 +122,10 @@ impl Tools {
             export_error,
             set_export_error,
             drawing: RefCell::default(),
-            committed: RefCell::default(),
-            constrained: Cell::new(false),
+            drawn,
+            set_drawn,
+            constrained,
+            set_constrained,
         })
     }
 
@@ -156,18 +162,17 @@ impl Tools {
 
     pub(crate) fn brush(&self) -> Brush {
         Brush {
-            size: self.brush_size.get_untracked(),
-            shape: self.brush_shape.get_untracked(),
-            filled: self.shapes_filled.get_untracked(),
-            mirror_horizontal: self.mirror_horizontal.get_untracked(),
-            mirror_vertical: self.mirror_vertical.get_untracked(),
+            size: self.brush_size.get(),
+            shape: self.brush_shape.get(),
+            filled: self.shapes_filled.get(),
+            mirror_horizontal: self.mirror_horizontal.get(),
+            mirror_vertical: self.mirror_vertical.get(),
             constrained: self.constrained.get(),
         }
     }
 
     pub(crate) fn select_tool(&self, tool: PixelTool) {
-        self.drawing.borrow_mut().take();
-        self.committed.borrow_mut().take();
+        self.draw(|drawing| drawing.take());
         let current = self.tool.get_untracked();
         if current.is_drawing() {
             self.previous_drawing_tool.set(current);
@@ -208,8 +213,7 @@ impl Tools {
     }
 
     pub(crate) fn open_dialog(&self, dialog: Dialog) {
-        self.drawing.borrow_mut().take();
-        self.committed.borrow_mut().take();
+        self.draw(|drawing| drawing.take());
         self.set_dialog.set(dialog);
     }
 
@@ -218,7 +222,18 @@ impl Tools {
     }
 
     pub(crate) fn busy(&self) -> bool {
-        self.dialog.get_untracked() != Dialog::None
+        self.dialog.get() != Dialog::None
+    }
+
+    pub(crate) fn draw<R>(&self, change: impl FnOnce(&mut Option<ActiveDrawing>) -> R) -> R {
+        let changed = change(&mut self.drawing.borrow_mut());
+        self.set_drawn.update(|drawn| *drawn += 1);
+        changed
+    }
+
+    pub(crate) fn drawing<R>(&self, read: impl FnOnce(Option<&ActiveDrawing>) -> R) -> R {
+        self.drawn.get();
+        read(self.drawing.borrow().as_ref())
     }
 }
 
