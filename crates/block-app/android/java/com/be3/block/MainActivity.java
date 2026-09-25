@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import com.google.androidgamesdk.GameActivity;
+import com.google.androidgamesdk.gametextinput.State;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
@@ -21,6 +22,7 @@ public final class MainActivity extends GameActivity {
     protected void onCreate(Bundle state) {
         current = this;
         super.onCreate(state);
+        stateChanged(new State("", 0, 0, -1, -1), false);
     }
 
     @Override

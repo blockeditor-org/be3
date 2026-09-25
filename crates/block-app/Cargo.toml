@@ -113,6 +113,7 @@ block-editor-plugin = { path = "../block-editor-plugin" }
 libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
+libc = "0.2"
 winit = { version = "0.30.13", features = ["android-game-activity"] }
 # Used by the version-switching debug window to build the ContentResolver /
 # Intent calls that download and install a GitHub Actions build.
