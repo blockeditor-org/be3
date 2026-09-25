@@ -78,6 +78,8 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         exiting: false,
         #[cfg(target_os = "android")]
         soft_keyboard: super::soft_keyboard::SoftKeyboard::new(),
+        #[cfg(target_os = "android")]
+        held_modifiers: Vec::new(),
     };
     event_loop.run_app(&mut runner)?;
     match runner.error {
@@ -188,6 +190,8 @@ struct Runner {
     exiting: bool,
     #[cfg(target_os = "android")]
     soft_keyboard: super::soft_keyboard::SoftKeyboard,
+    #[cfg(target_os = "android")]
+    held_modifiers: Vec<KeyCode>,
 }
 
 impl Runner {
@@ -632,6 +636,12 @@ impl ApplicationHandler<UserEvent> for Runner {
                     self.emulated_touch = false;
                     self.held_buttons = 0;
                     self.pointer_left = false;
+                    #[cfg(target_os = "android")]
+                    if !self.held_modifiers.is_empty() {
+                        self.held_modifiers.clear();
+                        self.modifiers = Modifiers::NONE;
+                        self.push(Event::Modifiers(self.modifiers));
+                    }
                 }
                 self.push(Event::Focus(focused));
             }
@@ -729,6 +739,26 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let pressed = event.state == ElementState::Pressed;
+                #[cfg(target_os = "android")]
+                if let PhysicalKey::Code(code) = event.physical_key
+                    && modifier_of(code).is_some()
+                {
+                    self.held_modifiers.retain(|held| *held != code);
+                    if pressed {
+                        self.held_modifiers.push(code);
+                    }
+                    let held = |wanted: Modifier| {
+                        self.held_modifiers
+                            .iter()
+                            .any(|code| modifier_of(*code) == Some(wanted))
+                    };
+                    self.modifiers = Modifiers {
+                        alt: held(Modifier::Alt),
+                        ctrl: held(Modifier::Ctrl),
+                        shift: held(Modifier::Shift),
+                    };
+                    self.push(Event::Modifiers(self.modifiers));
+                }
                 #[cfg(target_os = "linux")]
                 if !event.repeat {
                     use winit::platform::scancode::PhysicalKeyExtScancode;
@@ -1098,4 +1128,24 @@ fn lock_pointer(window: &Window, locked: bool) {
         let _ = window.set_cursor_grab(CursorGrabMode::Confined);
     }
     window.set_cursor_visible(!locked);
+}
+
+#[cfg(target_os = "android")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Modifier {
+    Alt,
+    Ctrl,
+    Shift,
+}
+
+#[cfg(target_os = "android")]
+fn modifier_of(code: KeyCode) -> Option<Modifier> {
+    match code {
+        KeyCode::AltLeft | KeyCode::AltRight => Some(Modifier::Alt),
+        KeyCode::ControlLeft | KeyCode::ControlRight | KeyCode::SuperLeft | KeyCode::SuperRight => {
+            Some(Modifier::Ctrl)
+        }
+        KeyCode::ShiftLeft | KeyCode::ShiftRight => Some(Modifier::Shift),
+        _ => None,
+    }
 }

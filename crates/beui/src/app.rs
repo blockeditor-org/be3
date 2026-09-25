@@ -133,13 +133,18 @@ pub(crate) fn typed(old: &str, new: &str, events: &mut Vec<Event>) {
     for _ in old[common..].chars() {
         press(Key::Backspace, events);
     }
-    for (index, line) in new[common..].split('\n').enumerate() {
-        if index > 0 {
-            press(Key::Enter, events);
+    let mut rest = &new[common..];
+    while !rest.is_empty() {
+        let end = rest.find(['\n', '\t']).unwrap_or(rest.len());
+        if end > 0 {
+            events.push(Event::Text(rest[..end].to_owned()));
         }
-        if !line.is_empty() {
-            events.push(Event::Text(line.to_owned()));
+        match rest[end..].chars().next() {
+            Some('\n') => press(Key::Enter, events),
+            Some('\t') => press(Key::Tab, events),
+            _ => {}
         }
+        rest = rest.get(end + 1..).unwrap_or("");
     }
 }
 

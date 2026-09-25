@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_cancelled_touch_outside_a_dialog_leaves_it_open;
 mod a_canvas_item_moved_into_view_is_laid_out_where_it_arrives;
 mod a_canvas_lays_out_only_the_items_the_view_can_see;
 mod a_canvas_places_its_items_at_the_view_it_is_given;

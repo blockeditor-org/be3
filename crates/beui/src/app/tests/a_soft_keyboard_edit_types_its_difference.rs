@@ -40,5 +40,13 @@ fn a_soft_keyboard_edit_types_its_difference() {
             Event::Text("b".to_owned()),
         ]
     );
+    assert_eq!(
+        edit("a", "a\tb"),
+        [
+            key(Key::Tab, true),
+            key(Key::Tab, false),
+            Event::Text("b".to_owned()),
+        ]
+    );
     assert_eq!(edit("a", "a"), []);
 }
