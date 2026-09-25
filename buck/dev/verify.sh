@@ -3,7 +3,7 @@
 # What `./scripts/buck run //:verify` runs: fix-rust-source, rustfmt,
 # starlark_fmt and clippy (--lint), the tests (--tests), and the plugin tests
 # (--plugin-tests), which run here because they read and write snapshots/.
-# Naming none runs all three; CI runs them on three runners. Every tool writes
+# Naming none runs all three, which is what CI runs. Every tool writes
 # its fixes and the plugin tests accept new paintings, unless --check, which
 # writes nothing and fails on anything that would change.
 #
