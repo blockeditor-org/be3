@@ -71,6 +71,7 @@ struct State {
     selected: ReadSignal<Option<usize>>,
     set_selected: WriteSignal<Option<usize>>,
     kind: ChoiceKind,
+    direction: Direction,
     typeahead: RefCell<Typeahead>,
     on_change: Callback<Option<usize>>,
 }
@@ -82,12 +83,17 @@ pub fn Choice(
     options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
     kind: ChoiceKind,
+    direction: Option<Direction>,
     on_change: Callback<Option<usize>>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
 ) -> NodeId {
     let selected_prop = selected;
     let option = option.expect("choice requires an `option` builder");
     let options = options.into_run();
+    let direction = direction.unwrap_or(match kind {
+        ChoiceKind::Tabs => Direction::Horizontal,
+        ChoiceKind::Radio | ChoiceKind::Listbox => Direction::Vertical,
+    });
     let (selected, set_selected) = create_signal(None);
     let selection = create_selector(clone!(selected -> move || selected.get()));
     let tab_stop_owner = create_selector(clone!(selected -> move || selected.get().unwrap_or(0)));
@@ -107,6 +113,7 @@ pub fn Choice(
         selected: selected.clone(),
         set_selected,
         kind,
+        direction,
         typeahead: RefCell::default(),
         on_change,
     });
@@ -182,11 +189,6 @@ pub fn Choice(
         sync_selected(&state, selected_prop.get());
     }));
 
-    let direction = if kind == ChoiceKind::Tabs {
-        Direction::Horizontal
-    } else {
-        Direction::Vertical
-    };
     view! {
         <List direction spacing=6.0 children={buttons} />
     }
@@ -234,11 +236,19 @@ fn key(state: &State, index: usize, press: KeyPress) -> bool {
         return false;
     }
     let count = option_count(state);
+    let wraps = match state.kind {
+        ChoiceKind::Tabs => state.direction == Direction::Horizontal,
+        ChoiceKind::Radio => true,
+        ChoiceKind::Listbox => false,
+    };
+    let vertical_tabs = state.kind == ChoiceKind::Tabs && state.direction == Direction::Vertical;
     let next = match press.key {
-        Key::ArrowLeft if state.kind != ChoiceKind::Listbox => (index + count - 1) % count,
-        Key::ArrowRight if state.kind != ChoiceKind::Listbox => (index + 1) % count,
-        Key::ArrowUp if state.kind == ChoiceKind::Radio => (index + count - 1) % count,
-        Key::ArrowDown if state.kind == ChoiceKind::Radio => (index + 1) % count,
+        Key::ArrowLeft if wraps => (index + count - 1) % count,
+        Key::ArrowRight if wraps => (index + 1) % count,
+        Key::ArrowUp if state.kind == ChoiceKind::Radio || vertical_tabs => {
+            (index + count - 1) % count
+        }
+        Key::ArrowDown if state.kind == ChoiceKind::Radio || vertical_tabs => (index + 1) % count,
         Key::ArrowUp if state.kind == ChoiceKind::Listbox => index.saturating_sub(1),
         Key::ArrowDown if state.kind == ChoiceKind::Listbox => (index + 1).min(count - 1),
         Key::Home => 0,

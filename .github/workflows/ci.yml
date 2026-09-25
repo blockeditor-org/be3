@@ -30,7 +30,8 @@ env:
 # Two jobs do the work. build is one buck2 build of everything CI builds, on
 # every platform, and uploads what ships. verify is ./scripts/buck run //:verify,
 # a runner for each of its three parts, which fixes what it can on a pull
-# request. autofix pushes those fixes, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
+# request. autofix pushes those fixes, paint-previews shows a pull request's
+# changed paintings in a comment, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
 # needs is buck2 and whatever runs here rather than there.
 jobs:
   # buck/ci/BUCK names what is built: //crates/... for the host, which is what
@@ -376,6 +377,131 @@ jobs:
           git show --stat HEAD
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
+
+  # Every painting a pull request changes, drawn before, after, and with what
+  # changed marked, in one comment on the pull request that each run edits
+  # rather than adding to. The paintings compared are the ones committed on
+  # the head, so a painting the autofix job accepts shows up in the run its
+  # commit starts.
+  #
+  # It is two jobs for the same reason verify and autofix are. This one builds
+  # and runs the rasterizer from the pull request, so it has no credentials;
+  # publish-paint-previews runs nothing from the pull request and does the
+  # writing. A fork's run has no BuildBuddy key to build with and no token to
+  # write with, so it has no previews.
+  #
+  # Not in the gate below: a preview is for the reviewer, and verify is what
+  # decides whether the paintings are right.
+  paint-previews:
+    name: render paint previews
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      # The whole history, since what the pull request changed is measured
+      # from where it left its base rather than from wherever the base is now.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/buck2
+
+      - name: Collect the paintings the pull request changed
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="$(git merge-base "$BASE" HEAD)"
+          before="$RUNNER_TEMP/paintings/before"
+          after="$RUNNER_TEMP/paintings/after"
+          mkdir -p "$before" "$after"
+          git diff --name-only --no-renames -z "$base" HEAD -- 'snapshots/*.paint' |
+            while IFS= read -r -d '' path; do
+              name="$(basename "$path")"
+              if git cat-file -e "$base:$path" 2> /dev/null; then
+                git show "$base:$path" > "$before/$name"
+              fi
+              if [ -e "$path" ]; then
+                cp "$path" "$after/$name"
+              fi
+            done
+
+      - name: Render them
+        run: >-
+          ./scripts/buck run //crates/paint-snapshot:preview-example --
+          "$RUNNER_TEMP/paintings/before" "$RUNNER_TEMP/paintings/after" "$RUNNER_TEMP/previews"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: paint-previews
+          path: ${{ runner.temp }}/previews
+          retention-days: 1
+
+  # The images go on a branch of their own, paint-previews/<number>, as one
+  # commit that each run replaces, and the comment links them by that commit.
+  # It is pushed with GITHUB_TOKEN, which starts no workflow, and nothing else
+  # reads the branch. What the artifact holds was made by the pull request's
+  # code, so it is only ever data here: files to commit and text to post.
+  #
+  # A pull request that no longer changes any painting has its comment edited
+  # to say so and its branch deleted; one that never did gets no comment.
+  publish-paint-previews:
+    name: comment paint previews
+    needs: [paint-previews]
+    if: needs.paint-previews.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: paint-previews
+          path: ${{ runner.temp }}/previews
+
+      - name: Publish the previews and comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          previews="$RUNNER_TEMP/previews"
+          branch="paint-previews/$NUMBER"
+          comment="$RUNNER_TEMP/comment.md"
+
+          existing="$(gh api --paginate "repos/$REPOSITORY/issues/$NUMBER/comments" --jq \
+            '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- paint-previews -->"))) | .id' |
+            sed -n 1p)"
+
+          if compgen -G "$previews/*/*.png" > /dev/null; then
+            cd "$previews"
+            git -c init.defaultBranch=previews init --quiet
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -- ./*/
+            git commit --quiet --message "Paint previews for #$NUMBER"
+            git push --quiet --force "https://x-access-token:$GH_TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$branch"
+            sha="$(git rev-parse HEAD)"
+            sed "s|PREVIEW_ROOT|https://github.com/$REPOSITORY/raw/$sha|g" comment.md > "$comment"
+          else
+            gh api --method DELETE "repos/$REPOSITORY/git/refs/heads/$branch" > /dev/null 2>&1 || true
+            if [ -z "$existing" ]; then
+              echo 'The pull request changes no paintings.'
+              exit 0
+            fi
+            cp "$previews/comment.md" "$comment"
+          fi
+
+          if [ -n "$existing" ]; then
+            jq --raw-input --slurp '{body: .}' "$comment" |
+              gh api --method PATCH "repos/$REPOSITORY/issues/comments/$existing" --input - > /dev/null
+          else
+            jq --raw-input --slurp '{body: .}' "$comment" |
+              gh api --method POST "repos/$REPOSITORY/issues/$NUMBER/comments" --input - > /dev/null
+          fi
 
   # The one check the ruleset on main requires, and the only thing the merge
   # queue in merge-queue.yml waits for. Everything above is a job this needs,

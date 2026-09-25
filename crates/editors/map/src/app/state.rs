@@ -6,11 +6,13 @@ use block_editor_plugin::BlockList;
 use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
 use block_editor_plugin::be_block::{Edit, Map, MapContent};
-use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
+use block_editor_plugin::beui::reactive::{
+    ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+};
 use block_editor_plugin::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::{
-    BlockFilter, BlockPicker, ContentProjection, Editor, ImagePaster, PastedImage,
+    BlockFilter, ContentProjection, Drag, Editor, FileDrop, ImagePaster, PastedImage, Waker,
 };
 use block_editor_plugin::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
@@ -49,14 +51,12 @@ pub(crate) struct MapState {
     dependencies: BlockList,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,
-    picker: RefCell<BlockPicker>,
+    waker: RefCell<Waker>,
     paster: RefCell<ImagePaster>,
-    pending_points: RefCell<Vec<(Uuid, (Uuid, MapCoordinate))>>,
-    pending_position: Cell<Option<MapCoordinate>>,
-    paste_asked: Cell<bool>,
     dragged: Cell<Option<(Uuid, Vec2)>>,
     pending_file_drop: Cell<Option<MapCoordinate>>,
-    fit_requested: Cell<bool>,
+    fit_requested: ReadSignal<bool>,
+    set_fit_requested: WriteSignal<bool>,
     view_center: Cell<MapCoordinate>,
     pub(crate) points: ReadSignal<Vec<MapPoint>>,
     pub(crate) preview_region: ReadSignal<Option<MapRegion>>,
@@ -87,6 +87,7 @@ impl MapState {
         let (import_error, set_import_error) = create_signal(None);
         let (labels, set_labels) = create_signal(HashMap::new());
         let (revision, set_revision) = create_signal(0);
+        let (fit_requested, set_fit_requested) = create_signal(true);
         Rc::new(Self {
             dependencies: editor
                 .blocks()
@@ -96,14 +97,12 @@ impl MapState {
             block,
             worker: RefCell::new(None),
             tiles: RefCell::new(HashMap::new()),
-            picker: RefCell::new(BlockPicker::default()),
+            waker: RefCell::new(Waker::default()),
             paster: RefCell::new(ImagePaster::default()),
-            pending_points: RefCell::new(Vec::new()),
-            pending_position: Cell::new(None),
-            paste_asked: Cell::new(false),
             dragged: Cell::new(None),
             pending_file_drop: Cell::new(None),
-            fit_requested: Cell::new(true),
+            fit_requested,
+            set_fit_requested,
             view_center: Cell::new(MapRegion::WORLD.center()),
             points,
             preview_region,
@@ -132,7 +131,7 @@ impl MapState {
     }
 
     pub(crate) fn types(&self) -> Rc<BlockCatalog> {
-        self.editor.host().block_types()
+        self.editor.block_types()
     }
 
     pub(crate) fn tiles(&self) -> std::cell::Ref<'_, HashMap<TileId, TileState>> {
@@ -148,7 +147,7 @@ impl MapState {
     }
 
     pub(crate) fn request_fit(&self) {
-        self.fit_requested.set(true);
+        self.set_fit_requested.set(true);
     }
 
     pub(crate) fn reload_tiles(&self) {
@@ -175,17 +174,31 @@ impl MapState {
 
     pub(crate) fn add_point(&self, block_id: Uuid, position: MapCoordinate) {
         let point_id = Uuid::new_v4();
-        self.pending_points
-            .borrow_mut()
-            .push((block_id, (point_id, position)));
+        self.record(Map::add(&MapPoint {
+            id: point_id,
+            block_id,
+            position,
+            color: MapColor::Default,
+        }));
         self.set_selected.set(Some(point_id));
     }
 
-    pub(crate) fn open_picker(&self, at: Option<MapCoordinate>) {
-        self.pending_position.set(at);
-        self.picker
-            .borrow_mut()
-            .open(self.editor.host(), BlockFilter::default());
+    pub(crate) fn open_picker(self: &Rc<Self>, at: Option<MapCoordinate>) {
+        let state = Rc::downgrade(self);
+        self.editor
+            .pick_block(BlockFilter::default(), move |picked| {
+                if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
+                    state.place_picked(picked.id, at);
+                }
+            });
+    }
+
+    fn place_picked(&self, block_id: Uuid, at: Option<MapCoordinate>) {
+        self.editor
+            .blocks()
+            .set_parent(block_id, BlockParent::Block(self.block_id()));
+        let position = at.unwrap_or_else(|| self.view_center.get());
+        self.add_point(block_id, position);
     }
 
     pub(crate) fn centre_on(&self, position: MapCoordinate) {
@@ -233,7 +246,7 @@ impl MapState {
     }
 
     pub(crate) fn ask_to_paste(&self) {
-        self.paste_asked.set(true);
+        self.take_paste(true);
     }
 
     pub(crate) fn press(&self, at: Pos2) {
@@ -278,29 +291,60 @@ impl MapState {
         self.editor.zoom(factor);
     }
 
-    pub(crate) fn poll(&self) {
-        self.poll_pending_points();
-        self.poll_tiles();
-        self.poll_picker();
-        self.poll_drag();
-        self.poll_files();
-        self.poll_clipboard();
-        self.publish_references();
-        self.settle_view();
-    }
-
-    fn settle_view(&self) {
+    pub(crate) fn watch(self: &Rc<Self>) {
+        let (waker, woken) = self.editor.woken();
+        *self.waker.borrow_mut() = waker;
+        let state = Rc::clone(self);
+        create_effect(move || {
+            woken.with(|_| ());
+            untrack(|| state.collect_tiles());
+        });
+        let state = Rc::clone(self);
+        self.editor.on_reply(move || {
+            state.collect_tiles();
+            state.take_paste(false);
+        });
+        let state = Rc::clone(self);
+        let drag = self.editor.drag();
+        create_effect(move || {
+            let drag = drag.get();
+            untrack(|| state.take_drag(drag));
+        });
+        let state = Rc::clone(self);
+        let files = self.editor.files();
+        create_effect(move || {
+            let drop = files.get();
+            untrack(|| state.take_files(drop));
+        });
+        let state = Rc::clone(self);
+        create_effect(move || state.publish_references());
         if self.preview {
             return;
         }
+        let state = Rc::clone(self);
+        let world = self.editor.world();
+        let placed = self.editor.placed();
+        create_effect(move || {
+            world.with(|_| ());
+            placed.with(|_| ());
+            state.preview_region.with(|_| ());
+            state.fit_requested.with(|_| ());
+            untrack(|| state.settle_view());
+        });
+    }
+
+    fn settle_view(&self) {
         let region = self.content_rect();
         let view = self.view();
         self.set_visible_region.set(view.region(region));
         self.view_center.set(view.coordinate(region.center()));
-        if self.fit_requested.get()
+        let sized = self.editor.world().get_untracked().is_some()
+            || self.editor.placed().get_untracked().is_positive();
+        if sized
+            && self.fit_requested.get_untracked()
             && let Some(preview) = self.preview_region.get_untracked()
         {
-            self.fit_requested.set(false);
+            self.set_fit_requested.set(false);
             self.fit_preview_region(view, region, preview);
         }
     }
@@ -327,35 +371,8 @@ impl MapState {
         }
     }
 
-    fn poll_pending_points(&self) {
-        let landed = std::mem::take(&mut *self.pending_points.borrow_mut());
-        for (reference, (point_id, position)) in landed {
-            self.record(Map::add(&MapPoint {
-                id: point_id,
-                block_id: reference,
-                position,
-                color: MapColor::Default,
-            }));
-        }
-    }
-
-    fn poll_picker(&self) {
-        let picked = self.picker.borrow_mut().poll(self.editor.host());
-        let Some(Ok(picked)) = picked else {
-            return;
-        };
-        self.editor
-            .blocks()
-            .set_parent(picked.id, BlockParent::Block(self.block_id()));
-        let position = self
-            .pending_position
-            .take()
-            .unwrap_or_else(|| self.view_center.get());
-        self.add_point(picked.id, position);
-    }
-
-    fn poll_drag(&self) {
-        let Some(drag) = self.editor.drag().get_untracked() else {
+    fn take_drag(&self, drag: Option<Drag>) {
+        let Some(drag) = drag else {
             return;
         };
         if drag.block_id == self.block_id() {
@@ -372,8 +389,8 @@ impl MapState {
         self.add_point(drag.block_id, position);
     }
 
-    fn poll_files(&self) {
-        let Some(drop) = self.editor.host().files() else {
+    fn take_files(&self, drop: Option<FileDrop>) {
+        let Some(drop) = drop else {
             self.pending_file_drop.set(None);
             return;
         };
@@ -399,8 +416,7 @@ impl MapState {
         }
     }
 
-    fn poll_clipboard(&self) {
-        let asked = self.paste_asked.take();
+    fn take_paste(&self, asked: bool) {
         let pasted = self.paster.borrow_mut().paste(self.editor.host(), asked);
         let Some(pasted) = pasted else {
             return;
@@ -428,16 +444,19 @@ impl MapState {
         }
         tiles.insert(id, TileState::Loading);
         drop(tiles);
-        if let Some(worker) = self.worker.borrow_mut().as_mut() {
-            worker.request(id);
-        }
+        let host = self.editor.host();
+        let mut worker = self.worker.borrow_mut();
+        let worker = worker.get_or_insert_with(|| TileWorker::spawn(self.waker.borrow().clone()));
+        worker.request(id);
+        worker.dispatch(host);
     }
 
-    fn poll_tiles(&self) {
-        let host = self.editor.host().clone();
-        let mut worker = self.worker.borrow_mut();
-        let worker = worker.get_or_insert_with(|| TileWorker::spawn(host.waker()));
-        let results = worker.poll(&host);
+    fn collect_tiles(&self) {
+        let host = self.editor.host();
+        let results = match self.worker.borrow_mut().as_mut() {
+            Some(worker) => worker.poll(host),
+            None => return,
+        };
         if results.is_empty() {
             return;
         }

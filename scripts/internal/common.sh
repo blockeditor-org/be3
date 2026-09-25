@@ -354,8 +354,10 @@ assert_buildbuddy_key() {
 #
 # What decides whether to run it is a hash of those same inputs, kept beside
 # the files; most runs only compare it. The files are written only when they
-# change, so buck2 does not re-read them for nothing.
-generated_rules=('third-party/rust/BUCK' 'buck/cargo/crates.bzl')
+# change, so buck2 does not re-read them for nothing. target/Cargo.lock is the
+# lockfile they were generated from, brought up to date with the manifests,
+# which //:verify's lint copies over a stale Cargo.lock.
+generated_rules=('third-party/rust/BUCK' 'buck/cargo/crates.bzl' 'target/Cargo.lock')
 
 generated_rules_inputs() {
     (
@@ -387,13 +389,14 @@ ensure_generated_rules() {
     else
         generated=''
     fi
-    if [[ -z "$generated" || ! -f "$generated/BUCK" || ! -f "$generated/crates.bzl" ]]; then
+    if [[ -z "$generated" || ! -f "$generated/BUCK" || ! -f "$generated/crates.bzl" || ! -f "$generated/Cargo.lock" ]]; then
         cat "$repository/target/generated-rules.log" >&2
         echo 'Generating the rules for the workspace'"'"'s crates failed.' >&2
         exit 1
     fi
     write_if_changed "$generated/BUCK" "$repository/third-party/rust/BUCK"
     write_if_changed "$generated/crates.bzl" "$repository/buck/cargo/crates.bzl"
+    write_if_changed "$generated/Cargo.lock" "$repository/target/Cargo.lock"
     printf '%s\n' "$fingerprint" > "$stamp"
 }
 

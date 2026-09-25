@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use block_editor_plugin::be_block::logic_game::LogicGameOperation;
 use block_editor_plugin::be_block::{LogicGridContent, LogicGridDocument, ObjectId};
-use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
+use block_editor_plugin::beui::reactive::{Memo, create_effect, create_memo, create_signal};
 use block_editor_plugin::root_settings::RootSetting;
 use block_editor_plugin::{BlockList, BlockParent, BlockQuery, ContentProjection, Editor};
 use logicgame::challenges::ChallengeId;
@@ -53,21 +53,21 @@ impl Game {
         let (levels, set_levels) = create_signal(Vec::<Level>::new());
         let (hotbar, set_hotbar) = create_signal(None::<Uuid>);
         let work = Rc::new(RefCell::new(Work::default()));
-        let each_frame = Rc::clone(&work);
+        let working = Rc::clone(&work);
         let blocks = editor.blocks();
         let host = editor.host().clone();
         let game = Rc::clone(&block);
         let reader = editor.clone();
-        editor.each_frame(move || {
-            let mut work = each_frame.borrow_mut();
+        create_effect(move || {
+            let mut work = working.borrow_mut();
             let Work { grids, hotbar } = &mut *work;
             hotbar.find(&reader, host.client_id());
             set_hotbar.set(hotbar.block());
 
-            let types = host.block_types();
+            let types = reader.block_types();
             let mut listed = Vec::new();
             let rows: Vec<Level> = stored
-                .get_untracked()
+                .get()
                 .into_iter()
                 .map(|(challenge, solutions, completed)| Level {
                     challenge,

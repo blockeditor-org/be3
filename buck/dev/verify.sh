@@ -1,11 +1,11 @@
 #!/bin/sh
 #
-# What `./scripts/buck run //:verify` runs: fix-rust-source, rustfmt,
-# starlark_fmt and clippy (--lint), the tests (--tests), and the plugin tests
-# (--plugin-tests), which run here because they read and write snapshots/.
-# Naming none runs all three; CI runs them on three runners. Every tool writes
-# its fixes and the plugin tests accept new paintings, unless --check, which
-# writes nothing and fails on anything that would change.
+# What `./scripts/buck run //:verify` runs: Cargo.lock, fix-rust-source,
+# rustfmt, starlark_fmt and clippy (--lint), the tests (--tests), and the
+# plugin tests (--plugin-tests), which run here because they read and write
+# snapshots/. Naming none runs all three; CI runs them on three runners.
+# Every tool writes its fixes and the plugin tests accept new paintings, unless
+# --check, which writes nothing and fails on anything that would change.
 #
 # Usage:
 #   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
@@ -61,6 +61,21 @@ file_modes() {
     return 1
 }
 
+# ./scripts/buck generates the rules from Cargo.lock brought up to date with the
+# manifests, and leaves that lockfile in target/, so a stale Cargo.lock builds
+# fine and only changes under cargo or rust-analyzer. It is copied over the
+# checked-in one here.
+cargo_lock() {
+    cmp -s target/Cargo.lock Cargo.lock && return 0
+    if ! $check; then
+        cp target/Cargo.lock Cargo.lock
+        return 0
+    fi
+    echo "Cargo.lock is not up to date with the manifests; run //:verify without --check:"
+    diff -u Cargo.lock target/Cargo.lock | head -n 40
+    return 1
+}
+
 rustfmt() {
     if $check; then
         rust_files | xargs "$rustfmt" --edition 2024 --check
@@ -83,6 +98,35 @@ starlark() {
     return 1
 }
 
+# Every plugin test names the painting it compares in USED_PAINTINGS, so once
+# all of them pass, a painting none of them named belongs to a test that is
+# gone: it is deleted, or with --check it fails the run. The directory is in
+# the checkout because that is all a plugin test can write to.
+used_paintings="$(pwd)/target/used-paintings"
+
+plugin_tests() {
+    rm -rf "$used_paintings"
+    mkdir -p "$used_paintings"
+    if $check; then
+        "$buck" test //crates/... --include plugin -- --env "USED_PAINTINGS=$used_paintings" || return 1
+    else
+        "$buck" test //crates/... --include plugin -- --env UPDATE_SNAPSHOTS=1 --env "USED_PAINTINGS=$used_paintings" || return 1
+    fi
+    unused="$(for painting in snapshots/*.paint; do
+        [ -e "$painting" ] && [ ! -e "$used_paintings/${painting#snapshots/}" ] && echo "$painting"
+    done)"
+    [ -z "$unused" ] && return 0
+    if ! $check; then
+        echo "Deleting the paintings no test compared:"
+        echo "$unused" | sed 's/^/  /'
+        echo "$unused" | while read -r painting; do rm "$painting"; done
+        return 0
+    fi
+    echo "No test compared these paintings; run //:verify without --check to delete them:"
+    echo "$unused" | sed 's/^/  /'
+    return 1
+}
+
 if $lint; then
     tools="$("$buck" build --show-full-output //buck/tools:rustfmt-sysroot //buck/tools:starlark_fmt \
         //crates/fix-rust-source:fix-rust-source-bin //crates/buck-tools:buck-tools-bin)" || exit 1
@@ -93,6 +137,7 @@ if $lint; then
     buck_tools="$(path root//crates/buck-tools:buck-tools-bin)"
 
     step "file modes" file_modes
+    step Cargo.lock cargo_lock
     step rustfmt rustfmt
     if $check; then
         step fix-rust-source "$fix_rust_source" --check
@@ -114,11 +159,7 @@ if $tests; then
 fi
 
 if $plugin_tests; then
-    if $check; then
-        step "plugin tests" "$buck" test //crates/... --include plugin
-    else
-        step "plugin tests" "$buck" test //crates/... --include plugin -- --env UPDATE_SNAPSHOTS=1
-    fi
+    step "plugin tests" plugin_tests
 fi
 
 if $lint; then

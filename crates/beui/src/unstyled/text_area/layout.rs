@@ -16,6 +16,7 @@ pub(crate) const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
 pub(crate) const DOCUMENT_PADDING: Vec2 = Vec2::new(24.0, 16.0);
 
 const WRAP_FALLBACK_REMAINING_WIDTH: f32 = 0.15;
+const MASK: &str = "*";
 const LINE_PADDING_TOP: f32 = 3.0;
 const LINE_PADDING_BOTTOM: f32 = 4.0;
 
@@ -32,6 +33,48 @@ pub struct TextWidget {
 impl TextWidget {
     pub(crate) fn block(&self) -> bool {
         self.block_size.is_some()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct LayoutOptions {
+    pub wrap_width: f32,
+    pub mask: bool,
+    pub body_size: f32,
+    pub single_line: bool,
+}
+
+impl LayoutOptions {
+    pub(crate) fn wrapped(wrap_width: f32) -> Self {
+        Self {
+            wrap_width,
+            mask: false,
+            body_size: BODY_SIZE,
+            single_line: false,
+        }
+    }
+
+    pub(crate) fn single_line(body_size: f32) -> Self {
+        Self {
+            wrap_width: f32::INFINITY,
+            mask: false,
+            body_size,
+            single_line: true,
+        }
+    }
+
+    fn line_padding(&self) -> (f32, f32) {
+        match self.single_line {
+            true => (0.0, 0.0),
+            false => (LINE_PADDING_TOP, LINE_PADDING_BOTTOM),
+        }
+    }
+
+    fn document_padding(&self) -> Vec2 {
+        match self.single_line {
+            true => Vec2::ZERO,
+            false => DOCUMENT_PADDING,
+        }
     }
 }
 
@@ -58,6 +101,7 @@ pub(crate) struct Run {
     pub width: f32,
     pub galley: Option<Galley>,
     pub style: SynHlStyle,
+    pub font_size: f32,
     pub invisible: bool,
     pub show_when_trailing: bool,
     mapped: bool,
@@ -84,12 +128,12 @@ pub(crate) struct DocumentLayout {
     pub widgets: Vec<WidgetLayout>,
 }
 
-pub(crate) fn style_size(style: SynHlStyle) -> f32 {
+pub(crate) fn style_size(style: SynHlStyle, body_size: f32) -> f32 {
     if style.family == SynHlFontFamily::Monospace {
-        return CODE_SIZE;
+        return CODE_SIZE * body_size / BODY_SIZE;
     }
     match style.size {
-        SynHlTextSize::Body => BODY_SIZE,
+        SynHlTextSize::Body => body_size,
         SynHlTextSize::Heading(1) => 32.0,
         SynHlTextSize::Heading(2) => 28.0,
         SynHlTextSize::Heading(3) => 24.0,
@@ -99,8 +143,8 @@ pub(crate) fn style_size(style: SynHlStyle) -> f32 {
     }
 }
 
-pub(crate) fn style_font(style: SynHlStyle) -> FontId {
-    let size = style_size(style);
+pub(crate) fn style_font(style: SynHlStyle, body_size: f32) -> FontId {
+    let size = style_size(style, body_size);
     let font = match style.family {
         SynHlFontFamily::Monospace => FontId::monospace(size),
         SynHlFontFamily::Proportional => FontId::proportional(size),
@@ -112,8 +156,8 @@ fn galley(text: &str, font: FontId) -> Option<Galley> {
     layout_text(text, font, TextLayout::DEFAULT)
 }
 
-fn body_metrics() -> Option<(f32, f32)> {
-    let empty = galley("", FontId::proportional(BODY_SIZE))?;
+fn body_metrics(body_size: f32) -> Option<(f32, f32)> {
+    let empty = galley("", FontId::proportional(body_size))?;
     Some((empty.baseline(), empty.line_height()))
 }
 
@@ -125,6 +169,9 @@ struct LineSource<'a> {
     end: usize,
     has_newline: bool,
     trailing_from: usize,
+    mask: bool,
+    body_size: f32,
+    invisibles: bool,
 }
 
 impl LineSource<'_> {
@@ -142,7 +189,7 @@ impl LineSource<'_> {
 
     fn text_run(&self, style: SynHlStyle, text: &str, range: Range<usize>) -> Option<Run> {
         let mapped = text.len() == range.len();
-        let galley = galley(text, style_font(style))?;
+        let galley = galley(text, style_font(style, self.body_size))?;
         let width = galley.size().x;
         Some(Run {
             range,
@@ -150,6 +197,7 @@ impl LineSource<'_> {
             width,
             galley: Some(galley),
             style,
+            font_size: style_size(style, self.body_size),
             invisible: false,
             show_when_trailing: false,
             mapped,
@@ -171,6 +219,7 @@ impl LineSource<'_> {
                     width: CHECKBOX_WIDTH,
                     galley: None,
                     style: self.style_at(index),
+                    font_size: self.body_size,
                     invisible: false,
                     show_when_trailing: false,
                     mapped: false,
@@ -193,8 +242,16 @@ impl LineSource<'_> {
                 continue;
             }
             let style = self.style_at(index);
+            if self.mask {
+                let len = next_character(&self.bytes[index..]).map_or(1, |(_, len)| len);
+                let mut run = self.text_run(style, MASK, index..index + len)?;
+                run.mapped = false;
+                runs.push(run);
+                index += len;
+                continue;
+            }
             let byte = self.bytes[index];
-            if let Some(marker) = invisible_marker(byte) {
+            if let Some(marker) = self.invisible_marker(byte) {
                 let mut run = self.text_run(style, marker, index..index + 1)?;
                 run.invisible = true;
                 run.show_when_trailing = index >= self.trailing_from;
@@ -217,7 +274,7 @@ impl LineSource<'_> {
                 if self.checkboxes.iter().any(|checkbox| checkbox.start == end)
                     || self.widgets.iter().any(|widget| widget.range.start == end)
                     || self.style_at(end) != style
-                    || invisible_marker(self.bytes[end]).is_some()
+                    || self.invisible_marker(self.bytes[end]).is_some()
                 {
                     break;
                 }
@@ -230,7 +287,7 @@ impl LineSource<'_> {
             runs.push(self.text_run(style, &text, index..end)?);
             index = end;
         }
-        if self.has_newline {
+        if self.has_newline && self.invisibles {
             let style = self.style_at(self.end);
             let mut run = self.text_run(style, "\u{23ce}", self.end..self.end + 1)?;
             run.invisible = true;
@@ -241,6 +298,10 @@ impl LineSource<'_> {
     }
 }
 
+pub(crate) fn mask(text: &str) -> String {
+    MASK.repeat(text.chars().count())
+}
+
 fn place(mut runs: Vec<Run>) -> Vec<Run> {
     let mut x = 0.0;
     for run in &mut runs {
@@ -248,6 +309,15 @@ fn place(mut runs: Vec<Run>) -> Vec<Run> {
         x += run.width;
     }
     runs
+}
+
+impl LineSource<'_> {
+    fn invisible_marker(&self, byte: u8) -> Option<&'static str> {
+        match self.invisibles {
+            true => invisible_marker(byte),
+            false => None,
+        }
+    }
 }
 
 fn invisible_marker(byte: u8) -> Option<&'static str> {
@@ -392,7 +462,7 @@ fn wrap(
     Some(wrapped)
 }
 
-fn line_metrics(runs: &[Run], body: (f32, f32)) -> (f32, f32) {
+fn line_metrics(runs: &[Run], body: (f32, f32), padding: (f32, f32)) -> (f32, f32) {
     let mut baseline = body.0;
     let mut height = body.1;
     for run in runs {
@@ -402,10 +472,7 @@ fn line_metrics(runs: &[Run], body: (f32, f32)) -> (f32, f32) {
         baseline = baseline.max(galley.baseline());
         height = height.max(galley.line_height());
     }
-    (
-        baseline + LINE_PADDING_TOP,
-        height + LINE_PADDING_TOP + LINE_PADDING_BOTTOM,
-    )
+    (baseline + padding.0, height + padding.0 + padding.1)
 }
 
 pub(crate) fn layout_document(
@@ -414,9 +481,10 @@ pub(crate) fn layout_document(
     widgets: &[TextWidget],
     checkboxes: &[Range<usize>],
     hidden: &[Range<usize>],
-    wrap_width: f32,
+    options: &LayoutOptions,
 ) -> Option<DocumentLayout> {
-    let body = body_metrics()?;
+    let wrap_width = options.wrap_width;
+    let body = body_metrics(options.body_size)?;
     let mut lines: Vec<LineLayout> = Vec::new();
     let mut widget_layouts = Vec::new();
     let mut positions: Vec<Option<BytePosition>> = vec![None; bytes.len() + 1];
@@ -463,11 +531,14 @@ pub(crate) fn layout_document(
             end,
             has_newline: newline.is_some(),
             trailing_from,
+            mask: options.mask,
+            body_size: options.body_size,
+            invisibles: !options.single_line,
         };
         for (range, runs) in wrap(&source, start, wrap_width)? {
             let line_index = lines.len();
             let width = runs_width(&runs);
-            let (baseline, height) = line_metrics(&runs, body);
+            let (baseline, height) = line_metrics(&runs, body, options.line_padding());
             for (byte, x) in positions_of(&runs) {
                 if let Some(position) = positions.get_mut(byte) {
                     position.get_or_insert(BytePosition {
@@ -552,7 +623,7 @@ pub(crate) fn layout_document(
         .chain(widget_layouts.iter().map(|widget| widget.rect.max.x))
         .fold(0.0_f32, f32::max);
     Some(DocumentLayout {
-        size: Vec2::new(width + DOCUMENT_PADDING.x, y + DOCUMENT_PADDING.y),
+        size: Vec2::new(width, y) + options.document_padding(),
         lines,
         positions,
         widgets: widget_layouts,

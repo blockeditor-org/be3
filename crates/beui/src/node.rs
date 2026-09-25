@@ -133,6 +133,17 @@ impl<T> NodeMap<T> {
     pub fn remove(&mut self, id: &NodeId) -> Option<T> {
         self.entries.get_mut(id.index() as usize)?.take()
     }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (NodeId, &T)> {
+        self.entries
+            .iter()
+            .enumerate()
+            .filter_map(|(index, entry)| {
+                entry
+                    .as_ref()
+                    .map(|value| (NodeId::from_index(index as u32), value))
+            })
+    }
 }
 
 impl<T: Default> NodeMap<T> {
@@ -295,6 +306,10 @@ impl Arena {
             *held = parent;
         }
         self.marked = None;
+    }
+
+    pub(crate) fn parent(&self, id: NodeId) -> Option<NodeId> {
+        self.parents.get(id.index() as usize).copied().flatten()
     }
 
     pub(crate) fn changed_len(&self) -> usize {
