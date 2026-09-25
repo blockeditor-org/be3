@@ -17,6 +17,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -161,19 +162,42 @@ func isClosed(err error) bool {
 	return strings.Contains(err.Error(), "use of closed network connection")
 }
 
+// The proxy between here and BuildBuddy sometimes answers a call itself, with
+// an HTTP error and a page of text, when it could not reach the upstream.
+// That is not gRPC, and passed on as it was it read to buck2 as a corrupt
+// message and failed the whole build. Every call buck2 makes to remote
+// execution is safe to make again - reads, cache lookups, uploads of content
+// named by its hash, and Execute, which runs the action again at worst - and
+// none streams in both directions, so each request body is read whole first,
+// and a call that fails before any of its answer has been passed on is made
+// again. One that still fails is UNAVAILABLE, which buck2 knows how to report.
+const attempts = 5
+
 func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r *http.Request) {
-	out, err := http.NewRequestWithContext(r.Context(), r.Method, "https://"+upstream+r.URL.RequestURI(), r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		grpcError(w, 13, err.Error())
+		grpcError(w, 14, "re-relay: reading the request: "+err.Error())
 		return
 	}
-	out.ContentLength = -1
-	copyHeaders(out.Header, r.Header)
 
-	resp, err := transport.RoundTrip(out)
-	if err != nil {
-		grpcError(w, 14, "re-relay: "+err.Error())
-		return
+	var resp *http.Response
+	var failure string
+	for attempt := 1; ; attempt++ {
+		resp, failure = roundTrip(transport, upstream, r, body)
+		if failure == "" {
+			break
+		}
+		fmt.Fprintf(os.Stderr, "re-relay: %s %s, attempt %d of %d: %s\n",
+			time.Now().Format(time.RFC3339), r.URL.Path, attempt, attempts, failure)
+		if attempt == attempts {
+			grpcError(w, 14, "re-relay: "+failure)
+			return
+		}
+		select {
+		case <-r.Context().Done():
+			return
+		case <-time.After(time.Duration(250<<(attempt-1)) * time.Millisecond):
+		}
 	}
 	defer resp.Body.Close()
 
@@ -213,6 +237,27 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 	if resp.Trailer.Get("Grpc-Status") == "" {
 		w.Header().Set(http.TrailerPrefix+"Grpc-Status", "0")
 	}
+}
+
+// One attempt at a call: the response when it is gRPC's, or why it is not.
+func roundTrip(transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
+	out, err := http.NewRequestWithContext(r.Context(), r.Method, "https://"+upstream+r.URL.RequestURI(), bytes.NewReader(body))
+	if err != nil {
+		return nil, err.Error()
+	}
+	out.ContentLength = -1
+	copyHeaders(out.Header, r.Header)
+
+	resp, err := transport.RoundTrip(out)
+	if err != nil {
+		return nil, err.Error()
+	}
+	if resp.StatusCode == http.StatusOK && strings.HasPrefix(resp.Header.Get("Content-Type"), "application/grpc") {
+		return resp, ""
+	}
+	page, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	resp.Body.Close()
+	return nil, fmt.Sprintf("the proxy answered %s: %s", resp.Status, strings.TrimSpace(string(page)))
 }
 
 func copyHeaders(to, from http.Header) {

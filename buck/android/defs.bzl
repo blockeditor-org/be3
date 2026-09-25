@@ -1,3 +1,5 @@
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
+
 # An APK, made on a worker without Gradle by buck-tools apk, unsigned; sign.sh signs it
 # locally with this machine's key, and signed_apk on a worker with CI's. An APK
 # is only ever Android's, so both rules move themselves there: asked for under
@@ -6,11 +8,11 @@
 # The NDK's libc++_shared.so goes beside the native library.
 
 def _android_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return refs.android[PlatformInfo]
+    return keep_profile(platform, refs.android[PlatformInfo], refs)
 
 android_transition = transition(
     impl = _android_transition_impl,
-    refs = {"android": "root//buck/platforms:android_arm64"},
+    refs = {"android": "root//buck/platforms:android_arm64"} | PROFILE_REFS,
 )
 
 def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
