@@ -321,6 +321,7 @@ impl BlockApp {
             .or_else(storage_dir)
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
         std::fs::create_dir_all(&data_dir)?;
+        panic_guard::report_in(&data_dir);
         plugin_host::cache_in(data_dir.join("plugin-cache"));
         let embedded_server = platform::start_embedded_server(data_dir.join("server"))?;
         let url = embedded_server.url.clone();

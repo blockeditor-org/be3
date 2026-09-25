@@ -278,12 +278,23 @@ impl Document {
     pub(crate) fn create_overlay(&mut self, anchor: OverlayAnchor, placement: Placement) -> NodeId {
         let overlay_cell: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
         let press_cell = overlay_cell.clone();
+        let tap_cell = overlay_cell.clone();
         let scrim = with_reactive_scope(self, || {
             view! {
                 <ClickCatcher
                     cursor=CursorIcon::Default
                     on_press={move |press: PointerPress| {
+                        if press.touch {
+                            return;
+                        }
                         let id = press_cell.get().expect("overlay not yet initialized");
+                        with_document(|document| document.dismiss_overlay_if_outside(id, press.pos));
+                    }}
+                    on_click_at={move |press: PointerPress| {
+                        if !press.touch {
+                            return;
+                        }
+                        let id = tap_cell.get().expect("overlay not yet initialized");
                         with_document(|document| document.dismiss_overlay_if_outside(id, press.pos));
                     }}
                 ></ClickCatcher>

@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::geometry::{Rect, Vec2};
-use crate::input::{Key, KeyPress};
+use crate::input::{ImeArea, Key, KeyPress};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -18,6 +18,7 @@ pub(crate) struct FocusableNode {
     pub(crate) child: Option<NodeId>,
     pub(crate) focused: bool,
     pub(crate) tab_stop: bool,
+    pub(crate) ime: bool,
     pub(crate) on_focus_change: Callback<bool>,
     pub(crate) on_activate_change: Callback<bool>,
     pub(crate) on_activate: ClickCallback,
@@ -34,6 +35,7 @@ impl FocusableNode {
             child: None,
             focused: false,
             tab_stop: true,
+            ime: false,
             on_focus_change: Callback::empty(),
             on_activate_change: Callback::empty(),
             on_activate: ClickCallback::empty(),
@@ -152,6 +154,26 @@ impl Document {
         crate::reactive::with_reactive_scope(self, || {
             crate::reactive::with_document(|document| document.update_focus(None));
         });
+    }
+
+    pub(crate) fn set_focusable_ime(&mut self, focusable: NodeId, ime: bool) {
+        if self.contains(focusable) {
+            self.arena.get_mut_as::<FocusableNode>(focusable).ime = ime;
+        }
+    }
+
+    pub(crate) fn focused_ime_area(&self) -> Option<ImeArea> {
+        let focused = self.focused?;
+        let node = self
+            .arena
+            .get(focused)
+            .as_any()
+            .downcast_ref::<FocusableNode>()?;
+        if !node.ime {
+            return None;
+        }
+        let rect = self.node_rect(focused)?;
+        Some(ImeArea { rect, cursor: rect })
     }
 
     pub fn focus_takes_text(&self) -> bool {
@@ -465,6 +487,7 @@ pub fn focus_within(node: NodeId) {
 pub fn Focusable(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = false)] ime: Prop<bool>,
     on_focus_change: Callback<bool>,
     on_activate_change: Callback<bool>,
     on_activate: ClickCallback,
@@ -493,6 +516,9 @@ pub fn Focusable(
     });
     create_effect(move || {
         with_document(|document| document.set_focusable_tab_stop(focusable, tab_stop.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_focusable_ime(focusable, ime.get()))
     });
     create_effect(move || {
         let wanted = focused.get();

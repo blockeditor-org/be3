@@ -1002,11 +1002,13 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
     let (press_cx, tap_cx, drag_cx, release_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
     component_accessibility(described);
     let single_line = cx.single_line;
+    let disabled = cx.disabled.clone();
     let hover_cx = cx;
     view! {
         <Focusable
             focused
             tab_stop
+            ime={create_memo(move || !disabled.get())}
             on_focus_change={move |is_focused: bool| {
                 set_focused.set(is_focused);
                 if !is_focused {
