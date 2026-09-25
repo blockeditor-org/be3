@@ -1013,12 +1013,16 @@ pub struct EditorRegistry {
 
 impl EditorRegistry {
     pub fn new() -> Self {
+        Self::from_manifests(plugin::discovery::manifests())
+    }
+
+    pub(crate) fn from_manifests(manifests: Vec<Arc<PluginManifest>>) -> Self {
         let mut registry = Self {
             registrations: HashMap::new(),
             templates: Vec::new(),
             plugin_block_types: Arc::default(),
         };
-        for manifest in plugin::discovery::manifests() {
+        for manifest in manifests {
             registry.register_plugin(manifest);
         }
         registry.plugin_block_types =

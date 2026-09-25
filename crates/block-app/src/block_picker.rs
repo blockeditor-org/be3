@@ -7,7 +7,10 @@ use block_plugin_api::TemplateCategory;
 use uuid::Uuid;
 
 use crate::{
-    editors::{BlockLabel, CreationStep, EditorAccess, PendingCreation, plugin::CreationTarget},
+    editors::{
+        BlockLabel, CreationStep, EditorAccess, EditorRegistry, PendingCreation,
+        plugin::CreationTarget,
+    },
     host::{SurfaceOutput, Ui},
     surfaces::{self, SurfaceId},
 };
@@ -247,8 +250,8 @@ impl BlockPicker {
             id: self.id,
             choose: self.open.then(|| {
                 let sections = match self.tab {
-                    PickerTab::Add => self.add_sections(editors),
-                    PickerTab::Templates => self.template_sections(editors),
+                    PickerTab::Add => add_sections(registry, &self.allowed),
+                    PickerTab::Templates => template_sections(registry, &self.allowed),
                     PickerTab::LinkExisting => Vec::new(),
                 };
                 let query = self.search.trim().to_lowercase();
@@ -302,78 +305,6 @@ impl BlockPicker {
             }),
             error: self.error.clone(),
         }
-    }
-
-    fn offered(&self, editors: &EditorAccess<'_>) -> Vec<(Tile, TemplateCategory, Uuid)> {
-        editors
-            .registry()
-            .templates()
-            .iter()
-            .filter(|entry| {
-                self.allowed.is_empty() || self.allowed.contains(&entry.target.block_type)
-            })
-            .map(|entry| {
-                let action = TileAction {
-                    editor: entry.target.editor,
-                    template: entry.target.template,
-                };
-                let tile = Tile {
-                    key: format!("{}/{}", action.editor, action.template),
-                    label: entry.target.name.to_owned(),
-                    icon: entry.icon.to_owned(),
-                    action,
-                };
-                (tile, entry.category, entry.target.editor)
-            })
-            .collect()
-    }
-
-    fn add_sections(&self, editors: &EditorAccess<'_>) -> Vec<TileSection> {
-        let offered = self.offered(editors);
-        [
-            (TemplateCategory::Important, "Common"),
-            (TemplateCategory::Regular, "More blocks"),
-            (TemplateCategory::Debug, "Debug"),
-        ]
-        .into_iter()
-        .map(|(category, title)| {
-            let mut tiles: Vec<Tile> = offered
-                .iter()
-                .filter(|(_, offered, _)| *offered == category)
-                .map(|(tile, _, _)| tile.clone())
-                .collect();
-            tiles.sort_by(|a, b| a.label.cmp(&b.label));
-            TileSection {
-                key: format!("{category:?}"),
-                title: title.to_owned(),
-                icon: None,
-                tiles,
-            }
-        })
-        .filter(|section| !section.tiles.is_empty())
-        .collect()
-    }
-
-    fn template_sections(&self, editors: &EditorAccess<'_>) -> Vec<TileSection> {
-        let registry = editors.registry();
-        let mut sections: Vec<TileSection> = Vec::new();
-        for (tile, category, editor) in self.offered(editors) {
-            if category != TemplateCategory::Template {
-                continue;
-            }
-            let key = editor.to_string();
-            match sections.iter_mut().find(|section| section.key == key) {
-                Some(section) => section.tiles.push(tile),
-                None => sections.push(TileSection {
-                    key,
-                    title: registry.display_name(editor).unwrap_or_default().to_owned(),
-                    icon: registry.icon(editor).map(str::to_owned),
-                    tiles: vec![tile],
-                }),
-            }
-        }
-        sections.sort_by(|a, b| a.title.cmp(&b.title));
-        sections
     }
 
     fn create_from_template(&mut self, editors: &mut EditorAccess<'_>, tile: TileAction) {
@@ -454,3 +385,80 @@ impl BlockPicker {
         }
     }
 }
+
+fn offered(
+    registry: &EditorRegistry,
+    allowed: &HashSet<Uuid>,
+) -> Vec<(Tile, TemplateCategory, Uuid)> {
+    registry
+        .templates()
+        .iter()
+        .filter(|entry| allowed.is_empty() || allowed.contains(&entry.target.block_type))
+        .map(|entry| {
+            let action = TileAction {
+                editor: entry.target.editor,
+                template: entry.target.template,
+            };
+            let tile = Tile {
+                key: format!("{}/{}", action.editor, action.template),
+                label: entry.target.name.to_owned(),
+                icon: entry.icon.to_owned(),
+                action,
+            };
+            (tile, entry.category, entry.target.editor)
+        })
+        .collect()
+}
+
+pub(crate) fn add_sections(registry: &EditorRegistry, allowed: &HashSet<Uuid>) -> Vec<TileSection> {
+    let offered = offered(registry, allowed);
+    [
+        (TemplateCategory::Important, "Common"),
+        (TemplateCategory::Regular, "More blocks"),
+        (TemplateCategory::Debug, "Debug"),
+    ]
+    .into_iter()
+    .map(|(category, title)| {
+        let mut tiles: Vec<Tile> = offered
+            .iter()
+            .filter(|(_, offered, _)| *offered == category)
+            .map(|(tile, _, _)| tile.clone())
+            .collect();
+        tiles.sort_by(|a, b| a.label.cmp(&b.label));
+        TileSection {
+            key: format!("{category:?}"),
+            title: title.to_owned(),
+            icon: None,
+            tiles,
+        }
+    })
+    .filter(|section| !section.tiles.is_empty())
+    .collect()
+}
+
+pub(crate) fn template_sections(
+    registry: &EditorRegistry,
+    allowed: &HashSet<Uuid>,
+) -> Vec<TileSection> {
+    let mut sections: Vec<TileSection> = Vec::new();
+    for (tile, category, editor) in offered(registry, allowed) {
+        if category != TemplateCategory::Template {
+            continue;
+        }
+        let key = editor.to_string();
+        match sections.iter_mut().find(|section| section.key == key) {
+            Some(section) => section.tiles.push(tile),
+            None => sections.push(TileSection {
+                key,
+                title: registry.display_name(editor).unwrap_or_default().to_owned(),
+                icon: registry.icon(editor).map(str::to_owned),
+                tiles: vec![tile],
+            }),
+        }
+    }
+    sections.sort_by(|a, b| a.title.cmp(&b.title));
+    sections
+}
+
+#[cfg(test)]
+mod tests;
