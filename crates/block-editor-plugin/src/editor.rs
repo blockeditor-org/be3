@@ -439,7 +439,10 @@ impl Editor {
         }
         let source = Rc::new(ContentProjection::<C>::new(self.0.host.clone(), block));
         let pumped = Rc::clone(&source);
-        self.0.pumps.borrow_mut().push(Rc::new(move || pumped.pump()));
+        self.0
+            .pumps
+            .borrow_mut()
+            .push(Rc::new(move || pumped.pump()));
         self.0
             .projections
             .borrow_mut()

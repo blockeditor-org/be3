@@ -488,28 +488,24 @@ fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>, left: Me
     }
 }
 
-fn land(
-    landing: &VideoState,
-    target: &Memo<Option<TimelineDropTarget>>,
-    dragged: Option<Drag>,
-) {
+fn land(landing: &VideoState, target: &Memo<Option<TimelineDropTarget>>, dragged: Option<Drag>) {
     let Some(dragged) = dragged.filter(|drag| drag.block_id != landing.block_id()) else {
         return;
     };
     let target = target.get_untracked();
-        landing.editor().accept_drag(target.is_some());
-        if !dragged.dropped {
-            return;
+    landing.editor().accept_drag(target.is_some());
+    if !dragged.dropped {
+        return;
+    }
+    match target {
+        Some(TimelineDropTarget::Attach { parent, start, .. }) => {
+            landing.adopt(dragged.block_id);
+            landing.insert_clip(dragged.block_id, Some(parent), start, Some(0));
         }
-        match target {
-            Some(TimelineDropTarget::Attach { parent, start, .. }) => {
-                landing.adopt(dragged.block_id);
-                landing.insert_clip(dragged.block_id, Some(parent), start, Some(0));
-            }
-            Some(TimelineDropTarget::Base { index, .. }) => {
-                landing.adopt(dragged.block_id);
-                landing.insert_clip(dragged.block_id, None, 0, Some(index));
-            }
-            Some(TimelineDropTarget::Offset { .. }) | None => {}
+        Some(TimelineDropTarget::Base { index, .. }) => {
+            landing.adopt(dragged.block_id);
+            landing.insert_clip(dragged.block_id, None, 0, Some(index));
         }
+        Some(TimelineDropTarget::Offset { .. }) | None => {}
+    }
 }

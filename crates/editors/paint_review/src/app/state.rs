@@ -177,7 +177,6 @@ impl Review {
         self.editor.host().editable()
     }
 
-
     pub(crate) fn rastered(&self) -> usize {
         self.paintings.borrow().rastered()
     }
@@ -547,13 +546,9 @@ impl Review {
         if !rendered {
             return None;
         }
-        Some(
-            self.advanced
-                .get()
-                .map_or(Duration::ZERO, |advanced| {
-                    FRAME_INTERVAL.saturating_sub(advanced.elapsed())
-                }),
-        )
+        Some(self.advanced.get().map_or(Duration::ZERO, |advanced| {
+            FRAME_INTERVAL.saturating_sub(advanced.elapsed())
+        }))
     }
 
     pub(crate) fn advance(&self, count: usize, rendered: bool) -> Option<Duration> {

@@ -247,7 +247,8 @@ impl RayState {
     }
 
     fn poke(&self) {
-        self.set_poked.update(|poked| *poked = poked.wrapping_add(1));
+        self.set_poked
+            .update(|poked| *poked = poked.wrapping_add(1));
     }
 
     pub(crate) fn choose_color(&self, index: u8) {

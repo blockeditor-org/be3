@@ -83,7 +83,8 @@ impl ViewData {
 
         let (selected, set_selected) = create_signal(None::<Selection>);
         let (error, set_error) = create_signal(None::<String>);
-        let data = Rc::new(Self {
+
+        Rc::new(Self {
             editor: editor.clone(),
             view,
             database,
@@ -101,8 +102,7 @@ impl ViewData {
             selected: create_memo(move || selected.get()),
             error: create_memo(move || error.get()),
             read_only: editor.read_only(),
-        });
-        data
+        })
     }
 
     pub fn editor(&self) -> &Editor {
@@ -181,7 +181,6 @@ impl ViewData {
             },
         );
     }
-
 }
 
 fn set_cell(
@@ -190,7 +189,9 @@ fn set_cell(
     field_id: Uuid,
     value: Option<DatabaseValue>,
 ) {
-    if let Some(edit) = database.read(|database| database.root().set_cell(row_index, field_id, value)) {
+    if let Some(edit) =
+        database.read(|database| database.root().set_cell(row_index, field_id, value))
+    {
         database.operate(edit);
     }
 }

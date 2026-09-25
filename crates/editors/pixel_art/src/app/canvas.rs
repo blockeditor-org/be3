@@ -15,9 +15,7 @@ use block_editor_plugin::beui::{
 use crate::canvas::ZOOM_STEP;
 use crate::canvas::{canvas_rect, pixel_at};
 use crate::color::format_hex_color;
-use crate::drawing::{
-    ActiveDrawing, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing,
-};
+use crate::drawing::{ActiveDrawing, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing};
 
 use super::pane::{Pane, Shown};
 use super::state::Tools;

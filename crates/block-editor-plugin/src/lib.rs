@@ -46,8 +46,8 @@ pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
     BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
     HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, Pushed, SeededContent, ShowRequest, ShownPresence,
-    Waker,
+    PerformanceReporter, PickedBlock, PickedFile, Pushed, SeededContent, ShowRequest,
+    ShownPresence, Waker,
 };
 pub use related_content::RelatedContent;
 
