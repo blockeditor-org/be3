@@ -11,7 +11,13 @@ use text_editor_core::{
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::reactive::{NodeRef, ReadSignal, WriteSignal, create_signal, with_document};
 
-use super::layout::{DocumentLayout, TextWidget, hit_test, layout_document};
+use super::layout::{DocumentLayout, LayoutOptions, TextWidget, hit_test, layout_document};
+
+#[derive(Clone, Copy)]
+pub(crate) enum Grab {
+    Selection(Position),
+    Caret,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MarkdownCheckbox {
@@ -50,6 +56,13 @@ pub struct TextAreaLayout {
 impl TextAreaLayout {
     pub(crate) fn new(document: Rc<DocumentLayout>, origin: Vec2) -> Self {
         Self { document, origin }
+    }
+
+    pub(crate) fn with_origin(&self, origin: Vec2) -> Self {
+        Self {
+            document: Rc::clone(&self.document),
+            origin,
+        }
     }
 
     pub(crate) fn document(&self) -> &DocumentLayout {
@@ -139,13 +152,18 @@ struct Inner {
     canvas: NodeRef,
     cursor_cache: RefCell<Vec<CursorPosition>>,
     selecting: Cell<bool>,
-    touch_mode: Cell<bool>,
-    dragging_handle: Cell<Option<Position>>,
-    dragging_handle_offset: Cell<Vec2>,
+    touch_mode: ReadSignal<bool>,
+    set_touch_mode: WriteSignal<bool>,
+    caret_handle: ReadSignal<bool>,
+    set_caret_handle: WriteSignal<bool>,
+    grab: Cell<Option<Grab>>,
+    grab_offset: Cell<Vec2>,
     reveal_cursor: Cell<bool>,
     reveal: Cell<Option<Rect>>,
     reveals: ReadSignal<u64>,
     set_reveals: WriteSignal<u64>,
+    focus_requests: ReadSignal<u64>,
+    set_focus_requests: WriteSignal<u64>,
     content: ReadSignal<u64>,
     set_content: WriteSignal<u64>,
     content_counter: Cell<u64>,
@@ -171,6 +189,9 @@ impl TextAreaState {
         let (cursors, set_cursors) = create_signal(0);
         let (layout, set_layout) = create_signal(TextAreaLayout::default());
         let (reveals, set_reveals) = create_signal(0);
+        let (focus_requests, set_focus_requests) = create_signal(0);
+        let (touch_mode, set_touch_mode) = create_signal(false);
+        let (caret_handle, set_caret_handle) = create_signal(false);
         let state = Self(Rc::new(Inner {
             core: RefCell::new(core),
             snapshot: RefCell::new(Snapshot::default()),
@@ -178,13 +199,18 @@ impl TextAreaState {
             canvas: NodeRef::new(),
             cursor_cache: RefCell::new(Vec::new()),
             selecting: Cell::new(false),
-            touch_mode: Cell::new(false),
-            dragging_handle: Cell::new(None),
-            dragging_handle_offset: Cell::new(Vec2::ZERO),
+            touch_mode,
+            set_touch_mode,
+            caret_handle,
+            set_caret_handle,
+            grab: Cell::new(None),
+            grab_offset: Cell::new(Vec2::ZERO),
             reveal_cursor: Cell::new(false),
             reveal: Cell::new(None),
             reveals,
             set_reveals,
+            focus_requests,
+            set_focus_requests,
             content,
             set_content,
             content_counter: Cell::new(0),
@@ -298,12 +324,24 @@ impl TextAreaState {
 
     pub fn reveal_cursor(&self) {
         self.0.reveal_cursor.set(true);
-        self.0.set_reveals.update(|reveals| *reveals += 1);
+        self.request_reveal();
     }
 
     pub fn reveal(&self, rect: Rect) {
         self.0.reveal.set(Some(rect));
+        self.request_reveal();
+    }
+
+    fn request_reveal(&self) {
         self.0.set_reveals.update(|reveals| *reveals += 1);
+    }
+
+    pub fn focus(&self) {
+        self.0.set_focus_requests.update(|count| *count += 1);
+    }
+
+    pub(crate) fn focus_requests(&self) -> ReadSignal<u64> {
+        self.0.focus_requests.clone()
     }
 
     pub(crate) fn reveals(&self) -> ReadSignal<u64> {
@@ -346,34 +384,39 @@ impl TextAreaState {
         self.0.selecting.set(selecting);
     }
 
-    pub(crate) fn touch_mode(&self) -> bool {
-        self.0.touch_mode.get()
+    pub(crate) fn touch_mode(&self) -> ReadSignal<bool> {
+        self.0.touch_mode.clone()
     }
 
     pub(crate) fn set_touch_mode(&self, touch: bool) {
-        self.0.touch_mode.set(touch);
+        self.0.set_touch_mode.set(touch);
     }
 
-    pub(crate) fn dragging_handle(&self) -> Option<Position> {
-        self.0.dragging_handle.get()
+    pub(crate) fn caret_handle(&self) -> ReadSignal<bool> {
+        self.0.caret_handle.clone()
     }
 
-    pub(crate) fn begin_handle_drag(&self, fixed: Position) {
-        self.0.dragging_handle.set(Some(fixed));
+    pub(crate) fn set_caret_handle(&self, shown: bool) {
+        self.0.set_caret_handle.set(shown);
+    }
+
+    pub(crate) fn grab(&self) -> Option<Grab> {
+        self.0.grab.get()
+    }
+
+    pub(crate) fn begin_grab(&self, grab: Grab, offset: Vec2) {
+        self.0.grab.set(Some(grab));
+        self.0.grab_offset.set(offset);
         self.0.selecting.set(false);
     }
 
-    pub(crate) fn end_handle_drag(&self) -> bool {
-        self.0.dragging_handle_offset.set(Vec2::ZERO);
-        self.0.dragging_handle.take().is_some()
+    pub(crate) fn end_grab(&self) -> Option<Grab> {
+        self.0.grab_offset.set(Vec2::ZERO);
+        self.0.grab.take()
     }
 
-    pub(crate) fn handle_offset(&self) -> Vec2 {
-        self.0.dragging_handle_offset.get()
-    }
-
-    pub(crate) fn set_handle_offset(&self, offset: Vec2) {
-        self.0.dragging_handle_offset.set(offset);
+    pub(crate) fn grab_offset(&self) -> Vec2 {
+        self.0.grab_offset.get()
     }
 
     pub fn byte_at(&self, pos: Pos2) -> Option<usize> {
@@ -393,7 +436,7 @@ impl TextAreaState {
             widgets,
             &snapshot.checkbox_markers,
             &snapshot.hidden,
-            (width - super::shapes::PADDING.x * 2.0).max(1.0),
+            &LayoutOptions::wrapped((width - super::shapes::PADDING.x * 2.0).max(1.0)),
         )?;
         Some(Vec2::new(width, document.size.y))
     }

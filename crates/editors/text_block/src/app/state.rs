@@ -144,6 +144,8 @@ impl State {
         self.content.read(|content| self.document.adopt(content));
         if self.document.take_external_edit() {
             self.text.external_edit();
+        } else {
+            self.text.sync();
         }
         if first {
             let start = self.text.core().position(0);

@@ -20,14 +20,13 @@ fn dragging_a_number_input_sideways_changes_its_value() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let field = number_input_field(harness.document(), input);
-    let text = unstyled::text_input_text(harness.document(), field);
     let middle = harness.center(input);
 
     harness.drag(middle, middle + Vec2::new(20.0, 0.0));
     harness.frame(Vec::new());
 
     assert_eq!(changes.borrow().last().copied(), Some(14.0));
-    assert_eq!(text_of(harness.document(), text), "14");
+    assert_eq!(unstyled::text_input_shown(harness.document(), field), "14");
     assert!(
         !unstyled::text_input_focused(harness.document(), field).get(),
         "a drag must not leave the field being edited"

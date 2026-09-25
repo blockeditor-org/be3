@@ -96,7 +96,11 @@ impl Element for CanvasNode {
         let clipped = painter.with_clip_rect(rect);
         for item in self.items.iter() {
             if rects.contains_key(item) {
-                crate::paint::paint(doc, &clipped, rects, *item);
+                let painter = match doc.arena.get_as::<CanvasItemNode>(*item).clip {
+                    true => &clipped,
+                    false => painter,
+                };
+                crate::paint::paint(doc, painter, rects, *item);
             }
         }
     }
@@ -142,6 +146,7 @@ impl Element for CanvasNode {
 pub(crate) struct CanvasItemNode {
     child: Option<NodeId>,
     rect: Rect,
+    clip: bool,
 }
 
 impl Element for CanvasItemNode {
@@ -232,6 +237,7 @@ impl Document {
         self.arena.insert(CanvasItemNode {
             child: None,
             rect: Rect::ZERO,
+            clip: true,
         })
     }
 
@@ -244,6 +250,12 @@ impl Document {
     pub(crate) fn set_canvas_item_rect(&mut self, item: NodeId, rect: Rect) {
         if self.arena.get_as::<CanvasItemNode>(item).rect != rect {
             self.arena.get_mut_as::<CanvasItemNode>(item).rect = rect;
+        }
+    }
+
+    pub(crate) fn set_canvas_item_clip(&mut self, item: NodeId, clip: bool) {
+        if self.arena.get_as::<CanvasItemNode>(item).clip != clip {
+            self.arena.get_mut_as::<CanvasItemNode>(item).clip = clip;
         }
     }
 
@@ -307,6 +319,7 @@ pub fn CanvasItem(
     y: Prop<f32>,
     width: Prop<f32>,
     height: Prop<f32>,
+    #[prop(default = true)] clip: Prop<bool>,
     children: Option<Child>,
 ) -> CanvasItem {
     let item = with_document(|document| {
@@ -320,6 +333,9 @@ pub fn CanvasItem(
         let rect =
             Rect::from_min_size(pos2(x.get(), y.get()), Vec2::new(width.get(), height.get()));
         with_document(|document| document.set_canvas_item_rect(item, rect));
+    });
+    create_effect(move || {
+        with_document(|document| document.set_canvas_item_clip(item, clip.get()))
     });
     CanvasItem { node: item }
 }
