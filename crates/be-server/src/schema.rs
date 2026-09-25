@@ -49,6 +49,7 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
             parent_id       TEXT,
             head            TEXT,
             metadata        BLOB NOT NULL DEFAULT x'',
+            version         INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (workspace_id, id)
         );
 

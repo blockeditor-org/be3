@@ -80,6 +80,7 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         access: seen.access(graph, block),
         references: node.references.clone(),
         metadata: node.metadata.clone(),
+        version: node.version,
     })
 }
 
@@ -128,10 +129,11 @@ impl ServerStore {
         self.with_graph(identity.workspace, move |graph, database| {
             require_edit(graph, identity, block)?;
             database.execute(
-                "UPDATE blocks SET metadata = ?3 WHERE workspace_id = ?1 AND id = ?2",
+                "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
                 params![identity.workspace.to_string(), block.to_string(), metadata],
             )?;
             graph.set_metadata(block, metadata)?;
+            graph.touch(block)?;
             summary(graph, identity, block).ok_or(ServerError::Corrupt)
         })
         .await
@@ -281,7 +283,7 @@ impl ServerStore {
                 persist_refs(&transaction, &refs, &held)?;
             }
             transaction.execute(
-                "UPDATE blocks SET head = ?3 WHERE workspace_id = ?1 AND id = ?2",
+                "UPDATE blocks SET head = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
                 params![workspace, block.to_string(), commit.hash().to_hex()],
             )?;
             for reference in &references_removed {
@@ -301,6 +303,7 @@ impl ServerStore {
             transaction.commit()?;
             graph.apply_references(block, &references_added, &references_removed)?;
             graph.set_head(block, commit)?;
+            graph.touch(block)?;
             Ok(PublishOutcome::Published(commit))
         })
         .await
@@ -318,9 +321,10 @@ impl ServerStore {
                 require_edit(graph, identity, target)?;
             }
             graph.set_parent(block, parent)?;
+            graph.touch(block)?;
             let (kind, parent_id) = encode_parent(parent);
             database.execute(
-                "UPDATE blocks SET parent_kind = ?3, parent_id = ?4
+                "UPDATE blocks SET parent_kind = ?3, parent_id = ?4, version = version + 1
                  WHERE workspace_id = ?1 AND id = ?2",
                 params![
                     identity.workspace.to_string(),
@@ -481,7 +485,12 @@ impl ServerStore {
         self.with_graph(identity.workspace, move |graph, database| {
             require_edit(graph, identity, block)?;
             graph.grant(block, account, access)?;
+            graph.touch(block)?;
             let workspace = identity.workspace.to_string();
+            database.execute(
+                "UPDATE blocks SET version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
+                params![workspace, block.to_string()],
+            )?;
             match encode_access(access) {
                 None => {
                     database.execute(

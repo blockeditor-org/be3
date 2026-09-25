@@ -960,6 +960,7 @@ fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         access: summary.access,
         references: summary.references.clone(),
         metadata: peer.metadata(summary),
+        version: summary.version,
     }
 }
 

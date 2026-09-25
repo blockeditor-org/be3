@@ -53,6 +53,7 @@ pub struct BlockSummary {
     pub references: Vec<Uuid>,
     #[serde(with = "serde_bytes")]
     pub metadata: Vec<u8>,
+    pub version: u64,
 }
 
 pub type ClientId = u64;

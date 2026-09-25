@@ -13,6 +13,7 @@ pub(crate) struct Node {
     pub(crate) access: Access,
     pub(crate) references: Vec<Uuid>,
     pub(crate) metadata: BlockMetadata,
+    pub(crate) version: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -50,7 +51,11 @@ impl Graph {
     }
 
     pub(crate) fn put(&mut self, node: Node) {
-        if !self.pending.contains_key(&node.id) {
+        let stale = self
+            .nodes
+            .get(&node.id)
+            .is_some_and(|held| held.version > node.version);
+        if !stale && !self.pending.contains_key(&node.id) {
             self.insert(node);
         }
     }

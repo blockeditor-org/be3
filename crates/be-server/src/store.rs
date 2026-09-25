@@ -638,7 +638,7 @@ pub(crate) fn load_graph(
     let mut nodes = Vec::new();
     {
         let mut statement = connection.prepare(
-            "SELECT id, content_type, author, parent_kind, parent_id, head, metadata FROM blocks
+            "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version FROM blocks
              WHERE workspace_id = ?1",
         )?;
         let rows = statement.query_map([workspace.to_string()], |row| {
@@ -650,13 +650,14 @@ pub(crate) fn load_graph(
                 row.get::<_, Option<String>>(4)?,
                 row.get::<_, Option<String>>(5)?,
                 row.get::<_, Vec<u8>>(6)?,
+                row.get::<_, i64>(7)?,
             ))
         })?;
         for row in rows {
             nodes.push(row?);
         }
     }
-    for (id, content_type, author, parent_kind, parent_id, head, metadata) in &nodes {
+    for (id, content_type, author, parent_kind, parent_id, head, metadata, version) in &nodes {
         let mut node = BlockNode::new(
             parse_uuid(content_type)?,
             parse_uuid(author)?,
@@ -671,10 +672,11 @@ pub(crate) fn load_graph(
             })
             .transpose()?;
         node.metadata.clone_from(metadata);
+        node.version = u64::try_from(*version).map_err(|_| ServerError::Corrupt)?;
         let _ = (parent_kind, parent_id);
         graph.insert(parse_uuid(id)?, node)?;
     }
-    for (id, _, _, parent_kind, parent_id, _, _) in &nodes {
+    for (id, _, _, parent_kind, parent_id, _, _, _) in &nodes {
         let parent = decode_parent(*parent_kind, parent_id.clone())?;
         graph.set_parent(parse_uuid(id)?, parent)?;
     }

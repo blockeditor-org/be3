@@ -39,6 +39,7 @@ pub struct BlockNode {
     pub references: Vec<Uuid>,
     pub grants: BTreeMap<Uuid, Access>,
     pub metadata: Vec<u8>,
+    pub version: u64,
 }
 
 impl BlockNode {
@@ -51,6 +52,7 @@ impl BlockNode {
             references: Vec::new(),
             grants: BTreeMap::new(),
             metadata: Vec::new(),
+            version: 0,
         }
     }
 }
@@ -120,6 +122,12 @@ impl BlockGraph {
             self.backrefs.entry(reference).or_default().insert(id);
         }
         Ok(())
+    }
+
+    pub fn touch(&mut self, id: Uuid) -> Result<u64, GraphError> {
+        let node = self.node_mut(id)?;
+        node.version += 1;
+        Ok(node.version)
     }
 
     pub fn set_head(&mut self, id: Uuid, head: CommitId) -> Result<(), GraphError> {

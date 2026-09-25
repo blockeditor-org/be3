@@ -387,8 +387,9 @@ fixture that needs to read or write it between runs.
 account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
 ephemeral port with a data directory under the app's, and signs in to it like
 any other server. An account on another server connects to that server's URL
-instead, and the web build always does (`scripts/internal/run-web.sh` starts
-`cargo run -p be-server -- --disable-registration` beside it).
+instead, and the web build always does (`./scripts/buck run
+//crates/block-app:web-serve` starts be-server with `--disable-registration`
+beside it).
 
 Tests start their own server on an ephemeral port; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's

@@ -402,6 +402,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             access: be_graph::Access::Edit,
             references: source.references.clone(),
             metadata: metadata.clone(),
+            version: 0,
         });
     });
     send(Command::Duplicate {
@@ -540,6 +541,7 @@ pub(crate) fn create(
             access: be_graph::Access::Edit,
             references: Vec::new(),
             metadata: metadata.clone(),
+            version: 0,
         });
     });
     send(Command::Create {
