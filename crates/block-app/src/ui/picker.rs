@@ -3,8 +3,8 @@ use beui::reactive::{
     create_memo, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Dialog, Icon, Scroll, Separator, Spinner, Tabs, TextInput,
-    use_theme,
+    Button, ButtonVariant, Caption, Dialog, Heading, Icon, Scroll, Separator, Spinner, Tabs,
+    TextInput, use_theme,
 };
 use beui::unstyled::{self, ButtonHandle, ChoiceOption};
 use beui::{NodeId, TextAlign};
@@ -13,7 +13,7 @@ use uuid::Uuid;
 use super::onboarding::ErrorText;
 use super::{AppViewStore, UiCommand, send};
 use crate::block_picker::{
-    ChooseView, CreateView, LinkRow, PickerAction, PickerCommand, PickerTab, Tile, TileAction,
+    ChooseView, CreateView, LinkRow, PickerAction, PickerCommand, PickerTab, Tile, TileSection,
 };
 use crate::surfaces::{self, HostSurface, SurfaceId};
 
@@ -59,17 +59,16 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
     }));
     let linking = create_memo(clone!(tab -> move || tab.get() == PickerTab::LinkExisting));
     let tiling = create_memo(clone!(linking -> move || !linking.get()));
-    let tiles = create_memo(clone!(choose -> move || {
-        choose.get().map(|choose| choose.tiles).unwrap_or_default()
+    let sections = create_memo(clone!(choose -> move || {
+        choose.get().map(|choose| choose.sections).unwrap_or_default()
     }));
-    let important = create_memo(clone!(tiles -> move || {
-        tiles.get().into_iter().filter(|tile| tile.important).collect::<Vec<_>>()
+    let section_keys = create_memo(clone!(sections -> move || {
+        sections.get().into_iter().map(|section| section.key).collect::<Vec<_>>()
     }));
-    let others = create_memo(clone!(tiles -> move || {
-        tiles.get().into_iter().filter(|tile| !tile.important).collect::<Vec<_>>()
-    }));
-    let divided = create_memo(clone!(important others -> move || {
-        !important.get().is_empty() && !others.get().is_empty()
+    let no_sections = create_memo(clone!(section_keys -> move || section_keys.get().is_empty()));
+    let tab_empty = create_memo(clone!(tab -> move || match tab.get() {
+        PickerTab::Templates => "No templates are available here.".to_owned(),
+        _ => "No blocks are available here.".to_owned(),
     }));
     let links = create_memo(clone!(choose -> move || {
         choose.get().map(|choose| choose.links).unwrap_or_default()
@@ -113,11 +112,20 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
                         <Show condition={tiling}>
                             <Scroll @sizing=ItemSize::Percent(100.0)>
                                 <List spacing=16.0>
-                                    <TileGrid id={tile_id.clone()} tiles={important} />
-                                    <Show condition={divided}>
-                                        <Separator />
+                                    <Show condition={no_sections}>
+                                        <Caption content={tab_empty} />
                                     </Show>
-                                    <TileGrid id={tile_id} tiles={others} />
+                                    <ForEach keys={section_keys}>
+                                        {move |key: String| {
+                                            let sections = sections.clone();
+                                            let section = create_memo(move || {
+                                                sections.get().into_iter().find(|section| section.key == key)
+                                            });
+                                            view! {
+                                                <TileSectionView id={tile_id.clone()} section />
+                                            }
+                                        }}
+                                    </ForEach>
                                 </List>
                             </Scroll>
                         </Show>
@@ -166,6 +174,34 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
 }
 
 #[component]
+fn TileSectionView(id: Memo<Uuid>, section: Memo<Option<TileSection>>) -> NodeId {
+    let title = create_memo(clone!(section -> move || {
+        section.get().map(|section| section.title).unwrap_or_default()
+    }));
+    let glyph = create_memo(clone!(section -> move || {
+        section.get().and_then(|section| section.icon).unwrap_or_default()
+    }));
+    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
+    let tiles = create_memo(move || {
+        section
+            .get()
+            .map(|section| section.tiles)
+            .unwrap_or_default()
+    });
+    view! {
+        <List spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                <Show condition={has_glyph}>
+                    <Icon glyph={glyph} text_size=18.0 />
+                </Show>
+                <Heading content={title} />
+            </List>
+            <TileGrid id tiles />
+        </List>
+    }
+}
+
+#[component]
 fn TileGrid(id: Memo<Uuid>, tiles: Memo<Vec<Tile>>) -> NodeId {
     let keys = create_memo(clone!(tiles -> move || {
         tiles.get().into_iter().map(|tile| tile.key).collect::<Vec<_>>()
@@ -195,11 +231,7 @@ fn TileButton(id: Memo<Uuid>, tile: Memo<Option<Tile>>) -> NodeId {
         let Some(tile) = tile.get_untracked() else {
             return;
         };
-        let action = match tile.action {
-            TileAction::Add(block_type) => PickerAction::Add(block_type),
-            TileAction::Template(index) => PickerAction::Template(index),
-        };
-        act(id.get_untracked(), action);
+        act(id.get_untracked(), PickerAction::Make(tile.action));
     };
     view! {
         <unstyled::Button

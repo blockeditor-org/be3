@@ -124,7 +124,7 @@ trait AppUi {
     fn preview(&mut self, context: &beui::Context, rect: beui::Rect);
     fn artifact_settings(&mut self, context: &beui::Context, rect: beui::Rect, draft: &mut Vec<u8>);
     fn connect(&mut self, host: EditorHost, block_id: Uuid);
-    fn connect_creation(&mut self, host: EditorHost);
+    fn connect_creation(&mut self, host: EditorHost, template: String);
     fn create_block(&mut self) -> Result<Uuid, String>;
     fn connect_artifact(&mut self, host: EditorHost, artifact: crate::Artifact);
     fn describe_artifact(&mut self, data: &[u8]) -> ArtifactDescription;
@@ -217,8 +217,8 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         self.preview_document = None;
     }
 
-    fn connect_creation(&mut self, host: EditorHost) {
-        let creation = crate::Creation::new(host);
+    fn connect_creation(&mut self, host: EditorHost, template: String) {
+        let creation = crate::Creation::for_template(host, template);
         let built = creation.clone();
         self.dialog = Some(beui::reactive::build(move || A::creation_view(built)));
         self.creation = Some(creation);
@@ -476,10 +476,10 @@ impl EditorSession {
         self.app.connect(self.host.clone(), block_id);
     }
 
-    pub(crate) fn connect_creation(&mut self) {
+    pub(crate) fn connect_creation(&mut self, template: String) {
         self.creating = true;
         self.host.set_editable(true);
-        self.app.connect_creation(self.host.clone());
+        self.app.connect_creation(self.host.clone(), template);
     }
 
     pub(crate) fn connect_artifact(&mut self, block_id: Uuid, block_type: Uuid, data: Vec<u8>) {

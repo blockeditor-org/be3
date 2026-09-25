@@ -13,7 +13,6 @@ mod platform;
 mod plugin_host;
 mod root_settings;
 mod share;
-mod slide_templates;
 mod surfaces;
 mod ui;
 

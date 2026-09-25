@@ -745,15 +745,23 @@ pub struct Creation(Rc<CreationState>);
 
 struct CreationState {
     host: EditorHost,
+    template: String,
     maker: RefCell<Option<Maker>>,
     each_frame: Rc<Work>,
     next_work: Cell<u64>,
 }
 
 impl Creation {
+    pub const MAIN: &str = "main";
+
     pub fn new(host: EditorHost) -> Self {
+        Self::for_template(host, Self::MAIN)
+    }
+
+    pub fn for_template(host: EditorHost, template: impl Into<String>) -> Self {
         Self(Rc::new(CreationState {
             host,
+            template: template.into(),
             maker: RefCell::new(None),
             each_frame: Rc::new(RefCell::new(Vec::new())),
             next_work: Cell::new(0),
@@ -762,6 +770,10 @@ impl Creation {
 
     pub fn host(&self) -> &EditorHost {
         &self.0.host
+    }
+
+    pub fn template(&self) -> &str {
+        &self.0.template
     }
 
     pub fn blocks(&self) -> Blocks {
