@@ -56,7 +56,8 @@ const PAPERS: [(u64, &str, &str); 6] = [
         "Tabs",
         "The tab bar is a tab list: the arrow keys walk it and Home and End jump to its \
          ends. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of whichever pane you are in, \
-         and the counter below keeps its value while you switch between tabs.",
+         and the counter below keeps its value while you switch between tabs. Right-click \
+         a tab, or the grip of a window, to move the tabs into a sidebar and back.",
     ),
     (
         7,

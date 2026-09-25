@@ -112,6 +112,7 @@ struct Leaf {
     id: LeafId,
     entries: Vec<Entry>,
     active: usize,
+    vertical: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -195,6 +196,7 @@ impl Node {
             id: target,
             entries: Vec::new(),
             active: 0,
+            vertical: false,
         });
         let existing = std::mem::replace(slot, placeholder);
         *slot = build(existing);
@@ -296,6 +298,7 @@ impl DockState {
             id: LeafId(self.mint()),
             entries,
             active: 0,
+            vertical: false,
         }
     }
 
@@ -498,6 +501,16 @@ impl DockState {
             && index < leaf.entries.len()
         {
             leaf.active = index;
+        }
+    }
+
+    pub fn is_vertical(&self, leaf: LeafId) -> bool {
+        self.leaf(leaf).is_some_and(|leaf| leaf.vertical)
+    }
+
+    pub fn set_vertical(&mut self, leaf: LeafId, vertical: bool) {
+        if let Some(leaf) = self.leaf_mut(leaf) {
+            leaf.vertical = vertical;
         }
     }
 
@@ -943,6 +956,7 @@ impl DockState {
             id: replacement,
             entries: Vec::new(),
             active: 0,
+            vertical: false,
         });
         let taken = std::mem::replace(root, placeholder);
         match taken.without_leaf(leaf) {

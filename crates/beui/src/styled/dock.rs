@@ -26,6 +26,7 @@ const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 4.0;
 const WINDOW_BAR_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
+const SIDEBAR_WIDTH: f32 = 180.0;
 const GRIP_PADDING: f32 = 3.0;
 const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
@@ -102,7 +103,9 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
         group,
         split,
         ungroup,
+        toggle_vertical,
         floating,
+        vertical,
         ..
     } = handle;
     let closable =
@@ -110,6 +113,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
     let alone = create_memo(clone!(has_next -> move || !has_next.get()));
     let grouped = matches!(entry, Entry::Group(_));
     let closing = close.clone();
+    let orientation = orientation_label(vertical);
     let items = match grouped {
         false => view! {
             <MenuItem label="Pop out into a window" disabled={floating} />
@@ -119,6 +123,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 label="Close tab"
                 disabled={create_memo(clone!(closable -> move || !closable.get()))}
             />
+            <MenuItem label={orientation} />
         },
         true => view! {
             <MenuItem label="Pop out into a window" disabled={floating} />
@@ -129,6 +134,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 disabled={create_memo(clone!(closable -> move || !closable.get()))}
             />
             <MenuItem label="Ungroup" />
+            <MenuItem label={orientation} />
         },
     };
     view! {
@@ -139,13 +145,15 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 Some(1) => group.call(),
                 Some(2) => split.call(),
                 Some(3) => closing.call(),
-                Some(4) => ungroup.call(),
+                Some(4) if grouped => ungroup.call(),
+                Some(4 | 5) => toggle_vertical.call(),
                 _ => {}
             }}
         >
             <DockTabChrome
                 title
                 grouped
+                vertical
                 selected
                 hovered
                 active
@@ -162,6 +170,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
 fn DockTabChrome(
     title: Prop<String>,
     grouped: bool,
+    vertical: bool,
     selected: Memo<bool>,
     hovered: ReadSignal<bool>,
     active: ReadSignal<bool>,
@@ -184,6 +193,10 @@ fn DockTabChrome(
         false => theme.text_muted.get(),
     }));
     let glyph = label.clone();
+    let title_size = match vertical {
+        true => ItemSize::Percent(100.0),
+        false => ItemSize::Intrinsic,
+    };
     view! {
         <Frame
             color={fill}
@@ -199,7 +212,13 @@ fn DockTabChrome(
                 <Show condition={grouped}>
                     <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph} />
                 </Show>
-                <Text string={title} font_size=FONT_BODY color={label} clip=true />
+                <Text
+                    string={title}
+                    font_size=FONT_BODY
+                    color={label}
+                    clip=true
+                    @sizing={title_size}
+                />
                 <Show condition={closable}>
                     <IconButton
                         glyph=ICON_CLOSE
@@ -219,6 +238,7 @@ fn DockTabChrome(
 fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
     let DockPanelHandle {
         floating,
+        vertical,
         focused,
         bar,
         body,
@@ -233,6 +253,10 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
         true => 0.0,
         false => BORDER_WIDTH,
     };
+    let (direction, bar_size) = match vertical {
+        true => (Direction::Horizontal, ItemSize::Fixed(SIDEBAR_WIDTH)),
+        false => (Direction::Vertical, ItemSize::Intrinsic),
+    };
     view! {
         <Frame
             color={theme.surface.clone()}
@@ -243,9 +267,9 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
             padding_horizontal={inset}
             padding_vertical={inset}
         >
-            <List spacing=0.0>
+            <List direction spacing=0.0>
                 <Show condition={bar.is_some()}>
-                    <DockBarRow bar={bar.unwrap_or_else(|| unreachable!())} />
+                    <DockBarRow bar={bar.unwrap_or_else(|| unreachable!())} @sizing={bar_size} />
                 </Show>
                 {body} @sizing=ItemSize::Percent(100.0)
             </List>
@@ -295,22 +319,39 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 
 #[component]
 fn DockWindowGrip(handle: DockWindowGripHandle) -> NodeId {
-    let DockWindowGripHandle { focused, .. } = handle;
+    let DockWindowGripHandle {
+        focused,
+        vertical,
+        toggle_vertical,
+        ..
+    } = handle;
     let theme = use_theme();
     let color = create_memo(clone!(theme -> move || match focused.get() {
         true => theme.text_muted.get(),
         false => theme.border.get(),
     }));
     view! {
-        <Frame width=GRIP_WIDTH padding_vertical=WINDOW_BAR_PADDING padding_horizontal=GRIP_PADDING>
-            <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
-        </Frame>
+        <ContextMenu
+            items={view! {
+                <MenuItem label={orientation_label(vertical)} />
+            }}
+            on_select={move |_: Vec<usize>| toggle_vertical.call()}
+        >
+            <Frame
+                width=GRIP_WIDTH
+                padding_vertical=WINDOW_BAR_PADDING
+                padding_horizontal=GRIP_PADDING
+            >
+                <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
+            </Frame>
+        </ContextMenu>
     }
 }
 
 #[component]
 fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
     let DockWindowHandle {
+        vertical,
         focused,
         title,
         grip,
@@ -324,7 +365,12 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
         true => theme.accent.get(),
         false => theme.border.get(),
     }));
-    let titled = tabs.is_none();
+    let direction = match vertical {
+        true => Direction::Horizontal,
+        false => Direction::Vertical,
+    };
+    let side_title = title.clone();
+    let side_close = close.clone();
     view! {
         <Frame
             color={theme.surface.clone()}
@@ -335,38 +381,100 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
             padding_horizontal=FOCUS_RING_WIDTH
             padding_vertical=FOCUS_RING_WIDTH
         >
-            <List spacing=0.0>
-                <Frame
-                    color={theme.background.clone()}
-                    padding_vertical=BAR_PADDING
-                    padding_horizontal=BAR_PADDING
-                >
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing=BAR_SPACING
-                    >
-                        {grip}
-                        <Show condition={!titled}>
-                            {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
-                        </Show>
-                        <Show condition={titled}>
-                            <Body content={title} @sizing=ItemSize::Percent(100.0) />
-                        </Show>
-                        <Frame padding_horizontal=WINDOW_BAR_PADDING>
-                            <IconButton
-                                glyph=ICON_CLOSE
-                                label="Close window"
-                                size=IconButtonSize::Compact
-                                variant=ButtonVariant::Ghost
-                                capture_presses=true
-                                on_click={move || close.call()}
-                            />
-                        </Frame>
-                    </List>
-                </Frame>
+            <List direction spacing=0.0>
+                <Show condition={vertical}>
+                    <DockWindowSideBar
+                        grip
+                        tabs
+                        title={side_title}
+                        close={move || side_close.call()}
+                        @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
+                    />
+                </Show>
+                <Show condition={!vertical}>
+                    <DockWindowTitleBar grip tabs title close={move || close.call()} />
+                </Show>
                 {pane} @sizing=ItemSize::Percent(100.0)
             </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn DockWindowTitleBar(
+    grip: NodeId,
+    tabs: Prop<Option<NodeId>>,
+    title: Memo<String>,
+    close: ClickCallback,
+) -> NodeId {
+    let theme = use_theme();
+    let tabs = tabs.peek();
+    let titled = tabs.is_none();
+    view! {
+        <Frame
+            color={theme.background.clone()}
+            padding_vertical=BAR_PADDING
+            padding_horizontal=BAR_PADDING
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                {grip}
+                <Show condition={!titled}>
+                    {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
+                </Show>
+                <Show condition={titled}>
+                    <Body content={title} @sizing=ItemSize::Percent(100.0) />
+                </Show>
+                <DockWindowClose close={move || close.call()} />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn DockWindowSideBar(
+    grip: NodeId,
+    tabs: Prop<Option<NodeId>>,
+    title: Memo<String>,
+    close: ClickCallback,
+) -> NodeId {
+    let theme = use_theme();
+    let tabs = tabs.peek();
+    let titled = tabs.is_none();
+    view! {
+        <Frame
+            color={theme.background.clone()}
+            padding_vertical=BAR_PADDING
+            padding_horizontal=BAR_PADDING
+        >
+            <List spacing=BAR_SPACING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                    {grip}
+                    <Frame @sizing=ItemSize::Percent(100.0) />
+                    <DockWindowClose close={move || close.call()} />
+                </List>
+                <Show condition={!titled}>
+                    {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
+                </Show>
+                <Show condition={titled}>
+                    <Body content={title} />
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn DockWindowClose(close: ClickCallback) -> NodeId {
+    view! {
+        <Frame padding_horizontal=WINDOW_BAR_PADDING>
+            <IconButton
+                glyph=ICON_CLOSE
+                label="Close window"
+                size=IconButtonSize::Compact
+                variant=ButtonVariant::Ghost
+                capture_presses=true
+                on_click={move || close.call()}
+            />
         </Frame>
     }
 }
@@ -413,6 +521,13 @@ fn DockDragPreview(title: Prop<String>, grouped: bool) -> NodeId {
                 <Body content={title} />
             </List>
         </Frame>
+    }
+}
+
+fn orientation_label(vertical: bool) -> &'static str {
+    match vertical {
+        true => "Show tabs across the top",
+        false => "Show tabs in a sidebar",
     }
 }
 
