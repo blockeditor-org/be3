@@ -1170,8 +1170,9 @@ every frame.
 ```rust
 #[component]
 pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
-    let counter = editor.block::<CounterBlock>();
-    let count = counter.project(CounterBlock::count);
+    let counter = editor.block_content::<CounterContent>();
+    let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
+    let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
     view! { ... }
 }
 
@@ -1185,16 +1186,16 @@ impl block_editor_plugin::BeuiApp for CounterApp {
     }
 
     fn create_block(creation: &block_editor_plugin::Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(CounterBlock::default()).id())
+        Ok(creation.create(&CounterContent::default()))
     }
 }
 
 block_editor_plugin::beui_plugin!(CounterApp, "../manifest.json");
 ```
 
-`Editor` is everything the instance was given: the host, the runtime's client,
-the block, the view the host is showing the content through, and
-`each_frame(...)` for work that is neither a block projection nor a signal. The
+`Editor` is everything the instance was given: the host, the block, the
+`Blocks` handle it reaches the graph through, the view the host is showing the content through, and
+`each_frame(...)` for work that is neither a content projection nor a signal. The
 host supplies input, fonts, clipboard integration, rendering, and the frame
 rectangle. A plugin normally depends on beui without the window runner:
 
@@ -1202,10 +1203,12 @@ rectangle. A plugin normally depends on beui without the window runner:
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 ```
 
-Block data reaches the view through `block-reactive`: `BlockSource::new` watches
-a block, `project` and `project_keyed` derive signals from its current value, and
-one `pump()` at the top of the frame — inside the document's reactive scope —
-re-derives them. See the [reactive guide](reactive.md#blocks).
+Block content reaches the view through a `ContentProjection`:
+`editor.block_content::<C>()` holds the content of the editor's own block,
+`project`, `field`, `ids` and `object` derive signals from it, and `operate`
+applies an edit and sends it to the host. The framework pumps every projection
+once at the top of the frame, inside the document's reactive scope. See the
+[reactive guide](reactive.md#blocks).
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
