@@ -87,7 +87,6 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
     each_frame(move || {
         poll_paste(&frame_state);
         poll_drag(&frame_state);
-        frame_state.poll_external_edit();
         frame_state.refresh_embeds();
         frame_state.poll_presence(frame_state.editor.presence_visible().get_untracked());
         if let Some(client_id) = frame_state.editor.revealed().get_untracked()

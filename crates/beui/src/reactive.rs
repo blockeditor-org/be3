@@ -137,6 +137,10 @@ pub fn layout_text(
     try_with_document(|document| document.layout_text(text, font, layout)).flatten()
 }
 
+pub fn use_pixels_per_point() -> ReadSignal<Option<f32>> {
+    with_document(|document| document.scale_signal())
+}
+
 pub fn copy_text(text: impl Into<String>) {
     let text = text.into();
     with_document(|document| document.copy_text(text));

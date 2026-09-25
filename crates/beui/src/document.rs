@@ -65,6 +65,10 @@ pub struct Document {
     scroll_hosts: Vec<NodeId>,
     scroll_shifts: NodeMap<f32>,
     viewport: Option<(Context, Rect, f32)>,
+    scale: (
+        ::reactive::ReadSignal<Option<f32>>,
+        ::reactive::WriteSignal<Option<f32>>,
+    ),
     shapes: Vec<Shape>,
     paint_cache: RefCell<PaintCache>,
     paint_region: Cell<Region>,
@@ -197,6 +201,7 @@ impl Document {
             scroll_hosts: Vec::new(),
             scroll_shifts: NodeMap::default(),
             viewport: None,
+            scale: ::reactive::create_signal(None),
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
             paint_region: Cell::new(Region::NOTHING),
@@ -592,6 +597,8 @@ impl Document {
         {
             self.arena.invalidate();
             self.viewport = Some((ctx.clone(), rect, scale));
+            let publish = self.scale.1.clone();
+            crate::reactive::enter(self, move || publish.set(Some(scale)));
         }
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             let actions = ctx.take_accessibility_actions(self.accessibility_id);
@@ -1140,6 +1147,10 @@ impl Document {
         self.viewport
             .as_ref()
             .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
+    }
+
+    pub(crate) fn scale_signal(&self) -> ::reactive::ReadSignal<Option<f32>> {
+        self.scale.0.clone()
     }
 
     pub fn pixels_per_point(&self) -> f32 {

@@ -138,18 +138,17 @@ impl State {
         }
         let first = self.adopted.replace(revision).is_none();
         self.content.read(|content| self.document.adopt(content));
+        if self.document.take_external_edit() {
+            self.text.external_edit();
+        } else {
+            self.text.sync();
+        }
         if first {
             let start = self.text.core().position(0);
             self.text.execute(EditorCommand::SetSelection {
                 anchor: start,
                 focus: start,
             });
-        }
-    }
-
-    pub fn poll_external_edit(&self) {
-        if self.document.take_external_edit() {
-            self.text.external_edit();
         }
     }
 

@@ -303,7 +303,11 @@ and `Stack`. `TextArea` is the multiline one: it owns a
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and reserves room for the inline and block `TextWidget`s the caller
 names - which is how a block editor puts an embedded block inside the text and
-drives the same document from a toolbar of its own. `MenuButton` is the button that opens a menu under itself, which is
+drives the same document from a toolbar of its own. The state republishes
+what it shows whenever one of its own commands runs; code that changes the
+document behind it - adopting an edit that arrived from someone else - calls
+`sync()`, or `external_edit()` when the edit should also break the undo group,
+since nothing polls the document for changes. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was.

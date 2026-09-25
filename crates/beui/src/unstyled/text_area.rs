@@ -25,7 +25,7 @@ use crate::page::Page;
 use crate::reactive::{
     Callback, Canvas, CanvasItem, Children, ClickCatcher, Draw, Drawing, Focusable, Frame, Memo,
     Prop, ReadSignal, WriteSignal, clone, component_accessibility, component_size, copy_text,
-    create_effect, create_memo, create_signal, each_frame, request_paste, with_document,
+    create_effect, create_memo, create_signal, request_paste, untrack, use_pixels_per_point,
 };
 use crate::unstyled::Scroll;
 
@@ -82,14 +82,14 @@ impl Surface {
     }
 
     fn reveal_caret(&self) {
+        let position = self.scroll.get_untracked();
+        if position.viewport <= 0.0 {
+            return;
+        }
         if let Some(rect) = self.state.take_reveal() {
             self.reveal_rect(rect);
         }
         if !self.state.take_reveal_cursor() {
-            return;
-        }
-        let position = self.scroll.get_untracked();
-        if position.viewport <= 0.0 {
             return;
         }
         let layout = self.layout();
@@ -112,9 +112,6 @@ impl Surface {
 
     fn reveal_rect(&self, rect: Rect) {
         let position = self.scroll.get_untracked();
-        if position.viewport <= 0.0 {
-            return;
-        }
         let middle = rect.center().y - position.viewport / 2.0;
         self.set_offset
             .set_unconditionally(middle.clamp(0.0, position.max_offset()));
@@ -296,7 +293,6 @@ fn select_at(cx: &Context, local: Pos2, clicks: u32, extend: bool, syntax: bool)
     });
     cx.state.set_selecting(true);
     cx.state.reveal_cursor();
-    cx.reveal_caret();
 }
 
 fn extend(cx: &Context, press: PointerPress) {
@@ -330,7 +326,6 @@ fn insert_text(cx: &Context, text: &str) {
     }
     cx.state.execute(EditorCommand::InsertText(text.as_bytes()));
     cx.state.reveal_cursor();
-    cx.reveal_caret();
 }
 
 fn key(cx: &Context, press: KeyPress) -> bool {
@@ -340,7 +335,6 @@ fn key(cx: &Context, press: KeyPress) -> bool {
     let handled = key_command(cx, press);
     if handled {
         cx.state.reveal_cursor();
-        cx.reveal_caret();
     }
     handled
 }
@@ -504,14 +498,10 @@ pub fn TextArea(
 ) -> NodeId {
     let size = component_size();
     let canvas = state.canvas();
-    let (scale, set_scale) = create_signal(None::<f32>);
+    let scale = use_pixels_per_point();
     let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
     let (offset, set_offset) = create_signal(0.0_f32);
     let (focused, set_focused) = create_signal(false);
-    each_frame(move || {
-        let scale_now = with_document(|document| document.pixels_per_point());
-        set_scale.set(Some(scale_now));
-    });
 
     let accessible = state.content();
     component_accessibility(create_memo(clone!(state accessible -> move || {
@@ -635,12 +625,13 @@ pub fn TextArea(
     let text_cx = cx.clone();
     let capture_cx = cx.clone();
     let hover_cx = cx.clone();
-    let frame_cx = cx.clone();
-    let (cursor, set_cursor) = create_signal(CursorIcon::Text);
-    each_frame(move || {
-        frame_cx.state.sync();
-        frame_cx.reveal_caret();
+    let reveal_cx = cx.clone();
+    let reveals = state.reveals();
+    create_effect(move || {
+        reveals.get();
+        untrack(|| reveal_cx.reveal_caret());
     });
+    let (cursor, set_cursor) = create_signal(CursorIcon::Text);
     let surface_color = create_memo(clone!(colors -> move || colors.get().surface));
 
     view! {
