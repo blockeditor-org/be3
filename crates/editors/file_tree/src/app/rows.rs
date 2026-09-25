@@ -2,7 +2,9 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal, untrack};
+use block_editor_plugin::beui::reactive::{
+    Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
+};
 use block_editor_plugin::block_ui::BlockTypes;
 use block_editor_plugin::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_plugin::{BlockSource, Editor};
@@ -78,6 +80,7 @@ pub(crate) struct Tree {
     orphans_open: Memo<bool>,
     set_expanded: block_editor_plugin::beui::reactive::WriteSignal<HashSet<Uuid>>,
     set_orphans_open: block_editor_plugin::beui::reactive::WriteSignal<bool>,
+    set_remembered: WriteSignal<u64>,
 }
 
 impl Tree {
@@ -88,15 +91,17 @@ impl Tree {
         let (expanded, set_expanded) = create_signal(HashSet::<Uuid>::new());
         let (orphans_open, set_orphans_open) = create_signal(false);
         let (rows, set_rows) = create_signal(Vec::<Row>::new());
+        let (remembered, set_remembered) = create_signal(0_u64);
 
         let build = Rc::clone(&watched);
         let host = editor.host().clone();
         let building = client.clone();
         let open = expanded.clone();
         let orphans = orphans_open.clone();
-        editor.each_frame(move || {
+        create_effect(move || {
+            remembered.get();
             let mut watched = build.borrow_mut();
-            let open = open.get_untracked();
+            let open = open.get();
             watched.expanded.retain(|id, _| open.contains(id));
             for id in &open {
                 watched
@@ -104,7 +109,7 @@ impl Tree {
                     .entry(*id)
                     .or_insert_with(|| building.watch(BlockQuery::References(*id)));
             }
-            let showing = orphans.get_untracked();
+            let showing = orphans.get();
             if showing && watched.orphans.is_none() {
                 watched.orphans = Some(building.watch(BlockQuery::Detached));
             }
@@ -130,6 +135,7 @@ impl Tree {
             }
             builder.push_orphans(showing);
             let rows = builder.rows;
+            drop(watched);
             set_rows.set(rows);
         });
 
@@ -140,6 +146,7 @@ impl Tree {
             orphans_open: create_memo(move || orphans_open.get()),
             set_expanded,
             set_orphans_open,
+            set_remembered,
         })
     }
 
@@ -159,6 +166,7 @@ impl Tree {
 
     pub(crate) fn remember(&self, id: Uuid, block_type: Uuid) {
         self.watched.borrow_mut().block_types.insert(id, block_type);
+        self.set_remembered.update(|count| *count += 1);
     }
 
     pub(crate) fn blocks(&self) -> &Blocks {

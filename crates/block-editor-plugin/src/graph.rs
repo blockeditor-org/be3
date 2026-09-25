@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 use be_block::ArtifactSource;
+use beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_plugin_api::{AccessLevel, BlockLocation};
 use uuid::Uuid;
 
@@ -178,17 +179,47 @@ pub enum GraphCommand {
     },
 }
 
-#[derive(Default)]
 pub(crate) struct GraphState {
     watched: RefCell<BTreeMap<BlockQuery, usize>>,
     watch_changed: Cell<bool>,
     results: RefCell<HashMap<BlockQuery, Vec<BlockInfo>>>,
     known: RefCell<HashMap<Uuid, BlockInfo>>,
-    revision: Cell<u64>,
+    revision: ReadSignal<u64>,
+    set_revision: WriteSignal<u64>,
+    dirty: Cell<bool>,
     commands: RefCell<Vec<GraphCommand>>,
 }
 
+impl Default for GraphState {
+    fn default() -> Self {
+        let (revision, set_revision) = create_signal(0);
+        Self {
+            watched: RefCell::default(),
+            watch_changed: Cell::default(),
+            results: RefCell::default(),
+            known: RefCell::default(),
+            revision,
+            set_revision,
+            dirty: Cell::default(),
+            commands: RefCell::default(),
+        }
+    }
+}
+
 impl GraphState {
+    fn changed(&self) {
+        match beui::reactive::try_with_document(|_| ()).is_some() {
+            true => self.set_revision.update(|revision| *revision += 1),
+            false => self.dirty.set(true),
+        }
+    }
+
+    pub(crate) fn flush(&self) {
+        if self.dirty.replace(false) {
+            self.set_revision.update(|revision| *revision += 1);
+        }
+    }
+
     pub(crate) fn watch(&self, query: BlockQuery) {
         let mut watched = self.watched.borrow_mut();
         let count = watched.entry(query).or_default();
@@ -234,14 +265,16 @@ impl GraphState {
             }
         }
         self.results.borrow_mut().insert(query, blocks);
-        self.revision.set(self.revision.get() + 1);
+        self.changed();
     }
 
     pub(crate) fn result(&self, query: BlockQuery) -> Option<Vec<BlockInfo>> {
+        self.revision.get();
         self.results.borrow().get(&query).cloned()
     }
 
     pub(crate) fn known(&self, id: Uuid) -> Option<BlockInfo> {
+        self.revision.get();
         self.known.borrow().get(&id).cloned()
     }
 
@@ -264,7 +297,7 @@ impl GraphState {
             info.named_by_hand = name.is_some();
             info.artifact.clone_from(artifact);
             self.known.borrow_mut().insert(*id, info);
-            self.revision.set(self.revision.get() + 1);
+            self.changed();
         }
         self.commands.borrow_mut().push(command);
     }

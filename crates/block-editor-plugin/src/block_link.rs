@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 
 use beui::NodeId;
-use beui::reactive::{Memo, Prop, ReadSignal, clone, component, create_memo, create_signal, view};
+use beui::reactive::{
+    Memo, Prop, ReadSignal, clone, component, create_effect, create_memo, create_signal, view,
+};
 use beui::styled::Link;
 use beui::styled::theme::FONT_BODY;
 use block_ui::{BlockLabel, BlockTypes};
@@ -26,8 +28,8 @@ pub fn watch_block_label(
     let opened = RefCell::new(None::<(ChildTarget, BlockList)>);
     let blocks = editor.blocks();
     let catalog = editor.host().clone();
-    editor.each_frame(move || {
-        let Some(next) = target.get_untracked() else {
+    create_effect(move || {
+        let Some(next) = target.get() else {
             opened.borrow_mut().take();
             set_shown.set(BlockDisplay::default());
             return;
@@ -39,6 +41,7 @@ pub fn watch_block_label(
         let info = list
             .as_ref()
             .and_then(|(_, list)| list.read().into_iter().next());
+        drop(list);
         let types = catalog.block_types();
         let resolved = info.is_some();
         let label = BlockLabel::new(

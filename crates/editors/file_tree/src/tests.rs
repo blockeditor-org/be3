@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::app::FileTreeApp;
 
 mod clicking_the_chevron_opens_and_closes_its_own_row;
+mod expanding_a_folder_shows_its_children_without_more_input;
 
 struct Fixture {
     test: BeuiTest<FileTreeApp>,

@@ -342,23 +342,7 @@ impl Editor {
 
     pub fn watch_blocks(&self, query: BlockQuery) -> Memo<Option<Vec<crate::BlockInfo>>> {
         let list = self.blocks().watch(query);
-        let (listed, set_listed) = create_signal(None::<Vec<crate::BlockInfo>>);
-        let seen = Cell::new(None::<u64>);
-        let last = RefCell::new(None::<Vec<crate::BlockInfo>>);
-        let blocks = self.blocks();
-        self.each_frame(move || {
-            let revision = blocks.revision();
-            if seen.replace(Some(revision)) == Some(revision) {
-                return;
-            }
-            let current = list.is_loaded().then(|| list.read());
-            if *last.borrow() == current {
-                return;
-            }
-            last.replace(current.clone());
-            set_listed.set(current);
-        });
-        create_memo(move || listed.get())
+        create_memo(move || list.is_loaded().then(|| list.read()))
     }
 
     pub fn editable(&self) -> ReadSignal<bool> {
@@ -678,6 +662,7 @@ impl Editor {
     }
 
     pub fn begin_frame(&self) {
+        self.0.host.flush_graph();
         let view = self.0.host.beui_view();
         let scale = view.scale().max(f32::EPSILON);
         self.0.set_canvas.set(view.canvas());

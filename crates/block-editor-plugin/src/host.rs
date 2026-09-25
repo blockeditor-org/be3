@@ -1246,6 +1246,10 @@ impl EditorHost {
         }
     }
 
+    pub(crate) fn flush_graph(&self) {
+        self.graph.flush();
+    }
+
     pub fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {
         self.graph.set_result(query, blocks);
         self.waker.wake();
