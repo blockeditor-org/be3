@@ -82,7 +82,7 @@ mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
-mod a_window_can_be_dragged_partly_off_screen_but_not_out_of_reach;
+mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
 mod accessibility_exposes_and_operates_a_button;
@@ -147,6 +147,7 @@ mod dragging_a_tab_over_a_window_bar_marks_where_it_lands;
 mod dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar;
 mod dragging_a_tab_within_a_window_bar_reorders_it;
 mod dragging_a_window_by_its_bar_moves_it;
+mod dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back;
 mod dragging_again_during_overscroll_continues_from_the_band;
 mod dragging_onto_a_drop_target_hands_it_the_payload;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
@@ -272,6 +273,7 @@ mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
+mod turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
 mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
@@ -370,6 +372,25 @@ impl Harness {
             pressed: false,
             modifiers: Modifiers::NONE,
         }]);
+    }
+
+    pub(crate) fn press_at(&mut self, pos: Pos2) {
+        self.frame(vec![Event::PointerMoved(pos)]);
+        self.frame(vec![Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        }]);
+    }
+
+    pub(crate) fn release_at(&mut self, pos: Pos2) -> crate::FrameOutput {
+        self.frame(vec![Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }])
     }
 
     pub(crate) fn drag(&mut self, from: Pos2, to: Pos2) {
@@ -520,6 +541,10 @@ impl Harness {
 
     pub(crate) fn touch_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.simulation.touch_emulation")
+    }
+
+    pub(crate) fn rubber_band_toggle_center(&self) -> Pos2 {
+        self.inspector_center("inspector.simulation.rubber_banding")
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
@@ -1009,6 +1034,19 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         }
     });
     (document, dock.get())
+}
+
+pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::SurfaceId {
+    harness.frame(Vec::new());
+    let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
+    drag_with(
+        harness,
+        tab,
+        pos2(WIDE_VIEWPORT.x / 2.0, WIDE_VIEWPORT.y / 2.0),
+        Modifiers::ALT,
+    );
+    harness.frame(Vec::new());
+    unstyled::dock_state(harness.document(), dock).windows()[0]
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {

@@ -5,6 +5,7 @@ mod tests;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::Duration;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -19,9 +20,10 @@ use crate::reactive::{
     Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
     Func, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
     WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect,
-    create_memo, create_signal, node_scope, on_cleanup, on_shortcut, owner_scope,
+    create_memo, create_signal, each_frame, node_scope, on_cleanup, on_shortcut, owner_scope,
     set_component_state, try_with_document, with_document,
 };
+use crate::unstyled::rubber_band::Band;
 use crate::unstyled::{
     Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, DragHandle, DragPoint, Draggable,
     DropHandle, DropTarget, Scroll,
@@ -282,10 +284,7 @@ impl State {
 
     fn reachable_origin(&self, rect: Rect, bounds: Vec2, bar: f32) -> Pos2 {
         let keep = rect.width().min(WINDOW_KEEP_VISIBLE);
-        let x = rect
-            .min
-            .x
-            .clamp(keep - rect.width(), (bounds.x - keep).max(0.0));
+        let x = rect.min.x.clamp(0.0, (bounds.x - keep).max(0.0));
         let y = rect.min.y.clamp(0.0, (bounds.y - bar).max(0.0));
         pos2(x, y)
     }
@@ -1231,8 +1230,21 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         state.with(|state| state.window_rect(surface)).unwrap_or(Rect::ZERO)
     }));
     let area = dock.rect.clone();
-    let origin =
-        create_memo(clone!(rect area -> move || area.get().min + rect.get().min.to_vec2()));
+    let (overshoot, set_overshoot) = create_signal(Vec2::ZERO);
+    let origin = create_memo(clone!(rect area -> move || {
+        area.get().min + rect.get().min.to_vec2() + overshoot.get()
+    }));
+    let band = Rc::new(RefCell::new(Band::new()));
+    each_frame(clone!(band set_overshoot -> move || {
+        let mut band = band.borrow_mut();
+        if !band.step() {
+            return;
+        }
+        set_overshoot.set(band.offset);
+        if band.moving() {
+            with_document(|document| document.request_repaint_after(Duration::ZERO));
+        }
+    }));
     let anchor = origin.clone().into_prop().map(OverlayAnchor::Point);
     let width = create_memo(clone!(rect -> move || rect.get().width()));
     let height = create_memo(clone!(rect -> move || rect.get().height()));
@@ -1304,6 +1316,9 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let pressed = dock.clone();
     let start = grabbed.clone();
     let moved = dock.clone();
+    let (held, stretched, released) = (band.clone(), band.clone(), band);
+    let drawn = origin.clone();
+    let set_stretch = set_overshoot;
     view! {
         <Overlay
             @node_ref=&overlay
@@ -1321,11 +1336,12 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 let bar = pressed.over_window_bar(surface, press.pos);
                                 start.set(bar.then(|| {
                                     let window = bar_rect.get_untracked();
-                                    let top = pressed.rect.get_untracked().min.y + window.min.y;
+                                    let dimensions = pressed.rect.get_untracked().size();
+                                    let stretched = held.borrow_mut().grab(dimensions);
                                     let height = pressed
                                         .pane_rect(Tree::Surface(surface))
-                                        .map_or(0.0, |pane| pane.top() - top);
-                                    (window, press.pos, height)
+                                        .map_or(0.0, |pane| pane.top() - drawn.get_untracked().y);
+                                    (window.translate(stretched), press.pos, height)
                                 }));
                                 let titled = pressed
                                     .pane_rect(Tree::Surface(surface))
@@ -1352,12 +1368,23 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                     Rect::from_min_size(start.min + (press.pos - from), start.size());
                                 let bounds = moved.rect.get_untracked().size();
                                 let origin = moved.reachable_origin(placed, bounds, bar);
+                                let banding = with_document(|document| document.rubber_banding());
+                                let mut band = stretched.borrow_mut();
+                                band.stretch(placed.min - origin, bounds, banding);
+                                set_stretch.set(band.offset);
                                 moved.edit(|state| {
                                     state.set_window_rect(
                                         surface,
                                         Rect::from_min_size(origin, start.size()),
                                     );
                                 });
+                            }}
+                            on_active_change={move |active: bool| {
+                                if active {
+                                    return;
+                                }
+                                released.borrow_mut().release();
+                                with_document(|document| document.request_repaint_after(Duration::ZERO));
                             }}
                             children={chrome}
                         />

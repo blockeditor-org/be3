@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
+use super::rubber_band::{MAX_ANIMATION_STEP, MINIMUM_VELOCITY, rubber_band, spring_back, unband};
 use crate::base::{Direction, ItemSize, ScrollPosition};
 use crate::color::Color32;
 use crate::document::Document;
@@ -17,11 +18,6 @@ use crate::reactive::{
 };
 
 const INERTIA_FRICTION: f32 = 4.5;
-const MINIMUM_VELOCITY: f32 = 5.0;
-const RUBBER_BAND_FACTOR: f32 = 0.55;
-const SPRING_DAMPING: f32 = 24.0;
-const SPRING_STIFFNESS: f32 = 180.0;
-const MAX_ANIMATION_STEP: f32 = 0.05;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_INSET: f32 = -1.0;
 const STEP: f32 = 40.0;
@@ -95,11 +91,14 @@ impl Momentum {
         self.velocity = 0.0;
     }
 
-    fn drag(&mut self, position: &mut ScrollPosition, delta: f32) {
+    fn drag(&mut self, position: &mut ScrollPosition, delta: f32, banding: bool) {
         let raw = self.drag.unwrap_or(position.offset) - delta;
-        self.drag = Some(raw);
         position.offset = raw.clamp(0.0, position.max_offset());
-        self.overscroll = rubber_band(raw - position.offset, position.viewport);
+        self.drag = Some(if banding { raw } else { position.offset });
+        self.overscroll = match banding {
+            true => rubber_band(raw - position.offset, position.viewport),
+            false => 0.0,
+        };
         self.velocity = 0.0;
     }
 
@@ -115,19 +114,13 @@ impl Momentum {
         }
     }
 
-    fn animate(&mut self, position: &mut ScrollPosition, elapsed: f32) {
+    fn animate(&mut self, position: &mut ScrollPosition, elapsed: f32, banding: bool) {
         let elapsed = elapsed.min(MAX_ANIMATION_STEP);
         if elapsed <= 0.0 {
             return;
         }
         if self.overscroll != 0.0 {
-            let acceleration = -SPRING_STIFFNESS * self.overscroll - SPRING_DAMPING * self.velocity;
-            self.velocity += acceleration * elapsed;
-            self.overscroll += self.velocity * elapsed;
-            if self.overscroll.abs() < 0.25 && self.velocity.abs() < MINIMUM_VELOCITY {
-                self.overscroll = 0.0;
-                self.velocity = 0.0;
-            }
+            spring_back(&mut self.overscroll, &mut self.velocity, elapsed);
             return;
         }
         if self.velocity == 0.0 {
@@ -136,7 +129,9 @@ impl Momentum {
         let raw = position.offset + self.velocity * elapsed;
         position.offset = raw.clamp(0.0, position.max_offset());
         self.velocity *= (-INERTIA_FRICTION * elapsed).exp();
-        if raw != position.offset {
+        if raw != position.offset && !banding {
+            self.velocity = 0.0;
+        } else if raw != position.offset {
             self.overscroll = raw - position.offset;
         } else if self.velocity.abs() < MINIMUM_VELOCITY {
             self.velocity = 0.0;
@@ -144,23 +139,8 @@ impl Momentum {
     }
 }
 
-fn rubber_band(distance: f32, viewport: f32) -> f32 {
-    if distance == 0.0 {
-        return 0.0;
-    }
-    let dimension = viewport.max(1.0);
-    let magnitude =
-        dimension * (1.0 - 1.0 / (distance.abs() * RUBBER_BAND_FACTOR / dimension + 1.0));
-    magnitude.copysign(distance)
-}
-
-fn unband(overscroll: f32, viewport: f32) -> f32 {
-    if overscroll == 0.0 {
-        return 0.0;
-    }
-    let dimension = viewport.max(1.0);
-    let stretch = (overscroll.abs() / dimension).min(0.99);
-    (dimension * stretch / (RUBBER_BAND_FACTOR * (1.0 - stretch))).copysign(overscroll)
+fn rubber_banding() -> bool {
+    with_document(|document| document.rubber_banding())
 }
 
 #[derive(Clone)]
@@ -211,7 +191,7 @@ impl Motion {
         }
         let dragged = self.axis().main(gesture.delta);
         if dragged != 0.0 {
-            momentum.drag(&mut position, dragged);
+            momentum.drag(&mut position, dragged, rubber_banding());
         }
         if gesture.ended {
             momentum.release(-self.axis().main(gesture.velocity));
@@ -286,7 +266,7 @@ impl Motion {
         let Some(mut position) = self.placed() else {
             return;
         };
-        momentum.animate(&mut position, elapsed);
+        momentum.animate(&mut position, elapsed, rubber_banding());
         self.publish(&momentum, position.offset);
         if momentum.moving() {
             with_document(|document| document.request_repaint_after(Duration::ZERO));
