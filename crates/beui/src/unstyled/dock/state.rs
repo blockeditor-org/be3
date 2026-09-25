@@ -1218,6 +1218,16 @@ impl DockState {
         group
     }
 
+    pub fn unpin(&mut self, group: GroupId) {
+        let Some(pinned) = self.groups.iter_mut().find(|candidate| candidate.id == group) else {
+            return;
+        };
+        pinned.pinned = false;
+        self.homes.retain(|(_, home)| *home != group);
+        self.normalize();
+        self.settle_focus();
+    }
+
     pub fn from_tree(layout: &DockTree) -> Self {
         let mut state = Self::new(Vec::new());
         let main = Tree::Surface(state.main());
