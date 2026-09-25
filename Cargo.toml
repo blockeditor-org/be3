@@ -55,6 +55,7 @@ members = [
     "crates/editors/scene_3d",
     "crates/editors/settings",
     "crates/editors/text_block",
+    "crates/editors/triangle",
     "crates/editors/ui_settings",
     "crates/editors/video_block",
     "crates/editors/workspace_index",

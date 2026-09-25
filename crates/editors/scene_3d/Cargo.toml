@@ -8,9 +8,14 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-block-editor-plugin = { path = "../../block-editor-plugin" }
+beui = { path = "../../beui", default-features = false, features = ["render"] }
+block-editor-beui = { path = "../../block-editor-beui" }
 bytemuck = { version = "1", features = ["derive"] }
 uuid = "1"
+wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+
+[dev-dependencies]
+block-ui-test = { path = "../../block-ui-test" }
 
 [lints]
 workspace = true
