@@ -196,7 +196,7 @@ pub(crate) struct AppView {
     pub(crate) artifact_settings: Option<ArtifactSettingsView>,
     pub(crate) unlink: bool,
     pub(crate) share: Option<ShareView>,
-    pub(crate) picker: Option<PickerView>,
+    pub(crate) pickers: Vec<PickerView>,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
 }

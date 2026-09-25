@@ -1763,7 +1763,7 @@ impl BlockApp {
             }),
             unlink: self.dynamic_artifact_unlink.is_some(),
             share: self.share.view(),
-            picker: block_picker::view(),
+            pickers: block_picker::views(),
             presenting: surfaces::handle(SurfaceId::Presenting)
                 .shown()
                 .get_untracked(),
