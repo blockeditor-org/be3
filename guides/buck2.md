@@ -55,6 +55,10 @@ four things in front of the pinned buck2:
   (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
   CI's cache. `run` is the exception: on another machine it builds for that
   machine unless the command names `--target-platforms`.
+- **File modes.** A file's executable bit is part of every action that reads
+  it, and a Windows checkout has none, so no file a build reads may have one:
+  Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
+  and `//:verify`'s lint clears the bit from anything outside `scripts/`.
 
 It also lets `test` put tests on the workers (below).
 

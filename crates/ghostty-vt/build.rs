@@ -27,7 +27,7 @@ fn main() {
     if !archive.is_file() {
         panic!(
             "{} does not exist. buck2 builds it by itself; for a cargo build, run \
-             scripts/internal/build-ghostty-vt.sh --triple {target}, or point \
+             bash scripts/internal/build-ghostty-vt.sh --triple {target}, or point \
              GHOSTTY_VT_LIBRARY_DIRECTORY at a directory holding the archive.",
             archive.display()
         );

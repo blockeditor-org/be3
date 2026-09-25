@@ -200,6 +200,7 @@ app(
 tool(
     name = "smoke",
     command = [
+        "sh",
         "$(location //buck/app:smoke.sh)",
         "$(location :app)/block-app",
         "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
