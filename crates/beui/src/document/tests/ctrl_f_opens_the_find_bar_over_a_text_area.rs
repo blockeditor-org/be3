@@ -17,19 +17,18 @@ fn ctrl_f_opens_the_find_bar_over_a_text_area() {
         }
     });
     let mut harness = Harness::new(document);
-    let find_field = |output: &crate::FrameOutput| {
-        output
-            .accessibility_tree("Test", VIEWPORT)
-            .nodes
+    let find_field = |harness: &Harness| {
+        harness
+            .accessible()
             .iter()
-            .any(|(_, node)| node.role() == Role::TextInput && node.label() == Some("Find"))
+            .any(|node| node.role() == Role::TextInput && node.label() == Some("Find"))
     };
-    let output = harness.frame(Vec::new());
-    assert!(!find_field(&output));
+    harness.frame(Vec::new());
+    assert!(!find_field(&harness));
 
     harness.click(pos2(300.0, 16.0));
-    let pressed = harness.frame(vec![key_event(Key::F, true, Modifiers::CTRL)]);
-    let released = harness.frame(vec![key_event(Key::F, false, Modifiers::CTRL)]);
+    harness.key(Key::F, Modifiers::CTRL);
+    harness.frame(Vec::new());
 
-    assert!(find_field(&pressed) || find_field(&released));
+    assert!(find_field(&harness));
 }

@@ -487,6 +487,13 @@ impl Harness {
         );
     }
 
+    pub(crate) fn accessible(&self) -> Vec<accesskit::Node> {
+        self.document
+            .accessibility_view()
+            .map(|view| view.nodes().cloned().collect())
+            .unwrap_or_default()
+    }
+
     pub(crate) fn document(&self) -> &Document {
         &self.document
     }
