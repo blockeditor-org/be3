@@ -121,8 +121,10 @@ pub fn NumberInput(
         set_text.set(format_number(next));
         changed.call(next);
     });
-    let open = clone!(off set_editing -> move || {
+    let original = Rc::new(Cell::new(value.peek()));
+    let open = clone!(off set_editing original value -> move || {
         if !off.get_untracked() {
+            original.set(value.peek());
             set_editing.set(true);
         }
     });
@@ -134,6 +136,7 @@ pub fn NumberInput(
         }
     });
 
+    let restore = on_change.clone();
     let edited = clone!(set_text -> move |typed: String| {
         set_text.set(typed.clone());
         if let Some(parsed) = parse(&typed) {
@@ -156,12 +159,17 @@ pub fn NumberInput(
             close();
         }
     });
-    let escaped = clone!(close set_refocus -> move |press: KeyPress| {
+    let escaped = clone!(value set_text set_editing set_refocus -> move |press: KeyPress| {
         if press.key != Key::Escape {
             return false;
         }
+        let before = original.get();
+        set_text.set(format_number(before));
+        if value.peek() != before {
+            restore.call(before);
+        }
         set_refocus.set(true);
-        close();
+        set_editing.set(false);
         true
     });
     let button_focus = move |has_focus: bool| {
