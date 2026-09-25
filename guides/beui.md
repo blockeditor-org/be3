@@ -643,6 +643,20 @@ longer than it holds more than one thing. `entries`, `active_entry`, `locate`,
 surface's. `find`, `all_tabs`, `surface_tabs` and `show` look through groups,
 and showing a tab inside one selects the group in every bar above it.
 
+A pinned group is one the tree never tidies away: `insert_pinned_group` puts
+one in a tab bar, and it stays a group while it holds one tab or none, cannot be
+ungrouped or closed from its menu, and admits only the tabs whose home it is -
+the tabs it was given - so dragging any other tab onto it or into it does
+nothing, while its own tabs can leave it and come back. `unpin` makes it an
+ordinary group again. The app keeps a plugin's panes in one (see
+guides/adding_a_plugin_editor.md). `tree` reads a surface's or a group's layout
+out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
+be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
+and `set_tree` replaces a tree in place, moving in any of its tabs that were
+elsewhere and keeping the focused tab focused. `group_title` names a group in
+its tab, and `closable` is honoured by every way of closing a tab, including a
+window's close button, which leaves behind the tabs it may not close.
+
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
 the panel keeps its nodes, its scroll position, its caret and its state when

@@ -275,6 +275,21 @@ A batch that panics does not flush effects while unwinding; pending work runs at
 the next successful outer batch or write. A panicking `update` invalidates its
 value because it may already have mutated it. There is no transaction rollback.
 
+## Zones
+
+`enter_zone(zone)` enters a zone until the guard it returns is dropped. An
+effect remembers the zone that was entered when it was created, and the effects
+it creates inherit it. While a different zone is entered, an effect woken by a
+write is parked instead of run, and it runs when its own zone is next entered;
+with no zone entered, every effect runs as it always did. `zone_pending(zone)`
+says whether a zone has parked effects, and `forget_zone(zone)` drops them.
+beui gives each `Document` a zone of its own and enters it whenever the
+document is installed, which is what lets two documents share signals: a write
+made while one document is installed does not rebuild another document's nodes
+inside it, and the other document catches up the next time it is shown. A
+host driving several documents should give the others a frame when
+`zone_pending` says one of them is behind.
+
 ## beui integration
 
 `beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_memo`,
