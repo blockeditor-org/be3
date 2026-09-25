@@ -14,13 +14,6 @@ Guides:
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md
 
-Do not:
-- When making changes to serialization formats or network requests, do not consider backwards compatibility with existing clients or data. The project is still early, and it is fine to ask the user to delete all their data. The crash handler in block-app will offer this automatically.
-- Do not use unicode symbols for icons, either use an icon library or no icon at all.
-- Do not edit README.md. If it is out of date, you may say so in your handoff message.
-- Don't use worktrees. If using subagents, run them sequentially rather than in parallel.
-- Do not create routines. Do not subscribe to PRs. Do not set check-in timers.
-
 Verification:
 - `./scripts/buck`: buck2, which builds, lints and tests the workspace on BuildBuddy's remote workers; every command below is a buck2 target. It installs the pinned buck2 into the checkout the first time it runs. It needs a BuildBuddy API key: `BUILDBUDDY_API_KEY` in the environment, or the key in `.buildbuddy-api-key` at the root of the checkout or in `~/.config/be3/buildbuddy-api-key`. See guides/buck2.md for what it covers. It generates `third-party/rust/BUCK` and `buck/cargo/crates.bzl` from the Cargo.toml files whenever they change (git ignores both), and a crate's `BUCK` file takes its dependencies from the latter, so Cargo.toml is the only place a dependency is declared.
 - `./scripts/buck run //crates/block-app:app`: builds the native app with every plugin beside it and runs it.
@@ -39,10 +32,19 @@ Do:
 - If you don't need tests in your search results, consider `grep --exclude-dir="tests"`
 - If you find yourself polling waiting for a command to finish, run `./scripts/nopoll` in the foreground
 
+Do not:
+- Do not use worktrees. If using subagents, run them sequentially rather than in parallel.
+- Do not create routines. Do not subscribe to PRs. Do not set check-in timers.
+
 Design principles:
-- if a request appears to violate one of these, confirm using the question tool. do not edit this list.
+- do not edit this list.
+- if it seems like a request requires violating one of these, confirm using the question tool.
 - general:
+  - when making changes to serialization formats or network requests, do not consider backwards compatibility with existing clients or data. te project is still early, and it is fine to ask the user to delete all their data. the crash handler in block-app will offer this automatically.
   - we should never be sleeping in a test. if we need to wait for something, we need to find a way to wait for it without sleeping.
+  - guides and markdown files are for agents to read to help them understand the codebase and implement features. not every tiny change deserves a mention in a guide. when adding something to a guide, consider if a summary written from scratch would include the feature. if it wouldn't, don't add it to the guide. information that is only helpful to humans also doesn't belong in a guide. that can go in a PR description and/or handoff message.
+  - every agent immediately, automatically reads AGENTS.md when it starts up. do not duplicate information that is already in AGENTS.md in other files.
+  - do not edit any file named 'README.md'. if one is out of date, you may say so in your handoff message.
 - beui:
   - beui is a retained-mode ui that you interact with using a solidjs-like reactive framework.
   - beui layout is O(n) or better on the number of nodes in the tree.
@@ -50,3 +52,11 @@ Design principles:
 - block-app plugins:
   - the plugin protocol is framework-independent. we theoretically could use it with different GUI frameworks without modifying the plugin protocol.
   - the plugin protocol passes textures without them leaving the GPU.
+- gui:
+  - we use an icon library for icons. if one is not available, then do not use icons. do not use unicode for icons.
+
+In your handoff message:
+- If any, mention any small issues you encountered or small things you noticed that could make the code / application better.
+- If any, mention any new principles / constraints in a user message that may deserve to be added to the design principles list.
+- If any, mention any existing code you noticed that is violating a design principle.
+- If any, things that took a few tries to figure out and it could help future agents to clarify.
