@@ -5,10 +5,10 @@ use std::rc::Rc;
 
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
-    Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_memo, create_signal, view,
+    Align, Frame, Func, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal,
+    clone, component, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Caption, DockArea, Heading, use_theme};
+use block_editor_plugin::beui::styled::{Caption, Heading, use_theme};
 use block_editor_plugin::beui::unstyled::{
     Container, DockState, LeafId, Side, TabId, narrower_than,
 };
@@ -16,7 +16,7 @@ use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::root_settings::RootSetting;
 use block_editor_plugin::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, FocusedBlock, PickedBlock,
+    Editor, EditorDock, EditorHost, FocusedBlock, PickedBlock,
 };
 use block_editor_plugin::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -282,6 +282,7 @@ impl Workspace {
             let mut layout = self.layout.get_untracked();
             layout.show(tab);
             self.set_layout.set(layout);
+            self.editor.show_pane(tab);
             self.active.set(Some(item.id));
             return;
         }
@@ -293,6 +294,7 @@ impl Workspace {
         let mut layout = self.layout.get_untracked();
         place_tab(&mut layout, tab);
         self.set_layout.set(settled(layout));
+        self.editor.show_pane(tab);
         self.active.set(Some(item.id));
     }
 
@@ -546,7 +548,8 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let layout = workspace.layout.clone();
     let titles = workspace.titles.clone();
     let failure = workspace.error.clone();
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
+    let docked = workspace.host().panes_offered();
+    let failed = create_memo(clone!(failure -> move || !docked && failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let title = Func::new(move |tab: TabId| match tab {
         FILES => "Files".to_owned(),
@@ -561,15 +564,15 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let changing = Rc::clone(&workspace);
     let closing = Rc::clone(&workspace);
     let content = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
             <List spacing=0.0>
-                <Show condition={failed}>
-                    <Caption content={reason} color={theme.danger.clone()} />
-                </Show>
-                <DockArea
+                <Failure failed={failed} reason={reason} />
+                <EditorDock
                     @sizing=ItemSize::Percent(100.0)
+                    editor={editor}
                     state={layout}
                     title={title}
                     closable={Func::new(|tab: TabId| tab != FILES && tab != EMPTY)}
@@ -590,14 +593,28 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                             },
                         }
                     }}
-                </DockArea>
+                </EditorDock>
             </List>
         </Frame>
     }
 }
 
 #[component]
+fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame visible={failed}>
+            <Caption content={reason} color={theme.danger.clone()} />
+        </Frame>
+    }
+}
+
+#[component]
 fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
+    let failure = workspace.error.clone();
+    let docked = workspace.host().panes_offered();
+    let failed = create_memo(clone!(failure -> move || docked && failure.get().is_some()));
+    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let files = workspace.files.clone();
     let target = create_memo(move || {
         files
@@ -606,17 +623,21 @@ fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     });
     let editor = workspace.editor().clone();
     view! {
-        <ChildBlock
-            editor={editor}
-            block={target}
-            mode=ChildMode::Live
-            own_frame=true
-            @test_id={"workspace.files"}
-        >
-            {move |handle: ChildBlockHandle| view! {
-                <PanelStatus state={handle.state} loading="Files are loading…" />
-            }}
-        </ChildBlock>
+        <List spacing=0.0>
+            <Failure failed={failed} reason={reason} />
+            <ChildBlock
+                @sizing=ItemSize::Percent(100.0)
+                editor={editor}
+                block={target}
+                mode=ChildMode::Live
+                own_frame=true
+                @test_id={"workspace.files"}
+            >
+                {move |handle: ChildBlockHandle| view! {
+                    <PanelStatus state={handle.state} loading="Files are loading…" />
+                }}
+            </ChildBlock>
+        </List>
     }
 }
 
