@@ -3,7 +3,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 use std::time::Instant;
 
-use accesskit_winit::Event as AccessKitEvent;
+use accesskit_winit::{Adapter as AccessKitAdapter, Event as AccessKitEvent};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition};
 use winit::event::{
@@ -15,7 +15,6 @@ use winit::window::{
     CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Window, WindowId,
 };
 
-use super::accessibility::Accessibility;
 use super::clipboard::Clipboard;
 use super::{App, RunOptions, Setup, Waker};
 use crate::color::Color32;
@@ -77,6 +76,8 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         event_loop_proxy: event_loop.create_proxy(),
         accessibility_active: false,
         exiting: false,
+        #[cfg(target_os = "android")]
+        soft_keyboard: super::soft_keyboard::SoftKeyboard::new(),
     };
     event_loop.run_app(&mut runner)?;
     match runner.error {
@@ -108,7 +109,7 @@ struct Surface {
     clear_color: Option<Color32>,
     pending: Option<Repaint>,
     retained: Option<Retained>,
-    accessibility: Accessibility,
+    accessibility: AccessKitAdapter,
 }
 
 struct Retained {
@@ -185,6 +186,8 @@ struct Runner {
     event_loop_proxy: EventLoopProxy<UserEvent>,
     accessibility_active: bool,
     exiting: bool,
+    #[cfg(target_os = "android")]
+    soft_keyboard: super::soft_keyboard::SoftKeyboard,
 }
 
 impl Runner {
@@ -288,6 +291,17 @@ impl Runner {
         }
         if output.ime != surface.ime {
             if output.ime.is_some() != surface.ime.is_some() {
+                #[cfg(target_os = "android")]
+                {
+                    use winit::platform::android::ActiveEventLoopExtAndroid;
+                    let app = event_loop.android_app();
+                    if output.ime.is_some() {
+                        self.soft_keyboard.show(app);
+                    } else {
+                        self.soft_keyboard.hide(app);
+                    }
+                }
+                #[cfg(not(target_os = "android"))]
                 surface.window.set_ime_allowed(output.ime.is_some());
             }
             if let Some(area) = output.ime {
@@ -444,6 +458,12 @@ impl Runner {
 
 impl ApplicationHandler<UserEvent> for Runner {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        #[cfg(target_os = "android")]
+        {
+            use winit::platform::android::ActiveEventLoopExtAndroid;
+            self.soft_keyboard
+                .read(event_loop.android_app(), &mut self.events);
+        }
         if (!self.events.is_empty()
             || self
                 .next_update
@@ -481,7 +501,11 @@ impl ApplicationHandler<UserEvent> for Runner {
             Ok(window) => Arc::new(window),
             Err(error) => return self.fail(event_loop, error),
         };
-        let accessibility = Accessibility::new(event_loop, &window, self.event_loop_proxy.clone());
+        let accessibility = AccessKitAdapter::with_event_loop_proxy(
+            event_loop,
+            &window,
+            self.event_loop_proxy.clone(),
+        );
         let touch_cursor = event_loop.create_custom_cursor(touch_cursor_source());
         window.set_visible(true);
         let gpu = match pollster::block_on(create_gpu(

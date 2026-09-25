@@ -3,14 +3,14 @@ use std::sync::Arc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Rect, Vec2};
-use crate::input::{Event, TouchPhase};
+use crate::input::{Event, Key, Modifiers, TouchPhase};
 
-#[cfg(feature = "window")]
-mod accessibility;
 #[cfg(feature = "window")]
 mod clipboard;
 #[cfg(feature = "window")]
 mod native;
+#[cfg(all(feature = "window", target_os = "android"))]
+mod soft_keyboard;
 #[cfg(feature = "web")]
 mod web;
 
@@ -120,6 +120,37 @@ pub(crate) fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
             std::mem::replace(pending, rest)
         }
         None => std::mem::take(pending),
+    }
+}
+
+#[cfg_attr(not(all(feature = "window", target_os = "android")), allow(dead_code))]
+pub(crate) fn typed(old: &str, new: &str, events: &mut Vec<Event>) {
+    let common = old
+        .char_indices()
+        .zip(new.chars())
+        .find(|((_, before), after)| before != after)
+        .map_or(old.len().min(new.len()), |((index, _), _)| index);
+    for _ in old[common..].chars() {
+        press(Key::Backspace, events);
+    }
+    for (index, line) in new[common..].split('\n').enumerate() {
+        if index > 0 {
+            press(Key::Enter, events);
+        }
+        if !line.is_empty() {
+            events.push(Event::Text(line.to_owned()));
+        }
+    }
+}
+
+fn press(key: Key, events: &mut Vec<Event>) {
+    for pressed in [true, false] {
+        events.push(Event::Key {
+            key,
+            pressed,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        });
     }
 }
 

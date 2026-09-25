@@ -1,15 +1,15 @@
 package com.be3.block;
 
-import android.app.NativeActivity;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
+import com.google.androidgamesdk.GameActivity;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
-public final class MainActivity extends NativeActivity {
+public final class MainActivity extends GameActivity {
     private static final int PICK_FILE_REQUEST = 0x8E31;
     private static final int MAX_FILE_BYTES = 128 * 1024 * 1024;
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
