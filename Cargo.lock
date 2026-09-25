@@ -696,6 +696,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-launcher"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "ghostty-vt",
+]
+
+[[package]]
 name = "be-model"
 version = "0.1.0"
 dependencies = [

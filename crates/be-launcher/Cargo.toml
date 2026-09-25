@@ -1,0 +1,12 @@
+[package]
+name = "be-launcher"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui" }
+ghostty-vt = { path = "../ghostty-vt" }
+
+[lints]
+workspace = true
