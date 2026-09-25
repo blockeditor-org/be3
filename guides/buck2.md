@@ -62,7 +62,10 @@ these in front of the pinned buck2:
   action is keyed on the manifests, `Cargo.lock`, `reindeer.toml`, the fixups,
   the paths cargo discovers targets at and `crates/buck-tools`, which writes
   `crates.bzl`, so it is shared through the cache: a few seconds on a fresh
-  checkout, about a minute for the first person to change a dependency.
+  checkout, about a minute for the first person to change a dependency. The
+  action brings `Cargo.lock` up to date with the manifests first, so a stale
+  one still builds; `//:verify`'s lint writes the updated one back, and fails
+  under `--check`.
 - **Platforms.** Everything is built for Linux x86_64 wherever it is asked for
   (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
   CI's cache. `run` is the exception: on another machine it builds for that
@@ -204,7 +207,13 @@ A native target depends on a wasm one through a transition in
   Caddyfile with `BE3_DOMAIN_NAME` and `BE3_WEB_ROOT`.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
-  plugins precompiled for arm64, and `zipalign -P 16`. `:android` signs it
+  plugins precompiled for arm64, and `zipalign -P 16`. The app is a
+  GameActivity, so the APK also carries its AAR and the AppCompat closure it
+  needs, pinned as Maven downloads in `buck/android/BUCK`
+  (`maven_artifacts`); the tool links their resources beside
+  `crates/block-app/android/res`, generates each library's R class, and dexes
+  their jars with the app's Java. No manifests are merged, so a library's
+  own providers and components are not registered. `:android` signs it
   locally with `target/android-debug.keystore`, made on first use.
   `:android-dist` signs on a worker with CI's keystore, which BuildBuddy keeps
   as the secret `ANDROID_DEBUG_KEYSTORE_BASE64` and passes only to actions on

@@ -1099,6 +1099,10 @@ impl EditorSession {
                 true => CursorIcon::Crosshair,
                 false => beui_cursor(output.cursor_icon),
             };
+            state.ime = output.ime.map(|area| ImeArea {
+                rect: reported(area.rect),
+                cursor: reported(area.cursor),
+            });
             state.report = (region == EditorRegion::Frame).then(|| FrameReport {
                 screen,
                 content: reported(reported_content),

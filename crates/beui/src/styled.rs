@@ -40,6 +40,8 @@ pub use chip::Chip;
 pub use color_input::{ColorInput, format_color, parse_color};
 pub use context_menu::ContextMenu;
 pub use dialog::Dialog;
+#[cfg(test)]
+pub(crate) use dock::CHROME_BORDER;
 pub use dock::DockArea;
 pub use icon_button::{IconButton, IconButtonSize};
 pub use link::Link;
@@ -58,7 +60,7 @@ pub use stack::Stack;
 pub use switch::{Switch, switch_on};
 pub use tabs::{Tabs, tabs_selected};
 pub use text::{Body, Caption, Code, Display, Heading, Icon, IconSized, Paragraph, Title};
-pub use text_area::TextArea;
+pub use text_area::{TextArea, text_area_surface};
 pub use text_input::{TextInput, text_input_value};
 pub use theme::{Theme, ThemeProvider, ThemeStore, use_theme};
 pub use tooltip::Tooltip;

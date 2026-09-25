@@ -64,6 +64,10 @@ impl Page {
         Self(Rc::new(shapes))
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn draw(&self) -> Draw {
         let page = self.clone();
         Rc::new(move |painter: &Painter, rect: Rect| {

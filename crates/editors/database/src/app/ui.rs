@@ -1,9 +1,11 @@
+use std::rc::Rc;
+
 use block_editor_plugin::be_block::database::DatabaseContent;
 use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_plugin::be_block::{BlockContent, DatabaseSchemaContent};
 use block_editor_plugin::beui::reactive::{
     Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone, component,
-    create_effect, create_memo, create_signal, view,
+    create_effect, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{
     Button, ButtonVariant, Caption, Heading, Scroll, use_theme,
@@ -144,20 +146,14 @@ fn watch_views(editor: &Editor) -> Views {
     let references = editor
         .blocks()
         .watch(BlockQuery::Backrefs(editor.block_id()));
-    let (rows, set_rows) = create_signal(Vec::<BlockInfo>::new());
-    let (loaded, set_loaded) = create_signal(false);
-    editor.each_frame(move || {
-        set_loaded.set(references.is_loaded());
-        set_rows.set(
-            references
-                .read()
-                .into_iter()
-                .filter(|reference| reference.block_type == DatabaseViewContent::CONTENT_TYPE)
-                .collect(),
-        );
+    let references = Rc::new(references);
+    let loaded = create_memo(clone!(references -> move || references.is_loaded()));
+    let rows = create_memo(move || {
+        references
+            .read()
+            .into_iter()
+            .filter(|reference| reference.block_type == DatabaseViewContent::CONTENT_TYPE)
+            .collect()
     });
-    Views {
-        rows: create_memo(move || rows.get()),
-        loaded: create_memo(move || loaded.get()),
-    }
+    Views { rows, loaded }
 }

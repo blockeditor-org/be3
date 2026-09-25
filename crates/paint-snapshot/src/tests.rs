@@ -4,6 +4,7 @@ use crate::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 
 mod a_frame_that_changed_is_named_by_its_number;
 mod a_glyph_paints_its_coverage_in_its_colour;
+mod a_highlight_marks_only_the_pixels_that_changed;
 mod a_recording_keeps_the_frames_it_was_given;
 mod a_rounded_rect_is_covered_the_way_the_shader_covers_it;
 mod a_snapshot_survives_a_round_trip;

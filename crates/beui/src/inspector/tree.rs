@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-
 use accesskit::{Node as AccessNode, NodeId as AccessNodeId};
 
+use crate::accessibility::AccessibilityView;
 use crate::document::Document;
 use crate::node::NodeId;
 
@@ -52,34 +51,30 @@ pub(crate) fn collect(target: &Document, state: &State) -> Vec<Entry> {
 }
 
 pub(crate) fn collect_accesskit(target: &Document, state: &State) -> Vec<Entry> {
-    let Some(fragment) = target.accessibility_fragment() else {
+    let Some(nodes) = target.accessibility_view() else {
         return Vec::new();
     };
-    let nodes: HashMap<_, _> = fragment.nodes.into_iter().collect();
     let mut entries = Vec::new();
-    visit_accesskit(target, state, &nodes, fragment.root, 0, &mut entries);
+    visit_accesskit(target, state, &nodes, nodes.root(), 0, &mut entries);
     entries
 }
 
 pub(crate) fn accesskit_count(target: &Document) -> usize {
-    target
-        .accessibility_fragment()
-        .map_or(0, |fragment| fragment.nodes.len())
+    target.accessibility_view().map_or(0, |nodes| nodes.len())
 }
 
 pub(crate) fn accesskit_path(target: &Document, id: NodeId) -> Vec<Key> {
-    let Some(fragment) = target.accessibility_fragment() else {
+    let Some(nodes) = target.accessibility_view() else {
         return Vec::new();
     };
-    let nodes: HashMap<_, _> = fragment.nodes.into_iter().collect();
     let mut path = Vec::new();
-    descend_accesskit(target, &nodes, fragment.root, id, &mut path);
+    descend_accesskit(target, &nodes, nodes.root(), id, &mut path);
     path
 }
 
 fn descend_accesskit(
     target: &Document,
-    nodes: &HashMap<AccessNodeId, AccessNode>,
+    nodes: &AccessibilityView<'_>,
     access_id: AccessNodeId,
     id: NodeId,
     path: &mut Vec<Key>,
@@ -105,7 +100,7 @@ fn descend_accesskit(
 fn visit_accesskit(
     target: &Document,
     state: &State,
-    nodes: &HashMap<AccessNodeId, AccessNode>,
+    nodes: &AccessibilityView<'_>,
     access_id: AccessNodeId,
     depth: usize,
     entries: &mut Vec<Entry>,

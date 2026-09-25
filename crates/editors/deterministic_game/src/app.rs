@@ -7,7 +7,9 @@ use block_editor_plugin::ContentProjection;
 use block_editor_plugin::be_block::{
     DeterministicGame, DeterministicGameContent, GameModuleContent,
 };
-use block_editor_plugin::beui::reactive::{clone, create_signal, view};
+use block_editor_plugin::beui::reactive::{
+    ReadSignal, WriteSignal, clone, create_effect, create_signal, view,
+};
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{BlockFilter, BlockList, BlockPicker, BlockQuery, Creation, Editor};
 use game_api::GameAction;
@@ -32,7 +34,6 @@ struct Loaded {
 struct BlockGame {
     editor: Editor,
     block: Rc<ContentProjection<DeterministicGameContent>>,
-    shown: Cell<Option<u64>>,
     player: Uuid,
     module: RefCell<Option<(Uuid, Rc<ContentProjection<GameModuleContent>>)>>,
     loaded: RefCell<Option<Loaded>>,
@@ -45,7 +46,6 @@ impl BlockGame {
         Self {
             editor,
             block,
-            shown: Cell::new(None),
             player,
             module: RefCell::new(None),
             loaded: RefCell::new(None),
@@ -67,7 +67,6 @@ impl BlockGame {
     }
 
     fn snapshot(&self) -> GameSnapshot {
-        self.shown.set(self.block.revision());
         let Some((module, actions)) = self.block.read(|game| {
             let game = game.root();
             let actions: Vec<GameAction> = game
@@ -119,26 +118,9 @@ impl BlockGame {
             Err(error) => return GameSnapshot::Error(error.clone()),
         };
         match game.show(&actions, self.player) {
-            Ok(screen) => GameSnapshot::screen(screen, self.editor.editable().get_untracked()),
+            Ok(screen) => GameSnapshot::screen(screen, self.editor.editable().get()),
             Err(error) => GameSnapshot::Error(error),
         }
-    }
-
-    fn played(&self) -> bool {
-        self.block.revision() != self.shown.get()
-    }
-
-    fn module_changed(&self) -> bool {
-        let Some((_, projection)) = self.module.borrow().clone() else {
-            return false;
-        };
-        let revision = projection.revision();
-        revision.is_some()
-            && self
-                .loaded
-                .borrow()
-                .as_ref()
-                .is_none_or(|loaded| Some(loaded.revision) != revision)
     }
 }
 
@@ -155,12 +137,17 @@ struct GameCreation {
     chosen: Cell<Option<Uuid>>,
     module: RefCell<Option<BlockList>>,
     error: RefCell<Option<String>>,
+    opened: ReadSignal<u64>,
+    set_opened: WriteSignal<u64>,
 }
 
 impl GameCreation {
     fn new(creation: Creation) -> Self {
         creation.set_ready(false);
+        let (opened, set_opened) = create_signal(0);
         Self {
+            opened,
+            set_opened,
             creation,
             picker: RefCell::new(BlockPicker::default()),
             module: RefCell::new(None),
@@ -170,6 +157,8 @@ impl GameCreation {
     }
 
     fn snapshot(&self) -> CreationSnapshot {
+        self.opened.get();
+        self.creation.replies().get();
         let picked = self.picker.borrow_mut().poll(self.creation.host());
         match picked {
             Some(Ok(module)) => {
@@ -217,6 +206,7 @@ impl GameCreationModel for GameCreation {
         self.picker
             .borrow_mut()
             .open(self.creation.host(), module_filter());
+        self.set_opened.update(|opened| *opened += 1);
     }
 }
 
@@ -225,12 +215,8 @@ pub struct DeterministicGameApp;
 impl block_editor_plugin::BeuiApp for DeterministicGameApp {
     fn view(editor: Editor) -> NodeId {
         let game = Rc::new(BlockGame::new(editor.clone()));
-        let (snapshot, set_snapshot) = create_signal(game.snapshot());
-        editor.each_frame(clone!(game -> move || {
-            if game.played() || game.module_changed() {
-                set_snapshot.set(game.snapshot());
-            }
-        }));
+        let (snapshot, set_snapshot) = create_signal(GameSnapshot::Loading);
+        create_effect(clone!(game -> move || set_snapshot.set(game.snapshot())));
         let model: Rc<dyn GameModel> = game;
         view! {
             <GameView game={model} snapshot={snapshot} />
@@ -240,7 +226,7 @@ impl block_editor_plugin::BeuiApp for DeterministicGameApp {
     fn creation_view(creation: Creation) -> NodeId {
         let dialog = Rc::new(GameCreation::new(creation.clone()));
         let (snapshot, set_snapshot) = create_signal(CreationSnapshot::default());
-        creation.each_frame(clone!(dialog -> move || set_snapshot.set(dialog.snapshot())));
+        create_effect(clone!(dialog -> move || set_snapshot.set(dialog.snapshot())));
         creation.on_create(clone!(dialog -> move || dialog.create_block()));
         let model: Rc<dyn GameCreationModel> = dialog;
         view! {

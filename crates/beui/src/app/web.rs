@@ -749,9 +749,10 @@ fn listen(
         let agent = agent.clone();
         move |event: web_sys::CompositionEvent| {
             agent.set_value("");
-            push(Event::Ime(ImeEvent::Commit(
-                event.data().unwrap_or_default(),
-            )));
+            let text = event.data().unwrap_or_default();
+            if !text.is_empty() {
+                push(Event::Text(text));
+            }
             push(Event::Ime(ImeEvent::Disabled));
         }
     })?;

@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use block_editor_plugin::beui::reactive::{
     Align, Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List,
-    Memo, ReadSignal, clone, component, component_rect, create_memo, create_selector,
-    create_signal, view,
+    Memo, ReadSignal, clone, component, component_rect, create_effect, create_memo,
+    create_selector, create_signal, untrack, view,
 };
 use block_editor_plugin::beui::styled::{Body, Caption, use_theme};
 use block_editor_plugin::beui::unstyled::{
@@ -13,7 +13,7 @@ use block_editor_plugin::beui::unstyled::{
 use block_editor_plugin::beui::{
     CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2,
 };
-use block_editor_plugin::{ChildBlock, ChildMode};
+use block_editor_plugin::{ChildBlock, ChildMode, Drag};
 use uuid::Uuid;
 
 use crate::timeline::{
@@ -31,9 +31,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
     let placed = component_rect();
     let fitting = Rc::clone(&state);
     let fitted = placed.clone();
-    state.editor().each_frame(move || {
-        fitting.fit_timeline(fitted.get_untracked().width().max(1.0));
-    });
+    create_effect(move || fitting.fit_timeline(fitted.get().width().max(1.0)));
 
     let rowed = Rc::clone(&state);
     let clips = state.clips.clone();
@@ -132,31 +130,10 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
 
     let landing = Rc::clone(&state);
     let landing_target = target.clone();
-    state.editor().each_frame(move || {
-        let Some(dragged) = landing
-            .editor()
-            .drag()
-            .get_untracked()
-            .filter(|drag| drag.block_id != landing.block_id())
-        else {
-            return;
-        };
-        let target = landing_target.get_untracked();
-        landing.editor().accept_drag(target.is_some());
-        if !dragged.dropped {
-            return;
-        }
-        match target {
-            Some(TimelineDropTarget::Attach { parent, start, .. }) => {
-                landing.adopt(dragged.block_id);
-                landing.insert_clip(dragged.block_id, Some(parent), start, Some(0));
-            }
-            Some(TimelineDropTarget::Base { index, .. }) => {
-                landing.adopt(dragged.block_id);
-                landing.insert_clip(dragged.block_id, None, 0, Some(index));
-            }
-            Some(TimelineDropTarget::Offset { .. }) | None => {}
-        }
+    let landing_drag = state.editor().drag();
+    create_effect(move || {
+        let dragged = landing_drag.get();
+        untrack(|| land(&landing, &landing_target, dragged));
     });
 
     let dropped = Rc::clone(&state);
@@ -508,5 +485,27 @@ fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>, left: Me
         >
             <Frame width=TRIM_HANDLE_WIDTH height=LANE_HEIGHT />
         </ClickCatcher>
+    }
+}
+
+fn land(landing: &VideoState, target: &Memo<Option<TimelineDropTarget>>, dragged: Option<Drag>) {
+    let Some(dragged) = dragged.filter(|drag| drag.block_id != landing.block_id()) else {
+        return;
+    };
+    let target = target.get_untracked();
+    landing.editor().accept_drag(target.is_some());
+    if !dragged.dropped {
+        return;
+    }
+    match target {
+        Some(TimelineDropTarget::Attach { parent, start, .. }) => {
+            landing.adopt(dragged.block_id);
+            landing.insert_clip(dragged.block_id, Some(parent), start, Some(0));
+        }
+        Some(TimelineDropTarget::Base { index, .. }) => {
+            landing.adopt(dragged.block_id);
+            landing.insert_clip(dragged.block_id, None, 0, Some(index));
+        }
+        Some(TimelineDropTarget::Offset { .. }) | None => {}
     }
 }
