@@ -2,12 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block::BlockReferenceList;
 use block_editor_plugin::be_block::ObjectId;
 use block_editor_plugin::be_block::presentation::{Presentation, PresentationContent};
 use block_editor_plugin::beui::reactive::{KeyedStore, ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::{ChildTarget, ContentProjection, Editor};
+use block_editor_plugin::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
 struct PendingSlide {
@@ -44,8 +42,8 @@ impl Slides {
             pending: Rc::new(RefCell::new(Vec::new())),
         });
         let dependencies = editor
-            .client()
-            .watch_references(BlockReferenceList::References(editor.block_id()));
+            .blocks()
+            .watch(BlockQuery::References(editor.block_id()));
         let updated = Rc::clone(&slides);
         editor.each_frame(move || updated.refresh(&dependencies));
         slides
@@ -157,7 +155,7 @@ impl Slides {
         );
     }
 
-    fn refresh(&self, dependencies: &block_client::ReferenceList) {
+    fn refresh(&self, dependencies: &BlockList) {
         let inserts: Vec<_> = std::mem::take(&mut *self.pending.borrow_mut());
         for PendingSlide {
             block,
@@ -196,7 +194,7 @@ impl Slides {
                 let slide = match reference {
                     Some(reference) => Slide {
                         target: Some(ChildTarget::new(reference.id, reference.block_type)),
-                        name: BlockLabel::for_reference(types.as_ref(), reference).name,
+                        name: reference.label(types.as_ref()).name,
                     },
                     None => self
                         .known(id)

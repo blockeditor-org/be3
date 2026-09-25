@@ -1,11 +1,11 @@
 use be_block::CanvasContent;
 use be_block::canvas::Canvas;
-use beui::icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE};
-use beui::{Vec2, vec2};
-use block_client::blocks::infinite_canvas::{
+use be_block::canvas::{
     CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
     CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform,
 };
+use beui::icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE};
+use beui::{Vec2, vec2};
 use uuid::Uuid;
 
 pub const DEFAULT_SLIDE_SIZE: Vec2 = vec2(960.0, 540.0);

@@ -1,4 +1,4 @@
-use block_client::blocks::calendar::Calendar;
+use block_editor_plugin::be_block::CalendarContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};
@@ -21,6 +21,6 @@ impl block_editor_plugin::BeuiApp for CalendarApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(Calendar::new()).id())
+        Ok(creation.create(&CalendarContent::default()))
     }
 }

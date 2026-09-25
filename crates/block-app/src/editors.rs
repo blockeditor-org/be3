@@ -5,9 +5,8 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
+use be_graph::Access;
 use beui::{CursorIcon, Key, Pos2, Rect, Vec2, vec2};
-use block::BlockAccess;
-use block_client::{BlockClient, blocks};
 use block_plugin_api::PluginManifest;
 use uuid::Uuid;
 
@@ -151,12 +150,13 @@ impl DirectEditorViewport {
     }
 }
 
-pub fn editor_access_ceiling(client: &BlockClient, id: Uuid) -> BlockAccess {
-    let access = client.block_access(id);
-    if client.is_dynamic_artifact(id) {
-        access.min(BlockAccess::View)
-    } else {
-        access
+pub fn editor_access_ceiling(id: Uuid) -> Access {
+    let Some(node) = crate::be::node(id) else {
+        return Access::Edit;
+    };
+    match node.metadata.artifact.is_some() {
+        true => node.access.min(Access::View),
+        false => node.access,
     }
 }
 
@@ -188,10 +188,8 @@ fn paint_block_fallback(
     block_id: Uuid,
     editors: &EditorAccess<'_>,
 ) {
-    let label = editors
-        .client
-        .cached_block(block_id)
-        .map(|cached| BlockLabel::for_cached(editors.registry(), &cached));
+    let label =
+        crate::be::node(block_id).map(|node| BlockLabel::for_node(editors.registry(), &node));
     let (name, automatic) = label
         .as_ref()
         .map_or(("Loading…".to_owned(), false), |label| {
@@ -210,12 +208,11 @@ fn paint_block_fallback(
 
 pub struct EditorAccess<'a> {
     active: Vec<Uuid>,
-    access: BlockAccess,
-    client: &'a Arc<BlockClient>,
+    access: Access,
     client_id: Uuid,
     registry: &'a EditorRegistry,
     editors: &'a mut HashMap<Uuid, PluginEditor>,
-    simulated: &'a HashMap<Uuid, BlockAccess>,
+    simulated: &'a HashMap<Uuid, Access>,
 }
 
 pub fn embedded_editor_ui(
@@ -253,17 +250,15 @@ fn embedded_scale(editors: &mut EditorAccess<'_>, block_id: Uuid, rect: Rect) ->
 impl<'a> EditorAccess<'a> {
     pub fn new(
         active: Uuid,
-        access: BlockAccess,
-        client: &'a Arc<BlockClient>,
+        access: Access,
         client_id: Uuid,
         registry: &'a EditorRegistry,
         editors: &'a mut HashMap<Uuid, PluginEditor>,
-        simulated: &'a HashMap<Uuid, BlockAccess>,
+        simulated: &'a HashMap<Uuid, Access>,
     ) -> Self {
         Self {
             active: vec![active],
             access,
-            client,
             client_id,
             registry,
             editors,
@@ -271,27 +266,13 @@ impl<'a> EditorAccess<'a> {
         }
     }
 
-    pub fn access(&self) -> BlockAccess {
+    pub fn access(&self) -> Access {
         self.access
     }
 
-    fn access_for(&self, id: Uuid) -> BlockAccess {
-        let simulated = self
-            .simulated
-            .get(&id)
-            .copied()
-            .unwrap_or(BlockAccess::Edit);
-        self.access
-            .min(editor_access_ceiling(self.client, id))
-            .min(simulated)
-    }
-
-    pub fn client(&self) -> &BlockClient {
-        self.client
-    }
-
-    pub fn client_handle(&self) -> Arc<BlockClient> {
-        Arc::clone(self.client)
+    fn access_for(&self, id: Uuid) -> Access {
+        let simulated = self.simulated.get(&id).copied().unwrap_or(Access::Edit);
+        self.access.min(editor_access_ceiling(id)).min(simulated)
     }
 
     pub fn client_id(&self) -> Uuid {
@@ -320,8 +301,7 @@ impl<'a> EditorAccess<'a> {
 
     pub fn ensure(&mut self, id: Uuid, block_type: Uuid) {
         if !self.active.contains(&id) && !self.editors.contains_key(&id) {
-            self.editors
-                .insert(id, self.registry.open(self.client, id, block_type));
+            self.editors.insert(id, self.registry.open(id, block_type));
         }
     }
 
@@ -977,29 +957,18 @@ impl Default for DirectEditorTabViewport {
     }
 }
 
-type OpenEditor = Box<dyn Fn(&BlockClient, Uuid) -> PluginEditor>;
+type OpenEditor = Box<dyn Fn(Uuid) -> PluginEditor>;
 type CreateOptions = Box<dyn Fn() -> Box<dyn PendingCreation>>;
 
 struct ArtifactProvider(Arc<PluginManifest>);
 
 pub(super) trait ArtifactSession {
-    fn poll(
-        &mut self,
-        registry: &EditorRegistry,
-        client: &Arc<BlockClient>,
-        data: &[u8],
-    ) -> ArtifactStatus;
-    fn settings_ui(
-        &mut self,
-        ui: &mut Ui,
-        registry: &EditorRegistry,
-        client: &Arc<BlockClient>,
-        draft: &mut Vec<u8>,
-    );
+    fn poll(&mut self, registry: &EditorRegistry, data: &[u8]) -> ArtifactStatus;
+    fn settings_ui(&mut self, ui: &mut Ui, registry: &EditorRegistry, draft: &mut Vec<u8>);
     fn settings_height(&self) -> f32;
     fn summary(&self, draft: &[u8]) -> Option<String>;
     fn cancel_settings(&mut self);
-    fn regenerate(&mut self, client: &Arc<BlockClient>, data: &[u8]);
+    fn regenerate(&mut self, data: &[u8]);
     fn take_outcome(&mut self) -> Option<Result<(), String>>;
     fn regenerating(&self) -> bool;
 }
@@ -1013,7 +982,7 @@ pub(super) enum ArtifactStatus {
 pub(super) trait PendingCreation {
     fn ui(&mut self, ui: &mut Ui, editors: &mut EditorAccess<'_>) -> CreationStep;
     fn height(&self) -> Option<f32>;
-    fn create(&mut self, client: &BlockClient) -> Result<Option<PluginEditor>, String>;
+    fn create(&mut self) -> Result<Option<PluginEditor>, String>;
 }
 
 #[derive(Clone, Copy)]
@@ -1123,11 +1092,7 @@ impl EditorRegistry {
             },
             open: {
                 let manifest = Arc::clone(&manifest);
-                Box::new(move |client, id| {
-                    let block = blocks::open(client, id, block_type)
-                        .expect("a registered plugin block type is in the erased table");
-                    PluginEditor::new(Arc::clone(&manifest), block)
-                })
+                Box::new(move |id| PluginEditor::new(Arc::clone(&manifest), id, block_type))
             },
             can_add_child: manifest.children.add,
             can_delete_child: manifest.children.delete,
@@ -1186,10 +1151,10 @@ impl EditorRegistry {
         Some(options())
     }
 
-    pub fn open(&self, client: &BlockClient, id: Uuid, block_type: Uuid) -> PluginEditor {
+    pub fn open(&self, id: Uuid, block_type: Uuid) -> PluginEditor {
         self.registrations.get(&block_type).map_or_else(
             || PluginEditor::unsupported(id, block_type),
-            |registration| (registration.open)(client, id),
+            |registration| (registration.open)(id),
         )
     }
 }

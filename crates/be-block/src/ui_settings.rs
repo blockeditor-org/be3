@@ -45,7 +45,7 @@ impl UiSettings {
 }
 
 impl Root for UiSettings {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7569_2d73_6574_7469_6e67_732d_626c_6b03);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7569_2d73_6574_7469_6e67_732d_626c_6b31);
 }
 
 pub type UiSettingsContent = Document<UiSettings>;

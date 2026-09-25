@@ -1,4 +1,4 @@
-use block_client::blocks::presentation::Presentation;
+use block_editor_plugin::be_block::PresentationContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};
@@ -25,6 +25,6 @@ impl block_editor_plugin::BeuiApp for PresentationApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(Presentation::new()).id())
+        Ok(creation.create(&PresentationContent::default()))
     }
 }

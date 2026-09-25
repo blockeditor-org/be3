@@ -1,7 +1,6 @@
+use block_editor_plugin::be_block::{BlockContent, CompiledLogicContent};
 use std::rc::Rc;
 
-use block::Block;
-use block_client::blocks::compiled_logic::CompiledLogic;
 use block_editor_plugin::be_block::Item;
 use block_editor_plugin::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use block_editor_plugin::beui::NodeId;
@@ -170,7 +169,10 @@ fn flatten(slots: &[Item<HotbarSlot>], depth: usize, rows: &mut Vec<Row>) {
             SlotKind::Component { name, compiled } => RowKind::Component {
                 name: name.clone(),
                 compiled: *compiled,
-                block: Some(ChildTarget::new(*compiled, CompiledLogic::TYPE_ID)),
+                block: Some(ChildTarget::new(
+                    *compiled,
+                    CompiledLogicContent::CONTENT_TYPE,
+                )),
             },
         };
         rows.push(Row { depth, kind });

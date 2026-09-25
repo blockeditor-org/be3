@@ -23,11 +23,9 @@ fn f6_moves_the_focus_to_the_next_plugin() {
         region: REGION,
     };
     let below = Rect::from_min_size(pos2(10.0, 120.0), SIZE);
-    let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
     instances.report(
         OTHER,
         REGION,
-        &client,
         Uuid::nil(),
         InstanceRole::Editor(EditorBlock {
             id: Uuid::nil(),

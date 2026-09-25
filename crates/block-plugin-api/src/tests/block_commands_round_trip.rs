@@ -26,7 +26,7 @@ fn block_commands_round_trip() {
         },
         BlockCommand::Delete {
             block_type: [2; 16],
-            source: BlockLocation::Orphaned,
+            source: BlockLocation::Detached,
             is_reference: true,
         },
         BlockCommand::Artifact {

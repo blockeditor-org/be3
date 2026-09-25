@@ -3,8 +3,6 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
-use block::Block;
-use block_client::blocks::web_browser_tab::WebBrowserTab;
 
 fn titled(block: Uuid, title: &str) {
     let shown = crate::be::content(block)
@@ -22,25 +20,32 @@ fn titled(block: Uuid, title: &str) {
     .expect("the new stack never took the title");
 }
 
+fn named(block: Uuid, name: &str) {
+    crate::be::wait_for(Duration::from_secs(20), |shared| {
+        let node = shared.graph.get(block)?;
+        (node.metadata.name.as_deref() == Some(name)).then_some(())
+    })
+    .unwrap_or_else(|| panic!("the block was never named {name}"));
+}
+
 #[test]
 fn a_migrated_block_is_named_after_its_content_until_someone_names_it() {
     let harness = crate::be::Harness::start();
     harness.connect();
-    let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
-    let old = client.create_block(WebBrowserTab::new());
-    let mut instances = placed_with(&client, old.id(), WebBrowserTab::TYPE_ID);
+    let block = Uuid::new_v4();
+    let mut instances = placed_on(block, BrowserTabContent::CONTENT_TYPE);
     instances.next_screens(PASS);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
-        shared.blocks.contains_key(&old.id()).then_some(())
+        (shared.blocks.contains_key(&block) && shared.graph.get(block).is_some()).then_some(())
     })
     .expect("the new stack never held the tab");
 
-    titled(old.id(), "Example Domain");
+    titled(block, "Example Domain");
     instances.next_screens(PASS);
-    assert_eq!(old.name(), Some("Example Domain".to_owned()));
+    named(block, "Example Domain");
 
-    old.set_name("Research");
-    titled(old.id(), "Another Page");
+    crate::be::set_name(block, Some("Research".to_owned()));
+    titled(block, "Another Page");
     instances.next_screens(PASS);
-    assert_eq!(old.name(), Some("Research".to_owned()));
+    named(block, "Research");
 }

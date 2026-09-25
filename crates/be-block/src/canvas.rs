@@ -517,7 +517,7 @@ fn exactly_ordered(order: &[Uuid], ids: &[Uuid]) -> Vec<Uuid> {
 }
 
 impl Root for Canvas {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x696e_6669_6e69_7465_2d63_616e_7661_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x696e_6669_6e69_7465_2d63_616e_7661_7301);
 
     fn references(&self) -> Vec<Uuid> {
         let mut references = Vec::new();

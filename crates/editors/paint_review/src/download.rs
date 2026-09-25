@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 #[cfg(test)]
 use std::sync::{Arc, Mutex};
 
-use block_client::blocks::paint_snapshot::PaintSnapshot;
 use block_editor_plugin::{EditorHost, FetchResult};
 use serde_json::Value;
 
@@ -137,9 +136,20 @@ fn file_url(path: &str) -> String {
     format!("https://raw.githubusercontent.com/{REPOSITORY}/{BRANCH}/{FOLDER}/{path}")
 }
 
+pub(crate) fn fingerprint(data: &[u8]) -> String {
+    use sha2::Digest as _;
+    sha2::Sha256::digest(data)
+        .iter()
+        .fold(String::new(), |mut hash, byte| {
+            use std::fmt::Write as _;
+            let _ = write!(hash, "{byte:02x}");
+            hash
+        })
+}
+
 fn read(path: String, data: Vec<u8>) -> Painting {
     Painting {
-        hash: PaintSnapshot::fingerprint(&data),
+        hash: fingerprint(&data),
         path,
         data,
     }
@@ -162,7 +172,7 @@ pub(crate) fn paths_in(tree: &[u8]) -> Result<Vec<String>, String> {
         .get("tree")
         .and_then(Value::as_array)
         .ok_or_else(|| format!("GitHub sent no listing of {FOLDER}"))?;
-    let suffix = format!(".{}", PaintSnapshot::FILE_EXTENSION);
+    let suffix = ".paint";
     let mut paths: Vec<String> = entries
         .iter()
         .filter(|entry| entry.get("type").and_then(Value::as_str) == Some("blob"))

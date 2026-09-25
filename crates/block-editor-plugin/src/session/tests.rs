@@ -1,7 +1,7 @@
 use super::*;
 use block_plugin_api::{
     DEFAULT_SURFACE_SIDE, EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, Size,
-    SurfaceFormat, SurfaceSpec, Theme, TunnelMessage, ViewportMetrics,
+    SurfaceFormat, SurfaceSpec, Theme, ViewportMetrics,
 };
 
 fn accept(session: &mut ClientSession) {
@@ -47,7 +47,6 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
 }
 
 mod accepts_a_theme_change_while_running;
-mod accepts_client_responses_after_the_last_instance_closes;
 mod accepts_content_for_an_open_instance;
 mod accepts_ordered_lifecycle;
 mod opens_and_closes_editor_instance;

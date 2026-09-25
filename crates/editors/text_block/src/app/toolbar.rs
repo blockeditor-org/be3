@@ -12,7 +12,7 @@ use beui::styled::{
     use_theme,
 };
 use beui::unstyled::{ChoiceOption, MenuItem, Scroll};
-use block::BlockParent;
+use block_editor_plugin::BlockParent;
 use block_editor_plugin::{BlockFilter, Toolbar, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
@@ -325,11 +325,11 @@ fn pick_block(state: &Shared) {
             };
             picked
                 .client
-                .set_block_parent(block.id, BlockParent::Uuid(picked.block_id));
+                .set_parent(block.id, BlockParent::Block(picked.block_id));
             let types = picked.host().block_types();
-            let name = match picked.client.cached_block(block.id) {
-                Some(cached) => BlockLabel::for_cached(types.as_ref(), &cached).name,
-                None => BlockLabel::new(types.as_ref(), block.block_type, None).name,
+            let name = match picked.client.info(block.id) {
+                Some(info) => info.label(types.as_ref()).name,
+                None => BlockLabel::new(types.as_ref(), block.block_type, None, false).name,
             };
             picked.insert_image_embed(block.id, &name);
         },

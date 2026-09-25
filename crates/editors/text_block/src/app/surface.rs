@@ -216,9 +216,9 @@ fn poll_drag(state: &Shared) {
         focus: position,
     });
     let types = state.host().block_types();
-    let name = match state.client.cached_block(drag.block_id) {
-        Some(cached) => BlockLabel::for_cached(types.as_ref(), &cached).name,
-        None => BlockLabel::new(types.as_ref(), drag.block_type, None).name,
+    let name = match state.client.info(drag.block_id) {
+        Some(info) => info.label(types.as_ref()).name,
+        None => BlockLabel::new(types.as_ref(), drag.block_type, None, false).name,
     };
     state.insert_image_embed(drag.block_id, &name);
     state.text.reveal_cursor();

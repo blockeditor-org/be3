@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::infinite_canvas::CanvasLayerMove;
+use block_editor_plugin::be_block::canvas::CanvasLayerMove;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{Child, ItemSize, clone, component, create_memo, view};
 use block_editor_plugin::beui::styled::ContextMenu;
@@ -26,8 +26,8 @@ pub(crate) fn CanvasMenu(state: Rc<CanvasState>, disabled: bool, children: Child
             [entity]
                 if matches!(
                     entity.kind,
-                    block_client::blocks::infinite_canvas::CanvasEntityKind::Block { .. }
-                        | block_client::blocks::infinite_canvas::CanvasEntityKind::DirectEditor { .. }
+                    block_editor_plugin::be_block::canvas::CanvasEntityKind::Block { .. }
+                        | block_editor_plugin::be_block::canvas::CanvasEntityKind::DirectEditor { .. }
                 )
         )
     }));

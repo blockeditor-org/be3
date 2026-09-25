@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::infinite_canvas::{CanvasEntity, CanvasEntityKind};
+use block_editor_plugin::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
 use block_editor_plugin::beui::reactive::{

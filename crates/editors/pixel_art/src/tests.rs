@@ -1,11 +1,8 @@
-use std::sync::Arc;
+use block_editor_plugin::be_block::{BlockContent, ImageContent};
 
-use block::Block;
-use block_client::BlockClient;
-use block_client::blocks::image::Image;
-use block_client::blocks::pixel_art::{PixelArt, PixelColor};
 use block_editor_plugin::be_block::PixelArtContent;
 use block_editor_plugin::be_block::pixel_art::Artwork;
+use block_editor_plugin::be_block::pixel_art::PixelColor;
 use block_editor_plugin::beui::styled::toggle_button_pressed;
 use block_editor_plugin::beui::{Key, Modifiers, Pos2};
 use block_editor_plugin::{Artifact, Artifacts, Editor, EditorHost};
@@ -21,11 +18,10 @@ mod drawing_on_the_canvas_paints_the_block;
 mod the_export_scale_setting_writes_the_artifact_draft;
 
 fn editor() -> ContentHarness<PixelArtApp> {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(PixelArt::new());
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), client, block.id());
+    let editor = Editor::new(host.clone(), block);
     let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
     editor.hold(None, PixelArtContent::default());
     editor.run();

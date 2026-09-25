@@ -1,13 +1,11 @@
+use block_editor_plugin::be_block::BlockContent;
 use std::rc::Rc;
 
-use block::Block;
-use block_client::BlockHandle;
-use block_client::blocks::database::DatabaseValue;
-use block_client::blocks::database_schema::DatabaseSchema;
+use block_editor_plugin::be_block::database::DatabaseValue;
 use block_editor_plugin::be_block::database_schema::DatabaseSchemaContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
+    Align, Direction, ForEach, ItemSize, List, Show, Spacer, clone, component, create_memo,
     create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Accordion, Button, ButtonVariant, Caption, Separator};
@@ -150,7 +148,7 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
         opening
             .editor()
             .host()
-            .open_block(schema_id, DatabaseSchema::TYPE_ID);
+            .open_block(schema_id, DatabaseSchemaContent::CONTENT_TYPE);
     });
     let changed = clone!(changing -> move |change: DatabaseValueChange| {
         changing.edit_components(|entities, selected| {
@@ -210,5 +208,3 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
         </List>
     }
 }
-
-fn _unused(_: Option<BlockHandle<DatabaseSchema>>, _: Uuid, _: Memo<bool>) {}

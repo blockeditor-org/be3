@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use block_client::BlockClient;
-use block_client::blocks::pixel_ray_tracer::PixelRayTracer;
 use block_editor_plugin::be_block::PixelRayTracerContent;
 use block_editor_plugin::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracerOperation, PixelUpdate, Scene,
@@ -19,11 +15,10 @@ mod resetting_the_artwork_clears_painted_pixels;
 mod zooming_the_view_grows_the_scene;
 
 fn editor() -> ContentHarness<PixelRayTracerApp> {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(PixelRayTracer);
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), client, block.id());
+    let editor = Editor::new(host.clone(), block);
     let mut editor = ContentHarness::new(BeuiTest::new(editor).in_viewport(), host);
     editor.hold(None, PixelRayTracerContent::default());
     editor.settle_until("the lighting to land", |editor| {

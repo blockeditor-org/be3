@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::infinite_canvas::{
+use block_editor_plugin::be_block::canvas::{
     CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasPoint, CanvasPreviewRegion,
     CanvasTextAlign, CanvasTextWeight,
 };
@@ -860,7 +860,7 @@ fn LineOptions(state: Rc<CanvasState>) -> NodeId {
     let start = flag(&lines, |entity| entity.style.arrow_start);
     let end = flag(&lines, |entity| entity.style.arrow_end);
     let set = |state: &Rc<CanvasState>,
-               apply: fn(&mut block_client::blocks::infinite_canvas::CanvasEntityStyle, bool),
+               apply: fn(&mut block_editor_plugin::be_block::canvas::CanvasEntityStyle, bool),
                value: bool| {
         state.update_selected(
             |kind| matches!(kind, CanvasEntityKind::Line),

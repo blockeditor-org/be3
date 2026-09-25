@@ -1,5 +1,5 @@
-use block_client::blocks::pixel_art::PixelColor;
 use block_editor_plugin::be_block::pixel_art::Artwork;
+use block_editor_plugin::be_block::pixel_art::PixelColor;
 use block_editor_plugin::beui::{Color32, Image};
 
 pub fn artwork_image(art: &Artwork, dark_mode: bool) -> Image {

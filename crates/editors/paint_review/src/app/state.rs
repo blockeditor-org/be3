@@ -2,8 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block::BlockParent;
-use block_client::blocks::paint_snapshot::PaintSnapshot;
+use block_editor_plugin::BlockParent;
 use block_editor_plugin::be_block::paint::{ApprovedPainting, PaintReview};
 use block_editor_plugin::be_block::{
     PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader,
@@ -342,13 +341,7 @@ impl Review {
                 self.editor.replace_content(id, &snapshot);
                 id
             }
-            None => {
-                let created = self
-                    .editor
-                    .create_with_content::<PaintSnapshot, _>(&snapshot);
-                created.set_parent(BlockParent::Uuid(self.editor.block_id()));
-                created.id()
-            }
+            None => self.editor.create_child(&snapshot),
         };
         self.block
             .operate(PaintReview::approve(path, painting.hash.clone(), reference));
@@ -366,12 +359,9 @@ impl Review {
         let Some(approval) = self.approval(path) else {
             return;
         };
-        if let Some(id) = Some(approval.snapshot) {
-            self.editor
-                .client()
-                .get_block::<PaintSnapshot>(id)
-                .set_parent(BlockParent::Orphaned);
-        }
+        self.editor
+            .blocks()
+            .set_parent(approval.snapshot, BlockParent::Detached);
         self.block.operate(PaintReview::forget(path));
     }
 

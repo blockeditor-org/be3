@@ -1,14 +1,10 @@
-use beui::icons::{
-    ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_PAUSE, ICON_PLAY_ARROW, ICON_SKIP_NEXT,
-};
 use beui::reactive::{
     Align, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize, List, Memo, Show, Spacer,
     Text, VirtualList, clone, component, component_size, create_effect, create_memo, layout_text,
     untrack, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Heading, Icon, IconButton, Link, Scroll, Spinner,
-    use_theme,
+    Button, ButtonVariant, Caption, Code, Heading, Link, Scroll, Spinner, use_theme,
 };
 use beui::{Color32, FontId, Key, KeyPress, Modifiers, NodeId, ScrollGesture, TextLayout};
 
@@ -18,7 +14,6 @@ use super::{UiCommand, send};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum DebugWindow {
     Client,
-    Network,
     Performance,
     Plugins,
     Version,
@@ -45,10 +40,6 @@ pub(crate) enum TerminalInput {
 pub(crate) enum DebugCommand {
     Open(DebugWindow),
     Close(DebugWindow),
-    PauseSending,
-    StepSending,
-    ResumeSending,
-    ClearTraffic,
     KillPlugin(String),
     RefreshVersions,
     Install(u64),
@@ -70,22 +61,6 @@ pub(crate) struct Line {
     pub(crate) text: String,
     pub(crate) style: LineStyle,
     pub(crate) indent: u8,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct TrafficRow {
-    pub(crate) index: usize,
-    pub(crate) sent: bool,
-    pub(crate) timestamp: String,
-    pub(crate) payload: String,
-    pub(crate) decoded: Vec<String>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct NetworkView {
-    pub(crate) paused: bool,
-    pub(crate) queued: usize,
-    pub(crate) entries: Vec<TrafficRow>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -176,7 +151,6 @@ pub(crate) struct TerminalView {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DebugView {
     pub(crate) client: Option<Vec<Line>>,
-    pub(crate) network: Option<NetworkView>,
     pub(crate) performance: Option<Vec<PerformanceRow>>,
     pub(crate) plugins: Option<PluginsView>,
     pub(crate) version: Option<VersionView>,
@@ -254,135 +228,6 @@ pub(super) fn ClientPanel(client: Memo<Option<Vec<Line>>>) -> NodeId {
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <LinesView lines />
-        </Frame>
-    }
-}
-
-#[component]
-pub(super) fn NetworkPanel(network: Memo<Option<NetworkView>>) -> NodeId {
-    let paused =
-        create_memo(clone!(network -> move || network.get().is_some_and(|network| network.paused)));
-    let sending = create_memo(clone!(paused -> move || !paused.get()));
-    let queued =
-        create_memo(clone!(network -> move || network.get().map_or(0, |network| network.queued)));
-    let cannot_step =
-        create_memo(clone!(paused queued -> move || !paused.get() || queued.get() == 0));
-    let summary = create_memo(clone!(paused queued -> move || match paused.get() {
-        true => format!("Paused, {} queued", queued.get()),
-        false => format!("Sending, {} queued", queued.get()),
-    }));
-    let entries = create_memo(move || {
-        network
-            .get()
-            .map(|network| network.entries)
-            .unwrap_or_default()
-    });
-    let keys = create_memo(clone!(entries -> move || {
-        entries.get().into_iter().map(|entry| entry.index).collect::<Vec<_>>()
-    }));
-    let empty = create_memo(clone!(keys -> move || keys.get().is_empty()));
-    view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
-            <List spacing=8.0>
-                <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                    <IconButton
-                        glyph={ICON_PAUSE.to_owned()}
-                        label="Pause sending"
-                        disabled={paused.clone()}
-                        on_click={|| debug(DebugCommand::PauseSending)}
-                    />
-                    <IconButton
-                        glyph={ICON_SKIP_NEXT.to_owned()}
-                        label="Send the next queued message"
-                        disabled={cannot_step}
-                        on_click={|| debug(DebugCommand::StepSending)}
-                    />
-                    <IconButton
-                        glyph={ICON_PLAY_ARROW.to_owned()}
-                        label="Resume sending"
-                        disabled={sending}
-                        on_click={|| debug(DebugCommand::ResumeSending)}
-                    />
-                    <Button
-                        label="Clear"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| debug(DebugCommand::ClearTraffic)}
-                    />
-                    <Caption content={summary} />
-                </List>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Show condition={empty}>
-                        <Caption content="No network traffic yet" />
-                    </Show>
-                    <VirtualList keys={keys} item_size=64.0>
-                        {move |index: usize| {
-                            let entries = entries.clone();
-                            let entry = create_memo(move || {
-                                entries.get().into_iter().find(|entry| entry.index == index)
-                            });
-                            view! {
-                                <TrafficEntry entry />
-                            }
-                        }}
-                    </VirtualList>
-                </Scroll>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn TrafficEntry(entry: Memo<Option<TrafficRow>>) -> NodeId {
-    let theme = use_theme();
-    let sent = create_memo(clone!(entry -> move || entry.get().is_some_and(|entry| entry.sent)));
-    let glyph = create_memo(clone!(sent -> move || match sent.get() {
-        true => ICON_ARROW_FORWARD.to_owned(),
-        false => ICON_ARROW_BACK.to_owned(),
-    }));
-    let color = create_memo(clone!(theme sent -> move || match sent.get() {
-        true => theme.accent.get(),
-        false => theme.warning.get(),
-    }));
-    let timestamp = create_memo(
-        clone!(entry -> move || entry.get().map(|entry| entry.timestamp).unwrap_or_default()),
-    );
-    let payload = create_memo(
-        clone!(entry -> move || entry.get().map(|entry| entry.payload).unwrap_or_default()),
-    );
-    let decoded = create_memo(move || {
-        entry
-            .get()
-            .map(|entry| entry.decoded.join("\n"))
-            .unwrap_or_default()
-    });
-    let has_decoded = create_memo(clone!(decoded -> move || !decoded.get().is_empty()));
-    view! {
-        <Frame padding_vertical=3.0>
-            <List spacing=2.0>
-                <List direction=Direction::Horizontal spacing=6.0>
-                    <Icon glyph={glyph} color={color} />
-                    <Caption content={timestamp} />
-                    <Text
-                        @sizing=ItemSize::Percent(100.0)
-                        string={payload}
-                        font_size=12.0
-                        color={theme.text.clone()}
-                        monospace=true
-                        wrap=true
-                    />
-                </List>
-                <Show condition={has_decoded}>
-                    <Frame padding_horizontal=28.0>
-                        <Text
-                            string={decoded}
-                            font_size=12.0
-                            color={theme.text_muted.clone()}
-                            monospace=true
-                            wrap=true
-                        />
-                    </Frame>
-                </Show>
-            </List>
         </Frame>
     }
 }

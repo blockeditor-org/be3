@@ -2,10 +2,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     rc::Rc,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, TryRecvError},
-    },
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -103,7 +100,7 @@ impl BlockSource {
     fn encode(self) -> BlockLocation {
         match self {
             Self::Root => BlockLocation::Root,
-            Self::Orphaned => BlockLocation::Orphaned,
+            Self::Orphaned => BlockLocation::Detached,
             Self::Block(id) => BlockLocation::Block(id.into_bytes()),
         }
     }
@@ -162,52 +159,6 @@ impl Waker {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
         Self(Some(Arc::new(wake)))
-    }
-}
-pub struct Task<T> {
-    receiver: Receiver<T>,
-    result: Option<T>,
-    done: bool,
-}
-
-impl<T: Send + 'static> Task<T> {
-    fn spawn(waker: &Waker, future: impl std::future::Future<Output = T> + Send + 'static) -> Self {
-        let (sender, receiver) = mpsc::channel();
-        let waker = waker.clone();
-        block_client::spawn(async move {
-            let _ = sender.send(future.await);
-            waker.wake();
-        });
-        Self {
-            receiver,
-            result: None,
-            done: false,
-        }
-    }
-}
-
-impl<T> Task<T> {
-    pub fn poll(&mut self) -> Option<&T> {
-        if !self.done {
-            match self.receiver.try_recv() {
-                Ok(result) => {
-                    self.result = Some(result);
-                    self.done = true;
-                }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => self.done = true,
-            }
-        }
-        self.result.as_ref()
-    }
-
-    pub fn take(&mut self) -> Option<T> {
-        self.poll();
-        self.result.take()
-    }
-
-    pub fn finished(&self) -> bool {
-        self.done
     }
 }
 
@@ -476,6 +427,9 @@ pub struct EditorHost {
     next_peers: Rc<Cell<u64>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
+    graph: Rc<crate::graph::GraphState>,
+    account: Rc<Cell<Uuid>>,
+    workspace: Rc<Cell<Uuid>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -499,12 +453,6 @@ impl EditorHost {
         self.waker.clone()
     }
 
-    pub fn spawn<T: Send + 'static>(
-        &self,
-        future: impl std::future::Future<Output = T> + Send + 'static,
-    ) -> Task<T> {
-        Task::spawn(&self.waker, future)
-    }
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
         PerformanceReporter {
             group: Arc::from(group.into()),
@@ -1272,6 +1220,47 @@ impl EditorHost {
 
     pub fn set_client_id(&self, client_id: Uuid) {
         self.client_id.set(client_id);
+    }
+
+    pub fn set_account_id(&self, account: Uuid) {
+        self.account.set(account);
+    }
+
+    pub fn account_id(&self) -> Uuid {
+        self.account.get()
+    }
+
+    pub fn set_workspace_id(&self, workspace: Uuid) {
+        self.workspace.set(workspace);
+    }
+
+    pub fn workspace_id(&self) -> Uuid {
+        self.workspace.get()
+    }
+
+    pub fn blocks(&self) -> crate::graph::Blocks {
+        crate::graph::Blocks {
+            graph: Rc::clone(&self.graph),
+            waker: self.waker.clone(),
+            account: Rc::clone(&self.account),
+        }
+    }
+
+    pub fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {
+        self.graph.set_result(query, blocks);
+        self.waker.wake();
+    }
+
+    pub fn watched_blocks(&self) -> Vec<crate::BlockQuery> {
+        self.graph.watched()
+    }
+
+    pub fn take_block_watch(&self) -> Option<Vec<crate::BlockQuery>> {
+        self.graph.take_watch()
+    }
+
+    pub fn take_graph_commands(&self) -> Vec<crate::GraphCommand> {
+        self.graph.take_commands()
     }
 
     pub fn set_editable(&self, editable: bool) {

@@ -3,7 +3,7 @@ use std::ops::Range;
 
 use beui::Vec2;
 use beui::unstyled::TextWidget;
-use block_client::{block_url, parse_block_urls};
+use block_editor_plugin::be_block::block_url::{block_url, parse_block_urls};
 use block_editor_plugin::block_ui::{self, BlockLabel};
 use text_editor_core::TextLanguage;
 use uuid::Uuid;
@@ -58,7 +58,8 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                 reference.id,
                 (
                     reference.block_type,
-                    block_client::properties::read_name(&reference.properties),
+                    reference.name.clone(),
+                    reference.named_by_hand,
                 ),
             )
         })
@@ -71,12 +72,10 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
         .map(|embed| {
             let id = embed.reference;
             let metadata = referenced.get(&id).cloned().or_else(|| {
-                state.client.cached_block(id).map(|block| {
-                    (
-                        block.block_type,
-                        block_client::properties::read_name(&block.properties),
-                    )
-                })
+                state
+                    .client
+                    .info(id)
+                    .map(|block| (block.block_type, block.name, block.named_by_hand))
             });
             let frame_size = embed
                 .large
@@ -94,14 +93,16 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                     name: "Broken link".to_owned(),
                     automatic: true,
                 },
-                |(block_type, name)| BlockLabel::new(types.as_ref(), *block_type, name.as_ref()),
+                |(block_type, name, by_hand)| {
+                    BlockLabel::new(types.as_ref(), *block_type, name.as_deref(), *by_hand)
+                },
             );
             ResolvedEmbed {
                 range: embed.range,
                 id,
                 block_type: metadata
                     .as_ref()
-                    .map_or_else(Uuid::nil, |(block_type, _)| *block_type),
+                    .map_or_else(Uuid::nil, |(block_type, _, _)| *block_type),
                 label: label.name,
                 icon: label.icon,
                 automatic: label.automatic,

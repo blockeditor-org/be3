@@ -1,6 +1,6 @@
+use block_editor_plugin::be_block::PixelRayTracerContent;
 use std::rc::Rc;
 
-use block_client::blocks::pixel_ray_tracer::PixelRayTracer;
 use block_editor_plugin::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
 use block_editor_plugin::beui::reactive::{Direction, ItemSize, List, Picture, component, view};
 use block_editor_plugin::beui::styled::{Body, Button, ButtonVariant, Caption, use_theme};
@@ -34,7 +34,7 @@ impl block_editor_plugin::BeuiApp for PixelRayTracerApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(PixelRayTracer).id())
+        Ok(creation.create(&PixelRayTracerContent::default()))
     }
 
     fn aspect_ratio() -> Option<f32> {

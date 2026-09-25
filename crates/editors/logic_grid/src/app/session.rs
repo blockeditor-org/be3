@@ -83,11 +83,10 @@ impl Session {
     }
 
     fn sync(&self) {
-        let client = self.editor.client().clone();
         let client_id = self.editor.host().client_id();
         let changed = {
             let mut model = self.model.borrow_mut();
-            let changed = model.sync(Some(&client), client_id);
+            let changed = model.sync(true, client_id);
             let passed = model.take_challenge_passed();
             if passed && self.editable() {
                 model.edit(LogicGridOperation::SetCompleted { completed: true });

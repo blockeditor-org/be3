@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
 
+use be_block::{BlockContent, BlockMetadata, CanvasContent};
+use be_graph::BlockParent;
 use beui::Rect;
-use block::{Block, BlockParent};
-use block_client::blocks::infinite_canvas::InfiniteCanvas;
 use uuid::Uuid;
 
 use crate::{
@@ -217,11 +217,11 @@ impl BlockPicker {
                 }
                 PickerAction::Link(id) => {
                     self.open = false;
-                    if let Some(block) = editors.client().cached_block(id) {
-                        editors.ensure(block.id, block.block_type);
+                    if let Some(block) = crate::be::node(id) {
+                        editors.ensure(block.id, block.content_type);
                         result = Some(BlockPickerResult {
                             id: block.id,
-                            block_type: block.block_type,
+                            block_type: block.content_type,
                             linked: true,
                         });
                     }
@@ -278,15 +278,15 @@ impl BlockPicker {
                 tiles.sort_by_key(|tile| !tile.important);
                 let query = self.search.trim().to_lowercase();
                 let links: Vec<LinkRow> = match self.tab {
-                    PickerTab::LinkExisting => editors
-                        .client()
-                        .cached_blocks()
+                    PickerTab::LinkExisting => crate::be::nodes()
                         .into_iter()
+                        .filter(|block| block.access.can_view())
+                        .filter(|block| block.parent != BlockParent::Detached)
                         .filter(|block| !self.excluded.contains(&block.id))
                         .filter(|block| {
-                            self.allowed.is_empty() || self.allowed.contains(&block.block_type)
+                            self.allowed.is_empty() || self.allowed.contains(&block.content_type)
                         })
-                        .map(|block| (BlockLabel::for_cached(registry, &block), block.id))
+                        .map(|block| (BlockLabel::for_node(registry, &block), block.id))
                         .filter(|(label, id)| {
                             query.is_empty()
                                 || label.name.to_lowercase().contains(&query)
@@ -372,7 +372,7 @@ impl BlockPicker {
             self.pending_block = Some(pending);
             return None;
         }
-        match pending.creation.create(editors.client()) {
+        match pending.creation.create() {
             Ok(Some(editor)) => {
                 surfaces::set_height(SurfaceId::Creation, None);
                 Some(Self::finish_creation(
@@ -400,18 +400,18 @@ impl BlockPicker {
         parent: BlockParent,
     ) -> BlockPickerResult {
         let canvas = crate::slide_templates::build_template_canvas(template);
-        let block = editors.client().create_block(InfiniteCanvas::new());
-        let id = block.id();
-        crate::be::seed(
+        let id = Uuid::new_v4();
+        crate::be::create(
             id,
-            <be_block::CanvasContent as be_block::BlockContent>::CONTENT_TYPE,
-            be_block::BlockContent::encode(&canvas),
+            CanvasContent::CONTENT_TYPE,
+            parent,
+            BlockMetadata::default(),
+            Some(canvas.encode()),
         );
-        block.set_parent(parent);
-        editors.ensure(id, InfiniteCanvas::TYPE_ID);
+        editors.ensure(id, CanvasContent::CONTENT_TYPE);
         BlockPickerResult {
             id,
-            block_type: InfiniteCanvas::TYPE_ID,
+            block_type: CanvasContent::CONTENT_TYPE,
             linked: false,
         }
     }
@@ -422,8 +422,8 @@ impl BlockPicker {
         block_type: Uuid,
         parent: BlockParent,
     ) -> BlockPickerResult {
-        editor.set_parent(parent);
         let id = editor.id();
+        crate::be::set_parent(id, parent);
         editors.insert(editor);
         BlockPickerResult {
             id,

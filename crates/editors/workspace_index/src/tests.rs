@@ -1,9 +1,5 @@
-use std::sync::Arc;
+use block_editor_plugin::be_block::{BlockContent, CounterContent};
 
-use block::Block;
-use block_client::BlockClient;
-use block_client::blocks::counter::Counter;
-use block_client::blocks::workspace_index::WorkspaceIndex;
 use block_editor_plugin::be_block::FolderContent;
 use block_editor_plugin::{Drag, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
@@ -21,19 +17,18 @@ struct Fixture {
 }
 
 fn editor(entries: usize) -> (Fixture, Vec<Uuid>) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let folder = client.create_block(WorkspaceIndex);
+    let folder = Uuid::new_v4();
     let mut children = Vec::new();
     let mut content = FolderContent::default();
     for _ in 0..entries {
-        let child = client.create_block(Counter::default());
-        let edit = content.root().add(child.id());
+        let child = Uuid::new_v4();
+        let edit = content.root().add(child);
         content.apply(&edit);
-        children.push(child.id());
+        children.push(child);
     }
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), client, folder.id());
+    let editor = Editor::new(host.clone(), folder);
     let mut editor = ContentHarness::new(BeuiTest::new(editor), host.clone());
     editor.hold(None, content);
     editor.run();

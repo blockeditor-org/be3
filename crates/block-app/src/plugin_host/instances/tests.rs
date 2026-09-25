@@ -17,11 +17,6 @@ fn placed() -> Instances {
 }
 
 fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
-    let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
-    placed_with(&client, block, block_type)
-}
-
-fn placed_with(client: &Arc<BlockClient>, block: Uuid, block_type: Uuid) -> Instances {
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let mut instances = Instances::default();
     let block_types = Arc::new(Vec::new());
@@ -32,7 +27,6 @@ fn placed_with(client: &Arc<BlockClient>, block: Uuid, block_type: Uuid) -> Inst
     instances.report(
         INSTANCE,
         REGION,
-        client,
         Uuid::nil(),
         role,
         &block_types,
@@ -56,7 +50,7 @@ fn placed_with(client: &Arc<BlockClient>, block: Uuid, block_type: Uuid) -> Inst
     instances
 }
 
-mod a_database_view_given_content_links_to_its_database_in_the_old_graph;
+mod a_database_view_given_content_references_its_database;
 mod a_frame_childs_chrome_is_withheld_from_the_editor_it_covers;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;

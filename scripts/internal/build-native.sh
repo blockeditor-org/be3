@@ -111,7 +111,7 @@ if $client; then
     building+=('the app')
 fi
 if $server; then
-    selection+=(-p block-server --bin block-server)
+    selection+=(-p be-server --bin be-server)
     building+=('the server')
 fi
 if [[ ${#selection[@]} -eq 0 ]]; then
@@ -153,7 +153,7 @@ end_step
 
 executables=()
 if $server; then
-    executables+=("block-server$extension")
+    executables+=("be-server$extension")
 fi
 if $client; then
     executables+=("block-app$extension")

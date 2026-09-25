@@ -2,8 +2,6 @@ use super::*;
 use uuid::Uuid;
 
 use be_block::{ChildChange, PresentationContent};
-use block::Block;
-use block_client::blocks::presentation::Presentation;
 
 fn slides_of(shared: &Shared, block: Uuid) -> Option<Vec<Option<Uuid>>> {
     let held = shared.blocks.get(&block)?;
@@ -25,7 +23,11 @@ fn a_child_moved_into_a_migrated_block_is_added_to_its_content() {
     let (block, first, second) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
 
     assert_eq!(
-        change_child(block, Presentation::TYPE_ID, ChildChange::Add(first)),
+        change_child(
+            block,
+            PresentationContent::CONTENT_TYPE,
+            ChildChange::Add(first)
+        ),
         None
     );
     wait_until("opened the block to change", |shared| {
@@ -33,7 +35,11 @@ fn a_child_moved_into_a_migrated_block_is_added_to_its_content() {
     });
 
     assert_eq!(
-        change_child(block, Presentation::TYPE_ID, ChildChange::Add(first)),
+        change_child(
+            block,
+            PresentationContent::CONTENT_TYPE,
+            ChildChange::Add(first)
+        ),
         Some(true)
     );
     wait_until("added the child", |shared| {
@@ -43,7 +49,7 @@ fn a_child_moved_into_a_migrated_block_is_added_to_its_content() {
     assert_eq!(
         change_child(
             block,
-            Presentation::TYPE_ID,
+            PresentationContent::CONTENT_TYPE,
             ChildChange::Replace {
                 old: first,
                 new: second

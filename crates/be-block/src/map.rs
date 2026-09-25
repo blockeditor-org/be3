@@ -172,7 +172,7 @@ impl Map {
 }
 
 impl Root for Map {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6d61_702d_636f_6e74_656e_742d_7479_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6d61_7076_6965_7762_6c6f_636b_0000_0001);
 
     fn references(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();

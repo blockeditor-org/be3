@@ -110,16 +110,14 @@ impl LogicGridEditor {
         }
     }
 
-    pub(super) fn sync_hotbar(&mut self, client: Option<&BlockClient>, client_id: Uuid) -> bool {
-        if let (Some(client), Some(editor)) = (client, self.store.editor().cloned()) {
+    pub(super) fn sync_hotbar(&mut self, live: bool, client_id: Uuid) -> bool {
+        if let (true, Some(editor)) = (live, self.store.editor().cloned()) {
             let pending = self.hotbar_needs_write;
-            let root = self
-                .hotbar_block
-                .get_or_insert_with(|| RootSetting::new(client));
+            let root = &mut self.hotbar_block;
             if pending {
-                root.ensure(client, &editor, client_id);
+                root.ensure(&editor, client_id);
             } else {
-                root.find(client, &editor, client_id);
+                root.find(&editor, client_id);
             }
         }
         if self.hotbar_needs_write {
@@ -132,7 +130,7 @@ impl LogicGridEditor {
         else {
             return false;
         };
-        if client.is_some() {
+        if live {
             for compiled in pinned_components(&slots) {
                 self.ensure_compiled(compiled);
             }
@@ -158,7 +156,7 @@ impl LogicGridEditor {
     }
 
     fn hotbar_content(&self) -> Option<Rc<ContentProjection<HotbarContent>>> {
-        let id = self.hotbar_block.as_ref()?.block()?.id();
+        let id = self.hotbar_block.block()?;
         Some(self.store.editor()?.content_of::<HotbarContent>(id))
     }
 

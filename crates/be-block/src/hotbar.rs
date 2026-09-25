@@ -107,7 +107,7 @@ impl Hotbar {
 }
 
 impl Root for Hotbar {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x686f_7462_6172_2d63_6f6e_7465_6e74_0001);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6c6f_6769_632d_686f_7462_6172_0101_0101);
 
     fn references(&self) -> Vec<Uuid> {
         self.component_refs().into_iter().filter_map(Some).collect()

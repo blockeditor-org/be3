@@ -50,7 +50,7 @@ impl Checklist {
 }
 
 impl Root for Checklist {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6368_6563_6b6c_6973_742d_626c_6f63_6b03);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6368_6563_6b6c_6973_742d_626c_6f63_6b31);
 }
 
 pub type ChecklistContent = Document<Checklist>;

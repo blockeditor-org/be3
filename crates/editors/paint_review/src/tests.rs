@@ -1,14 +1,12 @@
+use block_editor_plugin::be_block::BlockContent;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use block::BlockParent;
-use block_client::BlockClient;
-use block_client::blocks::paint_review::PaintReview as ReviewBlock;
-use block_client::blocks::paint_snapshot::PaintSnapshot;
 use block_editor_plugin::be_block::paint::PaintReview;
 use block_editor_plugin::be_block::{
     PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader,
 };
+use block_editor_plugin::{BlockInfo, BlockParent};
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness, ContentStore};
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
@@ -39,7 +37,6 @@ const PATH: &str = "counter.a_button_is_drawn.paint";
 
 struct Review {
     branch: Arc<Mutex<Vec<Painting>>>,
-    client: Arc<BlockClient>,
     block: Uuid,
     store: ContentStore,
 }
@@ -47,12 +44,11 @@ struct Review {
 impl Review {
     fn open() -> (Self, ContentHarness<PaintReviewApp>) {
         let branch = Arc::new(Mutex::new(Vec::new()));
-        let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-        let block = client.create_block(ReviewBlock::new());
+        let block = Uuid::new_v4();
         write_to(&branch, PATH, &painting(30));
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host.clone(), Arc::clone(&client), block.id());
+        let editor = Editor::new(host.clone(), block);
         let source = Source::Fixed(Arc::clone(&branch));
         let test = BeuiTest::<PaintReviewApp>::with_view(editor.clone(), move || {
             view! {
@@ -64,8 +60,7 @@ impl Review {
         editor.hold(None, PaintReviewContent::default());
         let review = Self {
             branch,
-            client,
-            block: block.id(),
+            block,
             store: editor.store(),
         };
         editor.run();
@@ -83,11 +78,15 @@ impl Review {
 
     fn approve(&self, path: &str, painting: &Snapshot) {
         let data = painting.encode().unwrap();
-        let hash = PaintSnapshot::fingerprint(&data);
-        let created = self.client.create_block(PaintSnapshot::new());
-        created.set_parent(BlockParent::Uuid(self.block));
+        let hash = crate::download::fingerprint(&data);
+        let created = Uuid::new_v4();
+        self.store.add_block(BlockInfo::new(
+            created,
+            PaintSnapshotContent::CONTENT_TYPE,
+            BlockParent::Block(self.block),
+        ));
         self.store.hold(
-            Some(created.id()),
+            Some(created),
             PaintSnapshotContent::new(
                 PaintSnapshotHeader {
                     path: path.to_owned(),
@@ -97,7 +96,7 @@ impl Review {
             ),
         );
         self.store
-            .edit::<PaintReviewContent>(None, &PaintReview::approve(path, hash, created.id()));
+            .edit::<PaintReviewContent>(None, &PaintReview::approve(path, hash, created));
     }
 
     fn remove(&self, path: &str) {
@@ -118,11 +117,9 @@ impl Review {
     }
 
     fn orphaned(&self, id: Uuid) -> bool {
-        self.client
-            .get_block::<PaintSnapshot>(id)
-            .relationships()
-            .parent
-            == BlockParent::Orphaned
+        self.store
+            .block(id)
+            .is_some_and(|info| info.parent == BlockParent::Detached)
     }
 
     fn approvals(&self) -> usize {
@@ -230,7 +227,7 @@ fn write_to(branch: &Mutex<Vec<Painting>>, path: &str, painting: &Snapshot) {
     branch.retain(|held| held.path != path);
     branch.push(Painting {
         path: path.to_owned(),
-        hash: PaintSnapshot::fingerprint(&data),
+        hash: crate::download::fingerprint(&data),
         data,
     });
     branch.sort_by(|left, right| left.path.cmp(&right.path));

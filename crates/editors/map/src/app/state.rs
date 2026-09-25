@@ -2,11 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block::{BlockParent, BlockReference, BlockReferenceList};
-use block_client::ReferenceList;
-use block_client::blocks::image::Image as ImageBlock;
-use block_client::blocks::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
+use block_editor_plugin::BlockList;
 use block_editor_plugin::be_block::ImageContent;
+use block_editor_plugin::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
 use block_editor_plugin::be_block::{Edit, Map, MapContent};
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::beui::{Image, Pos2, Rect, Vec2};
@@ -14,6 +12,7 @@ use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::{
     BlockFilter, BlockPicker, ContentProjection, Editor, ImagePaster, PastedImage,
 };
+use block_editor_plugin::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 
 use crate::geo::MapView;
@@ -47,7 +46,7 @@ pub(crate) struct MapState {
     editor: Editor,
     preview: bool,
     block: Rc<ContentProjection<MapContent>>,
-    dependencies: ReferenceList,
+    dependencies: BlockList,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,
     picker: RefCell<BlockPicker>,
@@ -90,8 +89,8 @@ impl MapState {
         let (revision, set_revision) = create_signal(0);
         Rc::new(Self {
             dependencies: editor
-                .client()
-                .watch_references(BlockReferenceList::References(editor.block_id())),
+                .blocks()
+                .watch(BlockQuery::References(editor.block_id())),
             editor: editor.clone(),
             preview,
             block,
@@ -321,12 +320,7 @@ impl MapState {
             .dependencies
             .read()
             .into_iter()
-            .map(|reference: BlockReference| {
-                (
-                    reference.id,
-                    BlockLabel::for_reference(types.as_ref(), &reference),
-                )
-            })
+            .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
             .collect();
         if self.labels.get_untracked() != labels {
             self.set_labels.set(labels);
@@ -351,8 +345,8 @@ impl MapState {
             return;
         };
         self.editor
-            .client()
-            .set_block_parent(picked.id, BlockParent::Uuid(self.block_id()));
+            .blocks()
+            .set_parent(picked.id, BlockParent::Block(self.block_id()));
         let position = self
             .pending_position
             .take()
@@ -373,8 +367,8 @@ impl MapState {
         }
         let position = self.view().coordinate(drag.position);
         self.editor
-            .client()
-            .set_block_parent(drag.block_id, BlockParent::Uuid(self.block_id()));
+            .blocks()
+            .set_parent(drag.block_id, BlockParent::Block(self.block_id()));
         self.add_point(drag.block_id, position);
     }
 
@@ -423,9 +417,8 @@ impl MapState {
     }
 
     fn import(&self, image: ImageContent, position: MapCoordinate) {
-        let created = self.editor.create_with_content::<ImageBlock, _>(&image);
-        created.set_parent(BlockParent::Uuid(self.block_id()));
-        self.add_point(created.id(), position);
+        let created = self.editor.create_child(&image);
+        self.add_point(created, position);
     }
 
     pub(crate) fn want_tile(&self, id: TileId) {

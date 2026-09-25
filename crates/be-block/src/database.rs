@@ -105,7 +105,7 @@ impl Database {
 }
 
 impl Root for Database {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6461_7461_6261_7365_2d63_6f6e_7465_6e74);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x0064_6174_6162_6173_652d_626c_6f63_6b01);
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         let (old, new) = match change {

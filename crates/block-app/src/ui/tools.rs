@@ -6,8 +6,8 @@ use beui::unstyled::{DockState, TabId};
 use beui::{NodeId, Rect, pos2, vec2};
 
 use super::debug::{
-    ClientPanel, DebugCommand, DebugWindow, NetworkPanel, PerformancePanel, PluginsPanel,
-    TerminalPanel, VersionPanel,
+    ClientPanel, DebugCommand, DebugWindow, PerformancePanel, PluginsPanel, TerminalPanel,
+    VersionPanel,
 };
 use super::dialogs::{AboutPanel, InvitePanel};
 use super::{AppViewStore, UiCommand, send};
@@ -23,9 +23,8 @@ enum Tool {
 }
 
 impl Tool {
-    const ALL: [Tool; 8] = [
+    const ALL: [Tool; 7] = [
         Tool::Debug(DebugWindow::Client),
-        Tool::Debug(DebugWindow::Network),
         Tool::Debug(DebugWindow::Performance),
         Tool::Debug(DebugWindow::Plugins),
         Tool::Debug(DebugWindow::Version),
@@ -48,8 +47,7 @@ impl Tool {
 
     fn title(self) -> &'static str {
         match self {
-            Tool::Debug(DebugWindow::Client) => "Block Client State",
-            Tool::Debug(DebugWindow::Network) => "Network Traffic",
+            Tool::Debug(DebugWindow::Client) => "Block Stack State",
             Tool::Debug(DebugWindow::Performance) => "Performance",
             Tool::Debug(DebugWindow::Plugins) => "Plugins",
             Tool::Debug(DebugWindow::Version) => "App Version",
@@ -62,7 +60,6 @@ impl Tool {
     fn window(self) -> Rect {
         let (position, size) = match self {
             Tool::Debug(DebugWindow::Client) => (pos2(60.0, 60.0), vec2(760.0, 600.0)),
-            Tool::Debug(DebugWindow::Network) => (pos2(90.0, 80.0), vec2(720.0, 480.0)),
             Tool::Debug(DebugWindow::Performance) => (pos2(120.0, 100.0), vec2(520.0, 420.0)),
             Tool::Debug(DebugWindow::Plugins) => (pos2(150.0, 90.0), vec2(560.0, 440.0)),
             Tool::Debug(DebugWindow::Version) => (pos2(180.0, 110.0), vec2(640.0, 480.0)),
@@ -80,7 +77,6 @@ impl Tool {
                 let debug = view.debug.get();
                 match window {
                     DebugWindow::Client => debug.client.is_some(),
-                    DebugWindow::Network => debug.network.is_some(),
                     DebugWindow::Performance => debug.performance.is_some(),
                     DebugWindow::Plugins => debug.plugins.is_some(),
                     DebugWindow::Version => debug.version.is_some(),
@@ -149,12 +145,6 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                         let client = create_memo(move || debug.get().client);
                         view! {
                             <ClientPanel client />
-                        }
-                    }
-                    Some(Tool::Debug(DebugWindow::Network)) => {
-                        let network = create_memo(move || debug.get().network);
-                        view! {
-                            <NetworkPanel network />
                         }
                     }
                     Some(Tool::Debug(DebugWindow::Performance)) => {

@@ -1,15 +1,13 @@
 use std::collections::{BTreeMap, HashSet};
-use std::sync::Arc;
 
-use block_client::BlockClient;
-use block_client::blocks::database::DatabaseValue;
-use block_client::blocks::infinite_canvas::{
-    CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
-    CanvasPreviewRegion, CanvasTransform, InfiniteCanvas, InfiniteCanvasOperation,
-};
 use block_editor_plugin::be_block::CanvasContent;
 use block_editor_plugin::be_block::canvas::Canvas;
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_plugin::be_block::canvas::{
+    CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
+    CanvasPreviewRegion, CanvasTransform, InfiniteCanvasOperation,
+};
+use block_editor_plugin::be_block::database::DatabaseValue;
+use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 
@@ -43,16 +41,19 @@ fn entity(id: Uuid) -> CanvasEntity {
     }
 }
 
-fn open(client: Arc<BlockClient>, canvas: &Canvas, preview: bool) -> ContentHarness<CanvasApp> {
-    let block = client.create_block(InfiniteCanvas::new());
+fn open(canvas: &Canvas, preview: bool, known: &[BlockInfo]) -> ContentHarness<CanvasApp> {
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), client, block.id());
+    let editor = Editor::new(host.clone(), block);
     let test = match preview {
         true => BeuiTest::preview(editor),
         false => BeuiTest::new(editor),
     };
     let mut harness = ContentHarness::new(test.in_viewport(), host);
+    for info in known {
+        harness.store().add_block(info.clone());
+    }
     harness.hold(None, CanvasContent::new(canvas));
     harness.run();
     harness.run();
@@ -60,12 +61,7 @@ fn open(client: Arc<BlockClient>, canvas: &Canvas, preview: bool) -> ContentHarn
 }
 
 fn editor(entities: &[CanvasEntity]) -> ContentHarness<CanvasApp> {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    open(
-        client,
-        &Canvas::with_entities(entities.to_vec(), None),
-        false,
-    )
+    open(&Canvas::with_entities(entities.to_vec(), None), false, &[])
 }
 
 fn apply(editor: &mut ContentHarness<CanvasApp>, operation: InfiniteCanvasOperation) {

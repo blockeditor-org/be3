@@ -143,7 +143,7 @@ impl CompiledLogicDocument {
 }
 
 impl Root for CompiledLogicDocument {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x636f_6d70_696c_6564_2d6c_6f67_6963_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x636f_6d70_696c_6564_2d6c_6f67_6963_0101);
 
     fn references(&self) -> Vec<Uuid> {
         self.compiled

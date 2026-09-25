@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
-use block::{BlockParent, BlockReference, BlockReferenceList};
-use block_client::ReferenceList;
+use block_editor_plugin::BlockList;
 use block_editor_plugin::be_block::VideoContent;
 use block_editor_plugin::be_block::video::{
     DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
@@ -12,6 +11,7 @@ use block_editor_plugin::be_block::video::{
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::{BlockFilter, BlockPicker, ChildTarget, ContentProjection, Editor};
+use block_editor_plugin::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 
 use crate::timeline::{MAX_PIXELS_PER_FRAME, MIN_PIXELS_PER_FRAME};
@@ -30,7 +30,7 @@ type PendingClip = (Uuid, u64, Option<VideoAttachment>, usize);
 pub(crate) struct VideoState {
     editor: Editor,
     block: Rc<ContentProjection<VideoContent>>,
-    dependencies: ReferenceList,
+    dependencies: BlockList,
     picker: RefCell<BlockPicker>,
     picker_attachment: Cell<Option<Uuid>>,
     pending_clips: RefCell<Vec<(Uuid, PendingClip)>>,
@@ -68,8 +68,8 @@ impl VideoState {
         let (labels, set_labels) = create_signal(HashMap::new());
         Rc::new(Self {
             dependencies: editor
-                .client()
-                .watch_references(BlockReferenceList::References(editor.block_id())),
+                .blocks()
+                .watch(BlockQuery::References(editor.block_id())),
             editor: editor.clone(),
             block,
             picker: RefCell::new(BlockPicker::default()),
@@ -269,8 +269,8 @@ impl VideoState {
 
     pub(crate) fn adopt(&self, block_id: Uuid) {
         self.editor
-            .client()
-            .set_block_parent(block_id, BlockParent::Uuid(self.block_id()));
+            .blocks()
+            .set_parent(block_id, BlockParent::Block(self.block_id()));
     }
 
     pub(crate) fn poll(&self) {
@@ -353,12 +353,7 @@ impl VideoState {
             .dependencies
             .read()
             .into_iter()
-            .map(|reference: BlockReference| {
-                (
-                    reference.id,
-                    BlockLabel::for_reference(types.as_ref(), &reference),
-                )
-            })
+            .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
             .collect();
         if self.labels.get_untracked() != labels {
             self.set_labels.set(labels);

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::map::MapPoint;
+use block_editor_plugin::be_block::map::MapPoint;
 use block_editor_plugin::beui::reactive::{
     Canvas, CanvasItem, Child, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo, Text,
     clone, component, create_memo, create_selector, view,

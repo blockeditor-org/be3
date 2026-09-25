@@ -296,7 +296,7 @@ fn default_bounds() -> Bounds {
 }
 
 impl Root for PixelArtDocument {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7069_7865_6c2d_6172_742d_636f_6e74_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7069_7865_6c2d_6172_742d_626c_6f63_6b01);
 }
 
 pub type PixelArtContent = Document<PixelArtDocument>;

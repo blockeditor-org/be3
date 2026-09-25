@@ -14,7 +14,7 @@ pub struct PaintSnapshotHeader {
 pub struct PaintSnapshotFile;
 
 impl BlobKind for PaintSnapshotFile {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7061_696e_742d_736e_6170_2d63_6f6e_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7061_696e_742d_736e_6170_7368_6f74_0001);
 
     type Header = PaintSnapshotHeader;
 
@@ -77,7 +77,7 @@ impl PaintReview {
 }
 
 impl Root for PaintReview {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7061_696e_742d_7265_7669_6577_2d63_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7061_696e_742d_7265_7669_6577_2d62_0001);
 
     fn references(&self) -> Vec<Uuid> {
         self.approvals

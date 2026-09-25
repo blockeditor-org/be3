@@ -1,4 +1,4 @@
-use block_client::blocks::logic_game::LogicGame as LogicGameBlock;
+use block_editor_plugin::be_block::LogicGameContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};
@@ -32,6 +32,6 @@ impl block_editor_plugin::BeuiApp for LogicGameApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(LogicGameBlock::new()).id())
+        Ok(creation.create(&LogicGameContent::default()))
     }
 }

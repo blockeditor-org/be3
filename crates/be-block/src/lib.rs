@@ -30,6 +30,7 @@ pub mod paint;
 pub mod pdf;
 pub mod pixel_art;
 pub mod pixel_ray_tracer;
+pub mod presence;
 pub mod presentation;
 pub mod settings;
 pub mod streamed;

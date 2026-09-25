@@ -1,6 +1,6 @@
-use block::Block;
-use block_client::blocks::database_schema::{DatabaseField, DatabaseSchema};
+use block_editor_plugin::be_block::database_schema::DatabaseField;
 use block_editor_plugin::be_block::database_view::{DatabaseView, DatabaseViewKind};
+use block_editor_plugin::be_block::{BlockContent, DatabaseSchemaContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::{
     ICON_DESELECT, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA, ICON_VIEW_KANBAN,
@@ -35,7 +35,7 @@ pub fn ViewSidebar(data: Data) -> NodeId {
     let dismiss = clone!(data -> move || data.dismiss_error());
     let columns = clone!(data -> move || {
         if let Some(schema) = data.schema_id.get_untracked() {
-            data.editor().host().open_block(schema, DatabaseSchema::TYPE_ID);
+            data.editor().host().open_block(schema, DatabaseSchemaContent::CONTENT_TYPE);
         }
     });
     let kanban = create_memo(clone!(data -> move || data.kind.get() == DatabaseViewKind::Kanban));

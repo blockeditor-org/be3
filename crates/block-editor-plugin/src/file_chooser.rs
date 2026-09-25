@@ -7,7 +7,6 @@ use beui::reactive::{
     create_memo, create_signal, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, use_theme};
-use block::Block;
 
 use crate::{Creation, EditorHost, FileFilter, FilePicker, PickedFile};
 
@@ -99,18 +98,6 @@ impl<T: 'static> FileChooser<T> {
     }
 }
 
-pub fn file_creation<B: Block>(
-    creation: &Creation,
-    test_id: &str,
-    filter: FileFilter,
-    import: impl Fn(PickedFile) -> Result<B, String> + 'static,
-) -> NodeId {
-    let client = creation.client().clone();
-    file_creation_with(creation, test_id, filter, import, move |block: B| {
-        client.create_block(block).id()
-    })
-}
-
 fn file_creation_with<T: 'static>(
     creation: &Creation,
     test_id: &str,
@@ -166,20 +153,14 @@ fn file_creation_with<T: 'static>(
     }
 }
 
-pub fn content_file_creation<B, C>(
+pub fn content_file_creation<C: be_block::BlockContent>(
     creation: &Creation,
     test_id: &str,
     filter: FileFilter,
     import: impl Fn(PickedFile) -> Result<C, String> + 'static,
-) -> NodeId
-where
-    B: Block + Default,
-    C: be_block::BlockContent,
-{
-    let seeding = creation.clone();
+) -> NodeId {
+    let creating = creation.clone();
     file_creation_with(creation, test_id, filter, import, move |content: C| {
-        let block = seeding.client().create_block(B::default()).id();
-        seeding.seed_content(block, &content);
-        block
+        creating.create(&content)
     })
 }

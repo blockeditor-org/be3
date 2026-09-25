@@ -1,19 +1,13 @@
+use block_editor_plugin::be_block::{BlockContent, HotbarContent};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 
-use block::{Block, BlockParent};
-use block_client::BlockHandle;
-use block_client::blocks::hotbar::Hotbar;
-use block_client::blocks::logic_grid::LogicGrid;
-use block_client::root_settings::RootSetting;
-use block_editor_plugin::ContentProjection;
-use block_editor_plugin::Editor;
 use block_editor_plugin::be_block::logic_game::LogicGameOperation;
 use block_editor_plugin::be_block::{LogicGridContent, LogicGridDocument, ObjectId};
 use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
-use block_editor_plugin::block_ui::BlockLabel;
+use block_editor_plugin::root_settings::RootSetting;
+use block_editor_plugin::{BlockList, BlockParent, BlockQuery, ContentProjection, Editor};
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;
 
@@ -35,14 +29,8 @@ pub(crate) struct Level {
 
 #[derive(Default)]
 struct Work {
-    grids: HashMap<
-        Uuid,
-        (
-            BlockHandle<LogicGrid>,
-            Rc<ContentProjection<LogicGridContent>>,
-        ),
-    >,
-    hotbar: Option<RootSetting<Hotbar, block_editor_plugin::be_block::HotbarContent>>,
+    grids: HashMap<Uuid, (BlockList, Rc<ContentProjection<LogicGridContent>>)>,
+    hotbar: RootSetting<HotbarContent>,
 }
 
 pub(crate) struct Game {
@@ -66,16 +54,15 @@ impl Game {
         let (hotbar, set_hotbar) = create_signal(None::<Uuid>);
         let work = Rc::new(RefCell::new(Work::default()));
         let each_frame = Rc::clone(&work);
-        let client = Arc::clone(editor.client());
+        let blocks = editor.blocks();
         let host = editor.host().clone();
         let game = Rc::clone(&block);
         let reader = editor.clone();
         editor.each_frame(move || {
             let mut work = each_frame.borrow_mut();
             let Work { grids, hotbar } = &mut *work;
-            let setting = hotbar.get_or_insert_with(|| RootSetting::new(&client));
-            setting.find(&client, &reader, host.client_id());
-            set_hotbar.set(setting.block().map(BlockHandle::id));
+            hotbar.find(&reader, host.client_id());
+            set_hotbar.set(hotbar.block());
 
             let types = host.block_types();
             let mut listed = Vec::new();
@@ -92,14 +79,19 @@ impl Game {
                                 listed.push(id);
                                 grids.entry(id).or_insert_with(|| {
                                     (
-                                        client.get_block::<LogicGrid>(id),
+                                        blocks.watch(BlockQuery::Block(id)),
                                         reader.content_of::<LogicGridContent>(id),
                                     )
                                 });
                             }
                             let handle = id.and_then(|id| grids.get(&id));
-                            let label = handle
-                                .map(|(handle, _)| BlockLabel::for_handle(types.as_ref(), handle));
+                            let label = handle.and_then(|(listed, _)| {
+                                listed
+                                    .read()
+                                    .into_iter()
+                                    .next()
+                                    .map(|info| info.label(types.as_ref()))
+                            });
                             Solution {
                                 reference,
                                 id,
@@ -156,12 +148,16 @@ impl Game {
 
     pub(crate) fn open_hotbar(&self) {
         if let Some(hotbar) = self.hotbar.get_untracked() {
-            self.editor.host().open_block(hotbar, Hotbar::TYPE_ID);
+            self.editor
+                .host()
+                .open_block(hotbar, HotbarContent::CONTENT_TYPE);
         }
     }
 
     pub(crate) fn open_solution(&self, id: Uuid) {
-        self.editor.host().open_block(id, LogicGrid::TYPE_ID);
+        self.editor
+            .host()
+            .open_block(id, LogicGridContent::CONTENT_TYPE);
     }
 
     pub(crate) fn remove(&self, challenge: ChallengeId, solution: Uuid) {
@@ -175,14 +171,11 @@ impl Game {
     }
 
     pub(crate) fn start(&self, challenge: ChallengeId, index: usize) {
-        let solution = self
-            .editor
-            .create_with_content::<LogicGrid, _>(&LogicGridContent::new(
-                &LogicGridDocument::for_challenge(challenge),
-            ));
-        solution.set_name(format!("{} {}", challenge.name(), index + 1));
-        solution.set_parent(BlockParent::Uuid(self.editor.block_id()));
-        let id = solution.id();
+        let id = self.editor.blocks().create_named(
+            &LogicGridContent::new(&LogicGridDocument::for_challenge(challenge)),
+            BlockParent::Block(self.editor.block_id()),
+            format!("{} {}", challenge.name(), index + 1),
+        );
         crate::app::operate(
             &self.block,
             LogicGameOperation::InsertSolution {
@@ -191,6 +184,8 @@ impl Game {
                 index,
             },
         );
-        self.editor.host().open_block(id, LogicGrid::TYPE_ID);
+        self.editor
+            .host()
+            .open_block(id, LogicGridContent::CONTENT_TYPE);
     }
 }

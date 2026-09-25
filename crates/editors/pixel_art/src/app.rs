@@ -1,9 +1,8 @@
+use block_editor_plugin::be_block::{BlockContent, ImageContent};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block::Block;
-use block_client::blocks::image::Image;
-use block_client::blocks::pixel_art::{PixelArt, PixelColor};
+use block_editor_plugin::be_block::pixel_art::PixelColor;
 use block_editor_plugin::be_block::pixel_art::{default_palette, size_of};
 use block_editor_plugin::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
 use block_editor_plugin::beui::reactive::{
@@ -11,7 +10,9 @@ use block_editor_plugin::beui::reactive::{
     create_signal, view,
 };
 use block_editor_plugin::beui::{ImageFit, NodeId, Vec2};
-use block_editor_plugin::{ArtifactDescription, Artifacts, Creation, Editor, Side, Sidebar};
+use block_editor_plugin::{
+    ArtifactDescription, Artifacts, BlockParent, Creation, Editor, Side, Sidebar,
+};
 
 use crate::artifact;
 use crate::artifact::Settings;
@@ -45,22 +46,19 @@ impl block_editor_plugin::BeuiApp for PixelArtApp {
     }
 
     fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
-        let block = creation.client().create_block(PixelArt::new());
-        creation.seed_content(block.id(), &PixelArtContent::new(&PixelArtDocument::new()));
-        Ok(block.id())
+        Ok(creation.create(&PixelArtContent::new(&PixelArtDocument::new())))
     }
 
     fn connect_artifact(artifacts: &Artifacts) {
         let regeneration: Rc<RefCell<Option<artifact::Regeneration>>> = Rc::new(RefCell::default());
         let failure: Rc<RefCell<Option<String>>> = Rc::new(RefCell::default());
-        let client = artifacts.client().clone();
         let host = artifacts.host().clone();
         let block_id = artifacts.block_id();
         let block_type = artifacts.block_type();
         let started = Rc::clone(&regeneration);
         let reported = Rc::clone(&failure);
         artifacts.on_regenerate(move |data| {
-            match artifact::Regeneration::start(&host, &client, block_id, block_type, data) {
+            match artifact::Regeneration::start(&host, block_id, block_type, data) {
                 Ok(started_regeneration) => {
                     *started.borrow_mut() = Some(started_regeneration);
                     reported.borrow_mut().take();
@@ -176,19 +174,24 @@ fn PixelArtPreview(editor: Editor) -> NodeId {
 
 pub(crate) fn export(tools: &Rc<Tools>) {
     let editor = tools.editor();
-    let handle = editor.client().get_block::<PixelArt>(editor.block_id());
-    let name = handle.name().unwrap_or_else(|| "Pixel Art".to_owned());
+    let name = editor
+        .blocks()
+        .info(editor.block_id())
+        .and_then(|info| info.name)
+        .unwrap_or_else(|| "Pixel Art".to_owned());
     let Some(art) = tools.artwork() else {
         return;
     };
     let generated = artifact::generate_initial(&art, &name);
     match generated {
         Ok(image) => {
-            let child = editor
-                .client()
-                .create_dynamic_artifact(Image::new(), artifact::descriptor(handle.id()));
-            editor.seed_content(child.id(), &image);
-            editor.host().open_block(child.id(), Image::TYPE_ID);
+            let child = editor.blocks().create_artifact(
+                &image,
+                BlockParent::Detached,
+                None,
+                artifact::descriptor(editor.block_id()),
+            );
+            editor.host().open_block(child, ImageContent::CONTENT_TYPE);
             tools.set_export_error.set(None);
         }
         Err(error) => tools.set_export_error.set(Some(error)),

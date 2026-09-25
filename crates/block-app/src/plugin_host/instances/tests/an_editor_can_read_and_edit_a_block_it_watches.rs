@@ -3,7 +3,6 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, Counter, CounterContent, LiveEdit};
-use block::Block;
 use block_plugin_api::{ContentOperation, WatchedContent};
 
 fn counted(block: Uuid, expected: i64) {
@@ -36,7 +35,14 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
     harness.connect();
     let own = Uuid::new_v4();
     let other = Uuid::new_v4();
-    let mut instances = placed_on(own, block_client::blocks::counter::Counter::TYPE_ID);
+    crate::be::create(
+        other,
+        CounterContent::CONTENT_TYPE,
+        be_graph::BlockParent::Root,
+        be_block::BlockMetadata::default(),
+        None,
+    );
+    let mut instances = placed_on(own, CounterContent::CONTENT_TYPE);
     instances.next_screens(PASS);
 
     assert!(instances.editor_message(EditorMessage::WatchContent {

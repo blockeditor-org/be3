@@ -51,16 +51,13 @@ web-view = ["dep:wry"]
 full = ["terminal", "web-view"]
 
 [dependencies]
-# The new block stack. The app is a peer of it on every platform: be-client's
-# socket and executor come from its own transport/, and the server it talks to
-# rides on the block server's port.
+# The block stack. The app is a peer of it on every platform: be-client's socket
+# and executor come from its own transport/.
 be-block = { path = "../be-block" }
 be-client = { path = "../be-client" }
 be-graph = { path = "../be-graph" }
 be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
-block = { path = "../block" }
-block-client = { path = "../block-client" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
@@ -85,11 +82,11 @@ wgpu = { version = "29", default-features = false }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # The wasmtime plugin host, which runs every plugin on every platform but the
 # browser. The browser runs the same wasm in a worker of its own.
+be-server = { path = "../be-server" }
 beui = { path = "../beui", features = ["window"] }
 block-wasm-host = { path = "../block-wasm-host" }
 directories-next = "2"
 winit = "0.30"
-block-server = { path = "../block-server" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 ureq = { version = "2", features = ["gzip"] }

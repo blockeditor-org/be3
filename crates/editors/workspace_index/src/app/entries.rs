@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use block::BlockReferenceList;
+use block_editor_plugin::BlockQuery;
 use block_editor_plugin::be_block::FolderContent;
 use block_editor_plugin::beui::reactive::{Memo, ReadSignal, create_memo, create_signal, untrack};
-use block_editor_plugin::block_ui::{BlockLabel, BlockTypes};
+use block_editor_plugin::block_ui::BlockTypes;
 use block_editor_plugin::{ContentProjection, Editor};
 use uuid::Uuid;
 
@@ -54,8 +54,8 @@ impl Folder {
         descending: ReadSignal<bool>,
     ) -> Self {
         let references = editor
-            .client()
-            .watch_references(BlockReferenceList::References(editor.block_id()));
+            .blocks()
+            .watch(BlockQuery::References(editor.block_id()));
         let referenced = index.project(|index| index.root().blocks());
         let (rows, set_rows) = create_signal(Vec::<Entry>::new());
         let host = editor.host().clone();
@@ -72,7 +72,7 @@ impl Folder {
                 .map(|reference| {
                     let id = Some(reference);
                     let found = id.and_then(|id| metadata.get(&id));
-                    let label = found.map(|found| BlockLabel::for_reference(types.as_ref(), found));
+                    let label = found.map(|found| found.label(types.as_ref()));
                     Entry {
                         reference,
                         id,

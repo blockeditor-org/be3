@@ -1,5 +1,5 @@
 use super::*;
-use block_client::blocks::infinite_canvas::{CanvasColor, CanvasTextStyle};
+use block_editor_plugin::be_block::canvas::{CanvasColor, CanvasTextStyle};
 
 #[test]
 fn the_canvas_paints_the_entities_it_holds() {

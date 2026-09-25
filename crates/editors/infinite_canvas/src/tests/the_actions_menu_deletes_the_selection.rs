@@ -1,5 +1,5 @@
 use super::*;
-use block_client::blocks::infinite_canvas::CanvasColor;
+use block_editor_plugin::be_block::canvas::CanvasColor;
 
 #[test]
 fn the_actions_menu_deletes_the_selection() {

@@ -1,5 +1,5 @@
-use block_client::blocks::database::{DatabaseRow, DatabaseValue};
-use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_plugin::be_block::database::{DatabaseRow, DatabaseValue};
+use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_plugin::beui::reactive::{
     Canvas, CanvasItem, ClickCatcher, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
     component_rect, component_size, create_memo, view,

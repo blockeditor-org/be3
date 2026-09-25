@@ -1,6 +1,6 @@
+use block_editor_plugin::be_block::MapContent;
 use std::rc::Rc;
 
-use block_client::blocks::map::Map;
 use block_editor_plugin::beui::reactive::{Direction, ItemSize, List, component, view};
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{Creation, Editor, Sidebar};
@@ -33,7 +33,7 @@ impl block_editor_plugin::BeuiApp for MapApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(Map::new()).id())
+        Ok(creation.create(&MapContent::default()))
     }
 }
 

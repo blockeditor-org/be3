@@ -1,4 +1,4 @@
-use block_client::presence::{PresenceColor, PresenceKind};
+use block_editor_plugin::be_block::presence::{PresenceColor, PresenceKind};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

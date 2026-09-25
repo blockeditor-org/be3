@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use be_block::{BlockContent, Checklist, ChecklistContent, Counter, CounterContent, LiveEdit};
-use block_client::ManagementClient;
 use uuid::Uuid;
 
 use super::*;
@@ -52,16 +51,22 @@ impl Harness {
             .build()
             .expect("a test runtime starts");
         let (account, token, workspace) = runtime.block_on(async {
-            let client = ManagementClient::new(managed).expect("the management url is valid");
-            let session = client
-                .register("counter@example.com", "Counter", "correct horse battery")
-                .await
-                .expect("the account registers");
-            let workspace = client
-                .create_workspace(&session.token, "Counters")
-                .await
-                .expect("the workspace is created");
-            (session.account.id, session.token, workspace.id)
+            let session = crate::accounts::register(
+                managed.clone(),
+                "counter@example.com".to_owned(),
+                "Counter".to_owned(),
+                "correct horse battery".to_owned(),
+            )
+            .await
+            .expect("the account registers");
+            let workspace = crate::accounts::create_workspace(
+                managed,
+                session.token.clone(),
+                "Counters".to_owned(),
+            )
+            .await
+            .expect("the workspace is created");
+            (session.account, session.token, workspace.id)
         });
         Self {
             directory,
@@ -111,7 +116,7 @@ impl Harness {
             be_client::PeerConfig::new(
                 config.socket_url(),
                 be_store::ContentKey::from_bytes(config.content_key()),
-                be_client::Credentials::Adopted,
+                be_client::Credentials::Token(self.token.clone()),
             )
             .workspace(Some(self.workspace)),
             be_store::MemoryStore::new(),

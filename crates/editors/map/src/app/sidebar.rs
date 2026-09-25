@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use block_client::blocks::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_plugin::be_block::Map;
+use block_editor_plugin::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_plugin::beui::Color32;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::accesskit::{Node, Role};
@@ -244,8 +244,8 @@ struct MapRegionEdges {
     east: f64,
 }
 
-impl From<block_client::blocks::map::MapRegion> for MapRegionEdges {
-    fn from(region: block_client::blocks::map::MapRegion) -> Self {
+impl From<block_editor_plugin::be_block::map::MapRegion> for MapRegionEdges {
+    fn from(region: block_editor_plugin::be_block::map::MapRegion) -> Self {
         Self {
             north: region.north,
             south: region.south,
@@ -255,7 +255,7 @@ impl From<block_client::blocks::map::MapRegion> for MapRegionEdges {
     }
 }
 
-impl From<MapRegionEdges> for block_client::blocks::map::MapRegion {
+impl From<MapRegionEdges> for block_editor_plugin::be_block::map::MapRegion {
     fn from(edges: MapRegionEdges) -> Self {
         Self::new(edges.west, edges.south, edges.east, edges.north)
     }

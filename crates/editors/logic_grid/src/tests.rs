@@ -1,9 +1,5 @@
-use std::sync::Arc;
+use block_editor_plugin::be_block::{BlockContent, CompiledLogicContent};
 
-use block::Block;
-use block_client::BlockClient;
-use block_client::blocks::compiled_logic::CompiledLogic;
-use block_client::blocks::logic_grid::LogicGrid;
 use block_editor_plugin::be_block::LogicGridContent;
 use block_editor_plugin::beui::{Key, Pos2, Vec2};
 use block_editor_plugin::{Artifact, Artifacts, Editor, EditorHost};
@@ -22,11 +18,10 @@ mod dropping_a_hotbar_slot_on_an_open_folder_puts_it_inside;
 mod the_rename_setting_writes_the_artifact_draft;
 
 fn editor() -> ContentHarness<LogicGridApp> {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(LogicGrid::new());
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), client, block.id());
+    let editor = Editor::new(host.clone(), block);
     let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
     editor.hold(None, LogicGridContent::default());
     editor.run();

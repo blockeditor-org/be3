@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use beui::{Pos2, Rect, Vec2, vec2};
-use block_client::BlockClient;
 use block_plugin_api::{
     BlockTypeDescriptor, ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ScreenId,
@@ -11,6 +10,7 @@ use uuid::Uuid;
 mod audio;
 mod backend;
 mod clipboard;
+pub(crate) mod graph;
 mod input;
 mod instances;
 mod pieces;
@@ -154,7 +154,6 @@ pub(crate) struct ScreenStatus {
 pub(crate) struct PreviewSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client: Arc<BlockClient>,
     pub(crate) client_id: Uuid,
     pub(crate) block_id: Uuid,
     pub(crate) block_type: Uuid,
@@ -177,7 +176,6 @@ pub(crate) fn preview_size(size: Vec2, scale_factor: f32) -> Vec2 {
 pub(crate) struct CreationSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client: Arc<BlockClient>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
 }
@@ -191,7 +189,6 @@ pub(crate) enum CreationState {
 pub(crate) struct EditorSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client: Arc<BlockClient>,
     pub(crate) client_id: Uuid,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,
@@ -226,7 +223,6 @@ impl InstanceRole {
 pub(crate) struct ArtifactSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client: Arc<BlockClient>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) block: EditorBlock,

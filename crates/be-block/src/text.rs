@@ -128,7 +128,7 @@ impl TextOp {
 }
 
 impl BlockContent for TextContent {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7465_7874_2d62_6c6f_636b_2d74_7970_6502);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6f4d_8f85_7991_4cdf_ae41_b526_30df_014b);
 
     fn encode(&self) -> Vec<u8> {
         encode_streamed(&self.header, &self.bytes)

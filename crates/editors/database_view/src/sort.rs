@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use block_client::blocks::database::{DatabaseRow, DatabaseValue};
-use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType};
-use block_client::blocks::database_view::{DatabaseViewSort, SortDirection};
+use block_editor_plugin::be_block::database::{DatabaseRow, DatabaseValue};
+use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_plugin::be_block::database_view::{DatabaseViewSort, SortDirection};
 use block_editor_plugin::block_ui::BlockLabel;
 use block_editor_plugin::block_ui::database::block_reference_text;
 use uuid::Uuid;

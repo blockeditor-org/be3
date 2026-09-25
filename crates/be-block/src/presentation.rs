@@ -54,7 +54,7 @@ impl Presentation {
 }
 
 impl Root for Presentation {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7072_6573_656e_7461_7469_6f6e_2d63_0001);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7072_6573_656e_7461_7469_6f6e_0001);
 
     fn references(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();

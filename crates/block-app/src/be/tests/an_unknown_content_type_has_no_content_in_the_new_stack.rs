@@ -2,17 +2,9 @@ use super::*;
 
 #[test]
 fn an_unknown_content_type_has_no_content_in_the_new_stack() {
-    use block::Block;
-
-    assert_eq!(
-        content_type_for(block_client::blocks::counter::Counter::TYPE_ID),
-        Some(CounterContent::CONTENT_TYPE)
-    );
-    assert_eq!(
-        content_type_for(block_client::blocks::checklist::Checklist::TYPE_ID),
-        Some(ChecklistContent::CONTENT_TYPE)
-    );
-    assert_eq!(content_type_for(Uuid::from_u128(0xdead_beef)), None);
+    assert!(is_known(CounterContent::CONTENT_TYPE));
+    assert!(is_known(ChecklistContent::CONTENT_TYPE));
+    assert!(!is_known(Uuid::from_u128(0xdead_beef)));
 
     let harness = Harness::start();
     harness.connect();

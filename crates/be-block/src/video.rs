@@ -406,7 +406,7 @@ fn sibling_anchor(
 }
 
 impl Root for VideoProject {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7669_6465_6f2d_636f_6e74_656e_7400_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7669_6465_6f5f_626c_6f63_6b00_0000_0001);
 
     fn references(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();

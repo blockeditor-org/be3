@@ -1,8 +1,9 @@
 use super::*;
+use be_block::BlockContent;
+use be_block::counter::CounterContent;
 
 use std::time::Duration;
 
-use block::Block;
 use block_editor_plugin::session::{ClientSession, State};
 use block_plugin_api::{
     DEFAULT_SURFACE_SIDE, HelloAccepted, PROTOCOL_VERSION, SurfaceFormat, SurfaceSpec, Theme,
@@ -13,7 +14,7 @@ fn a_migrated_editor_is_only_sent_messages_its_plugin_session_accepts() {
     let harness = crate::be::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    let block_type = block_client::blocks::counter::Counter::TYPE_ID;
+    let block_type = CounterContent::CONTENT_TYPE;
     let mut instances = placed_on(block, block_type);
     let mut session = ClientSession::new("be3.counter", "Counter", "1");
     session.receive(Message::HelloAccepted(HelloAccepted {

@@ -5,8 +5,6 @@ use std::time::Duration;
 
 use be_block::BlockContent;
 use be_block::database_view::{DatabaseView, DatabaseViewContent};
-use block::Block;
-use block_client::blocks::database_view::DatabaseView as ViewBlock;
 
 fn seed(instances: &mut Instances, block: Uuid, database: Uuid) {
     instances.editor_message(EditorMessage::SeedContent {
@@ -22,27 +20,30 @@ fn database_in(bytes: &[u8]) -> Option<Uuid> {
 }
 
 #[test]
-fn a_database_view_given_content_links_to_its_database_in_the_old_graph() {
+fn a_database_view_given_content_references_its_database() {
     let harness = crate::be::Harness::start();
     harness.connect();
-    let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
-    let view = client.create_block(ViewBlock::new());
+    let view = Uuid::new_v4();
     let (database, other) = (Uuid::new_v4(), Uuid::new_v4());
-    let mut instances = placed_with(&client, view.id(), ViewBlock::TYPE_ID);
+    let mut instances = placed_on(view, DatabaseViewContent::CONTENT_TYPE);
 
-    seed(&mut instances, view.id(), database);
+    seed(&mut instances, view, database);
     instances.next_screens(PASS);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
-        let held = shared.blocks.get(&view.id())?;
+        let held = shared.blocks.get(&view)?;
         (database_in(&held.bytes) == Some(database)).then_some(())
     })
     .expect("the view never took the content it was given");
 
-    instances.next_screens(PASS);
-    assert_eq!(view.read().unwrap().references(), [database]);
-
-    seed(&mut instances, view.id(), other);
     crate::be::flush();
-    let held = crate::be::content(view.id()).expect("the view is still open");
+    crate::be::wait_for(Duration::from_secs(20), |shared| {
+        let node = shared.graph.get(view)?;
+        (node.references == [database]).then_some(())
+    })
+    .expect("the graph never learned what the view references");
+
+    seed(&mut instances, view, other);
+    crate::be::flush();
+    let held = crate::be::content(view).expect("the view is still open");
     assert_eq!(database_in(&held.bytes), Some(database));
 }

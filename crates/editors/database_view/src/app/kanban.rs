@@ -1,5 +1,5 @@
-use block_client::blocks::database::DatabaseValue;
-use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_plugin::be_block::database::DatabaseValue;
+use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_plugin::beui::icons::ICON_ADD;
 use block_editor_plugin::beui::reactive::{
     Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,

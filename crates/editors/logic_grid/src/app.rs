@@ -21,20 +21,15 @@ use std::{
 
 use beui::reactive::CanvasView;
 use beui::{Color32, Key, Pos2, Rect, TextAlign, Vec2};
-use block::Block;
-use block_client::root_settings::RootSetting;
-use block_client::{
-    BlockClient,
-    blocks::{
-        compiled_logic::CompiledLogic as CompiledBlock, hotbar::Hotbar, logic_grid::LogicGrid,
-    },
-};
+use block_editor_plugin::BlockParent;
 use block_editor_plugin::ContentProjection;
+use block_editor_plugin::be_block::BlockContent;
 use block_editor_plugin::be_block::compiled_logic::CompiledLogic;
 use block_editor_plugin::be_block::logic_grid::LogicGridOperation;
 use block_editor_plugin::be_block::{
     CompiledLogicContent, CompiledLogicDocument, LogicGridContent, ObjectId,
 };
+use block_editor_plugin::root_settings::RootSetting;
 use logicgame::{
     challenges::{Challenge, ChallengeId, generate_challenge},
     execution::{Component as ExecutionComponent, Instruction, Pc, Vm},
@@ -606,7 +601,7 @@ pub(super) struct LogicGridEditor {
     grid: Grid,
     observed_revision: Option<u64>,
 
-    hotbar_block: Option<RootSetting<Hotbar, block_editor_plugin::be_block::HotbarContent>>,
+    hotbar_block: RootSetting<block_editor_plugin::be_block::HotbarContent>,
 
     hotbar_needs_write: bool,
 
@@ -648,7 +643,7 @@ impl LogicGridEditor {
             store,
             grid: Grid::new(),
             observed_revision: None,
-            hotbar_block: None,
+            hotbar_block: RootSetting::default(),
             hotbar_needs_write: false,
             compiled: HashMap::new(),
             tool: Tool {
@@ -676,7 +671,7 @@ impl LogicGridEditor {
     fn edit(&mut self, operation: LogicGridOperation) {
         self.store.operate(&[operation]);
         self.observed_revision = None;
-        self.sync(None, Uuid::nil());
+        self.sync(false, Uuid::nil());
     }
 
     fn edit_all(&mut self, operations: impl IntoIterator<Item = LogicGridOperation>) {
@@ -686,7 +681,7 @@ impl LogicGridEditor {
         }
         self.store.operate(&operations);
         self.observed_revision = None;
-        self.sync(None, Uuid::nil());
+        self.sync(false, Uuid::nil());
     }
 
     fn place(
@@ -722,13 +717,13 @@ impl LogicGridEditor {
         self.edit(LogicGridOperation::SetStorageValue { id, value });
     }
 
-    fn sync(&mut self, client: Option<&BlockClient>, client_id: Uuid) -> bool {
-        let refreshed = client.is_some() && self.refresh_compiled();
+    fn sync(&mut self, live: bool, client_id: Uuid) -> bool {
+        let refreshed = live && self.refresh_compiled();
         let Some(revision) = self.store.revision() else {
             return false;
         };
         if self.observed_revision == Some(revision) {
-            return self.sync_hotbar(client, client_id) || refreshed;
+            return self.sync_hotbar(live, client_id) || refreshed;
         }
         let Some((grid, challenge, called)) = self.store.read(|content| {
             let root = content.root();
@@ -747,12 +742,12 @@ impl LogicGridEditor {
                 passed_event: false,
             });
         }
-        if client.is_some() {
+        if live {
             for compiled in called {
                 self.ensure_compiled(compiled);
             }
         }
-        self.sync_hotbar(client, client_id);
+        self.sync_hotbar(live, client_id);
         true
     }
 
@@ -817,27 +812,24 @@ impl LogicGridEditor {
             .ok()
     }
 
-    fn compile(&mut self, client: &BlockClient) -> Option<(Uuid, Uuid)> {
+    fn compile(&mut self) -> Option<(Uuid, Uuid)> {
         let editor = self.store.editor()?.clone();
         let source_id = editor.block_id();
         let compiled = dynamic_artifact::generate_initial(source_id, &self.grid);
         match compiled {
             Ok(compiled) => {
-                let child = client.create_dynamic_artifact(
-                    CompiledBlock::new(),
-                    dynamic_artifact::descriptor(source_id),
-                );
-                editor.seed_content(
-                    child.id(),
-                    &CompiledLogicContent::new(&CompiledLogicDocument::of(compiled.clone())),
-                );
-                let source_name = client
-                    .get_block::<LogicGrid>(source_id)
-                    .name()
+                let source_name = editor
+                    .blocks()
+                    .info(source_id)
+                    .and_then(|info| info.name)
                     .unwrap_or_else(|| DISPLAY_NAME.to_owned());
                 let name = dynamic_artifact::artifact_name(&source_name);
-                child.set_name(name.clone());
-                let id = child.id();
+                let id = editor.blocks().create_artifact(
+                    &CompiledLogicContent::new(&CompiledLogicDocument::of(compiled.clone())),
+                    BlockParent::Detached,
+                    Some(name.clone()),
+                    dynamic_artifact::descriptor(source_id),
+                );
 
                 self.ensure_compiled(id);
                 if let Some(source) = self.compiled.get_mut(&id) {
@@ -845,7 +837,7 @@ impl LogicGridEditor {
                 }
                 self.pin_component(name, id);
                 self.compile_error = None;
-                Some((id, CompiledBlock::TYPE_ID))
+                Some((id, CompiledLogicContent::CONTENT_TYPE))
             }
             Err(error) => {
                 self.compile_error = Some(error);
@@ -864,7 +856,7 @@ impl LogicGridEditor {
             ),
             revision: 0,
         });
-        editor.sync(None, Uuid::nil());
+        editor.sync(false, Uuid::nil());
         editor
     }
 
@@ -879,7 +871,7 @@ impl LogicGridEditor {
             revision: self.store.revision().unwrap_or(0) + 1,
         };
         self.observed_revision = None;
-        self.sync(None, Uuid::nil());
+        self.sync(false, Uuid::nil());
         result
     }
 }

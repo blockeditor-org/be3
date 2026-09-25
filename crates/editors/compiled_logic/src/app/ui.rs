@@ -1,8 +1,6 @@
-use block::Block;
-use block_client::blocks::compiled_logic::CompiledLogic;
-use block_client::blocks::logic_grid::LogicGrid;
 use block_editor_plugin::be_block::CompiledLogicContent;
 use block_editor_plugin::be_block::compiled_logic::CompiledLogic as Program;
+use block_editor_plugin::be_block::{BlockContent, LogicGridContent};
 use block_editor_plugin::beui::reactive::{
     ForEach, Frame, ItemSize, List, Memo, Show, Text, clone, component, create_effect, create_memo,
     view,
@@ -28,7 +26,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
         compiled.with(|compiled| {
             compiled
                 .as_ref()
-                .map(|compiled| ChildTarget::new(compiled.source(), LogicGrid::TYPE_ID))
+                .map(|compiled| ChildTarget::new(compiled.source(), LogicGridContent::CONTENT_TYPE))
         })
     }));
     let calls = create_memo(clone!(compiled -> move || {
@@ -117,7 +115,7 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
         <List spacing=4.0>
             <ForEach keys={keys}>
                 {move |called: Uuid| {
-                    let block = Some(ChildTarget::new(called, CompiledLogic::TYPE_ID));
+                    let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
                     view! {
                         <BlockLink
                             editor={editor.clone()}

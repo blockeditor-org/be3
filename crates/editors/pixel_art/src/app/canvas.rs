@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
+use block_editor_plugin::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_plugin::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_plugin::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo,

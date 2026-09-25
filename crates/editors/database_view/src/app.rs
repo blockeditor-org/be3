@@ -1,6 +1,4 @@
-use block::BlockParent;
-use block_client::blocks::database::Database;
-use block_client::blocks::database_view::DatabaseView;
+use block_editor_plugin::BlockParent;
 use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
@@ -35,17 +33,12 @@ impl block_editor_plugin::BeuiApp for DatabaseViewApp {
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
         let database = create_database(creation);
-        let view = creation
-            .client()
-            .create_block(DatabaseView::with_references(vec![database]));
-        creation.seed_content(
-            view.id(),
-            &DatabaseViewContent::new(&database_view::DatabaseView::of(database)),
-        );
+        let view = creation.create(&DatabaseViewContent::new(&database_view::DatabaseView::of(
+            database,
+        )));
         creation
-            .client()
-            .get_block::<Database>(database)
-            .set_parent(BlockParent::Uuid(view.id()));
-        Ok(view.id())
+            .blocks()
+            .set_parent(database, BlockParent::Block(view));
+        Ok(view)
     }
 }

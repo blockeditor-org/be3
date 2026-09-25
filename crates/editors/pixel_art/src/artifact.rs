@@ -1,15 +1,10 @@
-use block::Block;
-use block_client::{
-    BlockClient, BlockHandle, DynamicArtifactDescriptor,
-    blocks::{image::Image, pixel_art::PixelArt},
-};
-use block_editor_plugin::ContentProjection;
 use block_editor_plugin::be_block::pixel_art::Artwork;
-use block_editor_plugin::be_block::{ImageContent, PixelArtContent};
+use block_editor_plugin::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
 use block_editor_plugin::beui::styled::{Caption, NumberInput, use_theme};
 use block_editor_plugin::{ArtifactDescription, Artifacts, EditorHost};
+use block_editor_plugin::{BlockList, BlockQuery, ContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -46,9 +41,9 @@ impl ImageArtifact {
     }
 }
 
-pub fn descriptor(source_id: Uuid) -> DynamicArtifactDescriptor {
-    DynamicArtifactDescriptor {
-        source_type: PixelArt::TYPE_ID,
+pub fn descriptor(source_id: Uuid) -> ArtifactSource {
+    ArtifactSource {
+        source_type: PixelArtContent::CONTENT_TYPE,
         data: ImageArtifact {
             source: source_id,
             settings: ImageSettings::default(),
@@ -174,7 +169,7 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
 pub struct Regeneration {
     host: EditorHost,
     source: ContentProjection<PixelArtContent>,
-    named: BlockHandle<PixelArt>,
+    named: BlockList,
     target: Uuid,
     settings: ImageSettings,
 }
@@ -182,12 +177,11 @@ pub struct Regeneration {
 impl Regeneration {
     pub fn start(
         host: &EditorHost,
-        client: &BlockClient,
         target_id: Uuid,
         target_type: Uuid,
         data: &[u8],
     ) -> Result<Self, String> {
-        if target_type != Image::TYPE_ID {
+        if target_type != ImageContent::CONTENT_TYPE {
             return Err(format!(
                 "pixel art export expected an Image target, found {target_type}"
             ));
@@ -196,7 +190,7 @@ impl Regeneration {
         Ok(Self {
             host: host.clone(),
             source: host.content_of::<PixelArtContent>(artifact.source),
-            named: client.get_block::<PixelArt>(artifact.source),
+            named: host.blocks().watch(BlockQuery::Block(artifact.source)),
             target: target_id,
             settings: artifact.settings,
         })
@@ -204,7 +198,13 @@ impl Regeneration {
 
     pub fn poll(&mut self) -> Option<Result<(), String>> {
         let source = self.source.read(|content| content.root().artwork())?;
-        let name = self.named.name().unwrap_or_else(|| "Pixel Art".to_owned());
+        let name = self
+            .named
+            .read()
+            .into_iter()
+            .next()
+            .and_then(|info| info.name)
+            .unwrap_or_else(|| "Pixel Art".to_owned());
         let generated = generate(&source, &name, &self.settings);
         Some(generated.map(|image| self.host.replace_content(self.target, &image)))
     }

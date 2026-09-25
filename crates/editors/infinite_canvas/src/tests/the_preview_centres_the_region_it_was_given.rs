@@ -1,5 +1,5 @@
 use super::*;
-use block_client::blocks::infinite_canvas::CanvasColor;
+use block_editor_plugin::be_block::canvas::CanvasColor;
 use block_editor_plugin::beui::Vec2;
 
 #[test]
@@ -18,12 +18,7 @@ fn the_preview_centres_the_region_it_was_given() {
     });
     let region =
         CanvasPreviewRegion::new(rectangle.transform.center, CanvasPoint::new(320.0, 200.0));
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let mut editor = open(
-        client,
-        &Canvas::with_entities([rectangle], Some(region)),
-        true,
-    );
+    let mut editor = open(&Canvas::with_entities([rectangle], Some(region)), true, &[]);
     editor.run();
 
     assert_eq!(editor.intrinsic_size(), Some(Vec2::new(320.0, 200.0)));

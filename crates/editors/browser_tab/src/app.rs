@@ -1,4 +1,4 @@
-use block_client::blocks::web_browser_tab::WebBrowserTab;
+use block_editor_plugin::be_block::BrowserTabContent;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::beui::{NodeId, Vec2};
 use block_editor_plugin::{Creation, Editor};
@@ -22,7 +22,7 @@ impl block_editor_plugin::BeuiApp for BrowserTabApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(WebBrowserTab::new()).id())
+        Ok(creation.create(&BrowserTabContent::default()))
     }
 
     fn intrinsic_size() -> Option<Vec2> {

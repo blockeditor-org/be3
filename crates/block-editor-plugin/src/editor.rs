@@ -1,23 +1,22 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
 
+use be_block::presence::PresenceKind;
 use beui::reactive::{
-    Callback, CanvasView, EmbedSlot, KeyedStore, Memo, NodeRef, Prop, ReadSignal, WriteSignal,
-    create_memo, create_signal, on_cleanup,
+    Callback, CanvasView, EmbedSlot, Memo, NodeRef, Prop, ReadSignal, WriteSignal, create_memo,
+    create_signal, on_cleanup,
 };
 use beui::{Document, Pos2, Rect, Vec2};
-use block::Block;
-use block_client::{BlockClient, BlockHandle};
 use block_plugin_api::{
     ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode, ViewChange,
 };
-use block_reactive::BlockSource;
 use block_ui::BlockCatalog;
-use std::hash::Hash;
 use uuid::Uuid;
 
-use crate::{BlockFilter, BlockPicker, ContentProjection, EditorHost, PickedBlock};
+use crate::{
+    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
+    EditorHost, PickedBlock,
+};
 
 type Regenerate = Rc<dyn Fn(&[u8])>;
 type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
@@ -27,7 +26,6 @@ pub struct Artifacts(Rc<ArtifactState>);
 
 struct ArtifactState {
     host: EditorHost,
-    client: Arc<BlockClient>,
     artifact: crate::Artifact,
     regenerate: RefCell<Option<Regenerate>>,
     poll: RefCell<Option<PollArtifact>>,
@@ -43,11 +41,10 @@ impl Clone for Artifacts {
 }
 
 impl Artifacts {
-    pub fn new(host: EditorHost, client: Arc<BlockClient>, artifact: crate::Artifact) -> Self {
+    pub fn new(host: EditorHost, artifact: crate::Artifact) -> Self {
         let (settings, set_settings) = create_signal(Vec::new());
         Self(Rc::new(ArtifactState {
             host,
-            client,
             artifact,
             regenerate: RefCell::new(None),
             poll: RefCell::new(None),
@@ -80,8 +77,8 @@ impl Artifacts {
         &self.0.host
     }
 
-    pub fn client(&self) -> &Arc<BlockClient> {
-        &self.0.client
+    pub fn blocks(&self) -> Blocks {
+        self.0.host.blocks()
     }
 
     pub fn block_id(&self) -> Uuid {
@@ -237,8 +234,8 @@ pub struct Editor(Rc<EditorState>);
 
 struct EditorState {
     host: EditorHost,
-    client: Arc<BlockClient>,
     block: Uuid,
+    roots: RefCell<Option<BlockList>>,
     canvas: ReadSignal<Option<CanvasView>>,
     world: ReadSignal<Option<Vec2>>,
     scale: ReadSignal<f32>,
@@ -277,7 +274,7 @@ struct EditorState {
 }
 
 impl Editor {
-    pub fn new(host: EditorHost, client: Arc<BlockClient>, block: Uuid) -> Self {
+    pub fn new(host: EditorHost, block: Uuid) -> Self {
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
         let (world, set_world) = create_signal(None::<Vec2>);
         let (scale, set_scale) = create_signal(1.0_f32);
@@ -291,8 +288,8 @@ impl Editor {
         let (revealed, set_revealed) = create_signal(None::<u64>);
         Self(Rc::new(EditorState {
             host,
-            client,
             block,
+            roots: RefCell::new(None),
             canvas,
             world,
             scale,
@@ -335,12 +332,33 @@ impl Editor {
         &self.0.host
     }
 
-    pub fn client(&self) -> &Arc<BlockClient> {
-        &self.0.client
+    pub fn blocks(&self) -> Blocks {
+        self.0.host.blocks()
     }
 
     pub fn block_id(&self) -> Uuid {
         self.0.block
+    }
+
+    pub fn watch_blocks(&self, query: BlockQuery) -> Memo<Option<Vec<crate::BlockInfo>>> {
+        let list = self.blocks().watch(query);
+        let (listed, set_listed) = create_signal(None::<Vec<crate::BlockInfo>>);
+        let seen = Cell::new(None::<u64>);
+        let last = RefCell::new(None::<Vec<crate::BlockInfo>>);
+        let blocks = self.blocks();
+        self.each_frame(move || {
+            let revision = blocks.revision();
+            if seen.replace(Some(revision)) == Some(revision) {
+                return;
+            }
+            let current = list.is_loaded().then(|| list.read());
+            if *last.borrow() == current {
+                return;
+            }
+            last.replace(current.clone());
+            set_listed.set(current);
+        });
+        create_memo(move || listed.get())
     }
 
     pub fn editable(&self) -> ReadSignal<bool> {
@@ -350,17 +368,6 @@ impl Editor {
     pub fn read_only(&self) -> Memo<bool> {
         let editable = self.0.editable.clone();
         create_memo(move || !editable.get())
-    }
-
-    pub fn block<B: Block>(&self) -> Rc<BlockProjection<B>> {
-        let waker = self.0.host.waker();
-        let source = BlockSource::new(self.0.client.get_block(self.0.block), move || waker.wake());
-        let pumped = source.clone();
-        self.each_frame(move || pumped.pump());
-        Rc::new(BlockProjection {
-            source,
-            host: self.0.host.clone(),
-        })
     }
 
     pub fn block_content<C>(&self) -> Rc<ContentProjection<C>>
@@ -396,14 +403,9 @@ impl Editor {
         self.0.host.replace_content(block, content);
     }
 
-    pub fn create_with_content<B, C>(&self, content: &C) -> BlockHandle<B>
-    where
-        B: Block + Default,
-        C: be_block::BlockContent,
-    {
-        let block = self.0.client.create_block(B::default());
-        self.seed_content(block.id(), content);
-        block
+    pub fn create_child<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
+        self.blocks()
+            .create(content, BlockParent::Block(self.0.block))
     }
 
     fn projection<C>(&self, block: Option<Uuid>) -> Rc<ContentProjection<C>>
@@ -574,14 +576,14 @@ impl Editor {
         self.0.pending_resize.set(Some(size));
     }
 
-    pub fn show<P: block_client::presence::PresenceKind>(&self, value: Option<&P>) {
+    pub fn show<P: PresenceKind>(&self, value: Option<&P>) {
         let value = value.and_then(|value| serde_json::to_vec(value).ok());
         self.0.host.show_presence(None, P::ID, value);
     }
 
     pub fn peers<P>(&self) -> ReadSignal<Vec<(u64, P)>>
     where
-        P: block_client::presence::PresenceKind + Clone + PartialEq + 'static,
+        P: PresenceKind + Clone + PartialEq + 'static,
     {
         let (peers, set_peers) = create_signal(Vec::new());
         let host = self.0.host.clone();
@@ -751,58 +753,6 @@ impl Editor {
     }
 }
 
-pub struct BlockProjection<B: Block> {
-    source: Rc<BlockSource<B>>,
-    host: EditorHost,
-}
-
-impl<B: Block> BlockProjection<B> {
-    pub fn handle(&self) -> &BlockHandle<B> {
-        self.source.handle()
-    }
-
-    pub fn id(&self) -> Uuid {
-        self.source.id()
-    }
-
-    pub fn project<T>(&self, project: impl Fn(&B) -> T + 'static) -> ReadSignal<T>
-    where
-        T: Clone + Default + PartialEq + 'static,
-    {
-        self.source.project(project)
-    }
-
-    pub fn project_or<T>(&self, initial: T, project: impl Fn(&B) -> T + 'static) -> ReadSignal<T>
-    where
-        T: Clone + PartialEq + 'static,
-    {
-        self.source.project_or(initial, project)
-    }
-
-    pub fn project_keyed<K, V>(
-        &self,
-        project: impl Fn(&B, &KeyedStore<K, V>) + 'static,
-    ) -> KeyedStore<K, V>
-    where
-        K: Clone + Eq + Hash + 'static,
-        V: Clone + PartialEq + 'static,
-    {
-        self.source.project_keyed(project)
-    }
-
-    pub fn operate(&self, operation: B::Operation) {
-        if self.host.editable() {
-            self.source.operate(operation);
-        }
-    }
-
-    pub fn operate_grouped(&self, operations: impl IntoIterator<Item = B::Operation>) {
-        if self.host.editable() {
-            self.source.operate_grouped(operations);
-        }
-    }
-}
-
 type Maker = Rc<dyn Fn() -> Result<Uuid, String>>;
 
 #[derive(Clone)]
@@ -810,17 +760,15 @@ pub struct Creation(Rc<CreationState>);
 
 struct CreationState {
     host: EditorHost,
-    client: Arc<BlockClient>,
     maker: RefCell<Option<Maker>>,
     each_frame: Rc<Work>,
     next_work: Cell<u64>,
 }
 
 impl Creation {
-    pub fn new(host: EditorHost, client: Arc<BlockClient>) -> Self {
+    pub fn new(host: EditorHost) -> Self {
         Self(Rc::new(CreationState {
             host,
-            client,
             maker: RefCell::new(None),
             each_frame: Rc::new(RefCell::new(Vec::new())),
             next_work: Cell::new(0),
@@ -831,8 +779,12 @@ impl Creation {
         &self.0.host
     }
 
-    pub fn client(&self) -> &Arc<BlockClient> {
-        &self.0.client
+    pub fn blocks(&self) -> Blocks {
+        self.0.host.blocks()
+    }
+
+    pub fn create<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
+        self.blocks().create(content, BlockParent::Detached)
     }
 
     pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
@@ -864,14 +816,26 @@ impl Creation {
     }
 }
 
-impl block_client::root_settings::SettingsStore for Editor {
+impl crate::root_settings::SettingsGraph for Editor {
+    fn roots(&self) -> Option<Vec<(Uuid, Uuid)>> {
+        let mut roots = self.0.roots.borrow_mut();
+        let list = roots.get_or_insert_with(|| self.blocks().watch(BlockQuery::Roots));
+        list.is_loaded().then(|| {
+            list.read()
+                .into_iter()
+                .map(|info| (info.id, info.block_type))
+                .collect()
+        })
+    }
+
     fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
         self.content_of::<be_block::SettingsContent>(block)
             .read(|settings| settings.root().clone())
     }
 
-    fn seed(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
-        self.0.host.seed_bytes(block, content_type, bytes, false);
+    fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
+        self.blocks()
+            .create_with(block_type, Some(content), parent, None, None)
     }
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {

@@ -1,4 +1,4 @@
-use block_client::blocks::scene_3d::Scene3D;
+use block_editor_plugin::be_block::Scene3dContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};
@@ -18,6 +18,6 @@ impl block_editor_plugin::BeuiApp for Scene3DApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(Scene3D::new()).id())
+        Ok(creation.create(&Scene3dContent::default()))
     }
 }

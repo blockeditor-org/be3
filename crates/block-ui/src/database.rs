@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use block_client::blocks::{
+use be_block::{
     database::{DatabaseColor, DatabaseRow, DatabaseValue},
     database_schema::{DatabaseField, DatabaseFieldType, DatabaseNumberScale},
 };

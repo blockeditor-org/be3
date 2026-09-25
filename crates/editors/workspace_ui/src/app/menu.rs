@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use block::{BlockParent, BlockReference};
 use block_editor_plugin::BlockSource;
 use block_editor_plugin::beui::reactive::{Memo, clone, component, create_memo, view};
 use block_editor_plugin::beui::unstyled::MenuItem;
-use block_editor_plugin::block_ui::{BlockLabel, BlockTypes};
+use block_editor_plugin::block_ui::BlockTypes;
+use block_editor_plugin::{BlockInfo, BlockParent};
 use uuid::Uuid;
 
 use super::tab::TabItem;
@@ -35,7 +35,7 @@ pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
         [0] => Some(Action::Open),
         [1] => Some(Action::Picker),
         [2, 0] => Some(Action::SetParent(BlockParent::Root)),
-        [2, 1] => Some(Action::SetParent(BlockParent::Orphaned)),
+        [2, 1] => Some(Action::SetParent(BlockParent::Detached)),
         [3] => Some(Action::Rename),
         [4] => Some(Action::Share),
         [5] => Some(Action::Unlink),
@@ -47,8 +47,8 @@ pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
 pub(crate) fn source_of(parent: BlockParent) -> BlockSource {
     match parent {
         BlockParent::Root => BlockSource::Root,
-        BlockParent::Orphaned => BlockSource::Orphaned,
-        BlockParent::Uuid(id) => BlockSource::Block(id),
+        BlockParent::Detached => BlockSource::Orphaned,
+        BlockParent::Block(id) => BlockSource::Block(id),
     }
 }
 
@@ -85,12 +85,12 @@ fn can_delete_from(workspace: &Workspace, source: BlockSource) -> bool {
 
 pub(crate) fn permissions(
     workspace: &Workspace,
-    reference: &BlockReference,
+    reference: &BlockInfo,
     containing: Option<Uuid>,
 ) -> Permissions {
     let can_edit = workspace.can_edit(reference.id);
     let source = containing.map_or_else(|| source_of(reference.parent), BlockSource::Block);
-    let is_reference = containing.is_some_and(|id| reference.parent != BlockParent::Uuid(id));
+    let is_reference = containing.is_some_and(|id| reference.parent != BlockParent::Block(id));
     let types = workspace.types();
     Permissions {
         add: types.child_edits(reference.block_type).add && can_edit,
@@ -106,7 +106,7 @@ pub(crate) fn permissions(
 
 pub(crate) fn apply(
     workspace: &Rc<Workspace>,
-    reference: &BlockReference,
+    reference: &BlockInfo,
     containing: Option<Uuid>,
     action: Action,
 ) {
@@ -120,7 +120,7 @@ pub(crate) fn apply(
             None,
         ),
         Action::Picker => workspace.open_picker(reference.id),
-        Action::SetParent(parent) => workspace.client().set_block_parent(reference.id, parent),
+        Action::SetParent(parent) => workspace.blocks().set_parent(reference.id, parent),
         Action::Rename => workspace.host().rename_block(reference.id),
         Action::Share => workspace.host().share_block(reference.id),
         Action::Unlink => {
@@ -140,7 +140,7 @@ pub(crate) fn apply(
 #[component]
 pub(crate) fn ReferenceMenuItem(
     workspace: Rc<Workspace>,
-    reference: Memo<Option<BlockReference>>,
+    reference: Memo<Option<BlockInfo>>,
     containing: Memo<Option<Uuid>>,
 ) -> MenuItem {
     let naming = Rc::clone(&workspace);
@@ -149,7 +149,7 @@ pub(crate) fn ReferenceMenuItem(
         reference.with(|reference| {
             reference.as_ref().map_or_else(
                 || "Untitled".to_owned(),
-                |reference| BlockLabel::for_reference(types.as_ref(), reference).name,
+                |reference| reference.label(types.as_ref()).name,
             )
         })
     }));
@@ -178,7 +178,7 @@ pub(crate) fn ReferenceMenuItem(
         edit.get() || rights.get().is_none_or(|rights| rights.4 == BlockParent::Root)
     }));
     let orphaned = create_memo(clone!(rights edit -> move || {
-        edit.get() || rights.get().is_none_or(|rights| rights.4 == BlockParent::Orphaned)
+        edit.get() || rights.get().is_none_or(|rights| rights.4 == BlockParent::Detached)
     }));
     let delete_label = create_memo(clone!(rights -> move || {
         match rights.get().is_some_and(|rights| rights.5) {

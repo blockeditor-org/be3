@@ -1,5 +1,5 @@
-use block_client::blocks::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_plugin::be_block::PixelArtContent;
+use block_editor_plugin::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 
 use super::generate_initial;
 

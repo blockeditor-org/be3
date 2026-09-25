@@ -87,8 +87,7 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
     let editor = session.editor().clone();
     let read_only = editor.read_only();
     let compile = clone!(session editor -> move || {
-        let client = editor.client().clone();
-        if let Some((id, block_type)) = session.update(|model| model.compile(&client)) {
+        if let Some((id, block_type)) = session.update(|model| model.compile()) {
             editor.host().open_block(id, block_type);
         }
     });

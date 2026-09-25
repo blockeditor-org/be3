@@ -6,9 +6,10 @@ use std::sync::Arc;
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
-use block::{BlockParent, BlockReferenceList};
-use block_client::{BlockClient, ReferenceList, blocks::image::Image, presence::pick_free_color};
+use block_editor_plugin::BlockQuery;
+use block_editor_plugin::be_block::presence::pick_free_color;
 use block_editor_plugin::be_block::{ImageContent, TextContent};
+use block_editor_plugin::{BlockList, Blocks};
 use block_editor_plugin::{ChildState, ContentProjection, Editor, EditorHost, ImagePaster};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
@@ -28,14 +29,14 @@ pub(crate) struct FocusedEmbed {
 
 pub(crate) struct State {
     pub editor: Editor,
-    pub client: Arc<BlockClient>,
+    pub client: Blocks,
     pub block_id: Uuid,
     content: Rc<ContentProjection<TextContent>>,
     adopted: Cell<Option<u64>>,
     pub document: Arc<BlockDocument>,
     pub workspace_id: Uuid,
     pub text: TextAreaState,
-    pub dependencies: ReferenceList,
+    pub dependencies: BlockList,
     pub paster: RefCell<ImagePaster>,
     pub embed_sizes: RefCell<HashMap<Uuid, Vec2>>,
     pub embed_children: RefCell<HashMap<FocusedEmbed, ChildState>>,
@@ -66,13 +67,13 @@ pub(crate) type Shared = Rc<State>;
 
 impl State {
     pub fn new(editor: Editor) -> Shared {
-        let client = Arc::clone(editor.client());
+        let client = editor.blocks();
         let block_id = editor.block_id();
         let content = editor.block_content::<TextContent>();
         let document = Arc::new(BlockDocument::new(editor.host().waker()));
         let text = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
         text.core_mut().config.inside_atomic_unit = inside_block_url;
-        let dependencies = client.watch_references(BlockReferenceList::References(block_id));
+        let dependencies = client.watch(BlockQuery::References(block_id));
         let (embeds, set_embeds) = create_signal(Vec::new());
         let (hex_view, set_hex_view) = create_signal(false);
         let (hex_insert_mode, set_hex_insert_mode) = create_signal(false);
@@ -80,7 +81,7 @@ impl State {
         let (presence_revision, set_presence_revision) = create_signal(0);
         let (focused_embed, set_focused_embed) = create_signal(None);
         let state = Rc::new(Self {
-            workspace_id: client.workspace_id(),
+            workspace_id: editor.host().workspace_id(),
             peers: editor.peers::<TextCursor>(),
             editor,
             client,
@@ -172,9 +173,7 @@ impl State {
     }
 
     pub fn create_image_block(&self, image: &ImageContent) -> Uuid {
-        let block = self.editor.create_with_content::<Image, _>(image);
-        block.set_parent(BlockParent::Uuid(self.block_id));
-        block.id()
+        self.editor.create_child(image)
     }
 
     pub fn insert_image_embed(&self, id: Uuid, source_name: &str) {

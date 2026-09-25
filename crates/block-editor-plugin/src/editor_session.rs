@@ -1,7 +1,4 @@
-use block_client::{
-    BlockClient,
-    presence::{UserActive, pick_free_color},
-};
+use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
     ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
@@ -10,7 +7,7 @@ use block_plugin_api::{
     ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
 };
 use block_ui::BlockCatalog;
-use std::{collections::HashMap, marker::PhantomData, rc::Rc, sync::Arc};
+use std::{collections::HashMap, marker::PhantomData, rc::Rc};
 use uuid::Uuid;
 
 use crate::beui_frame::{BeuiFrame, FrameBar};
@@ -25,7 +22,6 @@ pub(crate) struct EditorSession {
     instance: EditorInstanceId,
     regions: HashMap<EditorRegion, RegionState>,
     host: EditorHost,
-    block: Option<(Arc<BlockClient>, Uuid)>,
     own_block: Option<Uuid>,
     drag: Option<(EditorRegion, BlockDrag)>,
     files: Option<(EditorRegion, crate::host::FileDrop)>,
@@ -127,15 +123,10 @@ trait AppUi {
     fn creation(&mut self, context: &beui::Context, rect: beui::Rect);
     fn preview(&mut self, context: &beui::Context, rect: beui::Rect);
     fn artifact_settings(&mut self, context: &beui::Context, rect: beui::Rect, draft: &mut Vec<u8>);
-    fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid);
-    fn connect_creation(&mut self, host: EditorHost, client: Arc<BlockClient>);
+    fn connect(&mut self, host: EditorHost, block_id: Uuid);
+    fn connect_creation(&mut self, host: EditorHost);
     fn create_block(&mut self) -> Result<Uuid, String>;
-    fn connect_artifact(
-        &mut self,
-        host: EditorHost,
-        client: Arc<BlockClient>,
-        artifact: crate::Artifact,
-    );
+    fn connect_artifact(&mut self, host: EditorHost, artifact: crate::Artifact);
     fn describe_artifact(&mut self, data: &[u8]) -> ArtifactDescription;
     fn regenerate_artifact(&mut self, data: &[u8]);
     fn poll_artifact(&mut self) -> Option<Result<(), String>>;
@@ -220,18 +211,14 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         dialog.show(context, rect);
     }
 
-    fn connect(&mut self, host: EditorHost, client: Arc<BlockClient>, block_id: Uuid) {
-        self.editor = Some(crate::Editor::new(
-            host.clone(),
-            Arc::clone(&client),
-            block_id,
-        ));
-        self.preview = Some(crate::Editor::new(host, client, block_id));
+    fn connect(&mut self, host: EditorHost, block_id: Uuid) {
+        self.editor = Some(crate::Editor::new(host.clone(), block_id));
+        self.preview = Some(crate::Editor::new(host, block_id));
         self.preview_document = None;
     }
 
-    fn connect_creation(&mut self, host: EditorHost, client: Arc<BlockClient>) {
-        let creation = crate::Creation::new(host, client);
+    fn connect_creation(&mut self, host: EditorHost) {
+        let creation = crate::Creation::new(host);
         let built = creation.clone();
         self.dialog = Some(beui::reactive::build(move || A::creation_view(built)));
         self.creation = Some(creation);
@@ -245,13 +232,8 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         A::create_block(creation)
     }
 
-    fn connect_artifact(
-        &mut self,
-        host: EditorHost,
-        client: Arc<BlockClient>,
-        artifact: crate::Artifact,
-    ) {
-        let artifacts = crate::Artifacts::new(host, client, artifact);
+    fn connect_artifact(&mut self, host: EditorHost, artifact: crate::Artifact) {
+        let artifacts = crate::Artifacts::new(host, artifact);
         A::connect_artifact(&artifacts);
         self.artifacts = Some(artifacts);
     }
@@ -336,7 +318,6 @@ impl EditorSession {
             instance,
             regions: HashMap::new(),
             host: EditorHost::new(waker),
-            block: None,
             own_block: None,
             drag: None,
             files: None,
@@ -363,6 +344,18 @@ impl EditorSession {
 
     pub(crate) fn set_client_id(&self, client_id: Uuid) {
         self.host.set_client_id(client_id);
+    }
+
+    pub(crate) fn set_account_id(&self, account: Uuid) {
+        self.host.set_account_id(account);
+    }
+
+    pub(crate) fn set_workspace_id(&self, workspace: Uuid) {
+        self.host.set_workspace_id(workspace);
+    }
+
+    pub(crate) fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {
+        self.host.set_blocks(query, blocks);
     }
 
     pub(crate) fn set_editable(&self, editable: bool) {
@@ -429,18 +422,22 @@ impl EditorSession {
     }
 
     pub(crate) fn presence_visible(&mut self, visible: bool) {
-        if let Some((client, block_id)) = &self.block {
-            match visible {
-                true => {
-                    let used = client
-                        .presence::<UserActive>(*block_id)
-                        .into_iter()
-                        .map(|(_, user)| user.color);
-                    let color = pick_free_color(used);
-                    client.set_presence(*block_id, Some(&UserActive { color }));
-                }
-                false => client.set_presence::<UserActive>(*block_id, None),
-            }
+        if self.own_block.is_some() {
+            let value = visible.then(|| {
+                let peers = self
+                    .host
+                    .peers_since(None, 0)
+                    .map(|(_, peers)| peers)
+                    .unwrap_or_default();
+                let used = peers
+                    .iter()
+                    .filter(|peer| peer.kind == UserActive::ID)
+                    .filter_map(|peer| serde_json::from_slice::<UserActive>(&peer.value).ok())
+                    .map(|user| user.color);
+                let color = pick_free_color(used);
+                serde_json::to_vec(&UserActive { color }).unwrap_or_default()
+            });
+            self.host.show_presence(None, UserActive::ID, value);
         }
         self.app.presence_visible(visible);
     }
@@ -473,33 +470,23 @@ impl EditorSession {
         self.files = files;
     }
 
-    pub(crate) fn connect(&mut self, client: Arc<BlockClient>, block_id: Uuid, block_type: Uuid) {
+    pub(crate) fn connect(&mut self, block_id: Uuid, block_type: Uuid) {
         self.host.set_block_type(block_type);
         self.own_block = Some(block_id);
-        if block_client::blocks::watch(&client, block_id, block_type) {
-            self.block = Some((Arc::clone(&client), block_id));
-        }
-        self.app.connect(self.host.clone(), client, block_id);
+        self.app.connect(self.host.clone(), block_id);
     }
 
-    pub(crate) fn connect_creation(&mut self, client: Arc<BlockClient>) {
+    pub(crate) fn connect_creation(&mut self) {
         self.creating = true;
         self.host.set_editable(true);
-        self.app.connect_creation(self.host.clone(), client);
+        self.app.connect_creation(self.host.clone());
     }
 
-    pub(crate) fn connect_artifact(
-        &mut self,
-        client: Arc<BlockClient>,
-        block_id: Uuid,
-        block_type: Uuid,
-        data: Vec<u8>,
-    ) {
+    pub(crate) fn connect_artifact(&mut self, block_id: Uuid, block_type: Uuid, data: Vec<u8>) {
         self.artifact = Some(ArtifactState::new(data));
         self.host.set_editable(true);
         self.app.connect_artifact(
             self.host.clone(),
-            client,
             crate::Artifact {
                 block_id,
                 block_type,
@@ -575,6 +562,45 @@ impl EditorSession {
                 instance,
                 region,
                 area,
+            }));
+        }
+        for command in self.host.take_graph_commands() {
+            messages.push(Message::Editor(match command {
+                crate::GraphCommand::Create {
+                    id,
+                    block_type,
+                    parent,
+                    name,
+                    artifact,
+                    content,
+                } => EditorMessage::CreateBlock {
+                    instance,
+                    block_id: id.into_bytes(),
+                    content_type: block_type.into_bytes(),
+                    parent: parent.encode(),
+                    name,
+                    artifact: artifact.map(|artifact| block_plugin_api::ArtifactSource {
+                        source_type: artifact.source_type.into_bytes(),
+                        data: artifact.data,
+                    }),
+                    content: content.map(serde_bytes::ByteBuf::from),
+                },
+                crate::GraphCommand::SetParent { id, parent } => EditorMessage::SetParent {
+                    instance,
+                    block_id: id.into_bytes(),
+                    parent: parent.encode(),
+                },
+                crate::GraphCommand::SetName { id, name } => EditorMessage::SetName {
+                    instance,
+                    block_id: id.into_bytes(),
+                    name,
+                },
+            }));
+        }
+        if let Some(queries) = self.host.take_block_watch() {
+            messages.push(Message::Editor(EditorMessage::WatchBlocks {
+                instance,
+                queries: queries.into_iter().map(crate::BlockQuery::encode).collect(),
             }));
         }
         for (block, operation) in self.host.take_all_content_operations() {

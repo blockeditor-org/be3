@@ -1,4 +1,4 @@
-use block_client::blocks::infinite_canvas::{
+use block_editor_plugin::be_block::canvas::{
     CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
     CanvasTextStyle, CanvasTransform,
 };

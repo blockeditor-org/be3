@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use block_client::BlockClient;
-use block_client::blocks::web_browser_tab::WebBrowserTab;
 use block_editor_plugin::be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
 use block_editor_plugin::beui::{Key, Modifiers};
 use block_editor_plugin::{Editor, EditorHost, WebViewCommand, WebViewEvent};
@@ -14,7 +10,6 @@ mod a_pushed_url_becomes_the_tab_s_history;
 mod typing_an_address_navigates_the_web_view;
 
 const ACCOUNT: Uuid = Uuid::from_u128(0x7765_622d_7465_7374_2d61_6363_6f75_6e74);
-const WORKSPACE: Uuid = Uuid::from_u128(0x7765_622d_7465_7374_2d77_6f72_6b73_7061);
 
 struct Harness {
     editor: BeuiTest<BrowserTabApp>,
@@ -25,12 +20,11 @@ struct Harness {
 
 impl Harness {
     fn new() -> Self {
-        let client = Arc::new(BlockClient::new(ACCOUNT, WORKSPACE));
-        let block = client.create_block(WebBrowserTab::new());
+        let block = Uuid::new_v4();
         let host = EditorHost::default();
         host.set_editable(true);
         host.set_client_id(ACCOUNT);
-        let editor = Editor::new(host.clone(), client, block.id());
+        let editor = Editor::new(host.clone(), block);
         let mut harness = Self {
             editor: BeuiTest::new(editor),
             host,

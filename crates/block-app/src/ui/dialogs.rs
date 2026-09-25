@@ -1,3 +1,5 @@
+use be_block::metadata::MAX_NAME_BYTES;
+use be_protocol::WorkspaceRole;
 use beui::NodeId;
 use beui::reactive::{
     Align, Direction, Frame, ItemSize, List, Show, Spacer, clone, component, create_effect,
@@ -7,8 +9,6 @@ use beui::styled::{
     Button, ButtonVariant, Caption, Code, Dialog, Paragraph, Spinner, Tabs, TextInput,
 };
 use beui::unstyled::ChoiceOption;
-use block::WorkspaceRole;
-use block_client::properties::MAX_NAME_BYTES;
 
 use super::onboarding::ErrorText;
 

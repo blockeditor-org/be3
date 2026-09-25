@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block::BlockReferenceList;
-use block_client::ReferenceList;
+use block_editor_plugin::BlockList;
+use block_editor_plugin::BlockQuery;
 use block_editor_plugin::be_block::Edit;
 use block_editor_plugin::be_block::database::{DatabaseContent, DatabaseRow, DatabaseValue};
 use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseSchemaContent};
@@ -215,8 +215,8 @@ fn watch_labels(
     rows: Memo<Vec<DatabaseRow>>,
 ) -> Memo<BlockLabels> {
     let (labels, set_labels) = create_signal(BlockLabels::new());
-    let watched: RefCell<Option<(Uuid, ReferenceList)>> = RefCell::new(None);
-    let client = editor.client().clone();
+    let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
+    let client = editor.blocks();
     let host = editor.host().clone();
     editor.each_frame(move || {
         let Some(database_id) = database_id.get_untracked() else {
@@ -226,7 +226,7 @@ fn watch_labels(
         if watched.as_ref().is_none_or(|(id, _)| *id != database_id) {
             *watched = Some((
                 database_id,
-                client.watch_references(BlockReferenceList::References(database_id)),
+                client.watch(BlockQuery::References(database_id)),
             ));
         }
         let Some((_, references)) = watched.as_ref() else {
@@ -236,12 +236,7 @@ fn watch_labels(
         let known: HashMap<Uuid, BlockLabel> = references
             .read()
             .into_iter()
-            .map(|reference| {
-                (
-                    reference.id,
-                    BlockLabel::for_reference(types.as_ref(), &reference),
-                )
-            })
+            .map(|reference| (reference.id, reference.label(types.as_ref())))
             .collect();
         set_labels.set(rows.with_untracked(|rows| {
             row_references(rows)

@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_client::blocks::pixel_art::PixelColor;
 use block_editor_plugin::Editor;
 use block_editor_plugin::be_block::pixel_art::Artwork;
+use block_editor_plugin::be_block::pixel_art::PixelColor;
 use block_editor_plugin::beui::Image;
 use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
 

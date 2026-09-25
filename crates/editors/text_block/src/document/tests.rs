@@ -1,4 +1,4 @@
-use block_client::block_url;
+use block_editor_plugin::be_block::block_url::block_url;
 use uuid::Uuid;
 
 use block_editor_plugin::be_block::TextOp;

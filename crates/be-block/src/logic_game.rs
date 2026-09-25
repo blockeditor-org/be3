@@ -182,7 +182,7 @@ impl LogicGameProgress {
 }
 
 impl Root for LogicGameProgress {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6c6f_6769_632d_6761_6d65_2d63_6f6e_0002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6c6f_6769_632d_6761_6d65_2d62_6c6b_0101);
 
     fn references(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();

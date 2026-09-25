@@ -13,7 +13,7 @@ fn dropping_a_block_reports_whether_the_folder_takes_it() {
     host.set_beui_drag(Some(Drag {
         position: middle,
         block_id: Uuid::new_v4(),
-        block_type: Counter::TYPE_ID,
+        block_type: CounterContent::CONTENT_TYPE,
         dropped: false,
     }));
     editor.run();
@@ -22,7 +22,7 @@ fn dropping_a_block_reports_whether_the_folder_takes_it() {
     host.set_beui_drag(Some(Drag {
         position: middle,
         block_id: children[0],
-        block_type: Counter::TYPE_ID,
+        block_type: CounterContent::CONTENT_TYPE,
         dropped: false,
     }));
     editor.run();

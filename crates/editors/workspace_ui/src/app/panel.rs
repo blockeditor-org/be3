@@ -1,8 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block::{BlockAccess, BlockParent, BlockReference, BlockReferenceList};
-use block_client::{BlockClient, ReferenceList};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::ICON_LOCK;
 use block_editor_plugin::beui::reactive::{
@@ -12,6 +10,7 @@ use block_editor_plugin::beui::reactive::{
 use block_editor_plugin::beui::styled::{Caption, Heading};
 use block_editor_plugin::beui::unstyled::TabId;
 use block_editor_plugin::block_ui::BlockTypes;
+use block_editor_plugin::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_plugin::{
     ArtifactState, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor,
 };
@@ -30,14 +29,14 @@ const PANEL_SPACING: f32 = 6.0;
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Refs {
     pub(crate) loaded: bool,
-    pub(crate) list: Vec<BlockReference>,
+    pub(crate) list: Vec<BlockInfo>,
 }
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Info {
     pub(crate) item: TabItem,
-    pub(crate) access: BlockAccess,
-    pub(crate) ceiling: BlockAccess,
+    pub(crate) access: AccessLevel,
+    pub(crate) ceiling: AccessLevel,
     pub(crate) can_edit: bool,
     pub(crate) debugging: bool,
     pub(crate) dynamic_artifact: bool,
@@ -60,24 +59,24 @@ enum Content {
 #[derive(Default)]
 struct Watched {
     id: Option<Uuid>,
-    parents: Option<ReferenceList>,
-    references: Option<ReferenceList>,
-    backrefs: Option<ReferenceList>,
+    parents: Option<BlockList>,
+    references: Option<BlockList>,
+    backrefs: Option<BlockList>,
 }
 
 impl Watched {
-    fn follow(&mut self, client: &BlockClient, id: Uuid) {
+    fn follow(&mut self, client: &Blocks, id: Uuid) {
         if self.id == Some(id) {
             return;
         }
         self.id = Some(id);
-        self.parents = Some(client.watch_parents(id));
-        self.references = Some(client.watch_references(BlockReferenceList::References(id)));
-        self.backrefs = Some(client.watch_references(BlockReferenceList::Backrefs(id)));
+        self.parents = Some(client.watch(BlockQuery::Parents(id)));
+        self.references = Some(client.watch(BlockQuery::References(id)));
+        self.backrefs = Some(client.watch(BlockQuery::Backrefs(id)));
     }
 }
 
-fn refs(list: Option<&ReferenceList>) -> Refs {
+fn refs(list: Option<&BlockList>) -> Refs {
     list.map_or_else(Refs::default, |list| Refs {
         loaded: list.is_loaded(),
         list: list.read(),
@@ -88,20 +87,14 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
     let item = workspace.tab(tab)?;
     workspace.record_type(item.id, item.block_type);
     let mut watched = watched.borrow_mut();
-    watched.follow(workspace.client(), item.id);
+    watched.follow(&workspace.blocks(), item.id);
     let access = workspace.access(item.id);
     let ceiling = workspace.ceiling(item.id);
     let debugging = workspace.is_debugged(item.id);
     if debugging && !ceiling.can_view() {
         workspace.debug(item.id, false);
     }
-    let parent = workspace
-        .read_handle(item, |handle| {
-            handle
-                .relationships()
-                .map(|relationships| relationships.parent)
-        })
-        .flatten();
+    let parent = workspace.info(item.id).map(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
     let references = refs(watched.references.as_ref());
     let backrefs = refs(watched.backrefs.as_ref());
@@ -123,7 +116,9 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
         ceiling,
         can_edit: workspace.can_edit(item.id),
         debugging: debugging && ceiling.can_view(),
-        dynamic_artifact: workspace.client().is_dynamic_artifact(item.id),
+        dynamic_artifact: workspace
+            .info(item.id)
+            .is_some_and(|info| info.is_artifact()),
         type_name,
         parent,
         container: workspace.container_of(item.id),

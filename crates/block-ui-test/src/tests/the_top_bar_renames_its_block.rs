@@ -4,7 +4,7 @@ use beui::Key;
 
 #[test]
 fn the_top_bar_renames_its_block() {
-    let (mut test, client, block) = named_editor();
+    let (mut test, store, block) = named_editor();
     assert_eq!(
         shown_name(&test),
         "",
@@ -14,11 +14,10 @@ fn the_top_bar_renames_its_block() {
     test.click("editor.name");
     test.text("Plans");
     test.key_press(Key::Enter);
-    test.run();
-    test.run();
+    settle(&mut test, &store);
+    settle(&mut test, &store);
 
-    let named = name(&client, block).expect("the block took the typed name");
-    assert!(named.manual, "a typed name is a manual one");
-    assert_eq!(named.value, "Plans");
+    let named = name(&store, block).expect("the block took the typed name as a manual one");
+    assert_eq!(named, "Plans");
     assert_eq!(shown_name(&test), "Plans");
 }

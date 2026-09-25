@@ -3,7 +3,6 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{Counter, CounterContent, LiveEdit};
-use block::Block;
 use block_plugin_api::ContentOperation;
 
 fn counted(block: Uuid, expected: i64) {
@@ -34,7 +33,14 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     let harness = crate::be::Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    let mut instances = placed_on(block, block_client::blocks::counter::Counter::TYPE_ID);
+    crate::be::create(
+        block,
+        CounterContent::CONTENT_TYPE,
+        be_graph::BlockParent::Root,
+        be_block::BlockMetadata::default(),
+        None,
+    );
+    let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
     instances.next_screens(PASS);
     counted(block, 0);
     assert!(matches!(

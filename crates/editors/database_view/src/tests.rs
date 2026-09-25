@@ -1,9 +1,5 @@
-use std::{cmp::Ordering, collections::HashMap, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap};
 
-use block_client::BlockClient;
-use block_client::blocks::database::Database as DatabaseBlock;
-use block_client::blocks::database_schema::DatabaseSchema as SchemaBlock;
-use block_client::blocks::database_view::DatabaseView as ViewBlock;
 use block_editor_plugin::be_block::Edit;
 use block_editor_plugin::be_block::database::{
     Database, DatabaseColor, DatabaseContent, DatabaseValue,
@@ -84,8 +80,7 @@ impl Fixture {
 }
 
 fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let schema = client.create_block(SchemaBlock::new());
+    let schema = Uuid::new_v4();
     let mut schema_content = DatabaseSchemaContent::default();
     let ids: Vec<Uuid> = fields
         .iter()
@@ -95,28 +90,25 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
             id
         })
         .collect();
-    let database = client.create_block(DatabaseBlock::with_references(vec![schema.id()]));
-    let view = client.create_block(ViewBlock::with_references(vec![database.id()]));
+    let database = Uuid::new_v4();
+    let view = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), Arc::clone(&client), view.id());
+    let editor = Editor::new(host.clone(), view);
     let mut harness = ContentHarness::new(BeuiTest::new(editor), host);
+    harness.hold(None, DatabaseViewContent::new(&DatabaseView::of(database)));
     harness.hold(
-        None,
-        DatabaseViewContent::new(&DatabaseView::of(database.id())),
+        Some(database),
+        DatabaseContent::new(&Database::with_schema(schema)),
     );
-    harness.hold(
-        Some(database.id()),
-        DatabaseContent::new(&Database::with_schema(schema.id())),
-    );
-    harness.hold(Some(schema.id()), schema_content);
+    harness.hold(Some(schema), schema_content);
     for _ in 0..6 {
         harness.run();
     }
     Fixture {
         harness,
-        schema: schema.id(),
-        database: database.id(),
+        schema,
+        database,
         fields: ids,
     }
 }
