@@ -123,7 +123,7 @@ a missing required prop and a prop written twice at the line that wrote the tag
 rather than from inside generated code, what routes `@test_id`, `@node_ref` and
 `@sizing` to the right place, what enforces a component's child arity, and what
 keeps render props unbuilt until the component calls them. Hand-written builder chains lose the
-diagnostics, are invisible to the `view!` formatter that `./scripts/verify`
+diagnostics, are invisible to the `view!` formatter that `./scripts/buck run //:verify`
 runs, and read nothing like the rest of the tree. The same applies to a
 component you want to pass around: hand over a `Render`/`RenderFn` closure that
 writes a `view!`, not a half-applied builder.
@@ -297,7 +297,7 @@ horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`,
-`PanZoom`, `PointerLock`, `Dock`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
+`PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
 and `Stack`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
@@ -570,7 +570,7 @@ bar on each pane, and tabs that can be dragged between panes or out into
 windows that float over the rest of the dock. `unstyled::Dock` underneath it
 owns the tree, the dragging and the keyboard, and paints nothing;
 `crates/beui/examples/dock.rs` is the worked example, run with
-`cargo run -p beui --example dock`.
+`./scripts/buck run //crates/beui:dock-example`.
 
 The layout is a `DockState`, which the caller keeps in a signal and hands back
 when the dock reports a change, the way `PanZoom` takes its camera:
@@ -624,12 +624,93 @@ stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 any other tab list and scroll the tab they reach into view when a pane has more
 tabs than it has room for.
 
+A place in a tab bar holds an `Entry`: either a `Tab` or a `Group`. A group is a
+tab that holds a dock tree of its own, so choosing it shows that tree in the
+pane's body - one pane with a second tab bar under the first, or panes split
+side by side - and the same drops work inside it as anywhere else. Dropping a
+tab onto the middle of another tab groups the two (onto a group, it joins the
+group); the outer edge of a pane showing a group still splits the outer pane,
+so the drop zones of the group sit inside a thin band that belongs to its
+parent. A tab's menu offers "Group with next tab" and "Split with next tab",
+and a group's own menu ungroups it, closes every tab in it, or floats it into a
+window as a whole. The tree tidies itself after every change: a group left with
+a single tab turns back into that tab, and a tab bar left holding only a group
+takes the group's tabs, or its split, in its place, so nothing is nested for
+longer than it holds more than one thing. `entries`, `active_entry`, `locate`,
+`group_tabs`, `tree_leaves`, `surface_of` and `is_nested` read groups back, and
+`drop_entry`, `group_with_next`, `split_with_next` and `ungroup` change them;
+`layout_tree` lays a group's tree out the way `layout_surface` lays out a
+surface's. `find`, `all_tabs`, `surface_tabs` and `show` look through groups,
+and showing a tab inside one selects the group in every bar above it.
+
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
 the panel keeps its nodes, its scroll position, its caret and its state when
 the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
+
+### Spinners
+
+`styled::Spinner` is an indeterminate progress bar. It animates only while it is
+laid out: a spinner behind a `Show` that is false, or in a tab nobody is
+looking at, asks for no frames. It uses `node_placed`, which works for any
+component that should only work while it is on screen.
+
+### Drag and drop
+
+Moving something from one place in a document to another is
+`unstyled::Draggable` on the thing being moved and `unstyled::DropTarget` on
+each place it may land. Nothing else is needed to wire them together: every
+document keeps one drag board, a draggable puts its payload on it, and the
+targets whose payload type matches hear about it.
+
+```rust
+view! {
+    <Draggable
+        payload={card_id}
+        preview={move |card: CardId| view! { <CardGhost card /> }}
+        on_click={select}
+    >
+        {move |handle: DragHandle| view! { <CardFace card_id dragging={handle.dragging} /> }}
+    </Draggable>
+    <DropTarget on_drop={move |(card, _): (CardId, DragPoint)| move_card(card, column)}>
+        {move |handle: DropHandle| view! { <ColumnFace column over={handle.over} /> }}
+    </DropTarget>
+}
+```
+
+The payload is a `Prop<Option<P>>`, so a source that may not be moved right now
+- a read-only block, a disabled slot - binds a memo that answers `None`. A
+press only becomes a drag once the pointer has travelled `threshold` from where
+it went down, and a press that never does is reported through `on_click`
+instead, so a row that is both clickable and draggable does not select itself
+at the end of a drag. `on_drag_change` says when a drag starts and ends, which
+is what a source that dims itself while it is being carried binds.
+
+While a drag is under way the `preview` is shown beside the pointer in a
+passive overlay, so it paints above everything and takes no input. The pointer
+it follows is the one the document saw, not the one the draggable's own
+catcher saw: the board is fed the pointer at the start of every frame, even
+where a floating overlay covers the source, so a drag carried over a floating
+window keeps going.
+
+A `DropTarget` is registered by the rectangle its content was laid out at. The
+target under the pointer that accepts the payload takes the drop - `accepts`
+filters by value, and a target of another payload type never sees the drag at
+all - and when targets nest, the innermost one wins, so a slot inside a column
+inside a sidebar can each take a drop of its own. Its `DropHandle` carries
+`carrying`, true for every target that would accept what is being dragged, and
+`over`, true for the one that would take it now; `on_over` reports the payload
+and the pointer as it moves, which is how a target that works out where inside
+itself the drop lands - the dock's tab bars and split zones, a timeline's
+insertion point - draws its marker, and how a filmstrip reorders live. The drop
+is handed over before the source hears `on_drag_change(false)`, so a source can
+keep whatever it set up for the drag until the drop has used it.
+
+A drag between editors is not this: a block dragged from the file tree to
+another editor crosses plugins, so it goes through the host with
+`Editor::drag` and `accept_drag` (guides/adding_a_plugin_editor.md).
 
 ### Pan and zoom
 
@@ -808,8 +889,8 @@ impl App for CounterApp {
 Run the repository examples with:
 
 ```text
-cargo run -p beui --example counter
-cargo run -p beui --example demo
+./scripts/buck run //crates/beui:counter-example
+./scripts/buck run //crates/beui:demo-example
 ```
 
 Beui has three feature levels:
@@ -819,6 +900,39 @@ Beui has three feature levels:
 - `render` adds the wgpu renderer without creating a window. Embedded hosts use
   this level.
 - `window` adds the desktop runner and enables `render`; it is the default.
+- `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
+  and enables `render`.
+
+`beui::run_with` takes `RunOptions` (title, app id, starting size, and on
+Android the `AndroidApp`) where `beui::run` takes only a title. The rest of
+`App` is optional:
+
+- `setup(&Setup)` runs once, after the gpu exists and before the first frame.
+  `Setup` hands over the wgpu device, queue and surface format, for an app that
+  paints with the gpu itself through a `Viewport`, and a `Waker`. `Waker::wake`
+  can be called from any thread, and asks the runner for another frame: it is
+  how work finishing elsewhere is pushed to the ui instead of polled for.
+- `close_requested` is asked when the window is closed, and can refuse by
+  returning `false` (to ask about unsaved work first, then call
+  `Context::close_window`). `exiting` runs once on the way out.
+
+From inside a frame the app can also ask the window for things through the
+`Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,
+`set_zoom_factor`, `close_window`, and `retain_events` to take events away from
+the document before it sees them, which is how an app that hosts its own
+surfaces (block-app hosting plugins) keeps a key meant for a plugin away from
+the focused beui control.
+
+A runner hands the document its events in batches, one per frame. A press that
+follows typing waits for the next frame, so text typed before a click always
+reaches the field it was typed into, however many events arrive between two
+frames.
+
+The web runner draws into the canvas it is given with WebGPU, or WebGL where
+the browser has no WebGPU. It reads the keyboard through a hidden text area,
+so pasting and composition behave like any other input on the page. Like the
+desktop runner, it only asks the browser for a frame when an event arrived,
+something asked for a repaint, or a `Waker` was woken.
 
 ### The inspector
 
@@ -924,15 +1038,22 @@ and then the state - checked, expanded, selected, a slider's percentage,
 "dimmed" for a disabled control. A control with nothing to name it is announced
 as its bare role, which is the point: "button" on its own is the bug.
 
-While the simulation is on the document answers no pointer or keyboard input
-directly, so a click lands nowhere and the only way through the UI is the
-simulation. Keyboard and touch drive it at the same time, with no mode to pick
-between them. From the keyboard, the left and right (or up and down) arrows walk
-an item at a time, Tab and Shift+Tab move between controls, Home and End jump to
-the ends, Enter or Space activates, Minus and Plus adjust, Page Up and Page Down
-scroll, and R repeats the current item. Walking past either end says so and
-reads the item again after it, so the readout never leaves you without the thing
-you are standing on. By touch, dragging a finger reads
+While the simulation is on the document answers no pointer input directly, so a
+click lands nowhere and the only way to reach something is the simulation. The
+keyboard is split the way a platform screen reader splits it: the reader's
+commands all hold Alt, and every other key goes to whatever the document has
+focused. Landing on a control focuses it, so walking to a text field and typing
+types into it, and the arrows, Enter and Space do what the focused control does
+with them. The reader follows focus in turn: when the document moves focus on
+its own - Tab, Shift+Tab, a dialog opening - the reader moves to the control
+that took it and reads it. Keyboard and touch drive it at the same time, with no
+mode to pick between them. From the keyboard, Alt with the left and right (or up
+and down) arrows walks an item at a time, Alt+Shift with the arrows moves
+between controls, Alt+Home and Alt+End jump to the ends, Alt+Enter or Alt+Space
+activates, Alt+Minus and Alt+Plus adjust, Alt+Page Up and Alt+Page Down scroll,
+and Alt+R repeats the current item. The document never sees those keys. Walking
+past either end says so and reads the item again after it, so the readout never
+leaves you without the thing you are standing on. By touch, dragging a finger reads
 whatever is under it, flicking left or right moves an item at a time, flicking
 up or down adjusts a value, a double tap activates, two fingers tapping repeats,
 and dragging two fingers scrolls; turning "Emulate touch with mouse" on as well
@@ -1060,16 +1181,17 @@ document to display new data.
 ## Use beui in a block editor plugin
 
 A beui editor is a `#[component]` function. It implements
-`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`
-instead of the egui `App` and `plugin!`. The type it names holds no state: the
+`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`.
+The type it names holds no state: the
 framework builds the view once, keeps the `Document` it produced, and shows it
 every frame.
 
 ```rust
 #[component]
 pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
-    let counter = editor.block::<CounterBlock>();
-    let count = counter.project(CounterBlock::count);
+    let counter = editor.block_content::<CounterContent>();
+    let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
+    let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
     view! { ... }
 }
 
@@ -1083,16 +1205,16 @@ impl block_editor_plugin::BeuiApp for CounterApp {
     }
 
     fn create_block(creation: &block_editor_plugin::Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(CounterBlock::default()).id())
+        Ok(creation.create(&CounterContent::default()))
     }
 }
 
 block_editor_plugin::beui_plugin!(CounterApp, "../manifest.json");
 ```
 
-`Editor` is everything the instance was given: the host, the runtime's client,
-the block, the view the host is showing the content through, and
-`each_frame(...)` for work that is neither a block projection nor a signal. The
+`Editor` is everything the instance was given: the host, the block, the
+`Blocks` handle it reaches the graph through, the view the host is showing the content through, and
+`each_frame(...)` for work that is neither a content projection nor a signal. The
 host supplies input, fonts, clipboard integration, rendering, and the frame
 rectangle. A plugin normally depends on beui without the window runner:
 
@@ -1100,10 +1222,12 @@ rectangle. A plugin normally depends on beui without the window runner:
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 ```
 
-Block data reaches the view through `block-reactive`: `BlockSource::new` watches
-a block, `project` and `project_keyed` derive signals from its current value, and
-one `pump()` at the top of the frame — inside the document's reactive scope —
-re-derives them. See the [reactive guide](reactive.md#blocks).
+Block content reaches the view through a `ContentProjection`:
+`editor.block_content::<C>()` holds the content of the editor's own block,
+`project`, `field`, `ids` and `object` derive signals from it, and `operate`
+applies an edit and sends it to the host. The framework pumps every projection
+once at the top of the frame, inside the document's reactive scope. See the
+[reactive guide](reactive.md#blocks).
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
@@ -1113,8 +1237,8 @@ A plugin with `"creation": "Dialog"` implements `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
 and shows in the host's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
-filled in. Host services such as `BlockPicker` work there in the same way they
-do from an egui creation UI, polled from `creation.each_frame(...)`.
+filled in. Host services such as `BlockPicker` work there too, polled from
+`creation.each_frame(...)`.
 
 ## Develop an unstyled component
 
@@ -1285,14 +1409,14 @@ supports key presses, text, hover, pointer clicks, and touch gestures. See the
 From the workspace root, use:
 
 ```text
-./scripts/check
-./scripts/verify
+./scripts/buck run //:check
+./scripts/buck run //:verify
 ```
 
-`./scripts/check` is the fast complete-workspace compile check. `./scripts/verify`
+`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/buck run //:verify`
 is the full check, and CI runs it on a pull request and pushes whatever it changes to
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
-failure. Run `./scripts/run --smoke` as well when a change can affect native
+failure. Run `./scripts/buck run //crates/block-app:smoke` as well when a change can affect native
 startup or runtime integration.

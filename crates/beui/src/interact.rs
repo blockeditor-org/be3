@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
@@ -7,13 +9,23 @@ use crate::painter::Painter;
 use crate::document::Document;
 use crate::node::{InteractInput, NodeId, NodeMap};
 
+pub(crate) const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Keys {
+    Ignored,
+    All,
+    BesideScreenReader,
+}
+
 pub(crate) fn interact(
     doc: &mut Document,
     ctx: &Context,
     painter: &Painter,
     rects: &NodeMap<Rect>,
     root: NodeId,
-    keyboard_interactive: bool,
+    pointer: bool,
+    keys: Keys,
 ) {
     let modifiers = ctx.input(|input| input.modifiers);
     let wheel = ctx.input(|input| input.scroll_delta);
@@ -48,6 +60,10 @@ pub(crate) fn interact(
         clicks: ctx.input(|input| input.pointer.clicks()),
         modifiers,
     };
+    let input = match pointer {
+        true => input,
+        false => without_pointer(input),
+    };
 
     if input.touch_started {
         doc.touch_scroll_vertical = target(doc, rects, root, input.pointer_pos, &|element| {
@@ -59,41 +75,38 @@ pub(crate) fn interact(
     }
     if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
-    {
-        let under: Vec<NodeId> = if doc.overlay_stack.is_empty() {
-            vec![root]
-        } else {
-            doc.overlay_stack.iter().rev().copied().collect()
-        };
-        let layers: Vec<NodeId> = doc
-            .floating_overlays()
-            .into_iter()
-            .rev()
-            .chain(under)
-            .collect();
-        if let Some(captor) = layers
+        && let Some(captor) = doc
+            .pointer_layers(root)
             .into_iter()
             .find_map(|layer| captor(doc, rects, layer, pos))
-        {
-            doc.capture_pointer(captor);
-        }
+    {
+        doc.capture_pointer(captor);
     }
     let wheel_target = (input.scroll != Vec2::ZERO)
         .then(|| {
-            target(doc, rects, root, input.pointer_pos, &|element| {
-                wants_wheel(element, input.scroll)
-            })
+            let now = Instant::now();
+            let target = latched_wheel_target(doc, rects, input.pointer_pos, input.scroll, now)
+                .or_else(|| {
+                    target(doc, rects, root, input.pointer_pos, &|element| {
+                        wants_wheel(element, input.scroll)
+                    })
+                });
+            doc.wheel_latch = target.map(|target| (target, now));
+            target
         })
         .flatten();
     let zoom_target = (input.zoom != 1.0 || input.touch_pan != Vec2::ZERO)
         .then(|| target(doc, rects, root, input.zoom_pos, &wants_gestures))
         .flatten();
-    let (vertical, horizontal) = ctx.input(|state| {
-        (
-            state.touch.scrolling(),
-            state.touch.scrolling_horizontally(),
-        )
-    });
+    let (vertical, horizontal) = match pointer {
+        true => ctx.input(|state| {
+            (
+                state.touch.scrolling(),
+                state.touch.scrolling_horizontally(),
+            )
+        }),
+        false => (false, false),
+    };
     let touch_scroll_target = match (vertical, horizontal) {
         (true, _) => doc.touch_scroll_vertical,
         (_, true) => doc.touch_scroll_horizontal,
@@ -107,6 +120,13 @@ pub(crate) fn interact(
         ..input
     };
 
+    if let Some(pos) = input.pointer_pos {
+        let drags = doc.drag_board();
+        drags.track(crate::unstyled::DragPoint {
+            pos,
+            modifiers: input.modifiers,
+        });
+    }
     let mut focus_target = None;
     let covered = input
         .pointer_pos
@@ -161,8 +181,9 @@ pub(crate) fn interact(
             })
         })
         .collect();
+    let modal = doc.modal_open();
     for (content, shadowed) in floating.into_iter().zip(shadowed) {
-        let above = match shadowed {
+        let above = match shadowed || modal {
             false => input,
             true => InteractInput {
                 pointer_pos: None,
@@ -193,7 +214,7 @@ pub(crate) fn interact(
     }
 
     doc.validate_focus();
-    if ctx.pointer_locked() && keyboard_interactive {
+    if ctx.pointer_locked() && pointer && keys != Keys::Ignored {
         let motion = ctx.input(|input| input.pointer.motion);
         if motion != Vec2::ZERO {
             doc.motion_focused(motion);
@@ -211,7 +232,12 @@ pub(crate) fn interact(
                 }
                 continue;
             }
-            Event::Text(_) | Event::Key { .. } if !keyboard_interactive => continue,
+            Event::Text(_) | Event::Key { .. } if keys == Keys::Ignored => continue,
+            Event::Key { .. }
+                if keys == Keys::BesideScreenReader && crate::screen_reader::claims(&event) =>
+            {
+                continue;
+            }
             Event::Text(text) => {
                 doc.text_focused(&text);
                 doc.reveal_focus(painter);
@@ -277,6 +303,31 @@ pub(crate) fn interact(
     }
 }
 
+fn without_pointer(input: InteractInput) -> InteractInput {
+    InteractInput {
+        pointer_pos: None,
+        pointer_down: false,
+        pressed_this_frame: false,
+        released_this_frame: false,
+        secondary_pressed_this_frame: false,
+        middle_down: false,
+        middle_pressed_this_frame: false,
+        scroll: Vec2::ZERO,
+        zoom: 1.0,
+        touch_pan: Vec2::ZERO,
+        zoom_pos: None,
+        touch_started: false,
+        touch_active: false,
+        touch_ended: false,
+        touch_cancelled: false,
+        touch_dragged: false,
+        touch_scroll_delta: Vec2::ZERO,
+        touch_velocity: Vec2::ZERO,
+        clicks: 0,
+        ..input
+    }
+}
+
 fn captor(doc: &mut Document, rects: &NodeMap<Rect>, id: NodeId, pos: Pos2) -> Option<NodeId> {
     let rect = *rects.get(&id)?;
     for child in doc.arena.get(id).children().into_iter().rev() {
@@ -304,6 +355,21 @@ fn wants_wheel(element: &dyn crate::node::Element, wheel: Vec2) -> bool {
         .is_some_and(|catcher| catcher.wants_wheel(wheel))
 }
 
+fn latched_wheel_target(
+    doc: &Document,
+    rects: &NodeMap<Rect>,
+    pointer: Option<Pos2>,
+    wheel: Vec2,
+    now: Instant,
+) -> Option<NodeId> {
+    let (latched, last) = doc.wheel_latch?;
+    let recent = now.saturating_duration_since(last) < WHEEL_LATCH_TIMEOUT;
+    let under =
+        pointer.is_some_and(|pos| rects.get(&latched).is_some_and(|rect| rect.contains(pos)));
+    let still_wants = doc.arena.contains(latched) && wants_wheel(doc.arena.get(latched), wheel);
+    (recent && under && still_wants).then_some(latched)
+}
+
 fn wants_gestures(element: &dyn crate::node::Element) -> bool {
     element
         .as_any()
@@ -319,13 +385,18 @@ fn target(
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
 ) -> Option<NodeId> {
     let pos = pos?;
-    if doc.overlay_stack.is_empty() {
-        return deepest(doc, rects, root, pos, wants);
-    }
-    doc.overlay_stack
-        .iter()
-        .rev()
-        .find_map(|overlay| deepest(doc, rects, *overlay, pos, wants))
+    doc.pointer_layers(root)
+        .into_iter()
+        .find_map(|layer| match layer == root {
+            true => deepest(doc, rects, root, pos, wants),
+            false => doc
+                .arena
+                .get(layer)
+                .children()
+                .into_iter()
+                .rev()
+                .find_map(|child| deepest(doc, rects, child, pos, wants)),
+        })
 }
 
 fn deepest(

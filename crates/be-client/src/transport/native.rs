@@ -31,7 +31,7 @@ pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
             max_message_size: Some(MAX_FRAME_BYTES),
             ..WebSocketConfig::default()
         }),
-        false,
+        true,
     )
     .await
     .map_err(|error| error.to_string())?;

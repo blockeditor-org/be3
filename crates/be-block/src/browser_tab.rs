@@ -1,121 +1,101 @@
-use be_commit::MergeResult;
-use serde::{Deserialize, Serialize};
+use be_model::{Anchor, Change, Document, Edit, Item, List, Model, ObjectId};
 use uuid::Uuid;
 
-use crate::{BlockContent, ContentError, LiveEdit, Merge};
+use crate::Root;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
+pub struct BrowserTab {
+    pub history: List<HistoryItem>,
+    pub current: Option<ObjectId>,
+}
+
+#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct HistoryItem {
     pub url: String,
     pub title: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct BrowserTabContent {
-    history: Vec<HistoryItem>,
-    index: usize,
-}
-
-impl Default for BrowserTabContent {
-    fn default() -> Self {
-        Self::at("about:blank")
-    }
-}
-
-impl BrowserTabContent {
-    pub fn at(url: impl Into<String>) -> Self {
+impl HistoryItem {
+    pub fn new(url: impl Into<String>, title: impl Into<String>) -> Self {
         Self {
-            history: vec![HistoryItem {
-                url: url.into(),
-                title: String::new(),
-            }],
-            index: 0,
+            url: url.into(),
+            title: title.into(),
         }
     }
 
-    pub fn history(&self) -> &[HistoryItem] {
-        &self.history
+    fn blank() -> Self {
+        Self::new("about:blank", "")
     }
+}
 
+impl BrowserTab {
     pub fn index(&self) -> usize {
-        self.index
+        self.current_item()
+            .and_then(|current| self.history.iter().position(|item| item.id == current.id))
+            .unwrap_or(0)
     }
 
-    pub fn current(&self) -> &HistoryItem {
-        &self.history[self.index]
+    pub fn current(&self) -> HistoryItem {
+        self.current_item()
+            .map(|item| item.value.clone())
+            .unwrap_or_else(HistoryItem::blank)
     }
 
     pub fn can_go_forward(&self) -> bool {
-        self.index + 1 < self.history.len()
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub enum BrowserTabOp {
-    Push(HistoryItem),
-    Replace(HistoryItem),
-    History(usize),
-}
-
-impl BlockContent for BrowserTabContent {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7765_622d_6272_6f77_7365_722d_7461_6202);
-
-    fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).unwrap_or_default()
+        self.index() + 1 < self.history.len()
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
-        let tab: Self =
-            postcard::from_bytes(bytes).map_err(|_| ContentError::Malformed("browser tab"))?;
-        if tab.index >= tab.history.len() {
-            return Err(ContentError::Malformed(
-                "a browser tab points past its history",
-            ));
+    fn current_item(&self) -> Option<&Item<HistoryItem>> {
+        self.current
+            .and_then(|current| self.history.get(current))
+            .or_else(|| self.history.last())
+    }
+
+    pub fn push(&self, item: &HistoryItem) -> Edit {
+        let mut changes: Vec<Change> = self
+            .history
+            .iter()
+            .skip(self.index() + 1)
+            .map(|later| Change::remove(later.id))
+            .collect();
+        let anchor = self
+            .current_item()
+            .map_or(Anchor::End, |current| Anchor::After(current.id));
+        let (id, insert) = Self::HISTORY.insert(ObjectId::ROOT, anchor, item);
+        changes.push(insert);
+        changes.push(Self::CURRENT.set(ObjectId::ROOT, &Some(id)));
+        Edit(changes)
+    }
+
+    pub fn replace(&self, item: &HistoryItem) -> Edit {
+        let Some(current) = self.current_item() else {
+            return self.push(item);
+        };
+        let mut changes = Vec::new();
+        if current.url != item.url {
+            changes.push(HistoryItem::URL.set(current.id, &item.url));
         }
-        Ok(tab)
+        if current.title != item.title {
+            changes.push(HistoryItem::TITLE.set(current.id, &item.title));
+        }
+        Edit(changes)
     }
+
+    pub fn go(&self, index: usize) -> Edit {
+        match self.history.get_index(index) {
+            Some(item) => Self::CURRENT.set(ObjectId::ROOT, &Some(item.id)).into(),
+            None => Edit::default(),
+        }
+    }
+}
+
+impl Root for BrowserTab {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7765_622d_6272_6f77_7365_722d_7461_6201);
 
     fn name(&self) -> Option<String> {
-        let title = self.current().title.trim();
-        (!title.is_empty()).then(|| title.to_owned())
+        let title = self.current().title.trim().to_owned();
+        (!title.is_empty()).then_some(title)
     }
 }
 
-impl LiveEdit for BrowserTabContent {
-    type Op = BrowserTabOp;
-
-    fn apply(&mut self, operation: &Self::Op) {
-        match operation {
-            BrowserTabOp::Push(item) => {
-                self.history.truncate(self.index.saturating_add(1));
-                self.history.push(item.clone());
-                self.index = self.history.len() - 1;
-            }
-            BrowserTabOp::Replace(item) => {
-                if let Some(current) = self.history.get_mut(self.index) {
-                    current.clone_from(item);
-                }
-            }
-            BrowserTabOp::History(index) => {
-                if *index < self.history.len() {
-                    self.index = *index;
-                }
-            }
-        }
-    }
-}
-
-impl Merge for BrowserTabContent {
-    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
-        if ours == base {
-            MergeResult::Clean(theirs.clone())
-        } else if theirs == base || theirs == ours {
-            MergeResult::Clean(ours.clone())
-        } else {
-            MergeResult::Conflicted {
-                value: ours.clone(),
-                conflicts: 1,
-            }
-        }
-    }
-}
+pub type BrowserTabContent = Document<BrowserTab>;

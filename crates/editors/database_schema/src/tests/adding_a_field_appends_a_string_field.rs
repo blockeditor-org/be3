@@ -2,15 +2,15 @@ use super::*;
 
 #[test]
 fn adding_a_field_appends_a_string_field() {
-    let (mut editor, block) = editor();
+    let mut harness = editor();
 
-    editor.click("database-schema.add-field");
-    editor.run();
+    harness.editor.click("database-schema.add-field");
+    harness.run();
 
-    let schema = block.read().unwrap();
-    let fields = schema.fields();
+    let fields = schema(&harness).fields();
     assert_eq!(fields.len(), 1);
     assert_eq!(fields[0].name, "Field");
-    drop(schema);
-    editor.snapshot("adding_a_field_appends_a_string_field");
+    harness
+        .editor
+        .snapshot("adding_a_field_appends_a_string_field");
 }

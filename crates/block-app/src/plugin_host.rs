@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
-use block_client::BlockClient;
+use beui::{Pos2, Rect, Vec2, vec2};
 use block_plugin_api::{
     BlockTypeDescriptor, ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ScreenId,
 };
-use eframe::egui;
 use uuid::Uuid;
 
 mod audio;
 mod backend;
 mod clipboard;
+pub(crate) mod graph;
 mod input;
 mod instances;
 mod pieces;
@@ -23,6 +23,7 @@ mod web;
 mod web_view;
 
 pub(crate) use instances::EditorView;
+pub(crate) use presenter::{Blit, PluginDrawing};
 pub(crate) use runtime::{
     artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, cover_frame,
     creation, creation_ready, editor_ui, flush, frame_child, frame_rects, hold, install,
@@ -32,6 +33,12 @@ pub(crate) use runtime::{
     take_artifact_watch, take_block_pick, take_created, take_focus_report, take_leaving,
     take_view_changes,
 };
+#[cfg(all(
+    feature = "web-view",
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
+pub(crate) use web_view::install as install_web_view;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn cache_in(directory: std::path::PathBuf) {
@@ -44,13 +51,14 @@ pub(crate) struct HostChild {
     pub(crate) child: ChildId,
     pub(crate) frame_owner: bool,
     pub(crate) own_frame: bool,
+    pub(crate) top_bar: bool,
     pub(crate) block_id: Uuid,
     pub(crate) block_type: Uuid,
-    pub(crate) rect: egui::Rect,
-    pub(crate) clip: egui::Rect,
+    pub(crate) rect: Rect,
+    pub(crate) clip: Rect,
     pub(crate) layer: ChildLayer,
     pub(crate) mode: ChildMode,
-    pub(crate) intrinsic: Option<egui::Vec2>,
+    pub(crate) intrinsic: Option<Vec2>,
     pub(crate) rotation: f32,
     pub(crate) opacity: f32,
 }
@@ -71,14 +79,14 @@ impl HostChild {
 
 pub(crate) struct PreviewPresentation {
     pub(crate) drawn: bool,
-    pub(crate) size: egui::Vec2,
+    pub(crate) size: Vec2,
     pub(crate) children: Vec<HostChild>,
 }
 
 pub(crate) struct HostChildStatus {
     pub(crate) child: ChildId,
     pub(crate) available: bool,
-    pub(crate) intrinsic: Option<egui::Vec2>,
+    pub(crate) intrinsic: Option<Vec2>,
     pub(crate) aspect_ratio: Option<f32>,
     pub(crate) hovered: bool,
     pub(crate) active: bool,
@@ -118,8 +126,8 @@ pub(crate) struct InstanceStatus {
     pub(crate) role: &'static str,
     pub(crate) opened: bool,
     pub(crate) aspect_ratio: Option<f32>,
-    pub(crate) intrinsic: Option<egui::Vec2>,
-    pub(crate) view: Option<egui::Rect>,
+    pub(crate) intrinsic: Option<Vec2>,
+    pub(crate) view: Option<Rect>,
     pub(crate) artifact: Option<ArtifactStatus>,
     pub(crate) screens: Vec<ScreenStatus>,
 }
@@ -133,10 +141,10 @@ pub(crate) struct ArtifactStatus {
 pub(crate) struct ScreenStatus {
     pub(crate) screen: ScreenId,
     pub(crate) region: EditorRegion,
-    pub(crate) logical: egui::Vec2,
+    pub(crate) logical: Vec2,
     pub(crate) pixels: [u32; 2],
     pub(crate) scale_factor: f32,
-    pub(crate) used: Option<egui::Vec2>,
+    pub(crate) used: Option<Vec2>,
     pub(crate) placement: Option<[u32; 4]>,
     pub(crate) drawn: bool,
     pub(crate) children: usize,
@@ -146,32 +154,28 @@ pub(crate) struct ScreenStatus {
 pub(crate) struct PreviewSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client: Arc<BlockClient>,
     pub(crate) client_id: Uuid,
     pub(crate) block_id: Uuid,
     pub(crate) block_type: Uuid,
     pub(crate) instance: EditorInstanceId,
-    pub(crate) corners: [egui::Pos2; 4],
+    pub(crate) corners: [Pos2; 4],
     pub(crate) opacity: f32,
 }
 
-pub(crate) fn preview_size(size: egui::Vec2, scale_factor: f32) -> egui::Vec2 {
+pub(crate) fn preview_size(size: Vec2, scale_factor: f32) -> Vec2 {
     const STEP: f32 = 64.0;
     const MAXIMUM: f32 = 2048.0;
     let scale = scale_factor.max(f32::EPSILON);
     let pixels = size * scale;
-    egui::vec2(
-        (pixels.x / STEP).ceil() * STEP,
-        (pixels.y / STEP).ceil() * STEP,
-    )
-    .clamp(egui::Vec2::splat(STEP), egui::Vec2::splat(MAXIMUM))
-        / scale
+    vec2(
+        ((pixels.x / STEP).ceil() * STEP).clamp(STEP, MAXIMUM),
+        ((pixels.y / STEP).ceil() * STEP).clamp(STEP, MAXIMUM),
+    ) / scale
 }
 
 pub(crate) struct CreationSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client: Arc<BlockClient>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
 }
@@ -185,13 +189,12 @@ pub(crate) enum CreationState {
 pub(crate) struct EditorSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client: Arc<BlockClient>,
     pub(crate) client_id: Uuid,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,
     pub(crate) region: EditorRegion,
     pub(crate) frame: Option<FrameSpec>,
-    pub(crate) size: egui::Vec2,
+    pub(crate) size: Vec2,
     pub(crate) view: Option<EditorView>,
 }
 
@@ -220,7 +223,6 @@ impl InstanceRole {
 pub(crate) struct ArtifactSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client: Arc<BlockClient>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) block: EditorBlock,

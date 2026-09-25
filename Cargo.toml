@@ -3,7 +3,10 @@ members = [
     "crates/be-block",
     "crates/be-client",
     "crates/be-commit",
+    "crates/be-compositor",
     "crates/be-graph",
+    "crates/be-model",
+    "crates/be-model-derive",
     "crates/be-protocol",
     "crates/be-server",
     "crates/be-session",
@@ -12,14 +15,10 @@ members = [
     "crates/beui_macros",
     "crates/reactive_macros",
     "crates/reactive",
-    "crates/block",
-    "crates/block-server",
-    "crates/block-client",
-    "crates/block-reactive",
     "crates/block-ui",
     "crates/block-ui-test",
+    "crates/test-third-party",
     "crates/text-editor-core",
-    "crates/block-e2e",
     "crates/block-app",
     "crates/tabletop_games/api",
     "crates/tabletop_games/host",
@@ -56,8 +55,6 @@ members = [
     "crates/editors/settings",
     "crates/editors/text_block",
     "crates/editors/ui_settings",
-    "crates/editors/version_control_data",
-    "crates/editors/version_control_worktree",
     "crates/editors/video_block",
     "crates/editors/workspace_index",
     "crates/editors/workspace_ui",
@@ -72,6 +69,7 @@ members = [
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
     "crates/fix-rust-source",
+    "crates/buck-tools",
     "crates/wasi-threads",
 ]
 resolver = "3"
@@ -120,6 +118,74 @@ incremental = false
 [profile.plugin-release]
 inherits = "release"
 strip = "debuginfo"
+
+# The new block stack seals every chunk it stores with ChaCha20-Poly1305 and
+# names it by its SHA-256, and unoptimised those are most of what saving or
+# opening a file costs: eight megabytes took three and a half seconds to save
+# and two and a half to open in a debug build. Optimising the cipher, the hash
+# and be-store, which instantiates both, brings that to a third of a second.
+# The websocket they travel over masks every byte a client sends, which is the
+# same kind of loop.
+
+[profile.dev.package.aead]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.be-store]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.block-buffer]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.chacha20]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.chacha20poly1305]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.cipher]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.digest]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.poly1305]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.sha2]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.tungstenite]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.tokio-tungstenite]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.universal-hash]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
 
 # Cranelift is what compiles a plugin, both in the app when an artifact is
 # missing and in the compiler the build hands every plugin to, and unoptimised

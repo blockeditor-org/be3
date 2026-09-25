@@ -25,7 +25,7 @@ set_count.update(|count| *count += 1);
 
 Keep the scope alive for as long as the view exists. Dropping it or calling
 `scope.dispose()` stops its computations and runs their cleanup callbacks.
-Run `cargo run -p reactive --example retained` for a complete example that
+Run `./scripts/buck run //crates/reactive:retained-example` for a complete example that
 updates retained state and batches changes around a mutable borrow.
 
 ## Signals and memos
@@ -185,37 +185,49 @@ if two items claim the same key.
 
 ## Blocks
 
-`block-reactive` connects the two to block-client. `BlockSource::new(handle,
-wake)` watches one block, and `pump()` re-derives everything registered against
-it when that block has changed since the last call.
+A plugin editor reads its block's content through a `ContentProjection`
+(`block_editor_plugin`). `editor.block_content::<C>()` is the one for the
+editor's own block, `editor.content_of::<C>(block)` the one for another block it
+follows; both are pumped by the plugin framework once at the top of every frame,
+inside the document's reactive scope, so an editor never pumps by hand.
 
 ```rust
-let source = BlockSource::new(client.get_block(id), move || waker.wake());
-let done = source.project(Checklist::done_count);
-let items = source.project_keyed(|checklist, items| {
-    items.reconcile(checklist.items().iter().map(|item| (item.id, item)));
-});
+let checklist = editor.block_content::<ChecklistContent>();
+let done = checklist.project(|checklist| checklist.root().done_count());
+let ids = checklist.ids(ObjectId::ROOT, Checklist::ITEMS);
+let item = checklist.object::<ChecklistItem>(id);
+let count = counter.field(ObjectId::ROOT, Counter::COUNT);
 ```
 
-A projection is a plain function of the block's current value. It runs on every
-pump and writes its signal, which notifies only when the value it computed
-actually changed, so an edit to one item wakes the bindings that read that item
-and nothing else. Deriving from the current value rather than from the
-operations applied to it is what makes this correct: a block's visible value is
-rebuilt from the confirmed state by replaying the operations still in flight
-whenever the server acknowledges one, so it can move in ways no operation
-describes.
+A projection is a plain function of the content as the view sees it now. It
+writes its signal, which notifies only when the value it computed actually
+changed. Deriving from the current value rather than from the operations applied
+to it is what makes this correct: when an edit from elsewhere arrives while one
+of this editor's own is still in flight, the visible content is rebuilt from the
+confirmed content and the pending edits, so it can move in ways no single
+operation describes.
 
-Keep a projection cheap and pure. It runs while the block is read-locked, so it
-must not operate on the block; write through `BlockSource::operate`, which
-applies the operation and pumps, so a local edit is visible in the frame that
-made it. An editor does not pump by hand: `Editor::block::<B>()` hands back a
-`BlockProjection` over the same machinery, which the plugin framework pumps once
-at the top of every frame inside the document's reactive scope, and whose
-`operate` is already held behind whether the host says the block may be edited.
+A projection also only runs when something it watches was touched. Applying an
+operation reports what it touched, and `project` watches everything,
+`project_on(key, ...)` one key, and `project_keyed` fills a `KeyedStore`. On a
+`be-model` document the projection can be narrower still: `field(object, FIELD)`
+runs for one field of one object, `ids(owner, LIST)` for the order of one list,
+and `object::<T>(id)` for one object and everything inside it. The checklist's
+rows each watch their own item and its list watches only its order, so ticking
+one item runs one row. A watcher is dropped with the reactive scope that made it.
 
-`BlockWatch` is the watch half on its own, for an editor whose view is computed
-from several blocks rather than projected from one.
+Keep a projection cheap and pure; it must not operate. Write through
+`ContentProjection::operate`, which applies the operation to what the view
+sees straight away, so a local edit is visible in the frame that made it, and
+queues it for the host. It is already held behind whether the host says the
+block may be edited. `read` answers the content outside a projection (`None`
+until the host has sent it once), and `loaded()` is a signal that turns true
+when it has.
+
+The graph around a block - its children, what it references, what references
+it - is a query rather than content. `editor.watch_blocks(BlockQuery::Children(id))`
+is a memo of the `BlockInfo`s the host answers that query with, `None` until the
+first answer arrives, and it changes whenever the host's answer does.
 
 ## Effects, batches, and ownership
 

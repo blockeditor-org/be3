@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "database_view",
+    module = "database_view",
+)

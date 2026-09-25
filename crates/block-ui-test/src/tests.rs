@@ -1,18 +1,23 @@
-use std::sync::Arc;
-
 use beui::NodeId;
 use beui::reactive::{Frame, ReadSignal, Text, component, create_memo, view};
-use block_client::BlockClient;
+use block_editor_plugin::be_block::{BlockContent, FileTreeContent};
 use block_editor_plugin::{
     BeuiApp, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget, Editor, EditorHost,
 };
 use uuid::Uuid;
 
-use crate::BeuiTest;
+use crate::{BeuiTest, ContentStore};
 
 mod a_child_block_reports_its_placement_and_follows_its_status;
+mod clearing_the_name_gives_the_block_back_its_derived_name;
+mod ctrl_z_in_a_text_field_is_left_to_the_field;
+mod ctrl_z_undoes_the_block_through_the_top_bar;
+mod the_top_bar_offers_close_only_to_a_framed_child;
+mod the_top_bar_renames_its_block;
+mod undo_in_the_top_bar_asks_the_host_for_a_block_it_cannot_open;
 
 const SLIDE: Uuid = Uuid::from_u128(0x0001);
+const FILE_TREE: Uuid = FileTreeContent::CONTENT_TYPE;
 const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 
 struct ChildApp;
@@ -54,10 +59,9 @@ fn Status(state: ReadSignal<ChildState>) -> NodeId {
 }
 
 fn editor() -> BeuiTest<ChildApp> {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
     let host = EditorHost::default();
     host.set_editable(true);
-    BeuiTest::new(Editor::new(host, client, Uuid::new_v4()))
+    BeuiTest::new(Editor::new(host, Uuid::new_v4()))
 }
 
 fn status(test: &BeuiTest<ChildApp>) -> String {
@@ -70,4 +74,52 @@ fn status(test: &BeuiTest<ChildApp>) -> String {
         .expect("the status text has content")
         .trim_matches('"')
         .to_owned()
+}
+
+fn named_editor() -> (BeuiTest<ChildApp>, ContentStore, Uuid) {
+    let block = Uuid::new_v4();
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_block_type(FILE_TREE);
+    let store = ContentStore::new(host.clone());
+    store.own(block, FILE_TREE);
+    let mut test = BeuiTest::new(Editor::new(host, block)).with_top_bar(false);
+    settle(&mut test, &store);
+    (test, store, block)
+}
+
+fn settle(test: &mut BeuiTest<ChildApp>, store: &ContentStore) {
+    test.run();
+    store.sync();
+    test.run();
+}
+
+fn name(store: &ContentStore, block: Uuid) -> Option<String> {
+    store
+        .block(block)
+        .filter(|info| info.named_by_hand)
+        .and_then(|info| info.name)
+}
+
+fn shown_name(test: &BeuiTest<ChildApp>) -> String {
+    let input = test
+        .document()
+        .find_test_id("editor.name")
+        .expect("the top bar has a name field");
+    beui::styled::text_input_value(test.document(), input)
+}
+
+fn undoable_editor() -> (BeuiTest<ChildApp>, EditorHost, Uuid) {
+    let block = Uuid::new_v4();
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_histories([(
+        block,
+        block_editor_plugin::BlockHistory {
+            can_undo: true,
+            can_redo: false,
+        },
+    )]);
+    let test = BeuiTest::<ChildApp>::new(Editor::new(host.clone(), block)).with_top_bar(false);
+    (test, host, block)
 }

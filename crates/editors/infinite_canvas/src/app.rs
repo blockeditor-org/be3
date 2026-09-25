@@ -1,6 +1,6 @@
+use block_editor_plugin::be_block::CanvasContent;
 use std::rc::Rc;
 
-use block_client::blocks::infinite_canvas::InfiniteCanvas;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::Vec2;
 use block_editor_plugin::beui::reactive::{
@@ -42,7 +42,7 @@ impl block_editor_plugin::BeuiApp for CanvasApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(InfiniteCanvas::new()).id())
+        Ok(creation.create(&CanvasContent::default()))
     }
 }
 

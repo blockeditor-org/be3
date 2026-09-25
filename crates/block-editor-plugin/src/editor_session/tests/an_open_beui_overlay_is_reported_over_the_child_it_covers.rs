@@ -37,13 +37,8 @@ impl crate::BeuiApp for OverlaidApp {
 
 #[test]
 fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
-    let mut session = EditorSession::beui::<OverlaidApp>(
-        Rc::new(Vec::new()),
-        EditorInstanceId(0),
-        Waker::default(),
-    );
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    session.connect(client, Uuid::new_v4(), BLOCK_TYPE);
+    let mut session = EditorSession::new::<OverlaidApp>(EditorInstanceId(0), Waker::default());
+    session.connect(Uuid::new_v4(), BLOCK_TYPE);
     session.regions.insert(
         EditorRegion::Frame,
         RegionState {
@@ -69,14 +64,14 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
             frame: Some(FrameSpec {
                 chrome: FrameChrome::Drawn,
                 content: None,
-                trail: Vec::new(),
+                top_bar: false,
             }),
             ..Default::default()
         },
     );
 
-    session.run_beui(EditorRegion::Frame, 1);
-    session.run_beui(EditorRegion::Frame, 2);
+    session.run(EditorRegion::Frame, 1);
+    session.run(EditorRegion::Frame, 2);
 
     let state = session
         .regions

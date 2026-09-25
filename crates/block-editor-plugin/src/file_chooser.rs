@@ -7,7 +7,6 @@ use beui::reactive::{
     create_memo, create_signal, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, use_theme};
-use block::Block;
 
 use crate::{Creation, EditorHost, FileFilter, FilePicker, PickedFile};
 
@@ -99,11 +98,12 @@ impl<T: 'static> FileChooser<T> {
     }
 }
 
-pub fn file_creation<B: Block>(
+fn file_creation_with<T: 'static>(
     creation: &Creation,
     test_id: &str,
     filter: FileFilter,
-    import: impl Fn(PickedFile) -> Result<B, String> + 'static,
+    import: impl Fn(PickedFile) -> Result<T, String> + 'static,
+    make: impl Fn(T) -> uuid::Uuid + 'static,
 ) -> NodeId {
     let chooser = FileChooser::new(filter, import);
     let polled = Rc::clone(&chooser);
@@ -112,11 +112,10 @@ pub fn file_creation<B: Block>(
         polled.poll(&host);
         host.set_creation_ready(polled.is_chosen());
     });
-    let client = creation.client().clone();
     let made = Rc::clone(&chooser);
     creation.on_create(move || {
-        let block = made.take().ok_or("no file was chosen")?;
-        Ok(client.create_block(block).id())
+        let chosen = made.take().ok_or("no file was chosen")?;
+        Ok(make(chosen))
     });
 
     let chosen = chooser.name();
@@ -152,4 +151,16 @@ pub fn file_creation<B: Block>(
             </List>
         </Frame>
     }
+}
+
+pub fn content_file_creation<C: be_block::BlockContent>(
+    creation: &Creation,
+    test_id: &str,
+    filter: FileFilter,
+    import: impl Fn(PickedFile) -> Result<C, String> + 'static,
+) -> NodeId {
+    let creating = creation.clone();
+    file_creation_with(creation, test_id, filter, import, move |content: C| {
+        creating.create(&content)
+    })
 }

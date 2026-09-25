@@ -1,4 +1,4 @@
-use block_client::blocks::calendar::CalendarEvent;
+use block_editor_plugin::be_block::ObjectId;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::TextAlign;
 use block_editor_plugin::beui::reactive::{
@@ -7,10 +7,9 @@ use block_editor_plugin::beui::reactive::{
 };
 use block_editor_plugin::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
 use block_ui::datetime::civil_from_days;
-use uuid::Uuid;
 
 use super::model::{
-    SECONDS_PER_DAY, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
+    SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
     weekday_from_days,
 };
 
@@ -24,8 +23,8 @@ const RULE: f32 = 1.0;
 
 #[derive(Clone, PartialEq)]
 struct Placed {
-    key: (Uuid, i64),
-    event: CalendarEvent,
+    key: (ObjectId, i64),
+    event: Shown,
     x: f32,
     y: f32,
     width: f32,
@@ -36,9 +35,9 @@ struct Placed {
 pub(crate) fn Timeline(
     first_day: Memo<i64>,
     days: usize,
-    events: Memo<Vec<CalendarEvent>>,
+    events: Memo<Vec<Shown>>,
     on_pick_slot: Callback<(i64, u8)>,
-    on_pick_event: Callback<CalendarEvent>,
+    on_pick_event: Callback<Shown>,
 ) -> NodeId {
     let columns = create_memo(clone!(first_day -> move || {
         (0..days as i64).map(|offset| first_day.get() + offset).collect::<Vec<i64>>()
@@ -90,9 +89,9 @@ fn DayHeader(day: i64) -> NodeId {
 fn Grid(
     first_day: Memo<i64>,
     days: usize,
-    events: Memo<Vec<CalendarEvent>>,
+    events: Memo<Vec<Shown>>,
     on_pick_slot: Callback<(i64, u8)>,
-    on_pick_event: Callback<CalendarEvent>,
+    on_pick_event: Callback<Shown>,
 ) -> NodeId {
     let size = component_size();
     let rect = component_rect();
@@ -162,7 +161,7 @@ fn Grid(
                         }}
                     </ForEach>
                     <ForEach keys={keys}>
-                        {move |key: (Uuid, i64)| {
+                        {move |key: (ObjectId, i64)| {
                             let item = item_of(placed.clone(), key);
                             view! {
                                 <EventBlock item={item} on_pick={forward(on_pick_event.clone())} />
@@ -176,13 +175,13 @@ fn Grid(
 }
 
 #[component]
-fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<CalendarEvent>) -> CanvasItem {
+fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasItem {
     let x = create_memo(clone!(item -> move || item.get().map_or(0.0, |item| item.x)));
     let y = create_memo(clone!(item -> move || item.get().map_or(0.0, |item| item.y)));
     let width = create_memo(clone!(item -> move || item.get().map_or(0.0, |item| item.width)));
     let height = create_memo(clone!(item -> move || item.get().map_or(0.0, |item| item.height)));
     let title = create_memo(clone!(item -> move || {
-        item.get().map(|item| item.event.title).unwrap_or_default()
+        item.get().map(|item| item.event.value.title).unwrap_or_default()
     }));
     let test_id = item.get_untracked().map_or_else(String::new, |item| {
         format!("calendar.event.{}", item.event.id)
@@ -207,7 +206,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<CalendarEvent>) -> C
 fn placements(
     first_day: Memo<i64>,
     days: usize,
-    events: Memo<Vec<CalendarEvent>>,
+    events: Memo<Vec<Shown>>,
     column_width: Memo<f32>,
 ) -> Memo<Vec<Placed>> {
     create_memo(move || {
@@ -241,7 +240,7 @@ fn placements(
     })
 }
 
-fn item_of(placed: Memo<Vec<Placed>>, key: (Uuid, i64)) -> Memo<Option<Placed>> {
+fn item_of(placed: Memo<Vec<Placed>>, key: (ObjectId, i64)) -> Memo<Option<Placed>> {
     create_memo(move || placed.with(|placed| placed.iter().find(|item| item.key == key).cloned()))
 }
 

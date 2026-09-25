@@ -10,20 +10,24 @@ fn a_tab_dropped_on_another_tab_bar_lands_at_the_place_it_was_dropped() {
 
     state.drop_tab(
         TabId::new(1),
-        DropTarget::Tab {
+        DockDrop::Tab {
             leaf: right,
             index: 1,
         },
     );
 
     assert_eq!(
-        state.tabs(right),
-        vec![TabId::new(3), TabId::new(1), TabId::new(4)],
+        state.entries(right),
+        vec![
+            Entry::Tab(TabId::new(3)),
+            Entry::Tab(TabId::new(1)),
+            Entry::Tab(TabId::new(4))
+        ],
         "the tab lands between the tabs it was dropped between"
     );
     assert_eq!(
-        state.tabs(left),
-        vec![TabId::new(2)],
+        state.entries(left),
+        vec![Entry::Tab(TabId::new(2))],
         "the tab leaves the pane it came from"
     );
     assert_eq!(

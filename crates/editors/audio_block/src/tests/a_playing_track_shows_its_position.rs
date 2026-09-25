@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_playing_track_shows_its_position() {
-    let (mut test, editor, _block) = editor();
+    let (mut test, editor) = editor();
 
     editor.host().set_audio(AudioStatus {
         playing: true,

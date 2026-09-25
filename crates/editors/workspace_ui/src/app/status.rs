@@ -7,9 +7,10 @@ use block_editor_plugin::beui::reactive::{
     create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Caption, MenuButton};
-use block_editor_plugin::beui::unstyled::{MenuItem, TabId};
+use block_editor_plugin::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
+use super::access::AccessMode;
 use super::menu::{ReferenceMenuItem, action_for, apply};
 use super::panel::{Info, Refs};
 use super::workspace::Workspace;
@@ -17,11 +18,7 @@ use super::workspace::Workspace;
 const SPACING: f32 = 10.0;
 
 #[component]
-pub(crate) fn StatusBar(
-    workspace: Rc<Workspace>,
-    tab: TabId,
-    info: ReadSignal<Option<Info>>,
-) -> NodeId {
+pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
     let type_label = create_memo(clone!(info -> move || {
         info.with(|info| {
             info.as_ref()
@@ -48,6 +45,7 @@ pub(crate) fn StatusBar(
         info.with(|info| info.as_ref().map(|info| info.item.id))
     }));
     let listed = Rc::clone(&workspace);
+    let access = Rc::clone(&workspace);
     let nothing_contains = create_memo(|| None);
     view! {
         <Toolbar spacing=SPACING>
@@ -59,7 +57,6 @@ pub(crate) fn StatusBar(
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <ReferenceMenu
                         workspace={Rc::clone(&workspace)}
-                        tab={tab}
                         name="Backrefs"
                         empty="No backrefs"
                         refs={backrefs}
@@ -68,7 +65,6 @@ pub(crate) fn StatusBar(
                     />
                     <ReferenceMenu
                         workspace={listed}
-                        tab={tab}
                         name="References"
                         empty="No references"
                         refs={references}
@@ -78,6 +74,7 @@ pub(crate) fn StatusBar(
                 </List>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
+            <AccessMode workspace={access} info={info} />
         </Toolbar>
     }
 }
@@ -85,7 +82,6 @@ pub(crate) fn StatusBar(
 #[component]
 pub(crate) fn ReferenceMenu(
     workspace: Rc<Workspace>,
-    tab: TabId,
     name: String,
     empty: String,
     refs: Memo<Refs>,
@@ -146,7 +142,6 @@ pub(crate) fn ReferenceMenu(
                 };
                 apply(
                     &workspace,
-                    tab,
                     &reference,
                     containing.get_untracked(),
                     action,

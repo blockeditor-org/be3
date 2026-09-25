@@ -196,7 +196,6 @@ fn name(message: &Message) -> &'static str {
         Message::Shutdown => "a shutdown",
         Message::ShutdownAcknowledged => "a shutdown acknowledgement",
         Message::Editor(_) => "an editor message",
-        Message::Client(_) => "a client frame",
         Message::BlockTypes(_) => "block types",
         Message::Children(_) => "child placements",
         Message::ChildStatuses(_) => "child statuses",

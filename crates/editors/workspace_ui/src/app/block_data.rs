@@ -38,7 +38,7 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
             set_data.set(None);
             return;
         };
-        set_data.set(workspace.client().block_debug_data(id));
+        set_data.set(workspace.debug_data(id));
     });
     let (expanded, set_expanded) = create_signal(HashSet::<String>::new());
     let parsed = create_memo(clone!(data -> move || {

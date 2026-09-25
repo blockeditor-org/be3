@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use block_editor_plugin::be_block::BlockContent;
 
-use block_client::blocks::compiled_logic::CompiledLogic;
-use block_client::{BlockClient, BlockHandle};
-use block_editor_plugin::{Editor, EditorHost};
-use block_ui_test::BeuiTest;
+use block_editor_plugin::be_block::compiled_logic::{CompiledLogic, CompiledLogicDocument};
+use block_editor_plugin::be_block::{CompiledLogicContent, LogicGridContent};
+use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
+use block_ui_test::{BeuiTest, ContentHarness};
 use logicgame::execution::{Instruction, UnlinkedComponent};
 use logicgame::grid::{ComponentPort, ComponentSide, ConnectionDirection, Scale, Size};
 use uuid::Uuid;
@@ -61,13 +61,25 @@ fn compiled(source: Uuid) -> CompiledLogic {
     )
 }
 
-fn editor() -> (BeuiTest<CompiledLogicApp>, BlockHandle<CompiledLogic>) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(compiled(Uuid::new_v4()));
+fn editor_on(source: Uuid, name: Option<&str>) -> ContentHarness<CompiledLogicApp> {
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, client, block.id());
-    let mut editor = BeuiTest::new(editor);
+    let editor = Editor::new(host.clone(), block);
+    let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
+    let mut grid = BlockInfo::new(source, LogicGridContent::CONTENT_TYPE, BlockParent::Root);
+    grid.name = name.map(str::to_owned);
+    grid.named_by_hand = name.is_some();
+    editor.store().add_block(grid);
+    editor.hold(
+        None,
+        CompiledLogicContent::new(&CompiledLogicDocument::of(compiled(source))),
+    );
     editor.run();
-    (editor, block)
+    editor.run();
+    editor
+}
+
+fn editor() -> ContentHarness<CompiledLogicApp> {
+    editor_on(Uuid::new_v4(), None)
 }

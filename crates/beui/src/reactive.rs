@@ -125,6 +125,10 @@ pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
     with_document(|document| document.watch_placement(node))
 }
 
+pub fn node_placed(node: NodeId) -> ReadSignal<bool> {
+    with_document(|document| document.watch_placed(node))
+}
+
 pub fn layout_text(
     text: &str,
     font: crate::font::FontId,
@@ -159,6 +163,10 @@ pub fn on_shortcut(shortcut: impl Fn(crate::input::KeyPress) -> bool + 'static) 
     let shortcut: Rc<crate::document::Shortcut> = Rc::new(shortcut);
     with_document(|document| document.register_shortcut(Rc::downgrade(&shortcut)));
     on_cleanup(move || drop(shortcut));
+}
+
+pub fn focus_takes_text() -> bool {
+    with_document(|document| document.focus_takes_text())
 }
 
 pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {

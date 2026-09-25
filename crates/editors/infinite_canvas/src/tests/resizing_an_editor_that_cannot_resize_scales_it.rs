@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn resizing_an_editor_that_cannot_resize_scales_it() {
-    let block_id = BlockRef::Direct(Uuid::new_v4());
+    let block_id = Uuid::new_v4();
     let mut editor = entity(Uuid::new_v4());
     editor.kind = CanvasEntityKind::DirectEditor {
         block_id,

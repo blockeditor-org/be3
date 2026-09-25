@@ -1,7 +1,7 @@
-use block_client::blocks::game_module::GameModule;
+use block_editor_plugin::be_block::GameModuleContent;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, file_creation};
+use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
 use game_host::Game;
 
 mod ui;
@@ -20,7 +20,7 @@ impl block_editor_plugin::BeuiApp for GameModuleApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        file_creation(&creation, "game-module", filter(), imported)
+        content_file_creation::<GameModuleContent>(&creation, "game-module", filter(), imported)
     }
 
     fn intrinsic_size() -> Option<Vec2> {
@@ -32,13 +32,13 @@ pub(crate) fn filter() -> FileFilter {
     FileFilter::new(
         "Game modules",
         "Game",
-        GameModule::FILE_EXTENSIONS,
-        GameModule::MIME_TYPES,
+        GameModuleContent::FILE_EXTENSIONS,
+        GameModuleContent::MIME_TYPES,
     )
 }
 
-pub(crate) fn imported(file: PickedFile) -> Result<GameModule, String> {
+pub(crate) fn imported(file: PickedFile) -> Result<GameModuleContent, String> {
     let PickedFile { name, data } = file;
     Game::load(&data).map_err(|error| format!("Could not import {name}: {error}"))?;
-    Ok(GameModule::new(name, data))
+    Ok(GameModuleContent::from_file(name, data))
 }

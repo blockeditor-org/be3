@@ -5,7 +5,7 @@ use crate::color::Color32;
 
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{Callback, Frame, Prop, clone, create_memo};
+use crate::reactive::{Callback, Frame, Memo, Prop, clone, create_memo};
 use crate::styled::context_menu::text_input_menu;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
@@ -23,6 +23,8 @@ pub fn TextInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = false)] plain: Prop<bool>,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
@@ -34,6 +36,7 @@ pub fn TextInput(
         }
         node
     });
+    let plain = create_memo(move || plain.get());
     let theme = use_theme();
     view! {
         <unstyled::TextInput
@@ -41,6 +44,7 @@ pub fn TextInput(
             placeholder
             disabled
             focused
+            password
             accessibility
             font_size=FONT_BODY
             color={theme.text.clone()}
@@ -54,14 +58,14 @@ pub fn TextInput(
             on_focus_change={move |focused| on_focus_change.call(focused)}
         >
             {move |handle| view! {
-                <TextInputFrame handle />
+                <TextInputFrame handle plain={plain.clone()} />
             }}
         </unstyled::TextInput>
     }
 }
 
 #[component]
-fn TextInputFrame(handle: TextInputHandle) -> NodeId {
+fn TextInputFrame(handle: TextInputHandle, plain: Memo<bool>) -> NodeId {
     let TextInputHandle {
         field,
         hovered,
@@ -69,12 +73,18 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
         disabled,
     } = handle;
     let theme = use_theme();
+    let raised = create_memo(clone!(focused hovered -> move || {
+        !plain.get() || focused.get() || hovered.get()
+    }));
     let border = create_memo(clone!(focused theme disabled -> move || {
         border_color(&theme, disabled.get(), focused.get(), hovered.get())
     }));
-    let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
-        true => theme.surface.get(),
-        false => theme.surface_raised.get(),
+    let fill = create_memo(clone!(theme disabled raised -> move || {
+        match (raised.get(), disabled.get()) {
+            (false, _) => Color32::TRANSPARENT,
+            (true, true) => theme.surface.get(),
+            (true, false) => theme.surface_raised.get(),
+        }
     }));
     view! {
         <Frame
@@ -90,7 +100,7 @@ fn TextInputFrame(handle: TextInputHandle) -> NodeId {
                 outline={border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
-                outline_visible=true
+                outline_visible={raised}
             >
                 {field}
             </Frame>

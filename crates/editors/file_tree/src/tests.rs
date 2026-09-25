@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use block_client::BlockClient;
-use block_client::blocks::counter::Counter;
 use block_editor_plugin::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -9,6 +5,7 @@ use uuid::Uuid;
 use crate::app::FileTreeApp;
 
 mod clicking_the_chevron_opens_and_closes_its_own_row;
+mod expanding_a_folder_shows_its_children_without_more_input;
 
 struct Fixture {
     test: BeuiTest<FileTreeApp>,
@@ -32,11 +29,10 @@ impl Fixture {
 }
 
 fn editor() -> Fixture {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let tree = client.create_block(Counter::default());
+    let tree = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), client, tree.id());
+    let editor = Editor::new(host.clone(), tree);
     let mut fixture = Fixture {
         test: BeuiTest::new(editor),
         host,

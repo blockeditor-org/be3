@@ -1,3 +1,4 @@
+use std::cell::Ref;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use accesskit::{
@@ -10,9 +11,9 @@ use crate::base::focusable::FocusableNode;
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::base::text::TextNode;
-use crate::geometry::{Rect, Vec2};
+use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
-use crate::node::NodeId;
+use crate::node::{Arena, NodeId, NodeMap};
 
 pub(crate) const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
 const DOCUMENT_SHIFT: u32 = 32;
@@ -31,7 +32,8 @@ impl Fragment {
         let root = self.root;
         for (id, node) in &mut self.nodes {
             if *id == root {
-                node.set_transform(Affine::scale(scale.into()));
+                let local = node.transform().copied().unwrap_or(Affine::IDENTITY);
+                node.set_transform(Affine::scale(scale.into()) * local);
             }
         }
     }
@@ -80,31 +82,152 @@ pub(crate) fn tree_update(
     }
 }
 
-impl Document {
-    pub(crate) fn accessibility_fragment(&self) -> Option<Fragment> {
-        let root = self.root?;
-        let mut nodes = Vec::new();
-        let mut focused_accessible = None;
-        let roots = self.accessibility_subtree(root, true, &mut nodes, &mut focused_accessible);
-        let root = roots.into_iter().next()?;
-        Some(Fragment {
-            nodes,
-            root,
-            focus: focused_accessible,
-        })
+#[derive(Default)]
+pub(crate) struct AccessibilityTree {
+    root: Option<NodeId>,
+    entries: NodeMap<Entry>,
+    parents: NodeMap<NodeId>,
+    marks: NodeMap<u64>,
+    reached: NodeMap<u64>,
+    pass: u64,
+    focus: Option<AccessNodeId>,
+    changed: Vec<NodeId>,
+    inspected: bool,
+    scale: Option<f32>,
+}
+
+struct Entry {
+    node: Node,
+    focus: Option<AccessNodeId>,
+    origin: Pos2,
+}
+
+#[derive(Default)]
+struct Gathered {
+    children: Vec<AccessNodeId>,
+    focus: Option<AccessNodeId>,
+}
+
+impl AccessibilityTree {
+    pub(crate) fn mark(&mut self, id: NodeId, arena: &Arena) {
+        if self.root.is_none() {
+            return;
+        }
+        let mut current = Some(id);
+        while let Some(node) = current {
+            if self.marks.get(&node) == Some(&self.pass) {
+                return;
+            }
+            self.marks.insert(node, self.pass);
+            current = self
+                .parents
+                .get(&node)
+                .copied()
+                .or_else(|| arena.parent(node));
+        }
     }
 
-    fn accessibility_subtree(
-        &self,
+    pub(crate) fn forget(&mut self, id: NodeId, arena: &Arena) {
+        self.mark(id, arena);
+        self.entries.remove(&id);
+        self.parents.remove(&id);
+        self.marks.remove(&id);
+        self.reached.remove(&id);
+    }
+
+    pub(crate) fn reset(&mut self) {
+        if self.root.is_some() || !self.changed.is_empty() {
+            let pass = self.pass;
+            *self = Self {
+                pass,
+                ..Self::default()
+            };
+        }
+    }
+
+    pub(crate) fn take_inspected(&mut self) -> bool {
+        std::mem::take(&mut self.inspected)
+    }
+
+    pub(crate) fn discard_changes(&mut self) {
+        self.changed.clear();
+    }
+
+    fn stale(&self, id: NodeId) -> bool {
+        self.marks.get(&id) == Some(&self.pass)
+    }
+
+    fn purge(&mut self, document: &Document, dropped: Vec<NodeId>) {
+        let mut pending = dropped;
+        while let Some(id) = pending.pop() {
+            if self.reached.get(&id) == Some(&self.pass) {
+                continue;
+            }
+            if let Some(entry) = self.entries.remove(&id) {
+                pending.extend(
+                    entry
+                        .node
+                        .children()
+                        .iter()
+                        .filter_map(|child| document.local_node_id(*child)),
+                );
+            }
+        }
+    }
+}
+
+pub(crate) struct AccessibilityView<'a> {
+    document: &'a Document,
+    tree: Ref<'a, AccessibilityTree>,
+    root: AccessNodeId,
+}
+
+impl AccessibilityView<'_> {
+    pub(crate) fn root(&self) -> AccessNodeId {
+        self.root
+    }
+
+    pub(crate) fn get(&self, id: &AccessNodeId) -> Option<&Node> {
+        let local = self.document.local_node_id(*id)?;
+        self.tree.entries.get(&local).map(|entry| &entry.node)
+    }
+
+    pub(crate) fn focus(&self) -> Option<AccessNodeId> {
+        self.tree.focus
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.tree.entries.iter().count()
+    }
+}
+
+struct Pass<'a> {
+    document: &'a Document,
+    tree: &'a mut AccessibilityTree,
+    dropped: Vec<NodeId>,
+    described: usize,
+}
+
+impl Pass<'_> {
+    fn visit(
+        &mut self,
         id: NodeId,
+        parent: Option<NodeId>,
+        origin: Pos2,
         force: bool,
-        out: &mut Vec<(AccessNodeId, Node)>,
-        focused_accessible: &mut Option<AccessNodeId>,
-    ) -> Vec<AccessNodeId> {
-        let Some(rect) = self.rects.get(&id).copied() else {
-            return Vec::new();
+        out: &mut Gathered,
+    ) {
+        let document = self.document;
+        if !document.arena.contains(id) {
+            return;
+        }
+        if let Some(parent) = parent {
+            self.tree.parents.insert(id, parent);
+        }
+        let Some(rect) = document.rects.get(&id).copied() else {
+            return;
         };
-        let element = self.arena.get(id);
+        let element = document.arena.get(id);
         if element
             .as_any()
             .downcast_ref::<FrameNode>()
@@ -114,23 +237,156 @@ impl Document {
                 .downcast_ref::<OverlayNode>()
                 .is_some_and(|node| !node.is_open())
         {
-            return Vec::new();
+            return;
         }
 
-        let mut children = Vec::new();
-        for child in element.children() {
-            children.extend(self.accessibility_subtree(child, false, out, focused_accessible));
-        }
-
-        let explicit = self.accessibility.get(&id);
+        let explicit = document.accessibility.get(&id);
         let text = element
             .as_any()
             .downcast_ref::<TextNode>()
             .and_then(TextNode::accessible_text);
         if explicit.is_none() && text.is_none() && !force {
-            return children;
+            for child in element.children() {
+                self.visit(child, Some(id), origin, false, out);
+            }
+            return;
         }
 
+        let access = document.access_node_id(id);
+        self.tree.reached.insert(id, self.tree.pass);
+        out.children.push(access);
+        if !self.tree.stale(id)
+            && let Some(entry) = self.tree.entries.get(&id)
+            && entry.origin == origin
+        {
+            if entry.focus.is_some() {
+                out.focus = entry.focus;
+            }
+            return;
+        }
+
+        let mut inner = Gathered::default();
+        for child in element.children() {
+            self.visit(child, Some(id), rect.min, false, &mut inner);
+        }
+        self.described += 1;
+        let (node, focus) = document.describe(id, rect, origin, explicit, text, inner);
+        if focus.is_some() {
+            out.focus = focus;
+        }
+        match self.tree.entries.get(&id) {
+            Some(old) if old.node == node => {}
+            Some(old) => {
+                if old.node.children() != node.children() {
+                    self.dropped.extend(
+                        old.node
+                            .children()
+                            .iter()
+                            .filter_map(|child| document.local_node_id(*child)),
+                    );
+                }
+                self.tree.changed.push(id);
+            }
+            None => self.tree.changed.push(id),
+        }
+        self.tree.entries.insert(
+            id,
+            Entry {
+                node,
+                focus,
+                origin,
+            },
+        );
+    }
+}
+
+impl Document {
+    fn refresh_accessibility(&self) -> Option<AccessNodeId> {
+        let mut tree = self.accessibility_tree.borrow_mut();
+        let Some(root) = self.root else {
+            tree.reset();
+            return None;
+        };
+        if tree.root != Some(root) {
+            tree.reset();
+            tree.root = Some(root);
+        }
+        for id in self.arena.changed_since(0) {
+            tree.mark(*id, &self.arena);
+        }
+        let scale = self.pixels_per_point();
+        let rescaled = tree.scale.replace(scale) != Some(scale);
+
+        let mut pass = Pass {
+            document: self,
+            tree: &mut tree,
+            dropped: Vec::new(),
+            described: 0,
+        };
+        let mut top = Gathered::default();
+        pass.visit(root, None, Pos2::ZERO, true, &mut top);
+        let (dropped, described) = (pass.dropped, pass.described);
+        self.work.note_described(described);
+        tree.purge(self, dropped);
+        tree.pass = tree.pass.wrapping_add(1);
+        tree.focus = top.focus;
+        let Some(access) = top.children.first().copied() else {
+            tree.reset();
+            return None;
+        };
+        if rescaled {
+            tree.changed.push(root);
+        }
+        Some(access)
+    }
+
+    pub(crate) fn accessibility_update(&self, full: bool) -> Option<Fragment> {
+        let root = self.refresh_accessibility()?;
+        let mut tree = self.accessibility_tree.borrow_mut();
+        let mut changed = std::mem::take(&mut tree.changed);
+        let nodes = if full {
+            tree.entries
+                .iter()
+                .map(|(id, entry)| (self.access_node_id(id), entry.node.clone()))
+                .collect()
+        } else {
+            changed.sort_unstable_by_key(|id| id.index());
+            changed.dedup();
+            changed
+                .into_iter()
+                .filter_map(|id| {
+                    let entry = tree.entries.get(&id)?;
+                    Some((self.access_node_id(id), entry.node.clone()))
+                })
+                .collect()
+        };
+        Some(Fragment {
+            nodes,
+            root,
+            focus: tree.focus,
+        })
+    }
+
+    pub(crate) fn accessibility_view(&self) -> Option<AccessibilityView<'_>> {
+        let root = self.refresh_accessibility()?;
+        self.accessibility_tree.borrow_mut().inspected = true;
+        Some(AccessibilityView {
+            document: self,
+            tree: self.accessibility_tree.borrow(),
+            root,
+        })
+    }
+
+    fn describe(
+        &self,
+        id: NodeId,
+        rect: Rect,
+        origin: Pos2,
+        explicit: Option<&Node>,
+        text: Option<&str>,
+        inner: Gathered,
+    ) -> (Node, Option<AccessNodeId>) {
+        let mut focus = inner.focus;
         let mut node = if let Some(node) = explicit {
             node.clone()
         } else if let Some(text) = text {
@@ -140,8 +396,17 @@ impl Document {
         } else {
             Node::new(Role::GenericContainer)
         };
-        node.set_bounds(access_rect(rect));
-        node.set_children(children);
+        let offset = rect.min - origin;
+        if offset != Vec2::ZERO {
+            node.set_transform(Affine::translate((offset.x as f64, offset.y as f64)));
+        }
+        node.set_bounds(AccessRect::new(
+            0.0,
+            0.0,
+            rect.width().into(),
+            rect.height().into(),
+        ));
+        node.set_children(inner.children);
 
         if explicit.is_some() {
             if node.is_disabled() {
@@ -165,18 +430,15 @@ impl Document {
                         node.add_action(Action::Click);
                     }
                     if self.focused == Some(focusable) {
-                        *focused_accessible = Some(self.access_node_id(id));
+                        focus = Some(self.access_node_id(id));
                     }
                 }
             }
         } else if self.focused == Some(id) {
             node.add_action(Action::Focus);
-            *focused_accessible = Some(self.access_node_id(id));
+            focus = Some(self.access_node_id(id));
         }
-
-        let access_id = self.access_node_id(id);
-        out.push((access_id, node));
-        vec![access_id]
+        (node, focus)
     }
 
     pub(crate) fn handle_accessibility_action(&mut self, request: ActionRequest) -> bool {
@@ -297,15 +559,6 @@ impl Document {
             .downcast_ref::<FocusableNode>()
             .is_some_and(|node| !node.on_activate.is_empty())
     }
-}
-
-fn access_rect(rect: Rect) -> AccessRect {
-    AccessRect::new(
-        rect.left().into(),
-        rect.top().into(),
-        rect.right().into(),
-        rect.bottom().into(),
-    )
 }
 
 fn is_text_input(role: Role) -> bool {

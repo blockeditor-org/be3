@@ -1,0 +1,15 @@
+# The WASI sysroot the plugins' C (freetype, harfbuzz) and block-app's web build
+# are compiled and linked against. Rust needs none of it.
+http_archive(
+    name = "sysroot",
+    sha256 = "063bc1b56582b9923e08ac9b89e58789618d851763f01530b3ff20b9e5df0ca3",
+    # With the size as well as the hash, buck2 knows the digest without asking
+    # the mirror for anything; buck/tools/BUCK says why that matters.
+    size_bytes = 124253494,
+    strip_prefix = "wasi-sysroot-33.0+m",
+    # The mirror of
+    # https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sysroot-33.0+m.tar.gz,
+    # whose GitHub download has failed on us before; the hash says they are the same.
+    urls = ["https://lfs.pfg.pw/by-name/be3/wasi-sysroot-33.0+m.tar.gz"],
+    visibility = ["PUBLIC"],
+)

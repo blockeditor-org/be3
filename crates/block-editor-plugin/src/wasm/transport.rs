@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use block_plugin_api::{ErrorCode, Message, ProtocolError, decode_frame, encode_frame};
@@ -7,33 +7,14 @@ use crate::{Waker, runtime::Runtime, wasm::host, wasm::surface};
 
 thread_local! {
     static PLUGIN: RefCell<Option<Runtime>> = const { RefCell::new(None) };
-    static STARTED: Cell<f64> = const { Cell::new(0.0) };
 }
 
 static WOKEN: AtomicBool = AtomicBool::new(false);
 
-pub(crate) fn start<A: crate::App>(
-    id: &str,
-    name: &str,
-    version: &str,
-    chrome: Vec<block_plugin_api::EditorBand>,
-) -> Result<(), String> {
-    started(Runtime::new::<A>(id, name, version, chrome, waker()))
-}
-
-pub(crate) fn start_beui<A: crate::BeuiApp>(
-    id: &str,
-    name: &str,
-    version: &str,
-    chrome: Vec<block_plugin_api::EditorBand>,
-) -> Result<(), String> {
-    started(Runtime::beui::<A>(id, name, version, chrome, waker()))
-}
-
-fn started(runtime: Runtime) -> Result<(), String> {
+pub(crate) fn start<A: crate::BeuiApp>(id: &str, name: &str, version: &str) -> Result<(), String> {
+    let runtime = Runtime::new::<A>(id, name, version, waker());
     surface::initialize()?;
     post(vec![runtime.hello()]);
-    STARTED.with(|started| started.set(host::now()));
     PLUGIN.with(|plugin| *plugin.borrow_mut() = Some(runtime));
     Ok(())
 }
@@ -44,13 +25,12 @@ pub(crate) fn step() -> Result<(), String> {
         batch.push(decode_frame(&frame).map_err(|error| format!("{error:?}"))?);
     }
     let woken = WOKEN.swap(false, Ordering::AcqRel);
-    let phase = host::now() - STARTED.with(Cell::get);
     let outcome = PLUGIN.with(|plugin| {
         let mut plugin = plugin.borrow_mut();
         let Some(runtime) = plugin.as_mut() else {
             return Ok(false);
         };
-        match runtime.step(batch, woken, phase) {
+        match runtime.step(batch, woken) {
             Ok(step) => {
                 post(step.outbound);
                 Ok(step.closed)

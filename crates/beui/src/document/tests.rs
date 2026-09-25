@@ -17,6 +17,9 @@ mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
+mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
+mod a_docked_pane_lays_its_content_inside_its_border;
+mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
@@ -45,22 +48,27 @@ mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
+mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
+mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
 mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
 mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
+mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
 mod a_stroke_paints_a_line_between_the_ends_it_was_given;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
+mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
+mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
@@ -78,6 +86,8 @@ mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
 mod accessibility_exposes_and_operates_a_button;
 mod accessibility_reports_and_steps_a_slider;
+mod accessibility_updates_leave_the_tree_a_fresh_build_would_make;
+mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
 mod an_embed_punches_a_hole_in_the_surface_it_sits_on;
@@ -86,6 +96,7 @@ mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
 mod an_icon_is_as_tall_as_the_text_it_sits_with;
+mod an_idle_frame_describes_no_accessibility_nodes_and_one_changed_row_describes_few;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
@@ -97,7 +108,6 @@ mod arrow_keys_pan_a_focused_pan_zoom;
 mod arrow_keys_step_a_curved_slider_evenly_along_its_track;
 mod arrow_keys_step_the_focused_slider;
 mod arrow_keys_walk_the_rows_of_the_inspector_tree;
-mod arrow_keys_walk_the_simulated_screen_reader_through_the_document;
 mod backspace_deletes_the_character_before_the_caret;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
 mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
@@ -108,10 +118,12 @@ mod clicking_a_row_selects_the_node_it_lists;
 mod clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip;
 mod clicking_a_tab_selects_the_panel_it_names;
 mod clicking_a_tree_marker_expands_the_row_without_opening_it;
+mod clicking_a_window_title_bar_takes_the_focus_out_of_a_group;
 mod clicking_an_accordion_header_hides_its_content;
 mod clicking_outside_an_open_select_popup_closes_it_without_clicking_through;
 mod clicking_the_inspector_close_button_closes_the_panel;
 mod clicking_the_middle_of_a_placeholder_puts_the_caret_at_the_start;
+mod clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group;
 mod clicking_the_padding_around_a_button_label_activates_it;
 mod clicking_the_scrollbar_track_pages_the_scroll_towards_the_click;
 mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
@@ -137,10 +149,12 @@ mod dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar;
 mod dragging_a_tab_within_a_window_bar_reorders_it;
 mod dragging_a_window_by_its_bar_moves_it;
 mod dragging_again_during_overscroll_continues_from_the_band;
+mod dragging_onto_a_drop_target_hands_it_the_payload;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
 mod dragging_the_scrollbar_thumb_scrolls_the_content_beside_it;
+mod dropping_a_dock_tab_onto_the_middle_of_another_groups_them;
 mod editing_one_row_of_a_keyed_list_leaves_every_node_in_place;
 mod enabling_touch_emulation_in_the_inspector_does_not_paint_a_pointer;
 mod enter_activates_a_list_row_and_space_selects_it;
@@ -157,6 +171,7 @@ mod flashing_repaints_paints_no_fill;
 mod flicking_across_the_screen_reader_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
+mod grabbing_the_bar_between_two_panes_off_centre_moves_it_only_as_far_as_the_pointer;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
 mod holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor;
 mod hovering_a_context_menu_item_moves_keyboard_focus_to_it;
@@ -167,6 +182,7 @@ mod hovering_a_select_option_moves_the_keyboard_highlight;
 mod inserting_above_a_virtual_list_view_keeps_the_rows_in_place;
 mod inserting_into_a_virtual_list_view_builds_only_the_new_row;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
+mod keys_without_alt_reach_the_control_the_screen_reader_focused;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod opening_a_menu_damages_only_where_it_appears;
 mod opening_a_select_focuses_its_search_box_and_highlights_the_selected_option;
@@ -184,6 +200,7 @@ mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
+mod removing_a_node_forgets_which_layout_pass_placed_it;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
 mod removing_a_node_stops_the_effects_that_were_built_for_it;
 mod removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint;
@@ -202,6 +219,8 @@ mod scrolling_a_virtual_scroll_replaces_the_items_in_view;
 mod scrolling_a_virtual_scroll_reuses_overlapping_items;
 mod scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent;
 mod scrolling_damages_nothing_outside_the_scroll;
+mod scrolling_into_a_nested_scroll_keeps_moving_the_one_around_it;
+mod scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
@@ -211,6 +230,7 @@ mod shift_tab_moves_focus_to_the_previous_button;
 mod show_lazily_builds_and_toggles_its_child_when_the_condition_changes;
 mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
 mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
+mod splitting_a_dock_tab_with_the_next_shows_both_side_by_side;
 mod swiping_the_simulated_middle_button_scrolls_in_ticks;
 mod switching_a_show_damages_both_panels;
 mod switching_dock_tabs_keeps_the_panel_it_hides;
@@ -230,6 +250,7 @@ mod the_dock_demo_leaves_a_tab_saying_nothing_is_open;
 mod the_dock_demo_opens_a_paper_from_the_files_it_lists;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
+mod the_innermost_drop_target_that_accepts_the_payload_takes_the_drop;
 mod the_inspector_follows_nodes_added_to_the_document;
 mod the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated;
 mod the_inspector_keeps_the_rows_of_nodes_that_survive_an_update;
@@ -240,6 +261,7 @@ mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
 mod the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach;
+mod the_screen_reader_follows_focus_that_tab_moves;
 mod the_screen_reader_keeps_clicks_away_from_the_document;
 mod the_screen_reader_readout_sits_at_the_bottom_above_the_filters;
 mod the_scroll_position_is_reported_to_its_listener;
@@ -253,6 +275,7 @@ mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
+mod turning_the_accessibility_tree_off_in_the_inspector_stops_building_it;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
 mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
 mod typing_into_a_focused_text_area_inserts_the_text;
@@ -510,6 +533,24 @@ impl Harness {
         self.inspector_center("inspector.close")
     }
 
+    pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {
+        self.bar_option_rect(index).center()
+    }
+
+    pub(crate) fn bar_option_rect(&self, index: usize) -> Rect {
+        self.inspector()
+            .bar_option_rect(index)
+            .expect("the inspector has no tab bar")
+            .scaled(crate::inspector::scale(&self.context))
+    }
+
+    pub(crate) fn inspector_panel_rect(&self) -> Rect {
+        self.inspector()
+            .panel_rect()
+            .expect("the inspector panel was not laid out")
+            .scaled(crate::inspector::scale(&self.context))
+    }
+
     pub(crate) fn mouse_simulation(&self) -> bool {
         self.context.mouse_simulation()
     }
@@ -568,6 +609,17 @@ impl Harness {
         let toggle = self.inspector_center("inspector.screen_reader.enabled");
         self.click(toggle);
         self.key(Key::Escape, Modifiers::NONE);
+        self.frame(Vec::new());
+    }
+
+    pub(crate) fn disable_accessibility(&mut self) {
+        self.toggle_inspector();
+        let tab = self.simulation_tab_center();
+        self.click(tab);
+        self.frame(Vec::new());
+        let toggle = self.inspector_center("inspector.accessibility.enabled");
+        self.click(toggle);
+        self.toggle_inspector();
         self.frame(Vec::new());
     }
 
@@ -1155,6 +1207,12 @@ mod unchanged_input_reuses_layout_and_paint;
 
 mod a_bare_separator_rules_across_the_column_it_sits_in;
 mod a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears;
+mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
+mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
+mod open_inspector_opens_the_inspector_from_inside_the_document;
+mod picking_in_a_narrow_window_returns_to_the_inspector;
+mod the_app_tab_shows_the_document_below_the_tab_bar;
+mod the_inspector_shows_the_renderer_the_host_reports;
 mod unused_navigation_keys_scroll_the_nearest_ancestor;

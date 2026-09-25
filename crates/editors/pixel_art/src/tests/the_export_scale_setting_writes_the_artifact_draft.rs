@@ -2,18 +2,16 @@ use super::*;
 
 #[test]
 fn the_export_scale_setting_writes_the_artifact_draft() {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let source = client.create_block(PixelArt::new());
-    let target = client.create_block(Image::new("Sprite Export".to_owned(), Vec::new()));
+    let source = Uuid::new_v4();
+    let target = Uuid::new_v4();
     let artifacts = Artifacts::new(
         EditorHost::default(),
-        Arc::clone(&client),
         Artifact {
-            block_id: target.id(),
-            block_type: Image::TYPE_ID,
+            block_id: target,
+            block_type: ImageContent::CONTENT_TYPE,
         },
     );
-    let data = artifact::descriptor(source.id()).data;
+    let data = artifact::descriptor(source).data;
     let mut settings = BeuiTest::<PixelArtApp>::settings(artifacts, data);
 
     assert_eq!(

@@ -12,6 +12,7 @@ fn placements(occluders: Vec<Occluder>) -> Message {
             rect: ChildRect::default(),
             clip: ChildRect::default(),
             own_frame: false,
+            top_bar: false,
             corner_radius: 0.0,
             layer: ChildLayer::Below,
             mode: ChildMode::Preview,

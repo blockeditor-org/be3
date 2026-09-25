@@ -1,6 +1,6 @@
+mod access;
 mod artifact;
 mod block_data;
-mod chrome;
 mod linked;
 mod menu;
 mod panel;

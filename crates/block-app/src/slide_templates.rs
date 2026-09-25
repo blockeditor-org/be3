@@ -1,17 +1,14 @@
-use block::Block;
-use block_client::blocks::infinite_canvas::{
+use be_block::CanvasContent;
+use be_block::canvas::Canvas;
+use be_block::canvas::{
     CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
-    CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform, InfiniteCanvas,
-    InfiniteCanvasOperation,
+    CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform,
 };
-use eframe::egui::Vec2;
-use egui_material_icons::{
-    MaterialIcon,
-    icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE},
-};
+use beui::icons::{ICON_CROP_SQUARE, ICON_SUBJECT, ICON_TITLE};
+use beui::{Vec2, vec2};
 use uuid::Uuid;
 
-pub const DEFAULT_SLIDE_SIZE: Vec2 = eframe::egui::vec2(960.0, 540.0);
+pub const DEFAULT_SLIDE_SIZE: Vec2 = vec2(960.0, 540.0);
 
 const TITLE_FONT_SIZE: f32 = 54.0;
 const SUBTITLE_FONT_SIZE: f32 = 26.0;
@@ -36,7 +33,7 @@ impl SlideTemplate {
         }
     }
 
-    pub fn icon(self) -> MaterialIcon {
+    pub fn icon(self) -> &'static str {
         match self {
             Self::Title => ICON_TITLE,
             Self::Regular => ICON_SUBJECT,
@@ -124,19 +121,12 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
     }
 }
 
-pub fn build_template_canvas(template: SlideTemplate) -> InfiniteCanvas {
-    let mut canvas = InfiniteCanvas::new();
-    InfiniteCanvas::apply_operation(
-        &mut canvas,
-        &InfiniteCanvasOperation::SetPreviewRegion {
-            region: Some(CanvasPreviewRegion::new(
-                CanvasPoint::default(),
-                CanvasPoint::new(DEFAULT_SLIDE_SIZE.x, DEFAULT_SLIDE_SIZE.y),
-            )),
-        },
-    );
-    for entity in template_entities(template) {
-        InfiniteCanvas::apply_operation(&mut canvas, &InfiniteCanvasOperation::Add { entity });
-    }
-    canvas
+pub fn build_template_canvas(template: SlideTemplate) -> CanvasContent {
+    CanvasContent::new(&Canvas::with_entities(
+        template_entities(template),
+        Some(CanvasPreviewRegion::new(
+            CanvasPoint::default(),
+            CanvasPoint::new(DEFAULT_SLIDE_SIZE.x, DEFAULT_SLIDE_SIZE.y),
+        )),
+    ))
 }

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use block_client::blocks::pixel_art::PixelColor;
+use block_editor_plugin::be_block::pixel_art::PixelColor;
 
 pub const MAX_BRUSH_SIZE: u16 = 64;
 

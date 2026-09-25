@@ -1,0 +1,18 @@
+load(":defs.bzl", "PDFIUM")
+
+# PDFium, which the PDF plugin renders pages with: a prebuilt library from
+# bblanchon/pdfium-binaries, pinned by release, hash and size, for each
+# platform the app is built for. The app loads it at run time from beside its
+# executable, which is where //crates/block-app:app puts it. PDFium is
+# distributed under the licences in each archive's LICENSE.
+[
+    http_archive(
+        name = asset,
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        sub_targets = [library],
+        urls = ["https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8044/{}.tgz".format(asset)],
+        visibility = ["PUBLIC"],
+    )
+    for asset, library, sha256, size_bytes in PDFIUM.values()
+]

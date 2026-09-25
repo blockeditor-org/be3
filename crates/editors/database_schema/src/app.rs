@@ -1,4 +1,5 @@
-use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType, DatabaseSchema};
+use block_editor_plugin::be_block::DatabaseSchemaContent;
+use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};
@@ -18,7 +19,7 @@ impl block_editor_plugin::BeuiApp for DatabaseSchemaApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(DatabaseSchema::new()).id())
+        Ok(creation.create(&DatabaseSchemaContent::default()))
     }
 }
 

@@ -71,10 +71,10 @@ pub(crate) fn start_embedded_server_at(
                 let shutdown = async {
                     let _ = shutdown_receiver.await;
                 };
-                if let Err(error) = block_server::serve_until_shutdown(
+                if let Err(error) = be_server::serve_with_config(
                     listener,
                     data_dir,
-                    block_server::ServerConfig::default(),
+                    be_server::ServerConfig::default(),
                     shutdown,
                 )
                 .await

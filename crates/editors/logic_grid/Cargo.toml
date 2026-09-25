@@ -8,14 +8,14 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-block = { path = "../../block" }
-block-client = { path = "../../block-client" }
+beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-plugin = { path = "../../block-editor-plugin" }
 bytemuck = { version = "1", features = ["derive"] }
 logicgame = { path = "../../logicgame" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
+wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [dev-dependencies]
 block-ui-test = { path = "../../block-ui-test" }

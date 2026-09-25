@@ -5,8 +5,20 @@ fn multiplexed_messages_round_trip() {
     let editor = Message::Editor(EditorMessage::Close {
         instance: EditorInstanceId(7),
     });
-    let client = Message::Client(TunnelMessage::Request {
-        payload: r#"{"command":"unwatch_block"}"#.to_owned(),
+    let client = Message::Editor(EditorMessage::Blocks {
+        instance: EditorInstanceId(7),
+        query: BlockQuery::Roots,
+        blocks: vec![BlockInfo {
+            block_id: [1; 16],
+            block_type: [2; 16],
+            author: [3; 16],
+            parent: BlockLocation::Root,
+            name: Some("Notes".to_owned()),
+            named_by_hand: true,
+            references: vec![[4; 16]],
+            access: AccessLevel::Edit,
+            artifact: None,
+        }],
     });
     assert_eq!(
         decode_frame(&encode_frame(&editor).unwrap()).unwrap(),

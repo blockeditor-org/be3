@@ -2,12 +2,13 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block::BlockParent;
-use block_client::block_ref::BlockRef;
-use block_client::blocks::paint_review::{ApprovedPainting, PaintReview, PaintReviewOperation};
-use block_client::blocks::paint_snapshot::{PaintSnapshot, PaintSnapshotOperation};
+use block_editor_plugin::BlockParent;
+use block_editor_plugin::be_block::paint::{ApprovedPainting, PaintReview};
+use block_editor_plugin::be_block::{
+    PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader,
+};
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::{BlockProjection, Editor, Waker};
+use block_editor_plugin::{ContentProjection, Editor, Waker};
 
 use crate::download::{BRANCH, Download, Painting, Source};
 use crate::render::{Change, Paintings, Rendered};
@@ -81,7 +82,8 @@ pub(crate) enum Shown {
 
 pub(crate) struct Review {
     editor: Editor,
-    block: Rc<BlockProjection<PaintReview>>,
+    block: Rc<ContentProjection<PaintReviewContent>>,
+    loaded: ReadSignal<bool>,
     source: Source,
     download: RefCell<Option<Download>>,
     downloaded: Cell<bool>,
@@ -115,8 +117,9 @@ pub(crate) struct Review {
 
 impl Review {
     pub(crate) fn new(editor: &Editor, source: Source) -> Rc<Self> {
-        let block = editor.block::<PaintReview>();
-        let approved = block.project(|review| review.approved().to_vec());
+        let block = editor.block_content::<PaintReviewContent>();
+        let approved = block.project(|review| review.root().approved());
+        let loaded = block.loaded();
         let (found, set_found) = create_signal(Vec::new());
         let (error, set_error) = create_signal(None);
         let (selected, set_selected) = create_signal(None);
@@ -131,6 +134,7 @@ impl Review {
         Rc::new(Self {
             editor: editor.clone(),
             block,
+            loaded,
             source,
             download: RefCell::new(None),
             downloaded: Cell::new(false),
@@ -227,7 +231,9 @@ impl Review {
     }
 
     pub(crate) fn entries(&self) -> Option<Vec<Entry>> {
-        self.block.handle().read()?;
+        if !self.loaded.get() {
+            return None;
+        }
         let approvals = self.approved.get();
         let found = self.found.get();
         let mut entries: Vec<Entry> = found
@@ -315,37 +321,30 @@ impl Review {
         let Some(painting) = found.iter().find(|found| found.path == path) else {
             return true;
         };
-        let Some(review) = self.block.handle().read() else {
+        let Some(approved) = self.block.read(|review| {
+            review
+                .root()
+                .approval(path)
+                .map(|approved| approved.snapshot)
+        }) else {
             return false;
         };
-        let approved = review
-            .approval(path)
-            .and_then(|approved| approved.snapshot.as_direct());
-        drop(review);
-        let client = self.editor.client();
-        let snapshot = PaintSnapshot::new(path, painting.data.clone());
-        let reference = match approved {
-            Some(id) => {
-                let block = client.get_block::<PaintSnapshot>(id);
-                if block.read().is_none() {
-                    return false;
-                }
-                block.operate(PaintSnapshotOperation::Replace { snapshot });
-                BlockRef::Direct(id)
-            }
-            None => {
-                let created = client.create_block(snapshot);
-                created.set_parent(BlockParent::Uuid(self.block.handle().id()));
-                BlockRef::Direct(created.id())
-            }
-        };
-        self.block.operate(PaintReviewOperation::Approve {
-            painting: ApprovedPainting {
+        let snapshot = PaintSnapshotContent::new(
+            PaintSnapshotHeader {
                 path: path.to_owned(),
                 hash: painting.hash.clone(),
-                snapshot: reference,
             },
-        });
+            painting.data.clone(),
+        );
+        let reference = match approved {
+            Some(id) => {
+                self.editor.replace_content(id, &snapshot);
+                id
+            }
+            None => self.editor.create_child(&snapshot),
+        };
+        self.block
+            .operate(PaintReview::approve(path, painting.hash.clone(), reference));
         true
     }
 
@@ -360,15 +359,10 @@ impl Review {
         let Some(approval) = self.approval(path) else {
             return;
         };
-        if let Some(id) = approval.snapshot.as_direct() {
-            self.editor
-                .client()
-                .get_block::<PaintSnapshot>(id)
-                .set_parent(BlockParent::Orphaned);
-        }
-        self.block.operate(PaintReviewOperation::Forget {
-            path: path.to_owned(),
-        });
+        self.editor
+            .blocks()
+            .set_parent(approval.snapshot, BlockParent::Detached);
+        self.block.operate(PaintReview::forget(path));
     }
 
     fn hash(&self, path: &str, showing: Showing) -> Result<String, Option<String>> {
@@ -393,12 +387,13 @@ impl Review {
                 let approval = self
                     .approval(path)
                     .ok_or_else(|| Some(format!("{path} has never been approved")))?;
-                let id = approval.snapshot.as_direct().ok_or_else(|| {
+                let id = Some(approval.snapshot).ok_or_else(|| {
                     Some("the approved painting is not on this workspace".to_owned())
                 })?;
-                let snapshot = self.editor.client().get_block::<PaintSnapshot>(id);
-                let data = snapshot.read().ok_or(None)?.data().to_vec();
-                Ok(data)
+                self.editor
+                    .content_of::<PaintSnapshotContent>(id)
+                    .read(|snapshot| snapshot.data().to_vec())
+                    .ok_or(None)
             }
             _ => self
                 .found

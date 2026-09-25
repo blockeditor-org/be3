@@ -3,9 +3,14 @@ mod canvas;
 mod challenge;
 mod dynamic_artifact;
 mod geometry;
+mod glyph;
 mod hotbar;
+mod hotbar_ui;
+mod panels;
 mod render;
+mod session;
 mod simulation;
+mod ui;
 
 pub use app_impl::LogicGridApp;
 
@@ -14,22 +19,17 @@ use std::{
     rc::Rc,
 };
 
-use block::Block;
-use block_client::root_settings::RootSetting;
-use block_client::{
-    BlockClient, BlockHandle,
-    block_ref::BlockRef,
-    blocks::{
-        compiled_logic::CompiledLogic,
-        hotbar::{Hotbar, HotbarOperation, HotbarSlot as BlockHotbarSlot},
-        logic_grid::{LogicGrid, LogicGridOperation},
-    },
+use beui::reactive::CanvasView;
+use beui::{Color32, Key, Pos2, Rect, TextAlign, Vec2};
+use block_editor_plugin::BlockParent;
+use block_editor_plugin::ContentProjection;
+use block_editor_plugin::be_block::BlockContent;
+use block_editor_plugin::be_block::compiled_logic::CompiledLogic;
+use block_editor_plugin::be_block::logic_grid::LogicGridOperation;
+use block_editor_plugin::be_block::{
+    CompiledLogicContent, CompiledLogicDocument, LogicGridContent, ObjectId,
 };
-use block_editor_plugin::{
-    EditorHost,
-    egui::{self, PointerButton},
-    egui_material_icons::icons::ICON_BUILD,
-};
+use block_editor_plugin::root_settings::RootSetting;
 use logicgame::{
     challenges::{Challenge, ChallengeId, generate_challenge},
     execution::{Component as ExecutionComponent, Instruction, Pc, Vm},
@@ -44,50 +44,41 @@ use uuid::Uuid;
 use crate::frame::{
     DrawRay, DrawStub, DrawTriangle, DrawValueTriangle, DrawWire, RenderFrame, WireValue,
 };
-use std::sync::Arc;
-
 use geometry::*;
 use hotbar::*;
+use render::*;
 use simulation::*;
 
 #[cfg(test)]
 use challenge::*;
 
-const MIN_ZOOM: f32 = 0.1;
-const MAX_ZOOM: f32 = 768.0;
-const DEFAULT_ZOOM: f32 = 24.0;
+const CELL: f32 = 24.0;
 const WIRE_HIT_RADIUS: f32 = 7.0;
 const SCALES: [u8; 7] = [1, 2, 4, 8, 16, 32, 64];
-const HOTBAR_COLUMN_WIDTH: f32 = 92.0;
-const HOTBAR_COLUMN_GAP: f32 = 8.0;
-const SIDE_PANEL_HORIZONTAL_MARGIN: f32 = 16.0;
-const HOTBAR_WIDTH: f32 =
-    HOTBAR_COLUMN_WIDTH * 2.0 + HOTBAR_COLUMN_GAP + SIDE_PANEL_HORIZONTAL_MARGIN;
 
-const LABEL_COLOR: egui::Color32 = egui::Color32::from_rgb(232, 236, 245);
+const LABEL_COLOR: Color32 = Color32::from_rgb(232, 236, 245);
 
-const NAME_COLOR: egui::Color32 = egui::Color32::from_rgb(232, 236, 245);
+const NAME_COLOR: Color32 = Color32::from_rgb(232, 236, 245);
 
-const PORT_LABEL_COLOR: egui::Color32 = egui::Color32::from_rgb(176, 188, 208);
-const HOTBAR_SLOT_SIZE: f32 = 64.0;
-const GRAPH_NODE_SIZE: egui::Vec2 = egui::vec2(150.0, 48.0);
+const PORT_LABEL_COLOR: Color32 = Color32::from_rgb(176, 188, 208);
+const GRAPH_NODE_SIZE: Vec2 = Vec2::new(150.0, 48.0);
 const GRAPH_COLUMN_GAP: f32 = 70.0;
 const GRAPH_ROW_GAP: f32 = 18.0;
 const GRAPH_MARGIN: f32 = 24.0;
-const HOTBAR_KEYS: [egui::Key; 10] = [
-    egui::Key::Num1,
-    egui::Key::Num2,
-    egui::Key::Num3,
-    egui::Key::Num4,
-    egui::Key::Num5,
-    egui::Key::Num6,
-    egui::Key::Num7,
-    egui::Key::Num8,
-    egui::Key::Num9,
-    egui::Key::Num0,
+const HOTBAR_KEYS: [Key; 10] = [
+    Key::One,
+    Key::Two,
+    Key::Three,
+    Key::Four,
+    Key::Five,
+    Key::Six,
+    Key::Seven,
+    Key::Eight,
+    Key::Nine,
+    Key::Zero,
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum ToolKind {
     Select,
     Wire,
@@ -225,26 +216,44 @@ impl Default for Camera {
     fn default() -> Self {
         Self {
             center: [0.0, 0.0],
-            zoom: DEFAULT_ZOOM,
+            zoom: CELL,
         }
     }
 }
 
 impl Camera {
-    fn screen_to_world(self, screen: egui::Pos2, rect: egui::Rect) -> [f32; 2] {
-        let relative = screen - rect.center();
-        [
-            self.center[0] + relative.x / self.zoom,
-            self.center[1] + relative.y / self.zoom,
-        ]
+    fn from_view(view: Option<CanvasView>, world: Option<Vec2>, rect: Rect) -> Self {
+        let view = view.unwrap_or_else(|| CanvasView::new(rect.min, 1.0));
+        let scale = view.scale.max(f32::EPSILON);
+        let world = world.unwrap_or_else(|| Vec2::new(rect.width() / scale, rect.height() / scale));
+        let center = view.to_canvas(rect.center());
+        Self {
+            center: [
+                (center.x - world.x * 0.5) / CELL,
+                (center.y - world.y * 0.5) / CELL,
+            ],
+            zoom: CELL * scale,
+        }
     }
 
-    fn zoom_around(&mut self, screen: egui::Pos2, rect: egui::Rect, factor: f32) {
-        let before = self.screen_to_world(screen, rect);
-        self.zoom = (self.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
-        let after = self.screen_to_world(screen, rect);
-        self.center[0] += before[0] - after[0];
-        self.center[1] += before[1] - after[1];
+    fn view(self, rect: Rect) -> CanvasView {
+        CanvasView::new(
+            Pos2::new(
+                rect.center().x - self.center[0] * self.zoom,
+                rect.center().y - self.center[1] * self.zoom,
+            ),
+            self.zoom,
+        )
+    }
+
+    fn screen_to_world(self, screen: Pos2, rect: Rect) -> [f32; 2] {
+        let world = self.view(rect).to_canvas(screen);
+        [world.x, world.y]
+    }
+
+    #[cfg(test)]
+    fn world_to_screen(self, world: [f32; 2], rect: Rect) -> Pos2 {
+        self.view(rect).to_screen(Pos2::new(world[0], world[1]))
     }
 }
 
@@ -294,20 +303,20 @@ enum Gesture {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum DebugEntity {
     Component(ComponentId),
     Wire(Wire),
     WireEndpoint(WireEndpoint),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum WireEnd {
     Start,
     End,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct WireEndpoint {
     wire: Wire,
     end: WireEnd,
@@ -525,17 +534,78 @@ impl Selection {
     }
 }
 
+pub(super) enum GridStore {
+    Live {
+        editor: block_editor_plugin::Editor,
+        content: Rc<ContentProjection<LogicGridContent>>,
+    },
+    #[cfg(test)]
+    Local {
+        content: LogicGridContent,
+        revision: u64,
+    },
+}
+
+impl GridStore {
+    fn revision(&self) -> Option<u64> {
+        match self {
+            Self::Live { content, .. } => content.revision(),
+            #[cfg(test)]
+            Self::Local { revision, .. } => Some(*revision),
+        }
+    }
+
+    fn read<T>(&self, read: impl FnOnce(&LogicGridContent) -> T) -> Option<T> {
+        match self {
+            Self::Live { content, .. } => content.read(read),
+            #[cfg(test)]
+            Self::Local { content, .. } => Some(read(content)),
+        }
+    }
+
+    fn operate(&mut self, operations: &[LogicGridOperation]) {
+        let Some(edit) = self.read(|content| content.root().edit_for_all(operations)) else {
+            return;
+        };
+        if edit.0.is_empty() {
+            return;
+        }
+        match self {
+            Self::Live { content, .. } => content.operate(edit),
+            #[cfg(test)]
+            Self::Local { content, revision } => {
+                content.apply(&edit);
+                *revision += 1;
+            }
+        }
+    }
+
+    fn editor(&self) -> Option<&block_editor_plugin::Editor> {
+        match self {
+            Self::Live { editor, .. } => Some(editor),
+            #[cfg(test)]
+            Self::Local { .. } => None,
+        }
+    }
+}
+
+struct CompiledSource {
+    content: Rc<ContentProjection<CompiledLogicContent>>,
+    revision: Option<u64>,
+    program: Option<CompiledLogic>,
+}
+
 pub(super) struct LogicGridEditor {
-    block: BlockHandle<LogicGrid>,
+    store: GridStore,
 
     grid: Grid,
     observed_revision: Option<u64>,
 
-    hotbar_block: Option<RootSetting<Hotbar>>,
+    hotbar_block: RootSetting<block_editor_plugin::be_block::HotbarContent>,
 
     hotbar_needs_write: bool,
 
-    compiled: HashMap<Uuid, BlockHandle<CompiledLogic>>,
+    compiled: HashMap<Uuid, CompiledSource>,
     tool: Tool,
     placement_orientation: ComponentOrientation,
     camera: Camera,
@@ -556,20 +626,24 @@ pub(super) struct LogicGridEditor {
 
     io_label: String,
     compile_error: Option<String>,
-
-    #[cfg(test)]
-    test_client: Option<BlockClient>,
 }
 
 const DISPLAY_NAME: &str = "Logic Grid";
 
 impl LogicGridEditor {
-    fn new(block: BlockHandle<LogicGrid>) -> Self {
+    fn live(editor: &block_editor_plugin::Editor) -> Self {
+        Self::new(GridStore::Live {
+            editor: editor.clone(),
+            content: editor.block_content::<LogicGridContent>(),
+        })
+    }
+
+    fn new(store: GridStore) -> Self {
         Self {
-            block,
+            store,
             grid: Grid::new(),
             observed_revision: None,
-            hotbar_block: None,
+            hotbar_block: RootSetting::default(),
             hotbar_needs_write: false,
             compiled: HashMap::new(),
             tool: Tool {
@@ -591,15 +665,13 @@ impl LogicGridEditor {
             confirm_hotbar_reset: false,
             io_label: String::new(),
             compile_error: None,
-            #[cfg(test)]
-            test_client: None,
         }
     }
 
     fn edit(&mut self, operation: LogicGridOperation) {
-        self.block.operate(operation);
+        self.store.operate(&[operation]);
         self.observed_revision = None;
-        self.sync(None, Uuid::nil());
+        self.sync(false, Uuid::nil());
     }
 
     fn edit_all(&mut self, operations: impl IntoIterator<Item = LogicGridOperation>) {
@@ -607,9 +679,9 @@ impl LogicGridEditor {
         if operations.is_empty() {
             return;
         }
-        self.block.operate_grouped(operations);
+        self.store.operate(&operations);
         self.observed_revision = None;
-        self.sync(None, Uuid::nil());
+        self.sync(false, Uuid::nil());
     }
 
     fn place(
@@ -645,19 +717,21 @@ impl LogicGridEditor {
         self.edit(LogicGridOperation::SetStorageValue { id, value });
     }
 
-    fn sync(&mut self, client: Option<&BlockClient>, client_id: Uuid) {
-        let revision = self.block.revision();
-        if self.observed_revision == Some(revision) {
-            self.sync_hotbar(client, client_id);
-            return;
-        }
-        let Some(block) = self.block.read() else {
-            return;
+    fn sync(&mut self, live: bool, client_id: Uuid) -> bool {
+        let refreshed = live && self.refresh_compiled();
+        let Some(revision) = self.store.revision() else {
+            return false;
         };
-        self.grid = block.grid().clone();
-        let challenge = block.challenge();
-        let called = block.called_blocks();
-        drop(block);
+        if self.observed_revision == Some(revision) {
+            return self.sync_hotbar(live, client_id) || refreshed;
+        }
+        let Some((grid, challenge, called)) = self.store.read(|content| {
+            let root = content.root();
+            (root.grid(), root.challenge, root.called_blocks())
+        }) else {
+            return false;
+        };
+        self.grid = grid;
         self.observed_revision = Some(revision);
 
         if self.challenge.as_ref().map(|state| state.id) != challenge {
@@ -668,57 +742,102 @@ impl LogicGridEditor {
                 passed_event: false,
             });
         }
-        if let Some(client) = client {
+        if live {
             for compiled in called {
-                self.ensure_compiled(client, compiled);
+                self.ensure_compiled(compiled);
             }
         }
-        self.sync_hotbar(client, client_id);
+        self.sync_hotbar(live, client_id);
+        true
     }
 
-    fn ensure_compiled(&mut self, client: &BlockClient, compiled: Uuid) {
+    fn loaded(&self) -> bool {
+        self.observed_revision.is_some()
+    }
+
+    fn ensure_compiled(&mut self, compiled: Uuid) {
         if self.compiled.contains_key(&compiled) {
             return;
         }
-        let handle = client.get_block::<CompiledLogic>(compiled);
-        let calls = handle
-            .read()
-            .map(|program| program.calls().to_vec())
-            .unwrap_or_default();
-        self.compiled.insert(compiled, handle);
-        for called in calls {
-            self.ensure_compiled(client, called);
+        let Some(editor) = self.store.editor() else {
+            return;
+        };
+        let content = editor.content_of::<CompiledLogicContent>(compiled);
+        self.compiled.insert(
+            compiled,
+            CompiledSource {
+                content,
+                revision: None,
+                program: None,
+            },
+        );
+    }
+
+    fn refresh_compiled(&mut self) -> bool {
+        let mut changed = false;
+        let mut called = Vec::new();
+        for source in self.compiled.values_mut() {
+            let revision = source.content.revision();
+            if revision.is_none() || revision == source.revision {
+                continue;
+            }
+            source.revision = revision;
+            source.program = source
+                .content
+                .read(|content| content.field(ObjectId::ROOT, CompiledLogicDocument::COMPILED))
+                .flatten();
+            called.extend(
+                source
+                    .program
+                    .iter()
+                    .flat_map(|program| program.calls().to_vec()),
+            );
+            changed = true;
         }
+        for compiled in called {
+            self.ensure_compiled(compiled);
+        }
+        if changed {
+            self.simulation.snapshot = None;
+        }
+        changed
     }
 
     fn compiled_kind(&self, compiled: Uuid, name: &str) -> Option<ComponentKind> {
         self.compiled
             .get(&compiled)?
-            .read()?
+            .program
+            .as_ref()?
             .placement(compiled, name)
             .ok()
     }
 
-    fn compile(&mut self, client: &BlockClient) -> Option<(Uuid, Uuid)> {
-        let compiled = self
-            .block
-            .read()
-            .map(|grid| dynamic_artifact::generate_initial(self.block.id(), &grid))?;
+    fn compile(&mut self) -> Option<(Uuid, Uuid)> {
+        let editor = self.store.editor()?.clone();
+        let source_id = editor.block_id();
+        let compiled = dynamic_artifact::generate_initial(source_id, &self.grid);
         match compiled {
             Ok(compiled) => {
-                let child = client.create_dynamic_artifact(
-                    compiled,
-                    dynamic_artifact::descriptor(self.block.id()),
-                );
-                let source_name = self.block.name().unwrap_or_else(|| DISPLAY_NAME.to_owned());
+                let source_name = editor
+                    .blocks()
+                    .info(source_id)
+                    .and_then(|info| info.name)
+                    .unwrap_or_else(|| DISPLAY_NAME.to_owned());
                 let name = dynamic_artifact::artifact_name(&source_name);
-                child.set_name(name.clone());
-                let id = child.id();
+                let id = editor.blocks().create_artifact(
+                    &CompiledLogicContent::new(&CompiledLogicDocument::of(compiled.clone())),
+                    BlockParent::Detached,
+                    Some(name.clone()),
+                    dynamic_artifact::descriptor(source_id),
+                );
 
-                self.compiled.insert(id, child);
+                self.ensure_compiled(id);
+                if let Some(source) = self.compiled.get_mut(&id) {
+                    source.program = Some(compiled);
+                }
                 self.pin_component(name, id);
                 self.compile_error = None;
-                Some((id, CompiledLogic::TYPE_ID))
+                Some((id, CompiledLogicContent::CONTENT_TYPE))
             }
             Err(error) => {
                 self.compile_error = Some(error);
@@ -726,85 +845,33 @@ impl LogicGridEditor {
             }
         }
     }
-
-    fn canvas_ui(&mut self, ui: &mut egui::Ui) {
-        let context = ui.ctx().clone();
-        let (response, painter) =
-            ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
-        self.handle_canvas_input(&response);
-
-        let pointer_world = response
-            .hovered()
-            .then(|| context.pointer_hover_pos())
-            .flatten()
-            .map(|position| self.camera.screen_to_world(position, response.rect));
-
-        self.update_simulation_preview();
-        self.show_metrics(&context);
-        self.show_storage_configuration(&context);
-        self.show_simulation(&context);
-        self.show_challenge(&context);
-
-        let hovered_square = pointer_world.map(|pointer| snap_point(pointer, self.tool.snap()));
-        let hovered_entity = self.show_grid_debugger(&context, hovered_square);
-        let graph_hover = self.show_generated_graph(&context);
-        let frame = self.render_frame(response.rect, pointer_world, hovered_entity, &graph_hover);
-        crate::paint::paint(&painter, response.rect, frame);
-        self.draw_component_labels(&painter, response.rect);
-        if let (Some(pointer), Some(Gesture::SelectBox { start, .. })) =
-            (pointer_world, self.gesture.as_ref())
-        {
-            let start = world_to_screen(*start, self.camera, response.rect);
-            let end = world_to_screen(pointer, self.camera, response.rect);
-            let selection_rect = egui::Rect::from_two_pos(start, end);
-            painter.rect_filled(
-                selection_rect,
-                0.0,
-                egui::Color32::from_rgba_unmultiplied(66, 153, 225, 28),
-            );
-            painter.rect_stroke(
-                selection_rect,
-                0.0,
-                egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(90, 180, 255)),
-                egui::StrokeKind::Inside,
-            );
-        }
-
-        if context.input(|input| input.key_pressed(egui::Key::Escape)) {
-            if self.gesture.is_some()
-                || self.active_hotbar_slot.is_some()
-                || self.tool.kind != ToolKind::Select
-            {
-                self.select_tool();
-            } else {
-                self.active_hotbar_folder.pop();
-            }
-        }
-
-        context.request_repaint();
-    }
 }
 
 #[cfg(test)]
 impl LogicGridEditor {
     fn detached(grid: Grid, challenge: Option<ChallengeId>) -> Self {
-        let client = BlockClient::new(Uuid::new_v4(), Uuid::new_v4());
-        let mut block = LogicGrid::from_grid(grid);
-        if let Some(challenge) = challenge {
-            block = block.with_challenge(challenge);
-        }
-        let mut editor = Self::new(client.create_block(block));
-        editor.test_client = Some(client);
-        editor.sync(None, Uuid::nil());
+        let mut editor = Self::new(GridStore::Local {
+            content: LogicGridContent::new(
+                &block_editor_plugin::be_block::LogicGridDocument::with_grid(&grid, challenge),
+            ),
+            revision: 0,
+        });
+        editor.sync(false, Uuid::nil());
         editor
     }
 
     fn seed<R>(&mut self, build: impl FnOnce(&mut Grid) -> R) -> R {
         let mut grid = self.grid.clone();
         let result = build(&mut grid);
-        self.block.replace(LogicGrid::from_grid(grid));
+        let challenge = self.challenge.as_ref().map(|state| state.id);
+        self.store = GridStore::Local {
+            content: LogicGridContent::new(
+                &block_editor_plugin::be_block::LogicGridDocument::with_grid(&grid, challenge),
+            ),
+            revision: self.store.revision().unwrap_or(0) + 1,
+        };
         self.observed_revision = None;
-        self.sync(None, Uuid::nil());
+        self.sync(false, Uuid::nil());
         result
     }
 }
@@ -814,6 +881,16 @@ impl Default for LogicGridEditor {
     fn default() -> Self {
         Self::detached(Grid::new(), None)
     }
+}
+
+#[cfg(test)]
+pub(crate) fn descriptor_data(source: Uuid) -> Vec<u8> {
+    dynamic_artifact::descriptor(source).data
+}
+
+#[cfg(test)]
+pub(crate) fn artifact_summary(data: &[u8]) -> String {
+    dynamic_artifact::summary(data)
 }
 
 #[cfg(test)]

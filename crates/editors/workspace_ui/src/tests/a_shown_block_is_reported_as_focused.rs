@@ -5,14 +5,14 @@ fn a_shown_block_is_reported_as_focused() {
     let (mut fixture, opened) = editor();
     let second = Uuid::new_v4();
 
-    show(&mut fixture, opened, None, None);
+    show(&mut fixture, opened, None);
     assert_eq!(fixture.focused(), Some(opened));
     assert_eq!(
         fixture.host.focused_block().block_type,
-        <FileTree as Block>::TYPE_ID
+        FileTreeContent::CONTENT_TYPE
     );
 
-    show(&mut fixture, second, Some(opened), None);
+    show(&mut fixture, second, Some(opened));
 
     assert_eq!(
         fixture.shown(),

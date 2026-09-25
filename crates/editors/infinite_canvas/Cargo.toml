@@ -8,8 +8,6 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-block = { path = "../../block" }
-block-client = { path = "../../block-client" }
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-plugin = { path = "../../block-editor-plugin" }
 serde = { version = "1", features = ["derive"] }

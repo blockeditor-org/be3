@@ -1,5 +1,5 @@
 use block_editor_plugin::Editor;
-use block_editor_plugin::be_block::{UiSettingsContent, UiSettingsOp};
+use block_editor_plugin::be_block::{ObjectId, UiSettings, UiSettingsContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
@@ -12,7 +12,8 @@ const VALUE_WIDTH: f32 = 56.0;
 #[component]
 pub fn UiSettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<UiSettingsContent>();
-    let zoom = settings.project(UiSettingsContent::zoom);
+    let zoom = settings.field(ObjectId::ROOT, UiSettings::ZOOM);
+    let zoom = create_memo(clone!(zoom -> move || zoom.get().get()));
     let shown = create_memo(clone!(zoom -> move || format!("{:.2}x", zoom.get())));
     let theme = use_theme();
     view! {
@@ -27,7 +28,7 @@ pub fn UiSettingsView(editor: Editor) -> NodeId {
                         max=block_editor_plugin::be_block::ui_settings::MAX_ZOOM
                         label="Zoom"
                         @test_id={"ui-settings.zoom"}
-                        on_change={move |zoom| settings.operate(UiSettingsOp::SetZoom { zoom })}
+                        on_change={move |zoom| settings.operate(UiSettings::set_zoom(zoom))}
                     />
                     <Body @sizing=ItemSize::Fixed(VALUE_WIDTH) content={shown} />
                 </List>

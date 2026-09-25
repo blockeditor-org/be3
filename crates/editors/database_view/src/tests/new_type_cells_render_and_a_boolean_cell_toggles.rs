@@ -12,31 +12,26 @@ fn new_type_cells_render_and_a_boolean_cell_toggles() {
     for (field_id, value) in [
         (fixture.fields[1], color_value()),
         (fixture.fields[2], DatabaseValue::Datetime(1_709_251_500)),
-        (
-            fixture.fields[3],
-            DatabaseValue::Block(BlockRef::Direct(Uuid::from_u128(42))),
-        ),
+        (fixture.fields[3], DatabaseValue::Block(Uuid::from_u128(42))),
     ] {
-        fixture.database.operate(DatabaseOperation::SetCell {
-            row_index: 0,
-            field_id,
-            value: Some(value),
-        });
+        fixture.set(0, field_id, value);
     }
-    fixture.test.run();
+    fixture.run();
 
     fixture
-        .test
+        .harness
+        .editor
         .click(&format!("database-view.cell.0.{boolean_id}"));
-    fixture.test.run();
-    fixture.test.run();
+    fixture.run();
+    fixture.run();
 
     assert_eq!(
-        fixture.database.read().unwrap().rows()[0].value(boolean_id),
+        fixture.database().rows[0].value(boolean_id),
         Some(&DatabaseValue::Boolean(true))
     );
     fixture
-        .test
+        .harness
+        .editor
         .snapshot("new_type_cells_render_and_a_boolean_cell_toggles");
 }
 

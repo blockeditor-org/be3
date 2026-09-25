@@ -1,6 +1,7 @@
+use block_editor_plugin::be_block::VideoContent;
 use std::rc::Rc;
 
-use block_client::blocks::video::{Video, VideoFrameRate, VideoOperation};
+use block_editor_plugin::be_block::video::{VideoFrameRate, VideoOperation};
 use block_editor_plugin::beui::icons::{
     ICON_ADD, ICON_CONTENT_CUT, ICON_DELETE, ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW,
     ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_SUBDIRECTORY_ARROW_RIGHT, ICON_ZOOM_IN, ICON_ZOOM_OUT,
@@ -57,7 +58,7 @@ impl block_editor_plugin::BeuiApp for VideoApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(Video::new()).id())
+        Ok(creation.create(&VideoContent::default()))
     }
 
     fn intrinsic_size() -> Option<Vec2> {

@@ -2,7 +2,7 @@ use beui::{
     Color32, Context, Document, Event, Key, Modifiers, PointerButton, Pos2, Rect, TouchId,
     TouchPhase, Vec2,
 };
-use block_editor_plugin::beui_frame::BeuiFrame;
+use block_editor_plugin::beui_frame::{BeuiFrame, FrameBar};
 use block_editor_plugin::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorRegion, Occluder,
 };
@@ -43,15 +43,22 @@ enum Region {
 
 impl<A: BeuiApp> BeuiTest<A> {
     pub fn new(editor: Editor) -> Self {
-        let frame = BeuiFrame::build({
+        let frame = BeuiFrame::build(&editor, {
             let editor = editor.clone();
             move || A::view(editor)
         });
         Self::for_region(Region::Frame(editor, frame))
     }
 
+    pub fn block_id(&self) -> Option<uuid::Uuid> {
+        match &self.region {
+            Region::Frame(editor, _) | Region::Preview(editor, _) => Some(editor.block_id()),
+            Region::Creation(..) | Region::Settings(..) => None,
+        }
+    }
+
     pub fn with_view(editor: Editor, view: impl FnOnce() -> beui::NodeId) -> Self {
-        let frame = BeuiFrame::build(view);
+        let frame = BeuiFrame::build(&editor, view);
         Self::for_region(Region::Frame(editor, frame))
     }
 
@@ -110,6 +117,27 @@ impl<A: BeuiApp> BeuiTest<A> {
         };
         editor.run();
         editor
+    }
+
+    pub fn with_top_bar(mut self, closable: bool) -> Self {
+        if let Region::Frame(_, frame) = &mut self.region {
+            let set_bar = frame.set_bar();
+            beui::reactive::with_reactive_scope(frame.document_mut(), move || {
+                set_bar.set(FrameBar {
+                    shown: true,
+                    closable,
+                });
+            });
+        }
+        self.run();
+        self
+    }
+
+    pub fn exited(&self) -> bool {
+        match &self.region {
+            Region::Frame(_, frame) => frame.exit().get(),
+            Region::Preview(..) | Region::Creation(..) | Region::Settings(..) => false,
+        }
     }
 
     pub fn in_viewport(mut self) -> Self {
@@ -236,7 +264,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         if let Some(viewport) = &mut self.viewport {
             viewport.place(&host, rect, intrinsic);
         }
-        host.begin_region(placement, block_editor_plugin::egui::Vec2::ZERO);
+        host.begin_region(placement, beui::Vec2::ZERO);
         let region = &mut self.region;
         match region {
             Region::Frame(editor, frame) => {
@@ -545,9 +573,7 @@ impl Viewport {
                 self.fitting = false;
             }
             match change {
-                block_editor_plugin::ViewChange::Pan { x, y } => {
-                    self.pan = self.pan + Vec2::new(x, y)
-                }
+                block_editor_plugin::ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
                 block_editor_plugin::ViewChange::Zoom { factor, anchor } => {
                     let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
                     let anchor =

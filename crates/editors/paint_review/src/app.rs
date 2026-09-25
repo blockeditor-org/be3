@@ -1,6 +1,6 @@
+use block_editor_plugin::be_block::PaintReviewContent;
 use std::rc::Rc;
 
-use block_client::blocks::paint_review::PaintReview;
 use block_editor_plugin::beui::reactive::{
     Direction, ItemSize, List, component, create_memo, view,
 };
@@ -35,7 +35,7 @@ impl block_editor_plugin::BeuiApp for PaintReviewApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.client().create_block(PaintReview::new()).id())
+        Ok(creation.create(&PaintReviewContent::default()))
     }
 
     fn intrinsic_size() -> Option<Vec2> {

@@ -1,7 +1,7 @@
 use std::rc::Rc;
+use uuid::Uuid;
 
-use block_client::block_ref::BlockRef;
-use block_client::blocks::workspace_index::WorkspaceIndex;
+use block_editor_plugin::be_block::FolderContent;
 use block_editor_plugin::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show,
@@ -52,19 +52,19 @@ impl FolderView {
 struct Cells {
     editor: Editor,
     entries: Memo<Vec<Entry>>,
-    selected: ReadSignal<Option<BlockRef>>,
-    set_selected: WriteSignal<Option<BlockRef>>,
+    selected: ReadSignal<Option<Uuid>>,
+    set_selected: WriteSignal<Option<Uuid>>,
 }
 
 impl Cells {
-    fn keys(&self) -> Memo<Vec<BlockRef>> {
+    fn keys(&self) -> Memo<Vec<Uuid>> {
         let entries = self.entries.clone();
         create_memo(move || {
             entries.with(|entries| entries.iter().map(|entry| entry.reference).collect())
         })
     }
 
-    fn entry(&self, key: BlockRef) -> Memo<Option<Entry>> {
+    fn entry(&self, key: Uuid) -> Memo<Option<Entry>> {
         let entries = self.entries.clone();
         create_memo(move || {
             entries.with(|entries| entries.iter().find(|entry| entry.reference == key).cloned())
@@ -86,11 +86,11 @@ impl Cells {
 
 #[component]
 pub fn FolderEditor(editor: Editor) -> NodeId {
-    let index = editor.block::<WorkspaceIndex>();
+    let index = editor.block_content::<FolderContent>();
     let (mode, set_mode) = create_signal(FolderView::default());
     let (sort, set_sort) = create_signal(FolderSort::default());
     let (descending, set_descending) = create_signal(false);
-    let (selected, set_selected) = create_signal(None::<BlockRef>);
+    let (selected, set_selected) = create_signal(None::<Uuid>);
 
     let folder = Rc::new(Folder::watch(
         &editor,
@@ -253,7 +253,7 @@ fn EntryRows(cells: Cells) -> NodeId {
     view! {
         <List spacing=2.0>
             <ForEach keys={keys}>
-                {move |key: BlockRef| {
+                {move |key: Uuid| {
                     let entry = cells.entry(key);
                     let open = cells.open(entry.clone());
                     let set_selected = cells.set_selected.clone();
@@ -290,7 +290,7 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Start spacing=TILE_SPACING>
             <ForEach keys={keys}>
-                {move |key: BlockRef| {
+                {move |key: Uuid| {
                     let entry = cells.entry(key);
                     let open = cells.open(entry.clone());
                     let set_selected = cells.set_selected.clone();
@@ -339,13 +339,8 @@ fn EntryGlyph(entry: Memo<Option<Entry>>, size: f32) -> NodeId {
     }
 }
 
-fn entry_test_id(key: BlockRef) -> String {
-    match key {
-        BlockRef::Direct(id) => format!("folder.entry.{id}"),
-        BlockRef::RepoRelative { repo, eternal_id } => {
-            format!("folder.entry.{repo}.{eternal_id}")
-        }
-    }
+fn entry_test_id(key: Uuid) -> String {
+    format!("folder.entry.{key}")
 }
 
 fn name_of(entry: Memo<Option<Entry>>) -> Memo<String> {

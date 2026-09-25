@@ -1,10 +1,12 @@
 use std::cell::RefCell;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use block_client::blocks::image::{Image as ImageBlock, ImageMetadata, ImageOperation};
+use block_editor_plugin::be_block::{ImageContent, ImageHeader, ImageOp};
 use block_editor_plugin::beui::Image;
-use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
-use block_editor_plugin::{BlockProjection, Editor};
+use block_editor_plugin::beui::reactive::{Memo, create_effect, create_memo, create_signal};
+use block_editor_plugin::{ContentProjection, Editor};
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Shown {
@@ -12,66 +14,69 @@ pub(crate) struct Shown {
     pub(crate) error: Option<String>,
 }
 
-#[derive(Default)]
-struct Decoded {
-    revision: Option<u64>,
-    shown: Shown,
+fn digest(data: &[u8]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    data.hash(&mut hasher);
+    hasher.finish()
 }
 
-pub(crate) fn watch(editor: &Editor, block: &Rc<BlockProjection<ImageBlock>>) -> Memo<Shown> {
+pub(crate) fn watch(editor: &Editor, block: &Rc<ContentProjection<ImageContent>>) -> Memo<Shown> {
     let (shown, set_shown) = create_signal(Shown::default());
-    let decoded = RefCell::new(Decoded::default());
-    let handle = block.handle().clone();
-    let operating = Rc::clone(block);
+    let key = block.project(|image| (image.header().clone(), digest(image.data())));
+    let decoded: RefCell<Option<(u64, Shown)>> = RefCell::new(None);
+    let reading = Rc::clone(block);
     let editable = editor.editable();
-    editor.each_frame(move || {
-        let revision = handle.revision();
-        let mut decoded = decoded.borrow_mut();
-        if decoded.revision == Some(revision) {
-            set_shown.set(decoded.shown.clone());
+    create_effect(move || {
+        let (header, fingerprint) = key.get();
+        if let Some(failure) = &header.failure {
+            set_shown.set(Shown {
+                image: None,
+                error: Some(failure.clone()),
+            });
             return;
         }
-        let Some(image) = handle.read() else {
+        let mut decoded = decoded.borrow_mut();
+        if let Some((held, shown)) = decoded.as_ref()
+            && *held == fingerprint
+        {
+            set_shown.set(shown.clone());
+            return;
+        }
+        let Some(result) = reading.read(|image| crate::decode::decode(image.data())) else {
             return;
         };
-        decoded.revision = Some(revision);
-        if let ImageMetadata::Failed(error) = image.metadata() {
-            decoded.shown = Shown {
-                image: None,
-                error: Some(error.clone()),
-            };
-            set_shown.set(decoded.shown.clone());
-            return;
-        }
-        let recorded = image.metadata().clone();
-        let result = crate::decode::decode(image.data());
-        drop(image);
-        let may_write = editable.get_untracked();
-        decoded.shown = match result {
+        let (found, shown) = match result {
             Ok(found) => {
-                if may_write && recorded != found.metadata {
-                    operating.operate(ImageOperation::SetMetadata {
-                        metadata: found.metadata,
-                    });
-                }
-                Shown {
+                let shown = Shown {
                     image: Some(Image::from_rgba(found.width, found.height, found.pixels)),
                     error: None,
-                }
+                };
+                let recorded = ImageHeader {
+                    media_type: found.media_type,
+                    width: found.width,
+                    height: found.height,
+                    failure: None,
+                    ..header.clone()
+                };
+                (recorded, shown)
             }
-            Err(error) => {
-                if may_write {
-                    operating.operate(ImageOperation::SetMetadata {
-                        metadata: ImageMetadata::Failed(error.clone()),
-                    });
-                }
+            Err(error) => (
+                ImageHeader {
+                    failure: Some(error.clone()),
+                    ..header.clone()
+                },
                 Shown {
                     image: None,
                     error: Some(error),
-                }
-            }
+                },
+            ),
         };
-        set_shown.set(decoded.shown.clone());
+        *decoded = Some((fingerprint, shown.clone()));
+        drop(decoded);
+        set_shown.set(shown);
+        if editable.get_untracked() && found != header {
+            reading.operate(ImageOp::SetHeader(found));
+        }
     });
     create_memo(move || shown.get())
 }

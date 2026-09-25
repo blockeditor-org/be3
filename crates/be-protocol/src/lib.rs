@@ -16,11 +16,30 @@ pub enum WorkspaceRole {
     Editor,
 }
 
+impl WorkspaceRole {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Administrator => "Administrator",
+            Self::Editor => "Editor",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Workspace {
     pub id: Uuid,
     pub name: String,
     pub role: WorkspaceRole,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkspaceInvitation {
+    pub id: Uuid,
+    pub workspace: Uuid,
+    pub workspace_name: String,
+    pub email: String,
+    pub role: WorkspaceRole,
+    pub invited_by: Uuid,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -31,6 +50,10 @@ pub struct BlockSummary {
     pub parent: BlockParent,
     pub head: Option<CommitId>,
     pub access: Access,
+    pub references: Vec<Uuid>,
+    #[serde(with = "serde_bytes")]
+    pub metadata: Vec<u8>,
+    pub version: u64,
 }
 
 pub type ClientId = u64;
@@ -54,6 +77,7 @@ pub struct AccessEntry {
     pub account: Uuid,
     pub email: String,
     pub display_name: String,
+    pub role: WorkspaceRole,
     pub granted: Option<Access>,
     pub effective: Access,
 }
@@ -72,6 +96,8 @@ pub enum ErrorCode {
     ParentCycle,
     Storage,
     WorkspaceNotFound,
+    RegistrationDisabled,
+    InvitationNotFound,
 }
 
 impl fmt::Display for ErrorCode {
@@ -97,7 +123,7 @@ pub enum ClientMessage {
         request: u64,
         token: String,
     },
-    Adopt {
+    Logout {
         request: u64,
     },
     ListWorkspaces {
@@ -111,9 +137,24 @@ pub enum ClientMessage {
         request: u64,
         workspace: Uuid,
     },
+    Invite {
+        request: u64,
+        workspace: Uuid,
+        email: String,
+        role: WorkspaceRole,
+    },
+    ListInvitations {
+        request: u64,
+    },
+    RespondInvitation {
+        request: u64,
+        invitation: Uuid,
+        accept: bool,
+    },
 
     PutObject {
         request: u64,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     GetObject {
@@ -136,6 +177,17 @@ pub enum ClientMessage {
         block: Uuid,
         content_type: Uuid,
         parent: BlockParent,
+        #[serde(with = "serde_bytes")]
+        metadata: Vec<u8>,
+    },
+    ListBlocks {
+        request: u64,
+    },
+    SetMetadata {
+        request: u64,
+        block: Uuid,
+        #[serde(with = "serde_bytes")]
+        metadata: Vec<u8>,
     },
     Publish {
         request: u64,
@@ -223,6 +275,7 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
         to: Option<ClientId>,
+        #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
 }
@@ -233,7 +286,10 @@ impl ClientMessage {
             Self::Register { request, .. }
             | Self::Login { request, .. }
             | Self::Authenticate { request, .. }
-            | Self::Adopt { request }
+            | Self::Logout { request }
+            | Self::Invite { request, .. }
+            | Self::ListInvitations { request }
+            | Self::RespondInvitation { request, .. }
             | Self::ListWorkspaces { request }
             | Self::CreateWorkspace { request, .. }
             | Self::OpenWorkspace { request, .. }
@@ -242,6 +298,8 @@ impl ClientMessage {
             | Self::GetObjectRange { request, .. }
             | Self::MissingObjects { request, .. }
             | Self::CreateBlock { request, .. }
+            | Self::ListBlocks { request }
+            | Self::SetMetadata { request, .. }
             | Self::Publish { request, .. }
             | Self::ReadBlock { request, .. }
             | Self::SetParent { request, .. }
@@ -284,12 +342,17 @@ pub enum ServerMessage {
     Authenticated {
         request: u64,
         account: Uuid,
+        email: String,
         display_name: String,
         token: String,
     },
     Workspaces {
         request: u64,
         workspaces: Vec<Workspace>,
+    },
+    Invitations {
+        request: u64,
+        invitations: Vec<WorkspaceInvitation>,
     },
     WorkspaceOpened {
         request: u64,
@@ -302,6 +365,7 @@ pub enum ServerMessage {
     },
     Object {
         request: u64,
+        #[serde(with = "serde_bytes")]
         bytes: Option<Vec<u8>>,
     },
     Missing {
@@ -351,6 +415,12 @@ pub enum ServerMessage {
     BlockDeleted {
         block: Uuid,
     },
+    BlockChanged {
+        block: BlockSummary,
+    },
+    BlockRemoved {
+        block: Uuid,
+    },
     SessionChanged {
         block: Uuid,
         state: SessionState,
@@ -358,6 +428,7 @@ pub enum ServerMessage {
     Relayed {
         block: Uuid,
         from: ClientId,
+        #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
 }
@@ -369,6 +440,7 @@ impl ServerMessage {
             | Self::Failed { request, .. }
             | Self::Authenticated { request, .. }
             | Self::Workspaces { request, .. }
+            | Self::Invitations { request, .. }
             | Self::WorkspaceOpened { request, .. }
             | Self::Stored { request, .. }
             | Self::Object { request, .. }
@@ -383,6 +455,8 @@ impl ServerMessage {
             | Self::Session { request, .. } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
+            | Self::BlockChanged { .. }
+            | Self::BlockRemoved { .. }
             | Self::SessionChanged { .. }
             | Self::Relayed { .. } => None,
         }

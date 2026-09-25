@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::rc::Rc;
 
 use block_editor_plugin::beui::icons::{
@@ -5,11 +6,13 @@ use block_editor_plugin::beui::icons::{
 };
 use block_editor_plugin::beui::reactive::{
     Align, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize, List, NodeRef, Prop,
-    ReadSignal, Show, Text, WriteSignal, clone, component, create_memo, create_selector,
-    create_signal, view,
+    ReadSignal, Show, Text, clone, component, create_memo, create_selector, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, Scroll, theme, use_theme,
+};
+use block_editor_plugin::beui::unstyled::{
+    DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
 };
 use block_editor_plugin::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
 use block_editor_plugin::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
@@ -27,27 +30,6 @@ const PANEL_PADDING: f32 = 10.0;
 const FILMSTRIP_PADDING: f32 = 6.0;
 const TILE_INSET: f32 = 4.0;
 const TILE_SPACING: f32 = 8.0;
-
-#[derive(Clone)]
-struct Drag {
-    held: ReadSignal<Option<Uuid>>,
-    set_held: WriteSignal<Option<Uuid>>,
-    over: ReadSignal<Option<Uuid>>,
-    set_over: WriteSignal<Option<Uuid>>,
-}
-
-impl Drag {
-    fn new() -> Self {
-        let (held, set_held) = create_signal(None::<Uuid>);
-        let (over, set_over) = create_signal(None::<Uuid>);
-        Self {
-            held,
-            set_held,
-            over,
-            set_over,
-        }
-    }
-}
 
 #[component]
 pub fn PresentationView(editor: Editor) -> NodeId {
@@ -331,16 +313,14 @@ fn Playback(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
 #[component]
 fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
     let theme = use_theme();
-    let drag = Drag::new();
     let keys = slides.keys();
     let selection = create_selector(clone!(slides -> move || slides.selected().get()));
     let empty = create_memo(clone!(slides -> move || slides.count() == 0));
-    let tiles = clone!(editor slides drag -> move |id: Uuid| {
+    let tiles = clone!(editor slides -> move |id: Uuid| {
         view! {
             <SlideTile
                 editor={editor.clone()}
                 slides={Rc::clone(&slides)}
-                drag={drag.clone()}
                 selected={selection.memo(Some(id))}
                 id={id}
             />
@@ -367,13 +347,7 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
 }
 
 #[component]
-fn SlideTile(
-    editor: Editor,
-    slides: Rc<Slides>,
-    drag: Drag,
-    selected: Prop<bool>,
-    id: Uuid,
-) -> NodeId {
+fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid) -> NodeId {
     let theme = use_theme();
     let editable = editor.editable();
     let read_only = editor.read_only();
@@ -400,34 +374,41 @@ fn SlideTile(
     }));
 
     let select = clone!(slides -> move || slides.select(Some(id)));
-    let hold = clone!(drag editable -> move |_| {
-        if editable.get_untracked() {
-            drag.set_held.set(Some(id));
-        }
-    });
-    let reorder = clone!(drag slides -> move |_| {
-        if drag.held.get_untracked() != Some(id) {
-            return;
-        }
-        let Some(over) = drag.over.get_untracked() else {
+    let payload = create_memo(clone!(editable -> move || editable.get().then_some(id)));
+    let entered = Rc::new(Cell::new(false));
+    let over = clone!(slides -> move |over: Option<(Uuid, DragPoint)>| {
+        let Some((held, _)) = over else {
+            entered.set(false);
             return;
         };
-        if over == id {
+        if entered.replace(true) || held == id {
             return;
         }
-        let Some(index) = slides.index_of(over) else {
-            return;
-        };
-        slides.move_to(id, index);
+        if let Some(index) = slides.index_of(id) {
+            slides.move_to(held, index);
+        }
     });
-    let enter = clone!(drag -> move |hovered: bool| match hovered {
-        true => drag.set_over.set(Some(id)),
-        false if drag.over.get_untracked() == Some(id) => drag.set_over.set(None),
-        false => {}
-    });
-    let release = clone!(drag -> move |active: bool| {
-        if !active {
-            drag.set_held.set(None);
+    let ghost = clone!(slides -> move |held: Uuid| {
+        let label = create_memo(clone!(slides -> move || {
+            let number = slides.index_of(held).map_or(0, |index| index + 1);
+            let name = slides.slide(held).map(|slide| slide.name).unwrap_or_default();
+            format!("{number}  {name}")
+        }));
+        let theme = use_theme();
+        view! {
+            <Frame
+                width=THUMBNAIL_WIDTH
+                color={theme.surface_raised.clone()}
+                outline={theme.accent.clone()}
+                outline_width=2.0
+                outline_visible=true
+                radius=theme::RADIUS
+                padding_horizontal=8.0
+                padding_vertical=8.0
+                @test_id="presentation.slide-ghost"
+            >
+                <Caption content={label} />
+            </Frame>
         }
     });
     let remove = clone!(slides -> move || slides.remove(id));
@@ -444,30 +425,34 @@ fn SlideTile(
                 padding_vertical=6.0
             >
                 <List spacing=6.0>
-                    <ClickCatcher
-                        cursor=CursorIcon::PointingHand
-                        on_click={select}
-                        on_press={hold}
-                        on_drag={reorder}
-                        on_active_change={release}
-                        on_hover_change={enter}
-                        @test_id={format!("presentation.slide.{id}")}
-                    >
-                        <Frame width=THUMBNAIL_WIDTH aspect_ratio={ratio}>
-                            <ChildBlock
-                                editor={editor}
-                                block={target}
-                                mode=ChildMode::Preview
-                                on_state={move |state: ChildState| {
-                                    set_ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
-                                }}
+                    <DropTarget on_over={over}>
+                        {move |_: DropHandle| view! {
+                            <Draggable
+                                payload={payload}
+                                cursor=CursorIcon::PointingHand
+                                preview={ghost}
+                                on_click={select}
+                                @test_id={format!("presentation.slide.{id}")}
                             >
-                                {move |handle: ChildBlockHandle| view! {
-                                    <SlideStatus state={handle.state} />
+                                {move |_: DragHandle| view! {
+                                    <Frame width=THUMBNAIL_WIDTH aspect_ratio={ratio}>
+                                        <ChildBlock
+                                            editor={editor}
+                                            block={target}
+                                            mode=ChildMode::Preview
+                                            on_state={move |state: ChildState| {
+                                                set_ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
+                                            }}
+                                        >
+                                            {move |handle: ChildBlockHandle| view! {
+                                                <SlideStatus state={handle.state} />
+                                            }}
+                                        </ChildBlock>
+                                    </Frame>
                                 }}
-                            </ChildBlock>
-                        </Frame>
-                    </ClickCatcher>
+                            </Draggable>
+                        }}
+                    </DropTarget>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                         <Caption content={number} />
                         <Caption @sizing=ItemSize::Percent(100.0) content={name} />

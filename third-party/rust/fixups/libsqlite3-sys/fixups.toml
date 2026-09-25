@@ -1,0 +1,60 @@
+# The bundled feature compiles the amalgamated sqlite3.c the crate ships.
+buildscript.run = true
+
+# localtime_r and the POSIX thread-safe functions are not Windows', which has
+# its own; two libraries, since reindeer keys one by its name.
+[['cfg(not(target_os = "windows"))'.cxx_library]]
+name = "sqlite3"
+srcs = ["sqlite3/sqlite3.c"]
+headers = ["sqlite3/*.h", "*.h"]
+include_paths = ["sqlite3"]
+compiler_flags = [
+    "-w",
+    "-DSQLITE_CORE",
+    "-DSQLITE_DEFAULT_FOREIGN_KEYS=1",
+    "-DSQLITE_ENABLE_API_ARMOR",
+    "-DSQLITE_ENABLE_COLUMN_METADATA",
+    "-DSQLITE_ENABLE_DBSTAT_VTAB",
+    "-DSQLITE_ENABLE_FTS3",
+    "-DSQLITE_ENABLE_FTS3_PARENTHESIS",
+    "-DSQLITE_ENABLE_FTS5",
+    "-DSQLITE_ENABLE_JSON1",
+    "-DSQLITE_ENABLE_LOAD_EXTENSION=1",
+    "-DSQLITE_ENABLE_MEMORY_MANAGEMENT",
+    "-DSQLITE_ENABLE_RTREE",
+    "-DSQLITE_ENABLE_STAT4",
+    "-DSQLITE_SOUNDEX",
+    "-DSQLITE_THREADSAFE=1",
+    "-DSQLITE_USE_URI",
+    "-DHAVE_USLEEP=1",
+    "-DHAVE_ISNAN",
+    "-D_POSIX_THREAD_SAFE_FUNCTIONS",
+    "-DHAVE_LOCALTIME_R",
+]
+
+[['cfg(target_os = "windows")'.cxx_library]]
+name = "sqlite3-windows"
+srcs = ["sqlite3/sqlite3.c"]
+headers = ["sqlite3/*.h", "*.h"]
+include_paths = ["sqlite3"]
+compiler_flags = [
+    "-w",
+    "-DSQLITE_CORE",
+    "-DSQLITE_DEFAULT_FOREIGN_KEYS=1",
+    "-DSQLITE_ENABLE_API_ARMOR",
+    "-DSQLITE_ENABLE_COLUMN_METADATA",
+    "-DSQLITE_ENABLE_DBSTAT_VTAB",
+    "-DSQLITE_ENABLE_FTS3",
+    "-DSQLITE_ENABLE_FTS3_PARENTHESIS",
+    "-DSQLITE_ENABLE_FTS5",
+    "-DSQLITE_ENABLE_JSON1",
+    "-DSQLITE_ENABLE_LOAD_EXTENSION=1",
+    "-DSQLITE_ENABLE_MEMORY_MANAGEMENT",
+    "-DSQLITE_ENABLE_RTREE",
+    "-DSQLITE_ENABLE_STAT4",
+    "-DSQLITE_SOUNDEX",
+    "-DSQLITE_THREADSAFE=1",
+    "-DSQLITE_USE_URI",
+    "-DHAVE_USLEEP=1",
+    "-DHAVE_ISNAN",
+]

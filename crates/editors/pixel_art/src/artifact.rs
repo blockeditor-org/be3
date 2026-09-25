@@ -1,13 +1,10 @@
-use block::Block;
-use block_client::{
-    BlockClient, BlockHandle, DynamicArtifactDescriptor,
-    blocks::{image::Image, pixel_art::PixelArt},
-};
-use block_editor_plugin::ArtifactDescription;
-use block_editor_plugin::Artifacts;
+use block_editor_plugin::be_block::pixel_art::Artwork;
+use block_editor_plugin::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
 use block_editor_plugin::beui::styled::{Caption, NumberInput, use_theme};
+use block_editor_plugin::{ArtifactDescription, Artifacts, EditorHost};
+use block_editor_plugin::{BlockList, BlockQuery, ContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -44,9 +41,9 @@ impl ImageArtifact {
     }
 }
 
-pub fn descriptor(source_id: Uuid) -> DynamicArtifactDescriptor {
-    DynamicArtifactDescriptor {
-        source_type: PixelArt::TYPE_ID,
+pub fn descriptor(source_id: Uuid) -> ArtifactSource {
+    ArtifactSource {
+        source_type: PixelArtContent::CONTENT_TYPE,
         data: ImageArtifact {
             source: source_id,
             settings: ImageSettings::default(),
@@ -55,11 +52,15 @@ pub fn descriptor(source_id: Uuid) -> DynamicArtifactDescriptor {
     }
 }
 
-pub fn generate_initial(art: &PixelArt, source_name: &str) -> Result<Image, String> {
+pub fn generate_initial(art: &Artwork, source_name: &str) -> Result<ImageContent, String> {
     generate(art, source_name, &ImageSettings::default())
 }
 
-fn generate(art: &PixelArt, source_name: &str, settings: &ImageSettings) -> Result<Image, String> {
+fn generate(
+    art: &Artwork,
+    source_name: &str,
+    settings: &ImageSettings,
+) -> Result<ImageContent, String> {
     let scale = settings.scale.clamp(1, MAX_EXPORT_SCALE);
     let width = u32::from(art.width()) * scale;
     let height = u32::from(art.height()) * scale;
@@ -72,10 +73,13 @@ fn generate(art: &PixelArt, source_name: &str, settings: &ImageSettings) -> Resu
             ExtendedColorType::Rgba8,
         )
         .map_err(|error| error.to_string())?;
-    Ok(Image::new(format!("{source_name} Export"), png))
+    Ok(ImageContent::from_file(
+        format!("{source_name} Export"),
+        png,
+    ))
 }
 
-fn magnified(art: &PixelArt, scale: u32) -> Vec<u8> {
+fn magnified(art: &Artwork, scale: u32) -> Vec<u8> {
     let pixels = art.rgba_bytes();
     if scale == 1 {
         return pixels.to_vec();
@@ -163,38 +167,46 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
 }
 
 pub struct Regeneration {
-    source: BlockHandle<PixelArt>,
-    target: BlockHandle<Image>,
+    host: EditorHost,
+    source: ContentProjection<PixelArtContent>,
+    named: BlockList,
+    target: Uuid,
     settings: ImageSettings,
 }
 
 impl Regeneration {
     pub fn start(
-        client: &BlockClient,
+        host: &EditorHost,
         target_id: Uuid,
         target_type: Uuid,
         data: &[u8],
     ) -> Result<Self, String> {
-        if target_type != Image::TYPE_ID {
+        if target_type != ImageContent::CONTENT_TYPE {
             return Err(format!(
                 "pixel art export expected an Image target, found {target_type}"
             ));
         }
         let artifact = ImageArtifact::decode(data)?;
         Ok(Self {
-            source: client.get_block::<PixelArt>(artifact.source),
-            target: client.get_block::<Image>(target_id),
+            host: host.clone(),
+            source: host.content_of::<PixelArtContent>(artifact.source),
+            named: host.blocks().watch(BlockQuery::Block(artifact.source)),
+            target: target_id,
             settings: artifact.settings,
         })
     }
 
     pub fn poll(&mut self) -> Option<Result<(), String>> {
-        let source = self.source.read()?;
-        self.target.read()?;
-        let name = self.source.name().unwrap_or_else(|| "Pixel Art".to_owned());
+        let source = self.source.read(|content| content.root().artwork())?;
+        let name = self
+            .named
+            .read()
+            .into_iter()
+            .next()
+            .and_then(|info| info.name)
+            .unwrap_or_else(|| "Pixel Art".to_owned());
         let generated = generate(&source, &name, &self.settings);
-        drop(source);
-        Some(generated.map(|image| self.target.replace(image)))
+        Some(generated.map(|image| self.host.replace_content(self.target, &image)))
     }
 }
 

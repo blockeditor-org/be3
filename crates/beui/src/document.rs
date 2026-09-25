@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use accesskit::Node;
 
-use crate::accessibility;
+use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::Context;
 use crate::damage::{Damage, Region};
@@ -15,8 +15,8 @@ use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::input::{Event, Key, KeyPress};
 
-use crate::inspector::Inspector;
-use crate::interact;
+use crate::inspector::{Inspector, Layout};
+use crate::interact::{self, Keys};
 use crate::layout;
 use crate::node::{Arena, NodeId, NodeMap};
 use crate::paint::{self, PaintCache, Painted};
@@ -36,6 +36,7 @@ pub struct Document {
     pub(crate) rects: Rc<NodeMap<Rect>>,
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
+    inspector_requested: bool,
     pub(crate) portal_holders: std::collections::HashMap<NodeId, NodeId>,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
@@ -43,7 +44,9 @@ pub struct Document {
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
     pub(crate) touch_scroll_horizontal: Option<NodeId>,
+    pub(crate) wheel_latch: Option<(NodeId, Instant)>,
     pub(crate) pointer_capture: Option<NodeId>,
+    pub(crate) drags: Rc<crate::unstyled::DragBoard>,
     paste_requested: bool,
     test_ids: HashMap<String, NodeId>,
     node_test_ids: HashMap<NodeId, Vec<String>>,
@@ -57,6 +60,7 @@ pub struct Document {
     placing: Vec<NodeId>,
     interact_pool: Vec<Vec<NodeId>>,
     placed_pass: NodeMap<u64>,
+    reached_pass: NodeMap<u64>,
     layout_pass: u64,
     scroll_hosts: Vec<NodeId>,
     scroll_shifts: NodeMap<f32>,
@@ -74,11 +78,13 @@ pub struct Document {
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     sizes: NodeMap<Vec<SizeWatcher>>,
     placements: NodeMap<Vec<PlacementWatcher>>,
+    placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: NodeMap<Node>,
+    pub(crate) accessibility_tree: RefCell<AccessibilityTree>,
     performance: PerformanceTracker,
-    work: WorkCounters,
+    pub(crate) work: WorkCounters,
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
@@ -110,13 +116,14 @@ fn constrained(held: Vec2, available: Vec2) -> Vec2 {
 }
 
 #[derive(Default)]
-struct WorkCounters {
+pub(crate) struct WorkCounters {
     measured: Cell<usize>,
     reused_measurements: Cell<usize>,
     placed: Cell<usize>,
     reused_placements: Cell<usize>,
     painted_nodes: Cell<usize>,
     replayed_nodes: Cell<usize>,
+    described_nodes: Cell<usize>,
 }
 
 impl WorkCounters {
@@ -127,6 +134,11 @@ impl WorkCounters {
         self.reused_placements.set(0);
         self.painted_nodes.set(0);
         self.replayed_nodes.set(0);
+        self.described_nodes.set(0);
+    }
+
+    pub(crate) fn note_described(&self, nodes: usize) {
+        self.described_nodes.set(self.described_nodes.get() + nodes);
     }
 
     fn gathered(&self) -> FrameWork {
@@ -137,6 +149,7 @@ impl WorkCounters {
             reused_placements: self.reused_placements.get(),
             painted_nodes: self.painted_nodes.get(),
             replayed_nodes: self.replayed_nodes.get(),
+            described_nodes: self.described_nodes.get(),
         }
     }
 }
@@ -163,6 +176,7 @@ impl Document {
             rects: Rc::new(NodeMap::default()),
             inspector: None,
             inspectable: true,
+            inspector_requested: false,
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
@@ -170,7 +184,9 @@ impl Document {
             shortcuts: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
             touch_scroll_horizontal: None,
+            wheel_latch: None,
             pointer_capture: None,
+            drags: Rc::default(),
             paste_requested: false,
             test_ids: HashMap::new(),
             node_test_ids: HashMap::new(),
@@ -184,6 +200,7 @@ impl Document {
             placing: Vec::new(),
             interact_pool: Vec::new(),
             placed_pass: NodeMap::default(),
+            reached_pass: NodeMap::default(),
             layout_pass: 0,
             scroll_hosts: Vec::new(),
             scroll_shifts: NodeMap::default(),
@@ -201,9 +218,11 @@ impl Document {
             node_scopes: HashMap::new(),
             sizes: NodeMap::default(),
             placements: NodeMap::default(),
+            placed: NodeMap::default(),
             component_states: HashMap::new(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
+            accessibility_tree: RefCell::default(),
             performance: PerformanceTracker::default(),
             work: WorkCounters::default(),
             changes: FlashLog::default(),
@@ -238,6 +257,10 @@ impl Document {
     pub fn set_theme(&mut self, theme: Theme) {
         let store = self.theme.clone();
         crate::reactive::with_reactive_scope(self, move || store.set(theme));
+    }
+
+    pub fn open_inspector(&mut self) {
+        self.inspector_requested = self.inspectable;
     }
 
     pub(crate) fn theme_store(&self) -> ThemeStore {
@@ -471,11 +494,15 @@ impl Document {
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
         self.placements.remove(&id);
+        self.placed.remove(&id);
         self.measurements.remove(&id);
         self.component_states.remove(&id);
         self.placed_children.remove(&id);
+        self.placed_pass.remove(&id);
+        self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);
+        self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             if self.test_ids.get(&test_id) == Some(&id) {
                 self.test_ids.remove(&test_id);
@@ -521,18 +548,15 @@ impl Document {
 
         let viewport = rect;
         let rect = trim_bottom(rect, ctx.measure_mouse_simulation(viewport)).0;
-        let (content, panel) = match &mut self.inspector {
-            Some(inspector) => {
-                inspector.grab(ctx, rect);
-                split(rect, inspector.panel_width(ctx, rect))
-            }
-            None => (rect, Rect::NOTHING),
+        let mut layout = match &mut self.inspector {
+            Some(inspector) => inspector.layout(ctx, rect),
+            None => Layout::app(rect),
         };
-        let reserved = self
-            .inspector
-            .as_ref()
-            .map_or(0.0, |inspector| inspector.readout_height(ctx));
-        let (content, readout) = trim_bottom(content, reserved);
+        let reserved = match &self.inspector {
+            Some(inspector) if layout.app_visible => inspector.readout_height(ctx),
+            _ => 0.0,
+        };
+        (layout.content, layout.readout) = trim_bottom(layout.content, reserved);
         let intercepted = self
             .inspector
             .as_ref()
@@ -541,10 +565,23 @@ impl Document {
             .inspector
             .as_ref()
             .is_some_and(|inspector| inspector.document.focused_node().is_some());
-        self.show_content(ctx, content, !intercepted, !inspector_has_focus);
+        let keys = match &self.inspector {
+            _ if inspector_has_focus => Keys::Ignored,
+            Some(inspector) => inspector.keys(),
+            None => Keys::All,
+        };
+        if layout.app_visible {
+            self.show_content(ctx, layout.content, !intercepted, keys);
+        } else {
+            self.viewport = None;
+        }
+        if std::mem::take(&mut self.inspector_requested) && self.inspector.is_none() {
+            self.inspector = Some(Box::new(Inspector::new(ctx, self.theme())));
+            ctx.request_repaint();
+        }
 
         if let Some(mut inspector) = self.inspector.take() {
-            inspector.show(self, ctx, content, readout, panel, inspector_has_focus);
+            inspector.show(self, ctx, &layout, inspector_has_focus);
             if !inspector.closed() {
                 self.inspector = Some(inspector);
             }
@@ -552,13 +589,7 @@ impl Document {
         ctx.show_mouse_simulation(viewport);
     }
 
-    pub(crate) fn show_content(
-        &mut self,
-        ctx: &Context,
-        rect: Rect,
-        interactive: bool,
-        keyboard_interactive: bool,
-    ) {
+    pub(crate) fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();
@@ -593,7 +624,7 @@ impl Document {
             context.run(|| crate::reactive::with_document(|document| document.run_frame_hooks()));
         }
 
-        if interactive {
+        if pointer || keys != Keys::Ignored {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
                 if let Some(root) = self.root {
                     let rects = Rc::clone(&self.rects);
@@ -602,14 +633,7 @@ impl Document {
                     let _guard = crate::reactive::install(self);
                     context.run(|| {
                         crate::reactive::with_document(|document| {
-                            interact::interact(
-                                document,
-                                ctx,
-                                &painter,
-                                &rects,
-                                root,
-                                keyboard_interactive,
-                            )
+                            interact::interact(document, ctx, &painter, &rects, root, pointer, keys)
                         });
                     });
                 }
@@ -640,6 +664,7 @@ impl Document {
             self.damage.everything();
         }
         for id in self.arena.take_changed() {
+            self.accessibility_tree.get_mut().mark(id, &self.arena);
             self.changes.record(id, now);
             if let Some(node) = self.rects.get(&id)
                 && self.paints(id)
@@ -665,13 +690,7 @@ impl Document {
                         paint::paint(self, &ctx.painter(), &self.rects, root);
                     }
                     ctx.flush_top();
-                    let overlays: Vec<NodeId> = self
-                        .overlay_stack
-                        .iter()
-                        .chain(self.passive_overlays.iter())
-                        .copied()
-                        .collect();
-                    for overlay in overlays {
+                    for overlay in self.overlays_bottom_up() {
                         if let Some(content) = self.overlay_content(overlay)
                             && self.rects.contains_key(&content)
                         {
@@ -702,10 +721,16 @@ impl Document {
         ctx.extend(&self.shapes);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
+                let mut tree = self.accessibility_tree.borrow_mut();
+                match tree.take_inspected() {
+                    true => tree.discard_changes(),
+                    false => tree.reset(),
+                }
                 return;
             }
-            if let Some(fragment) = self.accessibility_fragment() {
-                ctx.publish_accessibility(fragment);
+            let full = !ctx.accessibility_known(self.accessibility_id);
+            if let Some(fragment) = self.accessibility_update(full) {
+                ctx.publish_accessibility(self.accessibility_id, fragment);
             }
         });
         measurement.work = self.work.gathered();
@@ -975,14 +1000,21 @@ impl Document {
     }
 
     fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>, dropped: &mut Vec<NodeId>) {
+        if self.delivering && self.reached_pass.get(&id) == Some(&self.layout_pass) {
+            return;
+        }
         let clip = self.clips.remove(&id).unwrap_or(Rect::EVERYTHING);
         if let Some(rect) = out.remove(&id) {
+            self.accessibility_tree.get_mut().mark(id, &self.arena);
             if self.paints(id) {
                 self.damage.add(rect.intersect(clip));
             }
             self.damage.add(self.paint_cache.borrow().bounds(id));
         }
         dropped.push(id);
+        if self.delivering {
+            self.deliver_placed(id, false);
+        }
         for child in self.placed_children.remove(&id).unwrap_or_default() {
             self.drop_placement(child, out, dropped);
         }
@@ -1046,7 +1078,29 @@ impl Document {
     pub(crate) fn note_placed(&mut self, id: NodeId) {
         if self.delivering {
             self.placing.push(id);
+            self.reached_pass.insert(id, self.layout_pass);
+            self.deliver_placed(id, true);
         }
+    }
+
+    pub(crate) fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
+        if let Some((read, _)) = self.placed.get(&id) {
+            return read.clone();
+        }
+        let (read, write) = ::reactive::create_signal(self.rects.contains_key(&id));
+        self.placed.insert(id, (read.clone(), write));
+        read
+    }
+
+    fn deliver_placed(&mut self, id: NodeId, placed: bool) {
+        let Some((read, write)) = self.placed.get(&id) else {
+            return;
+        };
+        if read.get_untracked() == placed {
+            return;
+        }
+        let write = write.clone();
+        ::reactive::settle(|| write.set(placed));
     }
 
     pub(crate) fn reusable_placement(
@@ -1080,6 +1134,7 @@ impl Document {
         if previous == Some(rect) && previous_clip == clip {
             return;
         }
+        self.accessibility_tree.get_mut().mark(id, &self.arena);
         if self.paints(id) {
             self.damage.add(rect.intersect(clip));
             if let Some(previous) = previous {
@@ -1156,14 +1211,6 @@ fn trim_bottom(rect: Rect, height: f32) -> (Rect, Rect) {
     (
         Rect::from_min_max(rect.min, pos2(rect.right(), edge)),
         Rect::from_min_max(pos2(rect.left(), edge), rect.max),
-    )
-}
-
-fn split(rect: Rect, width: f32) -> (Rect, Rect) {
-    let edge = rect.right() - width;
-    (
-        Rect::from_min_max(rect.min, pos2(edge, rect.bottom())),
-        Rect::from_min_max(pos2(edge, rect.top()), rect.max),
     )
 }
 

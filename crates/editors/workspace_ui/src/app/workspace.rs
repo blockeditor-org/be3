@@ -1,30 +1,28 @@
+use block_editor_plugin::be_block::{BlockContent, FileTreeContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::Arc;
 
-use block::{Block, BlockAccess, BlockParent, BlockReference};
-use block_client::blocks::file_tree::FileTree;
-use block_client::root_settings::RootSetting;
-use block_client::{BlockClient, BlockHandle, BlockHandleAccess};
+use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_memo, create_signal, on_shortcut, view,
+    component, create_memo, create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Caption, DockArea, Heading, use_theme};
 use block_editor_plugin::beui::unstyled::{
     Container, DockState, LeafId, Side, TabId, narrower_than,
 };
-use block_editor_plugin::beui::{Key, KeyPress, NodeId};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_plugin::root_settings::RootSetting;
 use block_editor_plugin::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
     Editor, EditorHost, FocusedBlock, PickedBlock,
 };
+use block_editor_plugin::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::panel::BlockPanel;
-use super::tab::{BlockTab, Navigation, TabItem};
+use super::tab::TabItem;
 
 pub(crate) const FILES: TabId = TabId::new(1);
 pub(crate) const EMPTY: TabId = TabId::new(2);
@@ -36,7 +34,7 @@ const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
 
-type Tabs = HashMap<TabId, BlockTab>;
+type Tabs = HashMap<TabId, TabItem>;
 
 pub(crate) struct Workspace {
     editor: Editor,
@@ -54,8 +52,8 @@ pub(crate) struct Workspace {
     set_error: WriteSignal<Option<String>>,
     files: ReadSignal<Option<Uuid>>,
     set_files: WriteSignal<Option<Uuid>>,
-    file_tree: RefCell<RootSetting<FileTree>>,
-    handles: RefCell<HashMap<Uuid, Box<dyn BlockHandleAccess>>>,
+    file_tree: RefCell<RootSetting<FileTreeContent>>,
+    handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
     next_tab: Cell<u64>,
@@ -64,7 +62,6 @@ pub(crate) struct Workspace {
 
 impl Workspace {
     fn new(editor: Editor) -> Rc<Self> {
-        let file_tree = RootSetting::new(editor.client());
         let (layout, set_layout) = create_signal(starting_layout());
         let (tabs, set_tabs) = create_signal(Tabs::new());
         let (titles, set_titles) = create_signal(HashMap::new());
@@ -88,7 +85,7 @@ impl Workspace {
             set_error,
             files,
             set_files,
-            file_tree: RefCell::new(file_tree),
+            file_tree: RefCell::new(RootSetting::default()),
             handles: RefCell::new(HashMap::new()),
             block_types: RefCell::new(HashMap::new()),
             opened_via: RefCell::new(HashMap::new()),
@@ -112,16 +109,48 @@ impl Workspace {
         self.editor.host()
     }
 
-    pub(crate) fn client(&self) -> &Arc<BlockClient> {
-        self.editor.client()
+    pub(crate) fn blocks(&self) -> Blocks {
+        self.editor.blocks()
+    }
+
+    pub(crate) fn info(&self, id: Uuid) -> Option<BlockInfo> {
+        let mut handles = self.handles.borrow_mut();
+        let list = handles
+            .entry(id)
+            .or_insert_with(|| self.blocks().watch(BlockQuery::Block(id)));
+        list.read()
+            .into_iter()
+            .next()
+            .or_else(|| self.blocks().info(id))
+    }
+
+    pub(crate) fn debug_data(&self, id: Uuid) -> Option<String> {
+        let info = self.info(id)?;
+        let parent = match info.parent {
+            BlockParent::Root => "root".to_owned(),
+            BlockParent::Detached => "detached".to_owned(),
+            BlockParent::Block(parent) => parent.to_string(),
+        };
+        let data = serde_json::json!({
+            "id": info.id.to_string(),
+            "type": info.block_type.to_string(),
+            "author": info.author.to_string(),
+            "parent": parent,
+            "name": info.name,
+            "named_by_hand": info.named_by_hand,
+            "references": info.references.iter().map(Uuid::to_string).collect::<Vec<_>>(),
+            "access": info.access.label(),
+            "artifact_source": info.artifact.as_ref().map(|artifact| artifact.source_type.to_string()),
+        });
+        serde_json::to_string(&data).ok()
     }
 
     pub(crate) fn types(&self) -> Rc<BlockCatalog> {
         self.editor.block_types()
     }
 
-    pub(crate) fn tab(&self, tab: TabId) -> Option<BlockTab> {
-        self.tabs.with(|tabs| tabs.get(&tab).cloned())
+    pub(crate) fn tab(&self, tab: TabId) -> Option<TabItem> {
+        self.tabs.with(|tabs| tabs.get(&tab).copied())
     }
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<AccessLevel> {
@@ -140,14 +169,12 @@ impl Workspace {
                     block_type: request.block_type,
                 },
                 request.via,
-                request.from,
             );
         }
         let files = self
             .file_tree
             .borrow_mut()
-            .find(self.client(), self.host().client_id())
-            .map(BlockHandle::id);
+            .find(&self.editor, self.host().client_id());
         self.set_files.set(files);
         self.refresh_titles();
         self.report_focus();
@@ -158,11 +185,10 @@ impl Workspace {
         let types = self.types();
         let titles = self.tabs.with_untracked(|tabs| {
             tabs.iter()
-                .map(|(tab, block)| {
-                    let item = block.current();
-                    let label = self.client().cached_block(item.id).map_or_else(
-                        || BlockLabel::new(types.as_ref(), item.block_type, None),
-                        |cached| BlockLabel::for_cached(types.as_ref(), &cached),
+                .map(|(tab, item)| {
+                    let label = self.info(item.id).map_or_else(
+                        || BlockLabel::new(types.as_ref(), item.block_type, None, false),
+                        |info| info.label(types.as_ref()),
                     );
                     (*tab, label.name)
                 })
@@ -174,8 +200,8 @@ impl Workspace {
     fn report_focus(&self) {
         let shown = self.layout.with_untracked(DockState::focused_tab);
         let current = shown
-            .and_then(|tab| self.tabs.with_untracked(|tabs| tabs.get(&tab).cloned()))
-            .map(|tab| tab.current().id);
+            .and_then(|tab| self.tabs.with_untracked(|tabs| tabs.get(&tab).copied()))
+            .map(|item| item.id);
         let active = current.or_else(|| self.active.get());
         self.active.set(active);
         let focused = active.and_then(|id| {
@@ -192,8 +218,8 @@ impl Workspace {
     fn watch_artifacts(&self) {
         let watched = self.tabs.with_untracked(|tabs| {
             tabs.values()
-                .map(|tab| tab.current().id)
-                .filter(|id| self.client().is_dynamic_artifact(*id))
+                .map(|item| item.id)
+                .filter(|id| self.info(*id).is_some_and(|info| info.is_artifact()))
                 .collect::<Vec<_>>()
         });
         self.host().watch_artifacts(watched);
@@ -236,30 +262,20 @@ impl Workspace {
     }
 
     pub(crate) fn known_type(&self, id: Uuid) -> Option<Uuid> {
-        self.block_types.borrow().get(&id).copied().or_else(|| {
-            self.client()
-                .cached_block(id)
-                .map(|cached| cached.block_type)
-        })
+        let known = self.block_types.borrow().get(&id).copied();
+        known.or_else(|| self.info(id).map(|info| info.block_type))
     }
 
-    pub(crate) fn record_reference_types(&self, reference: &BlockReference) {
+    pub(crate) fn record_reference_types(&self, reference: &BlockInfo) {
         self.record_type(reference.id, reference.block_type);
-        if let BlockParent::Uuid(parent) = reference.parent
-            && let Some(parent) = self.client().cached_block(parent)
+        if let BlockParent::Block(parent) = reference.parent
+            && let Some(parent) = self.blocks().info(parent)
         {
             self.record_type(parent.id, parent.block_type);
         }
     }
 
-    fn open(&self, item: TabItem, via: Option<Uuid>, from: Option<Uuid>) {
-        if let Some(from) = from.filter(|from| *from != item.id)
-            && let Some(tab) = self.tab_showing(from)
-        {
-            self.record_via(item.id, via);
-            self.navigate(tab, Navigation::Open(item));
-            return;
-        }
+    pub(crate) fn open(&self, item: TabItem, via: Option<Uuid>) {
         self.record_via(item.id, via);
         self.record_type(item.id, item.block_type);
         if let Some(tab) = self.tab_showing(item.id) {
@@ -272,7 +288,7 @@ impl Workspace {
         let tab = TabId::new(self.next_tab.get());
         self.next_tab.set(self.next_tab.get() + 1);
         let mut tabs = self.tabs.get_untracked();
-        tabs.insert(tab, BlockTab::new(item));
+        tabs.insert(tab, item);
         self.set_tabs.set(tabs);
         let mut layout = self.layout.get_untracked();
         place_tab(&mut layout, tab);
@@ -283,26 +299,9 @@ impl Workspace {
     fn tab_showing(&self, id: Uuid) -> Option<TabId> {
         self.tabs.with_untracked(|tabs| {
             tabs.iter()
-                .find(|(_, tab)| tab.current().id == id)
+                .find(|(_, item)| item.id == id)
                 .map(|(tab, _)| *tab)
         })
-    }
-
-    pub(crate) fn navigate(&self, tab: TabId, navigation: Navigation) {
-        let mut tabs = self.tabs.get_untracked();
-        let Some(block) = tabs.get_mut(&tab) else {
-            return;
-        };
-        match navigation {
-            Navigation::Back if block.can_go_back() => block.index -= 1,
-            Navigation::Forward if block.can_go_forward() => block.index += 1,
-            Navigation::Open(item) => block.navigate(item),
-            Navigation::Back | Navigation::Forward => {}
-        }
-        let current = block.current();
-        self.record_type(current.id, current.block_type);
-        self.set_tabs.set(tabs);
-        self.active.set(Some(current.id));
     }
 
     fn close(&self, tab: TabId) {
@@ -310,12 +309,10 @@ impl Workspace {
         let Some(closed) = tabs.remove(&tab) else {
             return;
         };
-        let still_open: HashSet<Uuid> = tabs.values().flat_map(BlockTab::blocks).collect();
+        let still_open = tabs.values().any(|item| item.id == closed.id);
         self.set_tabs.set(tabs);
-        for id in closed.blocks() {
-            if !still_open.contains(&id) {
-                self.forget(id);
-            }
+        if !still_open {
+            self.forget(closed.id);
         }
     }
 
@@ -344,37 +341,26 @@ impl Workspace {
         self.set_layout.set(layout);
     }
 
-    pub(crate) fn read_handle<R>(
-        &self,
-        item: TabItem,
-        read: impl FnOnce(&dyn BlockHandleAccess) -> R,
-    ) -> Option<R> {
-        let mut handles = self.handles.borrow_mut();
-        if let std::collections::hash_map::Entry::Vacant(e) = handles.entry(item.id) {
-            let handle = block_client::blocks::open(self.client(), item.id, item.block_type)?;
-            e.insert(handle);
-        }
-        handles.get(&item.id).map(|handle| read(handle.as_ref()))
-    }
-
     pub(crate) fn can_edit(&self, id: Uuid) -> bool {
-        self.client().block_access(id).can_edit()
+        self.info(id).is_none_or(|info| info.access.can_edit())
     }
 
-    pub(crate) fn ceiling(&self, id: Uuid) -> BlockAccess {
-        let access = self.client().block_access(id);
-        match self.client().is_dynamic_artifact(id) {
-            true => access.min(BlockAccess::View),
-            false => access,
+    pub(crate) fn ceiling(&self, id: Uuid) -> AccessLevel {
+        let Some(info) = self.info(id) else {
+            return AccessLevel::Edit;
+        };
+        match info.is_artifact() {
+            true => info.access.min(AccessLevel::View),
+            false => info.access,
         }
     }
 
-    pub(crate) fn access(&self, id: Uuid) -> BlockAccess {
+    pub(crate) fn access(&self, id: Uuid) -> AccessLevel {
         let ceiling = self.ceiling(id);
         match self.simulated(id) {
-            Some(AccessLevel::None) => BlockAccess::None.min(ceiling),
-            Some(AccessLevel::KnowExists) => BlockAccess::KnowExists.min(ceiling),
-            Some(AccessLevel::View) => BlockAccess::View.min(ceiling),
+            Some(AccessLevel::None) => AccessLevel::None.min(ceiling),
+            Some(AccessLevel::KnowExists) => AccessLevel::KnowExists.min(ceiling),
+            Some(AccessLevel::View) => AccessLevel::View.min(ceiling),
             Some(AccessLevel::Edit) | None => ceiling,
         }
     }
@@ -400,40 +386,10 @@ impl Workspace {
 
     pub(crate) fn label(&self, id: Uuid, block_type: Uuid) -> BlockLabel {
         let types = self.types();
-        self.client().cached_block(id).map_or_else(
-            || BlockLabel::new(types.as_ref(), block_type, None),
-            |cached| BlockLabel::for_cached(types.as_ref(), &cached),
+        self.info(id).map_or_else(
+            || BlockLabel::new(types.as_ref(), block_type, None, false),
+            |info| info.label(types.as_ref()),
         )
-    }
-
-    pub(crate) fn history_command(&self, redo: bool) -> bool {
-        let Some(tab) = self.layout.with_untracked(DockState::focused_tab) else {
-            return false;
-        };
-        let Some(block) = self.tabs.with_untracked(|tabs| tabs.get(&tab).cloned()) else {
-            return false;
-        };
-        let item = block.current();
-        if !self.access(item.id).can_edit() {
-            return false;
-        }
-        self.read_handle(item, |handle| {
-            let Some(history) = handle.history() else {
-                return false;
-            };
-            match redo {
-                true if history.can_redo() => {
-                    history.redo();
-                    true
-                }
-                false if history.can_undo() => {
-                    history.undo();
-                    true
-                }
-                _ => false,
-            }
-        })
-        .unwrap_or(false)
     }
 
     pub(crate) fn open_picker(self: &Rc<Self>, parent: Uuid) {
@@ -491,7 +447,7 @@ fn files_only_leaf(state: &DockState) -> Option<LeafId> {
     state
         .find(FILES)
         .map(|position| position.leaf)
-        .filter(|leaf| state.tabs(*leaf).len() == 1)
+        .filter(|leaf| state.entries(*leaf).len() == 1)
 }
 
 fn editor_leaf(state: &DockState) -> Option<LeafId> {
@@ -528,7 +484,7 @@ pub(crate) fn set_files_compact(state: &mut DockState, compact: bool) {
     let Some(position) = state.find(FILES) else {
         return;
     };
-    let alone = state.tabs(position.leaf).len() == 1;
+    let alone = state.entries(position.leaf).len() == 1;
     if compact != alone {
         return;
     }
@@ -583,20 +539,6 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         let now = compact.get_untracked();
         if was_compact.replace(now) != now {
             workspace.set_compact(now);
-        }
-    });
-    let shortcuts = Rc::downgrade(&workspace);
-    on_shortcut(move |press: KeyPress| {
-        if !press.pressed || !press.modifiers.ctrl {
-            return false;
-        }
-        let Some(workspace) = shortcuts.upgrade() else {
-            return false;
-        };
-        match press.key {
-            Key::Z => workspace.history_command(press.modifiers.shift),
-            Key::Y => workspace.history_command(true),
-            _ => false,
         }
     });
     let surface = NodeRef::new();
@@ -660,7 +602,7 @@ fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let target = create_memo(move || {
         files
             .get()
-            .map(|id| ChildTarget::new(id, <FileTree as Block>::TYPE_ID))
+            .map(|id| ChildTarget::new(id, FileTreeContent::CONTENT_TYPE))
     });
     let editor = workspace.editor().clone();
     view! {

@@ -7,13 +7,10 @@ license.workspace = true
 [dependencies]
 beui = { path = "../beui", default-features = false }
 block-editor-plugin = { path = "../block-editor-plugin" }
-egui = "0.34.3"
-egui_kittest = { version = "0.34", default-features = false }
 paint-snapshot = { path = "../paint-snapshot" }
 uuid = "1"
 
 [dev-dependencies]
-block-client = { path = "../block-client" }
 
 [lints]
 workspace = true

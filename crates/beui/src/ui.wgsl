@@ -1,6 +1,6 @@
 struct Uniforms {
     screen: vec2<f32>,
-    padding: vec2<f32>,
+    origin: vec2<f32>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -71,7 +71,7 @@ fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
 
     var fragment: Fragment;
     fragment.position = vec4<f32>(
-        point / uniforms.screen * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0),
+        (point - uniforms.origin) / uniforms.screen * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0),
         0.0,
         1.0,
     );
@@ -103,7 +103,7 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         return vec4<f32>(input.color.rgb, input.color.a * edge);
     }
     if input.params.z > 1.5 {
-        let texel = textureSample(atlas, atlas_sampler, input.uv);
+        let texel = textureSampleLevel(atlas, atlas_sampler, input.uv, 0.0);
         let center = (input.rect.xy + input.rect.zw) * 0.5;
         let extent = (input.rect.zw - input.rect.xy) * 0.5;
         let distance = rounded_distance(local - center, extent, input.params.x);
@@ -111,7 +111,7 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         return vec4<f32>(texel.rgb * input.color.rgb, texel.a * input.color.a * edge);
     }
     if input.params.z > 0.5 {
-        coverage = textureSample(atlas, atlas_sampler, input.uv).r;
+        coverage = textureSampleLevel(atlas, atlas_sampler, input.uv, 0.0).r;
     } else {
         let center = (input.rect.xy + input.rect.zw) * 0.5;
         let extent = (input.rect.zw - input.rect.xy) * 0.5;

@@ -1,8 +1,8 @@
 # Presentation editor: feature recommendations
 
 Recommendations only, not implemented. Based on the current state of
-`crates/block-client/src/blocks/presentation.rs`,
-`crates/block-app/src/editors/presentation.rs`, and
+`crates/be-block/src/presentation.rs`,
+`crates/editors/presentation/src`, and
 `crates/block-app/src/slide_templates.rs`.
 
 Current state: a filmstrip with drag-reorder, add-slide (template or link an
@@ -20,7 +20,7 @@ per-slide metadata exists yet.
 - **Presenter view** — separate window/second-monitor mode showing current
   slide, next slide thumbnail, notes, and an elapsed timer.
   `show_playback_surface` already isolates the render logic, so this is
-  mostly a second `egui::Area`/viewport reusing it.
+  mostly a second viewport reusing it.
 - **Jump to slide by number** (type digits + Enter) and **blank/black screen
   toggle** (`B`/`.` like PowerPoint) — cheap additions to the existing
   key-handling block in `show_playback`.

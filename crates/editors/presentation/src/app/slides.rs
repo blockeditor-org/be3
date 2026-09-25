@@ -2,13 +2,17 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block::BlockReferenceList;
-use block_client::blocks::presentation::{Presentation, PresentationOperation, PresentationSlide};
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
+use block_editor_plugin::be_block::ObjectId;
+use block_editor_plugin::be_block::presentation::{Presentation, PresentationContent};
 use block_editor_plugin::beui::reactive::{KeyedStore, ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::{BlockProjection, ChildTarget, Editor};
+use block_editor_plugin::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
+
+struct PendingSlide {
+    block: Uuid,
+    slide: Uuid,
+    index: usize,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Slide {
@@ -18,16 +22,16 @@ pub struct Slide {
 
 pub struct Slides {
     editor: Editor,
-    block: Rc<BlockProjection<Presentation>>,
+    block: Rc<ContentProjection<PresentationContent>>,
     store: KeyedStore<Uuid, Slide>,
     selected: ReadSignal<Option<Uuid>>,
     set_selected: WriteSignal<Option<Uuid>>,
-    pending: Rc<RefCell<ReferenceClassificationQueue<(Uuid, usize)>>>,
+    pending: Rc<RefCell<Vec<PendingSlide>>>,
 }
 
 impl Slides {
     pub fn new(editor: &Editor) -> Rc<Self> {
-        let block = editor.block::<Presentation>();
+        let block = editor.block_content::<PresentationContent>();
         let (selected, set_selected) = create_signal(None::<Uuid>);
         let slides = Rc::new(Self {
             editor: editor.clone(),
@@ -35,14 +39,13 @@ impl Slides {
             store: KeyedStore::new(),
             selected,
             set_selected,
-            pending: Rc::new(RefCell::new(ReferenceClassificationQueue::default())),
+            pending: Rc::new(RefCell::new(Vec::new())),
         });
         let dependencies = editor
-            .client()
-            .watch_references(BlockReferenceList::References(editor.block_id()));
-        let cache = RefCell::new(ReferenceResolutionCache::default());
+            .blocks()
+            .watch(BlockQuery::References(editor.block_id()));
         let updated = Rc::clone(&slides);
-        editor.each_frame(move || updated.refresh(&cache, &dependencies));
+        editor.each_frame(move || updated.refresh(&dependencies));
         slides
     }
 
@@ -108,7 +111,7 @@ impl Slides {
     pub fn remove(&self, id: Uuid) {
         let index = self.index_of(id);
         self.block
-            .operate(PresentationOperation::Remove { slide_id: id });
+            .operate(Presentation::remove(ObjectId::from_uuid(id)));
         if self.selected.get_untracked() == Some(id) {
             let keys = self.store.keys().get_untracked();
             let next = index.and_then(|index| {
@@ -120,10 +123,12 @@ impl Slides {
     }
 
     pub fn move_to(&self, id: Uuid, index: usize) {
-        self.block.operate(PresentationOperation::Move {
-            slide_id: id,
-            index,
-        });
+        if let Some(edit) = self
+            .block
+            .read(|presentation| presentation.root().move_to(ObjectId::from_uuid(id), index))
+        {
+            self.block.operate(edit);
+        }
     }
 
     pub fn add(self: &Rc<Self>, index: usize) {
@@ -140,72 +145,71 @@ impl Slides {
                     return;
                 };
                 let slide_id = Uuid::new_v4();
-                slides.pending.borrow_mut().push(
-                    slides.editor.client(),
-                    slides.editor.block_id(),
-                    picked.id,
-                    (slide_id, index),
-                );
+                slides.pending.borrow_mut().push(PendingSlide {
+                    block: picked.id,
+                    slide: slide_id,
+                    index,
+                });
                 slides.set_selected.set(Some(slide_id));
             },
         );
     }
 
-    fn refresh(
-        &self,
-        cache: &RefCell<ReferenceResolutionCache>,
-        dependencies: &block_client::ReferenceList,
-    ) {
-        cache.borrow_mut().poll();
-        let inserts: Vec<_> = self.pending.borrow_mut().poll();
-        for (block_id, (slide_id, index)) in inserts {
-            self.block.operate(PresentationOperation::Insert {
-                slide: PresentationSlide {
-                    id: slide_id,
-                    block_id,
-                },
-                index,
-            });
+    fn refresh(&self, dependencies: &BlockList) {
+        let inserts: Vec<_> = std::mem::take(&mut *self.pending.borrow_mut());
+        for PendingSlide {
+            block,
+            slide,
+            index,
+        } in inserts
+        {
+            if let Some(edit) = self.block.read(|presentation| {
+                presentation
+                    .root()
+                    .insert(ObjectId::from_uuid(slide), index, block)
+            }) {
+                self.block.operate(edit);
+            }
         }
-        let Some(presentation) = self.block.handle().read() else {
+        let Some(entries) = self.block.read(|presentation| {
+            presentation
+                .root()
+                .slides
+                .iter()
+                .map(|slide| (slide.id.as_uuid(), slide.block))
+                .collect::<Vec<_>>()
+        }) else {
             return;
         };
-        let entries = presentation.slides().to_vec();
-        drop(presentation);
         let metadata: HashMap<_, _> = dependencies
             .read()
             .into_iter()
             .map(|reference| (reference.id, reference))
             .collect();
         let types = self.editor.block_types();
-        let client = self.editor.client();
-        let referencing = self.editor.block_id();
         let items: Vec<_> = entries
             .into_iter()
-            .map(|entry| {
-                let resolved = cache
-                    .borrow_mut()
-                    .resolve(client, referencing, entry.block_id);
-                let reference = resolved.and_then(|id| metadata.get(&id));
+            .map(|(id, block)| {
+                let reference = block.and_then(|id| metadata.get(&id));
                 let slide = match reference {
                     Some(reference) => Slide {
                         target: Some(ChildTarget::new(reference.id, reference.block_type)),
-                        name: BlockLabel::for_reference(types.as_ref(), reference).name,
+                        name: reference.label(types.as_ref()).name,
                     },
                     None => self
-                        .known(entry.id)
+                        .known(id)
                         .filter(|slide| {
-                            slide.target.map(|target| target.id) == resolved && resolved.is_some()
+                            slide.target.map(|target| target.id) == block && block.is_some()
                         })
                         .unwrap_or_else(|| Slide {
                             target: None,
-                            name: match resolved {
+                            name: match block {
                                 Some(_) => "Loading…".to_owned(),
                                 None => "Broken link".to_owned(),
                             },
                         }),
                 };
-                (entry.id, slide)
+                (id, slide)
             })
             .collect();
         self.store.reconcile_owned(items);

@@ -1,4 +1,4 @@
-use block_client::presence::PresenceKind;
+use block_editor_plugin::be_block::presence::{PresenceColor, PresenceKind};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -10,6 +10,7 @@ const TEXT_CURSOR: Uuid = Uuid::from_u128(0x7465_7874_5f63_7572_736f_725f_5f5f_5
 pub struct TextCursor {
     pub anchor: Position,
     pub focus: Position,
+    pub color: PresenceColor,
 }
 
 impl PresenceKind for TextCursor {

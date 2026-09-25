@@ -1,0 +1,230 @@
+load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
+load("@root//buck/tools:defs.bzl", "tool")
+load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
+load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
+
+# The app, with its full features (the terminal and the embedded browser), which
+# reindeer.toml and buckify.bxl turn on for every platform.
+#
+# BLOCK_APP_COMMIT is what cargo's build script asks git for; a worker has no
+# checkout, so a release build takes `-c be3.commit=SHA`. A dev build says
+# unknown whatever the command passes, so a new commit does not rebuild it, and
+# a build that asks for both profiles leaves the dev half the cache a person's
+# machine hits.
+commit = {
+    "BLOCK_APP_COMMIT": select({
+        "DEFAULT": "unknown",
+        "root//buck/constraints:release": read_config("be3", "commit", "unknown"),
+    })
+}
+
+app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
+
+# On Android the app is this library, loaded by NativeActivity under cargo's
+# name for it; on the web it is the module :web runs wasm-bindgen over.
+cargo_library(
+    env = commit,
+    rustc_flags = select({
+        "DEFAULT": [],
+        "root//buck/platforms:wasi_setting": wasi_app_flags,
+    }),
+    soname = "libblock_app_lib.so",
+    srcs = app_srcs,
+)
+
+# The app links system libraries the worker's image does not have - ALSA, and
+# GTK and WebKitGTK when the browser is built - so its tests load them from the
+# sysroot it was linked against.
+cargo_test(
+    env = commit | {"LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu"},
+    srcs = app_srcs,
+)
+
+cargo_binary(env = commit, srcs = app_srcs)
+
+# The app with every plugin beside it: `./scripts/buck run //crates/block-app:app`
+# runs it. buck/app says how it is laid out.
+app(
+    name = "app",
+    binary = ":block-app-bin",
+    executable_name = "block-app",
+    files = pdfium_library(),
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    modules = ["//{}:module".format(package) for package in editor_packages()],
+    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
+    precompiler = "//crates/plugin-test-runner:precompiler",
+    visibility = ["//buck/ci:"],
+)
+
+# The plugins alone: every editor's manifest and module, for CI to ship once
+# beside every platform's app. Not precompiled, since a .cwasm is only good for
+# the machine it was compiled for.
+app(
+    name = "plugins",
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    modules = ["//{}:module".format(package) for package in editor_packages()],
+    precompile = False,
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    visibility = ["//buck/ci:"],
+)
+
+# What CI ships per platform: the app and server under cargo's names, and PDFium;
+# the plugins ship once, from :plugins.
+app(
+    name = "dist",
+    binary = ":block-app-bin",
+    executable_name = "block-app",
+    extra_binaries = {"be-server": "//crates/be-server:be-server-bin"},
+    files = pdfium_library(),
+    manifests = [],
+    modules = [],
+    precompile = False,
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    visibility = ["//buck/ci:"],
+)
+
+# The web bundle: the app for wasi and the gpu shim for wasm32, each through
+# wasm-bindgen, the page and shims in web/, and the plugins with the
+# plugins.json a browser finds them through. :web-dist is CI's, without them.
+wasi_app_module(
+    name = "web-module",
+    library = ":block-app",
+    module = "block_app_lib",
+)
+
+web_files = glob(["web/*.html", "web/*.js"])
+
+app(
+    name = "web",
+    bindgen = [":web-module", "//crates/block-gpu-shim:module"],
+    files = web_files,
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    modules = ["//{}:module".format(package) for package in editor_packages()],
+    precompile = False,
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+# What CI publishes: the bundle without the plugins, which :plugins builds once
+# for every platform, and with an index of none, since a bundle whose
+# plugins.json cannot be fetched is an error where one with no plugins is not.
+app(
+    name = "web-dist",
+    bindgen = [":web-module", "//crates/block-gpu-shim:module"],
+    files = web_files,
+    index = True,
+    manifests = [],
+    modules = [],
+    precompile = False,
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+    visibility = ["//buck/ci:"],
+)
+
+# The bundle served here by Caddy, with be-server behind it (web/serve.sh).
+tool(
+    name = "web-serve",
+    command = [
+        "sh",
+        "$(location :serve.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+        "$(location :web)",
+        "$(location //crates/be-server:be-server-bin)",
+    ],
+)
+
+export_file(
+    name = "Caddyfile",
+    src = "web/Caddyfile",
+)
+
+export_file(
+    name = "serve.sh",
+    src = "web/serve.sh",
+)
+
+# The Android app: the APK is built unsigned on a worker, with the plugins
+# precompiled for the device, and :android signs it here into
+# target/android/block-app.apk (`-- --install` installs and starts it).
+# CI's APK has an id and label of its own, so that it installs beside a local
+# build rather than colliding with it: sharing the package name, it would
+# either overwrite a local install signed with the same key or fail to install
+# over one signed with another.
+app(
+    name = "android-assets",
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    modules = ["//{}:module".format(package) for package in editor_packages()],
+    precompile_target = "aarch64-linux-android",
+    precompiler = "//crates/plugin-test-runner:precompiler",
+)
+
+# What CI ships: no plugins, which :plugins builds once for every platform, and
+# an index of none.
+app(
+    name = "android-dist-assets",
+    index = True,
+    manifests = [],
+    modules = [],
+    precompile = False,
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+)
+
+[
+    android_apk(
+        name = name,
+        application_id = application_id,
+        assets = assets,
+        java = glob(["android/java/**/*.java"]),
+        label = label,
+        library = ":block-app",
+        manifest = "android/AndroidManifest.xml",
+        min_sdk = 23,
+        package = "com.be3.block",
+        target_sdk = 35,
+        version_code = 1,
+        version_name = "0.1.0",
+    )
+    for name, assets, application_id, label in [
+        ("apk", ":android-assets", "com.be3.block", "Block"),
+        ("apk-dist", ":android-dist-assets", "com.be3.block.ci", "Block (CI)"),
+    ]
+]
+
+tool(
+    name = "android",
+    command = [
+        "sh",
+        "$(location //buck/android:sign.sh)",
+        "$(location //buck/android:jdk)",
+        "$(location //buck/android:build-tools)",
+        "$(location //buck/android:platform-tools)",
+        "$(location :apk)",
+    ],
+)
+
+# What CI ships, signed on a worker with CI's keystore, so the runner downloads
+# only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
+signed_apk(
+    name = "android-dist",
+    apk = ":apk-dist",
+    exec_compatible_with = ["root//buck/constraints:android_keystore"],
+    key_version = 1,
+    visibility = ["//buck/ci:"],
+)
+
+# The native startup smoke check: the app for ten seconds in a virtual display.
+tool(
+    name = "smoke",
+    command = [
+        "sh",
+        "$(location //buck/app:smoke.sh)",
+        "$(location :app)/block-app",
+        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+    ],
+)

@@ -1,9 +1,6 @@
-use std::sync::Arc;
-
-use block_client::blocks::image::Image;
-use block_client::{BlockClient, BlockHandle};
+use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::{Editor, EditorHost};
-use block_ui_test::BeuiTest;
+use block_ui_test::{BeuiTest, ContentHarness};
 use image::ImageEncoder;
 use uuid::Uuid;
 
@@ -12,16 +9,16 @@ use crate::app::ImageApp;
 mod a_decoded_image_is_painted_at_its_shape;
 mod an_image_that_will_not_decode_says_so;
 
-fn editor(data: Vec<u8>) -> (BeuiTest<ImageApp>, BlockHandle<Image>) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(Image::new("picture.png".to_owned(), data));
+fn editor(data: Vec<u8>) -> ContentHarness<ImageApp> {
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, client, block.id());
-    let mut editor = BeuiTest::new(editor);
+    let editor = Editor::new(host.clone(), block);
+    let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
+    editor.hold(None, ImageContent::from_file("picture.png", data));
     editor.run();
     editor.run();
-    (editor, block)
+    editor
 }
 
 fn png(width: u32, height: u32) -> Vec<u8> {

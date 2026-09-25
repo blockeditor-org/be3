@@ -348,7 +348,36 @@ impl Document {
             .collect()
     }
 
+    pub(crate) fn overlays_bottom_up(&self) -> Vec<NodeId> {
+        let floating = self.floating_overlays();
+        let passive = self
+            .passive_overlays
+            .iter()
+            .filter(|overlay| !floating.contains(overlay));
+        floating
+            .iter()
+            .chain(self.overlay_stack.iter())
+            .chain(passive)
+            .copied()
+            .collect()
+    }
+
+    pub(crate) fn pointer_layers(&self, root: NodeId) -> Vec<NodeId> {
+        match self.overlay_stack.is_empty() {
+            true => self
+                .floating_overlays()
+                .into_iter()
+                .rev()
+                .chain([root])
+                .collect(),
+            false => self.overlay_stack.iter().rev().copied().collect(),
+        }
+    }
+
     pub(crate) fn floating_covers(&self, pos: Pos2) -> bool {
+        if self.modal_open() {
+            return false;
+        }
         self.floating_overlays().into_iter().any(|overlay| {
             self.overlay_content(overlay)
                 .and_then(|content| self.node_rect(content))
@@ -387,6 +416,22 @@ impl Document {
 
     pub(crate) fn overlay_content(&self, overlay: NodeId) -> Option<NodeId> {
         self.arena.get_as::<OverlayNode>(overlay).content
+    }
+
+    pub fn modal_open(&self) -> bool {
+        !self.overlay_stack.is_empty()
+    }
+
+    pub fn floating_rects(&self) -> Vec<Rect> {
+        self.floating_overlays()
+            .into_iter()
+            .filter_map(|overlay| self.overlay_content(overlay))
+            .filter_map(|content| self.node_rect(content))
+            .collect()
+    }
+
+    pub fn pointer_claimed(&self, pos: Pos2) -> bool {
+        self.modal_open() || self.floating_covers(pos)
     }
 
     pub fn overlay_rects(&self) -> Vec<Rect> {

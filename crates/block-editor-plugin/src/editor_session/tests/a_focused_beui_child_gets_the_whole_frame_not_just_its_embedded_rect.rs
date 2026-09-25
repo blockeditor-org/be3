@@ -13,13 +13,8 @@ impl crate::BeuiApp for RecordingApp {
 
 #[test]
 fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
-    let mut session = EditorSession::beui::<RecordingApp>(
-        Rc::new(Vec::new()),
-        EditorInstanceId(0),
-        Waker::default(),
-    );
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    session.connect(client, Uuid::new_v4(), Uuid::new_v4());
+    let mut session = EditorSession::new::<RecordingApp>(EditorInstanceId(0), Waker::default());
+    session.connect(Uuid::new_v4(), Uuid::new_v4());
     session.regions.insert(
         EditorRegion::Frame,
         RegionState {
@@ -50,13 +45,13 @@ fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
                     width: 120.0,
                     height: 90.0,
                 }),
-                trail: vec!["Canvas".to_owned(), "Pan and Zoom".to_owned()],
+                top_bar: true,
             }),
             ..Default::default()
         },
     );
 
-    session.run_beui(EditorRegion::Frame, 1);
+    session.run(EditorRegion::Frame, 1);
 
     let report = session
         .regions

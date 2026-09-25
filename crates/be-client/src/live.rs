@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use be_block::{LiveEdit, Merge};
 use be_commit::{CommitId, MergeResult};
@@ -12,6 +15,15 @@ use tokio::sync::broadcast::{
 use uuid::Uuid;
 
 use crate::{ClientError, Peer, Saved};
+
+const JOURNAL_LIMIT: usize = 1024;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Journaled<Op> {
+    Edited(Op),
+    Applied(Op),
+    Replaced,
+}
 
 enum Role {
     Owner(Sequencer),
@@ -30,6 +42,10 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     sealed: u64,
     reload: bool,
     events: Receiver<ServerMessage>,
+    journal: Vec<Journaled<C::Op>>,
+    presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
+    shown: BTreeMap<Uuid, Vec<u8>>,
+    presence_changed: bool,
 }
 
 impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
@@ -58,6 +74,10 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             sealed: 0,
             reload: false,
             events,
+            journal: Vec::new(),
+            presence: BTreeMap::new(),
+            shown: BTreeMap::new(),
+            presence_changed: false,
         };
         if let Role::Follower(follower) = &live.role {
             let catchup = follower.catchup();
@@ -101,8 +121,68 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         }
     }
 
+    pub fn take_journal(&mut self) -> Vec<Journaled<C::Op>> {
+        std::mem::take(&mut self.journal)
+    }
+
+    pub fn presence(&self) -> &BTreeMap<(ClientId, Uuid), Vec<u8>> {
+        &self.presence
+    }
+
+    pub fn take_presence_changed(&mut self) -> bool {
+        std::mem::take(&mut self.presence_changed)
+    }
+
+    pub async fn set_presence(
+        &mut self,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    ) -> Result<(), ClientError> {
+        let unchanged = match &value {
+            Some(value) => self.shown.get(&kind) == Some(value),
+            None => !self.shown.contains_key(&kind),
+        };
+        if unchanged {
+            return Ok(());
+        }
+        match &value {
+            Some(value) => self.shown.insert(kind, value.clone()),
+            None => self.shown.remove(&kind),
+        };
+        self.broadcast(&SessionMessage::Presence { kind, value })
+            .await
+    }
+
+    async fn show_presence_to(&self, client: ClientId) -> Result<(), ClientError> {
+        for (kind, value) in &self.shown {
+            let message = SessionMessage::Presence {
+                kind: *kind,
+                value: Some(value.clone()),
+            };
+            self.send(Some(client), &message).await?;
+        }
+        Ok(())
+    }
+
+    fn journal(&mut self, entry: Journaled<C::Op>) {
+        if self.journal.len() >= JOURNAL_LIMIT {
+            self.journal.clear();
+            self.journal.push(Journaled::Replaced);
+        }
+        if matches!(entry, Journaled::Replaced) {
+            self.journal.clear();
+        }
+        self.journal.push(entry);
+    }
+
+    fn replace_visible(&mut self, visible: C) {
+        self.visible = visible;
+        self.journal(Journaled::Replaced);
+    }
+
     pub async fn edit(&mut self, operation: C::Op) -> Result<(), ClientError> {
         self.visible.apply(&operation);
+        self.journal(Journaled::Edited(operation.clone()));
         let payload = C::encode_operation(&operation);
         match &mut self.role {
             Role::Owner(sequencer) => {
@@ -201,7 +281,8 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                     return Ok(());
                 };
                 self.confirmed.apply(&operation);
-                self.visible = self.confirmed.clone();
+                self.visible.apply(&operation);
+                self.journal(Journaled::Applied(operation));
                 self.broadcast(&SessionMessage::Accepted { op }).await
             }
             SessionMessage::Accepted { op } => {
@@ -256,6 +337,18 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
                 Ok(())
             }
+            SessionMessage::Replaced { head } => self.adopt_replacement(head).await,
+            SessionMessage::Presence { kind, value } => {
+                if from == self.client {
+                    return Ok(());
+                }
+                let changed = match value {
+                    Some(value) => self.presence.insert((from, kind), value.clone()) != Some(value),
+                    None => self.presence.remove(&(from, kind)).is_some(),
+                };
+                self.presence_changed |= changed;
+                Ok(())
+            }
             SessionMessage::Sealed {
                 head,
                 sequence,
@@ -292,7 +385,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
             }
         }
-        self.visible = visible;
+        self.replace_visible(visible);
     }
 
     fn apply_accepted(&mut self, op: &SessionOp) {
@@ -306,9 +399,26 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         };
         self.confirmed.apply(&operation);
         let Role::Follower(follower) = &mut self.role else {
-            self.visible = self.confirmed.clone();
+            self.visible.apply(&operation);
+            self.journal(Journaled::Applied(operation));
             return;
         };
+        let unchanged = follower.is_mine(op.id)
+            && follower.front() == Some(op.id)
+            && follower
+                .payloads()
+                .first()
+                .is_some_and(|payload| *payload == op.payload);
+        if unchanged {
+            follower.accepted(op);
+            return;
+        }
+        if !follower.is_mine(op.id) && follower.pending() == 0 {
+            follower.accepted(op);
+            self.visible.apply(&operation);
+            self.journal(Journaled::Applied(operation));
+            return;
+        }
         if follower.is_mine(op.id) {
             follower.accepted(op);
         } else {
@@ -324,7 +434,21 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
 
     async fn adopt(&mut self, state: SessionState) -> Result<(), ClientError> {
         let owner_changed = state.owner != self.state.owner;
+        let known: BTreeSet<ClientId> = self.state.participants.iter().copied().collect();
+        let joined: Vec<ClientId> = state
+            .participants
+            .iter()
+            .copied()
+            .filter(|client| *client != self.client && !known.contains(client))
+            .collect();
+        let before = self.presence.len();
+        self.presence
+            .retain(|(client, _), _| state.participants.contains(client));
+        self.presence_changed |= self.presence.len() != before;
         self.state = state;
+        for client in joined {
+            self.show_presence_to(client).await?;
+        }
         let Role::Follower(follower) = &mut self.role else {
             return Ok(());
         };
@@ -355,7 +479,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             }
         }
         self.role = Role::Owner(sequencer);
-        self.visible = self.confirmed.clone();
+        self.replace_visible(self.confirmed.clone());
         for op in accepted {
             self.broadcast(&SessionMessage::Accepted { op }).await?;
         }
@@ -370,6 +494,56 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         let granted = state.is_owner(self.client);
         self.adopt(state).await?;
         Ok(granted)
+    }
+
+    pub async fn replace(&mut self, content: C) -> Result<bool, ClientError> {
+        let mut expected = self.base;
+        for _ in 0..4 {
+            match self.peer.save(self.block, &content, expected).await? {
+                Saved::Published(head) | Saved::Unchanged(head) => {
+                    if self.is_owner() {
+                        self.confirmed = content;
+                        self.replace_visible(self.confirmed.clone());
+                        self.reload = true;
+                        self.settle_at(head).await?;
+                    } else {
+                        self.replace_visible(content);
+                        let owner = self.state.owner;
+                        self.send(owner, &SessionMessage::Replaced { head }).await?;
+                    }
+                    return Ok(true);
+                }
+                Saved::Rejected { head } => expected = head,
+            }
+        }
+        Ok(false)
+    }
+
+    async fn adopt_replacement(&mut self, head: CommitId) -> Result<(), ClientError> {
+        let Role::Owner(sequencer) = &self.role else {
+            return Ok(());
+        };
+        if self.base == Some(head) {
+            return Ok(());
+        }
+        let unsealed: Vec<C::Op> = sequencer
+            .since(0)
+            .iter()
+            .filter_map(|op| C::decode_operation(&op.payload).ok())
+            .collect();
+        let mut replaced = self.peer.open_commit::<C>(head).await?;
+        for operation in &unsealed {
+            replaced.apply(operation);
+        }
+        self.confirmed = replaced;
+        self.replace_visible(self.confirmed.clone());
+        self.base = Some(head);
+        self.reload = true;
+        if unsealed.is_empty() {
+            self.settle_at(head).await
+        } else {
+            self.seal().await.map(|_| ())
+        }
     }
 
     pub async fn seal(&mut self) -> Result<Saved, ClientError> {
@@ -439,7 +613,7 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
             Resume::Empty | Resume::UpToDate | Resume::Publish { .. } => Ok(MergeResult::Clean(())),
             Resume::FastForward { to } if !unsealed => {
                 self.confirmed = self.peer.open_commit::<C>(to).await?;
-                self.visible = self.confirmed.clone();
+                self.replace_visible(self.confirmed.clone());
                 self.reload = true;
                 self.settle_at(to).await?;
                 Ok(MergeResult::Clean(()))
@@ -485,7 +659,7 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
         published: Option<CommitId>,
     ) -> Result<(), ClientError> {
         self.confirmed = value;
-        self.visible = self.confirmed.clone();
+        self.replace_visible(self.confirmed.clone());
         self.reload = true;
         match published {
             Some(head) => self.settle_at(head).await,

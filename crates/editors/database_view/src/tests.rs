@@ -1,18 +1,21 @@
-use std::{cmp::Ordering, collections::HashMap, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap};
 
-use block_client::block_ref::BlockRef;
-use block_client::blocks::database::{Database, DatabaseColor, DatabaseOperation, DatabaseValue};
-use block_client::blocks::database_schema::{
-    DatabaseEnumOption, DatabaseField, DatabaseFieldType, DatabaseSchema, DatabaseSchemaOperation,
+use block_editor_plugin::be_block::Edit;
+use block_editor_plugin::be_block::database::{
+    Database, DatabaseColor, DatabaseContent, DatabaseValue,
 };
-use block_client::blocks::database_view::{DatabaseView, DatabaseViewKind, DatabaseViewOperation};
-use block_client::{BlockClient, BlockHandle};
+use block_editor_plugin::be_block::database_schema::{
+    DatabaseField, DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent,
+};
+use block_editor_plugin::be_block::database_view::{
+    DatabaseView, DatabaseViewContent, DatabaseViewKind,
+};
 use block_editor_plugin::beui::Key;
 use block_editor_plugin::{
     BeuiApp, Creation, Editor, EditorHost,
     block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
 };
-use block_ui_test::BeuiTest;
+use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 
 use crate::app::{DatabaseViewApp, value_block_filter};
@@ -31,61 +34,79 @@ mod the_scatter_plot_places_and_selects_a_point_for_each_row;
 mod value_picker_filter_is_exact_and_never_includes_templates;
 
 struct Fixture {
-    test: BeuiTest<DatabaseViewApp>,
-    view: BlockHandle<DatabaseView>,
-    schema: BlockHandle<DatabaseSchema>,
-    database: BlockHandle<Database>,
+    harness: ContentHarness<DatabaseViewApp>,
+    schema: Uuid,
+    database: Uuid,
     fields: Vec<Uuid>,
 }
 
 impl Fixture {
+    fn run(&mut self) {
+        self.harness.run();
+    }
+
     fn settle(&mut self) {
         for _ in 0..3 {
-            self.test.run();
+            self.run();
         }
     }
 
-    fn set(&self, row_index: usize, field_id: Uuid, value: DatabaseValue) {
-        self.database.operate(DatabaseOperation::SetCell {
-            row_index,
-            field_id,
-            value: Some(value),
-        });
+    fn database(&self) -> Database {
+        self.harness
+            .content::<DatabaseContent>(Some(self.database))
+            .root()
+    }
+
+    fn view_state(&self) -> DatabaseView {
+        self.harness.content::<DatabaseViewContent>(None).root()
+    }
+
+    fn set(&mut self, row: usize, field: Uuid, value: DatabaseValue) {
+        let edit = self.database().set_cell(row, field, Some(value));
+        self.harness
+            .edit::<DatabaseContent>(Some(self.database), &edit);
+    }
+
+    fn option(&mut self, field: Uuid, name: &str) -> Uuid {
+        let (id, edit) = DatabaseSchema::add_enum_option(field, name);
+        self.harness
+            .edit::<DatabaseSchemaContent>(Some(self.schema), &edit);
+        id
+    }
+
+    fn edit_view(&mut self, edit: Edit) {
+        self.harness.edit::<DatabaseViewContent>(None, &edit);
     }
 }
 
 fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let schema = client.create_block(DatabaseSchema::new());
+    let schema = Uuid::new_v4();
+    let mut schema_content = DatabaseSchemaContent::default();
     let ids: Vec<Uuid> = fields
         .iter()
         .map(|(name, field_type)| {
-            let id = Uuid::new_v4();
-            schema.operate(DatabaseSchemaOperation::AddField {
-                field: DatabaseField {
-                    id,
-                    name: (*name).into(),
-                    field_type: *field_type,
-                    enum_options: Vec::new(),
-                    number_options: Default::default(),
-                    block_options: Default::default(),
-                },
-            });
+            let (id, edit) = DatabaseSchema::add_field(*name, *field_type);
+            schema_content.apply(&edit);
             id
         })
         .collect();
-    let database = client.create_block(Database::new(BlockRef::Direct(schema.id())));
-    let view = client.create_block(DatabaseView::new(BlockRef::Direct(database.id())));
+    let database = Uuid::new_v4();
+    let view = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, Arc::clone(&client), view.id());
-    let mut test = BeuiTest::new(editor);
+    let editor = Editor::new(host.clone(), view);
+    let mut harness = ContentHarness::new(BeuiTest::new(editor), host);
+    harness.hold(None, DatabaseViewContent::new(&DatabaseView::of(database)));
+    harness.hold(
+        Some(database),
+        DatabaseContent::new(&Database::with_schema(schema)),
+    );
+    harness.hold(Some(schema), schema_content);
     for _ in 0..6 {
-        test.run();
+        harness.run();
     }
     Fixture {
-        test,
-        view,
+        harness,
         schema,
         database,
         fields: ids,

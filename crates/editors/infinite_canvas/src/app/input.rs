@@ -1,7 +1,7 @@
-use block_client::blocks::infinite_canvas::{
+use block_editor_plugin::InteractionMode;
+use block_editor_plugin::be_block::canvas::{
     CanvasEntityKind, CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform,
 };
-use block_editor_plugin::InteractionMode;
 use block_editor_plugin::beui::{CursorIcon, Key, KeyPress, PointerPress};
 use uuid::Uuid;
 
@@ -422,7 +422,7 @@ impl CanvasState {
             self.set_tool(tool);
             return;
         };
-        self.add_entity(block_client::blocks::infinite_canvas::CanvasEntity {
+        self.add_entity(block_editor_plugin::be_block::canvas::CanvasEntity {
             id: Uuid::new_v4(),
             transform: CanvasTransform::new(center, size, 0.0),
             kind,

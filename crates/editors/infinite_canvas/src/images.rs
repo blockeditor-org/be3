@@ -1,11 +1,16 @@
-use block_client::blocks::image::Image;
+use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::{FileFilter, PickedFile};
 
 pub(crate) fn image_filter() -> FileFilter {
-    FileFilter::new("Images", "Image", Image::FILE_EXTENSIONS, Image::MIME_TYPES)
+    FileFilter::new(
+        "Images",
+        "Image",
+        ImageContent::FILE_EXTENSIONS,
+        ImageContent::MIME_TYPES,
+    )
 }
 
-pub(crate) fn imported_image(file: PickedFile) -> Image {
+pub(crate) fn imported_image(file: PickedFile) -> ImageContent {
     let PickedFile { name, data } = file;
-    Image::new(name, data)
+    ImageContent::from_file(name, data)
 }

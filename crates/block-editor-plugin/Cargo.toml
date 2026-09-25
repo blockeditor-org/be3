@@ -7,32 +7,23 @@ license.workspace = true
 [dependencies]
 be-block = { path = "../be-block" }
 beui = { path = "../beui", default-features = false }
-block-client = { path = "../block-client" }
-block = { path = "../block" }
 block-plugin-api = { path = "../block-plugin-api" }
-block-reactive = { path = "../block-reactive" }
 block-ui = { path = "../block-ui" }
-eframe = { version = "0.34.3", default-features = false, features = ["default_fonts"] }
-egui_material_icons = "0.6.0"
 futures-util = "0.3"
 serde = "1"
+serde_bytes = "0.11"
 serde_json = "1"
 uuid = "1"
-
-[dev-dependencies]
-naga = { version = "29", features = ["wgsl-in"] }
 
 # A plugin is a wasm guest wherever it runs, so it links wgpu with only the
 # custom backend and reaches the host's device through the gpu abi, whether
 # wasmtime or the browser is holding it. Everything under here is the guest,
-# which is why a native build of this crate is only the App trait and the host
+# which is why a native build of this crate is only the BeuiApp trait and the host
 # types an editor's own tests drive it through.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui = { path = "../beui", default-features = false, features = ["render"] }
-block-client = { path = "../block-client", features = ["hosted"] }
 block-gpu-abi = { path = "../block-gpu-abi" }
 block-gpu-guest = { path = "../block-gpu-guest" }
-eframe = { version = "0.34.3", default-features = false, features = ["wgpu_no_default_features"] }
 wasi-threads = { path = "../wasi-threads" }
 wgpu = { version = "29", default-features = false, features = ["custom", "std", "web", "wgsl"] }
 

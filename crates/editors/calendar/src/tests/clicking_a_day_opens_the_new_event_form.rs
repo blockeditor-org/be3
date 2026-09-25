@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn clicking_a_day_opens_the_new_event_form() {
-    let (mut editor, _) = editor();
+    let mut calendar = Harness::new();
 
-    assert!(!editor.shown("calendar.form.title"));
-    editor.click("calendar.add-event");
-    editor.run();
+    assert!(!calendar.editor.shown("calendar.form.title"));
+    calendar.editor.click("calendar.add-event");
+    calendar.run();
 
-    assert!(editor.shown("calendar.form.title"));
-    editor.click("calendar.form.cancel");
-    editor.run();
-    assert!(!editor.shown("calendar.form.title"));
+    assert!(calendar.editor.shown("calendar.form.title"));
+    calendar.editor.click("calendar.form.cancel");
+    calendar.run();
+    assert!(!calendar.editor.shown("calendar.form.title"));
 }

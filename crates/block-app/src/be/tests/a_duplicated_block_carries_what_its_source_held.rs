@@ -1,8 +1,5 @@
 use super::*;
 
-use block::Block;
-use block_client::blocks::counter::Counter;
-
 #[test]
 fn a_duplicated_block_carries_what_its_source_held() {
     let harness = Harness::start();
@@ -12,14 +9,15 @@ fn a_duplicated_block_carries_what_its_source_held() {
     add(source, 5);
     wait_for_count(source, 5);
 
-    let while_open = Uuid::new_v4();
-    duplicate(source, while_open, Counter::TYPE_ID);
+    wait_until("heard the source join the graph", |shared| {
+        shared.graph.get(source).is_some()
+    });
+    let (while_open, _) = duplicate(source).expect("the source is in the graph");
     open(while_open, CounterContent::CONTENT_TYPE);
     wait_for_count(while_open, 5);
 
     close(source);
-    let after_closing = Uuid::new_v4();
-    duplicate(source, after_closing, Counter::TYPE_ID);
+    let (after_closing, _) = duplicate(source).expect("the source is in the graph");
     open(after_closing, CounterContent::CONTENT_TYPE);
     wait_for_count(after_closing, 5);
 

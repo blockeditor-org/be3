@@ -1,34 +1,21 @@
-use std::error::Error;
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
-use std::time::Instant;
 
-use accesskit_winit::{Adapter as AccessKitAdapter, Event as AccessKitEvent};
-use winit::application::ApplicationHandler;
-use winit::dpi::{LogicalSize, PhysicalPosition};
-use winit::event::{
-    DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, WindowEvent,
-};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
-use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{CursorGrabMode, CustomCursor, CustomCursorSource, Window, WindowId};
-
-use self::clipboard::Clipboard;
 use crate::color::Color32;
-mod clipboard;
 use crate::context::Context;
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::input::{
-    CursorIcon, Event, Key, Modifiers, PointerButton, RawInput, TouchId, TouchPhase,
-};
-use crate::renderer::{Renderer, Repaint, clear_color};
+use crate::geometry::{Rect, Vec2};
+use crate::input::{Event, TouchPhase};
 
-const LINE_HEIGHT: f32 = 40.0;
-const DEFAULT_SIZE: Vec2 = Vec2::new(1280.0, 800.0);
-const TOUCH_CURSOR_SIZE: u16 = 20;
-const TOUCH_CURSOR_RADIUS: f32 = TOUCH_CURSOR_SIZE as f32 / 2.0;
-const TOUCH_CURSOR_STROKE: f32 = 1.0;
-const TOUCH_CURSOR_SAMPLES: u16 = 4;
+#[cfg(feature = "window")]
+mod clipboard;
+#[cfg(feature = "window")]
+mod native;
+#[cfg(feature = "web")]
+mod web;
+
+#[cfg(feature = "window")]
+pub use native::{run, run_with};
+#[cfg(feature = "web")]
+pub use web::run_web;
 
 pub trait App {
     fn update(&mut self, context: &Context, rect: Rect);
@@ -36,797 +23,103 @@ pub trait App {
     fn clear_color(&self) -> Color32 {
         Color32::BLACK
     }
-}
 
-pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    let event_loop = EventLoop::<AccessKitEvent>::with_user_event().build()?;
-    event_loop.set_control_flow(ControlFlow::Wait);
-    let mut runner = Runner {
-        title: title.into(),
-        app: Box::new(app),
-        context: Context::new(),
-        surface: None,
-        events: Vec::new(),
-        modifiers: Modifiers::NONE,
-        pointer: Pos2::ZERO,
-        emulated_touch: false,
-        held_buttons: 0,
-        pointer_left: false,
-        error: None,
-        next_update: None,
-        clipboard: Clipboard::new(),
-        event_loop_proxy: event_loop.create_proxy(),
-        accessibility_active: false,
-    };
-    event_loop.run_app(&mut runner)?;
-    match runner.error {
-        Some(error) => Err(error.into()),
-        None => Ok(()),
-    }
-}
+    fn setup(&mut self, _setup: &Setup) {}
 
-struct Surface {
-    window: Arc<Window>,
-    surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
-    renderer: Renderer,
-    cursor_icon: CursorIcon,
-    pointer_locked: bool,
-    touch_emulation: bool,
-    touch_cursor: CustomCursor,
-    prepared_size: Option<(Vec2, f32)>,
-    clear_color: Option<Color32>,
-    pending: Option<Repaint>,
-    retained: Option<Retained>,
-    accessibility: AccessKitAdapter,
-}
-
-struct Retained {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
-    size: (u32, u32),
-}
-
-impl Surface {
-    fn retain(&mut self) {
-        if !self.config.usage.contains(wgpu::TextureUsages::COPY_DST) {
-            return;
-        }
-        let size = (self.config.width, self.config.height);
-        if self
-            .retained
-            .as_ref()
-            .is_none_or(|retained| retained.size != size)
-        {
-            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("beui retained frame"),
-                size: wgpu::Extent3d {
-                    width: size.0,
-                    height: size.1,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: self.config.format,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-                view_formats: &[],
-            });
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            self.retained = Some(Retained {
-                texture,
-                view,
-                size,
-            });
-        }
+    fn close_requested(&mut self) -> bool {
+        true
     }
 
-    fn retains(&self) -> bool {
-        self.retained
-            .as_ref()
-            .is_some_and(|retained| retained.size == (self.config.width, self.config.height))
+    fn exiting(&mut self) {}
+}
+
+pub struct Setup {
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub format: wgpu::TextureFormat,
+    pub waker: Waker,
+    #[cfg(feature = "window")]
+    pub window: Arc<winit::window::Window>,
+}
+
+#[derive(Clone)]
+pub struct Waker(Arc<dyn Fn() + Send + Sync>);
+
+impl Waker {
+    pub fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
+        Self(Arc::new(wake))
+    }
+
+    pub fn wake(&self) {
+        (self.0)();
     }
 }
 
-struct Runner {
-    title: String,
-    app: Box<dyn App>,
-    context: Context,
-    surface: Option<Surface>,
-    events: Vec<Event>,
-    modifiers: Modifiers,
-    pointer: Pos2,
-    emulated_touch: bool,
-    held_buttons: u8,
-    pointer_left: bool,
-    error: Option<String>,
-    next_update: Option<Instant>,
-    clipboard: Clipboard,
-    event_loop_proxy: EventLoopProxy<AccessKitEvent>,
-    accessibility_active: bool,
-}
-
-impl Runner {
-    fn fail(&mut self, event_loop: &ActiveEventLoop, error: impl ToString) {
-        self.error = Some(error.to_string());
-        event_loop.exit();
-    }
-
-    fn push(&mut self, event: Event) {
-        self.events.push(event);
-    }
-
-    fn scale_factor(&self) -> f64 {
-        let native = self
-            .surface
-            .as_ref()
-            .map_or(1.0, |surface| surface.window.scale_factor());
-        self.context
-            .simulated_pixels_per_point()
-            .map_or(native, f64::from)
-    }
-
-    fn logical(&self, position: PhysicalPosition<f64>) -> Pos2 {
-        let scale = self.scale_factor();
-        pos2((position.x / scale) as f32, (position.y / scale) as f32)
-    }
-
-    fn update(&mut self) -> bool {
-        let Some(surface) = &mut self.surface else {
-            return false;
-        };
-        if surface.config.width == 0 || surface.config.height == 0 {
-            self.events.clear();
-            self.next_update = None;
-            return false;
-        }
-
-        self.context
-            .set_pixels_per_point(surface.window.scale_factor() as f32);
-        self.context
-            .set_accessibility_active(self.accessibility_active);
-        self.context.set_test_ids_published(false);
-        let scale = self.context.pixels_per_point();
-        let physical = vec2(surface.config.width as f32, surface.config.height as f32);
-        let screen = vec2(physical.x / scale, physical.y / scale);
-
-        let raw = RawInput {
-            events: std::mem::take(&mut self.events),
-        };
-        let app = &mut self.app;
-        let output = self.context.run(raw, |context| {
-            app.update(context, Rect::from_min_size(Pos2::ZERO, screen));
-        });
-        if self.accessibility_active {
-            surface
-                .accessibility
-                .update_if_active(|| output.accessibility_tree(&self.title, screen));
-        }
-
-        if let Some(text) = &output.copied_text {
-            self.clipboard.set(text.clone());
-        }
-        if output.paste_requested
-            && let Some(text) = self.clipboard.get()
-        {
-            self.events.push(Event::Text(text));
-            surface.window.request_redraw();
-        }
-        if output.pointer_locked != surface.pointer_locked {
-            surface.pointer_locked = output.pointer_locked;
-            lock_pointer(&surface.window, output.pointer_locked);
-        }
-        let touch_emulation = self.context.touch_emulation();
-        if output.cursor_icon != surface.cursor_icon || touch_emulation != surface.touch_emulation {
-            surface.cursor_icon = output.cursor_icon;
-            surface.touch_emulation = touch_emulation;
-            if touch_emulation {
-                surface.window.set_cursor(surface.touch_cursor.clone());
-            } else {
-                surface.window.set_cursor(cursor(output.cursor_icon));
-            }
-        }
-
-        let size = (physical, scale);
-        let clear_color = self.app.clear_color();
-        let stale = surface.prepared_size != Some(size)
-            || surface.clear_color != Some(clear_color)
-            || !surface.retains();
-        let repaint = match output.damage() {
-            Some(region) if !stale => Repaint::Region {
-                region,
-                background: clear_color,
-            },
-            _ => Repaint::Everything,
-        };
-        if output.changed || stale {
-            let repaint = match surface.pending {
-                Some(pending) => pending.union(repaint),
-                None => repaint,
-            };
-            let effective = surface.renderer.prepare(
-                &surface.device,
-                &surface.queue,
-                &output,
-                physical,
-                scale,
-                repaint,
-            );
-            surface.prepared_size = Some(size);
-            surface.pending = Some(effective);
-        }
-        surface.clear_color = Some(clear_color);
-        self.next_update = Instant::now().checked_add(output.repaint_after);
-        surface.pending.is_some()
-    }
-
-    fn redraw(&mut self) {
-        self.update();
-        let Some(surface) = &mut self.surface else {
-            return;
-        };
-        if surface.config.width == 0 || surface.config.height == 0 {
-            return;
-        }
-
-        let frame = match surface.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                surface.surface.configure(&surface.device, &surface.config);
-                surface.window.request_redraw();
-                return;
-            }
-            _ => return,
-        };
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = surface
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("beui encoder"),
-            });
-        let clear = clear_color(self.app.clear_color());
-        surface.retain();
-        let pending = surface.pending.take();
-        let size = (surface.config.width, surface.config.height);
-        let Surface {
-            device,
-            queue,
-            renderer,
-            retained,
-            ..
-        } = &mut *surface;
-        let retained = retained.as_ref();
-        let (target, load) = match retained {
-            Some(retained) => (
-                &retained.view,
-                match pending {
-                    Some(Repaint::Region { .. }) => wgpu::LoadOp::Load,
-                    _ => wgpu::LoadOp::Clear(clear),
-                },
-            ),
-            None => (&view, wgpu::LoadOp::Clear(clear)),
-        };
-        if pending.is_some() || retained.is_none() {
-            renderer.render(device, queue, &mut encoder, target, size, load);
-        }
-        if let Some(retained) = retained {
-            encoder.copy_texture_to_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &retained.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::TexelCopyTextureInfo {
-                    texture: &frame.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::Extent3d {
-                    width: retained.size.0,
-                    height: retained.size.1,
-                    depth_or_array_layers: 1,
-                },
-            );
-        }
-        queue.submit(Some(encoder.finish()));
-        frame.present();
+impl std::fmt::Debug for Waker {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Waker")
     }
 }
 
-impl ApplicationHandler<AccessKitEvent> for Runner {
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if (!self.events.is_empty()
-            || self
-                .next_update
-                .is_some_and(|deadline| deadline <= Instant::now()))
-            && self.update()
-            && let Some(surface) = &self.surface
-        {
-            surface.window.request_redraw();
-        }
-        event_loop.set_control_flow(match self.next_update {
-            Some(deadline) => ControlFlow::WaitUntil(deadline),
-            None => ControlFlow::Wait,
-        });
-    }
+#[cfg(feature = "render")]
+pub type OpenDevice = Arc<
+    dyn Fn(&wgpu::Adapter, &wgpu::DeviceDescriptor<'_>) -> Option<(wgpu::Device, wgpu::Queue)>
+        + Send
+        + Sync,
+>;
 
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.surface.is_some() {
-            return;
-        }
-        let attributes = Window::default_attributes()
-            .with_title(self.title.clone())
-            .with_visible(false)
-            .with_inner_size(LogicalSize::new(DEFAULT_SIZE.x, DEFAULT_SIZE.y));
-        let window = match event_loop.create_window(attributes) {
-            Ok(window) => Arc::new(window),
-            Err(error) => return self.fail(event_loop, error),
-        };
-        let accessibility = AccessKitAdapter::with_event_loop_proxy(
-            event_loop,
-            &window,
-            self.event_loop_proxy.clone(),
-        );
-        let touch_cursor = event_loop.create_custom_cursor(touch_cursor_source());
-        window.set_visible(true);
-        match pollster::block_on(create_surface(window, accessibility, touch_cursor)) {
-            Ok(surface) => self.surface = Some(surface),
-            Err(error) => self.fail(event_loop, error),
-        }
-    }
+pub struct RunOptions {
+    pub title: String,
+    pub app_id: Option<String>,
+    pub size: Vec2,
+    #[cfg(feature = "render")]
+    pub open_device: Option<OpenDevice>,
+    #[cfg(all(feature = "window", target_os = "android"))]
+    pub android_app: Option<winit::platform::android::activity::AndroidApp>,
+}
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        window_id: WindowId,
-        event: WindowEvent,
-    ) {
-        let window = self.surface.as_ref().map(|surface| surface.window.id());
-        if window != Some(window_id) {
-            return;
-        }
-        if let Some(surface) = &mut self.surface {
-            surface.accessibility.process_event(&surface.window, &event);
-        }
-        match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => {
-                if let Some(surface) = &mut self.surface {
-                    surface.config.width = size.width;
-                    surface.config.height = size.height;
-                    if size.width > 0 && size.height > 0 {
-                        surface.surface.configure(&surface.device, &surface.config);
-                    }
-                    surface.window.request_redraw();
-                }
-            }
-            WindowEvent::ScaleFactorChanged { .. } => {
-                if let Some(surface) = &self.surface {
-                    surface.window.request_redraw();
-                }
-            }
-            WindowEvent::Focused(focused) => {
-                if !focused {
-                    self.emulated_touch = false;
-                    self.held_buttons = 0;
-                    self.pointer_left = false;
-                }
-                self.push(Event::Focus(focused));
-            }
-            WindowEvent::ModifiersChanged(modifiers) => {
-                let state = modifiers.state();
-                self.modifiers = Modifiers {
-                    alt: state.alt_key(),
-                    ctrl: state.control_key() || state.super_key(),
-                    shift: state.shift_key(),
-                };
-                self.push(Event::Modifiers(self.modifiers));
-            }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.pointer = self.logical(position);
-                if self.context.touch_emulation() {
-                    if self.emulated_touch {
-                        self.push(emulated_touch(TouchPhase::Move, self.pointer));
-                    }
-                } else {
-                    self.push(Event::PointerMoved(self.pointer));
-                }
-            }
-            WindowEvent::CursorEntered { .. } => self.pointer_left = false,
-            WindowEvent::CursorLeft { .. } => {
-                if self.emulated_touch || self.held_buttons != 0 {
-                    self.pointer_left = true;
-                } else {
-                    self.push(Event::PointerGone);
-                }
-            }
-            WindowEvent::MouseInput { state, button, .. } => {
-                let pressed = state == ElementState::Pressed;
-                let bit = mouse_button_bit(button);
-                if pressed {
-                    self.held_buttons |= bit;
-                } else {
-                    self.held_buttons &= !bit;
-                }
-                let released_outside = !pressed && self.pointer_left && self.held_buttons == 0;
-                if released_outside {
-                    self.pointer_left = false;
-                }
-                if self.context.touch_emulation() {
-                    if button != MouseButton::Left {
-                        return;
-                    }
-                    if pressed != self.emulated_touch {
-                        self.emulated_touch = pressed;
-                        self.push(emulated_touch(
-                            if pressed {
-                                TouchPhase::Start
-                            } else {
-                                TouchPhase::End
-                            },
-                            self.pointer,
-                        ));
-                    }
-                    return;
-                }
-                let Some(button) = pointer_button(button) else {
-                    return;
-                };
-                self.push(Event::PointerButton {
-                    pos: self.pointer,
-                    button,
-                    pressed,
-                    modifiers: self.modifiers,
-                });
-                if released_outside {
-                    self.push(Event::PointerGone);
-                }
-            }
-            WindowEvent::Touch(touch) => {
-                self.push(Event::Touch {
-                    id: TouchId {
-                        device: hash(touch.device_id),
-                        finger: touch.id,
-                    },
-                    phase: touch_phase(touch.phase),
-                    pos: self.logical(touch.location),
-                    force: touch.force.map(touch_force),
-                });
-            }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let delta = match delta {
-                    MouseScrollDelta::LineDelta(x, y) => vec2(x * LINE_HEIGHT, y * LINE_HEIGHT),
-                    MouseScrollDelta::PixelDelta(position) => {
-                        vec2(position.x as f32, position.y as f32)
-                    }
-                };
-                self.push(Event::Scroll(delta));
-            }
-            WindowEvent::PinchGesture { delta, .. } => {
-                self.push(Event::Zoom(1.0 + delta as f32));
-            }
-            WindowEvent::KeyboardInput { event, .. } => {
-                let pressed = event.state == ElementState::Pressed;
-                if let PhysicalKey::Code(code) = event.physical_key {
-                    if pressed
-                        && code == KeyCode::KeyV
-                        && self.modifiers.ctrl
-                        && !self.modifiers.alt
-                        && let Some(text) = self.clipboard.get()
-                    {
-                        self.push(Event::Text(text));
-                    }
-                    if let Some(key) = key(code) {
-                        self.push(Event::Key {
-                            key,
-                            pressed,
-                            repeat: event.repeat,
-                            modifiers: self.modifiers,
-                        });
-                    }
-                }
-                if pressed
-                    && !self.modifiers.ctrl
-                    && !self.modifiers.alt
-                    && let Some(text) = event.text
-                    && !text.chars().any(char::is_control)
-                {
-                    self.push(Event::Text(text.to_string()));
-                }
-            }
-            WindowEvent::RedrawRequested => self.redraw(),
-            _ => {}
-        }
-    }
-
-    fn device_event(
-        &mut self,
-        _event_loop: &ActiveEventLoop,
-        _device: DeviceId,
-        event: DeviceEvent,
-    ) {
-        let DeviceEvent::MouseMotion { delta } = event else {
-            return;
-        };
-        if !self.context.pointer_locked() {
-            return;
-        }
-        let scale = self.scale_factor() as f32;
-        self.push(Event::PointerMotion(vec2(
-            delta.0 as f32 / scale,
-            delta.1 as f32 / scale,
-        )));
-    }
-
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AccessKitEvent) {
-        let Some(surface) = &self.surface else {
-            return;
-        };
-        if event.window_id != surface.window.id() {
-            return;
-        }
-        match event.window_event {
-            accesskit_winit::WindowEvent::InitialTreeRequested => {
-                self.accessibility_active = true;
-                self.update();
-                if let Some(surface) = &self.surface {
-                    surface.window.request_redraw();
-                }
-            }
-            accesskit_winit::WindowEvent::ActionRequested(request) => {
-                self.context.accessibility_action(request);
-                surface.window.request_redraw();
-            }
-            accesskit_winit::WindowEvent::AccessibilityDeactivated => {
-                self.accessibility_active = false;
-            }
+impl RunOptions {
+    pub fn new(title: impl Into<String>) -> Self {
+        Self {
+            title: title.into(),
+            app_id: None,
+            size: Vec2::new(1280.0, 800.0),
+            #[cfg(feature = "render")]
+            open_device: None,
+            #[cfg(all(feature = "window", target_os = "android"))]
+            android_app: None,
         }
     }
 }
 
-fn hash(value: impl Hash) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
-}
-
-fn emulated_touch(phase: TouchPhase, pos: Pos2) -> Event {
-    Event::Touch {
-        id: TouchId {
-            device: 0,
-            finger: 0,
-        },
-        phase,
-        pos,
-        force: None,
-    }
-}
-
-fn mouse_button_bit(button: MouseButton) -> u8 {
-    match button {
-        MouseButton::Left => 1,
-        MouseButton::Right => 2,
-        MouseButton::Middle => 4,
-        MouseButton::Back => 8,
-        MouseButton::Forward => 16,
-        MouseButton::Other(_) => 32,
-    }
-}
-
-fn touch_phase(phase: winit::event::TouchPhase) -> TouchPhase {
-    match phase {
-        winit::event::TouchPhase::Started => TouchPhase::Start,
-        winit::event::TouchPhase::Moved => TouchPhase::Move,
-        winit::event::TouchPhase::Ended => TouchPhase::End,
-        winit::event::TouchPhase::Cancelled => TouchPhase::Cancel,
-    }
-}
-
-fn touch_force(force: winit::event::Force) -> f32 {
-    match force {
-        winit::event::Force::Normalized(force) => force as f32,
-        winit::event::Force::Calibrated {
-            force,
-            max_possible_force,
-            ..
-        } => (force / max_possible_force) as f32,
-    }
-}
-
-async fn create_surface(
-    window: Arc<Window>,
-    accessibility: AccessKitAdapter,
-    touch_cursor: CustomCursor,
-) -> Result<Surface, Box<dyn Error>> {
-    let size = window.inner_size();
-    let instance = wgpu::Instance::default();
-    let surface = instance.create_surface(window.clone())?;
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: Some(&surface),
-        })
-        .await?;
-    let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: Some("beui device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::default(),
-            experimental_features: wgpu::ExperimentalFeatures::disabled(),
-            memory_hints: wgpu::MemoryHints::Performance,
-            trace: wgpu::Trace::Off,
-        })
-        .await?;
-    let mut config = surface
-        .get_default_config(&adapter, size.width.max(1), size.height.max(1))
-        .ok_or("the adapter does not support this surface")?;
-    let capabilities = surface.get_capabilities(&adapter);
-    if let Some(format) = capabilities.formats.iter().copied().find(|it| it.is_srgb()) {
-        config.format = format;
-    }
-    if capabilities.usages.contains(wgpu::TextureUsages::COPY_DST) {
-        config.usage |= wgpu::TextureUsages::COPY_DST;
-    }
-    surface.configure(&device, &config);
-    let renderer = Renderer::new(&device, config.format);
-
-    Ok(Surface {
-        window,
-        surface,
-        device,
-        queue,
-        config,
-        renderer,
-        cursor_icon: CursorIcon::Default,
-        pointer_locked: false,
-        touch_emulation: false,
-        touch_cursor,
-        prepared_size: None,
-        clear_color: None,
-        pending: None,
-        retained: None,
-        accessibility,
-    })
-}
-
-fn touch_cursor_source() -> CustomCursorSource {
-    let size = usize::from(TOUCH_CURSOR_SIZE);
-    let mut rgba = vec![0; size * size * 4];
-    let samples = f32::from(TOUCH_CURSOR_SAMPLES);
-    let sample_count = f32::from(TOUCH_CURSOR_SAMPLES * TOUCH_CURSOR_SAMPLES);
-    for y in 0..TOUCH_CURSOR_SIZE {
-        for x in 0..TOUCH_CURSOR_SIZE {
-            let mut alpha = 0.0;
-            let mut white = 0.0;
-            for sample_y in 0..TOUCH_CURSOR_SAMPLES {
-                for sample_x in 0..TOUCH_CURSOR_SAMPLES {
-                    let x = f32::from(x) + (f32::from(sample_x) + 0.5) / samples;
-                    let y = f32::from(y) + (f32::from(sample_y) + 0.5) / samples;
-                    let distance = (x - TOUCH_CURSOR_RADIUS).hypot(y - TOUCH_CURSOR_RADIUS);
-                    if distance <= TOUCH_CURSOR_RADIUS {
-                        if distance <= TOUCH_CURSOR_RADIUS - TOUCH_CURSOR_STROKE {
-                            alpha += 96.0;
-                            white += 96.0;
-                        } else {
-                            alpha += 255.0;
+#[cfg_attr(not(any(feature = "window", feature = "web")), allow(dead_code))]
+pub(crate) fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
+    let typed = pending
+        .iter()
+        .position(|event| matches!(event, Event::Text(_) | Event::Key { .. } | Event::Ime(_)));
+    let press = typed.and_then(|start| {
+        pending[start..]
+            .iter()
+            .position(|event| {
+                matches!(
+                    event,
+                    Event::PointerButton { pressed: true, .. }
+                        | Event::Touch {
+                            phase: TouchPhase::Start,
+                            ..
                         }
-                    }
-                }
-            }
-            let offset = (usize::from(y) * size + usize::from(x)) * 4;
-            let alpha = alpha / sample_count;
-            let color = if alpha == 0.0 {
-                0.0
-            } else {
-                white / sample_count / alpha * 255.0
-            };
-            rgba[offset..offset + 3].fill(color.round() as u8);
-            rgba[offset + 3] = alpha.round() as u8;
+                )
+            })
+            .map(|offset| start + offset)
+    });
+    match press {
+        Some(at) => {
+            let rest = pending.split_off(at);
+            std::mem::replace(pending, rest)
         }
-    }
-    CustomCursor::from_rgba(
-        rgba,
-        TOUCH_CURSOR_SIZE,
-        TOUCH_CURSOR_SIZE,
-        TOUCH_CURSOR_SIZE / 2,
-        TOUCH_CURSOR_SIZE / 2,
-    )
-    .expect("the touch cursor dimensions and hotspot are valid")
-}
-
-fn pointer_button(button: MouseButton) -> Option<PointerButton> {
-    match button {
-        MouseButton::Left => Some(PointerButton::Primary),
-        MouseButton::Right => Some(PointerButton::Secondary),
-        MouseButton::Middle => Some(PointerButton::Middle),
-        _ => None,
+        None => std::mem::take(pending),
     }
 }
 
-fn cursor(icon: CursorIcon) -> winit::window::CursorIcon {
-    match icon {
-        CursorIcon::Default => winit::window::CursorIcon::Default,
-        CursorIcon::Crosshair => winit::window::CursorIcon::Crosshair,
-        CursorIcon::Grab => winit::window::CursorIcon::Grab,
-        CursorIcon::Grabbing => winit::window::CursorIcon::Grabbing,
-        CursorIcon::NotAllowed => winit::window::CursorIcon::NotAllowed,
-        CursorIcon::PointingHand => winit::window::CursorIcon::Pointer,
-        CursorIcon::ResizeHorizontal => winit::window::CursorIcon::EwResize,
-        CursorIcon::ResizeVertical => winit::window::CursorIcon::NsResize,
-        CursorIcon::ResizeNeSw => winit::window::CursorIcon::NeswResize,
-        CursorIcon::ResizeNwSe => winit::window::CursorIcon::NwseResize,
-        CursorIcon::Text => winit::window::CursorIcon::Text,
-        CursorIcon::Wait => winit::window::CursorIcon::Wait,
-    }
-}
-
-fn key(code: KeyCode) -> Option<Key> {
-    let key = match code {
-        KeyCode::ArrowDown => Key::ArrowDown,
-        KeyCode::ArrowLeft => Key::ArrowLeft,
-        KeyCode::ArrowRight => Key::ArrowRight,
-        KeyCode::ArrowUp => Key::ArrowUp,
-        KeyCode::Backspace => Key::Backspace,
-        KeyCode::Delete => Key::Delete,
-        KeyCode::End => Key::End,
-        KeyCode::Enter | KeyCode::NumpadEnter => Key::Enter,
-        KeyCode::Escape => Key::Escape,
-        KeyCode::Home => Key::Home,
-        KeyCode::BracketLeft => Key::BracketLeft,
-        KeyCode::BracketRight => Key::BracketRight,
-        KeyCode::Minus | KeyCode::NumpadSubtract => Key::Minus,
-        KeyCode::PageDown => Key::PageDown,
-        KeyCode::PageUp => Key::PageUp,
-        KeyCode::Equal | KeyCode::NumpadAdd => Key::Plus,
-        KeyCode::Space => Key::Space,
-        KeyCode::Tab => Key::Tab,
-        KeyCode::Digit0 | KeyCode::Numpad0 => Key::Zero,
-        KeyCode::KeyA => Key::A,
-        KeyCode::KeyB => Key::B,
-        KeyCode::KeyC => Key::C,
-        KeyCode::KeyD => Key::D,
-        KeyCode::KeyE => Key::E,
-        KeyCode::KeyF => Key::F,
-        KeyCode::KeyG => Key::G,
-        KeyCode::KeyH => Key::H,
-        KeyCode::KeyI => Key::I,
-        KeyCode::KeyJ => Key::J,
-        KeyCode::KeyK => Key::K,
-        KeyCode::KeyL => Key::L,
-        KeyCode::KeyM => Key::M,
-        KeyCode::KeyN => Key::N,
-        KeyCode::KeyO => Key::O,
-        KeyCode::KeyP => Key::P,
-        KeyCode::KeyQ => Key::Q,
-        KeyCode::KeyR => Key::R,
-        KeyCode::KeyS => Key::S,
-        KeyCode::KeyT => Key::T,
-        KeyCode::KeyU => Key::U,
-        KeyCode::KeyV => Key::V,
-        KeyCode::KeyW => Key::W,
-        KeyCode::KeyX => Key::X,
-        KeyCode::KeyY => Key::Y,
-        KeyCode::KeyZ => Key::Z,
-        _ => return None,
-    };
-    Some(key)
-}
-
-fn lock_pointer(window: &Window, locked: bool) {
-    let grab = match locked {
-        true => CursorGrabMode::Locked,
-        false => CursorGrabMode::None,
-    };
-    if window.set_cursor_grab(grab).is_err() && locked {
-        let _ = window.set_cursor_grab(CursorGrabMode::Confined);
-    }
-    window.set_cursor_visible(!locked);
-}
+#[cfg(test)]
+mod tests;

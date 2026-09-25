@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
-use block_client::blocks::map::{MAX_LATITUDE, MapColor, MapOperation, MapPoint};
+use block_editor_plugin::be_block::Map;
+use block_editor_plugin::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_plugin::beui::Color32;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::accesskit::{Node, Role};
@@ -120,7 +121,7 @@ fn RegionInspector(state: Rc<MapState>) -> NodeId {
                 @test_id={"map.preview-region"}
                 on_change={move |on: bool| {
                     let region = on.then(|| toggled.visible_region.get_untracked());
-                    toggled.record(MapOperation::SetPreviewRegion { region });
+                    toggled.record(Map::set_preview_region(region));
                 }}
             />
             <Show condition={loose}>
@@ -136,7 +137,7 @@ fn RegionInspector(state: Rc<MapState>) -> NodeId {
                             @test_id={"map.capture-region"}
                             on_click={move || {
                                 let region = Some(captured.visible_region.get_untracked());
-                                captured.record(MapOperation::SetPreviewRegion { region });
+                                captured.record(Map::set_preview_region(region));
                             }}
                         />
                         <Button
@@ -171,9 +172,7 @@ fn RegionEdges(state: Rc<MapState>) -> NodeId {
             };
             let mut edges = MapRegionEdges::from(region);
             write(&mut edges, next);
-            write_state.record_grouped(MapOperation::SetPreviewRegion {
-                region: Some(edges.into()),
-            });
+            write_state.record(Map::set_preview_region(Some(edges.into())));
         })
     };
     let (north_label, north, set_north) = edge(
@@ -245,8 +244,8 @@ struct MapRegionEdges {
     east: f64,
 }
 
-impl From<block_client::blocks::map::MapRegion> for MapRegionEdges {
-    fn from(region: block_client::blocks::map::MapRegion) -> Self {
+impl From<block_editor_plugin::be_block::map::MapRegion> for MapRegionEdges {
+    fn from(region: block_editor_plugin::be_block::map::MapRegion) -> Self {
         Self {
             north: region.north,
             south: region.south,
@@ -256,7 +255,7 @@ impl From<block_client::blocks::map::MapRegion> for MapRegionEdges {
     }
 }
 
-impl From<MapRegionEdges> for block_client::blocks::map::MapRegion {
+impl From<MapRegionEdges> for block_editor_plugin::be_block::map::MapRegion {
     fn from(edges: MapRegionEdges) -> Self {
         Self::new(edges.west, edges.south, edges.east, edges.north)
     }
@@ -365,9 +364,8 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
     let target = Rc::clone(&state);
     let block = create_memo(clone!(point target -> move || {
         let point = point.get()?;
-        let id = target.resolved_id(point.block_id)?;
         let label = target.label_of(point.block_id)?;
-        Some(ChildTarget::new(id, label.block_type))
+        Some(ChildTarget::new(point.block_id, label.block_type))
     }));
     let openable = create_memo(clone!(block -> move || block.get().is_none()));
     let back = Rc::clone(&state);
@@ -456,7 +454,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                         return;
                     };
                     point.position.latitude = value;
-                    moved.record_grouped(MapOperation::UpdatePoints { points: vec![point] });
+                    moved.record(Map::update(&[point]));
                 }}
             />
             <NumberInput
@@ -469,7 +467,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                         return;
                     };
                     point.position.longitude = value;
-                    slid.record_grouped(MapOperation::UpdatePoints { points: vec![point] });
+                    slid.record(Map::update(&[point]));
                 }}
             />
             <Body content="Colour" />
@@ -493,7 +491,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                     };
                     let [red, green, blue, _] = color.to_array();
                     point.color = MapColor::Rgb { red, green, blue };
-                    tinted.record_grouped(MapOperation::UpdatePoints { points: vec![point] });
+                    tinted.record(Map::update(&[point]));
                 }}
             />
         </List>
@@ -516,7 +514,7 @@ fn ColorPreset(state: Rc<MapState>, point: Memo<Option<MapPoint>>, name: String)
                         return;
                     };
                     chosen.color = color;
-                    state.record_grouped(MapOperation::UpdatePoints { points: vec![chosen] });
+                    state.record(Map::update(&[chosen]));
                 }}
             >
                 <IconSized glyph={ICON_CIRCLE.to_owned()} font_size=16.0 color={swatch} />
@@ -537,9 +535,6 @@ fn point_name(state: &MapState, point: Option<MapPoint>) -> String {
     };
     match state.label_of(point.block_id) {
         Some(label) => label.name,
-        None => match state.resolved_id(point.block_id) {
-            Some(_) => "Loading…".to_owned(),
-            None => "Broken link".to_owned(),
-        },
+        None => "Loading…".to_owned(),
     }
 }

@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
-use block_client::blocks::pixel_art::{
+use block_editor_plugin::Toolbar;
+use block_editor_plugin::be_block::pixel_art::{
     MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
 };
-use block_editor_plugin::Toolbar;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::{
     ICON_ADD, ICON_ARROW_BACK, ICON_ARROW_DOWNWARD, ICON_ARROW_FORWARD, ICON_ARROW_UPWARD,

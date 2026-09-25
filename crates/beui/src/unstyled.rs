@@ -4,6 +4,7 @@ mod container;
 mod context_menu;
 mod disclosure;
 mod dock;
+mod drag;
 mod floating;
 mod menu;
 mod menu_button;
@@ -28,9 +29,14 @@ pub use container::{Container, ContainerSize, container_size, narrower_than, sho
 pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
-    Dock, DockLayout, DockPanelHandle, DockSplitter, DockSplitterHandle, DockState, DockTabHandle,
-    DockWindowGripHandle, DockWindowHandle, DropTarget, LeafId, SPLITTER_THICKNESS, Side, SplitId,
-    SurfaceId, TabId, TabPosition, dock_state, layout_surface,
+    Dock, DockDrop, DockLayout, DockPanelHandle, DockPreviewHandle, DockSplitter,
+    DockSplitterHandle, DockState, DockTabHandle, DockWindowGripHandle, DockWindowHandle, Entry,
+    GroupId, LeafId, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree,
+    dock_state, layout_surface, layout_tree,
+};
+pub(crate) use drag::Board as DragBoard;
+pub use drag::{
+    DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
 };
 pub use floating::{Edge, Floating};
 pub use menu::{

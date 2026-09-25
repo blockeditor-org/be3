@@ -5,10 +5,8 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-block = { path = "../block" }
-block-client = { path = "../block-client" }
-egui = "0.34.3"
-egui_material_icons = "0.6.0"
+be-block = { path = "../be-block" }
+beui = { path = "../beui", default-features = false }
 uuid = "1"
 
 [lints]

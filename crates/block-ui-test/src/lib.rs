@@ -1,10 +1,8 @@
 mod beui;
-mod editor;
+mod content;
 mod snapshot;
 #[cfg(test)]
 mod tests;
-mod textures;
 
 pub use beui::BeuiTest;
-pub use editor::EditorTest;
-pub use egui_kittest::kittest::Queryable;
+pub use content::{ContentHarness, ContentStore};

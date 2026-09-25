@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use crate::base::{Align, Direction, ItemSize};
 use crate::color::Color32;
-use crate::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR};
+use crate::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_TAB_GROUP};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Child, ClickCallback, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn, Show,
@@ -15,8 +15,8 @@ use crate::styled::text::{Body, IconSized};
 use crate::styled::theme::{BORDER_WIDTH, CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use crate::unstyled;
 use crate::unstyled::{
-    DockPanelHandle, DockSplitterHandle, DockState, DockTabHandle, DockWindowGripHandle,
-    DockWindowHandle, MenuItem, TabId,
+    DockPanelHandle, DockPreviewHandle, DockSplitterHandle, DockState, DockTabHandle,
+    DockWindowGripHandle, DockWindowHandle, Entry, MenuItem, TabId,
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
@@ -30,6 +30,8 @@ const GRIP_PADDING: f32 = 3.0;
 const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
 const FOCUS_RING_WIDTH: f32 = 2.0;
+const GROUP_GLYPH: f32 = 16.0;
+const GROUP_INSET: f32 = 6.0;
 const DROP_ALPHA: u8 = 64;
 const PREVIEW_ALPHA: u8 = 235;
 
@@ -43,10 +45,10 @@ pub fn DockArea(
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
     let closable = closable.unwrap_or_else(|| Func::new(|_| true));
-    let previews = title.clone();
     view! {
         <unstyled::Dock
             state
+            group_inset=GROUP_INSET
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}
             title
@@ -72,11 +74,11 @@ pub fn DockArea(
             highlight={move || view! {
                 <DockDropHighlight />
             }}
-            preview={move |tab: TabId| {
-                let titles = previews.clone();
-                let title = create_memo(move || titles.call(tab));
+            preview={move |handle: DockPreviewHandle| {
+                let DockPreviewHandle { entry, title } = handle;
+                let grouped = matches!(entry, Entry::Group(_));
                 view! {
-                    <DockDragPreview title />
+                    <DockDragPreview title grouped />
                 }
             }}
         />
@@ -86,8 +88,10 @@ pub fn DockArea(
 #[component]
 fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
     let DockTabHandle {
-        tab,
+        entry,
         title,
+        tabs,
+        has_next,
         selected,
         hovered,
         active,
@@ -95,25 +99,53 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
         dragged,
         close,
         float,
+        group,
+        split,
+        ungroup,
         floating,
         ..
     } = handle;
-    let closable = closable.call(tab);
+    let closable =
+        create_memo(move || tabs.with(|tabs| tabs.iter().all(|tab| closable.call(*tab))));
+    let alone = create_memo(clone!(has_next -> move || !has_next.get()));
+    let grouped = matches!(entry, Entry::Group(_));
     let closing = close.clone();
+    let items = match grouped {
+        false => view! {
+            <MenuItem label="Pop out into a window" disabled={floating} />
+            <MenuItem label="Group with next tab" disabled={alone.clone()} />
+            <MenuItem label="Split with next tab" disabled={alone.clone()} />
+            <MenuItem
+                label="Close tab"
+                disabled={create_memo(clone!(closable -> move || !closable.get()))}
+            />
+        },
+        true => view! {
+            <MenuItem label="Pop out into a window" disabled={floating} />
+            <MenuItem label="Add next tab to group" disabled={alone.clone()} />
+            <MenuItem label="Split next tab into group" disabled={alone.clone()} />
+            <MenuItem
+                label="Close group"
+                disabled={create_memo(clone!(closable -> move || !closable.get()))}
+            />
+            <MenuItem label="Ungroup" />
+        },
+    };
     view! {
         <ContextMenu
-            items={view! {
-                <MenuItem label="Pop out into a window" disabled={floating} />
-                <MenuItem label="Close tab" disabled={!closable} />
-            }}
+            items={items}
             on_select={move |path: Vec<usize>| match path.first() {
                 Some(0) => float.call(),
-                Some(1) => closing.call(),
+                Some(1) => group.call(),
+                Some(2) => split.call(),
+                Some(3) => closing.call(),
+                Some(4) => ungroup.call(),
                 _ => {}
             }}
         >
             <DockTabChrome
                 title
+                grouped
                 selected
                 hovered
                 active
@@ -129,12 +161,13 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
 #[component]
 fn DockTabChrome(
     title: Prop<String>,
+    grouped: bool,
     selected: Memo<bool>,
     hovered: ReadSignal<bool>,
     active: ReadSignal<bool>,
     focused: ReadSignal<bool>,
     dragged: Memo<bool>,
-    closable: bool,
+    closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
@@ -150,6 +183,7 @@ fn DockTabChrome(
         true => theme.text.get(),
         false => theme.text_muted.get(),
     }));
+    let glyph = label.clone();
     view! {
         <Frame
             color={fill}
@@ -162,6 +196,9 @@ fn DockTabChrome(
             outline_visible={focused}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
+                <Show condition={grouped}>
+                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph} />
+                </Show>
                 <Text string={title} font_size=FONT_BODY color={label} clip=true />
                 <Show condition={closable}>
                     <IconButton
@@ -192,6 +229,10 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
         true => theme.accent.get(),
         false => theme.border.get(),
     }));
+    let inset = match floating {
+        true => 0.0,
+        false => BORDER_WIDTH,
+    };
     view! {
         <Frame
             color={theme.surface.clone()}
@@ -199,6 +240,8 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
             outline_width=BORDER_WIDTH
             outline_visible={!floating}
             radius=RADIUS
+            padding_horizontal={inset}
+            padding_vertical={inset}
         >
             <List spacing=0.0>
                 <Show condition={bar.is_some()}>
@@ -289,6 +332,8 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             outline_visible=true
             radius=CARD_RADIUS
+            padding_horizontal=FOCUS_RING_WIDTH
+            padding_vertical=FOCUS_RING_WIDTH
         >
             <List spacing=0.0>
                 <Frame
@@ -342,7 +387,7 @@ fn DockDropHighlight() -> NodeId {
 }
 
 #[component]
-fn DockDragPreview(title: Prop<String>) -> NodeId {
+fn DockDragPreview(title: Prop<String>, grouped: bool) -> NodeId {
     let theme = use_theme();
     let fill = create_memo(
         clone!(theme -> move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA)),
@@ -357,7 +402,16 @@ fn DockDragPreview(title: Prop<String>) -> NodeId {
             height=TAB_HEIGHT
             padding_horizontal=PREVIEW_PADDING
         >
-            <Body content={title} />
+            <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
+                <Show condition={grouped}>
+                    <IconSized
+                        glyph=ICON_TAB_GROUP
+                        font_size=GROUP_GLYPH
+                        color={theme.text.clone()}
+                    />
+                </Show>
+                <Body content={title} />
+            </List>
         </Frame>
     }
 }

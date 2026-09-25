@@ -1,126 +1,98 @@
+mod accounts;
 mod app_state;
 mod be;
+mod block_label;
 mod block_picker;
 mod debug;
 mod editors;
 mod files;
+mod host;
 mod panic_guard;
 mod performance;
 mod platform;
 mod plugin_host;
+mod root_settings;
 mod share;
 mod slide_templates;
+mod surfaces;
+mod ui;
 
-use std::{collections::HashMap, error::Error, sync::Arc, time::Duration};
+use std::{collections::HashMap, error::Error, time::Duration};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{io, path::PathBuf};
 
+use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use block::{
-    Block, BlockAccess, BlockParent, ManagementErrorCode, Workspace, WorkspaceInvitation,
-    WorkspaceRole,
-};
-use block_client::root_settings::{RootSetting, RootSettings};
-use block_client::{
-    BlockClient, BlockHandle, DynamicArtifactDescriptor, ManagementClient, ManagementClientError,
-    Session,
-    blocks::{
-        file_tree::FileTree, ui_settings::UiSettings, workspace_index::BlockEntry,
-        workspace_ui::WorkspaceUi,
-    },
-    properties::MAX_NAME_BYTES,
-};
+use be_block::metadata::MAX_NAME_BYTES;
+use be_block::{BlockContent, FileTreeContent, UiSettingsContent, WorkspaceUiContent};
+use be_graph::{Access, BlockParent};
+use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
+use beui::Document;
 use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation};
 use editors::{
     ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
-    PluginEditor, SidebarDragPayload, SidebarDragSource, direct_editor_tab_ui,
+    PluginEditor, SidebarDragSource, direct_editor_tab_ui,
 };
-use eframe::egui;
-use egui_material_icons::icons::{
-    ICON_ADD, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_CLOUD, ICON_COMPUTER, ICON_GROUP_ADD,
-    ICON_KEYBOARD_ARROW_DOWN, ICON_LOGOUT, ICON_MORE_HORIZ, ICON_REFRESH, ICON_SWITCH_ACCOUNT,
-    ICON_WORKSPACES,
-};
+use root_settings::{RootSetting, RootSettings};
 use share::ShareDialog;
+use surfaces::SurfaceId;
+use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
 const APP_ID: &str = "Block";
-const ONBOARDING_WIDTH: f32 = 460.0;
 
 pub(crate) const COMMIT: &str = env!("BLOCK_APP_COMMIT");
-#[cfg(not(target_arch = "wasm32"))]
-fn native_options() -> eframe::NativeOptions {
-    eframe::NativeOptions {
-        renderer: eframe::Renderer::Wgpu,
-        viewport: egui::ViewportBuilder::default()
-            .with_app_id(APP_ID)
-            .with_inner_size([1100.0, 720.0]),
-        ..Default::default()
+
+fn run_options() -> beui::RunOptions {
+    let mut options = beui::RunOptions::new("Block");
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        options.app_id = Some(APP_ID.to_owned());
     }
+    options.size = beui::vec2(1100.0, 720.0);
+    options
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn run_native(options: eframe::NativeOptions, storage_root: Option<PathBuf>) -> eframe::Result {
-    panic_guard::install();
-    eframe::run_native(
-        APP_ID,
-        options,
-        Box::new(move |creation_context| {
-            egui_material_icons::initialize(&creation_context.egui_ctx);
-            plugin_host::install(creation_context);
-            BlockApp::new(storage_root).map(|app| Box::new(app) as Box<dyn eframe::App>)
-        }),
-    )
+fn storage_dir() -> Option<PathBuf> {
+    directories_next::ProjectDirs::from("", "", APP_ID).map(|dirs| dirs.data_dir().to_path_buf())
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-pub fn run() -> eframe::Result {
-    run_native(native_options(), None)
+pub fn run() -> Result<(), Box<dyn Error>> {
+    panic_guard::install();
+    let app = BlockApp::new(None).map_err(|error| error.to_string())?;
+    beui::run_with(run_options(), Shell::new(app))
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
-    use wasm_bindgen::JsCast;
-
     wasi_threads::initialize_main_thread();
     panic_guard::install();
-
-    let document = web_sys::window()
-        .and_then(|window| window.document())
-        .ok_or_else(|| wasm_bindgen::JsValue::from_str("no browser document is available"))?;
-    let canvas = document
-        .get_element_by_id(&canvas_id)
-        .ok_or_else(|| wasm_bindgen::JsValue::from_str(&format!("no element id {canvas_id}")))?
-        .dyn_into::<web_sys::HtmlCanvasElement>()?;
-
     editors::plugin::discovery::load().await;
-
-    eframe::WebRunner::new()
-        .start(
-            canvas,
-            eframe::WebOptions::default(),
-            Box::new(|creation_context| {
-                egui_material_icons::initialize(&creation_context.egui_ctx);
-                plugin_host::install(creation_context);
-                BlockApp::new()
-                    .map(|app| Box::new(app) as Box<dyn eframe::App>)
-                    .map_err(Into::into)
-            }),
-        )
+    let app =
+        BlockApp::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
+    beui::run_web(&canvas_id, run_options(), Shell::new(app))
         .await
+        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
 }
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
     editors::plugin::discovery::load(&app);
+    panic_guard::install();
     let storage_root = app.internal_data_path();
-    let mut options = native_options();
+    let mut options = run_options();
     options.android_app = Some(app);
-    let exit_code = match run_native(options, storage_root) {
+    let exit_code = match BlockApp::new(storage_root)
+        .map_err(|error| error.to_string())
+        .and_then(|block_app| {
+            beui::run_with(options, Shell::new(block_app)).map_err(|error| error.to_string())
+        }) {
         Ok(()) => 0,
         Err(error) => {
             eprintln!("Block stopped: {error}");
@@ -131,6 +103,82 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     std::process::exit(exit_code);
 }
 
+struct Shell {
+    document: Document,
+    view: AppViewStore,
+    app: BlockApp,
+}
+
+impl Shell {
+    fn new(app: BlockApp) -> Self {
+        let mut view = None;
+        let document = beui::reactive::build(|| {
+            surfaces::create_handles();
+            let store = AppViewStore::new(AppView::default());
+            view = Some(store.clone());
+            ui::root(store)
+        });
+        Self {
+            document,
+            view: view.expect("the view store is created while the document is built"),
+            app,
+        }
+    }
+}
+
+impl beui::App for Shell {
+    fn setup(&mut self, setup: &beui::Setup) {
+        host::install_waker(setup.waker.clone());
+        plugin_host::install(setup);
+        #[cfg(all(
+            feature = "web-view",
+            not(target_os = "android"),
+            not(target_arch = "wasm32")
+        ))]
+        plugin_host::install_web_view(setup.window.clone());
+    }
+
+    fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
+        host::begin(context, &self.document);
+        self.app.frame(context);
+        if let Some(open) = self.app.inspector_requested.take()
+            && open
+        {
+            self.document.open_inspector();
+        }
+        let view = self.app.view();
+        let store = self.view.clone();
+        beui::reactive::with_reactive_scope(&mut self.document, move || {
+            store.set(view);
+            surfaces::commit();
+        });
+        host::filter_document_input(context);
+        self.document.show(context, rect);
+        surfaces::read_placements();
+        let commands = ui::take_commands();
+        if !commands.is_empty() {
+            for command in commands {
+                self.app.command(context, command);
+            }
+            context.request_repaint();
+        }
+        host::end(context);
+    }
+
+    fn clear_color(&self) -> beui::Color32 {
+        self.document.theme().background
+    }
+
+    fn close_requested(&mut self) -> bool {
+        self.app.close_requested()
+    }
+
+    fn exiting(&mut self) {
+        be::flush();
+        be::stop();
+    }
+}
+
 struct BlockApp {
     app_state: AppStateStore,
 
@@ -138,8 +186,8 @@ struct BlockApp {
     local_server_url: String,
     accounts: Vec<Account>,
     signed_in: bool,
-    account_form: AccountForm,
     add_account_open: bool,
+    add_account_generation: u64,
     pending_account_request: Option<PendingAccountRequest>,
     account_error: Option<String>,
     workspace: Option<Workspace>,
@@ -149,27 +197,25 @@ struct BlockApp {
     workspaces_load_failed: bool,
     pending_workspace_request:
         Option<platform::RequestResult<Result<WorkspaceResult, WorkspaceRequestError>>>,
-    workspace_name: String,
+    workspace_created: u64,
     workspace_error: Option<String>,
 
     reauth: Option<ReauthState>,
     invite_open: bool,
-    invite_email: String,
-    invite_role: WorkspaceRole,
+    invite_sent: u64,
     scheduled_workspace_list: bool,
     server_url: String,
     account: Account,
-    client: Arc<BlockClient>,
     root_settings: RootSettings,
-    file_tree: RootSetting<FileTree>,
-    workspace_ui: RootSetting<WorkspaceUi>,
+    file_tree: RootSetting<FileTreeContent>,
+    workspace_ui: RootSetting<WorkspaceUiContent>,
     shell: Option<Uuid>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: EditorRegistry,
     editors: HashMap<Uuid, PluginEditor>,
 
-    editor_access: HashMap<Uuid, BlockAccess>,
+    editor_access: HashMap<Uuid, Access>,
 
     watched_artifacts: Vec<Uuid>,
     dynamic_artifact_sessions: HashMap<Uuid, Box<dyn ArtifactSession>>,
@@ -185,8 +231,6 @@ struct BlockApp {
     pending_copies: Vec<PendingCopy>,
     rename: Option<RenameState>,
     share: ShareDialog,
-    client_debug_open: bool,
-    network_debug_open: bool,
     about_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     scheduled_account_switch: Option<Account>,
@@ -197,38 +241,10 @@ struct BlockApp {
     embedded_server: Option<platform::EmbeddedServer>,
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
-}
-
-#[derive(Clone)]
-enum ErrorAction {
-    DeleteClientDatabase,
-    #[cfg(not(target_arch = "wasm32"))]
-    DeleteServerDatabase,
+    inspector_requested: Option<bool>,
 }
 
 type Account = SavedAccount;
-
-struct AccountForm {
-    remote: bool,
-    remote_url: String,
-    register: bool,
-    email: String,
-    display_name: String,
-    password: String,
-}
-
-impl Default for AccountForm {
-    fn default() -> Self {
-        Self {
-            remote: !platform::HAS_EMBEDDED_SERVER,
-            remote_url: String::new(),
-            register: false,
-            email: String::new(),
-            display_name: String::new(),
-            password: String::new(),
-        }
-    }
-}
 
 struct PendingAccountRequest {
     receiver: platform::RequestResult<Result<Session, String>>,
@@ -250,30 +266,10 @@ enum WorkspaceResult {
     Invited,
 }
 
-struct WorkspaceRequestError {
-    message: String,
-    invalid_token: bool,
-}
-
-impl From<ManagementClientError> for WorkspaceRequestError {
-    fn from(error: ManagementClientError) -> Self {
-        let invalid_token = matches!(
-            error,
-            ManagementClientError::Server {
-                code: ManagementErrorCode::InvalidToken,
-                ..
-            }
-        );
-        Self {
-            message: error.to_string(),
-            invalid_token,
-        }
-    }
-}
+type WorkspaceRequestError = AccountError;
 
 struct ReauthState {
     account: Account,
-    password: String,
     pending: Option<platform::RequestResult<Result<Session, String>>>,
     error: Option<String>,
 }
@@ -322,7 +318,7 @@ impl BlockApp {
     #[cfg(not(target_arch = "wasm32"))]
     fn new(storage_root: Option<PathBuf>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let data_dir = storage_root
-            .or_else(|| eframe::storage_dir(APP_ID))
+            .or_else(storage_dir)
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
         std::fs::create_dir_all(&data_dir)?;
         plugin_host::cache_in(data_dir.join("plugin-cache"));
@@ -368,18 +364,14 @@ impl BlockApp {
             ServerLocation::Local => url.clone(),
             ServerLocation::Remote(remote) => remote.clone(),
         };
-        let client = Arc::new(BlockClient::new(account.id, Uuid::nil()));
-        let root_settings = RootSettings::new(&client);
-        let file_tree = RootSetting::new(&client);
-        let workspace_ui = RootSetting::new(&client);
         Ok(Self {
             app_state,
             client_id,
             local_server_url: url,
             accounts,
             signed_in,
-            account_form: AccountForm::default(),
             add_account_open: false,
+            add_account_generation: 0,
             pending_account_request: None,
             account_error: None,
             workspace: None,
@@ -388,19 +380,17 @@ impl BlockApp {
             workspaces_loaded: false,
             workspaces_load_failed: false,
             pending_workspace_request: None,
-            workspace_name: String::new(),
+            workspace_created: 0,
             workspace_error: None,
             reauth: None,
             invite_open: false,
-            invite_email: String::new(),
-            invite_role: WorkspaceRole::Editor,
+            invite_sent: 0,
             scheduled_workspace_list: false,
             server_url,
             account,
-            client,
-            root_settings,
-            file_tree,
-            workspace_ui,
+            root_settings: RootSettings::default(),
+            file_tree: RootSetting::default(),
+            workspace_ui: RootSetting::default(),
             shell: None,
             ui_settings: None,
             block_types: HashMap::new(),
@@ -417,8 +407,6 @@ impl BlockApp {
             pending_copies: Vec::new(),
             rename: None,
             share: ShareDialog::default(),
-            client_debug_open: false,
-            network_debug_open: false,
             about_open: false,
             pending_destructive_action: None,
             scheduled_account_switch: None,
@@ -429,37 +417,47 @@ impl BlockApp {
             embedded_server: None,
             error: None,
             pending_error_action: None,
+            inspector_requested: None,
         })
     }
 
-    fn begin_account_request(&mut self) {
-        let requested_url = if self.account_form.remote {
-            self.account_form.remote_url.clone()
+    fn account_by_key(&self, key: &str) -> Option<Account> {
+        self.accounts
+            .iter()
+            .find(|account| ui::account_key(account) == key)
+            .cloned()
+    }
+
+    fn begin_account_request(&mut self, form: AccountForm) {
+        let remote = form.remote || !platform::HAS_EMBEDDED_SERVER;
+        let requested_url = if remote {
+            form.remote_url.clone()
         } else {
             self.local_server_url.clone()
         };
-        let client = match ManagementClient::new(requested_url) {
-            Ok(client) => client,
-            Err(error) => {
-                self.account_error = Some(error.to_string());
-                return;
-            }
-        };
-        let server = if self.account_form.remote {
-            ServerLocation::Remote(client.url().to_owned())
+        let url = requested_url.trim().trim_end_matches('/').to_owned();
+        if url.is_empty() {
+            self.account_error = Some("a server address is required".to_owned());
+            return;
+        }
+        let server = if remote {
+            ServerLocation::Remote(url.clone())
         } else {
             ServerLocation::Local
         };
-        let url = client.url().to_owned();
-        let register = self.account_form.register;
-        let email = self.account_form.email.clone();
-        let display_name = self.account_form.display_name.clone();
-        let password = self.account_form.password.clone();
+        let requested = url.clone();
+        let AccountForm {
+            register,
+            email,
+            display_name,
+            password,
+            ..
+        } = form;
         let receiver = platform::spawn_request(async move {
             if register {
-                client.register(email, display_name, password).await
+                accounts::register(requested, email, display_name, password).await
             } else {
-                client.login(email, password).await
+                accounts::login(requested, email, password).await
             }
             .map_err(|error| error.to_string())
         });
@@ -471,12 +469,15 @@ impl BlockApp {
         });
     }
 
-    fn poll_account_request(&mut self, ctx: &egui::Context) {
+    fn poll_account_request(&mut self) {
         let result = self
             .pending_account_request
             .as_ref()
             .and_then(|pending| pending.receiver.try_recv().ok());
         let Some(result) = result else {
+            if self.pending_account_request.is_some() {
+                host::request_repaint_after(Duration::from_millis(100));
+            }
             return;
         };
         let pending = self.pending_account_request.take().unwrap();
@@ -484,9 +485,9 @@ impl BlockApp {
             Ok(session) => {
                 let saved = SavedAccount {
                     server: pending.server,
-                    id: session.account.id,
-                    email: session.account.email,
-                    name: session.account.display_name,
+                    id: session.account,
+                    email: session.email,
+                    name: session.display_name,
                     token: session.token,
                     last_workspace_id: None,
                 };
@@ -499,79 +500,21 @@ impl BlockApp {
                     Vec::new()
                 });
                 self.server_url = pending.url;
-                self.account_form = AccountForm::default();
                 self.add_account_open = false;
-                self.switch_account(ctx, saved);
+                self.switch_account(saved);
             }
             Err(error) => self.account_error = Some(error),
         }
     }
 
-    fn show_account_onboarding(&mut self, ui: &mut egui::Ui) {
-        self.poll_account_request(ui.ctx());
-        let mut action = None;
-        let mut add_account = false;
-        egui::CentralPanel::default().show_inside(ui, |ui| {
-            onboarding_column(ui, |ui| {
-                ui.add_space(36.0);
-                ui.heading("Block Editor");
-                ui.weak("Choose an account to continue.");
-                ui.add_space(20.0);
-
-                for account in &self.accounts {
-                    if let Some(chosen) = show_account_card(ui, account) {
-                        action = Some(chosen);
-                    }
-                    ui.add_space(8.0);
-                }
-                if self.accounts.is_empty() {
-                    onboarding_card(ui, |ui| {
-                        ui.weak("No accounts yet. Add one to get started.");
-                    });
-                    ui.add_space(8.0);
-                }
-
-                add_account = ui
-                    .add_sized(
-                        [ui.available_width(), 30.0],
-                        egui::Button::new(format!("{} Add account", ICON_ADD.codepoint)),
-                    )
-                    .clicked();
-
-                if !self.add_account_open
-                    && let Some(error) = &self.account_error
-                {
-                    ui.add_space(12.0);
-                    ui.colored_label(ui.visuals().error_fg_color, error);
-                }
-                ui.add_space(24.0);
-            });
-        });
-
-        if add_account {
-            self.account_form = AccountForm::default();
-            self.account_error = None;
-            self.add_account_open = true;
-        }
-        match action {
-            Some(AccountAction::Open(account)) => self.open_account(ui.ctx(), account, false),
-            Some(AccountAction::ChooseWorkspace(account)) => {
-                self.open_account(ui.ctx(), account, true);
-            }
-            Some(AccountAction::LogOut(account)) => self.log_out_account(&account),
-            None => {}
-        }
-        self.show_add_account(ui.ctx());
-    }
-
-    fn open_account(&mut self, ctx: &egui::Context, mut account: Account, choose_workspace: bool) {
+    fn open_account(&mut self, mut account: Account, choose_workspace: bool) {
         if choose_workspace {
             account.last_workspace_id = None;
             if let Err(error) = self.app_state.set_last_workspace(&account, None) {
                 self.account_error = Some(error.to_string());
             }
         }
-        self.switch_account(ctx, account);
+        self.switch_account(account);
     }
 
     fn log_out_account(&mut self, account: &Account) {
@@ -581,9 +524,7 @@ impl BlockApp {
         };
         let token = account.token.clone();
         let _ = platform::spawn_request(async move {
-            if let Ok(client) = ManagementClient::new(url) {
-                let _ = client.logout(token).await;
-            }
+            let _ = accounts::logout(url, token).await;
         });
 
         if let Err(error) = self.app_state.remove_account(account) {
@@ -597,148 +538,34 @@ impl BlockApp {
         }
     }
 
-    fn show_add_account(&mut self, ctx: &egui::Context) {
-        if !self.add_account_open {
-            return;
-        }
-        let mut close = false;
-        let pending = self.pending_account_request.is_some();
-        let ready = !pending
-            && !self.account_form.email.trim().is_empty()
-            && !self.account_form.password.is_empty()
-            && (!self.account_form.register || !self.account_form.display_name.trim().is_empty());
-        let response = egui::Modal::new(egui::Id::new("add-account")).show(ctx, |ui| {
-            ui.set_width(320.0);
-            ui.heading("Add account");
-            ui.add_space(12.0);
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.account_form.register, false, "Log in");
-                ui.selectable_value(&mut self.account_form.register, true, "Register");
-            });
-            ui.add_space(12.0);
-            ui.label("Server");
-
-            if platform::HAS_EMBEDDED_SERVER {
-                ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.account_form.remote, false, "Local");
-                    ui.selectable_value(&mut self.account_form.remote, true, "Remote");
-                });
-            }
-            if self.account_form.remote {
-                ui.add_space(4.0);
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.account_form.remote_url)
-                        .hint_text("https://example.com")
-                        .desired_width(f32::INFINITY),
-                );
-            }
-            ui.add_space(12.0);
-            ui.label("Email address");
-            ui.add(
-                egui::TextEdit::singleline(&mut self.account_form.email)
-                    .hint_text("you@example.com")
-                    .desired_width(f32::INFINITY),
-            );
-            if self.account_form.register {
-                ui.add_space(12.0);
-                ui.label("Display name");
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.account_form.display_name)
-                        .desired_width(f32::INFINITY),
-                );
-            }
-            ui.add_space(12.0);
-            ui.label("Password");
-            ui.add(
-                egui::TextEdit::singleline(&mut self.account_form.password)
-                    .password(true)
-                    .desired_width(f32::INFINITY),
-            );
-            if let Some(error) = &self.account_error {
-                ui.add_space(8.0);
-                ui.colored_label(ui.visuals().error_fg_color, error);
-            }
-            ui.add_space(16.0);
-            let mut submit = false;
-            egui::Sides::new().show(
-                ui,
-                |ui| {
-                    if pending {
-                        ui.spinner();
-                        ui.weak("Contacting server\u{2026}");
-                    }
-                },
-                |ui| {
-                    submit = ui
-                        .add_enabled(
-                            ready,
-                            egui::Button::new(if self.account_form.register {
-                                "Register"
-                            } else {
-                                "Log in"
-                            })
-                            .selected(ready),
-                        )
-                        .clicked();
-                    close |= ui.button("Cancel").clicked();
-                },
-            );
-            submit
-        });
-        if response.inner {
-            self.begin_account_request();
-            return;
-        }
-        if close || response.should_close() {
-            self.add_account_open = false;
-            self.pending_account_request = None;
-            self.account_error = None;
-        }
-    }
-
     fn begin_workspace_request(&mut self, operation: WorkspaceOperation) {
         if self.pending_workspace_request.is_some() {
             return;
         }
-        let client = match ManagementClient::new(self.server_url.clone()) {
-            Ok(client) => client,
-            Err(error) => {
-                self.workspace_error = Some(error.to_string());
-                if matches!(operation, WorkspaceOperation::Load) {
-                    self.workspaces_load_failed = true;
-                }
-                return;
-            }
-        };
+        let url = self.server_url.clone();
         let token = self.account.token.clone();
         let receiver = platform::spawn_request(async move {
             match operation {
                 WorkspaceOperation::Load => {
-                    let workspaces = client
-                        .list_workspaces(&token)
+                    accounts::workspaces(url, token)
                         .await
-                        .map_err(WorkspaceRequestError::from)?;
-                    let invitations = client
-                        .list_invitations(&token)
-                        .await
-                        .map_err(WorkspaceRequestError::from)?;
-                    Ok(WorkspaceResult::Loaded(workspaces, invitations))
+                        .map(|(workspaces, invitations)| {
+                            WorkspaceResult::Loaded(workspaces, invitations)
+                        })
                 }
-                WorkspaceOperation::Create(name) => client
-                    .create_workspace(&token, name)
+                WorkspaceOperation::Create(name) => accounts::create_workspace(url, token, name)
                     .await
-                    .map(WorkspaceResult::Created)
-                    .map_err(WorkspaceRequestError::from),
-                WorkspaceOperation::Respond(invitation_id, accept) => client
-                    .respond_invitation(&token, invitation_id, accept)
-                    .await
-                    .map(|()| WorkspaceResult::Responded)
-                    .map_err(WorkspaceRequestError::from),
-                WorkspaceOperation::Invite(workspace_id, email, role) => client
-                    .invite(&token, workspace_id, email, role)
-                    .await
-                    .map(|_| WorkspaceResult::Invited)
-                    .map_err(WorkspaceRequestError::from),
+                    .map(WorkspaceResult::Created),
+                WorkspaceOperation::Respond(invitation, accept) => {
+                    accounts::respond_invitation(url, token, invitation, accept)
+                        .await
+                        .map(|()| WorkspaceResult::Responded)
+                }
+                WorkspaceOperation::Invite(workspace, email, role) => {
+                    accounts::invite(url, token, workspace, email, role)
+                        .await
+                        .map(|()| WorkspaceResult::Invited)
+                }
             }
         });
         self.workspace_error = None;
@@ -751,6 +578,9 @@ impl BlockApp {
             .as_ref()
             .and_then(|receiver| receiver.try_recv().ok());
         let Some(result) = result else {
+            if self.pending_workspace_request.is_some() {
+                host::request_repaint_after(Duration::from_millis(100));
+            }
             return;
         };
         self.pending_workspace_request = None;
@@ -772,7 +602,7 @@ impl BlockApp {
             }
             Ok(WorkspaceResult::Created(workspace)) => {
                 self.workspaces.push(workspace.clone());
-                self.workspace_name.clear();
+                self.workspace_created += 1;
                 self.open_workspace(workspace);
             }
             Ok(WorkspaceResult::Responded) => {
@@ -781,7 +611,7 @@ impl BlockApp {
                 self.begin_workspace_request(WorkspaceOperation::Load);
             }
             Ok(WorkspaceResult::Invited) => {
-                self.invite_email.clear();
+                self.invite_sent += 1;
                 self.invite_open = false;
             }
             Err(error) if error.invalid_token => self.begin_reauth(),
@@ -800,17 +630,16 @@ impl BlockApp {
         }
         self.reauth = Some(ReauthState {
             account: self.account.clone(),
-            password: String::new(),
             pending: None,
             error: None,
         });
     }
 
-    fn begin_reauth_request(&mut self) {
+    fn begin_reauth_request(&mut self, password: String) {
         let Some(reauth) = &self.reauth else {
             return;
         };
-        if reauth.pending.is_some() {
+        if reauth.pending.is_some() || password.is_empty() {
             return;
         }
         let url = match &reauth.account.server {
@@ -818,17 +647,8 @@ impl BlockApp {
             ServerLocation::Remote(url) => url.clone(),
         };
         let email = reauth.account.email.clone();
-        let password = reauth.password.clone();
-        let client = match ManagementClient::new(url) {
-            Ok(client) => client,
-            Err(error) => {
-                self.reauth.as_mut().unwrap().error = Some(error.to_string());
-                return;
-            }
-        };
         let receiver = platform::spawn_request(async move {
-            client
-                .login(email, password)
+            accounts::login(url, email, password)
                 .await
                 .map_err(|error| error.to_string())
         });
@@ -844,6 +664,13 @@ impl BlockApp {
             .and_then(|reauth| reauth.pending.as_ref())
             .and_then(|receiver| receiver.try_recv().ok());
         let Some(result) = result else {
+            if self
+                .reauth
+                .as_ref()
+                .is_some_and(|reauth| reauth.pending.is_some())
+            {
+                host::request_repaint_after(Duration::from_millis(100));
+            }
             return;
         };
         let Some(mut reauth) = self.reauth.take() else {
@@ -853,9 +680,9 @@ impl BlockApp {
         match result {
             Ok(session) => {
                 let mut updated = reauth.account.clone();
-                updated.id = session.account.id;
-                updated.email = session.account.email;
-                updated.name = session.account.display_name;
+                updated.id = session.account;
+                updated.email = session.email;
+                updated.name = session.display_name;
                 updated.token = session.token;
                 if let Err(error) = self.app_state.save_account(&updated) {
                     reauth.error = Some(error.to_string());
@@ -884,85 +711,16 @@ impl BlockApp {
         }
     }
 
-    fn show_reauth(&mut self, ctx: &egui::Context) {
-        self.poll_reauth_request();
-        let Some(reauth) = &mut self.reauth else {
-            return;
-        };
-        let busy = reauth.pending.is_some();
-        let ready = !busy && !reauth.password.is_empty();
-        let mut submit = false;
-        let mut log_out = false;
-        let mut close = false;
-        let response = egui::Modal::new(egui::Id::new("reauth")).show(ctx, |ui| {
-            ui.set_width(320.0);
-            egui::Sides::new().show(
-                ui,
-                |ui| {
-                    ui.heading("Session expired");
-                },
-                |ui| {
-                    close = ui.button(ICON_CLOSE).on_hover_text("Close").clicked();
-                },
-            );
-            ui.add_space(8.0);
-            ui.label(format!(
-                "Your session for {} is no longer valid. Enter your password to sign in again, \
-                 or close this to switch accounts.",
-                reauth.account.email
-            ));
-            ui.add_space(12.0);
-            ui.label("Password");
-            let response = ui.add(
-                egui::TextEdit::singleline(&mut reauth.password)
-                    .password(true)
-                    .desired_width(f32::INFINITY),
-            );
-            let submitted_via_enter =
-                response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
-            if let Some(error) = &reauth.error {
-                ui.add_space(8.0);
-                ui.colored_label(ui.visuals().error_fg_color, error);
-            }
-            ui.add_space(16.0);
-            egui::Sides::new().show(
-                ui,
-                |ui| {
-                    if busy {
-                        ui.spinner();
-                        ui.weak("Signing in\u{2026}");
-                    }
-                },
-                |ui| {
-                    submit = ui
-                        .add_enabled(ready, egui::Button::new("Sign in").selected(ready))
-                        .clicked()
-                        || (ready && submitted_via_enter);
-                    log_out = ui
-                        .add_enabled(!busy, egui::Button::new("Log out"))
-                        .clicked();
-                },
-            );
-        });
-        if submit {
-            self.begin_reauth_request();
-        }
-        if log_out && let Some(account) = self.reauth.take().map(|reauth| reauth.account) {
-            self.log_out_account(&account);
-        }
-        if close || response.should_close() {
-            self.reauth = None;
-            self.signed_in = false;
-            if let Err(error) = self.app_state.clear_active_account() {
-                self.account_error = Some(error.to_string());
-            }
+    fn close_reauth(&mut self) {
+        self.reauth = None;
+        self.signed_in = false;
+        if let Err(error) = self.app_state.clear_active_account() {
+            self.account_error = Some(error.to_string());
         }
     }
 
     fn open_workspace(&mut self, workspace: Workspace) {
         be::stop();
-        let client = Arc::new(BlockClient::new(self.account.id, workspace.id));
-        client.connect(self.server_url.clone(), self.account.token.clone());
         self.block_types.clear();
         self.registry = EditorRegistry::new();
         self.editors.clear();
@@ -973,12 +731,11 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.dynamic_artifact_unlink = None;
         self.share = ShareDialog::default();
-        self.root_settings = RootSettings::new(&client);
-        self.file_tree = RootSetting::new(&client);
-        self.workspace_ui = RootSetting::new(&client);
+        self.root_settings = RootSettings::default();
+        self.file_tree = RootSetting::default();
+        self.workspace_ui = RootSetting::default();
         self.shell = None;
         self.ui_settings = None;
-        self.client = client;
         self.workspace = Some(workspace.clone());
         self.account.last_workspace_id = Some(workspace.id);
         if let Some(saved) = self
@@ -996,7 +753,7 @@ impl BlockApp {
         }
     }
 
-    fn show_workspace_onboarding(&mut self, ui: &mut egui::Ui) {
+    fn load_workspaces_if_needed(&mut self) {
         if !self.workspaces_loaded
             && !self.workspaces_load_failed
             && self.pending_workspace_request.is_none()
@@ -1005,316 +762,25 @@ impl BlockApp {
             self.begin_workspace_request(WorkspaceOperation::Load);
         }
         self.poll_workspace_request();
-        let busy = self.pending_workspace_request.is_some();
-        let can_create = !busy && !self.workspace_name.trim().is_empty();
-        let mut open_workspace = None;
-        let mut respond = None;
-        let mut create = false;
-        let mut refresh = false;
-        let mut retry = false;
-        let mut switch_account = false;
-        let mut log_out = false;
-        egui::CentralPanel::default().show_inside(ui, |ui| {
-            onboarding_column(ui, |ui| {
-                ui.add_space(36.0);
-                egui::Sides::new().shrink_left().show(
-                    ui,
-                    |ui| {
-                        ui.heading("Workspaces");
-                    },
-                    |ui| {
-                        ui.menu_button(ICON_MORE_HORIZ, |ui| {
-                            if ui
-                                .button(format!("{} Log out", ICON_LOGOUT.codepoint))
-                                .clicked()
-                            {
-                                log_out = true;
-                                ui.close();
-                            }
-                        })
-                        .response
-                        .on_hover_text("Account options");
-                        refresh = ui
-                            .add_enabled(!busy, egui::Button::new(ICON_REFRESH))
-                            .on_hover_text("Reload workspaces")
-                            .clicked();
-                    },
-                );
-                ui.add_space(12.0);
-
-                onboarding_card(ui, |ui| {
-                    egui::Sides::new().shrink_left().show(
-                        ui,
-                        |ui| {
-                            ui.vertical(|ui| {
-                                account_name(ui, &self.account);
-                                account_details(ui, &self.account);
-                            });
-                        },
-                        |ui| {
-                            switch_account = ui
-                                .button(format!("{} Switch account", ICON_SWITCH_ACCOUNT.codepoint))
-                                .clicked();
-                        },
-                    );
-                });
-
-                ui.add_space(20.0);
-                ui.strong("Open a workspace");
-                ui.add_space(6.0);
-                for workspace in &self.workspaces {
-                    if ui
-                        .add_sized(
-                            [ui.available_width(), 32.0],
-                            egui::Button::new(format!(
-                                "{} {}",
-                                ICON_WORKSPACES.codepoint, workspace.name
-                            ))
-                            .right_text(ICON_CHEVRON_RIGHT)
-                            .truncate(),
-                        )
-                        .clicked()
-                    {
-                        open_workspace = Some(workspace.clone());
-                    }
-                    ui.add_space(4.0);
-                }
-                if self.workspaces.is_empty() {
-                    onboarding_card(ui, |ui| {
-                        if self.workspaces_loaded {
-                            ui.weak("You do not have any workspaces yet. Create one below.");
-                        } else if self.workspaces_load_failed {
-                            ui.horizontal(|ui| {
-                                ui.weak("Could not load workspaces.");
-                                retry = ui.button("Retry").clicked();
-                            });
-                        } else {
-                            ui.horizontal(|ui| {
-                                ui.spinner();
-                                ui.weak("Loading workspaces\u{2026}");
-                            });
-                        }
-                    });
-                }
-
-                if !self.invitations.is_empty() {
-                    ui.add_space(20.0);
-                    ui.strong(format!("{} Invitations", ICON_GROUP_ADD.codepoint));
-                    ui.add_space(6.0);
-                    for invitation in &self.invitations {
-                        onboarding_card(ui, |ui| {
-                            egui::Sides::new().shrink_left().show(
-                                ui,
-                                |ui| {
-                                    ui.vertical(|ui| {
-                                        ui.add(
-                                            egui::Label::new(
-                                                egui::RichText::new(
-                                                    invitation.workspace_name.as_str(),
-                                                )
-                                                .strong(),
-                                            )
-                                            .truncate(),
-                                        );
-                                        ui.small(format!(
-                                            "Invited as {}",
-                                            invitation.role.label().to_lowercase()
-                                        ));
-                                    });
-                                },
-                                |ui| {
-                                    if ui
-                                        .add_enabled(
-                                            !busy,
-                                            egui::Button::new("Accept").selected(!busy),
-                                        )
-                                        .clicked()
-                                    {
-                                        respond = Some((invitation.id, true));
-                                    }
-                                    if ui
-                                        .add_enabled(!busy, egui::Button::new("Decline"))
-                                        .clicked()
-                                    {
-                                        respond = Some((invitation.id, false));
-                                    }
-                                },
-                            );
-                        });
-                        ui.add_space(4.0);
-                    }
-                }
-
-                ui.add_space(20.0);
-                ui.strong("Create a workspace");
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    let button_width = 76.0;
-                    let field_width =
-                        (ui.available_width() - button_width - ui.spacing().item_spacing.x)
-                            .max(80.0);
-                    let response = ui.add_sized(
-                        [field_width, 26.0],
-                        egui::TextEdit::singleline(&mut self.workspace_name)
-                            .hint_text("Workspace name"),
-                    );
-                    let submitted = response.lost_focus()
-                        && ui.input(|input| input.key_pressed(egui::Key::Enter));
-                    let clicked = ui
-                        .add_enabled_ui(can_create, |ui| {
-                            ui.add_sized(
-                                [button_width, 26.0],
-                                egui::Button::new("Create").selected(can_create),
-                            )
-                            .clicked()
-                        })
-                        .inner;
-                    create = can_create && (clicked || submitted);
-                });
-
-                if let Some(error) = &self.workspace_error {
-                    ui.add_space(12.0);
-                    ui.colored_label(ui.visuals().error_fg_color, error);
-                }
-                ui.add_space(24.0);
-            });
-        });
-
-        if let Some(workspace) = open_workspace {
-            self.open_workspace(workspace);
-        }
-        if let Some((invitation, accept)) = respond {
-            self.begin_workspace_request(WorkspaceOperation::Respond(invitation, accept));
-        }
-        if create {
-            self.begin_workspace_request(WorkspaceOperation::Create(self.workspace_name.clone()));
-        }
-        if refresh {
-            self.workspaces_loaded = false;
-            self.workspaces_load_failed = false;
-            self.begin_workspace_request(WorkspaceOperation::Load);
-        }
-        if retry {
-            self.workspaces_load_failed = false;
-            self.begin_workspace_request(WorkspaceOperation::Load);
-        }
-        if switch_account {
-            self.signed_in = false;
-            if let Err(error) = self.app_state.clear_active_account() {
-                self.account_error = Some(error.to_string());
-            }
-        }
-        if log_out {
-            let account = self.account.clone();
-            self.log_out_account(&account);
-        }
-    }
-
-    fn show_invite(&mut self, ctx: &egui::Context) {
-        if !self.invite_open {
-            return;
-        }
-        let Some(workspace) = self.workspace.clone() else {
-            return;
-        };
-        let mut open = self.invite_open;
-        egui::Window::new("Invite member")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
-                ui.label(format!("Workspace: {}", workspace.name));
-                ui.label("Email address");
-                ui.text_edit_singleline(&mut self.invite_email);
-                ui.add_space(8.0);
-                ui.label("Role");
-                ui.horizontal(|ui| {
-                    ui.selectable_value(
-                        &mut self.invite_role,
-                        WorkspaceRole::Editor,
-                        WorkspaceRole::Editor.label(),
-                    );
-                    ui.selectable_value(
-                        &mut self.invite_role,
-                        WorkspaceRole::Administrator,
-                        WorkspaceRole::Administrator.label(),
-                    );
-                });
-                ui.small(match self.invite_role {
-                    WorkspaceRole::Administrator => "Can open every block in the workspace.",
-                    WorkspaceRole::Editor => {
-                        "Can only open blocks they create or are given access to."
-                    }
-                });
-                ui.add_space(8.0);
-                if ui
-                    .add_enabled(
-                        !self.invite_email.trim().is_empty()
-                            && self.pending_workspace_request.is_none(),
-                        egui::Button::new("Send invitation"),
-                    )
-                    .clicked()
-                {
-                    self.begin_workspace_request(WorkspaceOperation::Invite(
-                        workspace.id,
-                        self.invite_email.clone(),
-                        self.invite_role,
-                    ));
-                }
-                if let Some(error) = &self.workspace_error {
-                    ui.colored_label(ui.visuals().error_fg_color, error);
-                }
-            });
-        self.invite_open = open;
-    }
-
-    fn show_about(&mut self, ctx: &egui::Context) {
-        if !self.about_open {
-            return;
-        }
-        let mut open = self.about_open;
-        egui::Window::new("About")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
-                ui.strong("Block");
-                ui.add_space(8.0);
-                egui::Grid::new("about-build")
-                    .num_columns(2)
-                    .show(ui, |ui| {
-                        ui.label("Version");
-                        ui.monospace(env!("CARGO_PKG_VERSION"));
-                        ui.end_row();
-                        ui.label("Commit");
-
-                        ui.add(
-                            egui::Label::new(egui::RichText::new(COMMIT).monospace())
-                                .selectable(true),
-                        );
-                        ui.end_row();
-                    });
-            });
-        self.about_open = open;
     }
 
     fn request_account_switch(&mut self, account: Account) {
         if account == self.account {
             return;
         }
-        if self.client.network_debug_snapshot().changes_saved {
+        if be::status().unsealed == 0 {
             self.scheduled_account_switch = Some(account);
         } else {
             self.pending_destructive_action = Some(PendingDestructiveAction::Switch(account));
         }
     }
 
-    fn switch_account(&mut self, ctx: &egui::Context, account: Account) {
+    fn switch_account(&mut self, account: Account) {
         let server_url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
-        let client = Arc::new(BlockClient::new(account.id, Uuid::nil()));
+        be::stop();
         self.block_types.clear();
         self.registry = EditorRegistry::new();
         self.editors.clear();
@@ -1327,8 +793,7 @@ impl BlockApp {
         self.pending_transfers.clear();
         self.rename = None;
         self.share = ShareDialog::default();
-        self.client_debug_open = false;
-        self.network_debug_open = false;
+        debug::close_client_windows();
         self.about_open = false;
         self.pending_destructive_action = None;
         self.scheduled_account_switch = None;
@@ -1342,99 +807,52 @@ impl BlockApp {
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
-        self.root_settings = RootSettings::new(&client);
-        self.file_tree = RootSetting::new(&client);
-        self.workspace_ui = RootSetting::new(&client);
+        self.root_settings = RootSettings::default();
+        self.file_tree = RootSetting::default();
+        self.workspace_ui = RootSetting::default();
         self.shell = None;
         self.ui_settings = None;
-        self.client = client;
         self.account = account;
         self.server_url = server_url;
         self.signed_in = true;
         if let Err(error) = self.app_state.set_active_account(&self.account) {
             self.account_error = Some(error.to_string());
         }
-        ctx.memory_mut(|memory| *memory = Default::default());
+        host::clear_focus();
     }
 
-    fn intercept_close(&mut self, ctx: &egui::Context) {
-        if !ctx.input(|input| input.viewport().close_requested()) {
-            return;
-        }
+    fn close_requested(&mut self) -> bool {
         be::flush();
-        if self.allow_close {
-            return;
+        if self.allow_close || be::status().unsealed == 0 {
+            return true;
         }
-        if self.client.network_debug_snapshot().changes_saved {
-            return;
-        }
-        ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
+        host::request_repaint();
+        false
     }
 
-    fn show_discard_confirmation(&mut self, ctx: &egui::Context) {
-        let Some(action) = self.pending_destructive_action.clone() else {
+    fn discard(&mut self, context: &beui::Context) {
+        let Some(action) = self.pending_destructive_action.take() else {
             return;
         };
-        let mut discard = false;
-        let mut cancel = false;
-        let (title, message, button) = match action {
-            PendingDestructiveAction::Switch(ref account) => (
-                "Discard unsaved changes?",
-                format!(
-                    "Switching to {} will discard changes that have not reached the server.",
-                    account.name
-                ),
-                "Discard and switch",
-            ),
-            PendingDestructiveAction::ChooseWorkspace => (
-                "Discard unsaved changes?",
-                "Switching workspaces will discard changes that have not reached the server."
-                    .into(),
-                "Discard and switch",
-            ),
-            PendingDestructiveAction::Close => (
-                "Discard unsaved changes?",
-                "Closing Block Editor will discard changes that have not reached the server."
-                    .into(),
-                "Discard and close",
-            ),
-        };
-        egui::Window::new(title)
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-            .show(ctx, |ui| {
-                ui.label(message);
-                ui.horizontal(|ui| {
-                    discard = ui.button(button).clicked();
-                    cancel = ui.button("Cancel").clicked();
-                });
-            });
-        if discard {
-            self.pending_destructive_action = None;
-            match action {
-                PendingDestructiveAction::Switch(account) => {
-                    self.scheduled_account_switch = Some(account);
-                }
-                PendingDestructiveAction::ChooseWorkspace => {
-                    self.scheduled_workspace_list = true;
-                }
-                PendingDestructiveAction::Close => {
-                    self.allow_close = true;
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
+        match action {
+            PendingDestructiveAction::Switch(account) => {
+                self.scheduled_account_switch = Some(account);
             }
-        } else if cancel {
-            self.pending_destructive_action = None;
+            PendingDestructiveAction::ChooseWorkspace => {
+                self.scheduled_workspace_list = true;
+            }
+            PendingDestructiveAction::Close => {
+                self.allow_close = true;
+                context.close_window();
+            }
         }
     }
 
     fn block_type_of(&self, id: Uuid) -> Option<Uuid> {
         self.block_types.get(&id).copied().or_else(|| {
-            self.client
-                .cached_block(id)
-                .map(|cached| cached.block_type)
+            be::node(id)
+                .map(|node| node.content_type)
                 .or_else(|| self.editors.get(&id).map(|editor| editor.block_type()))
         })
     }
@@ -1447,8 +865,7 @@ impl BlockApp {
             return false;
         };
         self.block_types.insert(id, block_type);
-        self.editors
-            .insert(id, self.registry.open(&self.client, id, block_type));
+        self.editors.insert(id, self.registry.open(id, block_type));
         true
     }
 
@@ -1469,17 +886,13 @@ impl BlockApp {
             child,
             source: None,
             destination: Some(parent),
-            parent_after: (!linked).then_some(BlockParent::Uuid(parent)),
+            parent_after: (!linked).then_some(BlockParent::Block(parent)),
             stage: TransferStage::AddDestination,
         });
     }
 
     fn set_block_parent(&mut self, id: Uuid, parent: BlockParent) {
-        if let Some(editor) = self.editors.get(&id) {
-            editor.set_parent(parent);
-        } else {
-            self.client.set_block_parent(id, parent);
-        }
+        be::set_parent(id, parent);
     }
 
     fn queue_move(
@@ -1509,7 +922,7 @@ impl BlockApp {
             child,
             source: Some(source),
             destination: Some(destination),
-            parent_after: (!is_reference).then_some(BlockParent::Uuid(destination)),
+            parent_after: (!is_reference).then_some(BlockParent::Block(destination)),
             stage: TransferStage::DeleteSource,
         });
     }
@@ -1541,7 +954,7 @@ impl BlockApp {
             source: Some(source),
             destination: None,
             parent_after: (!is_reference && source != SidebarDragSource::Root)
-                .then_some(BlockParent::Orphaned),
+                .then_some(BlockParent::Detached),
             stage: TransferStage::DeleteSource,
         });
     }
@@ -1553,14 +966,13 @@ impl BlockApp {
                 let ready = match transfer.source {
                     None | Some(SidebarDragSource::Orphaned) => Some(true),
                     Some(SidebarDragSource::Root) => {
-                        self.client
-                            .set_block_parent(transfer.child, BlockParent::Orphaned);
+                        be::set_parent(transfer.child, BlockParent::Detached);
                         Some(true)
                     }
                     Some(SidebarDragSource::Block(source)) => self
                         .editors
                         .get(&source)
-                        .and_then(|editor| editor.delete_child(BlockEntry { id: transfer.child })),
+                        .and_then(|editor| editor.delete_child(transfer.child)),
                 };
                 if ready != Some(true) {
                     self.pending_transfers.push(transfer);
@@ -1572,7 +984,7 @@ impl BlockApp {
             let ready = transfer.destination.map_or(Some(true), |destination| {
                 self.editors
                     .get(&destination)
-                    .and_then(|editor| editor.add_child(BlockEntry { id: transfer.child }))
+                    .and_then(|editor| editor.add_child(transfer.child))
             });
             if ready != Some(true) {
                 self.pending_transfers.push(transfer);
@@ -1610,18 +1022,10 @@ impl BlockApp {
                     self.pending_copies.push(copy);
                     continue;
                 }
-                let Some((copy_id, block_type)) =
-                    self.editors.get(&copy.source).and_then(|editor| {
-                        editor
-                            .block()
-                            .duplicate(&self.client)
-                            .map(|copy_id| (copy_id, editor.block_type()))
-                    })
-                else {
+                let Some((copy_id, block_type)) = be::duplicate(copy.source) else {
                     self.pending_copies.push(copy);
                     continue;
                 };
-                be::duplicate(copy.source, copy_id, block_type);
                 copy.stage = CopyStage::Replace {
                     copy_id,
                     block_type,
@@ -1642,22 +1046,22 @@ impl BlockApp {
             let replaced = self
                 .editors
                 .get(&copy.container)
-                .and_then(|editor| editor.replace_child(copy.source, BlockEntry { id: copy_id }));
+                .and_then(|editor| editor.replace_child(copy.source, copy_id));
             if replaced != Some(true) {
                 self.pending_copies.push(copy);
                 continue;
             }
 
-            self.set_block_parent(copy_id, BlockParent::Uuid(copy.container));
-            self.show_in_shell(copy_id, block_type, Some(copy.container), Some(copy.source));
+            self.set_block_parent(copy_id, BlockParent::Block(copy.container));
+            self.show_in_shell(copy_id, block_type, Some(copy.container));
         }
     }
 
-    fn editor_access_ceiling(&self, id: Uuid) -> BlockAccess {
-        editors::editor_access_ceiling(&self.client, id)
+    fn editor_access_ceiling(&self, id: Uuid) -> Access {
+        editors::editor_access_ceiling(id)
     }
 
-    fn editor_access(&self, id: Uuid) -> BlockAccess {
+    fn editor_access(&self, id: Uuid) -> Access {
         let ceiling = self.editor_access_ceiling(id);
         self.editor_access
             .get(&id)
@@ -1675,74 +1079,25 @@ impl BlockApp {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
-        self.file_tree.ensure(&self.client, self.client_id);
-        let id = self
-            .workspace_ui
-            .ensure(&self.client, self.client_id)
-            .map(BlockHandle::id)?;
-        self.block_types.insert(id, WorkspaceUi::TYPE_ID);
+        self.file_tree.ensure(self.client_id);
+        let id = self.workspace_ui.ensure(self.client_id)?;
+        self.block_types
+            .insert(id, WorkspaceUiContent::CONTENT_TYPE);
         if !self.editors.contains_key(&id) {
-            let editor = self.registry.open(&self.client, id, WorkspaceUi::TYPE_ID);
+            let editor = self.registry.open(id, WorkspaceUiContent::CONTENT_TYPE);
             self.editors.insert(id, editor);
         }
         self.shell = Some(id);
         Some(id)
     }
 
-    fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>, from: Option<Uuid>) {
+    fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.block_types.insert(id, block_type);
         let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) else {
             return;
         };
-        shell.show_block(id, block_type, via, from);
+        shell.show_block(id, block_type, via);
     }
-
-    fn show_shell(&mut self, ui: &mut egui::Ui) {
-        let Some(shell) = self.ensure_shell() else {
-            ui.centered_and_justified(|ui| {
-                ui.spinner();
-            });
-            return;
-        };
-        for editor in self.editors.values_mut() {
-            editor.set_tab_active(false);
-        }
-        let Some(mut editor) = self.editors.remove(&shell) else {
-            return;
-        };
-        editor.set_tab_active(true);
-        let access = self.editor_access(shell);
-        let action = {
-            let mut editors = EditorAccess::new(
-                shell,
-                access,
-                &self.client,
-                self.client_id,
-                &self.registry,
-                &mut self.editors,
-                &self.editor_access,
-            );
-            direct_editor_tab_ui(&mut editor, ui, &mut editors)
-        };
-        let focus = editor.take_focus_report();
-        let watch = editor.take_artifact_watch();
-        self.editors.insert(shell, editor);
-        if let Some(focus) = focus {
-            plugin_host::set_focus(focus.block, focus.via);
-        }
-        if let Some(watch) = watch {
-            self.watch_artifacts(watch);
-        }
-        for (id, editor) in self.editors.iter_mut() {
-            if *id != shell {
-                editor.finish_frame();
-            }
-        }
-        if let Some(action) = action {
-            self.handle_editor_action(ui.ctx(), action);
-        }
-    }
-
     fn close_editor(&mut self, id: Uuid) {
         if self.shell == Some(id) {
             return;
@@ -1770,14 +1125,11 @@ impl BlockApp {
     fn act_on_artifact(&mut self, id: Uuid, action: ArtifactAction) {
         match action {
             ArtifactAction::Regenerate => {
-                let data = self
-                    .client
-                    .dynamic_artifact(id)
-                    .map(|descriptor| descriptor.data);
+                let data = artifact_of(id).map(|artifact| artifact.data);
                 if let (Some(data), Some(session)) =
                     (data, self.dynamic_artifact_sessions.get_mut(&id))
                 {
-                    session.regenerate(&self.client, &data);
+                    session.regenerate(&data);
                     self.dynamic_artifact_errors.remove(&id);
                 }
             }
@@ -1786,11 +1138,56 @@ impl BlockApp {
         }
     }
 
-    fn poll_artifacts(&mut self, ui: &mut egui::Ui) {
+    fn show_shell(&mut self) {
+        let Some(shell) = self.ensure_shell() else {
+            return;
+        };
+        for editor in self.editors.values_mut() {
+            editor.set_tab_active(false);
+        }
+        let Some(mut editor) = self.editors.remove(&shell) else {
+            return;
+        };
+        editor.set_tab_active(true);
+        let access = self.editor_access(shell);
+        let action = {
+            let mut editors = EditorAccess::new(
+                shell,
+                access,
+                self.client_id,
+                &self.registry,
+                &mut self.editors,
+                &self.editor_access,
+            );
+            surfaces::with(SurfaceId::Main, |ui| {
+                direct_editor_tab_ui(&mut editor, ui, &mut editors)
+            })
+            .flatten()
+        };
+        let focus = editor.take_focus_report();
+        let watch = editor.take_artifact_watch();
+        self.editors.insert(shell, editor);
+        if let Some(focus) = focus {
+            plugin_host::set_focus(focus.block, focus.via);
+        }
+        if let Some(watch) = watch {
+            self.watch_artifacts(watch);
+        }
+        for (id, editor) in self.editors.iter_mut() {
+            if *id != shell {
+                editor.finish_frame();
+            }
+        }
+        if let Some(action) = action {
+            self.handle_editor_action(action);
+        }
+    }
+
+    fn poll_artifacts(&mut self) {
         let watched = self.watched_artifacts.clone();
         let mut states = Vec::new();
         for id in watched {
-            let Some(descriptor) = self.client.dynamic_artifact(id) else {
+            let Some(descriptor) = artifact_of(id) else {
                 self.dynamic_artifact_sessions.remove(&id);
                 self.forget_dynamic_artifact_dialogs(id);
                 continue;
@@ -1809,9 +1206,9 @@ impl BlockApp {
                     Err(error) => unsupported = Some(error),
                 }
             }
-            let status = session.as_mut().map(|session| {
-                session.poll(ui.ctx(), &self.registry, &self.client, &descriptor.data)
-            });
+            let status = session
+                .as_mut()
+                .map(|session| session.poll(&self.registry, &descriptor.data));
             if let Some(outcome) = session.as_mut().and_then(|session| session.take_outcome()) {
                 match outcome {
                     Ok(()) => {
@@ -1846,7 +1243,7 @@ impl BlockApp {
             let described = matches!(status, Some(ArtifactStatus::Described { .. }));
             if let Some(session) = session {
                 if session.regenerating() {
-                    ui.ctx().request_repaint();
+                    host::request_repaint();
                 }
                 self.dynamic_artifact_sessions.insert(id, session);
             }
@@ -1858,131 +1255,101 @@ impl BlockApp {
         if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
             shell.set_artifact_states(states);
         }
-        self.show_artifact_dialogs(ui);
+        self.show_artifact_settings();
     }
 
-    fn show_artifact_dialogs(&mut self, ui: &mut egui::Ui) {
-        if let Some(id) = self.dynamic_artifact_settings_open {
-            let descriptor = self.client.dynamic_artifact(id);
-            let mut session = self.dynamic_artifact_sessions.remove(&id);
-            let mut draft = self.dynamic_artifact_settings.remove(&id);
-            if let (Some(descriptor), Some(session)) = (&descriptor, session.as_mut()) {
-                match self.show_dynamic_artifact_settings(
-                    ui,
-                    descriptor,
-                    session.as_mut(),
-                    &mut draft,
-                ) {
-                    ModalOutcome::Open => {}
-                    ModalOutcome::Accepted(data) => {
-                        self.client.set_dynamic_artifact(
-                            id,
-                            DynamicArtifactDescriptor {
-                                source_type: descriptor.source_type,
-                                data: data.clone(),
-                            },
-                        );
-                        session.regenerate(&self.client, &data);
-                        self.dynamic_artifact_errors.remove(&id);
-                        draft = None;
-                        self.dynamic_artifact_settings_open = None;
-                    }
-                    ModalOutcome::Dismissed => {
-                        session.cancel_settings();
-                        draft = None;
-                        self.dynamic_artifact_settings_open = None;
-                    }
-                }
-            } else {
-                self.dynamic_artifact_settings_open = None;
-            }
-            if let Some(session) = session {
-                self.dynamic_artifact_sessions.insert(id, session);
-            }
-            if let Some(draft) = draft {
-                self.dynamic_artifact_settings.insert(id, draft);
-            }
+    fn show_artifact_settings(&mut self) {
+        let Some(id) = self.dynamic_artifact_settings_open else {
+            surfaces::set_height(SurfaceId::ArtifactSettings, None);
+            return;
+        };
+        let descriptor = artifact_of(id);
+        let (Some(descriptor), Some(mut session)) =
+            (descriptor, self.dynamic_artifact_sessions.remove(&id))
+        else {
+            self.dynamic_artifact_settings_open = None;
+            return;
+        };
+        let draft = self
+            .dynamic_artifact_settings
+            .entry(id)
+            .or_insert_with(|| descriptor.data.clone());
+        surfaces::set_height(SurfaceId::ArtifactSettings, Some(session.settings_height()));
+        let registry = &self.registry;
+        surfaces::with(SurfaceId::ArtifactSettings, |ui| {
+            session.settings_ui(ui, registry, draft);
+        });
+        self.dynamic_artifact_sessions.insert(id, session);
+    }
+
+    fn apply_artifact_settings(&mut self) {
+        let Some(id) = self.dynamic_artifact_settings_open else {
+            return;
+        };
+        let Some(descriptor) = artifact_of(id) else {
+            self.dynamic_artifact_settings_open = None;
+            return;
+        };
+        let Some(data) = self.dynamic_artifact_settings.remove(&id) else {
+            return;
+        };
+        set_artifact(
+            id,
+            Some(be_block::ArtifactSource {
+                source_type: descriptor.source_type,
+                data: data.clone(),
+            }),
+        );
+        if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
+            session.regenerate(&data);
         }
-        if let Some(id) = self.dynamic_artifact_unlink {
-            match show_dynamic_artifact_unlink(ui.ctx()) {
-                ModalOutcome::Open => {}
-                ModalOutcome::Accepted(()) => {
-                    self.client.clear_dynamic_artifact(id);
-                    self.dynamic_artifact_errors.remove(&id);
-                    self.forget_dynamic_artifact_dialogs(id);
-                }
-                ModalOutcome::Dismissed => self.dynamic_artifact_unlink = None,
-            }
+        self.dynamic_artifact_errors.remove(&id);
+        self.dynamic_artifact_settings_open = None;
+    }
+
+    fn cancel_artifact_settings(&mut self) {
+        let Some(id) = self.dynamic_artifact_settings_open.take() else {
+            return;
+        };
+        self.dynamic_artifact_settings.remove(&id);
+        if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
+            session.cancel_settings();
         }
     }
 
-    fn show_dynamic_artifact_settings(
-        &self,
-        ui: &mut egui::Ui,
-        descriptor: &DynamicArtifactDescriptor,
-        session: &mut dyn ArtifactSession,
-        draft: &mut Option<Vec<u8>>,
-    ) -> ModalOutcome<Vec<u8>> {
-        let mut outcome = ModalOutcome::Open;
-        let response =
-            egui::Modal::new(egui::Id::new("dynamic-artifact-settings")).show(ui.ctx(), |ui| {
-                ui.set_width(320.0);
-                ui.heading("Dynamic artifact settings");
-                ui.add_space(12.0);
-                let data = draft.get_or_insert_with(|| descriptor.data.clone());
-                session.settings_ui(ui, &self.registry, &self.client, data);
-                if let Some(summary) = session.summary(data) {
-                    ui.add_space(12.0);
-                    ui.weak(summary);
-                }
-                ui.add_space(16.0);
-                ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(*data != descriptor.data, egui::Button::new("Apply"))
-                        .on_disabled_hover_text("The settings are unchanged")
-                        .clicked()
-                    {
-                        outcome = ModalOutcome::Accepted(data.clone());
-                    }
-                    if ui.button("Cancel").clicked() {
-                        outcome = ModalOutcome::Dismissed;
-                    }
-                });
-            });
-        if matches!(outcome, ModalOutcome::Open) && response.should_close() {
-            outcome = ModalOutcome::Dismissed;
-        }
-        outcome
+    fn unlink_artifact(&mut self) {
+        let Some(id) = self.dynamic_artifact_unlink else {
+            return;
+        };
+        set_artifact(id, None);
+        self.dynamic_artifact_errors.remove(&id);
+        self.forget_dynamic_artifact_dialogs(id);
     }
 
-    fn handle_editor_action(&mut self, context: &egui::Context, action: EditorAction) {
+    fn handle_editor_action(&mut self, action: EditorAction) {
         match action {
             EditorAction::OpenBlock {
                 id,
                 block_type,
                 via,
-                from,
-            } => self.show_in_shell(id, block_type, via, from),
+            } => self.show_in_shell(id, block_type, via),
             EditorAction::DragBlock { id, block_type } => {
-                egui::DragAndDrop::set_payload(
-                    context,
-                    SidebarDragPayload {
-                        block_id: id,
-                        block_type,
-                    },
-                );
+                host::start_drag(host::DragPayload {
+                    block_id: id,
+                    block_type,
+                });
             }
             EditorAction::Command { id, command } => self.handle_block_command(id, command),
         }
     }
 
     fn block_label(&self, id: Uuid) -> BlockLabel {
-        self.client.cached_block(id).map_or_else(
+        be::node(id).map_or_else(
             || {
                 let block_type = self.block_type_of(id).unwrap_or_default();
-                BlockLabel::new(&self.registry, block_type, None)
+                BlockLabel::new(&self.registry, block_type, None, false)
             },
-            |cached| BlockLabel::for_cached(&self.registry, &cached),
+            |node| BlockLabel::for_node(&self.registry, &node),
         )
     }
 
@@ -1990,12 +1357,15 @@ impl BlockApp {
         match command {
             BlockCommand::Share => {
                 let label = self.block_label(id);
-                self.share.open(&self.client, id, label);
+                self.share.open(id, label);
             }
             BlockCommand::Rename => {
                 let name = self.block_label(id).name;
                 self.rename = Some(RenameState { id, name });
             }
+            BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
+            BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
+            BlockCommand::Undo | BlockCommand::Redo => {}
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -2003,12 +1373,12 @@ impl BlockApp {
             BlockCommand::CloseEditor => self.close_editor(id),
             BlockCommand::SimulateAccess { access } => {
                 let access = match access {
-                    AccessLevel::None => BlockAccess::None,
-                    AccessLevel::KnowExists => BlockAccess::KnowExists,
-                    AccessLevel::View => BlockAccess::View,
-                    AccessLevel::Edit => BlockAccess::Edit,
+                    AccessLevel::None => Access::None,
+                    AccessLevel::KnowExists => Access::KnowExists,
+                    AccessLevel::View => Access::View,
+                    AccessLevel::Edit => Access::Edit,
                 };
-                match access == BlockAccess::Edit {
+                match access == Access::Edit {
                     true => self.editor_access.remove(&id),
                     false => self.editor_access.insert(id, access),
                 };
@@ -2048,193 +1418,15 @@ impl BlockApp {
         }
     }
 
-    fn show_rename(&mut self, ui: &mut egui::Ui) {
-        let Some(rename) = &mut self.rename else {
-            return;
-        };
-        let mut submit = false;
-        let mut cancel = false;
-        egui::Window::new("Rename block")
-            .collapsible(false)
-            .resizable(false)
-            .show(ui.ctx(), |ui| {
-                let response = ui.text_edit_singleline(&mut rename.name);
-                let valid = rename.name.len() <= MAX_NAME_BYTES;
-                if !valid {
-                    ui.colored_label(
-                        ui.visuals().error_fg_color,
-                        format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes."),
-                    );
-                }
-                ui.horizontal(|ui| {
-                    submit = ui.add_enabled(valid, egui::Button::new("Rename")).clicked()
-                        || (valid
-                            && response.lost_focus()
-                            && ui.input(|input| input.key_pressed(egui::Key::Enter)));
-                    cancel = ui.button("Cancel").clicked();
-                });
-            });
-        if submit {
-            let rename = self.rename.take().unwrap();
-            self.client.set_block_name(rename.id, rename.name);
-        } else if cancel {
-            self.rename = None;
-        }
-    }
-}
-
-enum ModalOutcome<T> {
-    Open,
-    Accepted(T),
-    Dismissed,
-}
-
-fn show_dynamic_artifact_unlink(ctx: &egui::Context) -> ModalOutcome<()> {
-    let mut outcome = ModalOutcome::Open;
-    let response = egui::Modal::new(egui::Id::new("dynamic-artifact-unlink")).show(ctx, |ui| {
-        ui.set_width(360.0);
-        ui.heading("Unlink from the source block?");
-        ui.add_space(12.0);
-        ui.label("This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable.");
-        ui.label("The link and its settings cannot be restored.");
-        ui.add_space(16.0);
-        ui.horizontal(|ui| {
-            if ui.button("Unlink").clicked() {
-                outcome = ModalOutcome::Accepted(());
-            }
-            if ui.button("Cancel").clicked() {
-                outcome = ModalOutcome::Dismissed;
-            }
-        });
-    });
-    if matches!(outcome, ModalOutcome::Open) && response.should_close() {
-        outcome = ModalOutcome::Dismissed;
-    }
-    outcome
-}
-
-enum AccountAction {
-    Open(Account),
-    ChooseWorkspace(Account),
-    LogOut(Account),
-}
-
-fn onboarding_column<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            let width = ONBOARDING_WIDTH.min(ui.available_width());
-            let margin = ((ui.available_width() - width) / 2.0).max(0.0);
-            ui.horizontal_top(|ui| {
-                ui.add_space(margin);
-                ui.allocate_ui_with_layout(
-                    egui::vec2(width, 0.0),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        ui.set_width(width);
-                        add_contents(ui)
-                    },
-                )
-                .inner
-            })
-            .inner
-        })
-        .inner
-}
-
-fn onboarding_card<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    egui::Frame::group(ui.style())
-        .fill(ui.visuals().faint_bg_color)
-        .inner_margin(egui::Margin::symmetric(12, 10))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            add_contents(ui)
-        })
-        .inner
-}
-
-fn account_name(ui: &mut egui::Ui, account: &Account) {
-    ui.add(egui::Label::new(egui::RichText::new(account.name.as_str()).strong()).truncate());
-}
-
-fn account_details(ui: &mut egui::Ui, account: &Account) {
-    ui.add(egui::Label::new(egui::RichText::new(account.email.as_str()).small()).truncate());
-    let server = match &account.server {
-        ServerLocation::Local => format!("{} Local server", ICON_COMPUTER.codepoint),
-        ServerLocation::Remote(url) => format!("{} {url}", ICON_CLOUD.codepoint),
-    };
-    ui.add(egui::Label::new(egui::RichText::new(server).small().weak()).truncate());
-}
-
-fn show_account_card(ui: &mut egui::Ui, account: &Account) -> Option<AccountAction> {
-    let mut log_out = false;
-    let mut open = false;
-    let mut choose_workspace = false;
-    onboarding_card(ui, |ui| {
-        egui::Sides::new().shrink_left().show(
-            ui,
-            |ui| account_name(ui, account),
-            |ui| {
-                ui.menu_button(ICON_MORE_HORIZ, |ui| {
-                    if ui
-                        .button(format!("{} Log out", ICON_LOGOUT.codepoint))
-                        .clicked()
-                    {
-                        log_out = true;
-                        ui.close();
-                    }
-                })
-                .response
-                .on_hover_text("Account options");
-            },
-        );
-        account_details(ui, account);
-        ui.add_space(8.0);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
-            choose_workspace = ui
-                .add(egui::Button::new(ICON_KEYBOARD_ARROW_DOWN).selected(true))
-                .on_hover_text("Open a different workspace")
-                .clicked();
-            open = ui
-                .add(egui::Button::new("Open").selected(true))
-                .on_hover_text(match account.last_workspace_id {
-                    Some(_) => "Open the last workspace used",
-                    None => "Choose a workspace",
-                })
-                .clicked();
-        });
-    });
-    if log_out {
-        Some(AccountAction::LogOut(account.clone()))
-    } else if choose_workspace {
-        Some(AccountAction::ChooseWorkspace(account.clone()))
-    } else if open {
-        Some(AccountAction::Open(account.clone()))
-    } else {
-        None
-    }
-}
-
-fn drag_source(location: BlockLocation) -> SidebarDragSource {
-    match location {
-        BlockLocation::Root => SidebarDragSource::Root,
-        BlockLocation::Orphaned => SidebarDragSource::Orphaned,
-        BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
-    }
-}
-
-impl eframe::App for BlockApp {
-    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+    fn frame(&mut self, context: &beui::Context) {
         if self.error.is_none() {
             self.error = panic_guard::take();
         }
-        if let Some(message) = self.error.clone() {
-            self.show_error_window(ui, &message);
+        if self.error.is_some() {
             return;
         }
         let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.run_frame(ui, frame);
+            self.run_frame(context);
         }));
         if caught.is_err() {
             self.error =
@@ -2242,20 +1434,13 @@ impl eframe::App for BlockApp {
         }
     }
 
-    fn on_exit(&mut self) {
-        block_client::shut_down_clients();
-    }
-}
-
-impl BlockApp {
-    fn run_frame(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-        performance::begin_frame(ui.ctx());
-        plugin_host::poll(ui.ctx(), frame);
+    fn run_frame(&mut self, context: &beui::Context) {
+        performance::begin_frame();
+        plugin_host::poll();
         if !self.signed_in {
             be::stop();
-            self.show_account_onboarding(ui);
+            self.poll_account_request();
             performance::end_frame();
-            ui.ctx().request_repaint_after(Duration::from_millis(100));
             return;
         }
         if self.scheduled_workspace_list {
@@ -2263,53 +1448,33 @@ impl BlockApp {
             let mut account = self.account.clone();
             account.last_workspace_id = None;
             let _ = self.app_state.set_last_workspace(&account, None);
-            self.switch_account(ui.ctx(), account);
+            self.switch_account(account);
         }
         if let Some(account) = self.scheduled_account_switch.take() {
-            self.switch_account(ui.ctx(), account);
+            self.switch_account(account);
         }
         if self.workspace.is_none() {
             be::stop();
-            self.show_workspace_onboarding(ui);
-            self.show_reauth(ui.ctx());
+            self.load_workspaces_if_needed();
+            self.poll_reauth_request();
             performance::end_frame();
-            ui.ctx().request_repaint_after(Duration::from_millis(100));
             return;
         }
-        self.sync_ui_settings(ui.ctx());
-        self.sync_be_stack(ui.ctx());
+        self.sync_ui_settings(context);
+        self.sync_be_stack();
         self.poll_workspace_request();
-        self.show_reauth(ui.ctx());
-        self.intercept_close(ui.ctx());
+        self.poll_reauth_request();
         self.process_pending_transfers();
         self.process_pending_copies();
-        self.show_rename(ui);
-        self.share.show(ui.ctx(), &self.client);
-        self.show_client_debug(ui.ctx());
-        self.show_network_debug(ui.ctx());
-        #[cfg(feature = "terminal")]
-        debug::terminal::show(ui.ctx());
-        debug::inspect::show(ui.ctx());
-        debug::plugins::show(ui.ctx());
-        debug::version::show(ui.ctx());
-        self.show_invite(ui.ctx());
-        self.show_about(ui.ctx());
-
-        egui::Panel::bottom("app-status-bar")
-            .resizable(false)
-            .show_inside(ui, |ui| {
-                ui.separator();
-                self.show_status_bar(ui);
-            });
-        self.show_shell(ui);
-        self.poll_artifacts(ui);
-        self.show_discard_confirmation(ui.ctx());
-        performance::show(ui.ctx());
+        self.share.poll();
+        debug::poll();
+        self.show_shell();
+        self.poll_artifacts();
         plugin_host::flush();
         performance::end_frame();
     }
 
-    fn sync_be_stack(&mut self, context: &egui::Context) {
+    fn sync_be_stack(&mut self) {
         let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) else {
             return;
         };
@@ -2323,23 +1488,19 @@ impl BlockApp {
             workspace,
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
-            context: context.clone(),
         });
     }
 
-    fn sync_ui_settings(&mut self, context: &egui::Context) {
+    fn sync_ui_settings(&mut self, context: &beui::Context) {
         if self.ui_settings.is_none() {
-            let Some(root_settings) = self.root_settings.find(&self.client) else {
+            let Some(root_settings) = self.root_settings.find() else {
                 context.set_zoom_factor(1.0);
                 return;
             };
-            let Some(settings) = root_settings.read() else {
+            let Some(settings) = root_settings::settings(root_settings) else {
                 return;
             };
-            let Some(id) = settings
-                .resolve(UiSettings::TYPE_ID, self.client_id)
-                .and_then(|reference| reference.as_direct())
-            else {
+            let Some(id) = settings.resolve(UiSettingsContent::CONTENT_TYPE, self.client_id) else {
                 context.set_zoom_factor(1.0);
                 return;
             };
@@ -2348,100 +1509,270 @@ impl BlockApp {
         let Some(id) = self.ui_settings else {
             return;
         };
-        be::hold(id, UiSettings::TYPE_ID);
+        be::hold(id, UiSettingsContent::CONTENT_TYPE);
         let settings = be::content(id).and_then(|content| {
             <be_block::UiSettingsContent as be_block::BlockContent>::decode(&content.bytes).ok()
         });
         if let Some(settings) = settings {
-            context.set_zoom_factor(settings.zoom());
+            context.set_zoom_factor(settings.root().zoom());
         }
     }
 
-    fn show_error_window(&mut self, ui: &mut egui::Ui, message: &str) {
-        let mut restart = false;
-        let mut delete_client_database = false;
-        #[cfg(not(target_arch = "wasm32"))]
-        let mut delete_server_database = false;
-        egui::CentralPanel::default().show_inside(ui, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(40.0);
-                ui.heading("Something went wrong");
-                ui.add_space(12.0);
-                egui::ScrollArea::vertical()
-                    .max_height(240.0)
-                    .show(ui, |ui| {
-                        ui.label(message);
-                    });
-                ui.add_space(20.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Restart").clicked() {
-                        restart = true;
-                    }
-                    if ui.button("Delete client database...").clicked() {
-                        self.pending_error_action = Some(ErrorAction::DeleteClientDatabase);
-                    }
-                    #[cfg(not(target_arch = "wasm32"))]
-                    if ui.button("Delete local server database...").clicked() {
-                        self.pending_error_action = Some(ErrorAction::DeleteServerDatabase);
-                    }
-                    if ui.button("Exit").clicked() {
-                        std::process::exit(1);
-                    }
-                });
-            });
-        });
-        if let Some(action) = self.pending_error_action.clone() {
-            let (title, confirmation) = match action {
-                ErrorAction::DeleteClientDatabase => (
-                    "Delete client database?",
-                    "This removes every saved account on this device. You will need to sign in again.",
-                ),
+    fn command(&mut self, context: &beui::Context, command: UiCommand) {
+        match command {
+            UiCommand::Restart => self.restart(),
+            UiCommand::AskErrorAction(action) => self.pending_error_action = Some(action),
+            UiCommand::CancelErrorAction => self.pending_error_action = None,
+            UiCommand::ConfirmErrorAction => match self.pending_error_action.take() {
+                Some(ErrorAction::DeleteClientDatabase) => self.delete_client_database(),
                 #[cfg(not(target_arch = "wasm32"))]
-                ErrorAction::DeleteServerDatabase => (
-                    "Delete local server database?",
-                    "This permanently deletes every workspace and block stored on this device's local server.",
-                ),
-            };
-            egui::Window::new(title)
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                .show(ui.ctx(), |ui| {
-                    ui.label(confirmation);
-                    ui.horizontal(|ui| {
-                        if ui.button("Delete").clicked() {
-                            self.pending_error_action = None;
-                            match action {
-                                ErrorAction::DeleteClientDatabase => {
-                                    delete_client_database = true;
-                                }
-                                #[cfg(not(target_arch = "wasm32"))]
-                                ErrorAction::DeleteServerDatabase => {
-                                    delete_server_database = true;
-                                }
-                            }
-                        }
-                        if ui.button("Cancel").clicked() {
-                            self.pending_error_action = None;
-                        }
-                    });
-                });
+                Some(ErrorAction::DeleteServerDatabase) => self.delete_server_database(),
+                None => {}
+            },
+            UiCommand::Exit => std::process::exit(1),
+            UiCommand::OpenAccount(key) => {
+                if let Some(account) = self.account_by_key(&key) {
+                    self.open_account(account, false);
+                }
+            }
+            UiCommand::ChooseWorkspace(key) => {
+                if let Some(account) = self.account_by_key(&key) {
+                    self.open_account(account, true);
+                }
+            }
+            UiCommand::LogOut(key) => {
+                if let Some(account) = self.account_by_key(&key) {
+                    self.log_out_account(&account);
+                }
+            }
+            UiCommand::OpenAddAccount => {
+                self.account_error = None;
+                self.add_account_open = true;
+                self.add_account_generation += 1;
+            }
+            UiCommand::SubmitAccount(form) => {
+                if self.pending_account_request.is_none() {
+                    self.begin_account_request(form);
+                }
+            }
+            UiCommand::CloseAddAccount => {
+                self.add_account_open = false;
+                self.pending_account_request = None;
+                self.account_error = None;
+            }
+            UiCommand::ReloadWorkspaces => {
+                self.workspaces_loaded = false;
+                self.workspaces_load_failed = false;
+                self.begin_workspace_request(WorkspaceOperation::Load);
+            }
+            UiCommand::OpenWorkspace(id) => {
+                if let Some(workspace) = self
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.id == id)
+                    .cloned()
+                {
+                    self.open_workspace(workspace);
+                }
+            }
+            UiCommand::RespondInvitation(id, accept) => {
+                self.begin_workspace_request(WorkspaceOperation::Respond(id, accept));
+            }
+            UiCommand::CreateWorkspace(name) => {
+                if !name.trim().is_empty() {
+                    self.begin_workspace_request(WorkspaceOperation::Create(name));
+                }
+            }
+            UiCommand::SwitchAccount | UiCommand::ManageAccounts => {
+                self.signed_in = false;
+                if let Err(error) = self.app_state.clear_active_account() {
+                    self.account_error = Some(error.to_string());
+                }
+            }
+            UiCommand::LogOutCurrent => {
+                let account = self.account.clone();
+                self.log_out_account(&account);
+            }
+            UiCommand::ReauthSubmit(password) => self.begin_reauth_request(password),
+            UiCommand::ReauthLogOut => {
+                if let Some(account) = self.reauth.take().map(|reauth| reauth.account) {
+                    self.log_out_account(&account);
+                }
+                self.close_reauth();
+            }
+            UiCommand::ReauthClose => self.close_reauth(),
+            UiCommand::OpenSettings => self.open_settings(),
+            UiCommand::OpenInspector => self.inspector_requested = Some(true),
+            UiCommand::InviteMember => self.invite_open = true,
+            UiCommand::SwitchWorkspace => {
+                if be::status().unsealed == 0 {
+                    self.scheduled_workspace_list = true;
+                } else {
+                    self.pending_destructive_action =
+                        Some(PendingDestructiveAction::ChooseWorkspace);
+                }
+            }
+            UiCommand::SwitchTo(key) => {
+                if let Some(account) = self.account_by_key(&key) {
+                    self.request_account_switch(account);
+                }
+            }
+            UiCommand::About(open) => self.about_open = open,
+            UiCommand::SendInvite(email, role) => {
+                if let Some(workspace) = &self.workspace
+                    && !email.trim().is_empty()
+                {
+                    let id = workspace.id;
+                    self.begin_workspace_request(WorkspaceOperation::Invite(id, email, role));
+                }
+            }
+            UiCommand::CloseInvite => self.invite_open = false,
+            UiCommand::Discard => self.discard(context),
+            UiCommand::CancelDiscard => self.pending_destructive_action = None,
+            UiCommand::SubmitRename(name) => {
+                if name.len() <= MAX_NAME_BYTES
+                    && let Some(rename) = self.rename.take()
+                {
+                    let name = name.trim().to_owned();
+                    be::set_name(rename.id, (!name.is_empty()).then_some(name));
+                }
+            }
+            UiCommand::CancelRename => self.rename = None,
+            UiCommand::ApplyArtifactSettings => self.apply_artifact_settings(),
+            UiCommand::CancelArtifactSettings => self.cancel_artifact_settings(),
+            UiCommand::Unlink => self.unlink_artifact(),
+            UiCommand::CancelUnlink => self.dynamic_artifact_unlink = None,
+            UiCommand::Share(command) => self.share.command(command),
+            UiCommand::Picker(command) => block_picker::deliver(command),
+            UiCommand::Debug(command) => debug::command(command),
         }
-        if delete_client_database {
-            self.delete_client_database();
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        if delete_server_database {
-            self.delete_server_database();
-        }
-        if restart {
-            self.restart();
+    }
+
+    fn view(&self) -> AppView {
+        let screen = match (&self.error, self.signed_in, &self.workspace) {
+            (Some(_), _, _) => ui::Screen::Error,
+            (None, false, _) => ui::Screen::Accounts,
+            (None, true, None) => ui::Screen::Workspaces,
+            (None, true, Some(_)) => ui::Screen::Workspace,
+        };
+        let changes_saved = match screen {
+            ui::Screen::Workspace => be::status().unsealed == 0,
+            _ => true,
+        };
+        let accounts: Vec<_> = self
+            .accounts
+            .iter()
+            .map(|account| {
+                ui::AccountRow::of(
+                    account,
+                    account.server == self.account.server && account.id == self.account.id,
+                )
+            })
+            .collect();
+        let workspace_name = self
+            .workspace
+            .as_ref()
+            .map(|workspace| workspace.name.clone())
+            .unwrap_or_default();
+        AppView {
+            screen,
+            error: ui::ErrorView {
+                message: self.error.clone().unwrap_or_default(),
+                pending: self.pending_error_action,
+            },
+            accounts: accounts.clone(),
+            account_error: self.account_error.clone(),
+            add_account: ui::AddAccountView {
+                open: self.add_account_open,
+                generation: self.add_account_generation,
+                pending: self.pending_account_request.is_some(),
+                error: self
+                    .add_account_open
+                    .then(|| self.account_error.clone())
+                    .flatten(),
+            },
+            account: ui::AccountRow::of(&self.account, true),
+            workspaces: ui::WorkspacesView {
+                state: match (self.workspaces_loaded, self.workspaces_load_failed) {
+                    (true, _) => ui::WorkspacesState::Loaded,
+                    (false, true) => ui::WorkspacesState::Failed,
+                    (false, false) => ui::WorkspacesState::Loading,
+                },
+                workspaces: self
+                    .workspaces
+                    .iter()
+                    .map(|workspace| (workspace.id, workspace.name.clone()))
+                    .collect(),
+                invitations: self
+                    .invitations
+                    .iter()
+                    .map(|invitation| ui::InvitationRow {
+                        id: invitation.id,
+                        workspace: invitation.workspace_name.clone(),
+                        role: invitation.role.label().to_lowercase(),
+                    })
+                    .collect(),
+                busy: self.pending_workspace_request.is_some(),
+                error: self.workspace_error.clone(),
+                created: self.workspace_created,
+            },
+            reauth: self.reauth.as_ref().map(|reauth| ui::ReauthView {
+                email: reauth.account.email.clone(),
+                busy: reauth.pending.is_some(),
+                error: reauth.error.clone(),
+            }),
+            status: ui::StatusView {
+                changes_saved,
+                frame: performance::last_frame()
+                    .map(|frame| {
+                        format!(
+                            "Frame {}: {:.3} ms",
+                            frame.number,
+                            frame.duration.as_secs_f64() * 1_000.0
+                        )
+                    })
+                    .unwrap_or_default(),
+                workspace: workspace_name.clone(),
+                signed_in_as: format!("Signed in as {}", self.account.name),
+                accounts,
+            },
+            invite: self.invite_open.then(|| ui::InviteView {
+                workspace: workspace_name,
+                busy: self.pending_workspace_request.is_some(),
+                error: self.workspace_error.clone(),
+                sent: self.invite_sent,
+            }),
+            about: self.about_open,
+            discard: self.pending_destructive_action.as_ref().map(discard_view),
+            rename: self.rename.as_ref().map(|rename| ui::RenameView {
+                id: rename.id,
+                name: rename.name.clone(),
+            }),
+            artifact_settings: self.dynamic_artifact_settings_open.and_then(|id| {
+                let descriptor = artifact_of(id)?;
+                let draft = self.dynamic_artifact_settings.get(&id);
+                let session = self.dynamic_artifact_sessions.get(&id);
+                Some(ui::ArtifactSettingsView {
+                    id,
+                    changed: draft.is_some_and(|draft| *draft != descriptor.data),
+                    summary: session
+                        .zip(draft)
+                        .and_then(|(session, draft)| session.summary(draft)),
+                })
+            }),
+            unlink: self.dynamic_artifact_unlink.is_some(),
+            share: self.share.view(),
+            picker: block_picker::view(),
+            presenting: surfaces::handle(SurfaceId::Presenting)
+                .shown()
+                .get_untracked(),
+            debug: debug::view(),
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     fn restart(&mut self) {
-        block_client::shut_down_clients();
+        be::stop();
         match Self::new(Some(self.data_dir.clone())) {
             Ok(fresh) => *self = fresh,
             Err(error) => self.error = Some(error.to_string()),
@@ -2450,7 +1781,7 @@ impl BlockApp {
 
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
-        block_client::shut_down_clients();
+        be::stop();
         match Self::new() {
             Ok(fresh) => *self = fresh,
             Err(error) => self.error = Some(error.to_string()),
@@ -2480,7 +1811,7 @@ impl BlockApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn delete_server_database(&mut self) {
-        block_client::shut_down_clients();
+        be::stop();
         self.embedded_server = None;
         let path = self.data_dir.join("server");
         if let Err(error) = std::fs::remove_dir_all(&path)
@@ -2490,5 +1821,52 @@ impl BlockApp {
             return;
         }
         self.restart();
+    }
+}
+
+fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
+    let (message, button) = match action {
+        PendingDestructiveAction::Switch(account) => (
+            format!(
+                "Switching to {} will discard changes that have not reached the server.",
+                account.name
+            ),
+            "Discard and switch",
+        ),
+        PendingDestructiveAction::ChooseWorkspace => (
+            "Switching workspaces will discard changes that have not reached the server."
+                .to_owned(),
+            "Discard and switch",
+        ),
+        PendingDestructiveAction::Close => (
+            "Closing Block Editor will discard changes that have not reached the server."
+                .to_owned(),
+            "Discard and close",
+        ),
+    };
+    ui::DiscardView {
+        title: "Discard unsaved changes?".to_owned(),
+        message,
+        button: button.to_owned(),
+    }
+}
+
+fn artifact_of(id: Uuid) -> Option<be_block::ArtifactSource> {
+    be::node(id)?.metadata.artifact
+}
+
+fn set_artifact(id: Uuid, artifact: Option<be_block::ArtifactSource>) {
+    let Some(mut metadata) = be::node(id).map(|node| node.metadata) else {
+        return;
+    };
+    metadata.artifact = artifact;
+    be::set_metadata(id, metadata);
+}
+
+fn drag_source(location: BlockLocation) -> SidebarDragSource {
+    match location {
+        BlockLocation::Root => SidebarDragSource::Root,
+        BlockLocation::Detached => SidebarDragSource::Orphaned,
+        BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
 }

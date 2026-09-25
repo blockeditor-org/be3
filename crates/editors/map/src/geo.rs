@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use block_client::blocks::map::{MAX_LATITUDE, MapCoordinate, MapRegion};
+use block_editor_plugin::be_block::map::{MAX_LATITUDE, MapCoordinate, MapRegion};
 use block_editor_plugin::beui::{Pos2, Rect, Vec2};
 
 #[derive(Clone, Copy)]

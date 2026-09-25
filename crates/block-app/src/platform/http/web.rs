@@ -3,8 +3,10 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
+type Outcome = Rc<RefCell<Option<Result<Vec<u8>, String>>>>;
+
 pub(crate) struct Fetch {
-    state: Rc<RefCell<Option<Result<Vec<u8>, String>>>>,
+    state: Outcome,
 }
 
 impl Fetch {

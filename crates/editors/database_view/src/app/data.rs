@@ -2,19 +2,18 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block::BlockReferenceList;
-use block_client::ReferenceList;
-use block_client::block_ref::BlockRef;
-use block_client::blocks::database::{Database, DatabaseOperation, DatabaseRow, DatabaseValue};
-use block_client::blocks::database_schema::{DatabaseField, DatabaseSchema};
-use block_client::blocks::database_view::{
-    DatabaseView, DatabaseViewKind, DatabaseViewOperation, DatabaseViewSort,
+use block_editor_plugin::BlockList;
+use block_editor_plugin::BlockQuery;
+use block_editor_plugin::be_block::Edit;
+use block_editor_plugin::be_block::database::{DatabaseContent, DatabaseRow, DatabaseValue};
+use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseSchemaContent};
+use block_editor_plugin::be_block::database_view::{
+    DatabaseViewContent, DatabaseViewKind, DatabaseViewSort,
 };
-use block_client::references::{ReferenceClassificationQueue, ReferenceResolutionCache};
 use block_editor_plugin::beui::reactive::{Memo, WriteSignal, clone, create_memo, create_signal};
 use block_editor_plugin::block_ui::BlockLabel;
 use block_editor_plugin::block_ui::database::DatabaseBlockPickRequest;
-use block_editor_plugin::{BlockFilter, BlockProjection, Editor, RelatedBlock};
+use block_editor_plugin::{BlockFilter, ContentProjection, Editor, RelatedContent};
 use uuid::Uuid;
 
 use crate::sort::BlockLabels;
@@ -27,12 +26,12 @@ pub struct Selection {
     pub field: Option<Uuid>,
 }
 
-type Pending = Rc<RefCell<ReferenceClassificationQueue<(usize, Uuid)>>>;
+type Pending = Rc<RefCell<Vec<(Uuid, (usize, Uuid))>>>;
 
 pub struct ViewData {
     editor: Editor,
-    view: Rc<BlockProjection<DatabaseView>>,
-    database: Rc<RelatedBlock<Database>>,
+    view: Rc<ContentProjection<DatabaseViewContent>>,
+    database: Rc<RelatedContent<DatabaseContent>>,
     pending: Pending,
     set_selected: WriteSignal<Option<Selection>>,
     set_error: WriteSignal<Option<String>>,
@@ -52,29 +51,34 @@ pub struct ViewData {
 
 impl ViewData {
     pub fn new(editor: &Editor) -> Data {
-        let view = editor.block::<DatabaseView>();
-        let view_id = editor.block_id();
-        let own_id = create_memo(move || Some(view_id));
-        let database_ref = view.project(|view| Some(view.database_id()));
-        let database_id = editor.resolve(own_id, database_ref);
-        let database = editor.related::<Database>(database_id.clone());
-        let schema_ref = database.project(|database| Some(database.schema_id()));
-        let schema_id = editor.resolve(database_id.clone(), schema_ref);
-        let schema = editor.related::<DatabaseSchema>(schema_id.clone());
+        let view = editor.block_content::<DatabaseViewContent>();
+        let database_ref = view.project(|view| view.root().database);
+        let database_id = create_memo(move || database_ref.get());
+        let database = editor.related_content::<DatabaseContent>(database_id.clone());
+        let schema_ref = database.project(|database| database.root().schema);
+        let schema_id = create_memo(move || schema_ref.get());
+        let schema = editor.related_content::<DatabaseSchemaContent>(schema_id.clone());
 
-        let rows = database.project(|database| database.rows().to_vec());
+        let rows = database.project(|database| {
+            database
+                .root()
+                .rows
+                .iter()
+                .map(|row| row.value.clone())
+                .collect::<Vec<DatabaseRow>>()
+        });
         let rows = create_memo(clone!(rows -> move || rows.get()));
-        let fields = schema.project(|schema| schema.fields().to_vec());
+        let fields = schema.project(|schema| schema.root().fields());
         let fields = create_memo(clone!(fields -> move || fields.get()));
-        let kind = view.project(|view| view.kind());
+        let kind = view.project(|view| view.root().kind);
         let kind = create_memo(clone!(kind -> move || kind.get()));
-        let sort = view.project(|view| view.sort());
+        let sort = view.project(|view| view.root().sort);
         let sort = create_memo(clone!(sort -> move || sort.get()));
-        let kanban_field = view.project(|view| view.kanban_field_id());
+        let kanban_field = view.project(|view| view.root().kanban_field);
         let kanban_field = create_memo(clone!(kanban_field -> move || kanban_field.get()));
-        let scatter_x = view.project(|view| view.scatter_x_field_id());
+        let scatter_x = view.project(|view| view.root().scatter_x);
         let scatter_x = create_memo(clone!(scatter_x -> move || scatter_x.get()));
-        let scatter_y = view.project(|view| view.scatter_y_field_id());
+        let scatter_y = view.project(|view| view.root().scatter_y);
         let scatter_y = create_memo(clone!(scatter_y -> move || scatter_y.get()));
         let labels = watch_labels(editor, database_id, rows.clone());
 
@@ -149,16 +153,17 @@ impl ViewData {
         self.set_error.set(None);
     }
 
-    pub fn operate_view(&self, operation: DatabaseViewOperation) {
-        self.view.operate(operation);
+    pub fn operate_view(&self, edit: Edit) {
+        self.view.operate(edit);
     }
 
     pub fn set_cell(&self, row_index: usize, field_id: Uuid, value: Option<DatabaseValue>) {
-        self.database.operate(DatabaseOperation::SetCell {
-            row_index,
-            field_id,
-            value,
-        });
+        if let Some(edit) = self
+            .database
+            .read(|database| database.root().set_cell(row_index, field_id, value))
+        {
+            self.database.operate(edit);
+        }
     }
 
     pub fn pick_value(&self, row: usize, request: DatabaseBlockPickRequest) {
@@ -170,34 +175,23 @@ impl ViewData {
         }) else {
             return;
         };
-        let Some(database_id) = self.database.id() else {
-            return;
-        };
-        let client = self.editor.client().clone();
         let pending = Rc::clone(&self.pending);
         let set_error = self.set_error.clone();
         self.editor.pick_block(
             value_block_filter(&name, request),
             move |picked| match picked {
-                Ok(picked) => pending.borrow_mut().push(
-                    &client,
-                    database_id,
-                    picked.id,
-                    (row, request.field_id),
-                ),
+                Ok(picked) => pending
+                    .borrow_mut()
+                    .push((picked.id, (row, request.field_id))),
                 Err(error) => set_error.set(Some(error)),
             },
         );
     }
 
     fn poll_pending(&self) {
-        let (finished, failed) = self.pending.borrow_mut().poll_with_failures();
+        let finished = std::mem::take(&mut *self.pending.borrow_mut());
         for (reference, (row_index, field_id)) in finished {
             self.set_cell(row_index, field_id, Some(DatabaseValue::Block(reference)));
-        }
-        if !failed.is_empty() {
-            self.set_error
-                .set(Some("Could not classify the selected block".to_owned()));
         }
     }
 }
@@ -221,9 +215,8 @@ fn watch_labels(
     rows: Memo<Vec<DatabaseRow>>,
 ) -> Memo<BlockLabels> {
     let (labels, set_labels) = create_signal(BlockLabels::new());
-    let watched: RefCell<Option<(Uuid, ReferenceList)>> = RefCell::new(None);
-    let cache = RefCell::new(ReferenceResolutionCache::default());
-    let client = editor.client().clone();
+    let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
+    let client = editor.blocks();
     let host = editor.host().clone();
     editor.each_frame(move || {
         let Some(database_id) = database_id.get_untracked() else {
@@ -233,7 +226,7 @@ fn watch_labels(
         if watched.as_ref().is_none_or(|(id, _)| *id != database_id) {
             *watched = Some((
                 database_id,
-                client.watch_references(BlockReferenceList::References(database_id)),
+                client.watch(BlockQuery::References(database_id)),
             ));
         }
         let Some((_, references)) = watched.as_ref() else {
@@ -243,29 +236,19 @@ fn watch_labels(
         let known: HashMap<Uuid, BlockLabel> = references
             .read()
             .into_iter()
-            .map(|reference| {
-                (
-                    reference.id,
-                    BlockLabel::for_reference(types.as_ref(), &reference),
-                )
-            })
+            .map(|reference| (reference.id, reference.label(types.as_ref())))
             .collect();
-        let mut cache = cache.borrow_mut();
-        cache.poll();
         set_labels.set(rows.with_untracked(|rows| {
             row_references(rows)
                 .into_iter()
-                .filter_map(|reference| {
-                    let id = cache.resolve(&client, database_id, reference)?;
-                    Some((reference, known.get(&id)?.clone()))
-                })
+                .filter_map(|reference| Some((reference, known.get(&reference)?.clone())))
                 .collect()
         }));
     });
     create_memo(move || labels.get())
 }
 
-fn row_references(rows: &[DatabaseRow]) -> Vec<BlockRef> {
+fn row_references(rows: &[DatabaseRow]) -> Vec<Uuid> {
     rows.iter()
         .flat_map(|row| row.values().values())
         .filter_map(|value| match value {

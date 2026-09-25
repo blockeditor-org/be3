@@ -1,4 +1,4 @@
-use block_plugin_api::{EditorBand, Message};
+use block_plugin_api::Message;
 
 use crate::{
     Waker,
@@ -21,30 +21,15 @@ pub(crate) struct Runtime {
 }
 
 impl Runtime {
-    pub(crate) fn new<A: crate::App>(
+    pub(crate) fn new<A: crate::BeuiApp>(
         id: &str,
         name: &str,
         version: &str,
-        chrome: Vec<EditorBand>,
         waker: Waker,
     ) -> Self {
-        Self::of(id, name, version, Screens::new::<A>(chrome, waker))
-    }
-
-    pub(crate) fn beui<A: crate::BeuiApp>(
-        id: &str,
-        name: &str,
-        version: &str,
-        chrome: Vec<EditorBand>,
-        waker: Waker,
-    ) -> Self {
-        Self::of(id, name, version, Screens::beui::<A>(chrome, waker))
-    }
-
-    fn of(id: &str, name: &str, version: &str, screens: Screens) -> Self {
         Self {
             session: ClientSession::new(id, name, version),
-            screens,
+            screens: Screens::new::<A>(waker),
             surface: None,
             generation: 0,
             asked: false,
@@ -55,12 +40,7 @@ impl Runtime {
         self.session.hello()
     }
 
-    pub(crate) fn step(
-        &mut self,
-        batch: Vec<Message>,
-        woken: bool,
-        phase: f64,
-    ) -> Result<Step, String> {
+    pub(crate) fn step(&mut self, batch: Vec<Message>, woken: bool) -> Result<Step, String> {
         let mut changed = woken;
         let mut draw = false;
         let mut outbound = Vec::new();
@@ -77,12 +57,11 @@ impl Runtime {
                 });
             }
         }
-        block_client::pump();
         let replaced = self.replace_surface(&mut outbound)?;
         if let Some(surface) = &mut self.surface {
             if draw || replaced {
                 self.asked = false;
-                outbound.extend(surface.render(&mut self.screens, phase)?);
+                outbound.extend(surface.render(&mut self.screens)?);
             } else if changed && !self.asked {
                 self.asked = true;
                 outbound.push(Message::FrameNeeded);

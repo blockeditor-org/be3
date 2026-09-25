@@ -3,13 +3,16 @@ use block_editor_plugin::beui::Vec2;
 
 #[test]
 fn the_intrinsic_size_follows_the_preview_region() {
-    let (mut editor, block) = editor(&[]);
-    block.operate(InfiniteCanvasOperation::SetPreviewRegion {
-        region: Some(CanvasPreviewRegion::new(
-            CanvasPoint::default(),
-            CanvasPoint::new(960.0, 540.0),
-        )),
-    });
+    let mut editor = editor(&[]);
+    apply(
+        &mut editor,
+        InfiniteCanvasOperation::SetPreviewRegion {
+            region: Some(CanvasPreviewRegion::new(
+                CanvasPoint::default(),
+                CanvasPoint::new(960.0, 540.0),
+            )),
+        },
+    );
     editor.run();
 
     assert_eq!(editor.intrinsic_size(), Some(Vec2::new(960.0, 540.0)));

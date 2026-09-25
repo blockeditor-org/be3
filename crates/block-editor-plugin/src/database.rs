@@ -1,5 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
 
+use be_block::database::{DatabaseColor, DatabaseValue};
+use be_block::database_schema::{
+    DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
+};
 use beui::icons::ICON_CLEAR;
 use beui::reactive::{
     Align, Callback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer,
@@ -11,11 +15,6 @@ use beui::styled::{
 };
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
-use block_client::block_ref::BlockRef;
-use block_client::blocks::database::{DatabaseColor, DatabaseValue};
-use block_client::blocks::database_schema::{
-    DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
-};
 use block_ui::BlockLabel;
 use block_ui::database::{
     DatabaseBlockPickRequest, DatabaseValueChange, block_reference_text, field_type_label,
@@ -28,7 +27,7 @@ use crate::DateTimeRow;
 const SPACING: f32 = 6.0;
 const FIELD_SPACING: f32 = 12.0;
 
-pub type ValueLabels = HashMap<BlockRef, BlockLabel>;
+pub type ValueLabels = HashMap<Uuid, BlockLabel>;
 pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 
 #[component]
@@ -602,4 +601,21 @@ fn changer<T: 'static>(
 
 fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
     move |value| callback.call(value)
+}
+
+pub fn create_database(creation: &crate::Creation) -> Uuid {
+    use crate::BlockParent;
+    use be_block::database::{Database, DatabaseContent};
+    use be_block::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
+
+    let blocks = creation.blocks();
+    let mut fields = DatabaseSchemaContent::default();
+    fields.apply(&DatabaseSchema::add_field("Name", DatabaseFieldType::String).1);
+    let schema = blocks.create(&fields, BlockParent::Detached);
+    let database = blocks.create(
+        &DatabaseContent::new(&Database::with_schema(schema)),
+        BlockParent::Detached,
+    );
+    blocks.set_parent(schema, BlockParent::Block(database));
+    database
 }

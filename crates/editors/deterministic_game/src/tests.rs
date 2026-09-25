@@ -1,11 +1,10 @@
-use std::sync::Arc;
+use block_editor_plugin::be_block::BlockContent;
 
-use block::Block as _;
-use block_client::BlockClient;
-use block_client::blocks::deterministic_game::DeterministicGame;
-use block_client::blocks::game_module::GameModule;
+use block_editor_plugin::be_block::{
+    DeterministicGame, DeterministicGameContent, GameModuleContent,
+};
 use block_editor_plugin::{Creation, Editor, EditorHost};
-use block_ui_test::BeuiTest;
+use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 
 use crate::app::{DeterministicGameApp, module_filter};
@@ -15,20 +14,29 @@ mod the_creation_dialog_is_drawn_with_beui;
 mod the_picker_asks_only_for_game_modules;
 
 const ACCOUNT: Uuid = Uuid::from_u128(0x6465_742d_7465_7374_2d61_6363_6f75_6e74);
-const WORKSPACE: Uuid = Uuid::from_u128(0x6465_742d_7465_7374_2d77_6f72_6b73_7061);
 
-fn editor(module: Vec<u8>) -> BeuiTest<DeterministicGameApp> {
-    let client = Arc::new(BlockClient::new(ACCOUNT, WORKSPACE));
-    let module = client.create_block(GameModule::new("game.wasm", module));
-    let block = client.create_block(DeterministicGame::new(module.id()));
+fn editor(module: Vec<u8>) -> ContentHarness<DeterministicGameApp> {
+    let module_block = Uuid::new_v4();
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    host.set_client_id(ACCOUNT);
-    BeuiTest::new(Editor::new(host, client, block.id()))
+    host.set_account_id(ACCOUNT);
+    let editor = BeuiTest::new(Editor::new(host.clone(), block));
+    let mut harness = ContentHarness::new(editor, host);
+    harness.hold(
+        None,
+        DeterministicGameContent::new(&DeterministicGame::of(module_block)),
+    );
+    harness.hold(
+        Some(module_block),
+        GameModuleContent::from_file("game.wasm", module),
+    );
+    harness.run();
+    harness.run();
+    harness
 }
 
 fn creation_editor() -> BeuiTest<DeterministicGameApp> {
-    let client = Arc::new(BlockClient::new(ACCOUNT, WORKSPACE));
     let host = EditorHost::default();
-    BeuiTest::creation(Creation::new(host, client))
+    BeuiTest::creation(Creation::new(host))
 }

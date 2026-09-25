@@ -7,7 +7,7 @@ use accesskit::{Action, ActionRequest, Node as AccessNode, NodeId as AccessNodeI
 
 use crate::context::Context;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, pos2};
+use crate::geometry::{Pos2, Rect};
 use crate::input::{Event, Key, TouchId, TouchPhase};
 use crate::painter::Painter;
 
@@ -58,6 +58,7 @@ pub(crate) struct ScreenReader {
     active: bool,
     items: Vec<Item>,
     cursor: Option<AccessNodeId>,
+    focus: Option<AccessNodeId>,
     spoken: Option<String>,
     reported: Option<(AccessNodeId, String)>,
     live: bool,
@@ -80,6 +81,7 @@ impl Default for ScreenReader {
             active: false,
             items: Vec::new(),
             cursor: None,
+            focus: None,
             spoken: None,
             reported: None,
             live: false,
@@ -122,13 +124,16 @@ impl ScreenReader {
             self.stop();
             return;
         }
-        self.items = collect(target);
+        let (items, focus) = collect(target);
+        self.items = items;
         if !self.active {
             self.active = true;
             self.cursor = None;
+            self.focus = focus;
             self.reported = None;
             self.spoken = None;
         }
+        self.follow(ctx, focus);
         if self.index().is_none() {
             self.cursor = self.items.first().map(|item| item.access);
         }
@@ -147,9 +152,24 @@ impl ScreenReader {
         self.active = false;
         self.items.clear();
         self.cursor = None;
+        self.focus = None;
         self.reported = None;
         self.spoken = None;
         self.release();
+    }
+
+    fn follow(&mut self, ctx: &Context, focus: Option<AccessNodeId>) {
+        if focus == self.focus {
+            return;
+        }
+        self.focus = focus;
+        let Some(focus) = focus else {
+            return;
+        };
+        if self.cursor != Some(focus) && self.items.iter().any(|item| item.access == focus) {
+            self.cursor = Some(focus);
+            ctx.request_repaint();
+        }
     }
 
     fn release(&mut self) {
@@ -524,6 +544,10 @@ fn keyboard_commands(ctx: &Context) -> Vec<Command> {
     ctx.input(|input| input.events.iter().filter_map(shortcut).collect())
 }
 
+pub(crate) fn claims(event: &Event) -> bool {
+    shortcut(event).is_some()
+}
+
 fn shortcut(event: &Event) -> Option<Command> {
     let Event::Key {
         key,
@@ -534,14 +558,14 @@ fn shortcut(event: &Event) -> Option<Command> {
     else {
         return None;
     };
-    if modifiers.ctrl || modifiers.alt {
+    if modifiers.ctrl || !modifiers.alt {
         return None;
     }
     Some(match key {
+        Key::ArrowRight | Key::ArrowDown if modifiers.shift => Command::NextControl,
+        Key::ArrowLeft | Key::ArrowUp if modifiers.shift => Command::PreviousControl,
         Key::ArrowRight | Key::ArrowDown => Command::Next,
         Key::ArrowLeft | Key::ArrowUp => Command::Previous,
-        Key::Tab if modifiers.shift => Command::PreviousControl,
-        Key::Tab => Command::NextControl,
         Key::Enter | Key::Space => Command::Activate,
         Key::Home => Command::First,
         Key::End => Command::Last,
@@ -554,19 +578,18 @@ fn shortcut(event: &Event) -> Option<Command> {
     })
 }
 
-fn collect(target: &Document) -> Vec<Item> {
-    let Some(fragment) = target.accessibility_fragment() else {
-        return Vec::new();
+fn collect(target: &Document) -> (Vec<Item>, Option<AccessNodeId>) {
+    let Some(nodes) = target.accessibility_view() else {
+        return (Vec::new(), None);
     };
-    let nodes: Nodes = fragment.nodes.into_iter().collect();
     let mut items = Vec::new();
-    gather(target, &nodes, fragment.root, false, &mut items);
-    items
+    gather(target, &nodes, nodes.root(), false, &mut items);
+    (items, nodes.focus())
 }
 
 fn gather(
     target: &Document,
-    nodes: &Nodes,
+    nodes: &Nodes<'_>,
     access: AccessNodeId,
     inside: bool,
     items: &mut Vec<Item>,
@@ -588,7 +611,7 @@ fn gather(
 
 fn item(
     target: &Document,
-    nodes: &Nodes,
+    nodes: &Nodes<'_>,
     access: AccessNodeId,
     node: &AccessNode,
     control: bool,
@@ -599,20 +622,13 @@ fn item(
     if !control && !scrollable && (inside || !named) {
         return None;
     }
-    target.local_node_id(access)?;
+    let local = target.local_node_id(access)?;
     Some(Item {
         access,
-        rect: node.bounds().map(access_rect).unwrap_or(Rect::NOTHING),
+        rect: target.node_rect(local).unwrap_or(Rect::NOTHING),
         phrase: speech::phrase(nodes, node, control),
         control,
         adjustable: speech::adjustable(node),
         scrollable,
     })
-}
-
-fn access_rect(rect: accesskit::Rect) -> Rect {
-    Rect::from_min_max(
-        pos2(rect.x0 as f32, rect.y0 as f32),
-        pos2(rect.x1 as f32, rect.y1 as f32),
-    )
 }

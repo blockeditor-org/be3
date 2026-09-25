@@ -1,4 +1,4 @@
-use block_client::blocks::map::{MapColor, MapPoint};
+use block_editor_plugin::be_block::map::{MapColor, MapPoint};
 use block_editor_plugin::beui::icons::ICON_LOCATION_ON;
 use block_editor_plugin::beui::reactive::{
     Align, CanvasItem, Frame, List, Prop, clone, component, create_memo, view,

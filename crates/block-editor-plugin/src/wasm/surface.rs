@@ -1,7 +1,6 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 use block_plugin_api::{FrameReady, Message, ScreenLayout, SurfaceFormat, SurfaceSpec};
-use eframe::egui_wgpu::wgpu;
 
 use crate::{panes::Panes, screens::Screens};
 
@@ -9,11 +8,6 @@ const SCREENS_SURFACE: u32 = 0;
 
 thread_local! {
     static GPU: RefCell<Option<Gpu>> = const { RefCell::new(None) };
-    static FORMAT: Cell<wgpu::TextureFormat> = const { Cell::new(wgpu::TextureFormat::Rgba8Unorm) };
-}
-
-pub(crate) fn negotiated_format() -> wgpu::TextureFormat {
-    FORMAT.with(Cell::get)
 }
 
 #[derive(Clone)]
@@ -48,7 +42,6 @@ impl Surface {
         spec: SurfaceSpec,
     ) -> Result<Self, String> {
         let gpu = gpu()?;
-        FORMAT.with(|current| current.set(format(spec.format)));
         configure(&layout, spec);
         Ok(Self {
             panes: Panes::new(format(spec.format)),
@@ -70,11 +63,7 @@ impl Surface {
         &self.layout
     }
 
-    pub(crate) fn render(
-        &mut self,
-        screens: &mut Screens,
-        phase: f64,
-    ) -> Result<Vec<Message>, String> {
+    pub(crate) fn render(&mut self, screens: &mut Screens) -> Result<Vec<Message>, String> {
         if self.layout.is_empty() {
             return Ok(Vec::new());
         }
@@ -86,7 +75,6 @@ impl Surface {
             &view,
             &self.layout,
             screens,
-            phase,
         );
         block_gpu_guest::present_surface(SCREENS_SURFACE);
         Ok(vec![Message::FrameReady(FrameReady {

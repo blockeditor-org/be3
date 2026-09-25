@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
-use block_client::block_ref::BlockRef;
-use block_client::blocks::presentation::{Presentation, PresentationOperation, PresentationSlide};
-use block_client::{BlockClient, BlockHandle};
+use block_editor_plugin::be_block::ObjectId;
+use block_editor_plugin::be_block::presentation::PresentationContent;
 use block_editor_plugin::beui::Key;
 use block_editor_plugin::{Editor, EditorHost};
-use block_ui_test::BeuiTest;
+use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;
 
 use crate::app::PresentationApp;
@@ -19,26 +16,26 @@ mod the_filmstrip_places_a_child_editor_for_every_slide;
 mod the_filmstrip_stays_while_a_slide_holds_the_frame;
 mod the_stage_shows_the_slide_the_filmstrip_selected;
 
-fn editor(count: usize) -> (BeuiTest<PresentationApp>, Editor, BlockHandle<Presentation>) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(Presentation::new());
+type Harness = ContentHarness<PresentationApp>;
+
+fn editor(count: usize) -> (Harness, Editor) {
+    let block = Uuid::new_v4();
+    let mut content = PresentationContent::default();
     for index in 0..count {
-        block.operate(PresentationOperation::Insert {
-            slide: PresentationSlide {
-                id: Uuid::new_v4(),
-                block_id: BlockRef::Direct(Uuid::new_v4()),
-            },
-            index,
-        });
+        let edit = content
+            .root()
+            .insert(ObjectId::new(), index, Uuid::new_v4());
+        content.apply(&edit);
     }
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, client, block.id());
-    let test = BeuiTest::new(editor.clone());
-    (test, editor, block)
+    let editor = Editor::new(host.clone(), block);
+    let mut test = ContentHarness::new(BeuiTest::new(editor.clone()), host);
+    test.hold(None, content);
+    (test, editor)
 }
 
-fn detail(test: &BeuiTest<PresentationApp>, test_id: &str) -> String {
+fn detail(test: &Harness, test_id: &str) -> String {
     let node = test
         .document()
         .find_test_id(test_id)
@@ -50,12 +47,11 @@ fn detail(test: &BeuiTest<PresentationApp>, test_id: &str) -> String {
     detail.trim_matches('"').to_owned()
 }
 
-fn slide_ids(block: &BlockHandle<Presentation>) -> Vec<Uuid> {
-    block
-        .read()
-        .unwrap()
-        .slides()
+fn slide_ids(test: &Harness) -> Vec<Uuid> {
+    test.content::<PresentationContent>(None)
+        .root()
+        .slides
         .iter()
-        .map(|slide| slide.id)
+        .map(|slide| slide.id.as_uuid())
         .collect()
 }

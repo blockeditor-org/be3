@@ -28,7 +28,7 @@ fn an_edit_made_across_a_takeover_is_kept() {
     wait_for_count(block, 0);
     add(block, 10);
     runtime.block_on(async {
-        while owner.content().count() != 10 {
+        while owner.content().root().value() != 10 {
             owner.wait().await.expect("the session is still up");
         }
     });
@@ -59,7 +59,8 @@ fn an_edit_made_across_a_takeover_is_kept() {
             .await
             .expect("the counter reads back")
             .expect("the counter has content")
-            .count()
+            .root()
+            .value()
     });
     assert_eq!(stored, 110);
 }

@@ -1,6 +1,6 @@
 GUI tests run headless: no window, no input, no server. A test builds an editor, drives it the
 way a person would, and checks two things — what the block became, and what the editor
-painted. They are fast enough to belong in ./scripts/verify: the handful that exist run in
+painted. They are fast enough to belong in ./scripts/buck run //:verify: the handful that exist run in
 well under a second.
 
 A plugin's tests run where the plugin runs: compiled to wasm32-wasip1-threads and started by
@@ -11,7 +11,7 @@ what the machine running the tests happens to have installed.
 1. What a GUI test may look at
 
 - The block. An editor's job is to turn gestures into operations, so the assertion is on
-  the block the operations reached, exactly as in block-e2e.
+  the content the operations reached once the test, standing in for the host, applied them.
 - The painting, as a snapshot (see 4) - one frame, or a recording of several. This catches
   what an assertion on the block cannot: a control that vanished, a panel that lost its
   contents, a colour that changed.
@@ -23,78 +23,84 @@ what the machine running the tests happens to have installed.
 Widgets are found by an id the test names, never by their label: renaming a button, giving
 it an icon, or moving it to a sidebar then leaves the tests alone.
 
-    use block_editor_plugin::block_ui::test_id::TestId;
+    <Button label="Add task" @test_id={"checklist.add"} on_click={add} />
 
-    if ui.button("Add").test_id("checklist.add").clicked() {
-
-test_id writes an author id onto the widget's accessibility node, which is what
-block-ui-test searches for. AccessKit is off unless a screen reader or a test turns it on,
-so the call allocates nothing in the app; it does take the context's lock for a moment, so
-tag the widgets tests reach for rather than every widget. Name them
+@test_id names the node the component builds, and the frame reports the rectangle every
+named node was laid out at, which is what block-ui-test clicks. Name them
 `<editor>.<what it does>`, and where there are many of a kind, key them by whatever the
-block itself keys them by (`checklist.item.3.done` — the operation takes that index too),
-never by the order they happen to be drawn in.
+block itself keys them by (`checklist.item.{id}.done`, where `id` is the item's `ObjectId`,
+the same id the edit names), never by the order they happen to be drawn in.
 
 3. Write the test
 
 Tests live inside the editor's crate, one test per file under src/tests/, like every other
-test in the repository. block-ui-test's EditorTest lays the editor out the way the host
-does — toolbar above, sidebars either side, the editor in the middle — and runs it in a
-headless egui.
+test in the repository. block-ui-test's BeuiTest is built from the same Editor the view is
+handed, lays the view out over a frame of its own, and runs it headless.
 
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(Checklist::default());
-    let mut app = ChecklistApp::default();
-    app.connect(Default::default(), client, block.id());
-    let mut editor = EditorTest::new(app);
-    editor.run();
+    let block = Uuid::new_v4();
+    let host = EditorHost::default();
+    host.set_editable(true);
+    let editor = Editor::new(host.clone(), block);
+    let mut test = ContentHarness::new(BeuiTest::<ChecklistApp>::new(editor), host);
+    test.hold(None, ChecklistContent::default());
+    test.run();
 
-    editor.find("checklist.draft").click();
-    editor.run();
-    editor.find("checklist.draft").type_text("buy milk");
-    editor.run();
-    editor.find("checklist.add").click();
-    editor.run();
+    test.click("checklist.draft");
+    test.run();
+    test.text("buy milk");
+    test.run();
+    test.click("checklist.add");
+    test.run();
 
-    assert_eq!(items(&block), [("buy milk".to_owned(), false)]);
-    editor.snapshot("adding_an_item_puts_it_on_the_list");
+    let items = test.content::<ChecklistContent>(None);
+    assert_eq!(items.root().items[0].text, "buy milk");
+    test.snapshot("adding_an_item_puts_it_on_the_list");
 
-A block client that was never connected is a whole client: it creates blocks, applies
-operations and reads them back locally, so an editor test needs no server. Call run() after
-every gesture — egui only sees an event on the frame after it arrives — and click a text
-field before typing into it. find() panics with the whole accessibility tree when nothing
-matches, which is usually a widget that was never given a test id.
+There is no server and no block store in an editor test: the test is the host.
+block_ui_test::ContentHarness wraps the BeuiTest and an EditorHost and does what the app's
+host does for the editor's block. hold(block, content) gives it the content of a block -
+None for the editor's own, Some(id) for one it watches with content_of - and run() paints a
+frame, applies every operation the editor sent to what it holds, and sends the result back
+as the snapshot the editor sees next, until nothing changes. content::<C>(block) reads what a
+block holds now, edit::<C>(block, &operation) is an edit arriving from someone else, and
+seeded() is the content the editor seeded or replaced. Its store() is a ContentStore, which
+also stands in for the graph: own and add_block put blocks in it, block reads one back, and
+created lists the blocks the editor made through its Blocks handle. A test can instead do
+the host's part itself, as the counter's and the checklist's do: take_content_operations()
+off the EditorHost, apply them to its own content, and hand the result back with
+set_block_content. Call run() after
+every gesture — the view only sees an event on the frame it is delivered in — and click a
+text field before typing into it. click() panics when no node has that test id, which is
+usually a node that was never given one; shown() and label() ask about one without clicking
+it.
 
-run() paints until the editor asks for no more immediate repaints, so an editor that is
-animating — a recording playing, a spinner turning — never lets it return. Drive those a
-frame at a time with step(), which paints once however much the editor wanted.
+run() paints one frame for each gesture queued since the last one, and step(events) paints
+one frame with exactly the events it is handed.
 
 An editor that hands work to another thread paints a spinner until the work lands, so which
 of the two a test captures is down to whether the thread beat it to the frame: a snapshot
 that passes on an idle machine and fails when the suite is running thirty editors at once.
-step_until paints a frame at a time until the editor says it is done waiting, and fails the
-test rather than the painting if it never is.
+settle_until paints until a predicate over the harness holds, and fails the test rather
+than the painting if it never does.
 
-    editor.step_until("the lighting to land", |app| app.lighting_landed());
+    editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
-The predicate reads the app, so the editor needs something to ask — a #[cfg(test)] accessor
-over whatever it was waiting on. Wait for the work rather than for a number of frames: a few
-more step() calls is the same race with a wider margin, which is how one of these hid.
+Wait for the work rather than for a number of frames: a few more run() calls is the same
+race with a wider margin, which is how one of these hid.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
-is built with EditorTest::viewport(app, host) — the host it was connected to — instead of
-EditorTest::new(app). The harness then does what the host does around the main region: it
-holds a zoom and an offset, hands the editor host.view() over its region, and answers the
-pan, zoom and fit the editor asks for, fitting the content until the first of them arrives.
-An editor given EditorTest::new is told nothing about a view and fills its region, which is
-what an editor without that capability does anyway.
+calls in_viewport() on the harness. The harness then does what the host does around the main
+region: it holds a zoom and an offset, hands the editor a view over its region, and answers
+the pan, zoom and fit the editor asks for, fitting the content until the first of them
+arrives. An editor that is not in a viewport is told nothing about a view and fills its
+region, which is what an editor without that capability does anyway.
 
 4. Snapshots of the painting
 
 editor.snapshot(name) writes everything the editor painted into
 snapshots/<crate>.<name>.paint, one folder at the root of the repository holding every
-painting the workspace accepted: the triangles egui tessellated, and the scrap of texture
-each one samples, compressed. It is a few kilobytes rather than the hundreds a screenshot
+painting the workspace accepted: the rounded rectangles, glyphs and triangles beui's
+renderer would hand the gpu, each glyph carrying its own coverage image, compressed. It is a few kilobytes rather than the hundreds a screenshot
 costs, and it is compared exactly, so nothing about it is flaky.
 
 A painting is a recording: one frame by default, or the frames the test kept. record()
@@ -103,7 +109,7 @@ since the last one — or the frame the test is on, if it kept none — so recor
 at a time paints how the editor got somewhere rather than only where it ended up.
 
     editor.record();
-    editor.find("checklist.add").click();
+    editor.click("checklist.add");
     editor.run();
     editor.record();
     editor.snapshot("adding_an_item_puts_it_on_the_list");
@@ -113,10 +119,10 @@ as the last costs the triangles that draw it and nothing more. Keep recordings t
 frames that say something: every frame is compared, so a frame nobody looks at is one more
 way for the test to fail.
 
-- ./scripts/verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
+- ./scripts/buck run //:verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
   a new or changed painting is written into snapshots/ rather than failing the run. On a pull
   request CI does the same, and when that writes a painting it fails the run and pushes the
-  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/verify --check, which sets nothing,
+  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/buck run //:verify -- --check, which sets nothing,
   so a painting that was never committed fails there.
 - A changed painting is for a person to review, not for you. They review it in a Paint
   review block, which reads the folder from the repository's dev branch, so a painting is
@@ -124,58 +130,57 @@ way for the test to fail.
   not git and a reviewer is not the tests: a painting nobody approved is new again the next
   time the block is opened, and one nobody had approved before it vanished is not reported
   at all.
-- cargo run -p paint-snapshot --example rasterize -- snapshots/<crate>.<name>.paint out.png
+- ./scripts/buck run //crates/paint-snapshot:rasterize-example -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write. It is for a person looking at a painting on the machine that made it; the review
   that matters still happens in a Paint review block.
-- Regenerating them is cheap and mechanical - an egui upgrade rewrites every one - so a
+- Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so a
   changed painting is not by itself a failure to explain, and there is nothing in it for you
   to look at. Say in your handoff which paintings changed and why, and leave the images
   alone.
 - The exception is a painting you cannot account for: if you do not know why one changed,
   restore the committed file and run the tests without UPDATE_SNAPSHOTS - git restore
-  snapshots/ && ./scripts/internal/test-plugins.sh --check - and the failure says which frame
+  snapshots/ && ./scripts/buck run //:verify -- --check --plugin-tests - and the failure says which frame
   changed and what moved in it, which is what you needed rather than the image.
 
-A snapshot never holds the font atlas. Each triangle carries the piece of texture it
-samples, cut out of the atlas and keyed by what is in it, so where a glyph happened to land
-in the atlas cannot reach the file: text an earlier frame drew - a temporary directory's
-name, a uuid, the time - repacks the atlas without moving anything in the snapshot. Text
-that varies in the frame the test captures is of course a different painting, and still
-has to be kept out of it.
+A snapshot never holds the glyph atlas. Each glyph carries its own coverage image, keyed by
+what is in it, so where a glyph happened to land in the atlas cannot reach the file: text an
+earlier frame drew - a temporary directory's name, a uuid, the time - repacks the atlas
+without moving anything in the snapshot. Text that varies in the frame the test captures is
+of course a different painting, and still has to be kept out of it.
 
-Nor does a snapshot hold what a paint callback or a beui Drawing draws - a plugin's
-surface, a 3D scene - since those contents never reach the painter: the snapshot keeps the
-region and nothing inside it, so a test of one asserts on the block instead.
+Nor does a snapshot hold what a beui Drawing draws - a plugin's surface, a 3D scene - since
+those contents never reach the painter: the snapshot keeps the region and nothing inside it,
+so a test of one asserts on the block instead.
 
-An editor that rasterizes its own glyphs rather than egui's - a beui one, which shapes and
-rasterizes through the HarfBuzz and FreeType beui carries - draws with the fonts it carries
-once it is compiled to wasm, which is how its tests run, so what it paints is comparable like
-anything else. What is still not comparable is anything the frame itself varies: a temporary
-directory's name, a uuid, the time.
+beui shapes and rasterizes its glyphs through the HarfBuzz and FreeType it carries, with
+the fonts it carries, once it is compiled to wasm, which is how its tests run, so what an
+editor paints is comparable like anything else.
 
 5. Running them
 
-./scripts/verify runs them. It prepares the non-Cargo prerequisites, builds the complete workspace,
-and then runs every plugin's tests through scripts/internal/test-plugins.sh. Do not build or
-test an editor package for the host by itself: block-app turns on the windowing features
-eframe needs, and Cargo only unifies those across a whole-workspace build. The workspace run
-skips the plugin crates outright, so cargo test on one of them natively refuses to compare a
-painting rather than making one nothing would agree with.
+./scripts/buck run //:verify runs them, through buck2: ./scripts/buck run //:verify -- --plugin-tests is the plugin
+tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
+wasm32-wasip1-threads against the WASI sysroot the web build uses, on BuildBuddy's workers,
+and runs the module here through crates/plugin-test-runner, which is wasmtime with the
+plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
+spawns, and the repository itself, opened so that a test writes the painting it accepted
+into snapshots/. That last part is why a plugin test runs on this machine while the rest of
+the tests run on a worker. Do not build or test an editor package for the host by itself:
+its tests only mean anything as the wasm guest it ships as, and a native run refuses to
+compare a painting rather than making one nothing would agree with.
 
-scripts/internal/test-plugins.sh is what runs them, and is worth running by itself while
-working on an editor. It compiles each plugin's tests for wasm32-wasip1-threads against the
-WASI sysroot the web build uses, and cargo nextest starts each test through
-crates/plugin-test-runner, which is wasmtime with the plugin's own imports linked: the gpu abi
-a plugin draws through, the threads a plugin spawns, and the
-repository itself, opened so that a test writes the painting it accepted where the workspace
-run would have. Arguments go to cargo nextest run, so a single crate is -p checklist and a
-single test is -p checklist some_test_name.
+While working on one editor, run its tests alone:
 
-nextest runs every test in a process of its own, so before it starts, Cranelift compiles each
-test module that changed, several at a time, and leaves the machine code beside it as a .cwasm
-the way a build does for a plugin. Each test's process maps that in instead of compiling the
-module again, so a run that changed nothing takes seconds. A wasm build needs clang and
-llvm-ar on PATH, which ./scripts/setup installs. The runner only opens a graphics adapter when
-a test calls the gpu abi, so a machine without one still runs every test that does not, and
-what a test compares never passes through a gpu.
+  ./scripts/buck test //crates/editors/checklist:test
+  ./scripts/buck test //crates/editors/checklist:test -- --env UPDATE_SNAPSHOTS=1
+
+The first compares, the second accepts. A single test is a filter handed through to the
+test binary: ./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name.
+
+Cranelift compiles each test module once, as an action of its own, and leaves the machine
+code as a .cwasm the runner maps in, so a run that changed nothing takes seconds; that
+action is cached like any other, so a machine that never built the plugin gets it from
+BuildBuddy. The runner only opens a graphics adapter when a test calls the gpu abi, so a
+machine without one still runs every test that does not, and what a test compares never
+passes through a gpu.
