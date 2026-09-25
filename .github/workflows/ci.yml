@@ -29,8 +29,8 @@ env:
 
 # Two jobs do the work. build is one buck2 build of everything CI builds, on
 # every platform, and uploads what ships. verify is ./scripts/buck run //:verify,
-# which fixes what it can on a pull request. autofix pushes those fixes, and
-# CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
+# a runner for each of its three parts, which fixes what it can on a pull
+# request. autofix pushes those fixes, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
 # needs is buck2 and whatever runs here rather than there.
 jobs:
   # buck/ci/BUCK names what is built: //crates/... for the host, which is what
@@ -136,7 +136,9 @@ jobs:
 
   # ./scripts/buck run //:verify, the way a person runs it: the lint pass and
   # the tests on BuildBuddy's workers, and the plugin tests here, since they
-  # read and write the accepted paintings in snapshots/. On a pull request it
+  # read and write the accepted paintings in snapshots/. Each part has a runner
+  # of its own, since they need nothing from one another and one after another
+  # they were the longest thing in this workflow by a wide margin. On a pull request it
   # fixes and accepts instead of only reporting, and anything that leaves the
   # checkout changed is uploaded as a patch for the autofix job to push, and
   # fails this job. Everywhere else nothing may be written: main, the merge
@@ -146,8 +148,12 @@ jobs:
   # Accepting a painting that changed, or one that is new, is on purpose:
   # the commit that carries it is what a reviewer looks at in Paint review.
   verify:
-    name: verify
+    name: verify ${{ matrix.part }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [lint, tests, plugin-tests]
     steps:
       # A pull request is checked out at its head rather than at the merge
       # GitHub makes of it, because what this job fixes is pushed back to that
@@ -158,13 +164,16 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # zizmor first, before anything from the pull request has run.
+      # The workflows and the sysroot lockfile are linted with the rest of the
+      # lint pass. zizmor goes first, before anything from the pull request
+      # has run.
       # Everything a job installs before it builds anything is trusted
       # completely, so the rules about how those are named - a commit for a
       # third-party action, a tag only for GitHub's own, no expansion of an
       # input into a shell script - are worth more as a check than as a
       # convention. .github/zizmor.yml is where the policy is written.
       - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+        if: matrix.part == 'lint'
         with:
           tool: zizmor@1.30.1
 
@@ -172,6 +181,7 @@ jobs:
       # the repository it is attributed to, which is the half of pinning that
       # reading the workflow cannot tell you. It is given to this step alone.
       - name: Lint the workflows
+        if: matrix.part == 'lint'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
@@ -179,17 +189,17 @@ jobs:
       # A plugin test that paints through the gpu abi opens the software
       # Vulkan device.
       - name: Install system dependencies
-        if: ${{ !cancelled() }}
+        if: matrix.part == 'plugin-tests'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             libvulkan1 mesa-vulkan-drivers
 
-      # The merge queue's tests, which //:verify runs when node is here. The
-      # queue runs on the standard library and node:test, so there is nothing
-      # to install beyond node.
+      # The merge queue's tests, which the tests part runs when node is here.
+      # The queue runs on the standard library and node:test, so there is
+      # nothing to install beyond node.
       - uses: actions/setup-node@v7
-        if: ${{ !cancelled() }}
+        if: matrix.part == 'tests'
         with:
           node-version: '22'
 
@@ -200,7 +210,7 @@ jobs:
       # asks for, and is checked in. Re-resolving it here is what says the two
       # still agree; on a pull request a stale one is a fix like any other.
       - name: Re-resolve the sysroot lockfile
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.part == 'lint' }}
         env:
           CHECK: ${{ github.event_name != 'pull_request' }}
         run: |
@@ -209,15 +219,16 @@ jobs:
             git diff --exit-code buck/sysroot/packages.bzl
           fi
 
-      - name: Run //:verify
+      - name: Run //:verify --${{ matrix.part }}
         if: ${{ !cancelled() }}
         env:
           CHECK: ${{ github.event_name != 'pull_request' }}
+          PART: ${{ matrix.part }}
         run: |
           if [ "$CHECK" = true ]; then
-            ./scripts/buck run //:verify -- --check
+            ./scripts/buck run //:verify -- --check "--$PART"
           else
-            ./scripts/buck run //:verify
+            ./scripts/buck run //:verify -- "--$PART"
           fi
 
       # Everything a fix can do shows up in git: an edited file, a moved one,
@@ -232,6 +243,8 @@ jobs:
       - name: Collect what verification changed
         id: collect
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          PART: ${{ matrix.part }}
         run: |
           git add --all
           if git diff --cached --quiet; then
@@ -241,14 +254,14 @@ jobs:
           fi
           git diff --cached --stat
           mkdir -p "$RUNNER_TEMP/autofix"
-          git diff --cached --binary > "$RUNNER_TEMP/autofix/verify.patch"
+          git diff --cached --binary > "$RUNNER_TEMP/autofix/$PART.patch"
           echo 'dirty=true' >> "$GITHUB_OUTPUT"
 
       - if: ${{ !cancelled() && steps.collect.outputs.dirty == 'true' }}
         uses: actions/upload-artifact@v7
         with:
-          name: autofix-verify
-          path: ${{ runner.temp }}/autofix/verify.patch
+          name: autofix-${{ matrix.part }}
+          path: ${{ runner.temp }}/autofix/${{ matrix.part }}.patch
           retention-days: 1
 
       # A pull request whose fixes changed something is not the pull request
@@ -261,9 +274,10 @@ jobs:
           exit 1
 
   # A pull request's verification fixes what it can and accepts what the tests
-  # paint, and if that changed anything it uploads the change as a patch and
-  # fails. This pushes the patch to the pull request's branch as a commit, and
-  # the CI run that commit starts is the one that can pass.
+  # paint, and each part that changed anything uploads the change as a patch
+  # and fails. This puts those patches together and pushes them to the pull
+  # request's branch as one commit, and the CI run that commit starts is the
+  # one that can pass.
   #
   # It is the one job here that writes to the repository, so it is the one job
   # that runs nothing from the pull request: it applies patches, which are data
@@ -289,7 +303,7 @@ jobs:
     needs: [verify]
     runs-on: ubuntu-24.04
     steps:
-      # A verify that failed without changing anything uploaded nothing, so
+      # A part that failed without changing anything uploaded nothing, so
       # finding no patch here is the ordinary way for this job to have nothing
       # to do.
       - uses: actions/download-artifact@v8
@@ -318,8 +332,8 @@ jobs:
           private-key: ${{ secrets.MERGE_QUEUE_APP_PRIVATE_KEY }}
           permission-contents: write
 
-      # The same head verify checked out, so that the patch applies to the tree
-      # it was made from. The token is kept out of .git/config and handed
+      # The same head the parts checked out, so that every patch applies to the
+      # tree it was made from. The token is kept out of .git/config and handed
       # to the one command that needs it.
       - uses: actions/checkout@v7
         if: steps.patches.outputs.found == 'true'
@@ -327,8 +341,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      # A patch that will not apply stops the push rather than being pushed
-      # half-applied.
+      # The parts ran apart from one another, so two of them could in principle
+      # have changed the same lines. They do not in practice, since the lint
+      # pass writes sources and the test runs write paintings, and a patch that
+      # will not apply stops the push rather than being pushed half-applied.
       #
       # A head that is already this job's own commit and still needed fixing
       # is a fix that does not settle, and pushing again would only start the
