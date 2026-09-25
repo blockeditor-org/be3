@@ -9,5 +9,5 @@ fn adding_an_item_puts_it_on_the_list() {
     checklist.click("checklist.add");
 
     assert_eq!(checklist.items(), [("buy milk".to_owned(), false)]);
-    checklist.snapshot("adding_an_item_puts_it_on_the_list");
+    checklist.snapshot("an_added_item_appears_on_the_list");
 }
