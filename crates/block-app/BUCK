@@ -1,4 +1,4 @@
-load("@root//buck/android:defs.bzl", "android_apk")
+load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
@@ -180,20 +180,26 @@ app(
     for name, assets in [("apk", ":android-assets"), ("apk-dist", ":android-dist-assets")]
 ]
 
-[
-    tool(
-        name = name,
-        command = [
-            "sh",
-            "$(location //buck/android:sign.sh)",
-            "$(location //buck/android:jdk)",
-            "$(location //buck/android:build-tools)",
-            "$(location //buck/android:platform-tools)",
-            "$(location {})".format(apk),
-        ],
-    )
-    for name, apk in [("android", ":apk"), ("android-dist", ":apk-dist")]
-]
+tool(
+    name = "android",
+    command = [
+        "sh",
+        "$(location //buck/android:sign.sh)",
+        "$(location //buck/android:jdk)",
+        "$(location //buck/android:build-tools)",
+        "$(location //buck/android:platform-tools)",
+        "$(location :apk)",
+    ],
+)
+
+# What CI ships, signed on a worker with CI's keystore, so the runner downloads
+# only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
+signed_apk(
+    name = "android-dist",
+    apk = ":apk-dist",
+    exec_compatible_with = ["root//buck/constraints:android_keystore"],
+    key_version = 1,
+)
 
 # The native startup smoke check: the app for ten seconds in a virtual display.
 tool(

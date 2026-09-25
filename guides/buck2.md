@@ -19,7 +19,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `block-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`:android-dist` without the plugins) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's: no plugins, signed on a worker with CI's key) |
 | `./scripts/buck run //crates/beui:demo-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
@@ -32,7 +32,7 @@ builds for another platform.
 ## What `./scripts/buck` does
 
 It runs under bash on Linux, macOS (bash 3.2) and Git Bash on Windows, and puts
-four things in front of the pinned buck2:
+these in front of the pinned buck2:
 
 - **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
   installed into `target/tools/buck2-<version>/` the first time it is missing.
@@ -59,6 +59,11 @@ four things in front of the pinned buck2:
   it, and a Windows checkout has none, so no file a build reads may have one:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
   and `//:verify`'s lint clears the bit from anything outside `scripts/`.
+- **One retry.** buck2 exits with 2 for an infrastructure error, such as
+  BuildBuddy resetting a download partway, which buck2 does not retry itself.
+  The wrapper runs such a command once more; the actions are cached by then.
+  For `run` it builds first (`run --emit-shell`) and retries that, since the
+  program's own exit status is run's.
 
 It also lets `test` put tests on the workers (below).
 
@@ -184,9 +189,13 @@ A native target depends on a wasm one through a transition in
   Caddyfile with `BE3_DOMAIN_NAME` and `BE3_WEB_ROOT`.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
-  plugins precompiled for arm64, and `zipalign -P 16`. Signing runs locally
-  with `target/android-debug.keystore`, made on first use; CI restores its own
-  and passes `-c be3.android_id=com.be3.block.ci -c "be3.android_label=Block (CI)"`.
+  plugins precompiled for arm64, and `zipalign -P 16`. `:android` signs it
+  locally with `target/android-debug.keystore`, made on first use.
+  `:android-dist` signs on a worker with CI's keystore, which BuildBuddy keeps
+  as the secret `ANDROID_DEBUG_KEYSTORE_BASE64` and passes only to actions on
+  the `android_signing` execution platform; CI passes
+  `-c be3.android_id=com.be3.block.ci -c "be3.android_label=Block (CI)"`.
+  After changing the secret, bump `key_version` in `crates/block-app/BUCK`.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
 - The macOS builds are an executable and its libraries; the `.app` bundle

@@ -27,7 +27,7 @@ target_platform_detector_spec = target:root//...->root//buck/platforms:linux_x86
 # Where actions run: on BuildBuddy's workers. buck/platforms/BUCK is the
 # platform, and buck/tools the compilers it runs.
 [build]
-execution_platforms = root//buck/platforms:default
+execution_platforms = root//buck/platforms:execution_platforms
 
 [buck2]
 # The digest BuildBuddy is spoken to in. buck2 defaults to SHA1, and this is

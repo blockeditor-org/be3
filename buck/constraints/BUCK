@@ -13,3 +13,17 @@ constraint_value(
     constraint_setting = ":wasm_role",
     visibility = ["PUBLIC"],
 )
+
+# What an action needs from its worker beyond the defaults. The signing
+# platform in buck/platforms has this and the default one does not, so only
+# a target that asks for it with exec_compatible_with runs there.
+constraint_setting(
+    name = "worker",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "android_keystore",
+    constraint_setting = ":worker",
+    visibility = ["PUBLIC"],
+)

@@ -1,6 +1,6 @@
 load("//buck/tools:defs.bzl", "worker_properties")
 load(":cross.bzl", "CROSS_PLATFORMS")
-load(":defs.bzl", "execution_platform")
+load(":defs.bzl", "execution_platform", "execution_platforms")
 
 # Where every action runs: a BuildBuddy worker, Linux on x86_64 whatever the
 # machine that asked (buck/tools/defs.bzl). Nothing is uploaded from here;
@@ -11,6 +11,26 @@ execution_platform(
     os_configuration = "prelude//os:linux",
     remote_execution_properties = worker_properties,
     visibility = ["PUBLIC"],
+)
+
+# The same workers with the Android debug keystore, which BuildBuddy keeps as
+# the secret ANDROID_DEBUG_KEYSTORE_BASE64 and passes to an action run here in
+# that environment variable. Only buck/android's signed_apk runs here.
+execution_platform(
+    name = "android_signing",
+    constraints = ["root//buck/constraints:android_keystore"],
+    cpu_configuration = "prelude//cpu:x86_64",
+    os_configuration = "prelude//os:linux",
+    remote_execution_properties = worker_properties | {"env-secrets": "ANDROID_DEBUG_KEYSTORE_BASE64"},
+    visibility = ["PUBLIC"],
+)
+
+execution_platforms(
+    name = "execution_platforms",
+    platforms = [
+        ":default",
+        ":android_signing",
+    ],
 )
 
 # What every build is for unless it says otherwise, whatever machine asks, so a

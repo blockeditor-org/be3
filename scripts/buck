@@ -4,9 +4,10 @@
 # starting it, this installs the pinned buck2 if it is missing, finds the
 # BuildBuddy key (asking for it at a terminal), and regenerates the crates'
 # rules if their inputs changed (scripts/internal/common.sh). Arguments go to
-# buck2 unchanged, except that tests may run on the workers, and on anything
-# but Linux x86_64 `run` builds for this machine unless it names
-# --target-platforms.
+# buck2 unchanged, except that tests may run on the workers, on anything but
+# Linux x86_64 `run` builds for this machine unless it names
+# --target-platforms, and a command that fails with an infrastructure error is
+# tried once more.
 #
 # Usage:
 #   ./scripts/buck build //crates/...
@@ -29,13 +30,28 @@ ensure_generated_rules "$buck2"
 
 command="${1:-}"
 
+# buck2 exits with 2 for an infrastructure error and with other statuses for a
+# build that is wrong. BuildBuddy sometimes resets a download partway, which
+# buck2 does not retry itself; the second attempt finds the actions cached.
+retrying() {
+    local status=0
+    "$@" || status=$?
+    if [[ $status -eq 2 ]]; then
+        echo 'buck2 failed with an infrastructure error; trying once more.' >&2
+        status=0
+        "$@" || status=$?
+    fi
+    return $status
+}
+
 # buck2 runs every test locally, whatever its executor says, until it is told
 # otherwise. This tells it to send the ones it calls compatible: a test that
 # runs from the project root with project-relative paths, which is every Rust
 # test and none of the plugin tests. guides/buck2.md says why those stay here.
 if [[ "$command" == 'test' ]]; then
     shift
-    exec "$buck2" test --unstable-allow-compatible-tests-on-re "$@"
+    retrying "$buck2" test --unstable-allow-compatible-tests-on-re "$@"
+    exit
 fi
 
 if [[ "$command" == 'run' ]]; then
@@ -50,9 +66,24 @@ if [[ "$command" == 'run' ]]; then
         done
         if ! $named; then
             shift
-            exec "$buck2" run --target-platforms "root//buck/platforms:$host" "$@"
+            set -- run --target-platforms "root//buck/platforms:$host" "$@"
         fi
     fi
+    # The program's own exit status is run's, so only the build is retried:
+    # --emit-shell builds and downloads everything without running it.
+    prebuild=true
+    for argument in "$@"; do
+        case "$argument" in
+            --) break ;;
+            --emit-shell | --command-args-file | --command-args-file=*) prebuild=false ;;
+        esac
+    done
+    if $prebuild; then
+        shift
+        retrying "$buck2" run --emit-shell "$@" > /dev/null
+        set -- run "$@"
+    fi
+    exec "$buck2" "$@"
 fi
 
-exec "$buck2" "$@"
+retrying "$buck2" "$@"

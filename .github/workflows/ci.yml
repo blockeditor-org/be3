@@ -240,44 +240,29 @@ jobs:
         with:
           persist-credentials: false
 
-      # buck2 builds the app for Android and assembles the APK on BuildBuddy's
-      # workers, with the NDK, the SDK's build tools and a JDK it brings itself.
-      # Only the signing below runs here, with the JDK and apksigner buck2
-      # downloads for it.
+      # buck2 builds the app for Android, assembles the APK and signs it on
+      # BuildBuddy's workers, so this runner downloads only the signed APK.
       - uses: ./.github/actions/buck2
 
-      # A freshly generated keystore would sign every CI build with a different
-      # key, and Android refuses to install an update signed with a different
-      # key than the one already on the device. Restore a persisted keystore
-      # from a repo secret instead, so successive CI builds stay installable
-      # as updates over one another. Fork PRs don't get repo secrets; there the
-      # signing step makes a throwaway keystore just to keep the build working,
-      # and those builds won't share a key with the real ones.
-      - name: Restore the debug keystore
-        env:
-          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
-            mkdir -p target
-            echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > target/android-debug.keystore
-          fi
-
+      # Signed with CI's debug keystore, which BuildBuddy keeps as the secret
+      # ANDROID_DEBUG_KEYSTORE_BASE64 and passes only to the signing action,
+      # so successive CI builds install as updates over one another.
+      #
       # A CI build sharing the app's real package name would either silently
       # overwrite a locally-built install (if it happened to share a signing
       # key) or block installation with a signature-mismatch error (since it
-      # doesn't, now that the key is pinned in "Restore the debug keystore").
-      # Give it its own application ID and label instead, so it installs
-      # side by side with a local build rather than colliding with it.
+      # doesn't). Give it its own application ID and label instead, so it
+      # installs side by side with a local build rather than colliding with it.
       #
       # The plugin modules are the same bytes on every platform, so the plugin
       # job builds them once for all of them and this APK goes without. Android
       # will fetch them rather than carry them; until it does, the app there
       # finds no editors, which is where it already stood.
       - run: >-
-          ./scripts/buck run
+          ./scripts/buck build
           -c be3.android_id=com.be3.block.ci
           -c "be3.android_label=Block (CI)"
-          //crates/block-app:android-dist --
+          //crates/block-app:android-dist
           --out dist/block-app.apk
 
       - uses: actions/upload-artifact@v7
