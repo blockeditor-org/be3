@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
-use crate::runtime::{Context, RUNTIME, Reset, batch, enqueue, flush};
+use crate::runtime::{Context, RUNTIME, Reset, batch, current_zone, enqueue, flush};
 use crate::scope::{Owner, current_owner};
 use crate::signal::Source;
 
@@ -25,6 +25,7 @@ pub(crate) struct Computation {
     pub(crate) dependencies: RefCell<Vec<(Rc<Source>, u64)>>,
     pub(crate) source: Option<Rc<Source>>,
     pub(crate) queued: Cell<bool>,
+    pub(crate) zone: u64,
 }
 
 impl Computation {
@@ -40,6 +41,7 @@ impl Computation {
             dependencies: RefCell::new(Vec::new()),
             source,
             queued: Cell::new(false),
+            zone: current_zone(),
         });
         let owned = computation.clone();
         owner.add(move || owned.dispose());
@@ -126,6 +128,11 @@ impl Computation {
         }
         let owner = self.execution_owner.borrow().clone();
         let _context = Context::enter(Rc::downgrade(self), Rc::downgrade(&owner));
+        let zone = match self.zone {
+            0 => current_zone(),
+            zone => zone,
+        };
+        let _zone = Reset::set(|runtime| &runtime.zone, zone);
         let memo_depth = RUNTIME.with(|runtime| runtime.memo_depth.get());
         let _memo_guard = Reset::set(
             |runtime| &runtime.memo_depth,
