@@ -6,6 +6,10 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.view.KeyEvent;
+import android.view.View;
+import androidx.core.graphics.Insets;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import com.google.androidgamesdk.GameActivity;
 import com.google.androidgamesdk.gametextinput.State;
 import java.io.ByteArrayOutputStream;
@@ -34,7 +38,17 @@ public final class MainActivity extends GameActivity {
     protected void onCreate(Bundle state) {
         current = this;
         super.onCreate(state);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         stateChanged(new State("", 0, 0, -1, -1), false);
+    }
+
+    @Override
+    public WindowInsetsCompat onApplyWindowInsets(View view, WindowInsetsCompat insets) {
+        WindowInsetsCompat applied = super.onApplyWindowInsets(view, insets);
+        Insets safe = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+        nativeSafeAreaChanged(safe.left, safe.top, safe.right, safe.bottom);
+        return applied;
     }
 
     @Override
@@ -193,6 +207,8 @@ public final class MainActivity extends GameActivity {
             return bytes.toByteArray();
         }
     }
+
+    private static native void nativeSafeAreaChanged(int left, int top, int right, int bottom);
 
     private static native void nativeFilePicked(String name, byte[] data, String error);
 }

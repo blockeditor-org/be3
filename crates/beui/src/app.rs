@@ -15,9 +15,17 @@ mod soft_keyboard;
 mod web;
 
 #[cfg(feature = "window")]
-pub use native::{run, run_with};
+pub use native::{run, run_with, set_safe_area};
 #[cfg(feature = "web")]
 pub use web::run_web;
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub struct SafeArea {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
 
 pub trait App {
     fn update(&mut self, context: &Context, rect: Rect);
