@@ -50,6 +50,10 @@ pub struct Download {
 }
 
 impl Download {
+    pub fn finished(&self) -> bool {
+        matches!(self.stage, Stage::Finished)
+    }
+
     pub fn poll(&mut self, host: &EditorHost) -> Option<Result<Vec<Painting>, String>> {
         let found = self.advance(host)?;
         self.stage = Stage::Finished;

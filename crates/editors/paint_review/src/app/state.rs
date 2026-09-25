@@ -7,7 +7,9 @@ use block_editor_plugin::be_block::paint::{ApprovedPainting, PaintReview};
 use block_editor_plugin::be_block::{
     PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader,
 };
-use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
+use block_editor_plugin::beui::reactive::{
+    ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+};
 use block_editor_plugin::{ContentProjection, Editor, Waker};
 
 use crate::download::{BRANCH, Download, Painting, Source};
@@ -86,7 +88,7 @@ pub(crate) struct Review {
     loaded: ReadSignal<bool>,
     source: Source,
     download: RefCell<Option<Download>>,
-    downloaded: Cell<bool>,
+    waker: RefCell<Waker>,
     paintings: RefCell<Paintings>,
     change: RefCell<Option<(String, Change)>>,
     advanced: Cell<Option<Instant>>,
@@ -137,7 +139,7 @@ impl Review {
             loaded,
             source,
             download: RefCell::new(None),
-            downloaded: Cell::new(false),
+            waker: RefCell::new(Waker::default()),
             paintings: RefCell::new(Paintings::default()),
             change: RefCell::new(None),
             advanced: Cell::new(None),
@@ -175,16 +177,47 @@ impl Review {
         self.editor.host().editable()
     }
 
-    fn waker(&self) -> Waker {
-        self.editor.host().waker()
-    }
 
     pub(crate) fn rastered(&self) -> usize {
         self.paintings.borrow().rastered()
     }
 
-    pub(crate) fn poll(&self) {
-        if self.download.borrow().is_none() && !self.downloaded.get() {
+    pub(crate) fn watch(self: &Rc<Self>) {
+        let (waker, woken) = self.editor.woken();
+        *self.waker.borrow_mut() = waker;
+        let review = Rc::clone(self);
+        create_effect(move || {
+            woken.with(|_| ());
+            untrack(|| review.raster());
+        });
+        let review = Rc::clone(self);
+        self.editor.on_reply(move || review.fetch());
+        let review = Rc::clone(self);
+        let editable = self.editor.editable();
+        create_effect(move || {
+            review.pending.with(|_| ());
+            review.found.with(|_| ());
+            editable.with(|_| ());
+            review.block.revision();
+            untrack(|| review.settle());
+        });
+        let review = Rc::clone(self);
+        create_effect(move || {
+            let selected = review.selected.get();
+            review.showing.with(|_| ());
+            review.approved.with(|_| ());
+            review.found.with(|_| ());
+            match selected {
+                Some(path) => review.request(&path),
+                None => review.forget(),
+            }
+            untrack(|| review.raster());
+        });
+        self.fetch();
+    }
+
+    fn fetch(&self) {
+        if self.download.borrow().is_none() {
             *self.download.borrow_mut() =
                 Some(crate::download::start(&self.source, self.editor.host()));
         }
@@ -194,8 +227,6 @@ impl Review {
             .as_mut()
             .and_then(|download| download.poll(self.editor.host()));
         if let Some(result) = result {
-            self.download.borrow_mut().take();
-            self.downloaded.set(true);
             match result {
                 Ok(found) => {
                     self.set_found.set(found);
@@ -207,13 +238,16 @@ impl Review {
                 }
             }
         }
-        self.set_downloading.set(self.download.borrow().is_some());
-        self.settle();
-        self.raster();
+        let finished = self
+            .download
+            .borrow()
+            .as_ref()
+            .is_none_or(Download::finished);
+        self.set_downloading.set(!finished);
     }
 
     pub(crate) fn raster(&self) {
-        let waker = self.waker();
+        let waker = self.waker.borrow().clone();
         let changed = self.paintings.borrow_mut().settle(&waker);
         if changed {
             self.bump();
@@ -226,8 +260,7 @@ impl Review {
 
     pub(crate) fn refresh(&self) {
         self.download.borrow_mut().take();
-        self.downloaded.set(false);
-        self.set_downloading.set(true);
+        self.fetch();
     }
 
     pub(crate) fn entries(&self) -> Option<Vec<Entry>> {
@@ -494,7 +527,7 @@ impl Review {
     }
 
     pub(crate) fn clamp_frame(&self, count: usize) {
-        let frame = self.frame.get_untracked().min(count - 1);
+        let frame = self.frame.get_untracked().min(count.max(1) - 1);
         if frame != self.frame.get_untracked() {
             self.set_frame.set(frame);
         }
@@ -506,21 +539,31 @@ impl Review {
         self.advanced.set(None);
     }
 
-    pub(crate) fn advance(&self, count: usize, rendered: bool) {
+    pub(crate) fn next_advance(&self, count: usize, rendered: bool) -> Option<Duration> {
         if !self.playing.get_untracked() || count < 2 {
             self.advanced.set(None);
-            return;
+            return None;
         }
-        let now = Instant::now();
-        let due = self
-            .advanced
-            .get()
-            .is_none_or(|advanced| now.duration_since(advanced) >= FRAME_INTERVAL);
-        if rendered && due {
-            self.set_frame.set((self.frame.get_untracked() + 1) % count);
-            self.advanced.set(Some(now));
+        if !rendered {
+            return None;
         }
-        self.waker().wake();
+        Some(
+            self.advanced
+                .get()
+                .map_or(Duration::ZERO, |advanced| {
+                    FRAME_INTERVAL.saturating_sub(advanced.elapsed())
+                }),
+        )
+    }
+
+    pub(crate) fn advance(&self, count: usize, rendered: bool) -> Option<Duration> {
+        let wait = self.next_advance(count, rendered)?;
+        if !wait.is_zero() {
+            return Some(wait);
+        }
+        self.set_frame.set((self.frame.get_untracked() + 1) % count);
+        self.advanced.set(Some(Instant::now()));
+        None
     }
 
     pub(crate) fn report(&self, scale: Option<f32>, description: Option<String>) {
