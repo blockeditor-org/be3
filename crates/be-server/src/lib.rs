@@ -127,6 +127,7 @@ pub async fn serve_with_config(
             _ = &mut shutdown => return Ok(()),
             accepted = listener.accept() => {
                 let (stream, _) = accepted?;
+                let _ = stream.set_nodelay(true);
                 let store = Arc::clone(&store);
                 let hub = Arc::clone(&hub);
                 let registry = Arc::clone(&registry);
