@@ -211,6 +211,7 @@ pub fn TextInput(
         <Focusable
             focused={focus_request}
             tab_stop
+            ime={create_memo(clone!(disabled -> move || !disabled.get()))}
             on_focus_change={{
                 let editor = editor.clone();
                 move |is_focused: bool| {

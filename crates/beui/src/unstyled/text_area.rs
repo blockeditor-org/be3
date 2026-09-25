@@ -654,6 +654,7 @@ pub fn TextArea(
             >
                 <Focusable
                     focused={focused.clone()}
+                    ime={true}
                     on_focus_change={move |is_focused: bool| set_focused.set(is_focused)}
                     on_text={move |typed: String| insert_text(&text_cx, &typed)}
                     on_key={move |press: KeyPress| {

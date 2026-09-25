@@ -763,6 +763,11 @@ impl ApplicationHandler<UserEvent> for Runner {
                     self.push(Event::Text(text.to_string()));
                 }
             }
+            WindowEvent::Ime(Ime::Commit(text)) => {
+                if !text.is_empty() {
+                    self.push(Event::Text(text));
+                }
+            }
             WindowEvent::Ime(ime) => self.push(Event::Ime(match ime {
                 Ime::Enabled => ImeEvent::Enabled,
                 Ime::Preedit(text, _) => ImeEvent::Preedit(text),
