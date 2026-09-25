@@ -23,7 +23,7 @@ impl Counter {
 }
 
 impl Root for Counter {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x636f_756e_7465_722d_626c_6f63_6b2d_7403);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x636f_756e_7465_722d_626c_6f63_6b2d_0001);
 }
 
 pub type CounterContent = Document<Counter>;

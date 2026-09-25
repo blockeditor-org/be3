@@ -1,4 +1,3 @@
-use block_client::blocks::image::Image as ImageBlock;
 use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
@@ -25,7 +24,7 @@ impl block_editor_plugin::BeuiApp for ImageApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        content_file_creation::<ImageBlock, ImageContent>(&creation, "image", filter(), imported)
+        content_file_creation::<ImageContent>(&creation, "image", filter(), imported)
     }
 }
 
@@ -33,8 +32,8 @@ pub(crate) fn filter() -> FileFilter {
     FileFilter::new(
         "Images",
         "Image",
-        ImageBlock::FILE_EXTENSIONS,
-        ImageBlock::MIME_TYPES,
+        ImageContent::FILE_EXTENSIONS,
+        ImageContent::MIME_TYPES,
     )
 }
 

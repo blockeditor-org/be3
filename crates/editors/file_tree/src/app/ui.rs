@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use block::BlockParent;
+use block_editor_plugin::BlockParent;
 use block_editor_plugin::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_plugin::beui::icons::{
     ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_AUTO_AWESOME, ICON_MY_LOCATION,
@@ -386,7 +386,7 @@ fn TreeRow(
         edit.get() || row.get().is_some_and(|row| row.parent == BlockParent::Root)
     }));
     let orphaned = create_memo(clone!(row edit -> move || {
-        edit.get() || row.get().is_some_and(|row| row.parent == BlockParent::Orphaned)
+        edit.get() || row.get().is_some_and(|row| row.parent == BlockParent::Detached)
     }));
     let items = view! {
         <MenuItem label="Add" disabled={add} />
@@ -578,8 +578,8 @@ fn menu_action(
                 Some(id),
                 [id].into_iter().collect::<HashSet<Uuid>>(),
             ),
-            [1, 0] => tree.client().set_block_parent(id, BlockParent::Root),
-            [1, 1] => tree.client().set_block_parent(id, BlockParent::Orphaned),
+            [1, 0] => tree.blocks().set_parent(id, BlockParent::Root),
+            [1, 1] => tree.blocks().set_parent(id, BlockParent::Detached),
             [2] => editor.host().rename_block(id),
             [3] => editor.host().share_block(id),
             [4] => {
@@ -651,7 +651,7 @@ fn picker(editor: &Editor, tree: Rc<FileTree>) -> Rc<Picker> {
         match target {
             None => {
                 if !picked.linked {
-                    tree.client().set_block_parent(picked.id, BlockParent::Root);
+                    tree.blocks().set_parent(picked.id, BlockParent::Root);
                 }
                 host.open_block(picked.id, picked.block_type);
             }

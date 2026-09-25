@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use be_block::metadata::MAX_NAME_BYTES;
 use beui::NodeId;
 use beui::icons::{ICON_REDO, ICON_SHARE, ICON_UNDO};
 use beui::reactive::{
@@ -9,12 +10,10 @@ use beui::reactive::{
 };
 use beui::styled::{Button, ButtonVariant, IconButton, TextInput};
 use beui::{Context, Document, Key, KeyPress};
-use block_client::BlockHandleAccess;
-use block_client::properties::{BlockName, MAX_NAME_BYTES, read_name};
 use block_ui::{BlockLabel, BlockTypes};
 use uuid::Uuid;
 
-use crate::{Editor, Toolbar};
+use crate::{BlockInfo, BlockList, BlockQuery, Editor, Toolbar};
 
 const BAR_SPACING: f32 = 6.0;
 const NAME_WIDTH: f32 = 280.0;
@@ -93,49 +92,53 @@ struct BarState {
 
 struct Watched {
     editor: Editor,
-    handle: RefCell<Option<Box<dyn BlockHandleAccess>>>,
+    list: RefCell<Option<BlockList>>,
     watching: Cell<bool>,
 }
 
 impl Watched {
-    fn block_type(&self) -> Option<Uuid> {
-        self.editor.host().block_type().or_else(|| {
+    fn info(&self) -> Option<BlockInfo> {
+        let mut list = self.list.borrow_mut();
+        let list = list.get_or_insert_with(|| {
             self.editor
-                .client()
-                .cached_block(self.editor.block_id())
-                .map(|cached| cached.block_type)
-        })
+                .blocks()
+                .watch(BlockQuery::Block(self.editor.block_id()))
+        });
+        list.read().into_iter().next()
     }
 
-    fn name(&self) -> Option<BlockName> {
-        self.with_handle(|handle| Some(handle.block_name()))
-            .unwrap_or_else(|| {
-                self.editor
-                    .client()
-                    .cached_block(self.editor.block_id())
-                    .and_then(|cached| read_name(&cached.properties))
-            })
+    fn block_type(&self) -> Option<Uuid> {
+        self.editor
+            .host()
+            .block_type()
+            .or_else(|| self.info().map(|info| info.block_type))
+    }
+
+    fn can_edit(&self) -> bool {
+        self.info()
+            .is_none_or(|info| info.access == crate::AccessLevel::Edit)
     }
 
     fn read(&self) -> BarState {
         let id = self.editor.block_id();
-        let client = self.editor.client();
         let host = self.editor.host();
         let types = self.editor.block_types();
         if !self.watching.replace(true) {
             host.watch_history([id]);
         }
+        let info = self.info();
         let block_type = self.block_type();
         let label = BlockLabel::new(
             types.as_ref(),
             block_type.unwrap_or_else(Uuid::nil),
-            self.name().as_ref(),
+            info.as_ref().and_then(|info| info.name.as_deref()),
+            info.as_ref().is_some_and(|info| info.named_by_hand),
         );
         let fallback = block_type
             .and_then(|block_type| types.display_name(block_type))
             .unwrap_or("Untitled")
             .to_owned();
-        let editable = host.editable() && client.block_access(id).can_edit();
+        let editable = host.editable() && self.can_edit();
         let (can_undo, can_redo) = match editable {
             true => self.history(),
             false => (false, false),
@@ -148,22 +151,15 @@ impl Watched {
             can_undo,
             can_redo,
             can_rename: editable,
-            can_share: client.block_access(id).can_edit(),
+            can_share: self.can_edit(),
             name,
             placeholder,
         }
     }
 
     fn history(&self) -> (bool, bool) {
-        self.with_handle(|handle| {
-            handle
-                .history()
-                .map(|history| (history.can_undo(), history.can_redo()))
-        })
-        .unwrap_or_else(|| {
-            let history = self.editor.host().history(self.editor.block_id());
-            (history.can_undo, history.can_redo)
-        })
+        let history = self.editor.host().history(self.editor.block_id());
+        (history.can_undo, history.can_redo)
     }
 
     fn shortcut(&self, press: KeyPress) -> bool {
@@ -175,8 +171,7 @@ impl Watched {
             Key::Y => true,
             _ => return false,
         };
-        let id = self.editor.block_id();
-        if !self.editor.host().editable() || !self.editor.client().block_access(id).can_edit() {
+        if !self.editor.host().editable() || !self.can_edit() {
             return false;
         }
         let (can_undo, can_redo) = self.history();
@@ -192,17 +187,6 @@ impl Watched {
     }
 
     fn step(&self, redo: bool) {
-        let handled = self.with_handle(|handle| {
-            let history = handle.history()?;
-            match redo {
-                true => history.redo(),
-                false => history.undo(),
-            }
-            Some(())
-        });
-        if handled.is_some() {
-            return;
-        }
         let id = self.editor.block_id();
         match redo {
             true => self.editor.host().redo(id),
@@ -210,43 +194,22 @@ impl Watched {
         }
     }
 
-    fn with_handle<R>(&self, read: impl FnOnce(&dyn BlockHandleAccess) -> Option<R>) -> Option<R> {
-        let mut handle = self.handle.borrow_mut();
-        if handle.is_none() {
-            *handle = block_client::blocks::open(
-                self.editor.client(),
-                self.editor.block_id(),
-                self.block_type()?,
-            );
-        }
-        read(handle.as_deref()?)
-    }
-
     fn rename(&self, typed: &str) {
         let name = typed.trim();
         if name.len() > MAX_NAME_BYTES {
             return;
         }
-        let manual = self.name().filter(|current| current.manual);
+        let manual = self
+            .info()
+            .filter(|info| info.named_by_hand)
+            .and_then(|info| info.name);
         let next = match (name.is_empty(), manual) {
             (true, None) => return,
-            (false, Some(current)) if current.value == name => return,
+            (false, Some(current)) if current == name => return,
             (true, Some(_)) => None,
             (false, _) => Some(name.to_owned()),
         };
-        let renamed = self.with_handle(|handle| {
-            handle.set_name(next.clone());
-            Some(())
-        });
-        if renamed.is_some() {
-            return;
-        }
-        let id = self.editor.block_id();
-        let client = self.editor.client();
-        match next {
-            Some(name) => client.set_block_name(id, name),
-            None => client.clear_block_name(id),
-        }
+        self.editor.blocks().set_name(self.editor.block_id(), next);
     }
 }
 
@@ -257,7 +220,7 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
     let (state, set_state) = create_signal(BarState::default());
     let watched = Rc::new(Watched {
         editor: editor.clone(),
-        handle: RefCell::new(None),
+        list: RefCell::new(None),
         watching: Cell::new(false),
     });
     let reading = Rc::clone(&watched);

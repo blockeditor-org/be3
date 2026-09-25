@@ -90,7 +90,7 @@ impl BrowserTab {
 }
 
 impl Root for BrowserTab {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7765_622d_6272_6f77_7365_722d_7461_6203);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7765_622d_6272_6f77_7365_722d_7461_6201);
 
     fn name(&self) -> Option<String> {
         let title = self.current().title.trim().to_owned();

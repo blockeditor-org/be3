@@ -15,19 +15,22 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
-| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app, `block-server`, PDFium |
+| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app, `be-server`, PDFium |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
-| `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `block-server`, on http://127.0.0.1:8080 |
+| `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
 | `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's: no plugins, signed on a worker with CI's key) |
 | `./scripts/buck run //crates/beui:demo-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
 
-Release builds take `-c be3.profile=release` (cargo's release profile) and
-`-c be3.commit=SHA` (the commit the app reports; otherwise `unknown`, so a new
-commit does not rebuild the app). `--target-platforms root//buck/platforms:<p>`
-builds for another platform.
+`--target-platforms root//buck/platforms:<p>` builds for another platform, and
+`<p>_release` (say `linux_x86_64_release`) is the same platform with cargo's
+release profile. The profile is the `root//buck/constraints:release`
+constraint rather than a buckconfig value, so one build can hold both, and every
+transition keeps it. A release build takes `-c be3.commit=SHA`, the commit the
+app reports; a dev build says `unknown` whatever it is passed, so a new commit
+does not rebuild it.
 
 ## What `./scripts/buck` does
 
@@ -42,6 +45,15 @@ these in front of the pinned buck2:
   none, a person at a terminal is asked for it and it is saved to
   `.buildbuddy-api-key`; without a terminal it fails and says what to set.
   After changing the key, restart the daemon with `./scripts/buck killall`.
+- **An HTTPS proxy.** buck2's remote execution client dials BuildBuddy directly
+  and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
+  `scripts/internal/re-relay` with Go (1.24 or newer), leaves it running on
+  `127.0.0.1:18980`, and writes a `.buckconfig.local` pointing buck2 at it; the
+  relay sends each call on through the proxy, over HTTP/1.1 if that is all the
+  proxy speaks. It still needs a key, though a proxy that adds BuildBuddy's
+  header itself accepts any value, such as `BUILDBUDDY_API_KEY=proxy-injected`.
+  Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
+  is left alone, and the relay is not used then.
 - **The generated rules.** `third-party/rust/BUCK` (every third-party crate,
   written by reindeer) and `buck/cargo/crates.bzl` (every workspace crate's
   dependencies, features and targets, from cargo's plans) are not checked in.
@@ -62,8 +74,9 @@ these in front of the pinned buck2:
 - **One retry.** buck2 exits with 2 for an infrastructure error, such as
   BuildBuddy resetting a download partway, which buck2 does not retry itself.
   The wrapper runs such a command once more; the actions are cached by then.
-  For `run` it builds first (`run --emit-shell`) and retries that, since the
-  program's own exit status is run's.
+  For `run` it builds first (`run --command-args-file`; Windows refuses
+  `--emit-shell`) and retries that, since the program's own exit status is
+  run's.
 
 It also lets `test` put tests on the workers (below).
 
@@ -158,8 +171,9 @@ turns.
 | `wasi_guest` | the WASI sysroot | rust-lld (the plugins) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
-All of them build on the same Linux workers; CI builds `//crates/...` for every
-one. Apple's SDK licence allows it on Apple hardware only, so release builds
+All of them build on the same Linux workers. CI builds `//buck/ci:everything`
+and `//crates/...` in one command: every platform's release app and dev app,
+the plugins, the web bundle and the APKs (`buck/ci/BUCK`). Apple's SDK licence allows it on Apple hardware only, so release builds
 for macOS move to a Mac or Asahi worker before anything ships; xwin accepts
 Microsoft's Build Tools licence.
 
@@ -181,6 +195,7 @@ A native target depends on a wasm one through a transition in
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run.
 - `:dist` is what CI ships per platform, and `:plugins` the plugins once for all.
+  `//buck/ci:artifacts` is all of what CI uploads, in one directory.
 - `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
   version), with the page and shims from `crates/block-app/web` and a
@@ -193,8 +208,8 @@ A native target depends on a wasm one through a transition in
   locally with `target/android-debug.keystore`, made on first use.
   `:android-dist` signs on a worker with CI's keystore, which BuildBuddy keeps
   as the secret `ANDROID_DEBUG_KEYSTORE_BASE64` and passes only to actions on
-  the `android_signing` execution platform; CI passes
-  `-c be3.android_id=com.be3.block.ci -c "be3.android_label=Block (CI)"`.
+  the `android_signing` execution platform, with its own application id and
+  label (`com.be3.block.ci`, `Block (CI)`) so it installs beside a local build.
   After changing the secret, bump `key_version` in `crates/block-app/BUCK`.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).

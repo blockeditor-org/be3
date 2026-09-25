@@ -2,9 +2,16 @@ use super::*;
 
 #[test]
 fn the_program_lists_every_instruction() {
-    let (mut editor, block) = editor();
+    let mut editor = editor();
 
-    let instructions = block.read().unwrap().program().instructions.clone();
+    let instructions = editor
+        .content::<CompiledLogicContent>(None)
+        .root()
+        .compiled
+        .unwrap()
+        .program()
+        .instructions
+        .clone();
     assert_eq!(
         instructions
             .iter()

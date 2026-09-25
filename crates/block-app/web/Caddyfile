@@ -1,9 +1,9 @@
-# The web bundle, with /api passed through to block-server. BE3_DOMAIN_NAME is
+# The web bundle, with /api passed through to be-server. BE3_DOMAIN_NAME is
 # the address it is served at: a domain for a deployment, which Caddy gets a
 # certificate for, or http://127.0.0.1:8080 for serve.sh beside this, which runs
 # it on this machine. BE3_WEB_ROOT is the directory
 # `./scripts/buck build //crates/block-app:web-dist --out DIR` wrote, and
-# BE3_BACKEND_URL where block-server listens.
+# BE3_BACKEND_URL where be-server listens.
 {$BE3_DOMAIN_NAME} {
 	handle /api* {
 		reverse_proxy {$BE3_BACKEND_URL}

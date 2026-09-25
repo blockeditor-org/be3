@@ -1,17 +1,15 @@
+use block_editor_plugin::be_block::BlockContent;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use block::Block as _;
-use block_client::blocks::deterministic_game::DeterministicGame as GameBlock;
-use block_client::blocks::game_module::GameModule;
 use block_editor_plugin::ContentProjection;
 use block_editor_plugin::be_block::{
     DeterministicGame, DeterministicGameContent, GameModuleContent,
 };
 use block_editor_plugin::beui::reactive::{clone, create_signal, view};
 use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{BlockFilter, BlockPicker, Creation, Editor};
+use block_editor_plugin::{BlockFilter, BlockList, BlockPicker, BlockQuery, Creation, Editor};
 use game_api::GameAction;
 use game_host::Game;
 use uuid::Uuid;
@@ -42,7 +40,7 @@ struct BlockGame {
 
 impl BlockGame {
     fn new(editor: Editor) -> Self {
-        let player = editor.client().account_id();
+        let player = editor.blocks().account_id();
         let block = editor.block_content::<DeterministicGameContent>();
         Self {
             editor,
@@ -155,6 +153,7 @@ struct GameCreation {
     creation: Creation,
     picker: RefCell<BlockPicker>,
     chosen: Cell<Option<Uuid>>,
+    module: RefCell<Option<BlockList>>,
     error: RefCell<Option<String>>,
 }
 
@@ -164,6 +163,7 @@ impl GameCreation {
         Self {
             creation,
             picker: RefCell::new(BlockPicker::default()),
+            module: RefCell::new(None),
             chosen: Cell::new(None),
             error: RefCell::new(None),
         }
@@ -182,10 +182,17 @@ impl GameCreation {
         }
         let picking = self.picker.borrow().is_open();
         let chosen = self.chosen.get().map(|module| {
-            self.creation
-                .client()
-                .get_block::<GameModule>(module)
-                .name()
+            let mut watched = self.module.borrow_mut();
+            if watched
+                .as_ref()
+                .is_none_or(|list| list.query() != BlockQuery::Block(module))
+            {
+                *watched = Some(self.creation.blocks().watch(BlockQuery::Block(module)));
+            }
+            watched
+                .as_ref()
+                .and_then(|list| list.read().into_iter().next())
+                .and_then(|info| info.name)
                 .unwrap_or_else(|| "Game module".to_owned())
         });
         CreationSnapshot {
@@ -197,15 +204,11 @@ impl GameCreation {
 
     fn create_block(&self) -> Result<Uuid, String> {
         let module = self.chosen.get().ok_or("Choose a game module first")?;
-        let block = self
+        Ok(self
             .creation
-            .client()
-            .create_block(GameBlock::with_references(vec![module]));
-        self.creation.seed_content(
-            block.id(),
-            &DeterministicGameContent::new(&DeterministicGame::of(module)),
-        );
-        Ok(block.id())
+            .create(&DeterministicGameContent::new(&DeterministicGame::of(
+                module,
+            ))))
     }
 }
 
@@ -253,7 +256,7 @@ impl block_editor_plugin::BeuiApp for DeterministicGameApp {
 pub(crate) fn module_filter() -> BlockFilter {
     BlockFilter {
         name: "Game module".to_owned(),
-        block_types: vec![GameModule::TYPE_ID.into_bytes()],
+        block_types: vec![GameModuleContent::CONTENT_TYPE.into_bytes()],
         excluded: Vec::new(),
         templates: false,
     }

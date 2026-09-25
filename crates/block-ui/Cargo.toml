@@ -5,9 +5,8 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-block = { path = "../be-block" }
 beui = { path = "../beui", default-features = false }
-block = { path = "../block" }
-block-client = { path = "../block-client" }
 uuid = "1"
 
 [lints]

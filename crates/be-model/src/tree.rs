@@ -107,6 +107,29 @@ impl Tree {
                 }
                 _ => false,
             },
+            Change::Paint {
+                object,
+                field,
+                cells,
+            } => match self.value_mut(*object, *field) {
+                Some(Value::Grid(held)) => held.paint(cells),
+                _ => false,
+            },
+            Change::Reshape {
+                object,
+                field,
+                expected,
+                bounds,
+                cells,
+            } => match self.value_mut(*object, *field) {
+                Some(Value::Grid(held))
+                    if expected.is_none_or(|expected| expected == held.bounds()) =>
+                {
+                    let reshaped = held.reshape(*bounds);
+                    held.paint(cells) || reshaped
+                }
+                _ => false,
+            },
             Change::Insert {
                 place,
                 anchor,
@@ -187,6 +210,69 @@ impl Tree {
                 (held == expected.as_ref() && held != value.as_ref())
                     .then(|| conditional_entry(*object, *field, key, held, value.as_ref()))
             }
+            Change::Paint {
+                object,
+                field,
+                cells,
+            } => {
+                let Some(Value::Grid(held)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let (back, forward) = held.inverse_paint(cells);
+                (!forward.is_empty()).then_some({
+                    (
+                        Change::Paint {
+                            object: *object,
+                            field: *field,
+                            cells: back,
+                        },
+                        Change::Paint {
+                            object: *object,
+                            field: *field,
+                            cells: forward,
+                        },
+                    )
+                })
+            }
+            Change::Reshape {
+                object,
+                field,
+                expected,
+                bounds,
+                cells,
+            } => {
+                let Some(Value::Grid(held)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let before = held.bounds();
+                if expected.is_some_and(|expected| expected != before) {
+                    return None;
+                }
+                let mut reshaped = held.clone();
+                reshaped.reshape(*bounds);
+                let (overwritten, painted) = reshaped.inverse_paint(cells);
+                if before == *bounds && painted.is_empty() {
+                    return None;
+                }
+                let mut restored = held.outside(*bounds);
+                restored.extend(overwritten);
+                Some((
+                    Change::Reshape {
+                        object: *object,
+                        field: *field,
+                        expected: Some(*bounds),
+                        bounds: before,
+                        cells: restored,
+                    },
+                    Change::Reshape {
+                        object: *object,
+                        field: *field,
+                        expected: Some(before),
+                        bounds: *bounds,
+                        cells: painted,
+                    },
+                ))
+            }
             Change::Insert { place, objects, .. } => {
                 let (top, _) = objects.first()?;
                 (!self.contains(*top) && self.list(*place).is_some())
@@ -233,7 +319,9 @@ impl Tree {
             | Change::SetIf { object, field, .. }
             | Change::Add { object, field, .. }
             | Change::Put { object, field, .. }
-            | Change::PutIf { object, field, .. } => {
+            | Change::PutIf { object, field, .. }
+            | Change::Paint { object, field, .. }
+            | Change::Reshape { object, field, .. } => {
                 out.push(Touched::Field(*object, *field));
                 self.touch_up(*object, out);
             }

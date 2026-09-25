@@ -125,3 +125,15 @@ platform(
     ]
     for name, (cpu, os, _) in CROSS_PLATFORMS.items()
 ]
+
+# Every native platform again with buck/constraints:release, which is Cargo's
+# release profile: `--target-platforms root//buck/platforms:<name>_release`.
+[
+    platform(
+        name = name + "_release",
+        constraint_values = ["root//buck/constraints:release"],
+        deps = [":" + name],
+        visibility = ["PUBLIC"],
+    )
+    for name in ["linux_x86_64"] + CROSS_PLATFORMS.keys()
+]

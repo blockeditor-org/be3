@@ -3,7 +3,7 @@ use beui::Vec2;
 
 #[test]
 fn the_intrinsic_size_follows_the_width_it_was_given() {
-    let (mut editor, _block) = editor("one\ntwo\nthree\n");
+    let mut editor = editor("one\ntwo\nthree\n");
 
     editor.resize(Vec2::new(280.0, 0.0));
     editor.run();

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block::BlockParent;
+use block_editor_plugin::BlockParent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::icons::{ICON_LINK, ICON_LINK_OFF};
 use block_editor_plugin::beui::reactive::{
@@ -37,7 +37,7 @@ pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
         info.with(|info| {
             info.as_ref().is_some_and(|info| {
                 info.container
-                    .is_some_and(|container| info.parent != Some(BlockParent::Uuid(container)))
+                    .is_some_and(|container| info.parent != Some(BlockParent::Block(container)))
             })
         })
     }));

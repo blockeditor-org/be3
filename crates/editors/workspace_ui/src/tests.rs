@@ -1,8 +1,5 @@
-use std::sync::Arc;
+use block_editor_plugin::be_block::{BlockContent, FileTreeContent};
 
-use block::Block;
-use block_client::BlockClient;
-use block_client::blocks::file_tree::FileTree;
 use block_editor_plugin::beui::icons::ICON_CLOSE;
 use block_editor_plugin::beui::{Document, NodeId, Rect};
 use block_editor_plugin::{Editor, EditorHost};
@@ -93,24 +90,23 @@ fn collect_crosses(document: &Document, id: NodeId, out: &mut Vec<Rect>) {
 }
 
 fn editor() -> (Fixture, Uuid) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let workspace = client.create_block(block_client::blocks::workspace_ui::WorkspaceUi::new());
-    let opened = client.create_block(FileTree::new());
+    let workspace = Uuid::new_v4();
+    let opened = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(Uuid::new_v4());
-    let editor = Editor::new(host.clone(), client, workspace.id());
+    let editor = Editor::new(host.clone(), workspace);
     let mut fixture = Fixture {
         test: BeuiTest::new(editor),
         host,
     };
     fixture.settle();
-    (fixture, opened.id())
+    (fixture, opened)
 }
 
 fn show(fixture: &mut Fixture, id: Uuid, via: Option<Uuid>) {
     fixture
         .host
-        .show_block(id, <FileTree as Block>::TYPE_ID, via);
+        .show_block(id, FileTreeContent::CONTENT_TYPE, via);
     fixture.settle();
 }

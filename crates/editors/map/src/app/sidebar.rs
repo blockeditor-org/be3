@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use block_client::blocks::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_plugin::be_block::Map;
+use block_editor_plugin::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_plugin::beui::Color32;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::accesskit::{Node, Role};
@@ -244,8 +244,8 @@ struct MapRegionEdges {
     east: f64,
 }
 
-impl From<block_client::blocks::map::MapRegion> for MapRegionEdges {
-    fn from(region: block_client::blocks::map::MapRegion) -> Self {
+impl From<block_editor_plugin::be_block::map::MapRegion> for MapRegionEdges {
+    fn from(region: block_editor_plugin::be_block::map::MapRegion) -> Self {
         Self {
             north: region.north,
             south: region.south,
@@ -255,7 +255,7 @@ impl From<block_client::blocks::map::MapRegion> for MapRegionEdges {
     }
 }
 
-impl From<MapRegionEdges> for block_client::blocks::map::MapRegion {
+impl From<MapRegionEdges> for block_editor_plugin::be_block::map::MapRegion {
     fn from(edges: MapRegionEdges) -> Self {
         Self::new(edges.west, edges.south, edges.east, edges.north)
     }
@@ -364,9 +364,8 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
     let target = Rc::clone(&state);
     let block = create_memo(clone!(point target -> move || {
         let point = point.get()?;
-        let id = target.resolved_id(point.block_id)?;
         let label = target.label_of(point.block_id)?;
-        Some(ChildTarget::new(id, label.block_type))
+        Some(ChildTarget::new(point.block_id, label.block_type))
     }));
     let openable = create_memo(clone!(block -> move || block.get().is_none()));
     let back = Rc::clone(&state);
@@ -536,9 +535,6 @@ fn point_name(state: &MapState, point: Option<MapPoint>) -> String {
     };
     match state.label_of(point.block_id) {
         Some(label) => label.name,
-        None => match state.resolved_id(point.block_id) {
-            Some(_) => "Loading…".to_owned(),
-            None => "Broken link".to_owned(),
-        },
+        None => "Loading…".to_owned(),
     }
 }

@@ -8,10 +8,10 @@ mod workspace;
 
 use std::cell::RefCell;
 
+use be_protocol::WorkspaceRole;
 use beui::reactive::{Dynamic, Frame, List, Store, component, view};
 use beui::styled::use_theme;
 use beui::{ItemSize, NodeId};
-use block::WorkspaceRole;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
@@ -19,8 +19,8 @@ use crate::block_picker::{PickerCommand, PickerView};
 use crate::share::{ShareCommand, ShareView};
 
 pub(crate) use debug::{
-    DebugCommand, DebugView, DebugWindow, Line, LineStyle, NetworkView, PerformanceRow,
-    PluginsView, RunView, RuntimeView, TrafficRow, VersionRuns, VersionView,
+    DebugCommand, DebugView, DebugWindow, Line, LineStyle, PerformanceRow, PluginsView, RunView,
+    RuntimeView, VersionRuns, VersionView,
 };
 #[cfg(feature = "terminal")]
 pub(crate) use debug::{TerminalInput, TerminalRow, TerminalSpan, TerminalView};

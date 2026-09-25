@@ -4,14 +4,15 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use block_client::blocks::pixel_ray_tracer::{
-    PIXEL_RAY_TRACER_SIZE, PixelRayTracer, PixelRayTracerOperation, PixelUpdate, Point, RayEntity,
-    RaySettings,
+use block_editor_plugin::be_block::PixelRayTracerContent;
+use block_editor_plugin::be_block::pixel_ray_tracer::{
+    PIXEL_RAY_TRACER_SIZE, PixelRayTracerOperation, PixelUpdate, Point, RayEntity, RaySettings,
+    Scene,
 };
 use block_editor_plugin::beui::Image;
 use block_editor_plugin::beui::reactive::Draw;
 use block_editor_plugin::beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use block_editor_plugin::{BlockProjection, Editor, PerformanceReporter};
+use block_editor_plugin::{ContentProjection, Editor, PerformanceReporter};
 
 use crate::geometry::{distance, distance_to_segment, inside, pixel_at, raster_line, snap};
 use crate::overlay::{self, Preview};
@@ -100,7 +101,7 @@ struct TracedRays {
 
 pub(crate) struct RayState {
     editor: Editor,
-    block: Rc<BlockProjection<PixelRayTracer>>,
+    block: Scenes,
     performance: PerformanceReporter,
     interaction: RefCell<Option<Interaction>>,
     interaction_revision: Cell<u64>,
@@ -151,11 +152,18 @@ impl Default for Surface {
 
 impl RayState {
     pub(crate) fn new(editor: &Editor) -> Rc<Self> {
-        let block = editor.block::<PixelRayTracer>();
+        let block = Scenes::new(editor.block_content::<PixelRayTracerContent>());
         let performance = editor
             .host()
             .performance(format!("Pixel ray tracer ({})", editor.block_id()));
-        let entities = block.project(|scene| scene.entities().to_vec());
+        let entities = block.content.project(|content| {
+            content
+                .root()
+                .entities
+                .values()
+                .cloned()
+                .collect::<Vec<_>>()
+        });
         let (lighting, set_lighting) = create_signal(None);
         let (rays, set_rays) = create_signal(None);
         let (overlay, set_overlay) = create_signal(overlay::draw(Vec::new(), None, Preview::None));
@@ -203,7 +211,6 @@ impl RayState {
 
     pub(crate) fn settings(&self, view: bool) -> RaySettings {
         self.block
-            .handle()
             .read()
             .map_or_else(RaySettings::default, |scene| match view {
                 true => scene.view_ray_settings(),
@@ -307,11 +314,7 @@ impl RayState {
             }
             Tool::Light => {
                 if inside(at) {
-                    let id = self
-                        .block
-                        .handle()
-                        .read()
-                        .map_or(1, |scene| scene.next_entity_id());
+                    let id = self.block.read().map_or(1, |scene| scene.next_entity_id());
                     self.block.operate(PixelRayTracerOperation::AddEntity {
                         entity: RayEntity::Light {
                             id,
@@ -378,11 +381,7 @@ impl RayState {
                     .operate(PixelRayTracerOperation::Paint { pixels });
             }
             Interaction::Entity { start, current } if start != current => {
-                let id = self
-                    .block
-                    .handle()
-                    .read()
-                    .map_or(1, |scene| scene.next_entity_id());
+                let id = self.block.read().map_or(1, |scene| scene.next_entity_id());
                 let surface = self.new_surface.get_untracked();
                 let entity = match tool {
                     Tool::Surface => RayEntity::Surface {
@@ -538,7 +537,7 @@ impl RayState {
     }
 
     fn settle_lighting(&self) {
-        let Some(scene) = self.block.handle().read() else {
+        let Some(scene) = self.block.read() else {
             return;
         };
         let key = LightingKey {
@@ -633,7 +632,7 @@ impl RayState {
                 });
             }
         }
-        let Some(scene) = self.block.handle().read() else {
+        let Some(scene) = self.block.read() else {
             return;
         };
         let settings = scene.view_ray_settings();
@@ -726,4 +725,82 @@ fn closest(entities: &[RayEntity], point: Point) -> Option<RayEntity> {
         }
     }
     nearest.map(|(_, entity)| entity)
+}
+
+struct Scenes {
+    content: Rc<ContentProjection<PixelRayTracerContent>>,
+    cached: RefCell<Option<Snapshot>>,
+}
+
+#[derive(Clone)]
+struct Snapshot {
+    scene: Rc<Scene>,
+    revision: u64,
+    lighting_revision: u64,
+}
+
+impl std::ops::Deref for Snapshot {
+    type Target = Scene;
+
+    fn deref(&self) -> &Scene {
+        &self.scene
+    }
+}
+
+impl Snapshot {
+    const fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    const fn lighting_revision(&self) -> u64 {
+        self.lighting_revision
+    }
+}
+
+impl Scenes {
+    fn new(content: Rc<ContentProjection<PixelRayTracerContent>>) -> Self {
+        Self {
+            content,
+            cached: RefCell::new(None),
+        }
+    }
+
+    fn read(&self) -> Option<Snapshot> {
+        let revision = self.content.revision()?;
+        let mut cached = self.cached.borrow_mut();
+        if let Some(held) = cached.as_ref().filter(|held| held.revision == revision) {
+            return Some(held.clone());
+        }
+        let scene = Rc::new(self.content.read(|content| content.root().scene())?);
+        let lighting_revision = match cached.as_ref() {
+            Some(held)
+                if held.pixels() == scene.pixels()
+                    && held.entities() == scene.entities()
+                    && held.lighting_ray_settings() == scene.lighting_ray_settings() =>
+            {
+                held.lighting_revision
+            }
+            Some(held) => held.lighting_revision + 1,
+            None => 0,
+        };
+        let snapshot = Snapshot {
+            scene,
+            revision,
+            lighting_revision,
+        };
+        *cached = Some(snapshot.clone());
+        Some(snapshot)
+    }
+
+    fn operate(&self, operation: PixelRayTracerOperation) {
+        let Some(edit) = self
+            .content
+            .read(|content| content.root().edit_for(&operation))
+        else {
+            return;
+        };
+        if !edit.0.is_empty() {
+            self.content.operate(edit);
+        }
+    }
 }

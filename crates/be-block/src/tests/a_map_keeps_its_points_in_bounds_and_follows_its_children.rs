@@ -1,12 +1,12 @@
 use super::*;
 use crate::map::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 use uuid::Uuid;
 
 #[test]
 fn a_map_keeps_its_points_in_bounds_and_follows_its_children() {
     let (cafe, park, copy) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
-    let far = MapPoint::new(BlockRef::Direct(cafe), MapCoordinate::new(500.0, f64::NAN));
+    let far = MapPoint::new(cafe, MapCoordinate::new(500.0, f64::NAN));
     let map = edited(
         &MapContent::default(),
         [
@@ -46,7 +46,7 @@ fn a_map_keeps_its_points_in_bounds_and_follows_its_children() {
     let parked = root
         .points()
         .into_iter()
-        .find(|point| point.block_id == BlockRef::Direct(park))
+        .find(|point| point.block_id == park)
         .unwrap();
     assert_eq!(parked.position, MapCoordinate::new(15.0, 15.0));
     assert_eq!(BlockContent::references(&merged), [cafe, park]);

@@ -10,9 +10,16 @@ load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
 # reindeer.toml and buckify.bxl turn on for every platform.
 #
 # BLOCK_APP_COMMIT is what cargo's build script asks git for; a worker has no
-# checkout, so release builds pass `-c be3.commit=SHA` and every other build
-# says unknown, so a new commit does not rebuild the app.
-commit = {"BLOCK_APP_COMMIT": read_config("be3", "commit", "unknown")}
+# checkout, so a release build takes `-c be3.commit=SHA`. A dev build says
+# unknown whatever the command passes, so a new commit does not rebuild it, and
+# a build that asks for both profiles leaves the dev half the cache a person's
+# machine hits.
+commit = {
+    "BLOCK_APP_COMMIT": select({
+        "DEFAULT": "unknown",
+        "root//buck/constraints:release": read_config("be3", "commit", "unknown"),
+    })
+}
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
 
@@ -49,6 +56,7 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
+    visibility = ["//buck/ci:"],
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -60,6 +68,7 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    visibility = ["//buck/ci:"],
 )
 
 # What CI ships per platform: the app and server under cargo's names, and PDFium;
@@ -68,12 +77,13 @@ app(
     name = "dist",
     binary = ":block-app-bin",
     executable_name = "block-app",
-    extra_binaries = {"block-server": "//crates/block-server:block-server-bin"},
+    extra_binaries = {"be-server": "//crates/be-server:be-server-bin"},
     files = pdfium_library(),
     manifests = [],
     modules = [],
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    visibility = ["//buck/ci:"],
 )
 
 # The web bundle: the app for wasi and the gpu shim for wasm32, each through
@@ -112,9 +122,10 @@ app(
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
+    visibility = ["//buck/ci:"],
 )
 
-# The bundle served here by Caddy, with block-server behind it (web/serve.sh).
+# The bundle served here by Caddy, with be-server behind it (web/serve.sh).
 tool(
     name = "web-serve",
     command = [
@@ -123,7 +134,7 @@ tool(
         "$(location //buck/tools:caddy)",
         "$(location :Caddyfile)",
         "$(location :web)",
-        "$(location //crates/block-server:block-server-bin)",
+        "$(location //crates/be-server:be-server-bin)",
     ],
 )
 
@@ -140,8 +151,10 @@ export_file(
 # The Android app: the APK is built unsigned on a worker, with the plugins
 # precompiled for the device, and :android signs it here into
 # target/android/block-app.apk (`-- --install` installs and starts it).
-# CI's builds take their own id and label from be3.android_id and
-# be3.android_label.
+# CI's APK has an id and label of its own, so that it installs beside a local
+# build rather than colliding with it: sharing the package name, it would
+# either overwrite a local install signed with the same key or fail to install
+# over one signed with another.
 app(
     name = "android-assets",
     index = True,
@@ -165,10 +178,10 @@ app(
 [
     android_apk(
         name = name,
-        application_id = read_config("be3", "android_id", "com.be3.block"),
+        application_id = application_id,
         assets = assets,
         java = glob(["android/java/**/*.java"]),
-        label = read_config("be3", "android_label", "Block"),
+        label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",
         min_sdk = 23,
@@ -177,7 +190,10 @@ app(
         version_code = 1,
         version_name = "0.1.0",
     )
-    for name, assets in [("apk", ":android-assets"), ("apk-dist", ":android-dist-assets")]
+    for name, assets, application_id, label in [
+        ("apk", ":android-assets", "com.be3.block", "Block"),
+        ("apk-dist", ":android-dist-assets", "com.be3.block.ci", "Block (CI)"),
+    ]
 ]
 
 tool(
@@ -199,6 +215,7 @@ signed_apk(
     apk = ":apk-dist",
     exec_compatible_with = ["root//buck/constraints:android_keystore"],
     key_version = 1,
+    visibility = ["//buck/ci:"],
 )
 
 # The native startup smoke check: the app for ten seconds in a virtual display.

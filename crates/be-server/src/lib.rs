@@ -27,68 +27,6 @@ pub use sessions::SessionRegistry;
 pub use store::{Identity, ServerStore};
 pub use watch::WatchHub;
 
-#[derive(Clone, Debug)]
-pub struct Adopted {
-    pub account: Uuid,
-    pub display_name: String,
-}
-
-pub struct Hosted {
-    store: Arc<ServerStore>,
-    hub: Arc<WatchHub>,
-    registry: Arc<SessionRegistry>,
-}
-
-impl Hosted {
-    pub fn open(data_dir: impl Into<PathBuf>) -> Result<Self, ServerError> {
-        Ok(Self {
-            store: Arc::new(ServerStore::open(data_dir.into())?),
-            hub: Arc::new(WatchHub::new()),
-            registry: Arc::new(SessionRegistry::new()),
-        })
-    }
-
-    pub async fn adopt(
-        &self,
-        account: Uuid,
-        email: &str,
-        display_name: &str,
-        workspace: Uuid,
-        workspace_name: &str,
-        role: WorkspaceRole,
-    ) -> Result<(), ServerError> {
-        self.store
-            .adopt(
-                account,
-                email,
-                display_name,
-                workspace,
-                workspace_name,
-                role,
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub async fn serve<S>(
-        &self,
-        socket: tokio_tungstenite::WebSocketStream<S>,
-        adopted: Adopted,
-    ) -> Result<(), ServerError>
-    where
-        S: AsyncRead + AsyncWrite + Unpin + Send,
-    {
-        serve_socket(
-            socket,
-            Arc::clone(&self.store),
-            Arc::clone(&self.hub),
-            Arc::clone(&self.registry),
-            Some(adopted),
-        )
-        .await
-    }
-}
-
 #[derive(Debug)]
 pub enum ServerError {
     Refused(ErrorCode, String),
@@ -148,6 +86,19 @@ impl From<tokio_tungstenite::tungstenite::Error> for ServerError {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ServerConfig {
+    pub allow_registration: bool,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            allow_registration: true,
+        }
+    }
+}
+
 pub async fn serve(listener: TcpListener, data_dir: impl Into<PathBuf>) -> Result<(), ServerError> {
     let (_shutdown, receiver) = oneshot::channel();
     serve_until_shutdown(listener, data_dir, receiver).await
@@ -158,6 +109,15 @@ pub async fn serve_until_shutdown(
     data_dir: impl Into<PathBuf>,
     shutdown: oneshot::Receiver<()>,
 ) -> Result<(), ServerError> {
+    serve_with_config(listener, data_dir, ServerConfig::default(), shutdown).await
+}
+
+pub async fn serve_with_config(
+    listener: TcpListener,
+    data_dir: impl Into<PathBuf>,
+    config: ServerConfig,
+    shutdown: impl Future<Output = impl Sized>,
+) -> Result<(), ServerError> {
     let store = Arc::new(ServerStore::open(data_dir.into())?);
     let hub = Arc::new(WatchHub::new());
     let registry = Arc::new(SessionRegistry::new());
@@ -167,11 +127,12 @@ pub async fn serve_until_shutdown(
             _ = &mut shutdown => return Ok(()),
             accepted = listener.accept() => {
                 let (stream, _) = accepted?;
+                let _ = stream.set_nodelay(true);
                 let store = Arc::clone(&store);
                 let hub = Arc::clone(&hub);
                 let registry = Arc::clone(&registry);
                 tokio::spawn(async move {
-                    let _ = handle_connection(stream, store, hub, registry).await;
+                    let _ = handle_connection(stream, store, hub, registry, config).await;
                 });
             }
         }
@@ -184,8 +145,9 @@ struct Connection {
     registry: Arc<SessionRegistry>,
     client: u64,
     account: Option<Uuid>,
+    token: Option<String>,
     identity: Option<Identity>,
-    adopted: Option<Adopted>,
+    config: ServerConfig,
 }
 
 async fn handle_connection(
@@ -193,6 +155,7 @@ async fn handle_connection(
     store: Arc<ServerStore>,
     hub: Arc<WatchHub>,
     registry: Arc<SessionRegistry>,
+    config: ServerConfig,
 ) -> Result<(), ServerError> {
     let socket = accept_async_with_config(
         stream,
@@ -203,7 +166,7 @@ async fn handle_connection(
         }),
     )
     .await?;
-    serve_socket(socket, store, hub, registry, None).await
+    serve_socket(socket, store, hub, registry, config).await
 }
 
 pub async fn serve_socket<S>(
@@ -211,7 +174,7 @@ pub async fn serve_socket<S>(
     store: Arc<ServerStore>,
     hub: Arc<WatchHub>,
     registry: Arc<SessionRegistry>,
-    adopted: Option<Adopted>,
+    config: ServerConfig,
 ) -> Result<(), ServerError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
@@ -225,8 +188,9 @@ where
         registry: Arc::clone(&registry),
         client,
         account: None,
+        token: None,
         identity: None,
-        adopted,
+        config,
     };
 
     let outcome = async {
@@ -290,6 +254,23 @@ where
 }
 
 impl Connection {
+    fn authenticated(
+        &mut self,
+        request: u64,
+        profile: store::Profile,
+        token: String,
+    ) -> ServerMessage {
+        self.account = Some(profile.account);
+        self.token = Some(token.clone());
+        ServerMessage::Authenticated {
+            request,
+            account: profile.account,
+            email: profile.email,
+            display_name: profile.display_name,
+            token,
+        }
+    }
+
     fn identity(&self) -> Result<Identity, ServerError> {
         self.identity.ok_or_else(|| {
             ServerError::Refused(
@@ -316,57 +297,63 @@ impl Connection {
                 display_name,
                 password,
             } => {
-                let (account, display_name, token) = self
+                if !self.config.allow_registration {
+                    return Err(ServerError::Refused(
+                        ErrorCode::RegistrationDisabled,
+                        "this server does not accept new accounts".into(),
+                    ));
+                }
+                let (profile, token) = self
                     .store
                     .register(&email, &display_name, &password)
                     .await?;
-                self.account = Some(account);
-                Ok(ServerMessage::Authenticated {
-                    request,
-                    account,
-                    display_name,
-                    token,
-                })
+                Ok(self.authenticated(request, profile, token))
             }
             ClientMessage::Login {
                 request,
                 email,
                 password,
             } => {
-                let (account, display_name, token) = self.store.login(&email, &password).await?;
-                self.account = Some(account);
-                Ok(ServerMessage::Authenticated {
-                    request,
-                    account,
-                    display_name,
-                    token,
-                })
+                let (profile, token) = self.store.login(&email, &password).await?;
+                Ok(self.authenticated(request, profile, token))
             }
             ClientMessage::Authenticate { request, token } => {
-                let (account, display_name) = self.store.resolve_token(&token).await?;
-                self.account = Some(account);
-                Ok(ServerMessage::Authenticated {
-                    request,
-                    account,
-                    display_name,
-                    token,
-                })
+                let profile = self.store.resolve_token(&token).await?;
+                self.token = Some(token.clone());
+                Ok(self.authenticated(request, profile, token))
             }
-            ClientMessage::Adopt { request } => {
-                let Some(adopted) = self.adopted.clone() else {
-                    return Err(ServerError::Refused(
-                        ErrorCode::NotAuthenticated,
-                        "this connection carries no identity to adopt".into(),
-                    ));
-                };
-                let token = self.store.issue_session(adopted.account).await?;
-                self.account = Some(adopted.account);
-                Ok(ServerMessage::Authenticated {
-                    request,
-                    account: adopted.account,
-                    display_name: adopted.display_name,
-                    token,
-                })
+            ClientMessage::Logout { request } => {
+                if let Some(token) = self.token.take() {
+                    self.store.logout(&token).await?;
+                }
+                self.account = None;
+                self.identity = None;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::Invite {
+                request,
+                workspace,
+                email,
+                role,
+            } => {
+                self.store
+                    .invite(self.account()?, workspace, &email, role)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListInvitations { request } => Ok(ServerMessage::Invitations {
+                request,
+                invitations: self.store.list_invitations(self.account()?).await?,
+            }),
+            ClientMessage::RespondInvitation {
+                request,
+                invitation,
+                accept,
+            } => {
+                self.store
+                    .respond_invitation(self.account()?, invitation, accept)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListWorkspaces { request } => Ok(ServerMessage::Workspaces {
                 request,
@@ -387,6 +374,16 @@ impl Connection {
                     workspace,
                     role,
                 });
+                self.hub
+                    .join_workspace(
+                        self.client,
+                        Identity {
+                            account,
+                            workspace,
+                            role,
+                        },
+                    )
+                    .await;
                 Ok(ServerMessage::WorkspaceOpened {
                     request,
                     workspace,
@@ -433,13 +430,30 @@ impl Connection {
                 block,
                 content_type,
                 parent,
-            } => Ok(ServerMessage::Block {
-                request,
-                block: self
+                metadata,
+            } => {
+                let identity = self.identity()?;
+                let block = self
                     .store
-                    .create_block(self.identity()?, block, content_type, parent)
-                    .await?,
+                    .create_block(identity, block, content_type, parent, metadata)
+                    .await?;
+                self.reannounce(identity, vec![block.id], false).await;
+                Ok(ServerMessage::Block { request, block })
+            }
+            ClientMessage::ListBlocks { request } => Ok(ServerMessage::Blocks {
+                request,
+                blocks: self.store.list_blocks(self.identity()?).await?,
             }),
+            ClientMessage::SetMetadata {
+                request,
+                block,
+                metadata,
+            } => {
+                let identity = self.identity()?;
+                let block = self.store.set_metadata(identity, block, metadata).await?;
+                self.reannounce(identity, vec![block.id], false).await;
+                Ok(ServerMessage::Block { request, block })
+            }
             ClientMessage::Publish {
                 request,
                 block,
@@ -452,6 +466,7 @@ impl Connection {
                 references_removed,
             } => {
                 let identity = self.identity()?;
+                let relinked = !references_added.is_empty() || !references_removed.is_empty();
                 let outcome = self
                     .store
                     .publish(
@@ -466,6 +481,9 @@ impl Connection {
                         references_removed,
                     )
                     .await?;
+                if relinked && matches!(outcome, PublishOutcome::Published(_)) {
+                    self.reannounce(identity, vec![block], false).await;
+                }
                 Ok(match outcome {
                     PublishOutcome::Published(head) => {
                         self.hub
@@ -493,9 +511,9 @@ impl Connection {
                 block,
                 parent,
             } => {
-                self.store
-                    .set_parent(self.identity()?, block, parent)
-                    .await?;
+                let identity = self.identity()?;
+                self.store.set_parent(identity, block, parent).await?;
+                self.reannounce(identity, vec![block], true).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListChildren { request, parent } => Ok(ServerMessage::Blocks {
@@ -526,14 +544,25 @@ impl Connection {
                 })
             }
             ClientMessage::DeleteBlock { request, block } => {
-                self.store.delete_block(self.identity()?, block).await?;
+                let identity = self.identity()?;
+                self.store.delete_block(identity, block).await?;
+                self.reannounce(identity, vec![block], true).await;
                 self.hub
                     .broadcast(block, self.client, ServerMessage::BlockDeleted { block })
                     .await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::CollectDetached { request } => {
-                let collected = self.store.collect_detached(self.identity()?).await?;
+                let identity = self.identity()?;
+                let collected = self.store.collect_detached(identity).await?;
+                for block in &collected.blocks {
+                    self.hub
+                        .announce(
+                            identity.workspace,
+                            ServerMessage::BlockRemoved { block: *block },
+                        )
+                        .await;
+                }
                 Ok(ServerMessage::Collected {
                     request,
                     blocks: collected.blocks,
@@ -546,9 +575,11 @@ impl Connection {
                 account,
                 access,
             } => {
+                let identity = self.identity()?;
                 self.store
-                    .set_access(self.identity()?, block, account, access)
+                    .set_access(identity, block, account, access)
                     .await?;
+                self.reannounce(identity, vec![block], true).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListAccess { request, block } => Ok(ServerMessage::AccessList {
@@ -662,6 +693,23 @@ impl Connection {
         }
     }
 
+    async fn reannounce(&self, identity: Identity, blocks: Vec<Uuid>, subtree: bool) {
+        let members = self.hub.members(identity.workspace).await;
+        let identities = members.iter().map(|(_, member)| *member).collect();
+        let Ok(views) = self
+            .store
+            .graph_views(identity.workspace, identities, blocks, subtree)
+            .await
+        else {
+            return;
+        };
+        for ((client, _), messages) in members.into_iter().zip(views) {
+            for message in messages {
+                self.hub.send_to(client, message).await;
+            }
+        }
+    }
+
     async fn announce(&self, block: Uuid, state: &be_protocol::SessionState) {
         self.hub
             .send_all(
@@ -684,7 +732,8 @@ pub async fn add_account(
     workspace: &str,
 ) -> Result<(Uuid, Uuid), ServerError> {
     let store = ServerStore::open(data_dir.into())?;
-    let (account, _, _) = store.register(email, display_name, password).await?;
+    let (profile, _) = store.register(email, display_name, password).await?;
+    let account = profile.account;
     let workspace = store.create_workspace(account, workspace).await?;
     store
         .add_member(workspace.id, account, WorkspaceRole::Administrator)

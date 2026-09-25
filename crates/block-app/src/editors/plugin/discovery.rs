@@ -53,7 +53,7 @@ impl Plugins {
             }
         };
         let block_type = Uuid::from_bytes(manifest.block_type);
-        if !block_client::blocks::TYPE_IDS.contains(&block_type) {
+        if !crate::be::is_known(block_type) {
             self.errors.push(format!(
                 "{source}: {block_type} is not a block type this app has"
             ));

@@ -3,7 +3,7 @@ use crate::video::{
     MAX_CLIP_LENGTH, Video, VideoAttachment, VideoClip, VideoContent, VideoFrameRate,
     VideoOperation,
 };
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 use uuid::Uuid;
 
 struct Sample {
@@ -39,9 +39,9 @@ fn sample() -> (Sample, Uuid, Uuid, Uuid) {
     let mut sample = Sample {
         content: VideoContent::default(),
     };
-    let first = VideoClip::new(BlockRef::Direct(Uuid::new_v4()), 10);
-    let second = VideoClip::new(BlockRef::Direct(Uuid::new_v4()), 5);
-    let attached = VideoClip::new(BlockRef::Direct(Uuid::new_v4()), 3).attached_to(first.id, 2);
+    let first = VideoClip::new(Uuid::new_v4(), 10);
+    let second = VideoClip::new(Uuid::new_v4(), 5);
+    let attached = VideoClip::new(Uuid::new_v4(), 3).attached_to(first.id, 2);
     let ids = (first.id, second.id, attached.id);
     for (index, clip) in [first, second, attached].into_iter().enumerate() {
         sample.run(VideoOperation::InsertClip { clip, index });
@@ -94,13 +94,7 @@ fn video_clips_attach_ripple_and_refuse_cycles() {
     assert_eq!(video.starts(), [(second, 0, 0)]);
     assert!(video.video().clip(attached).is_none());
 
-    let block = video
-        .video()
-        .clip(second)
-        .unwrap()
-        .block_id
-        .as_direct()
-        .unwrap();
+    let block = video.video().clip(second).unwrap().block_id;
     let replacement = Uuid::new_v4();
     let edit = video
         .content

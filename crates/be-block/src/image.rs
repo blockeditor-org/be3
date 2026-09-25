@@ -21,7 +21,7 @@ impl ImageHeader {
 pub struct ImageFile;
 
 impl BlobKind for ImageFile {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x696d_6167_652d_626c_6f63_6b2d_7479_7002);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x696d_6167_652d_626c_6f63_6b2d_7479_7001);
 
     type Header = ImageHeader;
 
@@ -38,6 +38,7 @@ impl Blob<ImageFile> {
     pub const FILE_EXTENSIONS: &'static [&'static str] = &[
         "bmp", "gif", "ico", "jpg", "jpeg", "png", "pnm", "tga", "tif", "tiff", "webp",
     ];
+    pub const MIME_TYPES: &'static [&'static str] = &["image/*"];
 
     pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> Self {
         Self::new(

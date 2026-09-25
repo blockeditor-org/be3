@@ -4,14 +4,14 @@ use be_model::{Anchor, Change, Document, Edit, Item, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockRef, ChildChange, Root};
+use crate::{ChildChange, Root};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum SlotKind {
     Builtin { tool: String },
     Locked { name: String },
     Folder { name: String },
-    Component { name: String, compiled: BlockRef },
+    Component { name: String, compiled: Uuid },
 }
 
 impl Default for SlotKind {
@@ -34,7 +34,7 @@ pub struct HotbarSlot {
 }
 
 impl HotbarSlot {
-    pub fn component(name: impl Into<String>, compiled: BlockRef) -> Self {
+    pub fn component(name: impl Into<String>, compiled: Uuid) -> Self {
         Self {
             kind: SlotKind::Component {
                 name: name.into(),
@@ -51,7 +51,7 @@ impl HotbarSlot {
         }
     }
 
-    pub fn compiled(&self) -> Option<BlockRef> {
+    pub fn compiled(&self) -> Option<Uuid> {
         match &self.kind {
             SlotKind::Component { compiled, .. } => Some(*compiled),
             _ => None,
@@ -67,7 +67,7 @@ fn walk<'a>(slots: &'a [Item<HotbarSlot>], visit: &mut impl FnMut(&'a Item<Hotba
 }
 
 impl Hotbar {
-    pub fn component_refs(&self) -> Vec<BlockRef> {
+    pub fn component_refs(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();
         let mut refs = Vec::new();
         walk(&self.slots, &mut |slot| {
@@ -80,7 +80,7 @@ impl Hotbar {
         refs
     }
 
-    fn pinning(&self, compiled: BlockRef) -> Vec<&Item<HotbarSlot>> {
+    fn pinning(&self, compiled: Uuid) -> Vec<&Item<HotbarSlot>> {
         let mut found = Vec::new();
         walk(&self.slots, &mut |slot| {
             if slot.compiled() == Some(compiled) {
@@ -98,7 +98,7 @@ impl Hotbar {
         removed.chain(added).collect()
     }
 
-    pub fn unpin(&self, compiled: BlockRef) -> Edit {
+    pub fn unpin(&self, compiled: Uuid) -> Edit {
         self.pinning(compiled)
             .into_iter()
             .map(|slot| Change::remove(slot.id))
@@ -107,28 +107,25 @@ impl Hotbar {
 }
 
 impl Root for Hotbar {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x686f_7462_6172_2d63_6f6e_7465_6e74_0001);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6c6f_6769_632d_686f_7462_6172_0101_0101);
 
     fn references(&self) -> Vec<Uuid> {
-        self.component_refs()
-            .into_iter()
-            .filter_map(|compiled| compiled.as_direct())
-            .collect()
+        self.component_refs().into_iter().filter_map(Some).collect()
     }
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         match change {
             ChildChange::Add(_) => None,
-            ChildChange::Delete(old) => Some(self.unpin(BlockRef::Direct(old))),
+            ChildChange::Delete(old) => Some(self.unpin(old)),
             ChildChange::Replace { old, new } => Some(
-                self.pinning(BlockRef::Direct(old))
+                self.pinning(old)
                     .into_iter()
                     .filter_map(|slot| match &slot.kind {
                         SlotKind::Component { name, .. } => Some(HotbarSlot::KIND.set(
                             slot.id,
                             &SlotKind::Component {
                                 name: name.clone(),
-                                compiled: BlockRef::Direct(new),
+                                compiled: new,
                             },
                         )),
                         _ => None,

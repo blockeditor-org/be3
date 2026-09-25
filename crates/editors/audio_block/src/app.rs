@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use block_client::blocks::audio::Audio;
 use block_editor_plugin::be_block::AudioContent;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::beui::{NodeId, Vec2};
@@ -22,7 +21,7 @@ impl block_editor_plugin::BeuiApp for AudioApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        content_file_creation::<Audio, AudioContent>(&creation, "audio", filter(), decode)
+        content_file_creation::<AudioContent>(&creation, "audio", filter(), decode)
     }
 
     fn intrinsic_size() -> Option<Vec2> {

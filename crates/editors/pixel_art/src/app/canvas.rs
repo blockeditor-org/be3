@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_client::blocks::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
+use block_editor_plugin::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_plugin::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_plugin::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo,
@@ -463,13 +463,13 @@ enum Line {
 pub(crate) fn HoverLabel(tools: Rc<Tools>, hovered: ReadSignal<Option<(u16, u16)>>) -> NodeId {
     let color = tools.color.clone();
     let tool = tools.tool.clone();
-    let block = Rc::clone(tools.block());
+    let sampled = Rc::clone(&tools);
     let source = create_memo(clone!(hovered tool -> move || {
         if tool.get() != PixelTool::ReplaceColor {
             return None;
         }
         let (x, y) = hovered.get()?;
-        block.handle().read().and_then(|art| art.pixel(x, y))
+        sampled.pixel(x, y)
     }));
     let label = create_memo(clone!(hovered source color -> move || {
         let Some((x, y)) = hovered.get() else {
@@ -541,12 +541,7 @@ fn finish(tools: &Rc<Tools>, pixel: (u16, u16), width: u16, height: u16) {
         }
         PixelTool::Eyedropper => sample(tools, pixel),
         PixelTool::ReplaceColor => {
-            let Some(from) = tools
-                .block()
-                .handle()
-                .read()
-                .and_then(|art| art.pixel(pixel.0, pixel.1))
-            else {
+            let Some(from) = tools.pixel(pixel.0, pixel.1) else {
                 return;
             };
             let to = tools.color.get_untracked();
@@ -587,12 +582,7 @@ fn commit(tools: &Rc<Tools>, width: u16, height: u16) {
 }
 
 fn sample(tools: &Rc<Tools>, pixel: (u16, u16)) {
-    let Some(color) = tools
-        .block()
-        .handle()
-        .read()
-        .and_then(|art| art.pixel(pixel.0, pixel.1))
-    else {
+    let Some(color) = tools.pixel(pixel.0, pixel.1) else {
         return;
     };
     tools.set_active_color(color, true);

@@ -12,10 +12,7 @@ fn new_type_cells_render_and_a_boolean_cell_toggles() {
     for (field_id, value) in [
         (fixture.fields[1], color_value()),
         (fixture.fields[2], DatabaseValue::Datetime(1_709_251_500)),
-        (
-            fixture.fields[3],
-            DatabaseValue::Block(BlockRef::Direct(Uuid::from_u128(42))),
-        ),
+        (fixture.fields[3], DatabaseValue::Block(Uuid::from_u128(42))),
     ] {
         fixture.set(0, field_id, value);
     }

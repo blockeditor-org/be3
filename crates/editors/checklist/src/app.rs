@@ -1,4 +1,4 @@
-use block_client::blocks::checklist::Checklist as ChecklistBlock;
+use block_editor_plugin::be_block::ChecklistContent;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::view;
 use block_editor_plugin::{Creation, Editor};
@@ -18,9 +18,6 @@ impl block_editor_plugin::BeuiApp for ChecklistApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation
-            .client()
-            .create_block(ChecklistBlock::default())
-            .id())
+        Ok(creation.create(&ChecklistContent::default()))
     }
 }

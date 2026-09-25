@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use block_client::BlockClient;
-use block_client::blocks::counter::Counter;
 use block_editor_plugin::be_block::{
     BlockContent, Counter as CounterModel, CounterContent, LiveEdit,
 };
@@ -25,11 +21,10 @@ struct Harness {
 
 impl Harness {
     fn new() -> Self {
-        let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-        let block = client.create_block(Counter::default());
+        let block = Uuid::new_v4();
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host.clone(), client, block.id());
+        let editor = Editor::new(host.clone(), block);
         let mut harness = Self {
             editor: BeuiTest::new(editor),
             host,

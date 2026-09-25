@@ -38,8 +38,7 @@ impl crate::BeuiApp for OverlaidApp {
 #[test]
 fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
     let mut session = EditorSession::new::<OverlaidApp>(EditorInstanceId(0), Waker::default());
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    session.connect(client, Uuid::new_v4(), BLOCK_TYPE);
+    session.connect(Uuid::new_v4(), BLOCK_TYPE);
     session.regions.insert(
         EditorRegion::Frame,
         RegionState {

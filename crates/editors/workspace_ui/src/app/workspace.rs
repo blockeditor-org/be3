@@ -1,12 +1,8 @@
+use block_editor_plugin::be_block::{BlockContent, FileTreeContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::Arc;
 
-use block::{Block, BlockAccess, BlockParent, BlockReference};
-use block_client::blocks::file_tree::FileTree;
-use block_client::root_settings::RootSetting;
-use block_client::{BlockClient, BlockHandle, BlockHandleAccess};
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
@@ -17,10 +13,12 @@ use block_editor_plugin::beui::unstyled::{
     Container, DockState, LeafId, Side, TabId, narrower_than,
 };
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_plugin::root_settings::RootSetting;
 use block_editor_plugin::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
     Editor, EditorHost, FocusedBlock, PickedBlock,
 };
+use block_editor_plugin::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::panel::BlockPanel;
@@ -54,8 +52,8 @@ pub(crate) struct Workspace {
     set_error: WriteSignal<Option<String>>,
     files: ReadSignal<Option<Uuid>>,
     set_files: WriteSignal<Option<Uuid>>,
-    file_tree: RefCell<RootSetting<FileTree>>,
-    handles: RefCell<HashMap<Uuid, Box<dyn BlockHandleAccess>>>,
+    file_tree: RefCell<RootSetting<FileTreeContent>>,
+    handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
     next_tab: Cell<u64>,
@@ -64,7 +62,6 @@ pub(crate) struct Workspace {
 
 impl Workspace {
     fn new(editor: Editor) -> Rc<Self> {
-        let file_tree = RootSetting::new(editor.client());
         let (layout, set_layout) = create_signal(starting_layout());
         let (tabs, set_tabs) = create_signal(Tabs::new());
         let (titles, set_titles) = create_signal(HashMap::new());
@@ -88,7 +85,7 @@ impl Workspace {
             set_error,
             files,
             set_files,
-            file_tree: RefCell::new(file_tree),
+            file_tree: RefCell::new(RootSetting::default()),
             handles: RefCell::new(HashMap::new()),
             block_types: RefCell::new(HashMap::new()),
             opened_via: RefCell::new(HashMap::new()),
@@ -112,8 +109,40 @@ impl Workspace {
         self.editor.host()
     }
 
-    pub(crate) fn client(&self) -> &Arc<BlockClient> {
-        self.editor.client()
+    pub(crate) fn blocks(&self) -> Blocks {
+        self.editor.blocks()
+    }
+
+    pub(crate) fn info(&self, id: Uuid) -> Option<BlockInfo> {
+        let mut handles = self.handles.borrow_mut();
+        let list = handles
+            .entry(id)
+            .or_insert_with(|| self.blocks().watch(BlockQuery::Block(id)));
+        list.read()
+            .into_iter()
+            .next()
+            .or_else(|| self.blocks().info(id))
+    }
+
+    pub(crate) fn debug_data(&self, id: Uuid) -> Option<String> {
+        let info = self.info(id)?;
+        let parent = match info.parent {
+            BlockParent::Root => "root".to_owned(),
+            BlockParent::Detached => "detached".to_owned(),
+            BlockParent::Block(parent) => parent.to_string(),
+        };
+        let data = serde_json::json!({
+            "id": info.id.to_string(),
+            "type": info.block_type.to_string(),
+            "author": info.author.to_string(),
+            "parent": parent,
+            "name": info.name,
+            "named_by_hand": info.named_by_hand,
+            "references": info.references.iter().map(Uuid::to_string).collect::<Vec<_>>(),
+            "access": info.access.label(),
+            "artifact_source": info.artifact.as_ref().map(|artifact| artifact.source_type.to_string()),
+        });
+        serde_json::to_string(&data).ok()
     }
 
     pub(crate) fn types(&self) -> Rc<BlockCatalog> {
@@ -145,8 +174,7 @@ impl Workspace {
         let files = self
             .file_tree
             .borrow_mut()
-            .find(self.client(), self.host().client_id())
-            .map(BlockHandle::id);
+            .find(&self.editor, self.host().client_id());
         self.set_files.set(files);
         self.refresh_titles();
         self.report_focus();
@@ -158,9 +186,9 @@ impl Workspace {
         let titles = self.tabs.with_untracked(|tabs| {
             tabs.iter()
                 .map(|(tab, item)| {
-                    let label = self.client().cached_block(item.id).map_or_else(
-                        || BlockLabel::new(types.as_ref(), item.block_type, None),
-                        |cached| BlockLabel::for_cached(types.as_ref(), &cached),
+                    let label = self.info(item.id).map_or_else(
+                        || BlockLabel::new(types.as_ref(), item.block_type, None, false),
+                        |info| info.label(types.as_ref()),
                     );
                     (*tab, label.name)
                 })
@@ -191,7 +219,7 @@ impl Workspace {
         let watched = self.tabs.with_untracked(|tabs| {
             tabs.values()
                 .map(|item| item.id)
-                .filter(|id| self.client().is_dynamic_artifact(*id))
+                .filter(|id| self.info(*id).is_some_and(|info| info.is_artifact()))
                 .collect::<Vec<_>>()
         });
         self.host().watch_artifacts(watched);
@@ -234,17 +262,14 @@ impl Workspace {
     }
 
     pub(crate) fn known_type(&self, id: Uuid) -> Option<Uuid> {
-        self.block_types.borrow().get(&id).copied().or_else(|| {
-            self.client()
-                .cached_block(id)
-                .map(|cached| cached.block_type)
-        })
+        let known = self.block_types.borrow().get(&id).copied();
+        known.or_else(|| self.info(id).map(|info| info.block_type))
     }
 
-    pub(crate) fn record_reference_types(&self, reference: &BlockReference) {
+    pub(crate) fn record_reference_types(&self, reference: &BlockInfo) {
         self.record_type(reference.id, reference.block_type);
-        if let BlockParent::Uuid(parent) = reference.parent
-            && let Some(parent) = self.client().cached_block(parent)
+        if let BlockParent::Block(parent) = reference.parent
+            && let Some(parent) = self.blocks().info(parent)
         {
             self.record_type(parent.id, parent.block_type);
         }
@@ -316,37 +341,26 @@ impl Workspace {
         self.set_layout.set(layout);
     }
 
-    pub(crate) fn read_handle<R>(
-        &self,
-        item: TabItem,
-        read: impl FnOnce(&dyn BlockHandleAccess) -> R,
-    ) -> Option<R> {
-        let mut handles = self.handles.borrow_mut();
-        if let std::collections::hash_map::Entry::Vacant(e) = handles.entry(item.id) {
-            let handle = block_client::blocks::open(self.client(), item.id, item.block_type)?;
-            e.insert(handle);
-        }
-        handles.get(&item.id).map(|handle| read(handle.as_ref()))
-    }
-
     pub(crate) fn can_edit(&self, id: Uuid) -> bool {
-        self.client().block_access(id).can_edit()
+        self.info(id).is_none_or(|info| info.access.can_edit())
     }
 
-    pub(crate) fn ceiling(&self, id: Uuid) -> BlockAccess {
-        let access = self.client().block_access(id);
-        match self.client().is_dynamic_artifact(id) {
-            true => access.min(BlockAccess::View),
-            false => access,
+    pub(crate) fn ceiling(&self, id: Uuid) -> AccessLevel {
+        let Some(info) = self.info(id) else {
+            return AccessLevel::Edit;
+        };
+        match info.is_artifact() {
+            true => info.access.min(AccessLevel::View),
+            false => info.access,
         }
     }
 
-    pub(crate) fn access(&self, id: Uuid) -> BlockAccess {
+    pub(crate) fn access(&self, id: Uuid) -> AccessLevel {
         let ceiling = self.ceiling(id);
         match self.simulated(id) {
-            Some(AccessLevel::None) => BlockAccess::None.min(ceiling),
-            Some(AccessLevel::KnowExists) => BlockAccess::KnowExists.min(ceiling),
-            Some(AccessLevel::View) => BlockAccess::View.min(ceiling),
+            Some(AccessLevel::None) => AccessLevel::None.min(ceiling),
+            Some(AccessLevel::KnowExists) => AccessLevel::KnowExists.min(ceiling),
+            Some(AccessLevel::View) => AccessLevel::View.min(ceiling),
             Some(AccessLevel::Edit) | None => ceiling,
         }
     }
@@ -372,9 +386,9 @@ impl Workspace {
 
     pub(crate) fn label(&self, id: Uuid, block_type: Uuid) -> BlockLabel {
         let types = self.types();
-        self.client().cached_block(id).map_or_else(
-            || BlockLabel::new(types.as_ref(), block_type, None),
-            |cached| BlockLabel::for_cached(types.as_ref(), &cached),
+        self.info(id).map_or_else(
+            || BlockLabel::new(types.as_ref(), block_type, None, false),
+            |info| info.label(types.as_ref()),
         )
     }
 
@@ -588,7 +602,7 @@ fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let target = create_memo(move || {
         files
             .get()
-            .map(|id| ChildTarget::new(id, <FileTree as Block>::TYPE_ID))
+            .map(|id| ChildTarget::new(id, FileTreeContent::CONTENT_TYPE))
     });
     let editor = workspace.editor().clone();
     view! {

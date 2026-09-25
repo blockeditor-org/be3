@@ -58,7 +58,7 @@ impl Calendar {
 }
 
 impl Root for Calendar {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6361_6c65_6e64_6172_2d62_6c6f_636b_0003);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6361_6c65_6e64_6172_2d62_6c6f_636b_0001);
 }
 
 pub type CalendarContent = Document<Calendar>;

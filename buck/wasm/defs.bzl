@@ -1,35 +1,36 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/cargo:defs.bzl", "cargo_wasm_facts")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
 # app and the native tests only load a game or a plugin as a module, so the
 # module is a dependency in another configuration, which these transitions give
 # it. A game's test says `env = {"GAME_WASM": "$(location :module)"}`.
 def _wasm32_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return refs.wasm32[PlatformInfo]
+    return keep_profile(platform, refs.wasm32[PlatformInfo], refs)
 
 wasm32_transition = transition(
     impl = _wasm32_transition_impl,
-    refs = {"wasm32": "root//buck/platforms:wasm32"},
+    refs = {"wasm32": "root//buck/platforms:wasm32"} | PROFILE_REFS,
 )
 
 # The plugins' wasi. The app's is the same triple, told apart by a constraint
 # (buck/constraints/BUCK) so that each gets its own wgpu.
 def _wasi_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return refs.wasi_guest[PlatformInfo]
+    return keep_profile(platform, refs.wasi_guest[PlatformInfo], refs)
 
 wasi_transition = transition(
     impl = _wasi_transition_impl,
-    refs = {"wasi_guest": "root//buck/platforms:wasi_guest"},
+    refs = {"wasi_guest": "root//buck/platforms:wasi_guest"} | PROFILE_REFS,
 )
 
 def _wasi_app_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
-    return refs.wasi[PlatformInfo]
+    return keep_profile(platform, refs.wasi[PlatformInfo], refs)
 
 wasi_app_transition = transition(
     impl = _wasi_app_transition_impl,
-    refs = {"wasi": "root//buck/platforms:wasi"},
+    refs = {"wasi": "root//buck/platforms:wasi"} | PROFILE_REFS,
 )
 
 # A cdylib's "shared" output is the .wasm; this names it as the module it is,

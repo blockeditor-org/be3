@@ -50,6 +50,13 @@ impl<A: BeuiApp> BeuiTest<A> {
         Self::for_region(Region::Frame(editor, frame))
     }
 
+    pub fn block_id(&self) -> Option<uuid::Uuid> {
+        match &self.region {
+            Region::Frame(editor, _) | Region::Preview(editor, _) => Some(editor.block_id()),
+            Region::Creation(..) | Region::Settings(..) => None,
+        }
+    }
+
     pub fn with_view(editor: Editor, view: impl FnOnce() -> beui::NodeId) -> Self {
         let frame = BeuiFrame::build(&editor, view);
         Self::for_region(Region::Frame(editor, frame))

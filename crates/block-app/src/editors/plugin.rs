@@ -1,5 +1,4 @@
 use beui::{Pos2, Rect, Vec2, vec2};
-use block_client::{BlockClient, BlockHandleAccess, blocks, blocks::workspace_index::BlockEntry};
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, ChildRect, CreationMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ViewChange,
@@ -11,7 +10,6 @@ use std::sync::{
 use uuid::Uuid;
 
 pub(crate) mod discovery;
-mod unsupported;
 
 use super::{
     ArtifactSession, ArtifactStatus, BlockRenderContext, BlockTypeEntry, Chrome, CreationStep,
@@ -28,8 +26,6 @@ use crate::{
         HostChild, HostChildStatus, InstanceRole,
     },
 };
-
-use self::unsupported::UnsupportedBlock;
 
 fn child_interaction(editors: &EditorAccess<'_>, block_id: Uuid) -> InteractionMode {
     match editors.direct_editor_interaction(block_id) {
@@ -151,7 +147,6 @@ impl PluginCreation {
             crate::plugin_host::EditorSlot {
                 plugin: &self.plugin,
                 block_types: editors.registry().plugin_block_types(),
-                client: editors.client_handle(),
                 client_id: editors.client_id(),
                 role: InstanceRole::Creation,
                 instance: self.instance,
@@ -184,7 +179,7 @@ impl PendingCreation for PluginCreation {
                 &mut self.block_pick,
                 editors,
                 Vec::new(),
-                block::BlockParent::Root,
+                be_graph::BlockParent::Root,
             );
             let ready = crate::plugin_host::creation_ready(&self.plugin.identity.id, self.instance);
             if ready {
@@ -195,7 +190,6 @@ impl PendingCreation for PluginCreation {
         self.state = crate::plugin_host::creation(CreationSlot {
             plugin: &self.plugin,
             block_types: editors.registry().plugin_block_types(),
-            client: editors.client_handle(),
             client_id: editors.client_id(),
             instance: self.instance,
         });
@@ -213,7 +207,7 @@ impl PendingCreation for PluginCreation {
         })
     }
 
-    fn create(&mut self, client: &BlockClient) -> Result<Option<PluginEditor>, String> {
+    fn create(&mut self) -> Result<Option<PluginEditor>, String> {
         match &self.state {
             CreationState::Starting => return Ok(None),
             CreationState::Failed(error) => {
@@ -232,9 +226,11 @@ impl PendingCreation for PluginCreation {
             None => Ok(None),
             Some(Ok(block_id)) => {
                 let block_type = Uuid::from_bytes(self.plugin.block_type);
-                let block = blocks::open(client, block_id, block_type)
-                    .ok_or_else(|| format!("{block_type} is not a block type this app knows"))?;
-                Ok(Some(PluginEditor::new(Arc::clone(&self.plugin), block)))
+                Ok(Some(PluginEditor::new(
+                    Arc::clone(&self.plugin),
+                    block_id,
+                    block_type,
+                )))
             }
             Some(Err(error)) => {
                 self.committed = false;
@@ -253,7 +249,8 @@ const UNSUPPORTED_EDITOR_SIZE: Vec2 = vec2(400.0, 120.0);
 
 pub(crate) struct PluginEditor {
     plugin: Option<Arc<PluginManifest>>,
-    block: Box<dyn BlockHandleAccess>,
+    id: Uuid,
+    block_type: Uuid,
     instance: EditorInstanceId,
     opened: bool,
     block_pick: Option<PendingBlockPick>,
@@ -275,7 +272,7 @@ fn serve_block_pick(
     pending: &mut Option<PendingBlockPick>,
     editors: &mut EditorAccess<'_>,
     excluded: Vec<Uuid>,
-    parent: block::BlockParent,
+    parent: be_graph::BlockParent,
 ) {
     if pending.is_none()
         && let Some(request) = crate::plugin_host::take_block_pick(plugin_id, instance)
@@ -314,18 +311,19 @@ fn serve_block_pick(
 }
 
 impl PluginEditor {
-    pub(super) fn new(plugin: Arc<PluginManifest>, block: Box<dyn BlockHandleAccess>) -> Self {
-        Self::open(Some(plugin), block)
+    pub(super) fn new(plugin: Arc<PluginManifest>, id: Uuid, block_type: Uuid) -> Self {
+        Self::open(Some(plugin), id, block_type)
     }
 
     pub(super) fn unsupported(id: Uuid, block_type: Uuid) -> Self {
-        Self::open(None, Box::new(UnsupportedBlock::new(id, block_type)))
+        Self::open(None, id, block_type)
     }
 
-    fn open(plugin: Option<Arc<PluginManifest>>, block: Box<dyn BlockHandleAccess>) -> Self {
+    fn open(plugin: Option<Arc<PluginManifest>>, id: Uuid, block_type: Uuid) -> Self {
         Self {
             plugin,
-            block,
+            id,
+            block_type,
             instance: next_instance(),
             opened: false,
             block_pick: None,
@@ -400,11 +398,11 @@ impl PluginEditor {
     fn unsupported_ui(&self, ui: &mut Ui) -> Option<EditorAction> {
         let rect = ui.rect();
         ui.item(
-            ("unsupported", self.block.id()),
+            ("unsupported", self.id),
             rect,
             HostItem::Unsupported {
-                block: self.block.id(),
-                block_type: self.block.block_type(),
+                block: self.id,
+                block_type: self.block_type,
             },
         );
         None
@@ -440,7 +438,7 @@ impl PluginEditor {
         self.stop_presenting();
         let rect = ui.rect();
         if self.capabilities().pan_and_zoom {
-            viewport.auto_fit(self.block.id());
+            viewport.auto_fit(self.id);
         }
         let view = self.capabilities().pan_and_zoom.then(|| EditorView {
             rect: viewport
@@ -492,11 +490,10 @@ impl PluginEditor {
             crate::plugin_host::EditorSlot {
                 plugin: &plugin,
                 block_types: editors.registry().plugin_block_types(),
-                client: editors.client_handle(),
                 client_id: editors.client_id(),
                 role: InstanceRole::Editor(EditorBlock {
-                    id: self.block.id(),
-                    block_type: self.block.block_type(),
+                    id: self.id,
+                    block_type: self.block_type,
                 }),
                 instance: self.instance,
                 region,
@@ -725,8 +722,8 @@ impl PluginEditor {
             self.instance,
             &mut self.block_pick,
             editors,
-            vec![self.block.id()],
-            block::BlockParent::Uuid(self.block.id()),
+            vec![self.id],
+            be_graph::BlockParent::Block(self.id),
         );
     }
 
@@ -758,39 +755,31 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn block(&self) -> &dyn BlockHandleAccess {
-        self.block.as_ref()
-    }
-
     pub(crate) fn id(&self) -> Uuid {
-        self.block.id()
+        self.id
     }
 
     pub(crate) fn block_type(&self) -> Uuid {
-        self.block.block_type()
+        self.block_type
     }
 
-    pub(crate) fn set_parent(&self, parent: block::BlockParent) {
-        self.block.set_parent(parent);
+    pub(crate) fn add_child(&self, child: Uuid) -> Option<bool> {
+        self.change_child(be_block::ChildChange::Add(child))
     }
 
-    pub(crate) fn add_child(&self, entry: BlockEntry) -> Option<bool> {
-        self.change_child(be_block::ChildChange::Add(entry.id))
+    pub(crate) fn delete_child(&self, child: Uuid) -> Option<bool> {
+        self.change_child(be_block::ChildChange::Delete(child))
     }
 
-    pub(crate) fn delete_child(&self, entry: BlockEntry) -> Option<bool> {
-        self.change_child(be_block::ChildChange::Delete(entry.id))
-    }
-
-    pub(crate) fn replace_child(&self, old: Uuid, new: BlockEntry) -> Option<bool> {
-        let replace = be_block::ChildChange::Replace { old, new: new.id };
+    pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<bool> {
+        let replace = be_block::ChildChange::Replace { old, new };
         let Some(plugin) = &self.plugin else {
             return self.change_child(replace);
         };
         if !plugin.children.replace {
             return None;
         }
-        match crate::plugin_host::replace_child(&plugin.identity.id, self.instance, old, new.id) {
+        match crate::plugin_host::replace_child(&plugin.identity.id, self.instance, old, new) {
             Some(true) => Some(true),
             Some(false) => self.change_child(replace),
             None => None,
@@ -798,14 +787,7 @@ impl PluginEditor {
     }
 
     fn change_child(&self, change: be_block::ChildChange) -> Option<bool> {
-        if crate::be::content_type_for(self.block_type()).is_some() {
-            return crate::be::change_child(self.id(), self.block_type(), change);
-        }
-        match change {
-            be_block::ChildChange::Add(child) => self.block.add_child(child),
-            be_block::ChildChange::Delete(child) => self.block.delete_child(child),
-            be_block::ChildChange::Replace { old, new } => self.block.replace_child(old, new),
-        }
+        crate::be::change_child(self.id, self.block_type, change)
     }
 
     pub(crate) fn render(
@@ -826,10 +808,9 @@ impl PluginEditor {
             crate::plugin_host::PreviewSlot {
                 plugin: &plugin,
                 block_types: editors.registry().plugin_block_types(),
-                client: editors.client_handle(),
                 client_id: editors.client_id(),
-                block_id: self.block.id(),
-                block_type: self.block.block_type(),
+                block_id: self.id,
+                block_type: self.block_type,
                 instance: self.instance,
                 corners: context.corners,
                 opacity: context.opacity,
@@ -974,7 +955,7 @@ impl PluginEditor {
         self.stop_presenting();
         let rect = slot.frame;
         if self.capabilities().pan_and_zoom {
-            viewport.auto_fit(self.block.id());
+            viewport.auto_fit(self.id);
         }
         let view = self.capabilities().pan_and_zoom.then(|| EditorView {
             rect: viewport
@@ -1100,17 +1081,11 @@ impl Drop for PluginArtifact {
 }
 
 impl ArtifactSession for PluginArtifact {
-    fn poll(
-        &mut self,
-        registry: &EditorRegistry,
-        client: &Arc<BlockClient>,
-        data: &[u8],
-    ) -> ArtifactStatus {
+    fn poll(&mut self, registry: &EditorRegistry, data: &[u8]) -> ArtifactStatus {
         self.opened = true;
         let state = crate::plugin_host::artifact(ArtifactSlot {
             plugin: &self.plugin,
             block_types: registry.plugin_block_types(),
-            client: Arc::clone(client),
             client_id: self.client_id,
             instance: self.instance,
             block: self.block,
@@ -1132,13 +1107,7 @@ impl ArtifactSession for PluginArtifact {
         }
     }
 
-    fn settings_ui(
-        &mut self,
-        ui: &mut Ui,
-        registry: &EditorRegistry,
-        client: &Arc<BlockClient>,
-        draft: &mut Vec<u8>,
-    ) {
+    fn settings_ui(&mut self, ui: &mut Ui, registry: &EditorRegistry, draft: &mut Vec<u8>) {
         self.opened = true;
         let height = self.settings_height();
         crate::plugin_host::editor_ui(
@@ -1146,7 +1115,6 @@ impl ArtifactSession for PluginArtifact {
             crate::plugin_host::EditorSlot {
                 plugin: &self.plugin,
                 block_types: registry.plugin_block_types(),
-                client: Arc::clone(client),
                 client_id: self.client_id,
                 role: InstanceRole::Artifact(self.block),
                 instance: self.instance,
@@ -1181,7 +1149,7 @@ impl ArtifactSession for PluginArtifact {
         self.resync = true;
     }
 
-    fn regenerate(&mut self, _client: &Arc<BlockClient>, data: &[u8]) {
+    fn regenerate(&mut self, data: &[u8]) {
         self.outcome = None;
         self.regenerating = true;
         crate::plugin_host::regenerate_artifact(&self.plugin.identity.id, self.instance, data);

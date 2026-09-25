@@ -49,14 +49,13 @@ pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
 
 const MORE_SETTINGS: usize = 0;
 const MORE_CLIENT: usize = 1;
-const MORE_NETWORK: usize = 2;
-const MORE_PERFORMANCE: usize = 3;
-const MORE_PLUGINS: usize = 4;
-const MORE_VERSION: usize = 5;
-const MORE_INSPECTOR: usize = 6;
-const MORE_TERMINAL: usize = 7;
-const MORE_WORKSPACE: usize = 8;
-const MORE_ACCOUNTS: usize = 9;
+const MORE_PERFORMANCE: usize = 2;
+const MORE_PLUGINS: usize = 3;
+const MORE_VERSION: usize = 4;
+const MORE_INSPECTOR: usize = 5;
+const MORE_TERMINAL: usize = 6;
+const MORE_WORKSPACE: usize = 7;
+const MORE_ACCOUNTS: usize = 8;
 const MORE_ABOUT: usize = 10;
 
 #[component]
@@ -105,8 +104,7 @@ fn StatusBar(status: Memo<StatusView>) -> NodeId {
                     on_select={move |path: Vec<usize>| more(&path, &chosen.get_untracked())}
                     items={view! {
                         <MenuItem label="Settings" />
-                        <MenuItem label="Client" />
-                        <MenuItem label="Network" />
+                        <MenuItem label="Block stack" />
                         <MenuItem label="Performance" />
                         <MenuItem label="Plugins" />
                         <MenuItem label="Version" />
@@ -151,7 +149,6 @@ fn more(path: &[usize], accounts: &[super::AccountRow]) {
     match path {
         [MORE_SETTINGS] => send(UiCommand::OpenSettings),
         [MORE_CLIENT] => open(DebugWindow::Client),
-        [MORE_NETWORK] => open(DebugWindow::Network),
         [MORE_PERFORMANCE] => open(DebugWindow::Performance),
         [MORE_PLUGINS] => open(DebugWindow::Plugins),
         [MORE_VERSION] => open(DebugWindow::Version),

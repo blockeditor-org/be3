@@ -1,12 +1,12 @@
 use beui::NodeId;
 use beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
 use beui::styled::{Caption, Checkbox, use_theme};
-use block::Block;
-use block_client::{
-    BlockClient, BlockHandle, DynamicArtifactDescriptor,
-    blocks::{compiled_logic::CompiledLogic, logic_grid::LogicGrid},
+use block_editor_plugin::be_block::compiled_logic::CompiledLogic;
+use block_editor_plugin::be_block::{
+    ArtifactSource, BlockContent, CompiledLogicContent, CompiledLogicDocument, LogicGridContent,
 };
-use block_editor_plugin::Artifacts;
+use block_editor_plugin::{Artifacts, BlockList, BlockQuery, ContentProjection, EditorHost};
+use logicgame::grid::LogicGrid as Grid;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -44,9 +44,9 @@ pub(super) fn source(data: &[u8]) -> Result<Uuid, String> {
     ComponentArtifact::decode(data).map(|artifact| artifact.source)
 }
 
-pub(super) fn descriptor(source_id: Uuid) -> DynamicArtifactDescriptor {
-    DynamicArtifactDescriptor {
-        source_type: LogicGrid::TYPE_ID,
+pub(super) fn descriptor(source_id: Uuid) -> ArtifactSource {
+    ArtifactSource {
+        source_type: LogicGridContent::CONTENT_TYPE,
         data: ComponentArtifact {
             source: source_id,
             settings: ComponentSettings::default(),
@@ -55,8 +55,8 @@ pub(super) fn descriptor(source_id: Uuid) -> DynamicArtifactDescriptor {
     }
 }
 
-pub(super) fn generate_initial(source_id: Uuid, grid: &LogicGrid) -> Result<CompiledLogic, String> {
-    CompiledLogic::compile(source_id, grid.grid()).map_err(|error| error.to_string())
+pub(super) fn generate_initial(source_id: Uuid, grid: &Grid) -> Result<CompiledLogic, String> {
+    CompiledLogic::compile(source_id, grid).map_err(|error| error.to_string())
 }
 
 pub(super) fn artifact_name(source_name: &str) -> String {
@@ -121,48 +121,58 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
 }
 
 pub(super) fn regenerate(
-    client: &BlockClient,
+    host: &EditorHost,
     target_id: Uuid,
     target_type: Uuid,
     data: &[u8],
 ) -> Result<CompileRegeneration, String> {
-    if target_type != CompiledLogic::TYPE_ID {
+    if target_type != CompiledLogicContent::CONTENT_TYPE {
         return Err(format!(
             "compiling a logic grid expected a Compiled Logic target, found {target_type}"
         ));
     }
     let artifact = ComponentArtifact::decode(data)?;
     Ok(CompileRegeneration {
-        source: client.get_block::<LogicGrid>(artifact.source),
-        target: client.get_block::<CompiledLogic>(target_id),
+        host: host.clone(),
+        source_id: artifact.source,
+        source: host.content_of::<LogicGridContent>(artifact.source),
+        source_block: host.blocks().watch(BlockQuery::Block(artifact.source)),
+        target: target_id,
         settings: artifact.settings,
     })
 }
 
 pub(super) struct CompileRegeneration {
-    source: BlockHandle<LogicGrid>,
-    target: BlockHandle<CompiledLogic>,
+    host: EditorHost,
+    source_id: Uuid,
+    source: ContentProjection<LogicGridContent>,
+    source_block: BlockList,
+    target: Uuid,
     settings: ComponentSettings,
 }
 
 impl CompileRegeneration {
     pub(super) fn poll(&mut self) -> Option<Result<(), String>> {
-        let source = self.source.read()?;
-
-        self.target.read()?;
-        let generated = generate_initial(self.source.id(), &source);
-        drop(source);
-        let compiled = match generated {
+        let grid = self.source.read(|content| content.root().grid())?;
+        let compiled = match generate_initial(self.source_id, &grid) {
             Ok(compiled) => compiled,
             Err(error) => return Some(Err(error)),
         };
-        self.target.replace(compiled);
+        self.host.replace_content(
+            self.target,
+            &CompiledLogicContent::new(&CompiledLogicDocument::of(compiled)),
+        );
         if self.settings.rename_with_source {
             let source_name = self
-                .source
-                .name()
+                .source_block
+                .read()
+                .into_iter()
+                .next()
+                .and_then(|info| info.name)
                 .unwrap_or_else(|| "Logic Grid".to_owned());
-            self.target.set_name(artifact_name(&source_name));
+            self.host
+                .blocks()
+                .set_name(self.target, Some(artifact_name(&source_name)));
         }
         Some(Ok(()))
     }

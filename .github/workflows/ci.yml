@@ -27,48 +27,134 @@ env:
   # an empty value, and ./scripts/buck says so rather than building.
   BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
 
-# ./scripts/buck run //:verify is one command locally and three jobs here. Its three parts
-# need nothing from one another, and run together they were the longest thing in
-# this workflow by a wide margin, so everything else finished and waited. Split,
-# the wall clock is the longest part rather than the sum of all of them.
+# Two jobs do the work. build is one buck2 build of everything CI builds, on
+# every platform, and uploads what ships. verify is ./scripts/buck run //:verify,
+# a runner for each of its three parts, which fixes what it can on a pull
+# request. autofix pushes those fixes, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
+# needs is buck2 and whatever runs here rather than there.
 jobs:
-  # What keeps the rest of this file honest. Everything a job installs before it
-  # builds anything is trusted completely, so the rules about how those are
-  # named - a commit for a third-party action, a tag only for GitHub's own, no
-  # expansion of an input into a shell script - are worth more as a check than
-  # as a convention. .github/zizmor.yml is where the policy is written.
-  #
-  # It is first because it costs seconds and needs nothing: a pull request that
-  # got the pinning wrong hears about it while the builds are still starting.
-  workflows:
-    name: workflow lint
+  # buck/ci/BUCK names what is built: //crates/... for the host, which is what
+  # ./scripts/buck builds for on every machine; each platform's release app
+  # and server; the plugins, the web bundle and the APK; and each platform's
+  # dev app, which is what `run` builds on a machine of that platform, so that
+  # running it on a commit CI has seen is a cache hit. The first command builds
+  # all of it and downloads nothing. The second downloads only what is
+  # uploaded, which the first has built; --out takes one target, and one that
+  # downloads nothing cannot be written out.
+  build:
+    name: build
     runs-on: ubuntu-24.04
     steps:
+      # persist-credentials: false, because this job does not push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
-        with:
-          tool: zizmor@1.30.1
+      - uses: ./.github/actions/buck2
 
-      # The token is what lets zizmor check that each pinned commit is really in
-      # the repository it is attributed to, which is the half of pinning that
-      # reading the workflow cannot tell you. Without it that audit is skipped
-      # and the rest still run.
-      - name: Lint the workflows
+      # The commit the release apps report; the dev builds say unknown whatever
+      # this is, so they stay the ones a person's machine asks for.
+      - name: Build everything
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
+          COMMIT: ${{ github.sha }}
+        run: >-
+          ./scripts/buck build --materializations=none -c "be3.commit=$COMMIT"
+          //buck/ci:everything //crates/...
 
-  lint:
-    name: clippy and fmt
+      - name: Download what is uploaded
+        env:
+          COMMIT: ${{ github.sha }}
+        run: ./scripts/buck build -c "be3.commit=$COMMIT" //buck/ci:artifacts --out dist
+
+      # Each platform's app, server and PDFium. The plugins are uploaded once
+      # beside them, since every platform loads the same bytes and a manifest
+      # resolves its entry point against its own directory.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-linux-x86_64
+          path: dist/block-linux-x86_64
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-linux-aarch64
+          path: dist/block-linux-aarch64
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-windows-x86_64
+          path: dist/block-windows-x86_64
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-windows-aarch64
+          path: dist/block-windows-aarch64
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-macos-aarch64
+          path: dist/block-macos-aarch64
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-macos-x86_64
+          path: dist/block-macos-x86_64
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-plugins
+          path: dist/block-plugins
+          retention-days: 14
+
+      # Signed on a worker with CI's debug keystore, which BuildBuddy keeps as
+      # the secret ANDROID_DEBUG_KEYSTORE_BASE64, so successive CI builds
+      # install as updates over one another. Like every platform's app it goes
+      # without the plugins.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-app-android-aarch64
+          path: dist/block-app-android-aarch64/block-app.apk
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: block-web
+          path: dist/block-web
+          retention-days: 14
+
+      - uses: actions/upload-pages-artifact@v5
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: dist/block-web
+
+  # ./scripts/buck run //:verify, the way a person runs it: the lint pass and
+  # the tests on BuildBuddy's workers, and the plugin tests here, since they
+  # read and write the accepted paintings in snapshots/. Each part has a runner
+  # of its own, since they need nothing from one another and one after another
+  # they were the longest thing in this workflow by a wide margin. On a pull request it
+  # fixes and accepts instead of only reporting, and anything that leaves the
+  # checkout changed is uploaded as a patch for the autofix job to push, and
+  # fails this job. Everywhere else nothing may be written: main, the merge
+  # queue and a manual run are asking whether what is there is right, and a
+  # fix on any of them has nowhere to go.
+  #
+  # Accepting a painting that changed, or one that is new, is on purpose:
+  # the commit that carries it is what a reviewer looks at in Paint review.
+  verify:
+    name: verify ${{ matrix.part }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [lint, tests, plugin-tests]
     steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      #
       # A pull request is checked out at its head rather than at the merge
       # GitHub makes of it, because what this job fixes is pushed back to that
       # head and has to apply there. The merge queue only merges a head that
@@ -78,250 +164,114 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The lint pass is buck2's: clippy runs on BuildBuddy's workers, and
-      # rustfmt, starlark_fmt and fix-rust-source are what buck2 downloads or
-      # builds there. The runner needs buck2 and nothing else.
-      - uses: ./.github/actions/buck2
-
-      - uses: ./.github/actions/verify
+      # The workflows and the sysroot lockfile are linted with the rest of the
+      # lint pass. zizmor goes first, before anything from the pull request
+      # has run.
+      # Everything a job installs before it builds anything is trusted
+      # completely, so the rules about how those are named - a commit for a
+      # third-party action, a tag only for GitHub's own, no expansion of an
+      # input into a shell script - are worth more as a check than as a
+      # convention. .github/zizmor.yml is where the policy is written.
+      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+        if: matrix.part == 'lint'
         with:
-          part: lint
+          tool: zizmor@1.30.1
 
-  # The tests run through buck2 on BuildBuddy: every test binary is built on a
-  # worker and most tests run there too - beui's renderer tests on lavapipe
-  # from buck/sysroot - so nothing here compiles and this runner needs no
-  # toolchain and no graphics device.
-  test:
-    name: tests
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
+      # The token is what lets zizmor check that each pinned commit is really in
+      # the repository it is attributed to, which is the half of pinning that
+      # reading the workflow cannot tell you. It is given to this step alone.
+      - name: Lint the workflows
+        if: matrix.part == 'lint'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
 
-      - uses: ./.github/actions/buck2
-
-      - uses: ./.github/actions/verify
-        with:
-          part: tests
-
-  # The plugin tests, which buck2 builds on a worker and runs here: they read
-  # the accepted paintings out of snapshots/ and, on a pull request, write the
-  # ones that changed back for the autofix job to push. A plugin test that
-  # paints through the gpu abi opens the software Vulkan device.
-  plugin-tests:
-    name: plugin tests
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
+      # A plugin test that paints through the gpu abi opens the software
+      # Vulkan device.
       - name: Install system dependencies
+        if: matrix.part == 'plugin-tests'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             libvulkan1 mesa-vulkan-drivers
 
-      - uses: ./.github/actions/buck2
-
-      - uses: ./.github/actions/verify
+      # The merge queue's tests, which the tests part runs when node is here.
+      # The queue runs on the standard library and node:test, so there is
+      # nothing to install beyond node.
+      - uses: actions/setup-node@v7
+        if: matrix.part == 'tests'
         with:
-          part: plugin-tests
-
-  buck:
-    name: buck2
-    runs-on: ubuntu-24.04
-    steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+          node-version: '22'
 
       - uses: ./.github/actions/buck2
+        if: ${{ !cancelled() }}
 
       # buck/sysroot/packages.bzl is the lockfile of what buck/sysroot/BUCK
-      # asks for, and is checked in; this is what says the two still agree.
-      # The crates' rules are generated by ./scripts/buck on every checkout,
-      # so they cannot go stale.
-      - name: Check the sysroot lockfile is current
+      # asks for, and is checked in. Re-resolving it here is what says the two
+      # still agree; on a pull request a stale one is a fix like any other.
+      - name: Re-resolve the sysroot lockfile
+        if: ${{ !cancelled() && matrix.part == 'lint' }}
+        env:
+          CHECK: ${{ github.event_name != 'pull_request' }}
         run: |
           ./scripts/buck run //:lock-sysroot
-          git diff --exit-code buck/sysroot/packages.bzl
+          if [ "$CHECK" = true ]; then
+            git diff --exit-code buck/sysroot/packages.bzl
+          fi
 
-      # Everything, on BuildBuddy's workers: the tests jobs above build what
-      # they test, and this is what says the rest - the binaries, the plugin
-      # and game modules - builds too. Nothing is downloaded: what this checks
-      # is that it built, and every platform's binaries together are more than
-      # a runner's disk.
-      - run: ./scripts/buck build --materializations=none //crates/...
-
-      # The same for the platforms buck/platforms/cross.bzl cross-compiles on
-      # the same Linux workers: Android, against the NDK, Linux on arm64,
-      # against Ubuntu's arm64 packages, both Macs, against Apple's SDK, and
-      # both Windows, against the MSVC runtime and Windows SDK. Android's app
-      # is the library the APK carries. Nothing runs any of them here.
-      - name: Build for the cross-compiled platforms
-        run: |
-          for platform in android_arm64 linux_arm64 macos_arm64 macos_x86_64 windows_arm64 windows_x86_64; do
-            ./scripts/buck build --materializations=none --target-platforms "root//buck/platforms:$platform" //crates/...
-          done
-          ./scripts/buck build --materializations=none --target-platforms root//buck/platforms:android_arm64 '//crates/block-app:block-app[cdylib]'
-
-  web:
-    name: web bundle
-    runs-on: ubuntu-24.04
-    steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      # buck2 builds the app for WASI and the gpu shim on BuildBuddy's workers,
-      # with the WASI sysroot, libghostty-vt and wasm-bindgen it brings itself.
-      - uses: ./.github/actions/buck2
-
-      # The plugin modules are the same bytes on every platform, so the plugin
-      # job builds them once for all of them and this bundle goes without. What
-      # is served is the app; the modules reach it from somewhere else.
-      - run: ./scripts/buck build -c be3.profile=release //crates/block-app:web-dist --out dist/web
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-web
-          path: dist/web
-          retention-days: 14
-
-      - uses: actions/upload-pages-artifact@v5
-        if: github.ref == 'refs/heads/main'
-        with:
-          path: dist/web
-
-  plugins:
-    name: plugin modules
-    runs-on: ubuntu-24.04
-    steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      # buck2 builds every plugin on BuildBuddy's workers, with the toolchain
-      # and the WASI sysroot it brings itself.
-      - uses: ./.github/actions/buck2
-
-      - run: ./scripts/buck build -c be3.profile=release //crates/block-app:plugins --out dist
-
-      # Every platform loads these same bytes, so they are uploaded once rather
-      # than repeated inside each platform's archive. A manifest resolves its
-      # entry point against its own directory, so the two ship together.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-plugins
-          path: dist
-          retention-days: 14
-
-  android:
-    name: android apk
-    runs-on: ubuntu-24.04
-    steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      # buck2 builds the app for Android, assembles the APK and signs it on
-      # BuildBuddy's workers, so this runner downloads only the signed APK.
-      - uses: ./.github/actions/buck2
-
-      # Signed with CI's debug keystore, which BuildBuddy keeps as the secret
-      # ANDROID_DEBUG_KEYSTORE_BASE64 and passes only to the signing action,
-      # so successive CI builds install as updates over one another.
-      #
-      # A CI build sharing the app's real package name would either silently
-      # overwrite a locally-built install (if it happened to share a signing
-      # key) or block installation with a signature-mismatch error (since it
-      # doesn't). Give it its own application ID and label instead, so it
-      # installs side by side with a local build rather than colliding with it.
-      #
-      # The plugin modules are the same bytes on every platform, so the plugin
-      # job builds them once for all of them and this APK goes without. Android
-      # will fetch them rather than carry them; until it does, the app there
-      # finds no editors, which is where it already stood.
-      - run: >-
-          ./scripts/buck build
-          -c be3.android_id=com.be3.block.ci
-          -c "be3.android_label=Block (CI)"
-          //crates/block-app:android-dist
-          --out dist/block-app.apk
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-app-android-aarch64
-          path: dist/block-app.apk
-          retention-days: 14
-
-  # Every platform's app and server, cross-compiled on BuildBuddy's Linux
-  # workers - guides/buck2.md says how - so every one of them runs on an
-  # Ubuntu runner with buck2 and nothing else. The plugins job builds the
-  # modules every platform shares, so these carry only what belongs to one.
-  native:
-    name: ${{ matrix.name }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # The host needs no --target-platforms; buck/platforms/cross.bzl
-          # names the rest.
-          - name: linux-x86_64
-            platforms: ''
-          - name: linux-aarch64
-            platforms: --target-platforms=root//buck/platforms:linux_arm64
-          - name: windows-x86_64
-            platforms: --target-platforms=root//buck/platforms:windows_x86_64
-          - name: windows-aarch64
-            platforms: --target-platforms=root//buck/platforms:windows_arm64
-          - name: macos-aarch64
-            platforms: --target-platforms=root//buck/platforms:macos_arm64
-          - name: macos-x86_64
-            platforms: --target-platforms=root//buck/platforms:macos_x86_64
-    steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/buck2
-
-      # The app and the server under cargo's names, and PDFium: what
-      # //crates/block-app:dist is. A release build, which says which commit
-      # it is.
-      - name: Build
+      - name: Run //:verify --${{ matrix.part }}
+        if: ${{ !cancelled() }}
         env:
-          PLATFORMS: ${{ matrix.platforms }}
-          COMMIT: ${{ github.sha }}
-        run: >-
-          ./scripts/buck build $PLATFORMS -c be3.profile=release -c "be3.commit=$COMMIT"
-          //crates/block-app:dist --out dist
+          CHECK: ${{ github.event_name != 'pull_request' }}
+          PART: ${{ matrix.part }}
+        run: |
+          if [ "$CHECK" = true ]; then
+            ./scripts/buck run //:verify -- --check "--$PART"
+          else
+            ./scripts/buck run //:verify -- "--$PART"
+          fi
 
-      - uses: actions/upload-artifact@v7
+      # Everything a fix can do shows up in git: an edited file, a moved one,
+      # and an untracked one such as a painting that was accepted for the first
+      # time, which is why this stages the whole tree before it asks. What is
+      # ignored stays out, which is everything a build leaves behind.
+      #
+      # This runs whether or not verification passed. A run that failed on one
+      # test has still accepted the paintings the others made, and a run that
+      # failed on a clippy warning it could not fix has still formatted the
+      # rest, and both of those are worth the push.
+      - name: Collect what verification changed
+        id: collect
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          git add --all
+          if git diff --cached --quiet; then
+            echo 'Verification changed nothing.'
+            echo 'dirty=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --cached --stat
+          mkdir -p "$RUNNER_TEMP/autofix"
+          git diff --cached --binary > "$RUNNER_TEMP/autofix/$PART.patch"
+          echo 'dirty=true' >> "$GITHUB_OUTPUT"
+
+      - if: ${{ !cancelled() && steps.collect.outputs.dirty == 'true' }}
+        uses: actions/upload-artifact@v7
         with:
-          name: block-${{ matrix.name }}
-          path: dist
-          retention-days: 14
+          name: autofix-${{ matrix.part }}
+          path: ${{ runner.temp }}/autofix/${{ matrix.part }}.patch
+          retention-days: 1
+
+      # A pull request whose fixes changed something is not the pull request
+      # that passed: the one that passes is the commit the autofix job pushes,
+      # and CI runs again on that.
+      - name: Fail because verification changed the checkout
+        if: ${{ !cancelled() && steps.collect.outputs.dirty == 'true' }}
+        run: |
+          echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/buck run //:verify and commit what it changes.'
+          exit 1
 
   # A pull request's verification fixes what it can and accepts what the tests
   # paint, and each part that changed anything uploads the change as a patch
@@ -340,9 +290,9 @@ jobs:
   # not this repository's to push to, and a fork's run has no secrets to push
   # with, so there the failure and its patches are the whole of the answer.
   #
-  # Not in the gate below. Whether the pull request passes was decided by the
-  # parts that failed; this only decides whether its author has to push the
-  # fix themselves.
+  # Not in the gate below. Whether the pull request passes was decided by
+  # verify; this only decides whether its author has to push the fix
+  # themselves.
   autofix:
     name: push autofixes
     if: >-
@@ -350,7 +300,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(needs.*.result, 'failure')
-    needs: [lint, test, plugin-tests]
+    needs: [verify]
     runs-on: ubuntu-24.04
     steps:
       # A part that failed without changing anything uploaded nothing, so
@@ -427,29 +377,6 @@ jobs:
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
 
-  # The merge queue's decision logic is JavaScript rather than Rust, so
-  # ./scripts/buck run //:verify's three parts do not compile it and buck2 does not
-  # run it. It is a few seconds of Node either way, and what it guards is the
-  # thing that decides whether a pull request merges, so it gets a job of its
-  # own and a place in the gate below.
-  merge-queue-tests:
-    name: merge queue tests
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-
-      # No install step, because there is nothing to install: the queue runs on
-      # the standard library and node:test, so that the code holding the merge
-      # button has no dependency anyone has to keep pinned.
-      - name: Test the merge queue
-        run: node --test --test-reporter=spec '.github/merge-queue/*.test.js'
-
   # The one check the ruleset on main requires, and the only thing the merge
   # queue in merge-queue.yml waits for. Everything above is a job this needs,
   # so requiring this one name requires all of them, and adding a job to the
@@ -466,7 +393,7 @@ jobs:
   ci-ok:
     name: 'CI OK'
     if: always()
-    needs: [workflows, lint, test, plugin-tests, buck, web, plugins, android, native, merge-queue-tests]
+    needs: [build, verify]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to have passed

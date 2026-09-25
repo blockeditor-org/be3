@@ -24,8 +24,8 @@ if [[ ! -x "$buck2" ]]; then
     "$internal/install-buck2.sh" >&2
 fi
 assert_buildbuddy_key
-remove_generated_buck_config_local
 mkdir -p "$repository/target"
+configure_https_proxy_relay "$buck2"
 ensure_generated_rules "$buck2"
 
 command="${1:-}"
@@ -70,7 +70,8 @@ if [[ "$command" == 'run' ]]; then
         fi
     fi
     # The program's own exit status is run's, so only the build is retried:
-    # --emit-shell builds and downloads everything without running it.
+    # --command-args-file builds and downloads everything without running it.
+    # (--emit-shell would too, but buck2 refuses it on Windows.)
     prebuild=true
     for argument in "$@"; do
         case "$argument" in
@@ -80,7 +81,7 @@ if [[ "$command" == 'run' ]]; then
     done
     if $prebuild; then
         shift
-        retrying "$buck2" run --emit-shell "$@" > /dev/null
+        retrying "$buck2" run --command-args-file "$repository/target/run-command-args" "$@"
         set -- run "$@"
     fi
     exec "$buck2" "$@"

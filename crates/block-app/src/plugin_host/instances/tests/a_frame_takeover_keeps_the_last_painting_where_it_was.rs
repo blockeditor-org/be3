@@ -4,7 +4,6 @@ const CARD: Rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(110.0, 110.0));
 const FRAME: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(400.0, 400.0));
 
 fn resize(instances: &mut Instances, rect: Rect) {
-    let client = Arc::new(BlockClient::new(Uuid::nil(), Uuid::nil()));
     let role = InstanceRole::Editor(EditorBlock {
         id: Uuid::nil(),
         block_type: Uuid::nil(),
@@ -12,7 +11,6 @@ fn resize(instances: &mut Instances, rect: Rect) {
     instances.report(
         INSTANCE,
         REGION,
-        &client,
         Uuid::nil(),
         role,
         &Arc::new(Vec::new()),

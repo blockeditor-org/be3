@@ -3,15 +3,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use be_block::{BlockContent, Streamed, payload_start};
+use be_block::{BlockContent, BlockMetadata, Streamed, payload_start};
 use be_commit::{
     Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds,
     plan_retention, reference_delta,
 };
 use be_graph::{Access, BlockParent};
 use be_protocol::{
-    BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, ServerMessage, SessionState,
-    WorkspaceRole,
+    AccessEntry, BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, ServerMessage,
+    SessionState, WorkspaceRole,
 };
 use be_store::{ChunkerConfig, ContentKey, Hash, Manifest, ObjectStore, Vault};
 use uuid::Uuid;
@@ -29,7 +29,6 @@ pub enum Credentials {
         password: String,
     },
     Token(String),
-    Adopted,
 }
 
 impl Credentials {
@@ -51,7 +50,6 @@ impl Credentials {
                 password,
             },
             Self::Token(token) => ClientMessage::Authenticate { request, token },
-            Self::Adopted => ClientMessage::Adopt { request },
         }
     }
 }
@@ -196,19 +194,77 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         parent: BlockParent,
     ) -> Result<Uuid, ClientError> {
+        self.create_block(block, C::CONTENT_TYPE, parent, &BlockMetadata::default())
+            .await
+            .map(|summary| summary.id)
+    }
+
+    pub async fn create_block(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        metadata: &BlockMetadata,
+    ) -> Result<BlockSummary, ClientError> {
+        let metadata = self.seal_metadata(metadata);
         let response = self
             .connection
             .request(|request| ClientMessage::CreateBlock {
                 request,
                 block,
-                content_type: C::CONTENT_TYPE,
+                content_type,
                 parent,
+                metadata: metadata.clone(),
             })
             .await?;
         match response {
-            ServerMessage::Block { .. } => Ok(block),
+            ServerMessage::Block { block, .. } => Ok(block),
             _ => Err(ClientError::Unexpected),
         }
+    }
+
+    pub async fn list_blocks(&self) -> Result<Vec<BlockSummary>, ClientError> {
+        let response = self
+            .connection
+            .request(|request| ClientMessage::ListBlocks { request })
+            .await?;
+        match response {
+            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
+            _ => Err(ClientError::Unexpected),
+        }
+    }
+
+    pub async fn set_metadata(
+        &self,
+        block: Uuid,
+        metadata: &BlockMetadata,
+    ) -> Result<BlockSummary, ClientError> {
+        let metadata = self.seal_metadata(metadata);
+        let response = self
+            .connection
+            .request(|request| ClientMessage::SetMetadata {
+                request,
+                block,
+                metadata: metadata.clone(),
+            })
+            .await?;
+        match response {
+            ServerMessage::Block { block, .. } => Ok(block),
+            _ => Err(ClientError::Unexpected),
+        }
+    }
+
+    pub fn metadata(&self, summary: &BlockSummary) -> BlockMetadata {
+        if summary.metadata.is_empty() {
+            return BlockMetadata::default();
+        }
+        self.unseal(&summary.metadata)
+            .map(|plain| BlockMetadata::decode(&plain))
+            .unwrap_or_default()
+    }
+
+    fn seal_metadata(&self, metadata: &BlockMetadata) -> Vec<u8> {
+        self.commits.vault().seal(&metadata.encode())
     }
 
     pub async fn ensure<C: BlockContent>(
@@ -417,7 +473,7 @@ impl<S: ObjectStore> Peer<S> {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
         };
-        let references = content.references();
+        let references = content.references_in(self.workspace());
         let manifest = self
             .commits
             .vault()
@@ -637,6 +693,17 @@ impl<S: ObjectStore> Peer<S> {
             })
             .await?;
         Ok(())
+    }
+
+    pub async fn list_access(&self, block: Uuid) -> Result<Vec<AccessEntry>, ClientError> {
+        let response = self
+            .connection
+            .request(|request| ClientMessage::ListAccess { request, block })
+            .await?;
+        match response {
+            ServerMessage::AccessList { entries, .. } => Ok(entries),
+            _ => Err(ClientError::Unexpected),
+        }
     }
 
     pub async fn join_session(&self, block: Uuid) -> Result<(ClientId, SessionState), ClientError> {

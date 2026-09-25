@@ -1,9 +1,6 @@
-use block::{Block, BlockReference, BlockReferenceList};
-use block_client::blocks::database_schema::DatabaseSchema;
-use block_client::blocks::database_view::DatabaseView;
-use block_editor_plugin::be_block::BlockRef;
 use block_editor_plugin::be_block::database::DatabaseContent;
 use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
+use block_editor_plugin::be_block::{BlockContent, DatabaseSchemaContent};
 use block_editor_plugin::beui::reactive::{
     Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone, component,
     create_effect, create_memo, create_signal, view,
@@ -12,6 +9,7 @@ use block_editor_plugin::beui::styled::{
     Button, ButtonVariant, Caption, Heading, Scroll, use_theme,
 };
 use block_editor_plugin::beui::{NodeId, Vec2};
+use block_editor_plugin::{BlockInfo, BlockQuery};
 use block_editor_plugin::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
 use uuid::Uuid;
 
@@ -28,8 +26,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let loaded = views.loaded.clone();
     let rows = views.rows.clone();
     let reference = database.project(|database| database.root().schema);
-    let own_id = editor.block_id();
-    let schema = editor.resolve(create_memo(move || Some(own_id)), reference);
+    let schema = create_memo(move || reference.get());
 
     let sized = editor.clone();
     create_effect(clone!(rows -> move || {
@@ -41,15 +38,12 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let waiting = create_memo(clone!(empty loaded -> move || empty.get() && !loaded.get()));
     let none_yet = create_memo(clone!(empty loaded -> move || empty.get() && loaded.get()));
     let read_only = editor.read_only();
-    let client = editor.client().clone();
     let block_id = editor.block_id();
-    let seeding = editor.clone();
+    let creating = editor.clone();
     let new_view = move || {
-        let view = client.create_block(DatabaseView::with_references(vec![block_id]));
-        seeding.seed_content(
-            view.id(),
-            &DatabaseViewContent::new(&database_view::DatabaseView::of(BlockRef::Direct(block_id))),
-        );
+        creating.create_child(&DatabaseViewContent::new(&database_view::DatabaseView::of(
+            block_id,
+        )));
     };
 
     let chrome = editor.chrome_shown();
@@ -98,7 +92,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockReference>>) -> NodeId {
+fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockInfo>>) -> NodeId {
     let keys = create_memo(clone!(rows -> move || {
         rows.with(|rows| rows.iter().map(|row| row.id).collect::<Vec<Uuid>>())
     }));
@@ -106,7 +100,7 @@ fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockReference>>) -> NodeId {
         <List spacing=4.0>
             <ForEach keys={keys}>
                 {move |id: Uuid| {
-                    let target = Some(ChildTarget::new(id, DatabaseView::TYPE_ID));
+                    let target = Some(ChildTarget::new(id, DatabaseViewContent::CONTENT_TYPE));
                     view! {
                         <BlockLink
                             editor={editor.clone()}
@@ -123,7 +117,7 @@ fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockReference>>) -> NodeId {
 #[component]
 fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
     let target = create_memo(clone!(schema -> move || {
-        schema.get().map(|id| ChildTarget::new(id, DatabaseSchema::TYPE_ID))
+        schema.get().map(|id| ChildTarget::new(id, DatabaseSchemaContent::CONTENT_TYPE))
     }));
     let missing = create_memo(clone!(schema -> move || schema.get().is_none()));
     view! {
@@ -142,15 +136,15 @@ fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
 }
 
 struct Views {
-    rows: Memo<Vec<BlockReference>>,
+    rows: Memo<Vec<BlockInfo>>,
     loaded: Memo<bool>,
 }
 
 fn watch_views(editor: &Editor) -> Views {
     let references = editor
-        .client()
-        .watch_references(BlockReferenceList::Backrefs(editor.block_id()));
-    let (rows, set_rows) = create_signal(Vec::<BlockReference>::new());
+        .blocks()
+        .watch(BlockQuery::Backrefs(editor.block_id()));
+    let (rows, set_rows) = create_signal(Vec::<BlockInfo>::new());
     let (loaded, set_loaded) = create_signal(false);
     editor.each_frame(move || {
         set_loaded.set(references.is_loaded());
@@ -158,7 +152,7 @@ fn watch_views(editor: &Editor) -> Views {
             references
                 .read()
                 .into_iter()
-                .filter(|reference| reference.block_type == DatabaseView::TYPE_ID)
+                .filter(|reference| reference.block_type == DatabaseViewContent::CONTENT_TYPE)
                 .collect(),
         );
     });

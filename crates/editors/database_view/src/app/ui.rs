@@ -1,5 +1,5 @@
-use block_client::blocks::database_schema::DatabaseField;
-use block_client::blocks::database_view::DatabaseViewKind;
+use block_editor_plugin::be_block::database_schema::DatabaseField;
+use block_editor_plugin::be_block::database_view::DatabaseViewKind;
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Dynamic, Frame, ItemSize, List, Memo, NodeRef, Show, clone, component,
     create_effect, create_memo, view,

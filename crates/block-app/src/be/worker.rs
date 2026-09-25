@@ -4,14 +4,16 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_block::{BlockContent, LiveEdit, Merge, Undo};
+use be_block::{BlockContent, BlockMetadata, LiveEdit, Merge, Undo};
 use be_client::{ClientError, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
-use be_graph::BlockParent;
+use be_graph::{Access, BlockParent};
+use be_protocol::{AccessEntry, BlockSummary, ServerMessage};
 use be_store::ContentKey;
 use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
 
+use super::graph::{Graph, Node};
 use super::{Config, Content, platform};
 
 const SEAL_INTERVAL: Duration = Duration::from_millis(750);
@@ -27,6 +29,7 @@ pub(super) enum Command {
         from: Uuid,
         to: Uuid,
         content_type: Uuid,
+        metadata: BlockMetadata,
     },
     Seed {
         block: Uuid,
@@ -43,12 +46,44 @@ pub(super) enum Command {
         block: Uuid,
         redo: bool,
     },
+    Presence {
+        block: Uuid,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    },
+    Create {
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        metadata: BlockMetadata,
+        bytes: Option<Vec<u8>>,
+    },
+    SetParent {
+        block: Uuid,
+        parent: BlockParent,
+    },
+    SetMetadata {
+        block: Uuid,
+        metadata: BlockMetadata,
+    },
+    SetAccess {
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+    },
+    ListAccess {
+        block: Uuid,
+        reply: std::sync::mpsc::Sender<Result<Vec<AccessEntry>, String>>,
+    },
 }
 
 #[derive(Default)]
 pub(crate) struct Shared {
+    pub(crate) graph: Graph,
     pub(crate) blocks: HashMap<Uuid, Content>,
     pub(crate) histories: HashMap<Uuid, History>,
+    pub(crate) presence: HashMap<Uuid, (u64, Vec<Presence>)>,
+    pub(crate) presence_revision: u64,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
     pub(crate) connected: bool,
@@ -86,7 +121,7 @@ where
             Some(content) => content,
             None => peer.open::<C>(from).await?.unwrap_or_default(),
         };
-        peer.ensure::<C>(to, BlockParent::Root).await?;
+        peer.ensure::<C>(to, BlockParent::Detached).await?;
         peer.save(to, &content, None).await?;
         Ok(())
     })
@@ -107,7 +142,7 @@ where
         let Ok(content) = C::decode(&bytes) else {
             return Ok(());
         };
-        peer.ensure::<C>(block, BlockParent::Root).await?;
+        peer.ensure::<C>(block, BlockParent::Detached).await?;
         if peer.remote_head(block).await?.is_some() {
             return Ok(());
         }
@@ -128,7 +163,7 @@ where
         let Ok(content) = C::decode(&bytes) else {
             return Ok(());
         };
-        peer.ensure::<C>(block, BlockParent::Root).await?;
+        peer.ensure::<C>(block, BlockParent::Detached).await?;
         let mut expected = peer.remote_head(block).await?;
         for _ in 0..4 {
             match peer.save(block, &content, expected).await? {
@@ -163,6 +198,14 @@ pub(super) trait Session {
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
+    fn show(
+        &mut self,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
+    fn take_presence(&mut self) -> Option<Vec<Presence>>;
+
     fn history(&self) -> History {
         History::default()
     }
@@ -171,6 +214,29 @@ pub(super) trait Session {
         let _ = redo;
         Box::pin(async { Ok(()) })
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Presence {
+    pub(crate) client: u64,
+    pub(crate) kind: Uuid,
+    pub(crate) value: Vec<u8>,
+}
+
+fn take_presence<C>(live: &mut Live<Store, C>) -> Option<Vec<Presence>>
+where
+    C: LiveEdit + Clone + Default,
+{
+    live.take_presence_changed().then(|| {
+        live.presence()
+            .iter()
+            .map(|((client, kind), value)| Presence {
+                client: *client,
+                kind: *kind,
+                value: value.clone(),
+            })
+            .collect()
+    })
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -187,7 +253,7 @@ where
     C: Undo + Merge + Clone + Default,
 {
     Box::pin(async move {
-        peer.ensure::<C>(block, BlockParent::Root).await?;
+        peer.ensure::<C>(block, BlockParent::Detached).await?;
         let mut live = Live::<Store, C>::join(Arc::clone(peer), block).await?;
         live.reconcile().await?;
         Ok(Box::new(WithHistory {
@@ -272,6 +338,18 @@ where
         })
     }
 
+    fn show(
+        &mut self,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.set_presence(kind, value).await })
+    }
+
+    fn take_presence(&mut self) -> Option<Vec<Presence>> {
+        take_presence(&mut self.live)
+    }
+
     fn history(&self) -> History {
         History {
             can_undo: !self.undo.is_empty(),
@@ -340,7 +418,7 @@ where
     C: LiveEdit + Merge + Clone + Default,
 {
     Box::pin(async move {
-        peer.ensure::<C>(block, BlockParent::Root).await?;
+        peer.ensure::<C>(block, BlockParent::Detached).await?;
         let mut live = Live::<Store, C>::join(Arc::clone(peer), block).await?;
         live.reconcile().await?;
         Ok(Box::new(Plain {
@@ -414,6 +492,18 @@ where
             drain(&mut self.live, &mut self.log, None);
             replaced.map(|_| ())
         })
+    }
+
+    fn show(
+        &mut self,
+        kind: Uuid,
+        value: Option<Vec<u8>>,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.set_presence(kind, value).await })
+    }
+
+    fn take_presence(&mut self) -> Option<Vec<Presence>> {
+        take_presence(&mut self.live)
     }
 }
 
@@ -523,6 +613,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
+    load_graph(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
     for (block, content_type) in open.clone() {
         rejoin(&peer, &mut sessions, shared, block, content_type).await;
@@ -552,7 +643,18 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             Woken::Disconnected => return Outcome::Lost,
             Woken::Command(command) => apply(&peer, &mut sessions, shared, open, command).await,
-            Woken::Event => {
+            Woken::Event(event) => {
+                match event {
+                    Some(ServerMessage::BlockChanged { block }) => {
+                        let node = node_of(&peer, &block);
+                        shared.lock().unwrap().graph.put(node);
+                    }
+                    Some(ServerMessage::BlockRemoved { block }) => {
+                        shared.lock().unwrap().graph.remove(block);
+                    }
+                    Some(_) => {}
+                    None => load_graph(&peer, shared).await,
+                }
                 for session in sessions.values_mut() {
                     if let Err(error) = session.poll().await {
                         record(shared, error);
@@ -582,7 +684,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
 
 enum Woken {
     Command(Command),
-    Event,
+    Event(Option<ServerMessage>),
     Deadline,
     Disconnected,
     Stopped,
@@ -599,9 +701,9 @@ async fn wait(
     match select(select(command, event), closed).await {
         Either::Left((Either::Left((Some(command), _)), _)) => Woken::Command(command),
         Either::Left((Either::Left((None, _)), _)) => Woken::Stopped,
-        Either::Left((Either::Right((Ok(_), _)), _)) => Woken::Event,
+        Either::Left((Either::Right((Ok(event), _)), _)) => Woken::Event(Some(event)),
         Either::Left((Either::Right((Err(error), _)), _)) => match error {
-            tokio::sync::broadcast::error::RecvError::Lagged(_) => Woken::Event,
+            tokio::sync::broadcast::error::RecvError::Lagged(_) => Woken::Event(None),
             tokio::sync::broadcast::error::RecvError::Closed => Woken::Disconnected,
         },
         Either::Right(_) => Woken::Disconnected,
@@ -654,6 +756,7 @@ async fn apply(
             let mut held = shared.lock().unwrap();
             held.blocks.remove(&block);
             held.histories.remove(&block);
+            held.presence.remove(&block);
             true
         }
         Command::Operate(block, origin, operation) => {
@@ -669,10 +772,19 @@ async fn apply(
             from,
             to,
             content_type,
+            metadata,
         } => {
             let Some(copy) = super::copy_for(content_type) else {
+                shared.lock().unwrap().graph.settle(to);
                 return false;
             };
+            let created = peer
+                .create_block(to, content_type, BlockParent::Detached, &metadata)
+                .await;
+            if let Err(error) = settled(peer, shared, to, created).await {
+                record(shared, error);
+                return false;
+            }
             let shown = sessions.get(&from).map(|session| session.bytes());
             if let Err(error) = copy(peer, from, to, shown).await {
                 record(shared, error);
@@ -712,6 +824,15 @@ async fn apply(
             }
             false
         }
+        Command::Presence { block, kind, value } => {
+            let Some(session) = sessions.get_mut(&block) else {
+                return false;
+            };
+            if let Err(error) = session.show(kind, value).await {
+                record(shared, error);
+            }
+            false
+        }
         Command::History { block, redo } => {
             let Some(session) = sessions.get_mut(&block) else {
                 return false;
@@ -721,12 +842,125 @@ async fn apply(
             }
             false
         }
+        Command::Create {
+            block,
+            content_type,
+            parent,
+            metadata,
+            bytes,
+        } => {
+            let created = peer
+                .create_block(block, content_type, parent, &metadata)
+                .await;
+            if let Err(error) = settled(peer, shared, block, created).await {
+                record(shared, error);
+                return false;
+            }
+            if let (Some(bytes), Some(seed)) = (bytes, super::seed_for(content_type))
+                && let Err(error) = seed(peer, block, bytes).await
+            {
+                record(shared, error);
+            }
+            true
+        }
+        Command::SetParent { block, parent } => {
+            let moved = peer.set_parent(block, parent).await;
+            let settled = shared.lock().unwrap().graph.settle(block);
+            if let Err(error) = moved {
+                record(shared, error);
+            }
+            if settled {
+                refresh(peer, shared, block).await;
+            }
+            true
+        }
+        Command::SetMetadata { block, metadata } => {
+            let changed = peer.set_metadata(block, &metadata).await;
+            if let Err(error) = settled(peer, shared, block, changed).await {
+                record(shared, error);
+            }
+            true
+        }
+        Command::SetAccess {
+            block,
+            account,
+            access,
+        } => {
+            if let Err(error) = peer.grant(block, account, access).await {
+                record(shared, error);
+            }
+            true
+        }
+        Command::ListAccess { block, reply } => {
+            let listed = peer
+                .list_access(block)
+                .await
+                .map_err(|error| error.to_string());
+            let _ = reply.send(listed);
+            false
+        }
         Command::Flush(done) => {
             seal_all(sessions, shared).await;
             publish(sessions, shared);
             let _ = done.send(());
             true
         }
+    }
+}
+
+async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    match peer.list_blocks().await {
+        Ok(blocks) => {
+            let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
+            shared.lock().unwrap().graph.load(nodes);
+        }
+        Err(error) => record(shared, error),
+    }
+}
+
+async fn settled(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+    reply: Result<BlockSummary, ClientError>,
+) -> Result<(), ClientError> {
+    if !shared.lock().unwrap().graph.settle(block) {
+        return reply.map(|_| ());
+    }
+    match reply {
+        Ok(summary) => {
+            let node = node_of(peer, &summary);
+            shared.lock().unwrap().graph.put(node);
+            Ok(())
+        }
+        Err(error) => {
+            refresh(peer, shared, block).await;
+            Err(error)
+        }
+    }
+}
+
+async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+    match peer.summary(block).await {
+        Ok(summary) => {
+            let node = node_of(peer, &summary);
+            shared.lock().unwrap().graph.put(node);
+        }
+        Err(ClientError::Refused(..)) => shared.lock().unwrap().graph.remove(block),
+        Err(error) => record(shared, error),
+    }
+}
+
+fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
+    Node {
+        id: summary.id,
+        content_type: summary.content_type,
+        author: summary.author,
+        parent: summary.parent,
+        access: summary.access,
+        references: summary.references.clone(),
+        metadata: peer.metadata(summary),
+        version: summary.version,
     }
 }
 
@@ -749,6 +983,12 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let history = session.history();
         if held.histories.get(block) != Some(&history) {
             held.histories.insert(*block, history);
+            changed = true;
+        }
+        if let Some(presence) = session.take_presence() {
+            held.presence_revision += 1;
+            let revision = held.presence_revision;
+            held.presence.insert(*block, (revision, presence));
             changed = true;
         }
         let log = session.take_log();
@@ -777,7 +1017,7 @@ async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientErr
         PeerConfig::new(
             config.socket_url(),
             ContentKey::from_bytes(config.content_key()),
-            Credentials::Adopted,
+            Credentials::Token(config.token.clone()),
         )
         .workspace(Some(config.workspace)),
         store,

@@ -1,5 +1,5 @@
-use block_client::blocks::database::{DatabaseColor, DatabaseValue};
-use block_client::blocks::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_plugin::be_block::database::{DatabaseColor, DatabaseValue};
+use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_plugin::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
 use block_editor_plugin::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK,

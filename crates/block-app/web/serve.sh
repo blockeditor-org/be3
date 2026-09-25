@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# Serves the web bundle on this machine: starts block-server on --backend and
+# Serves the web bundle on this machine: starts be-server on --backend and
 # Caddy on --listen with the Caddyfile beside this, plain http rather than a
-# deployment's TLS. Other arguments go to block-server; the default is
+# deployment's TLS. Other arguments go to be-server; the default is
 # --disable-registration.
 #
 #   ./scripts/buck run //crates/block-app:web-serve [-- --listen HOST:PORT] [--backend HOST:PORT]

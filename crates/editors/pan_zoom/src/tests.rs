@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use block_client::BlockClient;
-use block_client::blocks::pan_zoom::PanZoom;
 use block_editor_plugin::beui::{Rect, Vec2, pos2};
 use block_editor_plugin::{Editor, EditorHost, ViewChange};
 use block_ui_test::BeuiTest;
@@ -18,11 +14,10 @@ mod the_stage_stays_transparent_so_the_host_canvas_shows_through;
 mod zooming_asks_the_host_instead_of_moving_the_view;
 
 fn editor() -> (BeuiTest<PanZoomApp>, Editor) {
-    let client = Arc::new(BlockClient::new(Uuid::new_v4(), Uuid::new_v4()));
-    let block = client.create_block(PanZoom::default());
+    let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, client, block.id());
+    let editor = Editor::new(host, block);
     (BeuiTest::new(editor.clone()), editor)
 }
 

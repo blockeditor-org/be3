@@ -9,7 +9,10 @@ use argon2::{
 };
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
-use be_protocol::{AccessEntry, BlockSummary, ErrorCode, HistoryEntry, Workspace, WorkspaceRole};
+use be_protocol::{
+    AccessEntry, BlockSummary, ErrorCode, HistoryEntry, Workspace, WorkspaceInvitation,
+    WorkspaceRole,
+};
 use be_store::{FileStore, Hash, ObjectStore};
 use rand::TryRngCore;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -32,6 +35,13 @@ impl Identity {
     pub fn is_administrator(&self) -> bool {
         self.role == WorkspaceRole::Administrator
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct Profile {
+    pub account: Uuid,
+    pub email: String,
+    pub display_name: String,
 }
 
 pub struct ServerStore {
@@ -61,7 +71,7 @@ impl ServerStore {
         email: &str,
         display_name: &str,
         password: &str,
-    ) -> Result<(Uuid, String, String), ServerError> {
+    ) -> Result<(Profile, String), ServerError> {
         let email = normalize_email(email)?;
         let display_name = display_name.trim().to_owned();
         if display_name.is_empty() {
@@ -97,14 +107,21 @@ impl ServerStore {
             params![account.to_string(), email, display_name, hash],
         )?;
         let token = issue_token(&database, account)?;
-        Ok((account, display_name, token))
+        Ok((
+            Profile {
+                account,
+                email,
+                display_name,
+            },
+            token,
+        ))
     }
 
     pub async fn login(
         &self,
         email: &str,
         password: &str,
-    ) -> Result<(Uuid, String, String), ServerError> {
+    ) -> Result<(Profile, String), ServerError> {
         let email = normalize_email(email)?;
         let database = self.database.lock().await;
         let row: Option<(String, String, String)> = database
@@ -128,27 +145,169 @@ impl ServerStore {
         }
         let account = parse_uuid(&id)?;
         let token = issue_token(&database, account)?;
-        Ok((account, display_name, token))
+        Ok((
+            Profile {
+                account,
+                email,
+                display_name,
+            },
+            token,
+        ))
     }
 
-    pub async fn resolve_token(&self, token: &str) -> Result<(Uuid, String), ServerError> {
+    pub async fn resolve_token(&self, token: &str) -> Result<Profile, ServerError> {
         let database = self.database.lock().await;
-        let row: Option<(String, String)> = database
+        let row: Option<(String, String, String)> = database
             .query_row(
-                "SELECT accounts.id, accounts.display_name FROM sessions
+                "SELECT accounts.id, accounts.email, accounts.display_name FROM sessions
                  JOIN accounts ON accounts.id = sessions.account_id
                  WHERE sessions.token_hash = ?1",
                 [hash_token(token)],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        let Some((id, display_name)) = row else {
+        let Some((id, email, display_name)) = row else {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidCredentials,
                 "that session token is not valid".into(),
             ));
         };
-        Ok((parse_uuid(&id)?, display_name))
+        Ok(Profile {
+            account: parse_uuid(&id)?,
+            email,
+            display_name,
+        })
+    }
+
+    pub async fn profile(&self, account: Uuid) -> Result<Profile, ServerError> {
+        let database = self.database.lock().await;
+        let (email, display_name): (String, String) = database.query_row(
+            "SELECT email, display_name FROM accounts WHERE id = ?1",
+            [account.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        Ok(Profile {
+            account,
+            email,
+            display_name,
+        })
+    }
+
+    pub async fn logout(&self, token: &str) -> Result<(), ServerError> {
+        let database = self.database.lock().await;
+        database.execute(
+            "DELETE FROM sessions WHERE token_hash = ?1",
+            [hash_token(token)],
+        )?;
+        Ok(())
+    }
+
+    pub async fn invite(
+        &self,
+        account: Uuid,
+        workspace: Uuid,
+        email: &str,
+        role: WorkspaceRole,
+    ) -> Result<(), ServerError> {
+        if self.membership(account, workspace).await? != WorkspaceRole::Administrator {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "only a workspace administrator can invite people".into(),
+            ));
+        }
+        let email = normalize_email(email)?;
+        let database = self.database.lock().await;
+        database.execute(
+            "DELETE FROM invitations WHERE workspace_id = ?1 AND email = ?2",
+            params![workspace.to_string(), email],
+        )?;
+        database.execute(
+            "INSERT INTO invitations (id, workspace_id, email, role, invited_by)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                Uuid::new_v4().to_string(),
+                workspace.to_string(),
+                email,
+                encode_role(role),
+                account.to_string()
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub async fn list_invitations(
+        &self,
+        account: Uuid,
+    ) -> Result<Vec<WorkspaceInvitation>, ServerError> {
+        let email = self.profile(account).await?.email;
+        let database = self.database.lock().await;
+        let mut statement = database.prepare(
+            "SELECT invitations.id, invitations.workspace_id, workspaces.name, invitations.role,
+                    invitations.invited_by
+             FROM invitations JOIN workspaces ON workspaces.id = invitations.workspace_id
+             WHERE invitations.email = ?1
+               AND NOT EXISTS (SELECT 1 FROM memberships
+                               WHERE memberships.workspace_id = invitations.workspace_id
+                                 AND memberships.account_id = ?2)
+             ORDER BY workspaces.name",
+        )?;
+        let rows = statement.query_map(params![email, account.to_string()], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        })?;
+        let mut invitations = Vec::new();
+        for row in rows {
+            let (id, workspace, workspace_name, role, invited_by) = row?;
+            invitations.push(WorkspaceInvitation {
+                id: parse_uuid(&id)?,
+                workspace: parse_uuid(&workspace)?,
+                workspace_name,
+                email: email.clone(),
+                role: decode_role(&role)?,
+                invited_by: parse_uuid(&invited_by)?,
+            });
+        }
+        Ok(invitations)
+    }
+
+    pub async fn respond_invitation(
+        &self,
+        account: Uuid,
+        invitation: Uuid,
+        accept: bool,
+    ) -> Result<(), ServerError> {
+        let email = self.profile(account).await?.email;
+        let database = self.database.lock().await;
+        let found: Option<(String, String)> = database
+            .query_row(
+                "SELECT workspace_id, role FROM invitations WHERE id = ?1 AND email = ?2",
+                params![invitation.to_string(), email],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let Some((workspace, role)) = found else {
+            return Err(ServerError::Refused(
+                ErrorCode::InvitationNotFound,
+                "that invitation does not exist".into(),
+            ));
+        };
+        if accept {
+            database.execute(
+                "INSERT OR IGNORE INTO memberships (workspace_id, account_id, role)
+                 VALUES (?1, ?2, ?3)",
+                params![workspace, account.to_string(), role],
+            )?;
+        }
+        database.execute(
+            "DELETE FROM invitations WHERE id = ?1",
+            [invitation.to_string()],
+        )?;
+        Ok(())
     }
 
     pub async fn list_workspaces(&self, account: Uuid) -> Result<Vec<Workspace>, ServerError> {
@@ -205,47 +364,6 @@ impl ServerStore {
             name,
             role: WorkspaceRole::Administrator,
         })
-    }
-
-    pub async fn adopt(
-        &self,
-        account: Uuid,
-        email: &str,
-        display_name: &str,
-        workspace: Uuid,
-        workspace_name: &str,
-        role: WorkspaceRole,
-    ) -> Result<String, ServerError> {
-        let email = normalize_email(email)?;
-        let display_name = display_name.trim().to_owned();
-        let database = self.database.lock().await;
-        database.execute(
-            "INSERT INTO accounts (id, email, display_name, password_hash)
-             VALUES (?1, ?2, ?3, '')
-             ON CONFLICT(id) DO UPDATE SET
-                email = excluded.email,
-                display_name = excluded.display_name",
-            params![account.to_string(), email, display_name],
-        )?;
-        database.execute(
-            "INSERT INTO workspaces (id, name, owner_id) VALUES (?1, ?2, ?3)
-             ON CONFLICT(id) DO UPDATE SET name = excluded.name",
-            params![
-                workspace.to_string(),
-                workspace_name.trim(),
-                account.to_string()
-            ],
-        )?;
-        database.execute(
-            "INSERT OR REPLACE INTO memberships (workspace_id, account_id, role)
-             VALUES (?1, ?2, ?3)",
-            params![
-                workspace.to_string(),
-                account.to_string(),
-                encode_role(role)
-            ],
-        )?;
-        issue_token(&database, account)
     }
 
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
@@ -520,7 +638,7 @@ pub(crate) fn load_graph(
     let mut nodes = Vec::new();
     {
         let mut statement = connection.prepare(
-            "SELECT id, content_type, author, parent_kind, parent_id, head FROM blocks
+            "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version FROM blocks
              WHERE workspace_id = ?1",
         )?;
         let rows = statement.query_map([workspace.to_string()], |row| {
@@ -531,13 +649,15 @@ pub(crate) fn load_graph(
                 row.get::<_, i64>(3)?,
                 row.get::<_, Option<String>>(4)?,
                 row.get::<_, Option<String>>(5)?,
+                row.get::<_, Vec<u8>>(6)?,
+                row.get::<_, i64>(7)?,
             ))
         })?;
         for row in rows {
             nodes.push(row?);
         }
     }
-    for (id, content_type, author, parent_kind, parent_id, head) in &nodes {
+    for (id, content_type, author, parent_kind, parent_id, head, metadata, version) in &nodes {
         let mut node = BlockNode::new(
             parse_uuid(content_type)?,
             parse_uuid(author)?,
@@ -551,10 +671,12 @@ pub(crate) fn load_graph(
                     .ok_or(ServerError::Corrupt)
             })
             .transpose()?;
+        node.metadata.clone_from(metadata);
+        node.version = u64::try_from(*version).map_err(|_| ServerError::Corrupt)?;
         let _ = (parent_kind, parent_id);
         graph.insert(parse_uuid(id)?, node)?;
     }
-    for (id, _, _, parent_kind, parent_id, _) in &nodes {
+    for (id, _, _, parent_kind, parent_id, _, _, _) in &nodes {
         let parent = decode_parent(*parent_kind, parent_id.clone())?;
         graph.set_parent(parse_uuid(id)?, parent)?;
     }
