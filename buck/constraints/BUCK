@@ -27,3 +27,19 @@ constraint_value(
     constraint_setting = ":worker",
     visibility = ["PUBLIC"],
 )
+
+# Which of Cargo's profiles a build stands in for: dev without this value, and
+# release with it. A constraint rather than a buckconfig value, so that one
+# build can hold both: CI's asks for the shipped release artifacts and for the
+# dev builds a person's machine asks for, in one command. The platforms named
+# <name>_release in buck/platforms carry it, and every transition keeps it.
+constraint_setting(
+    name = "profile",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "release",
+    constraint_setting = ":profile",
+    visibility = ["PUBLIC"],
+)

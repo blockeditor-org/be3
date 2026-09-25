@@ -11,9 +11,8 @@ version: 2
 # compromised upstream, minus the security fixes.
 updates:
   - package-ecosystem: github-actions
-    # Plain "/" is only the workflows. Of the composite actions under
-    # .github/actions, buck2 uses nothing and verify only GitHub's own
-    # upload-artifact, so neither is named.
+    # Plain "/" is only the workflows. The one composite action under
+    # .github/actions, buck2, uses nothing, so it is not named.
     directories:
       - /
     schedule:
