@@ -1,5 +1,7 @@
 use std::fmt::{self, Display, Formatter};
 
+use serde::{Deserialize, Serialize};
+
 pub const SUITS: [Suit; 4] = [Suit::Clubs, Suit::Diamonds, Suit::Hearts, Suit::Spades];
 
 pub const RANKS: [Rank; 13] = [
@@ -18,7 +20,7 @@ pub const RANKS: [Rank; 13] = [
     Rank::Ace,
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub enum Suit {
     Clubs,
     Diamonds,
@@ -26,7 +28,7 @@ pub enum Suit {
     Spades,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub enum Rank {
     Two,
     Three,
@@ -43,7 +45,7 @@ pub enum Rank {
     Ace,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub struct Card {
     pub suit: Suit,
     pub rank: Rank,

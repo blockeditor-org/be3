@@ -4,6 +4,9 @@ use std::convert::Infallible;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use board::{Board, Gesture, Move, Scene, Spot};
+
+pub mod board;
 pub mod build;
 pub mod cards;
 pub mod guest;
@@ -18,12 +21,14 @@ pub struct GameAction {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct GameScreen {
     pub description: String,
+    pub board: Board,
     pub actions: Vec<GameActionOption>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct GameActionOption {
     pub label: String,
+    pub gesture: Option<Gesture>,
     pub effect: Vec<u8>,
 }
 
@@ -32,6 +37,8 @@ pub struct GameRequest {
     pub actions: Vec<GameAction>,
     pub player: Uuid,
 }
+
+pub type Choose<'a> = dyn FnMut(Move) -> bool + 'a;
 
 pub struct GameHelper<'a> {
     actions: &'a [GameAction],
@@ -48,10 +55,10 @@ impl<'a> GameHelper<'a> {
         }
     }
 
-    pub fn action(
+    pub fn action<S: Into<Scene>>(
         &self,
-        describe: impl Fn(Uuid) -> String,
-        mut body: impl FnMut(Uuid, &mut dyn FnMut(&str) -> bool),
+        describe: impl Fn(Uuid) -> S,
+        mut body: impl FnMut(Uuid, &mut Choose<'_>),
     ) -> Result<(), GameScreen> {
         while let Some(entry) = self.actions.get(self.cursor.get()) {
             self.cursor.set(self.cursor.get() + 1);
@@ -60,7 +67,7 @@ impl<'a> GameHelper<'a> {
             };
             let mut seen = 0u32;
             let mut matched = false;
-            body(entry.actor, &mut |_label: &str| {
+            body(entry.actor, &mut |_offered: Move| {
                 let is_target = !matched && seen == target;
                 seen += 1;
                 matched |= is_target;
@@ -72,16 +79,19 @@ impl<'a> GameHelper<'a> {
         }
         let mut index = 0u32;
         let mut actions = Vec::new();
-        body(self.player, &mut |label: &str| {
+        body(self.player, &mut |offered: Move| {
             actions.push(GameActionOption {
-                label: label.to_owned(),
+                label: offered.label,
+                gesture: offered.gesture,
                 effect: bincode::serialize(&index).expect("index encoding is infallible"),
             });
             index += 1;
             false
         });
+        let scene = describe(self.player).into();
         Err(GameScreen {
-            description: describe(self.player),
+            description: scene.description,
+            board: scene.board,
             actions,
         })
     }
@@ -91,16 +101,11 @@ impl<'a> GameHelper<'a> {
         whose: Uuid,
         yours: &str,
         theirs: &str,
-        mut choices: impl FnMut(&mut dyn FnMut(&str) -> bool),
+        board: impl Fn(Uuid) -> Board,
+        mut choices: impl FnMut(&mut Choose<'_>),
     ) -> Result<(), GameScreen> {
         self.action(
-            |player| {
-                if player == whose {
-                    yours.to_owned()
-                } else {
-                    theirs.to_owned()
-                }
-            },
+            |player| Scene::new(if player == whose { yours } else { theirs }).on(board(player)),
             |player, choose| {
                 if player == whose {
                     choices(choose);
@@ -126,10 +131,10 @@ impl<'a> GameHelper<'a> {
                 },
                 |player, choose| {
                     if !players.contains(&player) {
-                        if choose("Join the game") {
+                        if choose(Move::new("Join the game")) {
                             players.push(player);
                         }
-                    } else if players.len() >= minimum && choose("Start the game") {
+                    } else if players.len() >= minimum && choose(Move::new("Start the game")) {
                         started = true;
                     }
                 },
@@ -140,9 +145,14 @@ impl<'a> GameHelper<'a> {
         }
     }
 
-    pub fn game_over(&self, describe: impl Fn(Uuid) -> String) -> Result<Infallible, GameScreen> {
+    pub fn game_over<S: Into<Scene>>(
+        &self,
+        describe: impl Fn(Uuid) -> S,
+    ) -> Result<Infallible, GameScreen> {
+        let scene = describe(self.player).into();
         Err(GameScreen {
-            description: describe(self.player),
+            description: scene.description,
+            board: scene.board,
             actions: Vec::new(),
         })
     }
