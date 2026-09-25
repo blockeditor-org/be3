@@ -1,6 +1,9 @@
 # An APK, made on a worker without Gradle by buck-tools apk, unsigned; sign.sh signs it
-# locally with this machine's key, and signed_apk on a worker with CI's. Only the native library is built for Android, through the
-# transition; the NDK's libc++_shared.so goes beside it.
+# locally with this machine's key, and signed_apk on a worker with CI's. An APK
+# is only ever Android's, so both rules move themselves there: asked for under
+# any target platform, they are the one configured target, and building
+# //crates/... for every platform makes one APK rather than one for each.
+# The NDK's libc++_shared.so goes beside the native library.
 
 def _android_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return refs.android[PlatformInfo]
@@ -69,6 +72,7 @@ android_apk = rule(
         "_platform": attrs.default_only(attrs.source(default = "root//buck/android:platform")),
     },
     impl = _android_apk_impl,
+    cfg = android_transition,
 )
 
 _sign = """
@@ -116,4 +120,5 @@ signed_apk = rule(
         "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
     },
     impl = _signed_apk_impl,
+    cfg = android_transition,
 )
