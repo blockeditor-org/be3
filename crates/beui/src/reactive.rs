@@ -18,7 +18,7 @@ pub use beui_macros::{component, view};
 pub use reactive::{
     Effect, KeyedItems, KeyedStore, Memo, ReadSignal, Scope, ScopeContext, Selector, Store,
     WriteSignal, batch, clone, create_effect, create_memo, create_selector, create_signal,
-    on_cleanup, owner_scope, provide_context, settle, untrack, use_context,
+    on_cleanup, owner_scope, provide_context, settle, untrack, use_context, zone_pending,
 };
 
 thread_local! {
@@ -45,13 +45,13 @@ impl Drop for ActiveDocumentGuard {
 }
 
 pub(crate) enum DocumentGuard<'a> {
-    Installed(&'a mut Document),
+    Installed(&'a mut Document, Option<::reactive::ZoneGuard>),
     Reentrant,
 }
 
 impl Drop for DocumentGuard<'_> {
     fn drop(&mut self) {
-        if let DocumentGuard::Installed(document) = self {
+        if let DocumentGuard::Installed(document, _) = self {
             let restored = CURRENT_DOCUMENT.with(|cell| cell.borrow_mut().take());
             **document = restored
                 .expect("beui::reactive document guard dropped without an installed document");
@@ -66,6 +66,7 @@ pub(crate) fn install(document: &mut Document) -> DocumentGuard<'_> {
     if already_installed {
         return DocumentGuard::Reentrant;
     }
+    let zone = document.zone();
     let taken = std::mem::take(document);
     CURRENT_DOCUMENT.with(|cell| {
         let previous = cell.borrow_mut().replace(taken);
@@ -74,7 +75,11 @@ pub(crate) fn install(document: &mut Document) -> DocumentGuard<'_> {
             "beui::reactive: a document is already installed on this thread"
         );
     });
-    DocumentGuard::Installed(document)
+    let mut guard = DocumentGuard::Installed(document, None);
+    if let DocumentGuard::Installed(_, slot) = &mut guard {
+        *slot = Some(::reactive::enter_zone(zone));
+    }
+    guard
 }
 
 pub(crate) fn enter<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
