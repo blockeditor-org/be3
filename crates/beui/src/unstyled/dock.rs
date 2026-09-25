@@ -5,7 +5,7 @@ mod tests;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -20,10 +20,10 @@ use crate::reactive::{
     Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
     Func, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
     WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect,
-    create_memo, create_signal, each_frame, node_scope, on_cleanup, on_shortcut, owner_scope,
-    set_component_state, try_with_document, with_document,
+    create_memo, create_signal, each_frame, node_rect, node_scope, on_cleanup, on_shortcut,
+    owner_scope, set_component_state, try_with_document, with_document,
 };
-use crate::unstyled::rubber_band::Band;
+use crate::unstyled::rubber_band::{Band, WINDOW_SPRING};
 use crate::unstyled::{
     Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, DragHandle, DragPoint, Draggable,
     DropHandle, DropTarget, Scroll,
@@ -279,13 +279,6 @@ impl State {
     fn clamped_origin(&self, rect: Rect, bounds: Vec2) -> Pos2 {
         let x = rect.min.x.clamp(0.0, (bounds.x - rect.width()).max(0.0));
         let y = rect.min.y.clamp(0.0, (bounds.y - rect.height()).max(0.0));
-        pos2(x, y)
-    }
-
-    fn reachable_origin(&self, rect: Rect, bounds: Vec2, bar: f32) -> Pos2 {
-        let keep = rect.width().min(WINDOW_KEEP_VISIBLE);
-        let x = rect.min.x.clamp(0.0, (bounds.x - keep).max(0.0));
-        let y = rect.min.y.clamp(0.0, (bounds.y - bar).max(0.0));
         pos2(x, y)
     }
 
@@ -1218,6 +1211,13 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
     }
 }
 
+fn reachable_origin(rect: Rect, bounds: Vec2, bar: f32) -> Pos2 {
+    let keep = rect.width().min(WINDOW_KEEP_VISIBLE);
+    let x = rect.min.x.clamp(0.0, (bounds.x - keep).max(0.0));
+    let y = rect.min.y.clamp(0.0, (bounds.y - bar).max(0.0));
+    pos2(x, y)
+}
+
 #[component]
 fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let frame = NodeRef::new();
@@ -1231,13 +1231,19 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     }));
     let area = dock.rect.clone();
     let (overshoot, set_overshoot) = create_signal(Vec2::ZERO);
-    let origin = create_memo(clone!(rect area -> move || {
-        area.get().min + rect.get().min.to_vec2() + overshoot.get()
+    let bar_height = Rc::new(Cell::new(0.0_f32));
+    let placed = create_memo(clone!(rect area bar_height -> move || {
+        let rect = rect.get();
+        let origin = reachable_origin(rect, area.get().size(), bar_height.get());
+        Rect::from_min_size(origin, rect.size())
     }));
-    let band = Rc::new(RefCell::new(Band::new()));
+    let origin = create_memo(clone!(placed area -> move || {
+        area.get().min + placed.get().min.to_vec2() + overshoot.get()
+    }));
+    let band = Rc::new(RefCell::new(Band::new(WINDOW_SPRING)));
     each_frame(clone!(band set_overshoot -> move || {
         let mut band = band.borrow_mut();
-        if !band.step() {
+        if !band.step(Instant::now()) {
             return;
         }
         set_overshoot.set(band.offset);
@@ -1288,7 +1294,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     });
     let grips = dock.clone();
     let marker = dock.clone();
-    let grip_rect = rect.clone();
+    let grip_rect = placed.clone();
     let overlay = NodeRef::new();
     create_effect(clone!(focused overlay -> move || {
         if !focused.get() {
@@ -1311,15 +1317,16 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         close,
         pane,
     });
-    let grabbed: Rc<Cell<Option<(Rect, Pos2, f32)>>> = Rc::new(Cell::new(None));
-    let bar_rect = rect.clone();
+    let grabbed: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
+    let bar_rect = placed.clone();
     let pressed = dock.clone();
     let start = grabbed.clone();
     let moved = dock.clone();
     let (held, stretched, released) = (band.clone(), band.clone(), band);
-    let drawn = origin.clone();
     let set_stretch = set_overshoot;
-    view! {
+    let (measured, watched) = (dock.clone(), frame.clone());
+    let reach = bar_height.clone();
+    let window = view! {
         <Overlay
             @node_ref=&overlay
             anchor={anchor}
@@ -1338,10 +1345,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                     let window = bar_rect.get_untracked();
                                     let dimensions = pressed.rect.get_untracked().size();
                                     let stretched = held.borrow_mut().grab(dimensions);
-                                    let height = pressed
-                                        .pane_rect(Tree::Surface(surface))
-                                        .map_or(0.0, |pane| pane.top() - drawn.get_untracked().y);
-                                    (window.translate(stretched), press.pos, height)
+                                    (window.translate(stretched), press.pos)
                                 }));
                                 let titled = pressed
                                     .pane_rect(Tree::Surface(surface))
@@ -1361,16 +1365,16 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 });
                             }}
                             on_drag={move |press: PointerPress| {
-                                let Some((start, from, bar)) = grabbed.get() else {
+                                let Some((start, from)) = grabbed.get() else {
                                     return;
                                 };
                                 let placed =
                                     Rect::from_min_size(start.min + (press.pos - from), start.size());
                                 let bounds = moved.rect.get_untracked().size();
-                                let origin = moved.reachable_origin(placed, bounds, bar);
+                                let origin = reachable_origin(placed, bounds, reach.get());
                                 let banding = with_document(|document| document.rubber_banding());
                                 let mut band = stretched.borrow_mut();
-                                band.stretch(placed.min - origin, bounds, banding);
+                                band.stretch(placed.min - origin, bounds, banding, Instant::now());
                                 set_stretch.set(band.offset);
                                 moved.edit(|state| {
                                     state.set_window_rect(
@@ -1383,7 +1387,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 if active {
                                     return;
                                 }
-                                released.borrow_mut().release();
+                                released.borrow_mut().release(Instant::now());
                                 with_document(|document| document.request_repaint_after(Duration::ZERO));
                             }}
                             children={chrome}
@@ -1407,6 +1411,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 <CanvasItem x={x} y={y} width={width} height={height}>
                                     <ClickCatcher
                                         cursor={grip.cursor()}
+                                        capture_presses=true
                                         on_press={move |press: PointerPress| {
                                             pressed.set((rect.get_untracked(), press.pos));
                                         }}
@@ -1423,7 +1428,17 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                 </Canvas>
             </Frame>
         </Overlay>
+    };
+    let pane = measured
+        .panes
+        .borrow()
+        .get(&Tree::Surface(surface))
+        .and_then(NodeRef::try_get);
+    if let Some(pane) = pane {
+        let (frame, pane) = (node_rect(watched.get()), node_rect(pane));
+        create_effect(move || bar_height.set(pane.get().top() - frame.get().top()));
     }
+    window
 }
 
 #[component]

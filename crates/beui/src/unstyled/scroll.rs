@@ -5,7 +5,9 @@ use std::time::{Duration, Instant};
 use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
-use super::rubber_band::{MAX_ANIMATION_STEP, MINIMUM_VELOCITY, rubber_band, spring_back, unband};
+use super::rubber_band::{
+    MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
+};
 use crate::base::{Direction, ItemSize, ScrollPosition};
 use crate::color::Color32;
 use crate::document::Document;
@@ -120,7 +122,12 @@ impl Momentum {
             return;
         }
         if self.overscroll != 0.0 {
-            spring_back(&mut self.overscroll, &mut self.velocity, elapsed);
+            spring_back(
+                &mut self.overscroll,
+                &mut self.velocity,
+                elapsed,
+                SCROLL_SPRING,
+            );
             return;
         }
         if self.velocity == 0.0 {
