@@ -71,8 +71,8 @@ android_apk = rule(
         "_ndk": attrs.default_only(attrs.source(default = "root//buck/tools:android-ndk")),
         "_platform": attrs.default_only(attrs.source(default = "root//buck/android:platform")),
     },
-    impl = _android_apk_impl,
     cfg = android_transition,
+    impl = _android_apk_impl,
 )
 
 _sign = """
@@ -119,6 +119,6 @@ signed_apk = rule(
         "_build_tools": attrs.default_only(attrs.source(default = "root//buck/android:build-tools")),
         "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
     },
-    impl = _signed_apk_impl,
     cfg = android_transition,
+    impl = _signed_apk_impl,
 )
