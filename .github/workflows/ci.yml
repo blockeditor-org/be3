@@ -349,7 +349,11 @@ jobs:
       #
       # A head that is already this job's own commit and still needed fixing
       # is a fix that does not settle, and pushing again would only start the
-      # same run again, so that is where it stops and a person looks.
+      # same run again, so that is where it stops and a person looks. The
+      # author alone does not say which commit is this job's: the merge queue
+      # is the same app, and the merge it makes when it brings main into a
+      # pull request's branch is authored by it too. That merge can need fixes
+      # of its own, so the commit is recognised by its message as well.
       #
       # The push is to the branch by name and never forced. If the author
       # pushed while this ran, their commit wins, and the run their push
@@ -363,7 +367,8 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           author="$APP_SLUG[bot]"
-          if [ "$(git log -1 --format=%an)" = "$author" ]; then
+          message='style: apply the fixes from ./scripts/buck run //:verify'
+          if [ "$(git log -1 --format=%an)" = "$author" ] && [ "$(git log -1 --format=%s)" = "$message" ]; then
             echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/buck run //:verify and commit what it changes."
             exit 1
           fi
@@ -373,7 +378,7 @@ jobs:
           for patch in "$RUNNER_TEMP"/autofix/*.patch; do
             git apply --index "$patch"
           done
-          git commit --quiet --message 'style: apply the fixes from ./scripts/buck run //:verify'
+          git commit --quiet --message "$message"
           git show --stat HEAD
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
