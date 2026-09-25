@@ -303,7 +303,19 @@ and `Stack`. `TextArea` is the multiline one: it owns a
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and reserves room for the inline and block `TextWidget`s the caller
 names - which is how a block editor puts an embedded block inside the text and
-drives the same document from a toolbar of its own. `MenuButton` is the button that opens a menu under itself, which is
+drives the same document from a toolbar of its own. The state republishes
+what it shows whenever one of its own commands runs; code that changes the
+document behind it - adopting an edit that arrived from someone else - calls
+`sync()`, or `external_edit()` when the edit should also break the undo group,
+since nothing polls the document for changes. It shows a `placeholder` while
+the document is empty, masks every character under `password`, and leaves a
+caret handle under a touch tap that drags the caret and opens its menu.
+`single_line` is the same control laid out on one unwrapped line with no
+gutter, scrolled sideways to keep the caret in view, where Enter submits and
+Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
+own focus and pointer handling. `TextInput` is that single-line mode over a
+plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
+fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was.
@@ -1294,6 +1306,11 @@ Compose it from base components. For an interactive control this normally means:
 6. Return the root base node directly so component state and framework slots
    attach to the node callers receive.
 
+A catcher shows the `cursor` it is given while it is hovered or held, and
+one given none leaves the cursor to the catchers around it, so a catcher
+that only listens - for a secondary press, a wheel - does not undo the
+I-beam of the text field it wraps.
+
 A catcher takes the wheel with `on_scroll` and a touch drag with
 `on_scroll_drag`, and `scroll_axis` names the axis it takes them along, so a
 vertical wheel over a horizontal strip passes through to whatever is around it
@@ -1307,8 +1324,10 @@ presses at positions its callback accepts. Before any node handles a press the
 document asks the topmost nodes first, and only the captor receives it: focus
 stays where it is, touch scrolling does not start, and no other catcher arms.
 Paint such parts with `Painter::on_top`, which draws above the rest of the
-document, or of the overlay being painted. The touch selection handles of
-`unstyled::TextInput` use both.
+document, or of the overlay being painted, or from a `CanvasItem` with
+`clip=false`, which a canvas paints without cutting it to its own rectangle.
+The touch selection handles of `unstyled::TextArea` use `capture_at` and an
+unclipped item.
 
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control

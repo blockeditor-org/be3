@@ -409,7 +409,6 @@ impl Document {
         self.arena.get_mut_as::<OverlayNode>(overlay).on_dismiss = Some(Box::new(handler));
     }
 
-    #[cfg(test)]
     pub(crate) fn is_overlay_open(&self, overlay: NodeId) -> bool {
         self.arena.get_as::<OverlayNode>(overlay).open
     }

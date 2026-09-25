@@ -62,7 +62,10 @@ these in front of the pinned buck2:
   action is keyed on the manifests, `Cargo.lock`, `reindeer.toml`, the fixups,
   the paths cargo discovers targets at and `crates/buck-tools`, which writes
   `crates.bzl`, so it is shared through the cache: a few seconds on a fresh
-  checkout, about a minute for the first person to change a dependency.
+  checkout, about a minute for the first person to change a dependency. The
+  action brings `Cargo.lock` up to date with the manifests first, so a stale
+  one still builds; `//:verify`'s lint writes the updated one back, and fails
+  under `--check`.
 - **Platforms.** Everything is built for Linux x86_64 wherever it is asked for
   (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
   CI's cache. `run` is the exception: on another machine it builds for that

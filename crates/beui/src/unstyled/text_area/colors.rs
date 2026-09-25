@@ -50,6 +50,31 @@ impl SyntaxColors {
         invisible: rgb(0x43515c),
     };
 
+    pub const fn uniform(color: Color32) -> Self {
+        Self {
+            invalid: color,
+            keyword: color,
+            keyword_storage: color,
+            keyword_primitive_type: color,
+            literal: color,
+            literal_string: color,
+            comment: color,
+            punctuation: color,
+            punctuation_important: color,
+            variable: color,
+            variable_constant: color,
+            variable_mutable: color,
+            variable_function: color,
+            variable_parameter: color,
+            markdown_plain_text: color,
+            markdown_symbol: color,
+            markdown_link: color,
+            markdown_code: color,
+            unstyled: color,
+            invisible: color,
+        }
+    }
+
     pub fn scope(&self, scope: SynHlColorScope) -> Color32 {
         match scope {
             SynHlColorScope::Invalid => self.invalid,
@@ -95,6 +120,7 @@ pub struct TextAreaColors {
     pub broken_widget: Color32,
     pub selection: Color32,
     pub caret: Color32,
+    pub placeholder: Color32,
     pub syntax: SyntaxColors,
 }
 
@@ -111,6 +137,7 @@ impl TextAreaColors {
         broken_widget: rgb(0x48373d),
         selection: rgb(0x213054),
         caret: rgb(0x5289ff),
+        placeholder: rgb(0x8c8c8c),
         syntax: SyntaxColors::DEFAULT,
     };
 }
