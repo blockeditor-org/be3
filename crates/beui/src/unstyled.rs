@@ -29,10 +29,10 @@ pub use container::{Container, ContainerSize, container_size, narrower_than, sho
 pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
-    Dock, DockDrop, DockLayout, DockPanelHandle, DockPreviewHandle, DockSplitter,
-    DockSplitterHandle, DockState, DockTabHandle, DockWindowGripHandle, DockWindowHandle, Entry,
-    GroupId, LeafId, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree,
-    dock_state, layout_surface, layout_tree,
+    Dock, DockDragged, DockDrop, DockGripHandle, DockLayout, DockPanelHandle, DockPreviewHandle,
+    DockSplitter, DockSplitterHandle, DockState, DockTabHandle, DockWindowHandle, Entry, GroupId,
+    LeafId, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_state,
+    layout_surface, layout_tree,
 };
 pub(crate) use drag::Board as DragBoard;
 pub use drag::{

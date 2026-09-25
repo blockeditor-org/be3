@@ -1,8 +1,7 @@
 use super::*;
 use crate::unstyled::{Entry, TabId, dock_state};
 
-fn choose(harness: &mut Harness, dock: NodeId, tab: &str, item: &str) {
-    let pos = harness.center(dock_tab(harness.document(), dock, tab));
+fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
     harness.frame(vec![Event::PointerMoved(pos)]);
     harness.frame(vec![Event::PointerButton {
         pos,
@@ -12,9 +11,19 @@ fn choose(harness: &mut Harness, dock: NodeId, tab: &str, item: &str) {
     }]);
     harness.frame(Vec::new());
     let row = text_within(harness.document(), dock, item)
-        .unwrap_or_else(|| panic!("the menu offers {item}"));
+        .unwrap_or_else(|| panic!("the grip's menu offers {item}"));
     harness.click(harness.center(row));
     harness.frame(Vec::new());
+}
+
+fn grip_beside(harness: &Harness, dock: NodeId, first_tab: &str) -> Pos2 {
+    let label = harness.rect(dock_tab(harness.document(), dock, first_tab));
+    pos2(label.left() - 25.0, label.center().y)
+}
+
+fn grip_above(harness: &Harness, dock: NodeId, first_tab: &str) -> Pos2 {
+    let label = harness.rect(dock_tab(harness.document(), dock, first_tab));
+    pos2(label.left() + 1.0, label.top() - 20.0)
 }
 
 #[test]
@@ -23,7 +32,8 @@ fn dock_tabs_moved_into_a_sidebar_stack_beside_the_panel() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
-    choose(&mut harness, dock, "Tab 2", "Show tabs in a sidebar");
+    let grip = grip_beside(&harness, dock, "Tab 1");
+    choose(&mut harness, dock, grip, "Show tabs in a sidebar");
 
     let state = dock_state(harness.document(), dock);
     let leaf = state.leaves(state.main())[0];
@@ -62,14 +72,15 @@ fn dock_tabs_moved_into_a_sidebar_stack_beside_the_panel() {
         "a tab dropped on the top edge of another in the sidebar lands above it"
     );
 
-    choose(&mut harness, dock, "Tab 1", "Show tabs across the top");
+    let grip = grip_above(&harness, dock, "Tab 3");
+    choose(&mut harness, dock, grip, "Show tabs across the top");
 
     assert!(
         !dock_state(harness.document(), dock).is_vertical(leaf),
         "the pane shows its tabs across the top again"
     );
-    let first = harness.rect(dock_tab(harness.document(), dock, "Tab 1"));
-    let second = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
+    let first = harness.rect(dock_tab(harness.document(), dock, "Tab 3"));
+    let second = harness.rect(dock_tab(harness.document(), dock, "Tab 1"));
     assert!(
         second.left() > first.right(),
         "the tabs sit side by side in a bar again"

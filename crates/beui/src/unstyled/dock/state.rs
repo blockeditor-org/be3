@@ -830,6 +830,106 @@ impl DockState {
         self.settle_focus();
     }
 
+    pub fn drop_leaf(&mut self, leaf: LeafId, target: DockDrop) {
+        let Some(moved) = self.leaf(leaf).cloned() else {
+            return;
+        };
+        if let [only] = moved.entries.as_slice() {
+            let only = *only;
+            self.drop_entry(only, target);
+            if let Some((landed, _)) = self.locate(only)
+                && landed != leaf
+                && self.entries(landed).len() == 1
+            {
+                self.set_vertical(landed, moved.vertical);
+            }
+            return;
+        }
+        if let Some(onto) = target.leaf()
+            && (onto == leaf
+                || moved
+                    .entries
+                    .iter()
+                    .any(|entry| self.contains_leaf(*entry, onto)))
+        {
+            return;
+        }
+        let shown = moved.entries.get(moved.active).copied();
+        let landed = match target {
+            DockDrop::Tab { leaf: onto, index } | DockDrop::Group { leaf: onto, index } => {
+                self.prune(leaf);
+                self.insert_entries(onto, index, moved.entries, shown)
+            }
+            DockDrop::Pane { leaf: onto } => {
+                self.prune(leaf);
+                self.insert_entries(onto, usize::MAX, moved.entries, shown)
+            }
+            DockDrop::Split { leaf: onto, side } => {
+                self.prune(leaf);
+                let landed = match self.leaf(onto).is_some() {
+                    true => self.split_with(onto, side, 0.5, moved.entries),
+                    false => self.insert_entries(onto, usize::MAX, moved.entries, shown),
+                };
+                if let Some(landed) = landed {
+                    self.set_vertical(landed, moved.vertical);
+                }
+                landed
+            }
+            DockDrop::Window { pos } => {
+                let window = self
+                    .surface_of(leaf)
+                    .filter(|_| !self.is_nested(leaf))
+                    .filter(|surface| self.leaves(*surface).len() == 1)
+                    .and_then(|surface| Some((surface, self.window_rect(surface)?)));
+                if let Some((surface, rect)) = window {
+                    self.set_window_rect(surface, Rect::from_min_size(pos, rect.size()));
+                    return;
+                }
+                self.prune(leaf);
+                let surface =
+                    self.open_window_with(Rect::from_min_size(pos, FLOATING_SIZE), moved.entries);
+                let landed = self.leaves(surface).first().copied();
+                if let Some(landed) = landed {
+                    self.set_vertical(landed, moved.vertical);
+                }
+                landed
+            }
+        };
+        if let (Some(landed), Some(shown)) = (landed, shown)
+            && let Some(index) = self
+                .entries(landed)
+                .iter()
+                .position(|entry| *entry == shown)
+        {
+            self.set_active_index(landed, index);
+            self.focus(landed);
+        }
+        self.normalize();
+        self.settle_focus();
+    }
+
+    fn insert_entries(
+        &mut self,
+        leaf: LeafId,
+        index: usize,
+        entries: Vec<Entry>,
+        shown: Option<Entry>,
+    ) -> Option<LeafId> {
+        let leaf = match self.leaf(leaf).is_some() {
+            true => leaf,
+            false => self.leaves(self.main()).first().copied()?,
+        };
+        let target = self.leaf_mut(leaf)?;
+        let index = index.min(target.entries.len());
+        target.entries.splice(index..index, entries);
+        if let Some(shown) = shown
+            && let Some(active) = target.entries.iter().position(|entry| *entry == shown)
+        {
+            target.active = active;
+        }
+        Some(leaf)
+    }
+
     pub fn group_with_next(&mut self, leaf: LeafId, index: usize) {
         let Some(next) = self.entries(leaf).get(index + 1).copied() else {
             return;
