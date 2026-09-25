@@ -1,5 +1,6 @@
 pub mod database;
 pub mod datetime;
+pub mod panes;
 
 use std::collections::HashMap;
 

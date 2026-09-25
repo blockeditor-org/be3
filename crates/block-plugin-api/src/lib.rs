@@ -346,6 +346,39 @@ pub enum EditorRegion {
     Frame,
     Preview,
     ArtifactSettings,
+    Pane(PaneId),
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct PaneId(pub u64);
+
+pub const MAX_PANE_DEPTH: usize = 32;
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PaneItem {
+    Split { horizontal: bool, fraction: f32 },
+    Tabs { count: u32, active: u32 },
+    Pane(PaneId),
+    Group,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct PaneTree {
+    pub items: Vec<PaneItem>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneInfo {
+    pub pane: PaneId,
+    pub title: String,
+    pub closable: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct PaneLayout {
+    pub panes: Vec<PaneInfo>,
+    pub tree: PaneTree,
+    pub focused: Option<PaneId>,
 }
 
 impl EditorRegion {
@@ -795,6 +828,24 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         name: Option<String>,
     },
+    Panes {
+        instance: EditorInstanceId,
+        layout: PaneLayout,
+    },
+    ShowPane {
+        instance: EditorInstanceId,
+        pane: PaneId,
+    },
+    PanesArranged {
+        instance: EditorInstanceId,
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    },
+    ClosePane {
+        instance: EditorInstanceId,
+        pane: PaneId,
+    },
 }
 
 impl EditorMessage {
@@ -865,7 +916,11 @@ impl EditorMessage {
             | Self::Blocks { instance, .. }
             | Self::CreateBlock { instance, .. }
             | Self::SetParent { instance, .. }
-            | Self::SetName { instance, .. } => *instance,
+            | Self::SetName { instance, .. }
+            | Self::Panes { instance, .. }
+            | Self::ShowPane { instance, .. }
+            | Self::PanesArranged { instance, .. }
+            | Self::ClosePane { instance, .. } => *instance,
         }
     }
 }
@@ -1291,7 +1346,9 @@ impl EditorMessage {
             | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
             | Self::ChildView { .. }
-            | Self::Blocks { .. } => Direction::ToPlugin,
+            | Self::Blocks { .. }
+            | Self::PanesArranged { .. }
+            | Self::ClosePane { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::Focused { .. }
             | Self::DragBlock { .. }
@@ -1327,6 +1384,8 @@ impl EditorMessage {
             | Self::Performance { .. }
             | Self::WatchBlocks { .. }
             | Self::CreateBlock { .. }
+            | Self::Panes { .. }
+            | Self::ShowPane { .. }
             | Self::SetParent { .. }
             | Self::SetName { .. } => Direction::ToHost,
         }
@@ -1346,6 +1405,7 @@ pub struct HelloAccepted {
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
     pub theme: Theme,
+    pub panes: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1976,6 +2036,15 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
+        EditorMessage::Panes { layout, .. } => {
+            collection(layout.panes.len())?;
+            collection(layout.tree.items.len())?;
+            strings(layout.panes.iter().map(|pane| &pane.title))
+        }
+        EditorMessage::PanesArranged { tree, detached, .. } => {
+            collection(tree.items.len())?;
+            collection(detached.len())
+        }
         EditorMessage::WebViewCommand { command, .. } => match command {
             WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
             WebViewCommand::Reload | WebViewCommand::FocusApp | WebViewCommand::Close => Ok(()),

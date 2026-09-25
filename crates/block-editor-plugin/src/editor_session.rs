@@ -1061,6 +1061,7 @@ impl EditorSession {
                     app.artifact_settings(context, frame, draft);
                 }
             }
+            EditorRegion::Pane(_) => {}
         });
 
         let mut output = output;

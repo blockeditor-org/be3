@@ -102,6 +102,7 @@ mod open_block_request_round_trips;
 mod open_messages_round_trip;
 mod packed_layout_keeps_each_region;
 mod packed_layout_packs_screens_within_a_row;
+mod pane_messages_round_trip;
 mod performance_messages_round_trip;
 mod pick_block_messages_round_trip;
 mod presence_messages_round_trip;
