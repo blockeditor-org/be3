@@ -36,7 +36,7 @@ fn pane_messages_round_trip() {
                     closable: false,
                 }],
                 tree: tree.clone(),
-                focused: Some(PaneId(2)),
+                arrangement: 3,
             },
         }),
         Message::Editor(EditorMessage::ShowPane {
@@ -45,6 +45,7 @@ fn pane_messages_round_trip() {
         }),
         Message::Editor(EditorMessage::PanesArranged {
             instance: EditorInstanceId(2),
+            arrangement: 4,
             tree,
             detached: vec![PaneId(4)],
             focused: None,

@@ -321,12 +321,13 @@ impl Screens {
             }
             Message::Editor(EditorMessage::PanesArranged {
                 instance,
+                arrangement,
                 tree,
                 detached,
                 focused,
             }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
-                    session.arrange_panes(tree.clone(), detached.clone(), *focused);
+                    session.arrange_panes(*arrangement, tree.clone(), detached.clone(), *focused);
                 }
             }
             Message::Editor(EditorMessage::ClosePane { instance, pane }) => {

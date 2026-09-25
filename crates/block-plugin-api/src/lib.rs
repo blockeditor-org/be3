@@ -378,7 +378,7 @@ pub struct PaneInfo {
 pub struct PaneLayout {
     pub panes: Vec<PaneInfo>,
     pub tree: PaneTree,
-    pub focused: Option<PaneId>,
+    pub arrangement: u64,
 }
 
 impl EditorRegion {
@@ -838,6 +838,7 @@ pub enum EditorMessage {
     },
     PanesArranged {
         instance: EditorInstanceId,
+        arrangement: u64,
         tree: PaneTree,
         detached: Vec<PaneId>,
         focused: Option<PaneId>,

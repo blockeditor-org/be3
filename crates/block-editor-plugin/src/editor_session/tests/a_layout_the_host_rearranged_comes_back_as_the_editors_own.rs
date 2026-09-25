@@ -69,6 +69,7 @@ fn a_layout_the_host_rearranged_comes_back_as_the_editors_own() {
     session.outbound();
 
     session.arrange_panes(
+        1,
         PaneTree {
             items: vec![
                 PaneItem::Tabs {
@@ -92,9 +93,11 @@ fn a_layout_the_host_rearranged_comes_back_as_the_editors_own() {
         Message::Editor(EditorMessage::Panes { layout, .. }) => Some(layout),
         _ => None,
     });
+    let resent = resent.expect("the editor answers the arrangement it was given");
+    assert_eq!(resent.arrangement, 1);
     assert_eq!(
-        resent.map(|layout| layout.panes.len()),
-        Some(2),
+        resent.panes.len(),
+        2,
         "a pane moved out of the dock is still one of the editor's panes"
     );
 

@@ -42,10 +42,12 @@ pub(crate) struct EditorSession {
     detached: Vec<TabId>,
     sent_panes: Option<PaneLayout>,
     pane_events: Vec<PaneEvent>,
+    arrangement: u64,
 }
 
 enum PaneEvent {
     Arranged {
+        arrangement: u64,
         tree: PaneTree,
         detached: Vec<PaneId>,
         focused: Option<PaneId>,
@@ -356,6 +358,7 @@ impl EditorSession {
             detached: Vec::new(),
             sent_panes: None,
             pane_events: Vec::new(),
+            arrangement: 0,
         }
     }
 
@@ -365,11 +368,13 @@ impl EditorSession {
 
     pub(crate) fn arrange_panes(
         &mut self,
+        arrangement: u64,
         tree: PaneTree,
         detached: Vec<PaneId>,
         focused: Option<PaneId>,
     ) {
         self.pane_events.push(PaneEvent::Arranged {
+            arrangement,
             tree,
             detached,
             focused,
@@ -385,10 +390,12 @@ impl EditorSession {
         for event in std::mem::take(&mut self.pane_events) {
             match event {
                 PaneEvent::Arranged {
+                    arrangement,
                     tree,
                     detached,
                     focused,
                 } => {
+                    self.arrangement = self.arrangement.max(arrangement);
                     let Some(layout) = dock_tree(&tree) else {
                         continue;
                     };
@@ -442,7 +449,7 @@ impl EditorSession {
         Some(PaneLayout {
             panes,
             tree: pane_tree(&tree),
-            focused: None,
+            arrangement: self.arrangement,
         })
     }
 
