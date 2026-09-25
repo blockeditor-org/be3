@@ -40,8 +40,7 @@ impl block_editor_plugin::BeuiApp for MapApp {
 #[component]
 fn MapEditor(editor: Editor) -> NodeId {
     let state = MapState::new(&editor, false);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
 
     let sized = Rc::clone(&state);
     let sizing = editor.clone();
@@ -74,8 +73,7 @@ fn MapEditor(editor: Editor) -> NodeId {
 #[component]
 fn MapPreview(editor: Editor) -> NodeId {
     let state = MapState::new(&editor, true);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
     view! {
         <MapCanvas state={state} />
     }

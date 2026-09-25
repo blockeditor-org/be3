@@ -333,7 +333,7 @@ impl TextAreaState {
     }
 
     fn request_reveal(&self) {
-        self.0.set_reveals.update(|count| *count += 1);
+        self.0.set_reveals.update(|reveals| *reveals += 1);
     }
 
     pub fn focus(&self) {

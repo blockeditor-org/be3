@@ -31,7 +31,7 @@ use crate::reactive::{
     Callback, Canvas, CanvasItem, Child, Children, ClickCallback, ClickCatcher, Draw, Drawing,
     Focusable, Frame, List, Memo, NodeRef, Prop, ReadSignal, Render, Show, WriteSignal, clone,
     component_accessibility, component_rect, component_size, create_effect, create_memo,
-    create_signal, set_component_state, untrack, use_pixels_per_point, with_document,
+    create_signal, create_timer, pixels_per_point, set_component_state, untrack, with_document,
 };
 use crate::unstyled::Scroll;
 
@@ -616,7 +616,8 @@ pub fn TextArea(
         true => field_rect,
         false => component_rect(),
     };
-    let scale = use_pixels_per_point();
+    let scale = pixels_per_point();
+    let attached = with_document(|document| document.watch_context());
     let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
     let (offset, set_offset) = create_signal(0.0_f32);
     let (shift, set_shift) = create_signal(0.0_f32);
@@ -667,8 +668,9 @@ pub fn TextArea(
         content.get();
         state.bytes().iter().filter(|byte| **byte == b'\n').count() + 1
     }));
-    let gutter = create_memo(clone!(scale total_lines -> move || {
+    let gutter = create_memo(clone!(scale attached total_lines -> move || {
         scale.get();
+        attached.get();
         match single_line {
             true => 0.0,
             false => shapes::gutter_width(total_lines.get()),
@@ -678,9 +680,10 @@ pub fn TextArea(
         (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
     }));
     let document = create_memo(
-        clone!(state content wrap_width scale widgets masked font_size -> move || {
+        clone!(state content wrap_width scale attached widgets masked font_size -> move || {
             content.get();
             scale.get();
+            attached.get();
             let options = match single_line {
                 true => LayoutOptions::single_line(font_size.get()),
                 false => LayoutOptions {
@@ -894,10 +897,14 @@ pub fn TextArea(
         shown,
     });
     let reveal_cx = cx.clone();
+    let revealing = create_timer(move || {
+        reveal_cx.reveal_caret();
+        None
+    });
     let reveals = state.reveals();
     create_effect(move || {
         reveals.get();
-        untrack(|| reveal_cx.reveal_caret());
+        revealing.start(Duration::ZERO);
     });
     let (hover_cursor, set_cursor) = create_signal(CursorIcon::Text);
     let cursor = create_memo(clone!(disabled -> move || match disabled.get() {

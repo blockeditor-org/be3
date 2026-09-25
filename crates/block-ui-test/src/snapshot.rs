@@ -11,6 +11,7 @@ pub fn assert_snapshot(name: &str, snapshot: &Snapshot) {
         .encode()
         .expect("the painting could not be encoded");
     let accepted = accepted_path(name);
+    record_use(&accepted);
     let updating = std::env::var_os("UPDATE_SNAPSHOTS").is_some();
 
     if !accepted.exists() {
@@ -41,6 +42,16 @@ pub fn assert_snapshot(name: &str, snapshot: &Snapshot) {
     panic!(
         "the painting changed: {description}\nto accept it:\n  ./scripts/buck run //:verify -- --plugin-tests, or ./scripts/buck test //crates/editors/<plugin>:test -- --env UPDATE_SNAPSHOTS=1\nthen {REVIEW}"
     );
+}
+
+fn record_use(accepted: &Path) {
+    let Some(used) = std::env::var_os("USED_PAINTINGS") else {
+        return;
+    };
+    let file = accepted
+        .file_name()
+        .unwrap_or_else(|| panic!("{} names no painting", accepted.display()));
+    write(&PathBuf::from(used).join(file), &[]);
 }
 
 #[cfg(not(target_arch = "wasm32"))]

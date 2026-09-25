@@ -1,6 +1,6 @@
 use beui::reactive::{
-    CanvasItem, ForEach, ReadSignal, Show, clone, component, create_memo, each_frame,
-    request_paste, view,
+    CanvasItem, ForEach, ReadSignal, Show, clone, component, create_effect, create_memo,
+    request_paste, untrack, view,
 };
 use beui::styled::{Button, ButtonVariant, TextArea};
 use beui::unstyled::{RemoteTextCursor, TextAreaLayout, TextWidget};
@@ -83,18 +83,36 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
         }
     };
 
-    let frame_state = state.clone();
-    each_frame(move || {
-        poll_paste(&frame_state);
-        poll_drag(&frame_state);
-        frame_state.refresh_embeds();
-        frame_state.poll_presence(frame_state.editor.presence_visible().get_untracked());
-        if let Some(client_id) = frame_state.editor.revealed().get_untracked()
-            && let Some(rect) = frame_state.presence_cursor_rect(client_id)
-        {
-            frame_state.text.reveal(rect);
-        }
-    });
+    state
+        .editor
+        .on_reply(clone!(state -> move || take_paste(&state, false)));
+    let dragged = state.editor.drag();
+    create_effect(clone!(state -> move || {
+        let drag = dragged.get();
+        untrack(|| take_drag(&state, drag));
+    }));
+    create_effect(clone!(state -> move || {
+        state.text.content().get();
+        state.refresh_embeds();
+    }));
+    let visible = state.editor.presence_visible();
+    create_effect(clone!(state -> move || {
+        let visible = visible.get();
+        state.peers.with(|_| ());
+        state.text.cursors().get();
+        untrack(|| state.poll_presence(visible));
+    }));
+    let revealed = state.editor.revealed();
+    create_effect(clone!(state -> move || {
+        let Some(client_id) = revealed.get() else {
+            return;
+        };
+        untrack(|| {
+            if let Some(rect) = state.presence_cursor_rect(client_id) {
+                state.text.reveal(rect);
+            }
+        });
+    }));
 
     let press_state = state.clone();
     let key_state = state.clone();
@@ -157,7 +175,7 @@ fn focus_embed(state: &Shared, widget: usize) -> bool {
 
 fn paste_key(state: &Shared, press: KeyPress) -> bool {
     if press.pressed && press.modifiers.ctrl && press.key == Key::V {
-        state.paste_requested.set(true);
+        take_paste(state, true);
         return true;
     }
     false
@@ -195,8 +213,8 @@ fn remote_cursors(state: &Shared) -> Vec<RemoteTextCursor> {
         .collect()
 }
 
-fn poll_drag(state: &Shared) {
-    let Some(drag) = state.editor.drag().get_untracked() else {
+fn take_drag(state: &Shared, drag: Option<Drag>) {
+    let Some(drag) = drag else {
         return;
     };
     if drag.block_id == state.block_id {
@@ -223,8 +241,7 @@ fn poll_drag(state: &Shared) {
     state.text.reveal_cursor();
 }
 
-fn poll_paste(state: &Shared) {
-    let asked = state.paste_requested.take();
+fn take_paste(state: &Shared, asked: bool) {
     let pasted = state.paster.borrow_mut().paste(state.host(), asked);
     let Some(pasted) = pasted else {
         return;

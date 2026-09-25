@@ -28,8 +28,8 @@ fn ctrl_f_opens_the_find_bar_over_a_text_area() {
     assert!(!find_field(&output));
 
     harness.click(pos2(300.0, 16.0));
-    harness.key(Key::F, Modifiers::CTRL);
-    let output = harness.frame(Vec::new());
+    let pressed = harness.frame(vec![key_event(Key::F, true, Modifiers::CTRL)]);
+    let released = harness.frame(vec![key_event(Key::F, false, Modifiers::CTRL)]);
 
-    assert!(find_field(&output));
+    assert!(find_field(&pressed) || find_field(&released));
 }
