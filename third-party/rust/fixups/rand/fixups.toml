@@ -1,0 +1,8 @@
+# On wasm32-unknown-unknown there is no operating system to ask for entropy,
+# and nothing that targets it asks: that platform is the game modules, whose
+# randomness is a seeded ChaCha stream so that every player replays the same
+# game. The features below are the ones that reach for the OS, and they are
+# here only because reindeer resolves one feature set per platform across the
+# whole workspace, so what be-server wants natively arrives everywhere.
+['cfg(all(target_family = "wasm", target_os = "unknown"))']
+omit_features = ["default", "os_rng", "std", "std_rng", "thread_rng"]

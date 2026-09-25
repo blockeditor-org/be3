@@ -1,0 +1,58 @@
+# The root package. It is BUCK.v2 rather than BUCK, which buck2 reads the same
+# way, because a filesystem that ignores case - Windows', and macOS's by
+# default - cannot hold a file named BUCK beside the buck/ directory.
+
+load("//buck/tools:defs.bzl", "tool")
+
+# clippy.toml reaches the rust toolchain as a file, so it needs a target.
+export_file(
+    name = "clippy.toml",
+    src = "clippy.toml",
+    visibility = ["PUBLIC"],
+)
+
+# The commands a person runs, started from the root once buck2 has built what
+# each names.
+#
+#   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
+#   ./scripts/buck run //:check
+#   ./scripts/buck run //:lock-sysroot
+#   ./scripts/buck run //:rust-project
+
+# The lint pass's tools are not named here: verify.sh builds them when it lints,
+# so a run of the tests alone never fetches them.
+tool(
+    name = "verify",
+    command = [
+        "sh",
+        "$(location //buck/dev:verify.sh)",
+    ],
+)
+
+# rustc's check pass over every first-party target in every configuration.
+tool(
+    name = "check",
+    command = [
+        "sh",
+        "-c",
+        "exec ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check > /dev/null",
+    ],
+)
+
+tool(
+    name = "lock-sysroot",
+    command = [
+        "sh",
+        "$(location //buck/sysroot:lock.sh)",
+    ],
+)
+
+tool(
+    name = "rust-project",
+    command = [
+        "$(exe //crates/buck-tools:buck-tools-bin)",
+        "rust-project",
+        "$(location //buck/cargo:rust-project)",
+        "$(location //buck/cargo:analyzer-sysroot)",
+    ],
+)

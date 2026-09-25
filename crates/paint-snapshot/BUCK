@@ -1,0 +1,9 @@
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+# The examples: `./scripts/buck run //crates/paint-snapshot:<example>-example`.
+
+cargo_example("rasterize")

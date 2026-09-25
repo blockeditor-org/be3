@@ -14,7 +14,7 @@ use be_protocol::{
     WorkspaceRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
-use rand::RngCore;
+use rand::TryRngCore;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
@@ -496,7 +496,9 @@ fn verify_password(password: &str, hash: &str) -> bool {
 
 fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerError> {
     let mut bytes = [0u8; 32];
-    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut bytes)
+        .expect("the operating system has entropy");
     let token = Hash::from_bytes(bytes).to_hex();
     database.execute(
         "INSERT INTO sessions (token_hash, account_id) VALUES (?1, ?2)",

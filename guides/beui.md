@@ -123,7 +123,7 @@ a missing required prop and a prop written twice at the line that wrote the tag
 rather than from inside generated code, what routes `@test_id`, `@node_ref` and
 `@sizing` to the right place, what enforces a component's child arity, and what
 keeps render props unbuilt until the component calls them. Hand-written builder chains lose the
-diagnostics, are invisible to the `view!` formatter that `./scripts/verify`
+diagnostics, are invisible to the `view!` formatter that `./scripts/buck run //:verify`
 runs, and read nothing like the rest of the tree. The same applies to a
 component you want to pass around: hand over a `Render`/`RenderFn` closure that
 writes a `view!`, not a half-applied builder.
@@ -570,7 +570,7 @@ bar on each pane, and tabs that can be dragged between panes or out into
 windows that float over the rest of the dock. `unstyled::Dock` underneath it
 owns the tree, the dragging and the keyboard, and paints nothing;
 `crates/beui/examples/dock.rs` is the worked example, run with
-`cargo run -p beui --example dock`.
+`./scripts/buck run //crates/beui:dock-example`.
 
 The layout is a `DockState`, which the caller keeps in a signal and hands back
 when the dock reports a change, the way `PanZoom` takes its camera:
@@ -623,6 +623,25 @@ stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
 `Choice` inside a horizontal `Scroll`, so the arrows, Home and End walk it like
 any other tab list and scroll the tab they reach into view when a pane has more
 tabs than it has room for.
+
+A place in a tab bar holds an `Entry`: either a `Tab` or a `Group`. A group is a
+tab that holds a dock tree of its own, so choosing it shows that tree in the
+pane's body - one pane with a second tab bar under the first, or panes split
+side by side - and the same drops work inside it as anywhere else. Dropping a
+tab onto the middle of another tab groups the two (onto a group, it joins the
+group); the outer edge of a pane showing a group still splits the outer pane,
+so the drop zones of the group sit inside a thin band that belongs to its
+parent. A tab's menu offers "Group with next tab" and "Split with next tab",
+and a group's own menu ungroups it, closes every tab in it, or floats it into a
+window as a whole. The tree tidies itself after every change: a group left with
+a single tab turns back into that tab, and a tab bar left holding only a group
+takes the group's tabs, or its split, in its place, so nothing is nested for
+longer than it holds more than one thing. `entries`, `active_entry`, `locate`,
+`group_tabs`, `tree_leaves`, `surface_of` and `is_nested` read groups back, and
+`drop_entry`, `group_with_next`, `split_with_next` and `ungroup` change them;
+`layout_tree` lays a group's tree out the way `layout_surface` lays out a
+surface's. `find`, `all_tabs`, `surface_tabs` and `show` look through groups,
+and showing a tab inside one selects the group in every bar above it.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
@@ -870,8 +889,8 @@ impl App for CounterApp {
 Run the repository examples with:
 
 ```text
-cargo run -p beui --example counter
-cargo run -p beui --example demo
+./scripts/buck run //crates/beui:counter-example
+./scripts/buck run //crates/beui:demo-example
 ```
 
 Beui has three feature levels:
@@ -1390,14 +1409,14 @@ supports key presses, text, hover, pointer clicks, and touch gestures. See the
 From the workspace root, use:
 
 ```text
-./scripts/check
-./scripts/verify
+./scripts/buck run //:check
+./scripts/buck run //:verify
 ```
 
-`./scripts/check` is the fast complete-workspace compile check. `./scripts/verify`
+`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/buck run //:verify`
 is the full check, and CI runs it on a pull request and pushes whatever it changes to
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
-failure. Run `./scripts/run --smoke` as well when a change can affect native
+failure. Run `./scripts/buck run //crates/block-app:smoke` as well when a change can affect native
 startup or runtime integration.

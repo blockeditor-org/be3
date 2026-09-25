@@ -25,7 +25,7 @@ set_count.update(|count| *count += 1);
 
 Keep the scope alive for as long as the view exists. Dropping it or calling
 `scope.dispose()` stops its computations and runs their cleanup callbacks.
-Run `cargo run -p reactive --example retained` for a complete example that
+Run `./scripts/buck run //crates/reactive:retained-example` for a complete example that
 updates retained state and batches changes around a mutable borrow.
 
 ## Signals and memos

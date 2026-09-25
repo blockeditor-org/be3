@@ -1,0 +1,29 @@
+# What a wasm build is for. block-app's web bundle and a plugin are both
+# wasm32-wasip1-threads, but the app links a real wgpu backend and a plugin only
+# the custom one, whose handles are neither Send nor Sync. reindeer resolves
+# features once per platform, so a `guest` constraint makes wasi_guest a
+# platform of its own.
+constraint_setting(
+    name = "wasm_role",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "guest",
+    constraint_setting = ":wasm_role",
+    visibility = ["PUBLIC"],
+)
+
+# What an action needs from its worker beyond the defaults. The signing
+# platform in buck/platforms has this and the default one does not, so only
+# a target that asks for it with exec_compatible_with runs there.
+constraint_setting(
+    name = "worker",
+    visibility = ["PUBLIC"],
+)
+
+constraint_value(
+    name = "android_keystore",
+    constraint_setting = ":worker",
+    visibility = ["PUBLIC"],
+)

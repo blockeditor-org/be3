@@ -1,0 +1,241 @@
+load("@prelude//tests:test_toolchain.bzl", "noop_test_toolchain")
+load("@prelude//toolchains:cxx.bzl", "cxx_tools_info_toolchain")
+load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
+load("@prelude//toolchains:python.bzl", "python_bootstrap_toolchain")
+load("@prelude//toolchains:remote_test_execution.bzl", "remote_test_execution_toolchain")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
+load("@root//buck/tools:defs.bzl", "worker_properties")
+load(":defs.bzl", "cross_tool", "host_cxx_tools", "pinned_rust_toolchain", "remote_linking_cxx_toolchain", "wasm_cxx_tools")
+
+# Every tool comes from buck/tools, which downloads them, because every action
+# runs on a remote worker that has none of its own.
+tools = "root//buck/tools"
+
+host_cxx_tools(
+    name = "cxx_tools",
+    archiver = tools + ":ar",
+    compiler = tools + ":cc",
+    cxx_compiler = tools + ":cxx",
+)
+
+wasm_cxx_tools(
+    name = "wasm_cxx_tools",
+    archiver = tools + ":ar",
+    compiler = tools + ":wasm-cc",
+    cxx_compiler = tools + ":wasm-cxx",
+    linker = tools + ":wasm-ld",
+)
+
+# Everything built for the host is compiled and linked against the sysroot in
+# buck/sysroot, not against the worker it runs on: Ubuntu 24.04's glibc,
+# libstdc++ and system libraries, from a pinned snapshot of the archive.
+cxx_tools_info_toolchain(
+    name = "host_cxx",
+    c_flags = ["--sysroot=$(location root//buck/sysroot:amd64)"],
+    cxx_flags = ["--sysroot=$(location root//buck/sysroot:amd64)"],
+    cxx_tools_info = ":cxx_tools",
+    link_flags = ["--sysroot=$(location root//buck/sysroot:amd64)"],
+    visibility = ["PUBLIC"],
+)
+
+# The cross-compiled platforms: the same clang, for the target. Android against
+# the NDK's sysroot (its compiler runtime named as the resource directory for
+# the link alone), Linux on arm64 against buck/sysroot's arm64 packages, a Mac
+# against Apple's SDK with ld64.lld, Windows against xwin's MSVC runtime and SDK
+# with lld-link. Windows' headers go after clang's own (-idirafter), since
+# MSVC's intrinsics headers only declare what clang's define.
+[
+    [
+        host_cxx_tools(
+            name = name + "_cxx_tools",
+            archiver = tools + (":lib" if name.startswith("windows") else ":ar"),
+            archiver_type = "windows_clang" if name.startswith("windows") else "gnu",
+            compiler = "{}:cc-{}".format(tools, name),
+            cxx_compiler = "{}:cxx-{}".format(tools, name),
+            linker = tools + ":lld-link" if name.startswith("windows") else None,
+            linker_type = "darwin" if name.startswith("macos") else "windows" if name.startswith("windows") else "gnu",
+        ),
+        cxx_tools_info_toolchain(
+            name = name + "_cxx",
+            c_flags = flags,
+            cxx_flags = flags,
+            cxx_tools_info = ":{}_cxx_tools".format(name),
+            link_flags = link_flags,
+            visibility = ["PUBLIC"],
+        ),
+    ]
+    for name, flags, link_flags in [
+        (
+            "android_arm64",
+            ["--sysroot=$(location root//buck/tools:android-ndk)/sysroot"],
+            [
+                "--sysroot=$(location root//buck/tools:android-ndk)/sysroot",
+                "-resource-dir=$(location root//buck/tools:android-ndk)/clang",
+                "-fuse-ld=lld",
+            ],
+        ),
+        (
+            "linux_arm64",
+            ["--sysroot=$(location root//buck/sysroot:arm64)"],
+            ["--sysroot=$(location root//buck/sysroot:arm64)"],
+        ),
+        (
+            "macos_arm64",
+            ["-isysroot", "$(location root//buck/tools:macos-sdk)"],
+            ["-isysroot", "$(location root//buck/tools:macos-sdk)", "-fuse-ld=lld"],
+        ),
+        (
+            "macos_x86_64",
+            ["-isysroot", "$(location root//buck/tools:macos-sdk)"],
+            ["-isysroot", "$(location root//buck/tools:macos-sdk)", "-fuse-ld=lld"],
+        ),
+    ]
+    + [
+        (
+            "windows_" + cpu,
+            [
+                "-idirafter$(location root//buck/tools:windows-sdk-{})/{}".format(arch, include)
+                for include in ["crt/include", "sdk/include/ucrt", "sdk/include/um", "sdk/include/shared", "sdk/include/winrt"]
+            ],
+            ["/libpath:$(location root//buck/tools:windows-sdk-{})/{}/{}".format(arch, lib, arch) for lib in ["crt/lib", "sdk/lib/um", "sdk/lib/ucrt"]],
+        )
+        for cpu, arch in [("arm64", "aarch64"), ("x86_64", "x86_64")]
+    ]
+]
+
+# Two of them, because only one of the wasm platforms has C in it. A plugin's
+# freetype and harfbuzz are compiled against the WASI sysroot; a game module is
+# pure Rust on a target that has no libc to compile against at all.
+cxx_tools_info_toolchain(
+    name = "wasi_cxx",
+    c_flags = [
+        "--target=wasm32-wasip1-threads",
+        "--sysroot=$(location root//third-party/wasi:sysroot)",
+        "-isystem",
+        "$(location root//third-party/wasi:sysroot)/include/c++/v1",
+        "-pthread",
+        "-mllvm",
+        "-wasm-enable-sjlj",
+        "-mllvm",
+        "-wasm-use-legacy-eh=false",
+        "-fno-exceptions",
+        "-fno-rtti",
+        "-DHB_NO_MT",
+        "-O2",
+        "-w",
+    ],
+    cxx_flags = [
+        "--target=wasm32-wasip1-threads",
+        "--sysroot=$(location root//third-party/wasi:sysroot)",
+        "-isystem",
+        "$(location root//third-party/wasi:sysroot)/include/c++/v1",
+        "-pthread",
+        "-mllvm",
+        "-wasm-enable-sjlj",
+        "-mllvm",
+        "-wasm-use-legacy-eh=false",
+        "-fno-exceptions",
+        "-fno-rtti",
+        "-DHB_NO_MT",
+        "-O2",
+        "-w",
+    ],
+    cxx_tools_info = ":wasm_cxx_tools",
+    visibility = ["PUBLIC"],
+)
+
+cxx_tools_info_toolchain(
+    name = "wasm32_cxx",
+    cxx_tools_info = ":wasm_cxx_tools",
+    visibility = ["PUBLIC"],
+)
+
+# Which of the two a target gets is decided by what it is being built for.
+remote_linking_cxx_toolchain(
+    name = "cxx",
+    toolchain = ":cxx_for_target",
+    visibility = ["PUBLIC"],
+)
+
+toolchain_alias(
+    name = "cxx_for_target",
+    actual = per_cross_platform(
+        ":host_cxx",
+        lambda name: ":{}_cxx".format(name),
+        extra = {
+            "prelude//os:none": ":wasm32_cxx",
+            "prelude//os:wasi": ":wasi_cxx",
+        },
+    ),
+    visibility = ["PUBLIC"],
+)
+
+# Which of Cargo's profiles the build stands in for: dev unless the command
+# says `-c be3.profile=release`.
+_profile = read_config("be3", "profile", "dev")
+
+_release = ["-Copt-level=3", "-Cdebuginfo=0"]
+
+pinned_rust_toolchain(
+    name = "rust",
+    # What cargo reads out of Cargo.toml's [workspace.lints]. A warning fails
+    # the build here the way `cargo clippy -- -D warnings` fails it there.
+    allow_lints = ["clippy::too_many_arguments"],
+    clippy_driver = cross_tool(tools, "clippy-driver"),
+    clippy_toml = "root//:clippy.toml",
+    compiler = cross_tool(tools, "rustc"),
+    default_edition = "2024",
+    deny_lints = ["warnings"],
+    # Left on, the prelude sets RUSTC_BOOTSTRAP=1 for -Z flags, and a stable rustc
+    # then reports unstable target features: on wasm32-wasip1-threads,
+    # cfg(target_feature = "atomics") answered differently from cargo and broke
+    # wgpu's Send/Sync. The cost is one layer of pipelining.
+    nightly_features = False,
+    # Cargo's dev profile on the host, and its plugin profile on wasm, since
+    # cranelift is far slower at an unoptimised module; the opt level is also what
+    # tells build scripts OPT_LEVEL. `-c be3.profile=release` is cargo's release
+    # profile.
+    rustc_flags = select({
+        "DEFAULT": _release if _profile == "release" else ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
+        "prelude//cpu:wasm32": (_release if _profile == "release" else ["-Copt-level=2", "-Cdebuginfo=0"]) + ["-Cstrip=debuginfo"],
+        # Packed, macOS's default, runs dsymutil after the link, which is
+        # Apple's and not something a Linux worker has.
+        "prelude//os:macos": (_release if _profile == "release" else ["-Copt-level=0", "-Cdebuginfo=line-tables-only"]) + ["-Csplit-debuginfo=unpacked"],
+    }),
+    rustc_target_triple = per_cross_platform(
+        "x86_64-unknown-linux-gnu",
+        cross_triple,
+        extra = {
+            "prelude//os:none": "wasm32-unknown-unknown",
+            "prelude//os:wasi": "wasm32-wasip1-threads",
+        },
+    ),
+    rustdoc = cross_tool(tools, "rustdoc"),
+    visibility = ["PUBLIC"],
+)
+
+python_bootstrap_toolchain(
+    name = "python_bootstrap",
+    # The Python the prelude's helpers run on, as a file rather than a name, which
+    # would otherwise be in every action's command line.
+    interpreter = "root//buck/tools:python3",
+    visibility = ["PUBLIC"],
+)
+
+system_genrule_toolchain(name = "genrule", visibility = ["PUBLIC"])
+
+noop_test_toolchain(name = "test", visibility = ["PUBLIC"])
+
+# Tests run on a worker, in the container their binary was linked for, unless
+# they ask to stay local; ./scripts/buck passes the flag that allows it.
+remote_test_execution_toolchain(
+    name = "remote_test_execution",
+    default_profile = "remote",
+    profiles = {
+        "remote": {
+            "capabilities": worker_properties,
+            "use_case": "buck2-default",
+        },
+    },
+    visibility = ["PUBLIC"],
+)

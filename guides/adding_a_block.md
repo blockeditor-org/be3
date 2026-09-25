@@ -180,10 +180,10 @@ Test what the helpers mean: an edit made against content that has since changed,
 
 ## 9. Verify
 
-`./scripts/verify` runs the full check from the workspace root: it applies the project's autofixes and runs every lint and test. CI runs the same on a pull request and pushes whatever it changes to the branch.
+`./scripts/buck run //:verify` runs the full check from the workspace root: it applies the project's autofixes and runs every lint and test. CI runs the same on a pull request and pushes whatever it changes to the branch.
 
 ```text
-./scripts/verify
+./scripts/buck run //:verify
 ```
 
 If the block needs a UI, continue with the [plugin editor guide](adding_a_plugin_editor.md).

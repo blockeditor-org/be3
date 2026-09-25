@@ -10,8 +10,14 @@ use crate::{
 const START: &str = "_start";
 
 impl Host {
-    pub fn run_tests(&self, wasm: &Path, arguments: &[String], root: &Path) -> Result<i32, String> {
-        let module = test_module(&self.engine, wasm)?;
+    pub fn run_tests(
+        &self,
+        wasm: &Path,
+        arguments: &[String],
+        root: &Path,
+        precompiled: Option<&Path>,
+    ) -> Result<i32, String> {
+        let module = test_module(&self.engine, wasm, precompiled)?;
         let memory = shared_memory(&self.engine, &module)?;
         let directory = root
             .to_str()

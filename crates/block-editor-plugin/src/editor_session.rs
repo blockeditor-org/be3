@@ -672,17 +672,17 @@ impl EditorSession {
                     data: artifact.draft.clone(),
                 }));
             }
-            if artifact.regenerating {
-                if let Some(result) = self.app.poll_artifact() {
-                    artifact.regenerating = false;
-                    messages.push(Message::Editor(EditorMessage::ArtifactRegenerated {
-                        instance,
-                        outcome: match result {
-                            Ok(()) => block_plugin_api::RegenerationOutcome::Done,
-                            Err(error) => block_plugin_api::RegenerationOutcome::Failed(error),
-                        },
-                    }));
-                }
+            if artifact.regenerating
+                && let Some(result) = self.app.poll_artifact()
+            {
+                artifact.regenerating = false;
+                messages.push(Message::Editor(EditorMessage::ArtifactRegenerated {
+                    instance,
+                    outcome: match result {
+                        Ok(()) => block_plugin_api::RegenerationOutcome::Done,
+                        Err(error) => block_plugin_api::RegenerationOutcome::Failed(error),
+                    },
+                }));
             }
         }
         if std::mem::take(&mut self.leaving) {

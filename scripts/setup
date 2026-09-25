@@ -3,43 +3,31 @@
 # Installs what a fresh Ubuntu machine needs to build, test and run the project.
 #
 # Everything here is idempotent, so running it again on a machine that is
-# already set up only reports what is already there. It assumes apt and an
-# unrestricted network: the Rust toolchain, cargo-nextest, Zig and Ghostty's
-# dependencies are all fetched from the internet.
+# already set up only reports what is already there. It assumes apt.
 #
-# It installs prerequisites and stops there, so it is minutes rather than the
-# best part of an hour. Nothing here compiles the workspace: the first
-# ./scripts/verify does that, and what it would have to build it mostly pulls
-# out of the shared sccache store anyway, so building it twice only moved the
-# wait into setup. --warm-cache asks for it for a machine that would rather
-# spend the time now, on the checkout as it currently stands.
+# Everything the project builds, buck2 builds, on BuildBuddy's workers with
+# compilers it brings itself, so what this machine needs is buck2, the Python
+# buck2's own rules run their helpers with, and the libraries the app and the
+# plugin tests load when they run here.
 #
 # Usage:
 #   ./scripts/setup
-#   ./scripts/setup --warm-cache
 
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
-warm=false
-for argument in "$@"; do
-    case "$argument" in
-        --warm-cache) warm=true ;;
-        --full) export BE3_FULL=1 ;;
-        *)
-            echo 'Usage: ./scripts/setup [--warm-cache] [--full]' >&2
-            exit 1
-            ;;
-    esac
-done
+if [[ $# -ne 0 ]]; then
+    echo 'Usage: ./scripts/setup' >&2
+    exit 1
+fi
 
 cd "$repository"
 time_script 'Setup'
 
 if [[ "$(uname -s)" != 'Linux' ]] || ! command -v apt-get > /dev/null; then
     echo 'This script only knows how to set up Ubuntu. Install the equivalents of' >&2
-    echo 'the packages it lists by hand, then run ./scripts/verify.' >&2
+    echo 'the packages it lists by hand, then run ./scripts/internal/install-buck2.sh.' >&2
     exit 1
 fi
 
@@ -51,27 +39,19 @@ fi
 
 # What each group is for, since none of it is obvious from the names:
 #
-# The compiler cargo drives, and what the -sys crates locate libraries with.
-packages=(build-essential pkg-config)
-# Fetching anything at all, and, on a full build, unpacking the Zig release
-# build-ghostty-vt.sh wants, which is .tar.xz.
-packages+=(curl git tar xz-utils)
-# The web build, and every plugin's tests, compile HarfBuzz for
-# wasm32-wasip1-threads with clang and archive it with llvm-ar, neither of
-# which comes from rustup. The build scripts take the newest clang on PATH, so
-# a machine that already has one new enough needs no package at all; 24.04
-# ships 18 as plain clang, which is older than the setjmp lowering FreeType
-# needs, so there a newer pair is installed instead of that default one, which
-# nothing would have used. An LLVM is several hundred megabytes of apt, so
-# installing the one that gets used is worth asking which that is.
-if ! wasm_clang_installed; then
-    packages+=(clang-20 llvm-20)
-fi
-# alsa-sys compiles against the ALSA headers; audio playback is behind it.
-packages+=(libasound2-dev)
+# Fetching buck2, which is a zstd stream, and the checkout itself.
+packages=(curl git zstd)
+# buck2's prelude runs Python helpers around the actions and tests it runs
+# here rather than on a worker.
+packages+=(python3)
+# What the app loads when it runs here: ALSA for audio, GTK for the native file
+# dialog, and WebKitGTK for the embedded browser. buck2 compiles and links
+# against its own copies of them, in buck/sysroot, so only the libraries are
+# needed, not their headers.
+packages+=(libasound2t64 libgtk-3-0t64 libwebkit2gtk-4.1-0)
 # wgpu opens libvulkan at runtime rather than linking it, and lavapipe out of
-# mesa-vulkan-drivers is the only adapter a machine with no GPU has. The beui
-# renderer tests fail outright without one, so this is not optional on a server.
+# mesa-vulkan-drivers is the only adapter a machine with no GPU has. The plugin
+# tests draw through it here, so this is not optional on a server.
 packages+=(libvulkan1 mesa-vulkan-drivers)
 # winit opens these the same way, when the app actually has a display to draw on.
 packages+=(
@@ -83,22 +63,14 @@ packages+=(
     libxkbcommon-x11-0
     libwayland-client0
 )
-# The native file dialog is a GTK one. On a full build block-app also links wry
-# for its webview, which on Linux is a GTK widget backed by WebKitGTK;
-# gdk-sys and webkit2gtk-sys locate both through pkg-config.
-packages+=(libgtk-3-dev)
-if full_build; then
-    packages+=(libwebkit2gtk-4.1-dev)
-fi
 # Nothing the workspace builds reads a system font any more - beui and egui both
 # carry theirs - but the GTK dialogs and the window manager the app runs under
 # still want one, and a machine with no font at all is a confusing one to debug.
 packages+=(fonts-dejavu-core fonts-dejavu-mono)
-# be-compositor's session backend drives displays through GBM and reads
-# input through libinput, on a seat taken through libseat and found through
-# udev; each -sys crate links its library through pkg-config.
-packages+=(libgbm-dev libinput-dev libseat-dev libudev-dev)
-# ./scripts/run --smoke starts the app against a virtual display.
+# be-compositor's session backend loads GBM, libinput, libseat and udev.
+packages+=(libgbm1 libinput10 libseat1 libudev1)
+# ./scripts/buck run //crates/block-app:smoke starts the app against a virtual
+# display.
 packages+=(xvfb)
 
 missing=()
@@ -116,133 +88,15 @@ else
     DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y "${missing[@]}"
 fi
 
-# Everything cargo compiles from here on, which with --warm-cache is the whole
-# workspace, goes through sccache, which answers from the project's shared store
-# whatever some other machine has already built. Sourcing common.sh above found
-# nothing to point cargo at; configuring it again is what picks up what was just
-# installed.
-#
-# Nothing here depends on the cache, so a machine that cannot reach it is set up
-# the slow way rather than turned away.
-step 'Installing sccache'
-if "$internal/install-sccache.sh"; then
-    configure_sccache
-fi
-if [[ -z "${RUSTC_WRAPPER:-}" ]]; then
-    echo 'Building without a shared compiler cache.'
-elif [[ "${SCCACHE_S3_RW_MODE:-}" == 'READ_WRITE' ]]; then
-    echo 'Building through sccache, reading and writing the shared cache.'
-else
-    echo 'Building through sccache, reading the shared cache. Set BUNNY_SCCACHE_PASSWORD'
-    echo 'to a zone password that may write to fill it as well.'
-fi
-
-# rust-toolchain.toml pins the channel and the wasm targets, so installing
-# rustup is enough to get all three; any cargo call in the repository then
-# fetches them. Asking for the toolchain here means that download happens now
-# rather than in the middle of the first build.
-#
-# rustup-init is fetched at a pinned version and checked against a hash rather
-# than piping https://sh.rustup.rs into a shell. That form runs whatever is
-# served at the moment it is run, without ever writing it down, so there is no
-# version to review and nothing left afterwards to say what ran. These hashes
-# are the ones static.rust-lang.org publishes alongside the binaries
-# (rustup-init.sha256), not ones recomputed from these downloads.
-rustup_version='1.29.1'
-rustup_sha256_x86_64='dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71'
-rustup_sha256_aarch64='15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433'
-if ! command -v rustup > /dev/null; then
-    # This script already refused anything but Linux above, so these are the
-    # only two rustup-init builds it can ever want.
-    case "$(uname -m)" in
-        x86_64 | amd64)
-            rustup_triple='x86_64-unknown-linux-gnu'
-            rustup_sha256="$rustup_sha256_x86_64"
-            ;;
-        aarch64 | arm64)
-            rustup_triple='aarch64-unknown-linux-gnu'
-            rustup_sha256="$rustup_sha256_aarch64"
-            ;;
-        *)
-            echo "No rustup-init is pinned here for $(uname -m)." >&2
-            echo 'Install Rust from https://rustup.rs by hand, then run this again.' >&2
-            exit 1
-            ;;
-    esac
-
-    step "Installing Rust $rustup_version from https://static.rust-lang.org"
-    rustup_init="$repository/target/tools/rustup-init"
-    mkdir -p "$(dirname "$rustup_init")"
-    download_verified \
-        "https://static.rust-lang.org/rustup/archive/$rustup_version/$rustup_triple/rustup-init" \
-        "$rustup_init" \
-        "$rustup_sha256"
-    chmod +x "$rustup_init"
-    # --no-modify-path, because the PATH line below is what this shell needs and
-    # a profile it has already read would not help it. What is pinned here is
-    # the installer that bootstraps rustup, not a ceiling on the rustup a
-    # machine keeps: `rustup self update` moves it on from this version.
-    "$rustup_init" -y --no-modify-path
-    rm -f "$rustup_init"
-    # The installer only edits the shell profile, which this shell already read.
-    PATH="$HOME/.cargo/bin:$PATH"
-    export PATH
-fi
-
-step 'Installing the pinned Rust toolchain'
-rustup show active-toolchain
-
-# rustup installs a toolchain with neither of these, and ./scripts/verify runs
-# both. A default profile would carry them, but the one a machine already has is
-# whatever it was set up with, so ask for them by name.
-step 'Installing rustfmt and clippy'
-rustup component add rustfmt clippy
-
-# ./scripts/verify runs the tests through nextest, which is not a rustup
-# component. The script fetches the pinned release rather than building it.
-step 'Installing cargo-nextest'
-"$internal/install-nextest.sh"
-
-# The one prerequisite that is not a package, and the only one a full build
-# alone has: block-app links this, and cargo builds none of it. The script
-# fetches a Zig toolchain and a Ghostty checkout the first time, which is half a
-# gigabyte and the rest of what this setup needs the network for. A default
-# build has no terminal to link, so it skips all of that.
-if full_build; then
-    step 'Building libghostty-vt'
-    host_triple="$(rustc --version --verbose | sed -n 's/^host: //p')"
-    if ! ensure_ghostty_vt "$host_triple"; then
-        echo '' >&2
-        echo 'libghostty-vt could not be built. A full build of block-app links it and' >&2
-        echo 'cargo builds none of it, so the workspace does not compile without it and' >&2
-        echo 'setup stops here.' >&2
-        exit 1
-    fi
-fi
-
-# Everything above is a prerequisite and is all a default run does, so a machine
-# is usable from here. The rest is the first ./scripts/verify's compiling brought
-# forward, for a machine that asked for that. The tree being warmed is whatever
-# is checked out, which may well be mid-change and not compile; that is a thing
-# to hear about rather than a reason for a machine to fail to set itself up, so
-# the warming reports and setup still succeeds.
-if $warm; then
-    echo ''
-    step 'Warming the build caches, which is the first ./scripts/verify done early'
-    if ! "$internal/warm-cache.sh"; then
-        echo ''
-        echo 'The caches could not be warmed, which only means the first' >&2
-        echo './scripts/verify will be a slow one. Everything else is set up.' >&2
-    fi
-fi
+# buck2 builds and tests the workspace on BuildBuddy's workers;
+# guides/buck2.md says what it covers. It is a download of a pinned release, so
+# it costs seconds.
+step 'Installing buck2'
+"$internal/install-buck2.sh"
 
 end_step
 echo ''
-echo 'Setup finished. Check the workspace compiles with ./scripts/check, and run'
-echo './scripts/verify before committing.'
-if ! full_build; then
-    echo ''
-    echo 'This set the machine up for a default build, which leaves out the debug'
-    echo 'terminal and the embedded browser. Pass --full here, and to check, verify'
-    echo 'and build, to work on either of those.'
-fi
+echo 'Setup finished. Every build runs on BuildBuddy, so put its API key in'
+echo 'BUILDBUDDY_API_KEY or in ~/.config/be3/buildbuddy-api-key - guides/buck2.md'
+echo 'says more - then check the workspace compiles with'
+echo './scripts/buck run //:check, and run ./scripts/buck run //:verify before committing.'

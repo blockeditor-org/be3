@@ -31,7 +31,7 @@ struct Paper {
     body: String,
 }
 
-const PAPERS: [(u64, &str, &str); 5] = [
+const PAPERS: [(u64, &str, &str); 6] = [
     (
         3,
         "Welcome",
@@ -62,6 +62,15 @@ const PAPERS: [(u64, &str, &str); 5] = [
         7,
         "Notes",
         "Closing a tab leaves the paper in Files, so it can be opened again.",
+    ),
+    (
+        8,
+        "Groups",
+        "Drop a tab onto the middle of another tab to group them: the group becomes one \
+         tab, and choosing it shows a second tab bar holding the tabs inside. Drag a tab \
+         to the edge of a group to split the group, or right-click a tab to group it or \
+         split it with the tab after it. A group ungroups from its own right-click menu, \
+         and one left holding a single tab turns back into that tab.",
     ),
 ];
 

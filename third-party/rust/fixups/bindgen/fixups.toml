@@ -1,0 +1,3 @@
+# The build script writes the triple bindgen was built for, which it reads back
+# as the default clang target.
+buildscript.run = true

@@ -1,0 +1,7 @@
+# Clippy's own configuration, which is separate from the lint levels: those are
+# in Cargo.toml's [workspace.lints] for cargo and on the rust toolchain in
+# buck/toolchains/BUCK for buck2.
+#
+# Nothing is set. The file exists because clippy under buck2 is handed a
+# configuration directory rather than left to search for one, and a directory
+# with no clippy.toml in it is an error rather than a default.

@@ -10,22 +10,31 @@ BE3 aims to solve this.
 
 ## Development
 
-See .github/workflows/ci.yml for detailed instructions
+See guides/buck2.md for detailed instructions
 
 Basic setup:
 
-install rustup, `rustup default stable`, install cargo-nextest
+`./scripts/setup`, then put a BuildBuddy API key in `~/.config/be3/buildbuddy-api-key`
 
 ```
 # run app
-./scripts/run
+./scripts/buck run //crates/block-app:app
 
 # test app
-./scripts/verify
+./scripts/buck run //:verify
 
 # run for web
-./scripts/run --target web
+./scripts/buck run //crates/block-app:web-serve
 
 # run for android
-./scripts/run --target android
+./scripts/buck run //crates/block-app:android -- --install
+
+# run beui's demo
+./scripts/buck run //crates/beui:demo-example
+
+# run beui's docking demo
+./scripts/buck run //crates/beui:dock-example
+
+# run be-compositor
+./scripts/buck run //crates/be-compositor:be-compositor-bin
 ```

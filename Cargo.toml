@@ -17,6 +17,7 @@ members = [
     "crates/reactive",
     "crates/block-ui",
     "crates/block-ui-test",
+    "crates/test-third-party",
     "crates/text-editor-core",
     "crates/block-app",
     "crates/tabletop_games/api",
@@ -68,6 +69,7 @@ members = [
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
     "crates/fix-rust-source",
+    "crates/buck-tools",
     "crates/wasi-threads",
 ]
 resolver = "3"

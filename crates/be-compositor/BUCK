@@ -1,0 +1,32 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+
+compositor_srcs = glob(["src/**/*.rs", "src/**/*.wgsl"])
+
+# A Wayland compositor, so Linux's alone: `//crates/...` for another platform
+# skips it rather than failing on it.
+linux = ["prelude//os:linux"]
+
+cargo_library(
+    srcs = compositor_srcs,
+    target_compatible_with = linux,
+)
+
+# smithay builds a keyboard with libxkbcommon, which the worker's container has
+# neither the library nor the keymaps for: the library comes from the sysroot it
+# was linked against, the keymaps from the test runtime's. The tests that import
+# a client's dmabuf draw through a real Vulkan adapter, which on a worker is
+# lavapipe from the test runtime, as for beui's renderer tests.
+cargo_test(
+    env = {
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+    },
+    srcs = compositor_srcs,
+    target_compatible_with = linux,
+)
+
+cargo_binary(
+    srcs = compositor_srcs,
+    target_compatible_with = linux,
+)

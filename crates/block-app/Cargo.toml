@@ -42,9 +42,8 @@ exported = true
 # Two features rather than one, because what they cost to set up is different:
 # the terminal needs a Zig toolchain and a Ghostty checkout before cargo can
 # link anything at all, and the embedded browser only needs a large dependency
-# tree. Neither is on by default, so a checkout builds and a ./scripts/check
-# runs without either prerequisite. CI sets BE3_FULL, which turns both on, so
-# what ships and what is linted is still the whole app.
+# tree. Neither is on by default, so a plain cargo build works without either
+# prerequisite. buck2, which is what builds the app, always turns both on.
 default = []
 terminal = ["dep:ghostty-vt"]
 web-view = ["dep:wry"]

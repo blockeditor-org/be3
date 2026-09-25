@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{Entry, TabId, dock_state};
 
 #[test]
 fn dragging_a_tab_onto_the_edge_of_a_pane_splits_it() {
@@ -20,13 +20,13 @@ fn dragging_a_tab_onto_the_edge_of_a_pane_splits_it() {
         "a tab dropped on the edge of a pane splits it in two"
     );
     assert_eq!(
-        state.tabs(leaves[0]),
-        vec![TabId::new(1)],
+        state.entries(leaves[0]),
+        vec![Entry::Tab(TabId::new(1))],
         "the tab that was left behind keeps the pane it was in"
     );
     assert_eq!(
-        state.tabs(leaves[1]),
-        vec![TabId::new(2)],
+        state.entries(leaves[1]),
+        vec![Entry::Tab(TabId::new(2))],
         "the dropped tab lands in the pane the split made"
     );
     let first = harness.rect(harness.find("content.1"));

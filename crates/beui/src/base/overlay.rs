@@ -348,7 +348,36 @@ impl Document {
             .collect()
     }
 
+    pub(crate) fn overlays_bottom_up(&self) -> Vec<NodeId> {
+        let floating = self.floating_overlays();
+        let passive = self
+            .passive_overlays
+            .iter()
+            .filter(|overlay| !floating.contains(overlay));
+        floating
+            .iter()
+            .chain(self.overlay_stack.iter())
+            .chain(passive)
+            .copied()
+            .collect()
+    }
+
+    pub(crate) fn pointer_layers(&self, root: NodeId) -> Vec<NodeId> {
+        match self.overlay_stack.is_empty() {
+            true => self
+                .floating_overlays()
+                .into_iter()
+                .rev()
+                .chain([root])
+                .collect(),
+            false => self.overlay_stack.iter().rev().copied().collect(),
+        }
+    }
+
     pub(crate) fn floating_covers(&self, pos: Pos2) -> bool {
+        if self.modal_open() {
+            return false;
+        }
         self.floating_overlays().into_iter().any(|overlay| {
             self.overlay_content(overlay)
                 .and_then(|content| self.node_rect(content))

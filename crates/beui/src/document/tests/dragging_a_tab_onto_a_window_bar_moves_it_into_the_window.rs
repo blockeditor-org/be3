@@ -36,7 +36,7 @@ fn dragging_a_tab_onto_a_window_bar_moves_it_into_the_window() {
         "dropping a tab on a window's bar leaves the window where it is"
     );
     assert!(
-        state.tabs(state.leaves(state.main())[0]).is_empty(),
+        state.entries(state.leaves(state.main())[0]).is_empty(),
         "the pane it came from is left with nothing in it"
     );
 }

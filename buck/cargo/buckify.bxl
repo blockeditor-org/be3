@@ -1,0 +1,165 @@
+# Generates third-party/rust/BUCK (reindeer) and buck/cargo/crates.bzl
+# (crates/buck-tools' generate, from cargo's plans) on a worker and prints their directory;
+# ./scripts/buck copies them into place when their inputs change.
+#
+# The action's inputs are the manifests, Cargo.lock, reindeer.toml, the fixups
+# and buck-tools' sources, plus empty files at the paths cargo discovers targets at
+# (_discovered). Editing or adding an ordinary source file leaves its key, and
+# the cache entry everyone shares, alone. It is BXL because a rule can only take
+# its own package's files.
+
+def _files(ctx, directory: str) -> list[str]:
+    found = []
+    for entry in ctx.fs.list(directory):
+        path = str(entry).removeprefix("root//")
+        if ctx.fs.is_dir(path):
+            found.extend(_files(ctx, path))
+        else:
+            found.append(path)
+    return found
+
+# Whether cargo looks for this file when discovering a crate's targets. Paths a
+# Cargo.toml names are recreated by the script, which can read it.
+def _discovered(path: str, crate_dirs: list[str]) -> bool:
+    owner = ""
+    for directory in crate_dirs:
+        if path.startswith(directory + "/") and len(directory) > len(owner):
+            owner = directory
+    if not owner:
+        return False
+    relative = path.removeprefix(owner + "/")
+    if relative in ["build.rs", "src/lib.rs", "src/main.rs"]:
+        return True
+    if relative.startswith("src/bin/") or relative.startswith("examples/") or relative.startswith("benches/"):
+        return True
+    return relative.startswith("tests/") and (relative.count("/") == 1 or relative.endswith("/main.rs"))
+
+def _output(ctx, target: str):
+    configured = ctx.configured_targets(target)
+    return ctx.analysis(configured).providers()[DefaultInfo].default_outputs[0]
+
+def _impl(ctx):
+    actions = ctx.bxl_actions().actions
+
+    real = ["Cargo.toml", "Cargo.lock", "reindeer.toml"] + _files(ctx, "third-party/rust/fixups")
+    files = _files(ctx, "crates")
+    crate_dirs = [path.removesuffix("/Cargo.toml") for path in files if path.endswith("/Cargo.toml")]
+    real.extend([directory + "/Cargo.toml" for directory in crate_dirs])
+    tools = [path for path in files if path.startswith("crates/buck-tools/src/")]
+    real.extend(tools)
+    placeholders = [path for path in files if _discovered(path, crate_dirs) and path not in tools]
+
+    workspace = actions.copied_dir(
+        "workspace",
+        {path: ctx.fs.source(path) for path in sorted(real)},
+    )
+    layout = actions.write("placeholders.txt", sorted(placeholders))
+
+    reindeer = _output(ctx, "root//buck/cargo:reindeer")
+    cargo = _output(ctx, "root//buck/cargo:cargo")
+    nightly = _output(ctx, "root//buck/cargo:nightly")
+
+    out = actions.declare_output("generated", dir = True)
+
+    # The builds buck2 stands in for, as cargo would be asked for them: the host
+    # (block-app with full, without the wasm-only crates), block-app for the web,
+    # the plugins (a plan of their own: they want a different wgpu), the games and
+    # the gpu shim, and the host again for each cross target. `cargo test` where
+    # there are tests, so the plan has the dev-dependencies. --unit-graph needs the
+    # nightly.
+    script = """
+set -eu
+out="$(pwd)/$1"
+workspace="$2"
+layout="$(pwd)/$3"
+reindeer="$(pwd)/$4"
+toolchain="$(cd "$5" && pwd)"
+nightly="$(cd "$6" && pwd)"
+scratch="$(mktemp -d)"
+mkdir -p "$out"
+cp -RL "$workspace/." "$scratch/workspace"
+cd "$scratch/workspace"
+while IFS= read -r path || [ -n "$path" ]; do
+    mkdir -p "$(dirname "$path")"
+    : > "$path"
+done < "$layout"
+for manifest in $(find crates -name Cargo.toml); do
+    sed -n 's/^[[:space:]]*path[[:space:]]*=[[:space:]]*"\\([^"]*\\.rs\\)".*/\\1/p' "$manifest" | while IFS= read -r relative; do
+        path="$(dirname "$manifest")/$relative"
+        mkdir -p "$(dirname "$path")"
+        [ -e "$path" ] || : > "$path"
+    done
+done
+export CARGO_HOME="$scratch/cargo-home"
+
+PATH="$toolchain/bin:$PATH" "$reindeer"     --cargo-path "$toolchain/bin/cargo" --rustc-path "$toolchain/bin/rustc"     buckify --stdout > "$scratch/BUCK"
+
+# Every crate archive's size beside its hash, so that buck2 knows each digest
+# without asking crates.io for it on every new daemon. cargo fetch downloads
+# every crate Cargo.lock names, for every platform.
+PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" fetch --locked --quiet
+for crate in "$CARGO_HOME"/registry/cache/*/*.crate; do
+    printf '%s %s\n' "$(basename "$crate" .crate)" "$(wc -c < "$crate")"
+done > "$scratch/sizes"
+awk '
+    NR == FNR { size[$1] = $2 + 0; next }
+    $1 == "name" { crate = $3; gsub(/[",]/, "", crate); if (crate !~ /[.]crate$/) crate = ""; sub(/[.]crate$/, "", crate) }
+    { print }
+    $1 == "sha256" && crate in size { print "    size_bytes = " size[crate] ","; crate = "" }
+' "$scratch/sizes" "$scratch/BUCK" > "$out/BUCK"
+
+plugins=""
+excluded=""
+for manifest in crates/editors/*/Cargo.toml; do
+    name="$(basename "$(dirname "$manifest")")"
+    plugins="$plugins -p $name"
+    excluded="$excluded --exclude $name"
+done
+games=""
+for directory in crates/tabletop_games/rules/*/; do
+    games="$games -p $(basename "$directory")"
+done
+
+plan() {
+    RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
+}
+"$nightly/bin/cargo" metadata --no-deps --format-version 1 --locked > "$scratch/metadata.json"
+plan test --workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim \
+    --exclude test-third-party --features block-app/full > "$scratch/host.json"
+plan build --target wasm32-wasip1-threads -p block-app --lib --features block-app/full > "$scratch/wasi.json"
+plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin > "$scratch/wasi-guest.json"
+plan build --target wasm32-unknown-unknown $games -p block-gpu-shim > "$scratch/wasm32.json"
+host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim --exclude test-third-party"
+plan test --target aarch64-linux-android $host_packages --features block-app/full > "$scratch/android-arm64.json"
+plan test --target aarch64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/linux-arm64.json"
+plan test --target aarch64-apple-darwin $host_packages --features block-app/full > "$scratch/macos-arm64.json"
+plan test --target x86_64-apple-darwin $host_packages --features block-app/full > "$scratch/macos-x86_64.json"
+plan test --target aarch64-pc-windows-msvc $host_packages --features block-app/full > "$scratch/windows-arm64.json"
+plan test --target x86_64-pc-windows-msvc $host_packages --features block-app/full > "$scratch/windows-x86_64.json"
+CARGO_TARGET_DIR="$scratch/target" PATH="$toolchain/bin:$PATH" \
+    "$toolchain/bin/cargo" build --quiet --release --locked -p buck-tools
+"$scratch/target/release/buck-tools" generate "$scratch/metadata.json" \
+    "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasm32=$scratch/wasm32.json" \
+    "android-arm64=$scratch/android-arm64.json" "linux-arm64=$scratch/linux-arm64.json" "macos-arm64=$scratch/macos-arm64.json" "macos-x86_64=$scratch/macos-x86_64.json" \
+    "windows-arm64=$scratch/windows-arm64.json" "windows-x86_64=$scratch/windows-x86_64.json" \
+    > "$out/crates.bzl"
+rm -rf "$scratch"
+"""
+    actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            script,
+            "--",
+            out.as_output(),
+            workspace,
+            layout,
+            reindeer,
+            cargo,
+            nightly,
+        ),
+        category = "buckify",
+    )
+    ctx.output.print(ctx.output.ensure(out).abs_path())
+
+main = bxl_main(cli_args = {}, impl = _impl)

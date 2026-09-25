@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "file_tree",
+    module = "file_tree",
+)
