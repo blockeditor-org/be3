@@ -2,7 +2,7 @@ use block::Block;
 use uuid::Uuid;
 
 use super::{
-    apply, author, VersionControlData, VersionControlWorktree, VersionControlWorktreeOperation,
+    VersionControlData, VersionControlWorktree, VersionControlWorktreeOperation, apply, author,
 };
 
 #[test]

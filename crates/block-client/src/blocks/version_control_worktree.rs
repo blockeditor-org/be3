@@ -4,10 +4,10 @@ use block::{Block, NoHistory};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::block_ref::WorktreeMembership;
 use crate::BlockClient;
+use crate::block_ref::WorktreeMembership;
 
-use super::version_control_data::{CommitId, VersionControlData, MAIN_BRANCH};
+use super::version_control_data::{CommitId, MAIN_BRANCH, VersionControlData};
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct VersionControlWorktree {

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use block_wasm_host::{Host, precompile};
+use block_wasm_host::{Host, precompile, precompile_to};
 
 fn main() {
     let mut arguments = std::env::args();
@@ -10,6 +10,24 @@ fn main() {
     let Some(first) = arguments.next() else {
         usage(&program);
     };
+    if first == "--precompile-to" {
+        let mut artifact = arguments.next();
+        let mut target = None;
+        if artifact.as_deref() == Some("--target") {
+            target = arguments.next();
+            artifact = arguments.next();
+        }
+        let artifact = artifact.map(PathBuf::from);
+        let wasm = arguments.next().map(PathBuf::from);
+        let (Some(artifact), Some(wasm)) = (artifact, wasm) else {
+            usage(&program);
+        };
+        if let Err(message) = precompile_to(&wasm, &artifact, target.as_deref()) {
+            eprintln!("{message}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if first == "--precompile" {
         let modules: Vec<PathBuf> = arguments.map(PathBuf::from).collect();
         if modules.is_empty() {
@@ -21,6 +39,15 @@ fn main() {
         }
         return;
     }
+    let (first, precompiled) = if first == "--precompiled" {
+        let artifact = arguments.next().map(PathBuf::from);
+        let Some(next) = arguments.next() else {
+            usage(&program);
+        };
+        (next, artifact)
+    } else {
+        (first, None)
+    };
     let wasm = PathBuf::from(first);
     let mut arguments: Vec<String> = std::iter::once(wasm.to_string_lossy().into_owned())
         .chain(arguments)
@@ -35,7 +62,7 @@ fn main() {
         arguments.push("--nocapture".to_owned());
     }
 
-    match run(&wasm, &arguments) {
+    match run(&wasm, &arguments, precompiled.as_deref()) {
         Ok(code) => std::process::exit(code),
         Err(message) => {
             eprintln!("{message}");
@@ -45,15 +72,16 @@ fn main() {
 }
 
 fn usage(program: &str) -> ! {
-    eprintln!("Usage: {program} TESTS.wasm [test arguments...]");
+    eprintln!("Usage: {program} [--precompiled TESTS.cwasm] TESTS.wasm [test arguments...]");
     eprintln!("       {program} --precompile TESTS.wasm...");
+    eprintln!("       {program} --precompile-to [--target TRIPLE] TESTS.cwasm TESTS.wasm");
     std::process::exit(2);
 }
 
-fn run(wasm: &Path, arguments: &[String]) -> Result<i32, String> {
+fn run(wasm: &Path, arguments: &[String], precompiled: Option<&Path>) -> Result<i32, String> {
     let root = workspace()?;
     let host = Host::on_demand(gpu, None)?;
-    host.run_tests(wasm, arguments, &root)
+    host.run_tests(wasm, arguments, &root, precompiled)
 }
 
 fn workspace() -> Result<PathBuf, String> {

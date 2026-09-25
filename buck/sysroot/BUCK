@@ -1,0 +1,109 @@
+load("//buck/platforms:cross.bzl", "per_cross_platform")
+load(":defs.bzl", "deb_lock", "deb_sysroot", "pkg_config")
+load(":packages.bzl", "packages")
+
+# The Linux the build compiles and links against: Ubuntu 24.04's own packages -
+# glibc, libstdc++ and every system library a crate links - unpacked into a
+# sysroot the toolchain passes with --sysroot, so a worker's image is only what
+# runs the tools. They come from a snapshot of the archive, which pins every
+# index; ./scripts/buck run //:lock-sysroot resolves the list below into
+# packages.bzl.
+
+snapshot = "20260915T000000Z"
+
+wanted = [
+    # The C and C++ runtime and the gcc install clang takes them from.
+    "libc6-dev",
+    "libgcc-13-dev",
+    "libstdc++-13-dev",
+    # What third-party crates link.
+    "libasound2-dev",
+    "libgtk-3-dev",
+    "libwebkit2gtk-4.1-dev",
+    # be-compositor's session backend: displays through GBM, input through
+    # libinput, a seat through libseat, and devices found through udev.
+    "libgbm-dev",
+    "libinput-dev",
+    "libseat-dev",
+    "libudev-dev",
+]
+
+# What only tests load: the Vulkan loader, lavapipe and the XKB keymaps. A set
+# of its own, so that changing it leaves every compile's key alone.
+test_runtime = [
+    "libvulkan1",
+    "mesa-vulkan-drivers",
+    "xkb-data",
+]
+
+deb_lock(
+    name = "lock",
+    sets = {
+        "amd64": ("amd64", wanted),
+        "amd64-test": ("amd64", test_runtime),
+        "arm64": ("arm64", wanted),
+    },
+    snapshot = snapshot,
+)
+
+# The amd64 packages keep the names they had before there was a second set;
+# the others' are prefixed. A package two sets share is downloaded once,
+# whichever name asks for it.
+set_prefixes = {
+    "amd64": "",
+    "amd64-test": "test-",
+    "arm64": "arm64-",
+}
+
+[
+    http_file(
+        name = set_prefixes[set_name] + name.replace("+", "p") + ".deb",
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        urls = [url],
+    )
+    for set_name in sorted(packages)
+    for name, url, sha256, size_bytes in packages[set_name]
+]
+
+deb_sysroot(
+    name = "amd64",
+    packages = [":" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages["amd64"]],
+    visibility = ["PUBLIC"],
+)
+
+deb_sysroot(
+    name = "amd64-test",
+    keep_xkb = True,
+    packages = [":test-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages.get("amd64-test", [])],
+    visibility = ["PUBLIC"],
+)
+
+deb_sysroot(
+    name = "arm64",
+    packages = [":arm64-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages["arm64"]],
+    visibility = ["PUBLIC"],
+)
+
+# What a -sys crate's build script asks, for the platform it is building for.
+# The fixups name it with $(exe_target), which is that platform's, rather than
+# with $(exe), which is the worker's.
+pkg_config(
+    name = "pkg-config",
+    sysroot = per_cross_platform(":amd64", lambda name: ":arm64" if name == "linux_arm64" else None),
+    triple = per_cross_platform("x86_64-linux-gnu", lambda name: "aarch64-linux-gnu" if name == "linux_arm64" else None),
+    visibility = ["PUBLIC"],
+)
+
+# Lavapipe's Vulkan driver manifest, naming its library by file name rather than
+# Mesa's absolute path, so a test with :amd64-test's libraries on
+# LD_LIBRARY_PATH loads it from there.
+export_file(
+    name = "lavapipe_icd.json",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "lock.sh",
+    visibility = ["PUBLIC"],
+)

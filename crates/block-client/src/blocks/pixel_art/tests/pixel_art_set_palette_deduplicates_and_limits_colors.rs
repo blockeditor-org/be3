@@ -1,6 +1,6 @@
 use block::Block;
 
-use super::{PixelArt, PixelArtOperation, PixelColor, MAX_PIXEL_ART_PALETTE_COLORS};
+use super::{MAX_PIXEL_ART_PALETTE_COLORS, PixelArt, PixelArtOperation, PixelColor};
 
 #[test]
 fn pixel_art_set_palette_deduplicates_and_limits_colors() {

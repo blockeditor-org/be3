@@ -1,0 +1,109 @@
+load("//buck/tools:defs.bzl", "rust_sysroot")
+load(":cargo_install.bzl", "cargo_install")
+
+# reindeer, and the cargo and nightly it and buck-tools run in buckify.bxl
+# (--unit-graph is nightly-only), pinned like buck/tools.
+
+# The commit reindeer is built from, and the nightly its rust-toolchain asks for.
+reindeer_revision = "3be7bd2e11d8fe949ae6db0bcbc46db8adab7264"
+
+nightly = "2026-07-05"
+
+host = "x86_64-unknown-linux-gnu"
+
+nightly_components = {
+    "cargo": ("f2ff375d36c15603dad26d70b4c353c167b43973692b1f057a598f726612dd84", 11167952),
+    "rust-std": ("7fd733405f7aefac314398727c9a02c108fa003a37399f2f2421710810212435", 30648272),
+    "rustc": ("f24c968957a924e1e3b43c81ef0a12d429fe8b5e5eac4c00b66b425c6c678a4d", 79631456),
+}
+
+[
+    http_archive(
+        name = "nightly-" + component,
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        strip_prefix = "{}-nightly-{}/{}".format(component, host, component if component != "rust-std" else "rust-std-" + host),
+        urls = ["https://static.rust-lang.org/dist/{}/{}-nightly-{}.tar.xz".format(nightly, component, host)],
+    )
+    for component, (sha256, size_bytes) in nightly_components.items()
+]
+
+rust_sysroot(
+    name = "nightly",
+    components = [":nightly-" + component for component in sorted(nightly_components)],
+)
+
+cargo_install(
+    name = "reindeer",
+    package = "reindeer",
+    repository = "https://github.com/facebookincubator/reindeer.git",
+    revision = reindeer_revision,
+    toolchain = ":nightly",
+    visibility = ["PUBLIC"],
+)
+
+# The cargo reindeer asks for `cargo metadata`, beside the rustc it asks for
+# the host's details: rust-toolchain.toml's, the same one the workspace builds
+# with, so the resolution is the one a developer's cargo makes.
+http_archive(
+    name = "cargo-component",
+    sha256 = "2f512d170d3dd23e16ababcda32ee2e6d5172d861a7af1f504e0b1e270cafab9",
+    size_bytes = 11669560,
+    strip_prefix = "cargo-1.98.0-{}/cargo".format(host),
+    urls = ["https://static.rust-lang.org/dist/cargo-1.98.0-{}.tar.xz".format(host)],
+)
+
+rust_sysroot(
+    name = "cargo",
+    components = [
+        ":cargo-component",
+        "//buck/tools:rustc-component",
+        "//buck/tools:rust-std-" + host,
+    ],
+    visibility = ["PUBLIC"],
+)
+
+# buck2's rust-project, which writes the rust-project.json rust-analyzer reads
+# the workspace through: ./scripts/buck run //:rust-project runs it. It is built from the
+# commit the pinned buck2 release was, so it and the prelude it queries agree.
+cargo_install(
+    name = "rust-project",
+    package = "rust-project",
+    repository = "https://github.com/facebook/buck2.git",
+    revision = "6507dd157a6f81a810c48583edf1758dd0c337c5",
+    toolchain = ":nightly",
+    visibility = ["PUBLIC"],
+)
+
+# rust-analyzer's standard library, its sources and its proc-macro server, kept
+# apart from buck/tools:rust so rust-src is not an input of every compile.
+http_archive(
+    name = "rust-src-component",
+    sha256 = "0e977492aed5ff137815bf9b4b796e8a85b80fb2367ed64e82d5c5839870f2bf",
+    size_bytes = 5741336,
+    strip_prefix = "rust-src-1.98.0/rust-src",
+    urls = ["https://static.rust-lang.org/dist/rust-src-1.98.0.tar.xz"],
+)
+
+rust_sysroot(
+    name = "analyzer-sysroot",
+    components = [
+        ":rust-src-component",
+        "//buck/tools:rustc-component",
+        "//buck/tools:rust-std-" + host,
+    ],
+    visibility = ["PUBLIC"],
+)
+
+# wasm-bindgen, which writes the JavaScript the browser loads block-app's web
+# bundle and the gpu shim through. The version has to be the one Cargo.lock has
+# for the wasm-bindgen crate: the two agree on a schema that changes between
+# releases, and the tool refuses a module built against any other.
+cargo_install(
+    name = "wasm-bindgen",
+    binary = "wasm-bindgen",
+    package = "wasm-bindgen-cli",
+    toolchain = ":cargo",
+    version = "0.2.122",
+    visibility = ["PUBLIC"],
+)

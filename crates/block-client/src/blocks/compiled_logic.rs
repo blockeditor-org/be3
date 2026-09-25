@@ -11,14 +11,12 @@ use logicgame::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-                                                    
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompileError {
-                                                                              
     Empty,
-                                                                       
+
     TooLarge,
-                                                                   
+
     PortWithoutLead,
     Geometry(GeometryError),
     Generation(GenerationError),
@@ -50,15 +48,10 @@ impl From<GenerationError> for CompileError {
     }
 }
 
-                                                                            
-                                                                             
-                                                                       
-                         
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct CompiledLogic {
-                                                    
     source: Uuid,
-                                                             
+
     size: Size,
     ports: Vec<ComponentPort>,
     program: UnlinkedComponent,
@@ -85,9 +78,6 @@ impl CompiledLogic {
         }
     }
 
-                                                                            
-                                                                              
-                
     pub fn compile(source: Uuid, grid: &Grid) -> Result<Self, CompileError> {
         let bounds = grid.bounds().ok_or(CompileError::Empty)?;
         let width = i64::try_from(bounds.width()).map_err(|_| CompileError::TooLarge)?;
@@ -113,14 +103,10 @@ impl CompiledLogic {
         &self.program
     }
 
-                                                                           
-                                          
     pub fn calls(&self) -> &[Uuid] {
         &self.program.components
     }
 
-                                                                             
-                                                                 
     pub fn subgraphs(&self) -> Vec<ComponentSubgraph> {
         self.program
             .subgraphs
@@ -132,8 +118,6 @@ impl CompiledLogic {
             .collect()
     }
 
-                                                                           
-                                                                      
     pub fn placement(&self, id: Uuid, name: &str) -> Result<ComponentKind, GeometryError> {
         let mut kind = ComponentKind::subcomponent_with_subgraphs(
             id,
@@ -168,9 +152,6 @@ impl Block for CompiledLogic {
     }
 }
 
-                                                                           
-                                                                             
-                                                          
 fn boundary_ports(grid: &Grid, min: Point) -> Result<Vec<ComponentPort>, CompileError> {
     let input_indices = dense_indices(grid.components().filter_map(
         |component| match component.kind {
@@ -221,8 +202,6 @@ fn boundary_ports(grid: &Grid, min: Point) -> Result<Vec<ComponentPort>, Compile
     Ok(ports)
 }
 
-                                                                              
-                                                 
 fn dense_indices<T: Ord>(ids: impl IntoIterator<Item = T>) -> BTreeMap<T, usize> {
     let mut ids = ids.into_iter().collect::<Vec<_>>();
     ids.sort();

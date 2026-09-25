@@ -23,27 +23,11 @@ permissions:
   contents: read
 
 env:
-  CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 0
-  # A default build leaves out the debug terminal, which needs a Zig toolchain
-  # and a Ghostty checkout before cargo can link anything, the embedded browser,
-  # which is a dependency tree nothing else in the workspace shares, and cvl2,
-  # which nothing depends on. That keeps a local checkout and the check someone
-  # runs a hundred times a day cheap. What ships and what is linted is still the
-  # whole of it, so every job here asks for a full build.
-  BE3_FULL: 1
-  # scripts/internal/common.sh routes rustc through sccache against a shared
-  # object store, reading with a key that is public and writing only when it is
-  # handed one that is not. Every job takes the write key from here, so any run
-  # that has the secret fills the cache for the ones that don't: a pull request
-  # from a fork sees an empty value and reads the same cache read-only.
-  #
-  # That store answers a compilation wherever it runs, which is what a fork's
-  # first run and every cold runner live on. The Actions caches beside it are
-  # the cheaper half of the same idea: see .github/actions/cargo-cache.
-  BUNNY_SCCACHE_PASSWORD: ${{ secrets.BUNNY_SCCACHE_PASSWORD }}
+  # BuildBuddy, which runs every buck2 action. A pull request from a fork sees
+  # an empty value, and ./scripts/buck says so rather than building.
+  BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
 
-# ./scripts/verify is one command locally and three jobs here. Its three parts
+# ./scripts/buck run //:verify is one command locally and three jobs here. Its three parts
 # need nothing from one another, and run together they were the longest thing in
 # this workflow by a wide margin, so everything else finished and waited. Split,
 # the wall clock is the longest part rather than the sum of all of them.
@@ -94,182 +78,99 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # block-app links GTK and WebKitGTK for the file picker and the embedded
-      # browser, and ALSA for audio playback, so the workspace does not
-      # compile without their headers. be-compositor's session backend adds
-      # GBM, libinput, libseat and udev. Clippy links nothing, but the build
-      # scripts that ask pkg-config for those libraries still run.
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
-            libgbm-dev libinput-dev libseat-dev libudev-dev
-
-      # Each game's build script builds the same crate again as a wasm module
-      # the host loads, so even a native check of one needs the wasm target.
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
-
-      # Declared before every other cache in the job; the action says why.
-      - uses: ./.github/actions/cargo-cache
-
-      - uses: ./.github/actions/sccache
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: x86_64-unknown-linux-gnu
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
+      # The lint pass is buck2's: clippy runs on BuildBuddy's workers, and
+      # rustfmt, starlark_fmt and fix-rust-source are what buck2 downloads or
+      # builds there. The runner needs buck2 and nothing else.
+      - uses: ./.github/actions/buck2
 
       - uses: ./.github/actions/verify
         with:
           part: lint
 
-      - uses: ./.github/actions/sccache-report
-        if: always()
-
+  # The tests run through buck2 on BuildBuddy: every test binary is built on a
+  # worker and most tests run there too - beui's renderer tests on lavapipe
+  # from buck/sysroot - so nothing here compiles and this runner needs no
+  # toolchain and no graphics device.
   test:
     name: tests
     runs-on: ubuntu-24.04
     steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      #
-      # A pull request is checked out at its head rather than at the merge
-      # GitHub makes of it, because what this job fixes is pushed back to that
-      # head and has to apply there. The merge queue only merges a head that
-      # already contains main, so nothing is tested here that main has not seen.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # block-app links GTK and WebKitGTK for the file picker and the embedded
-      # browser, and ALSA for audio playback, so the workspace does not
-      # compile without their headers. A test that paints needs a real adapter,
-      # which on a runner with no GPU is lavapipe out of mesa.
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
-            libgbm-dev libinput-dev libseat-dev libudev-dev \
-            libvulkan1 mesa-vulkan-drivers
-
-      # Each game's build script builds the same crate again as a wasm module
-      # the host loads, so the test build needs the wasm target too.
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: wasm32-unknown-unknown
-
-      # Declared before every other cache in the job; the action says why.
-      - uses: ./.github/actions/cargo-cache
-
-      - uses: ./.github/actions/sccache
-
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
-        with:
-          tool: cargo-nextest
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: x86_64-unknown-linux-gnu
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
+      - uses: ./.github/actions/buck2
 
       - uses: ./.github/actions/verify
         with:
           part: tests
 
-      - uses: ./.github/actions/sccache-report
-        if: always()
-
+  # The plugin tests, which buck2 builds on a worker and runs here: they read
+  # the accepted paintings out of snapshots/ and, on a pull request, write the
+  # ones that changed back for the autofix job to push. A plugin test that
+  # paints through the gpu abi opens the software Vulkan device.
   plugin-tests:
     name: plugin tests
     runs-on: ubuntu-24.04
     steps:
-      # persist-credentials: false, because none of these jobs push, and a
-      # checkout that keeps the token leaves it readable in .git/config to
-      # every build script, test and dependency the job goes on to run.
-      #
-      # A pull request is checked out at its head rather than at the merge
-      # GitHub makes of it, because what this job fixes is pushed back to that
-      # head and has to apply there. The merge queue only merges a head that
-      # already contains main, so nothing is tested here that main has not seen.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The test runner is a native binary built out of the workspace, so this
-      # job needs the same headers a native build does, and a plugin's tests
-      # paint through a real adapter, which on a runner with no GPU is lavapipe
-      # out of mesa.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config \
-            libgbm-dev libinput-dev libseat-dev libudev-dev \
             libvulkan1 mesa-vulkan-drivers
 
-      # Every plugin's tests are compiled to wasm and run in the plugin host,
-      # which builds the same C dependencies the web bundle does, so this job
-      # needs the same LLVM 19-or-newer as the web job for the same reason.
-      - name: Install LLVM
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-20 llvm-20
-
-      # The plugin tests are wasm, and the runner that hosts them is built with
-      # the rest of the workspace, whose games compile themselves to wasm from
-      # their build scripts, so this needs both wasm targets.
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: wasm32-unknown-unknown, wasm32-wasip1-threads
-
-      # Declared before every other cache in the job; the action says why.
-      - uses: ./.github/actions/cargo-cache
-
-      - uses: ./.github/actions/sccache
-
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
-        with:
-          tool: cargo-nextest
-
-      - uses: ./.github/actions/wasi-sysroot
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: x86_64-unknown-linux-gnu
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
+      - uses: ./.github/actions/buck2
 
       - uses: ./.github/actions/verify
         with:
           part: plugin-tests
 
-      - uses: ./.github/actions/sccache-report
-        if: always()
+  buck:
+    name: buck2
+    runs-on: ubuntu-24.04
+    steps:
+      # persist-credentials: false, because none of these jobs push, and a
+      # checkout that keeps the token leaves it readable in .git/config to
+      # every build script, test and dependency the job goes on to run.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/buck2
+
+      # buck/sysroot/packages.bzl is the lockfile of what buck/sysroot/BUCK
+      # asks for, and is checked in; this is what says the two still agree.
+      # The crates' rules are generated by ./scripts/buck on every checkout,
+      # so they cannot go stale.
+      - name: Check the sysroot lockfile is current
+        run: |
+          ./scripts/buck run //:lock-sysroot
+          git diff --exit-code buck/sysroot/packages.bzl
+
+      # Everything, on BuildBuddy's workers: the tests jobs above build what
+      # they test, and this is what says the rest - the binaries, the plugin
+      # and game modules - builds too. Nothing is downloaded: what this checks
+      # is that it built, and every platform's binaries together are more than
+      # a runner's disk.
+      - run: ./scripts/buck build --materializations=none //crates/...
+
+      # The same for the platforms buck/platforms/cross.bzl cross-compiles on
+      # the same Linux workers: Android, against the NDK, Linux on arm64,
+      # against Ubuntu's arm64 packages, both Macs, against Apple's SDK, and
+      # both Windows, against the MSVC runtime and Windows SDK. Android's app
+      # is the library the APK carries. Nothing runs any of them here.
+      - name: Build for the cross-compiled platforms
+        run: |
+          for platform in android_arm64 linux_arm64 macos_arm64 macos_x86_64 windows_arm64 windows_x86_64; do
+            ./scripts/buck build --materializations=none --target-platforms "root//buck/platforms:$platform" //crates/...
+          done
+          ./scripts/buck build --materializations=none --target-platforms root//buck/platforms:android_arm64 '//crates/block-app:block-app[cdylib]'
 
   web:
     name: web bundle
@@ -282,65 +183,28 @@ jobs:
         with:
           persist-credentials: false
 
-      # The WASI sysroot is built against by clang, not by rustc, so the build
-      # needs a local LLVM of at least version 19: FreeType's setjmp/longjmp
-      # calls are lowered by `-wasm-enable-sjlj`, and older LLVMs lower those
-      # to env.saveSetjmp/testSetjmp/getTempRet0 JS imports that no browser
-      # (and no import map here) provides. LLVM 19+ lowers them to
-      # __wasm_setjmp/__wasm_setjmp_test/__wasm_longjmp instead, which resolve
-      # entirely inside the wasm module against libsetjmp.a.
-      - name: Install LLVM
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-20 llvm-20
-          echo /usr/lib/llvm-20/bin >> "$GITHUB_PATH"
-
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: wasm32-unknown-unknown, wasm32-wasip1-threads
-
-      - uses: ./.github/actions/sccache
-
-      # The build script installs this itself when it is missing; a prebuilt one
-      # is much faster. The version has to match the wasm-bindgen crate.
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
-        with:
-          tool: wasm-bindgen-cli@0.2.122
-
-      - uses: ./.github/actions/wasi-sysroot
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: wasm32-wasip1-threads
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
+      # buck2 builds the app for WASI and the gpu shim on BuildBuddy's workers,
+      # with the WASI sysroot, libghostty-vt and wasm-bindgen it brings itself.
+      - uses: ./.github/actions/buck2
 
       # The plugin modules are the same bytes on every platform, so the plugin
       # job builds them once for all of them and this bundle goes without. What
       # is served is the app; the modules reach it from somewhere else.
-      - run: ./scripts/build --target web --release --no-plugins
-
-      - uses: ./.github/actions/sccache-report
-        if: always()
+      - run: ./scripts/buck build -c be3.profile=release //crates/block-app:web-dist --out dist/web
 
       - uses: actions/upload-artifact@v7
         with:
           name: block-web
-          path: target/web
+          path: dist/web
           retention-days: 14
 
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
         with:
-          path: target/web
+          path: dist/web
 
   plugins:
-    name: plugin and game modules
+    name: plugin modules
     runs-on: ubuntu-24.04
     steps:
       # persist-credentials: false, because none of these jobs push, and a
@@ -350,28 +214,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # A plugin's C dependencies are compiled by clang rather than by rustc,
-      # so this needs a local LLVM of at least version 19 for the same reason
-      # the web job does: only from 19 onwards do FreeType's setjmp/longjmp
-      # calls lower to imports that resolve inside the module.
-      - name: Install LLVM
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-20 llvm-20
-          echo /usr/lib/llvm-20/bin >> "$GITHUB_PATH"
+      # buck2 builds every plugin on BuildBuddy's workers, with the toolchain
+      # and the WASI sysroot it brings itself.
+      - uses: ./.github/actions/buck2
 
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: wasm32-unknown-unknown, wasm32-wasip1-threads
-
-      - uses: ./.github/actions/sccache
-
-      - uses: ./.github/actions/wasi-sysroot
-
-      - run: ./scripts/build --target plugins --release --output dist
-
-      - uses: ./.github/actions/sccache-report
-        if: always()
+      - run: ./scripts/buck build -c be3.profile=release //crates/block-app:plugins --out dist
 
       # Every platform loads these same bytes, so they are uploaded once rather
       # than repeated inside each platform's archive. A manifest resolves its
@@ -393,151 +240,62 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
+      # buck2 builds the app for Android, assembles the APK and signs it on
+      # BuildBuddy's workers, so this runner downloads only the signed APK.
+      - uses: ./.github/actions/buck2
 
-      # android/gradle/wrapper/gradle-wrapper.jar is the one binary committed to
-      # this repository, and it runs before any build script does. This checks
-      # it byte for byte against the wrapper jars Gradle publishes, so a commit
-      # that quietly swapped it fails here rather than executing.
-      - uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-
-      # The runner image ships an Android SDK, but not the NDK release the app
-      # is built against. Every package is pinned to an exact version, and
-      # sdkmanager checks each one against the checksum in Google's repository
-      # manifest, so what is asked for here is the whole of what arrives.
+      # Signed with CI's debug keystore, which BuildBuddy keeps as the secret
+      # ANDROID_DEBUG_KEYSTORE_BASE64 and passes only to the signing action,
+      # so successive CI builds install as updates over one another.
       #
-      # The NDK is the only one of these the stable channel does not list, so it
-      # is the only one fetched with --channel=3. Asking for the canary channel
-      # for all of them meant a typo in any version string could resolve to a
-      # canary build of something that has a perfectly good stable release.
-      - name: Install the Android SDK packages
-        run: |
-          sdkmanager="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$sdkmanager" --licenses > /dev/null
-          "$sdkmanager" --install \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
-          "$sdkmanager" --channel=3 --install "ndk;29.0.14206865"
-
-      # Nothing here is compiled to wasm any more, so this job wants neither
-      # wasm target, neither the WASI sysroot nor the LLVM that builds against
-      # it, and not the plugin compiler either, which is wasmtime with a
-      # Cranelift backend for every architecture rather than just this one.
-      # That was most of what this job spent its time on.
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: aarch64-linux-android
-
-      - uses: ./.github/actions/sccache
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        with:
-          triple: aarch64-linux-android
-
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
-
-      # No gradle-version: the wrapper the build runs through names it, and this
-      # step is here for the dependency cache it keeps between runs. Naming a
-      # version here as well would install a second Gradle that nothing uses,
-      # and would be a copy of the version to keep in step with the wrapper.
-      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-
-      # A freshly generated keystore would sign every CI build with a different
-      # key, and Android refuses to install an update signed with a different
-      # key than the one already on the device. Restore a persisted keystore
-      # from a repo secret instead, so successive CI builds stay installable
-      # as updates over one another. Fork PRs don't get repo secrets, so fall
-      # back to a throwaway keystore there (and locally) just to keep the
-      # build working; those builds won't share a key with the real ones.
-      - name: Restore the debug keystore
-        env:
-          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
-        run: |
-          mkdir -p target
-          if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
-            echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > target/android-debug.keystore
-          else
-            keytool -genkeypair -v \
-              -keystore target/android-debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000
-          fi
-
       # A CI build sharing the app's real package name would either silently
       # overwrite a locally-built install (if it happened to share a signing
       # key) or block installation with a signature-mismatch error (since it
-      # doesn't, now that the key is pinned in "Restore the debug keystore").
-      # Give it its own application ID and label instead, so it installs
-      # side by side with a local build rather than colliding with it.
+      # doesn't). Give it its own application ID and label instead, so it
+      # installs side by side with a local build rather than colliding with it.
       #
       # The plugin modules are the same bytes on every platform, so the plugin
       # job builds them once for all of them and this APK goes without. Android
       # will fetch them rather than carry them; until it does, the app there
       # finds no editors, which is where it already stood.
       - run: >-
-          ./scripts/build --target android
-          --android-sdk "$ANDROID_SDK_ROOT"
-          --application-id com.be3.block.ci
-          --label "Block (CI)"
-          --no-plugins
-
-      - uses: ./.github/actions/sccache-report
-        if: always()
+          ./scripts/buck build
+          -c be3.android_id=com.be3.block.ci
+          -c "be3.android_label=Block (CI)"
+          //crates/block-app:android-dist
+          --out dist/block-app.apk
 
       - uses: actions/upload-artifact@v7
         with:
           name: block-app-android-aarch64
-          path: target/debug/apk/block-app.apk
+          path: dist/block-app.apk
           retention-days: 14
 
+  # Every platform's app and server, cross-compiled on BuildBuddy's Linux
+  # workers - guides/buck2.md says how - so every one of them runs on an
+  # Ubuntu runner with buck2 and nothing else. The plugins job builds the
+  # modules every platform shares, so these carry only what belongs to one.
   native:
     name: ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         include:
+          # The host needs no --target-platforms; buck/platforms/cross.bzl
+          # names the rest.
           - name: linux-x86_64
-            runner: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-            client: true
-          # The client needs GTK and WebKitGTK for the target architecture,
-          # which Ubuntu only supplies through a multiarch sysroot, so only the
-          # server is cross-compiled here.
+            platforms: ''
           - name: linux-aarch64
-            runner: ubuntu-24.04
-            target: aarch64-unknown-linux-gnu
-            client: false
+            platforms: --target-platforms=root//buck/platforms:linux_arm64
           - name: windows-x86_64
-            runner: windows-latest
-            target: x86_64-pc-windows-msvc
-            client: true
+            platforms: --target-platforms=root//buck/platforms:windows_x86_64
           - name: windows-aarch64
-            runner: windows-latest
-            target: aarch64-pc-windows-msvc
-            client: true
+            platforms: --target-platforms=root//buck/platforms:windows_arm64
           - name: macos-aarch64
-            runner: macos-latest
-            target: aarch64-apple-darwin
-            client: true
+            platforms: --target-platforms=root//buck/platforms:macos_arm64
           - name: macos-x86_64
-            runner: macos-latest
-            target: x86_64-apple-darwin
-            client: true
+            platforms: --target-platforms=root//buck/platforms:macos_x86_64
     steps:
       # persist-credentials: false, because none of these jobs push, and a
       # checkout that keeps the token leaves it readable in .git/config to
@@ -546,73 +304,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install system dependencies
-        if: matrix.client && runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+      - uses: ./.github/actions/buck2
 
-      # rusqlite compiles SQLite from source, so the cross build needs a C
-      # compiler and a linker for the target as well as the Rust std. The cross
-      # gcc only recommends the target libc headers, which --no-install-recommends
-      # drops, and without them it falls back to the host's /usr/include.
-      - name: Install the aarch64 Linux toolchain
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            gcc-aarch64-linux-gnu libc6-dev-arm64-cross
-          {
-            echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-            echo CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
-            echo AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
-          } >> "$GITHUB_ENV"
-
-      - uses: ./.github/actions/rust-toolchain
-        with:
-          targets: ${{ matrix.target }}
-
-      - uses: ./.github/actions/sccache
-
-      # The app links libghostty-vt, the terminal emulator behind the debug
-      # terminal window, which scripts/internal/build-ghostty-vt.sh compiles from
-      # source with Zig.
-      - uses: ./.github/actions/ghostty-vt
-        if: matrix.client
-        with:
-          triple: ${{ matrix.target }}
-
-      - name: Install Zig
-        if: matrix.client
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.16.0
-
-      # fetch-pdfium.sh skips its download when this is already populated.
-      # The release it downloads from is pinned and hash-checked, so the
-      # cached copy can't go stale silently; it only saves a redundant fetch
-      # from a redirect that intermittently 504s.
-      - name: Cache PDFium
-        if: matrix.client
-        uses: actions/cache@v6
-        with:
-          path: target/tools/pdfium-*
-          key: pdfium-${{ matrix.target }}-1
-
-      # The plugins job builds the wasm modules for every platform at once, so
-      # this builds only what belongs to this one: the executables, and the
-      # PDFium the PDF plugin loads at runtime.
+      # The app and the server under cargo's names, and PDFium: what
+      # //crates/block-app:dist is. A release build, which says which commit
+      # it is.
       - name: Build
-        shell: bash
+        env:
+          PLATFORMS: ${{ matrix.platforms }}
+          COMMIT: ${{ github.sha }}
         run: >-
-          ./scripts/build --target ${{ matrix.target }} --release --output dist
-          --no-plugins
-          ${{ matrix.client && ' ' || '--no-client' }}
-          ${{ runner.os == 'macOS' && '--sign-identity -' || ' ' }}
-
-      - uses: ./.github/actions/sccache-report
-        if: always()
+          ./scripts/buck build $PLATFORMS -c be3.profile=release -c "be3.commit=$COMMIT"
+          //crates/block-app:dist --out dist
 
       - uses: actions/upload-artifact@v7
         with:
@@ -710,7 +413,7 @@ jobs:
         run: |
           author="$APP_SLUG[bot]"
           if [ "$(git log -1 --format=%an)" = "$author" ]; then
-            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/verify and commit what it changes."
+            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/buck run //:verify and commit what it changes."
             exit 1
           fi
 
@@ -719,13 +422,13 @@ jobs:
           for patch in "$RUNNER_TEMP"/autofix/*.patch; do
             git apply --index "$patch"
           done
-          git commit --quiet --message 'style: apply the fixes from ./scripts/verify'
+          git commit --quiet --message 'style: apply the fixes from ./scripts/buck run //:verify'
           git show --stat HEAD
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
 
   # The merge queue's decision logic is JavaScript rather than Rust, so
-  # ./scripts/verify's three parts do not compile it and cargo nextest does not
+  # ./scripts/buck run //:verify's three parts do not compile it and buck2 does not
   # run it. It is a few seconds of Node either way, and what it guards is the
   # thing that decides whether a pull request merges, so it gets a job of its
   # own and a place in the gate below.
@@ -763,7 +466,7 @@ jobs:
   ci-ok:
     name: 'CI OK'
     if: always()
-    needs: [workflows, lint, test, plugin-tests, web, plugins, android, native, merge-queue-tests]
+    needs: [workflows, lint, test, plugin-tests, buck, web, plugins, android, native, merge-queue-tests]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to have passed

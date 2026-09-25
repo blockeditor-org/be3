@@ -1,0 +1,8 @@
+# ring's build script compiles its C and assembly for the target - the set it
+# picks per platform, pre-assembled objects where the platform's assembly is
+# NASM - into an archive in OUT_DIR, with the toolchain's compiler, and the
+# archive reaches the link. Naming the sets here instead would mean one list
+# per platform, and Windows' objects are not something a cxx_library compiles.
+[buildscript.run]
+rustc_link_lib = true
+rustc_link_search = true

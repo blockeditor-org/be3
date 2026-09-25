@@ -428,7 +428,6 @@ impl Block for InfiniteCanvas {
         Some(operations)
     }
 
-
     fn replace_child(&self, old: Uuid, new: Uuid) -> Option<Vec<Self::Operation>> {
         let old = BlockRef::Direct(old);
         let new_reference = BlockRef::Direct(new);

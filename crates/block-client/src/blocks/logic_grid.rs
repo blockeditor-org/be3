@@ -8,18 +8,13 @@ use logicgame::grid::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-                                                                              
-                                                                                
-                                                                          
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct LogicGrid {
     grid: Grid,
-                                                                             
-                                                                    
+
     #[serde(default)]
     challenge: Option<ChallengeId>,
-                                                                             
-                                                                             
+
     #[serde(default)]
     completed: bool,
 }
@@ -27,9 +22,6 @@ pub struct LogicGrid {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum LogicGridOperation {
-                                                              
-                                                                               
-                                                                      
     AddComponent {
         component: Component,
     },
@@ -55,12 +47,11 @@ pub enum LogicGridOperation {
     AddWire {
         wire: Wire,
     },
-                                                                             
-                               
+
     RemoveWire {
         wire: Wire,
     },
-                                                           
+
     RemoveWireSegment {
         wire: Wire,
     },
@@ -82,9 +73,7 @@ enum LogicGridHistoryChange {
         before: Component,
         after: Component,
     },
-                                                                          
-                                                                              
-                                                 
+
     Wires {
         removed: Vec<Wire>,
         added: Vec<Wire>,
@@ -100,8 +89,6 @@ impl LogicGrid {
         Self::default()
     }
 
-                                                                               
-                                   
     pub fn from_grid(grid: Grid) -> Self {
         Self {
             grid,
@@ -110,14 +97,12 @@ impl LogicGrid {
         }
     }
 
-                                                    
     #[must_use]
     pub fn with_challenge(mut self, challenge: ChallengeId) -> Self {
         self.challenge = Some(challenge);
         self
     }
 
-                                              
     pub fn for_challenge(challenge: ChallengeId) -> Self {
         Self {
             grid: Grid::new(),
@@ -138,12 +123,10 @@ impl LogicGrid {
         self.completed
     }
 
-                                                                          
     pub fn next_component_id(&self) -> ComponentId {
         self.grid.next_component_id()
     }
 
-                                                                
     pub fn called_blocks(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();
         self.grid
@@ -280,9 +263,6 @@ impl BlockHistory<LogicGrid> for LogicGridHistory {
                     ]
                 }
                 LogicGridHistoryChange::Wires { removed, added } => {
-                                                                              
-                                                                           
-                                                             
                     let (take_out, put_back) = if to_after {
                         (removed, added)
                     } else {
@@ -308,8 +288,6 @@ impl BlockHistory<LogicGrid> for LogicGridHistory {
     }
 }
 
-                                                                              
-                                                     
 fn component_operations(component: &Component, add: bool) -> Vec<LogicGridOperation> {
     if add {
         vec![LogicGridOperation::AddComponent {

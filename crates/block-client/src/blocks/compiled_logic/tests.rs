@@ -6,8 +6,6 @@ use uuid::Uuid;
 
 use super::{CompiledLogic, CompiledLogicOperation};
 
-                                                                             
-                  
 fn compiled(source: Uuid, calls: Vec<Uuid>) -> CompiledLogic {
     let instructions = vec![Instruction::Not {
         input: 0,

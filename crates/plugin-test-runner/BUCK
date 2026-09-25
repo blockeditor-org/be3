@@ -1,0 +1,12 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary")
+
+cargo_binary()
+
+# The runner as the workers run it, whatever the app naming it is built for:
+# crates/block-app precompiles each platform's plugins with it.
+configured_alias(
+    name = "precompiler",
+    actual = ":plugin-test-runner-bin",
+    platform = "root//buck/platforms:linux_x86_64",
+    visibility = ["PUBLIC"],
+)

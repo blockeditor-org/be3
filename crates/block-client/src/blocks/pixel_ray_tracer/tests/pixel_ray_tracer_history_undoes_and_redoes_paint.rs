@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{PixelRayTracer, PixelRayTracerOperation, PixelUpdate, PIXEL_RAY_TRACER_BACKGROUND};
+use super::{PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracer, PixelRayTracerOperation, PixelUpdate};
 use crate::BlockClient;
 
 #[test]

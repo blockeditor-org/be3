@@ -15,7 +15,6 @@ fn logic_grid_serialization_round_trips() {
     let decoded: LogicGrid = serde_json::from_slice(&encoded).unwrap();
 
     assert_eq!(decoded, original);
-                                                                              
-                                               
+
     assert_eq!(decoded.next_component_id(), original.next_component_id());
 }

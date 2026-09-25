@@ -11,7 +11,7 @@ use crate::blocks::version_control_worktree::{
     VersionControlWorktree, VersionControlWorktreeMembership,
 };
 use crate::blocks::workspace_index::WorkspaceIndex;
-use crate::{repo_relative_block_url, BlockClient, ManagementClient};
+use crate::{BlockClient, ManagementClient, repo_relative_block_url};
 
 use super::*;
 

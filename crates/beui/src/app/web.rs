@@ -44,14 +44,14 @@ struct Input {
 }
 
 thread_local! {
-    static INPUT: Input = Input {
+    static INPUT: Input = const { Input {
         events: RefCell::new(Vec::new()),
         modifiers: Cell::new(Modifiers::NONE),
         scale: Cell::new(1.0),
         locked: Cell::new(false),
         buttons: Cell::new(0),
         scheduled: Cell::new(false),
-    };
+    } };
     static RUNNER: RefCell<Option<Rc<RefCell<Runner>>>> = const { RefCell::new(None) };
     static FRAME: RefCell<Option<Closure<dyn FnMut()>>> = const { RefCell::new(None) };
     static TIMER: RefCell<Option<Closure<dyn FnMut()>>> = const { RefCell::new(None) };

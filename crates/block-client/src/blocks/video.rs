@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use be_block::video::{
-    DEFAULT_CLIP_SECONDS, MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoClipTiming, VideoEffect,
-    VideoFrameRate,
+    DEFAULT_CLIP_SECONDS, MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoClipTiming,
+    VideoEffect, VideoFrameRate,
 };
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

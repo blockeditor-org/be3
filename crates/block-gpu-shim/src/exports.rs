@@ -52,7 +52,9 @@ fn read(scratch: &[u8], pointer: u32, length: u32) -> Vec<u8> {
 
 fn words(scratch: &[u8], pointer: u32, count: u32) -> Vec<u32> {
     read(scratch, pointer, count.saturating_mul(4))
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect()
 }

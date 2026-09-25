@@ -12,7 +12,7 @@ be-protocol = { path = "../be-protocol" }
 be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
 futures-util = "0.3"
-rand = "0.8"
+rand = "0.9"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"

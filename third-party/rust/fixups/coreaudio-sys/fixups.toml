@@ -1,0 +1,8 @@
+# The build script runs bindgen over the SDK's CoreAudio headers. It asks xcrun
+# where the SDK is unless it is told, and bindgen loads libclang from the path
+# it is given; both come from buck/tools. libclang does not find clang's own
+# headers from where buck/tools puts it, so it is told where they are. The
+# frameworks the build script prints reach the link.
+[buildscript.run]
+rustc_link_lib = true
+env = { COREAUDIO_SDK_PATH = "$(location //buck/tools:macos-sdk)", LIBCLANG_PATH = "$(location //buck/tools:llvm)/lib", BINDGEN_EXTRA_CLANG_ARGS = "-resource-dir=$(location //buck/tools:llvm)/lib/clang/20" }

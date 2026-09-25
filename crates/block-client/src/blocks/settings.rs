@@ -6,9 +6,6 @@ use uuid::Uuid;
 
 use crate::block_ref::BlockRef;
 
-                                                                       
-                                                                          
-                                                        
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ActivationCondition {
@@ -16,17 +13,12 @@ pub enum ActivationCondition {
     Client(Uuid),
 }
 
-                                                                    
-                 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SettingEntry {
     pub activation: ActivationCondition,
     pub block: BlockRef,
 }
 
-                                                                           
-                                                                          
-                                                                 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Settings {
     entries: BTreeMap<Uuid, Vec<SettingEntry>>,
@@ -35,9 +27,6 @@ pub struct Settings {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum SettingsOperation {
-                                                                
-                                                                           
-                  
     SetEntry {
         block_type: Uuid,
         activation: ActivationCondition,
@@ -50,15 +39,10 @@ impl Settings {
         Self::default()
     }
 
-                                                                      
-                   
     pub fn entries(&self, block_type: Uuid) -> &[SettingEntry] {
         self.entries.get(&block_type).map_or(&[], Vec::as_slice)
     }
 
-                                                                          
-                                                                     
-                     
     pub fn resolve(&self, block_type: Uuid, client_id: Uuid) -> Option<BlockRef> {
         let entries = self.entries(block_type);
         entries

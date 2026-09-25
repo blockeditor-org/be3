@@ -1,4 +1,4 @@
-use super::{author, VersionControlData, VersionControlWorktree, MAIN_BRANCH};
+use super::{MAIN_BRANCH, VersionControlData, VersionControlWorktree, author};
 
 #[test]
 fn version_control_worktree_new_checks_out_the_repos_initial_commit() {

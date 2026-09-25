@@ -1,7 +1,7 @@
 use block::Block;
 use uuid::Uuid;
 
-use super::{apply, author, VersionControlData, VersionControlDataOperation};
+use super::{VersionControlData, VersionControlDataOperation, apply, author};
 
 #[test]
 fn version_control_data_references_registered_objects() {

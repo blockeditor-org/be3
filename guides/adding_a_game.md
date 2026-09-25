@@ -126,11 +126,12 @@ reaches the test as a trap rather than a message.
 
 ## 4. Getting the module into the app
 
-`./scripts/build` finds every crate under `crates/tabletop_games/rules`, builds
-them all in one cargo call, and leaves the modules where cargo put them, in
-`target/wasm32-unknown-unknown/<profile>/`. Nothing stages them beside the app:
-a module reaches a workspace as a block. Add a Game Module block, choose the
-`.wasm` file cargo produced with the system file picker, and the editor loads it
+Each rules crate has a `module` target, which is its wasm module:
+`./scripts/buck build //crates/tabletop_games/rules/<game>:module --out <game>.wasm`
+writes it. Give a new game's `BUCK` file the same three targets
+`tic_tac_toe`'s has. Nothing stages them beside the app: a module reaches a
+workspace as a block. Add a Game Module block, choose the `.wasm` file with the
+system file picker, and the editor loads it
 to check it really is a game module and names it. A Game block then references
 one of those: creating one opens the block picker filtered to game modules, so
 it plays a module the workspace already holds - or one imported from the picker

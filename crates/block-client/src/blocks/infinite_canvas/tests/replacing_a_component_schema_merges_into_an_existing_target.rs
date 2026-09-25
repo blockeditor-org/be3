@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn replacing_a_component_schema_merges_into_an_existing_target() {
-    let [old, new, collision_field, old_only_field] =
-        std::array::from_fn(|_| Uuid::new_v4());
+    let [old, new, collision_field, old_only_field] = std::array::from_fn(|_| Uuid::new_v4());
     let mut entity = block_entity(Uuid::new_v4(), BlockRef::Direct(old));
     entity.components = vec![
         CanvasComponent {
@@ -13,10 +12,7 @@ fn replacing_a_component_schema_merges_into_an_existing_target() {
                     collision_field,
                     DatabaseValue::String("old collision".to_owned()),
                 ),
-                (
-                    old_only_field,
-                    DatabaseValue::String("old only".to_owned()),
-                ),
+                (old_only_field, DatabaseValue::String("old only".to_owned())),
             ]),
         },
         CanvasComponent {

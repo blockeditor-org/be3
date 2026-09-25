@@ -1,0 +1,7 @@
+# The build script compiles Oboe against the NDK, and its archive and libraries
+# reach the link. PROFILE only names a prebuilt it would otherwise fetch. cc-rs
+# adds a --target without an API level unless it sees one in CXXFLAGS.
+[buildscript.run]
+rustc_link_lib = true
+rustc_link_search = true
+env = { PROFILE = "debug", CXXFLAGS_aarch64_linux_android = "--target=aarch64-linux-android26" }
