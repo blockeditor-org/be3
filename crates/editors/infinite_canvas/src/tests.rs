@@ -19,6 +19,7 @@ mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod attaching_component_fills_only_missing_selected_entities;
 mod clicking_an_entity_selects_it_and_shows_its_handles;
+mod dragging_a_transform_field_twice_keeps_the_first_drag;
 mod dragging_with_the_rectangle_tool_adds_a_rectangle;
 mod removing_component_deletes_its_values_from_all_selected_entities;
 mod replacing_a_referenced_block_rewrites_the_entity;
@@ -29,6 +30,7 @@ mod the_actions_menu_deletes_the_selection;
 mod the_canvas_paints_the_entities_it_holds;
 mod the_intrinsic_size_follows_the_preview_region;
 mod the_preview_centres_the_region_it_was_given;
+mod the_transform_fields_edit_the_selected_entity;
 
 fn entity(id: Uuid) -> CanvasEntity {
     CanvasEntity {

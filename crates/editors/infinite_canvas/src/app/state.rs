@@ -697,9 +697,9 @@ impl CanvasState {
     }
 
     pub(crate) fn selected_entities(&self) -> Vec<CanvasEntity> {
-        let selection = self.selection.get_untracked();
+        let selection = self.selection.get();
         self.entities
-            .get_untracked()
+            .get()
             .into_iter()
             .filter(|entity| selection.contains(&entity.id))
             .collect()

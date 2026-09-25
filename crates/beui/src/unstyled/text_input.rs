@@ -113,6 +113,7 @@ pub fn TextInput(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
     #[prop(default = FONT_SIZE)] font_size: Prop<f32>,
@@ -215,6 +216,9 @@ pub fn TextInput(
                 let editor = editor.clone();
                 move |is_focused: bool| {
                     set_focused.set(is_focused);
+                    if is_focused && select_on_focus.peek() {
+                        editor.borrow_mut().core.execute_command(EditorCommand::SelectAll);
+                    }
                     if !is_focused {
                         let set_autoscroll = {
                             let mut editor = editor.borrow_mut();

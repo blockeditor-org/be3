@@ -4,6 +4,7 @@ use beui_macros::{component, view};
 use crate::color::Color32;
 
 use crate::document::Document;
+use crate::input::KeyPress;
 use crate::node::NodeId;
 use crate::reactive::{Callback, Frame, Memo, Prop, clone, create_memo};
 use crate::styled::context_menu::text_input_menu;
@@ -25,9 +26,11 @@ pub fn TextInput(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] password: Prop<bool>,
     #[prop(default = false)] plain: Prop<bool>,
+    #[prop(default = false)] select_on_focus: Prop<bool>,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
+    on_key_override: Callback<KeyPress, bool>,
 ) -> NodeId {
     let accessibility = label.map(|label| {
         let mut node = Node::new(Role::TextInput);
@@ -45,6 +48,7 @@ pub fn TextInput(
             disabled
             focused
             password
+            select_on_focus
             accessibility
             font_size=FONT_BODY
             color={theme.text.clone()}
@@ -56,6 +60,7 @@ pub fn TextInput(
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
             on_focus_change={move |focused| on_focus_change.call(focused)}
+            on_key_override={move |press| on_key_override.call(press)}
         >
             {move |handle| view! {
                 <TextInputFrame handle plain={plain.clone()} />
