@@ -4,7 +4,7 @@ use block_editor_plugin::be_block::PdfContent;
 use block_editor_plugin::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_plugin::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo,
-    NodeRef, Picture, Show, Spacer, clone, component, create_memo, view,
+    NodeRef, Picture, Show, Spacer, clone, component, create_effect, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Body, Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_plugin::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
@@ -25,35 +25,35 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         .host()
         .performance(format!("PDF ({})", editor.block_id()));
 
-    let pumping = Rc::clone(&pages);
-    let polled = Rc::clone(&chooser);
     let replacing = editor.clone();
-    let host = editor.host().clone();
-    let frame = editor.clone();
+    let reset = Rc::clone(&pages);
+    chooser.on_reply(editor.replies(), editor.host().clone(), move |chooser| {
+        if let Some(pdf) = chooser.take() {
+            replacing.replace_content(replacing.block_id(), &pdf);
+            reset.go(0);
+        }
+    });
+    let pumping = Rc::clone(&pages);
+    let placed = editor.placed();
     let canvas = editor.canvas();
     let device = editor.pixels_per_point();
     let block_for_pump = Rc::clone(&block);
-    editor.each_frame(move || {
-        let _measure = performance.measure("Editor frame");
-        polled.poll(&host);
-        if let Some(pdf) = polled.take() {
-            replacing.replace_content(replacing.block_id(), &pdf);
-            pumping.go(0);
-        }
-        let content = frame.content_rect();
+    let (waker, rendered) = editor.woken();
+    create_effect(move || {
+        rendered.get();
+        let _measure = performance.measure("Editor pump");
         let size = pumping.shown().get_untracked().size();
-        let view = canvas.get_untracked();
         pumping.pump(
-            &frame,
             &block_for_pump,
             &performance,
-            viewport(content, view, size, device.get_untracked()),
+            waker.clone(),
+            viewport(placed.get(), canvas.get(), size, device.get()),
         );
     });
 
     let sized = editor.clone();
     let measured = shown.clone();
-    block_editor_plugin::beui::reactive::create_effect(move || {
+    create_effect(move || {
         let size = measured.get().size();
         sized.set_intrinsic_size(Some(size));
     });
@@ -209,18 +209,19 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
         .host()
         .performance(format!("PDF preview ({})", editor.block_id()));
     let pumping = Rc::clone(&pages);
-    let frame = editor.clone();
+    let placed = editor.placed();
     let device = editor.pixels_per_point();
     let watched = Rc::clone(&block);
-    editor.each_frame(move || {
-        let _measure = performance.measure("Preview frame");
-        let content = frame.content_rect();
+    let (waker, rendered) = editor.woken();
+    create_effect(move || {
+        rendered.get();
+        let _measure = performance.measure("Preview pump");
         let size = pumping.shown().get_untracked().size();
         pumping.pump(
-            &frame,
             &watched,
             &performance,
-            viewport(content, None, size, device.get_untracked()),
+            waker.clone(),
+            viewport(placed.get(), None, size, device.get()),
         );
     });
     let content = NodeRef::new();
