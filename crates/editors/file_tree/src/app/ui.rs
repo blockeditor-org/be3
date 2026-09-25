@@ -428,19 +428,13 @@ fn TreeRow(
         };
         picker.open(&editor, Some(id), [id].into_iter().collect::<HashSet<Uuid>>());
     });
-    let pending: Pending = Rc::new(std::cell::Cell::new(None));
     let chose = menu_action(
         editor.clone(),
         Rc::clone(&tree),
         picker,
-        Rc::clone(&pending),
+        inspect,
         row.clone(),
     );
-    let closed = move || {
-        if let Some(inspection) = pending.take() {
-            inspect.set(Some(inspection));
-        }
-    };
     let add = create_memo(clone!(row -> move || !row.get().is_some_and(|row| row.can_add)));
     let edit = create_memo(clone!(row -> move || !row.get().is_some_and(|row| row.can_edit)));
     let unlinkable = create_memo(clone!(row -> move || {
@@ -484,12 +478,7 @@ fn TreeRow(
         false => theme.text.get(),
     }));
     view! {
-        <ContextMenu
-            child_size=ItemSize::Percent(100.0)
-            items={items}
-            on_select={chose}
-            on_close={closed}
-        >
+        <ContextMenu child_size=ItemSize::Percent(100.0) items={items} on_select={chose}>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Show condition={has_glyph}>
                     <IconSized glyph={glyph} font_size=FONT_SMALL color={glyph_color} />
@@ -594,8 +583,6 @@ pub(crate) struct Carried {
 
 pub(crate) type Held = Rc<std::cell::Cell<Option<Carried>>>;
 
-type Pending = Rc<std::cell::Cell<Option<Inspection>>>;
-
 fn arrival(
     editor: &Editor,
     held: &Held,
@@ -646,7 +633,7 @@ fn menu_action(
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,
-    pending: Pending,
+    inspect: WriteSignal<Option<Inspection>>,
     row: Memo<Option<Row>>,
 ) -> impl Fn(Vec<usize>) + 'static {
     move |path: Vec<usize>| {
@@ -676,7 +663,7 @@ fn menu_action(
                     .host()
                     .delete_block(id, shown.block_type, shown.source, shown.is_reference)
             }
-            [6] => pending.set(shown.inspection),
+            [6] => inspect.set(shown.inspection),
             _ => {}
         }
     }
