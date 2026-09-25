@@ -26,9 +26,11 @@ fn typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view() {
     let inner = input;
     let text = unstyled::text_input_text(harness.document(), inner);
     let rect = harness.rect(text);
-    let caret = harness
-        .document()
-        .text_index_at(text, pos2(rect.right(), rect.center().y));
+    let caret = unstyled::text_input_index_at(
+        harness.document(),
+        inner,
+        pos2(rect.right() - 1.0, rect.center().y),
+    );
 
     assert_eq!(caret, value.len());
 }

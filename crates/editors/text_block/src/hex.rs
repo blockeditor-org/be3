@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use beui::reactive::{
     ClickCatcher, Draw, Drawing, Focusable, Frame, Memo, NodeRef, Prop, clone, component,
-    component_size, copy_text, create_memo, create_signal, each_frame, layout_text, request_paste,
-    view, with_document,
+    component_size, copy_text, create_memo, layout_text, pixels_per_point, request_paste, view,
+    with_document,
 };
 use beui::unstyled::Scroll;
 use beui::unstyled::TextAreaColors;
@@ -371,11 +371,7 @@ fn page(state: &Shared, geometry: &HexGeometry, size: Vec2) -> Page {
 pub(crate) fn HexView(state: Shared) -> NodeId {
     let size = component_size();
     let canvas = NodeRef::new();
-    let (scale, set_scale) = create_signal(None::<f32>);
-    each_frame(move || {
-        let now = with_document(|document| document.pixels_per_point());
-        set_scale.set(Some(now));
-    });
+    let scale = pixels_per_point();
     let geometry = create_memo(clone!(scale -> move || {
         scale.get();
         let char_width = layout_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)

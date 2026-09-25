@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_plugin::be_block::GameModuleContent;
 use block_editor_plugin::beui::reactive::{
     Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo, view,
@@ -101,11 +99,8 @@ pub fn ModuleView(editor: Editor) -> NodeId {
 fn ModulePanel(editor: Editor) -> NodeId {
     let replacing = editor.clone();
     let chooser = FileChooser::new(filter(), imported);
-    let polled = Rc::clone(&chooser);
-    let host = editor.host().clone();
-    editor.each_frame(move || {
-        polled.poll(&host);
-        if let Some(replacement) = polled.take() {
+    chooser.on_reply(editor.replies(), editor.host().clone(), move |chooser| {
+        if let Some(replacement) = chooser.take() {
             replacing.replace_content(replacing.block_id(), &replacement);
         }
     });

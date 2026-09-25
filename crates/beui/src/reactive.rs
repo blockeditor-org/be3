@@ -14,6 +14,8 @@ use crate::geometry::{Rect, Vec2};
 use crate::node::{ClickHandler, Handler, NodeId};
 use crate::unstyled;
 
+pub use crate::timer::{Timer, create_timer};
+
 pub use beui_macros::{component, view};
 pub use reactive::{
     Effect, KeyedItems, KeyedStore, Memo, ReadSignal, Scope, ScopeContext, Selector, Store,
@@ -153,10 +155,8 @@ pub(crate) fn node_scope(document: &Document, owner: Option<ScopeContext>) -> Sc
         .unwrap_or_else(|| document.reactive_scope().context().run(Scope::new))
 }
 
-pub fn each_frame(work: impl Fn() + 'static) {
-    let work: Rc<dyn Fn()> = Rc::new(work);
-    with_document(|document| document.register_frame_hook(Rc::downgrade(&work)));
-    on_cleanup(move || drop(work));
+pub fn pixels_per_point() -> ReadSignal<f32> {
+    with_document(|document| document.watch_pixels_per_point())
 }
 
 pub fn on_shortcut(shortcut: impl Fn(crate::input::KeyPress) -> bool + 'static) {

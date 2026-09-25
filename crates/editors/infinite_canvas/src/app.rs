@@ -49,8 +49,7 @@ impl block_editor_plugin::BeuiApp for CanvasApp {
 #[component]
 fn CanvasEditor(editor: Editor) -> NodeId {
     let state = CanvasState::new(&editor, false);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
 
     let replacing = Rc::clone(&state);
     editor.on_replace_child(move |old, new| replacing.replace_referenced_block(old, new));
@@ -76,8 +75,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
 #[component]
 fn CanvasPreview(editor: Editor) -> NodeId {
     let state = CanvasState::new(&editor, true);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
     report_intrinsic_size(&editor, &state);
     view! {
         <CanvasStage state={state} />
