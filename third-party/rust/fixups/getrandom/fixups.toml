@@ -1,6 +1,0 @@
-buildscript.run = true
-
-# Nothing on wasm32-unknown-unknown uses getrandom; see fixups/rand. Its own
-# compile_error is what a build that did would hit, and it would be right to.
-['cfg(all(target_family = "wasm", target_os = "unknown"))']
-omit_features = ["std"]

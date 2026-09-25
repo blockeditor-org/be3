@@ -1,2 +1,0 @@
-# The build script sets the cfgs that pick the platform backend (gtk here).
-buildscript.run = true

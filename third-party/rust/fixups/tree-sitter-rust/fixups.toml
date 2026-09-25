@@ -1,8 +1,0 @@
-buildscript.run = true
-
-[[cxx_library]]
-name = "parser"
-srcs = ["src/parser.c", "src/scanner.c"]
-headers = ["src/**/*.h"]
-include_paths = ["src"]
-compiler_flags = ["-std=c11", "-w"]

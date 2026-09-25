@@ -40,7 +40,7 @@ rust_files() {
 }
 
 starlark_files() {
-    find buck crates third-party/system third-party/pdfium BUCK.v2 PACKAGE -type f \
+    find buck crates third-party/system third-party/pdfium third-party/rust BUCK.v2 PACKAGE -type f \
         \( -name BUCK -o -name '*.bzl' -o -name '*.bxl' -o -name BUCK.v2 -o -name PACKAGE \) \
         ! -path buck/cargo/crates.bzl ! -path buck/sysroot/packages.bzl | sort
 }

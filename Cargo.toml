@@ -17,7 +17,6 @@ members = [
     "crates/reactive",
     "crates/block-ui",
     "crates/block-ui-test",
-    "crates/test-third-party",
     "crates/text-editor-core",
     "crates/block-app",
     "crates/tabletop_games/api",
