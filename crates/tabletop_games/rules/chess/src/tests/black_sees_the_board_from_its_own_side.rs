@@ -4,7 +4,7 @@ use game_api::{Gesture, Spot};
 use super::*;
 
 fn corner(screen: &GameScreen) -> Option<Sprite> {
-    let Board::Grid(grid) = &screen.board else {
+    let Board::Grid(grid) = &*screen.board else {
         panic!("chess is played on a grid");
     };
     grid.tile(0, 7).layers.last().cloned()

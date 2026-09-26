@@ -986,8 +986,11 @@ something asked for a repaint, or a `Waker` was woken.
 
 ### The inspector
 
-Ctrl+Shift+I in a standalone beui window opens the node, accessibility, and
-performance inspector. Ctrl+Shift+C enables node picking. Ctrl+Shift+F moves
+Ctrl+Shift+I in a standalone beui window opens the node, component,
+accessibility, and performance inspector. Its Comp tab lists the
+`#[component]`s that built the tree rather than its base nodes: every
+component records its name against the node it returns, so components that
+return the same node nest there, outermost first. Ctrl+Shift+C enables node picking. Ctrl+Shift+F moves
 keyboard focus into the panel and back out again, and Escape inside the panel
 returns focus to the document, so the whole inspector is reachable without a
 mouse. Its tree rows select and expand together: clicking a row, or pressing

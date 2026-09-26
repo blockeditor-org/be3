@@ -1,0 +1,31 @@
+name: Android builds
+
+# A closed pull request's build is one the launcher on Android has no more use
+# for, so its slot in the be3-ci storage zone goes (ci.yml's publish-android
+# says how the slots are laid out). A pull request from a fork never had one.
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  remove:
+    name: remove the Android build
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Delete its slot
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --retry 3 --output /dev/null --write-out '%{http_code}' \
+            --request DELETE \
+            --header "AccessKey: $BUNNY_STORAGE_KEY" \
+            "https://storage.bunnycdn.com/be3-ci/android/pr-$NUMBER/")"
+          case "$status" in
+            2*|404) echo "Deleted android/pr-$NUMBER/ ($status)" ;;
+            *) echo "Deleting android/pr-$NUMBER/ answered $status" >&2; exit 1 ;;
+          esac

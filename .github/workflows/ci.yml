@@ -31,7 +31,8 @@ env:
 # every platform, and uploads what ships. verify is ./scripts/buck run //:verify,
 # a runner for each of its three parts, which fixes what it can on a pull
 # request. autofix pushes those fixes, paint-previews shows a pull request's
-# changed paintings in a comment, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
+# changed paintings in a comment, publish-android puts the Android build where
+# the launcher on Android finds it, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
 # needs is buck2 and whatever runs here rather than there.
 jobs:
   # buck/ci/BUCK names what is built: //crates/... for the host, which is what
@@ -124,11 +125,32 @@ jobs:
           path: dist/block-app-android-aarch64/block-app.apk
           retention-days: 14
 
+      # The launcher for Android, signed with the same keystore, which runs the
+      # builds publish-android puts on be3-ci.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: be-launcher-android-aarch64
+          path: dist/be-launcher-android-aarch64/be-launcher.apk
+          retention-days: 14
+
       - uses: actions/upload-artifact@v7
         with:
           name: block-web
           path: dist/block-web
           retention-days: 14
+
+      # What publish-android uploads to be3-ci. Only main and pull requests
+      # from this repository have one, since a fork's pull request has no
+      # BuildBuddy key to build it with.
+      - uses: actions/upload-artifact@v7
+        if: >-
+          github.event_name == 'push' ||
+          (github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          name: block-android
+          path: dist/block-android
+          retention-days: 1
 
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
@@ -528,6 +550,98 @@ jobs:
   # every pull request, which satisfied the rule without reading a single one
   # of its needs. always() is what makes it run after the needs finish
   # whatever they did, so that the step below is the thing that decides.
+  # The launcher on Android (crates/be-launcher) runs these builds. Each goes
+  # to the be3-ci Bunny storage zone under android/<slot>/, where the slot is
+  # pr-<number> or main: one build a slot, which the next replaces. Every file
+  # is gzipped and named by the SHA-256 of its bytes, <hash>.gz, so a file the
+  # slot already holds, like a plugin the pull request did not change, is not
+  # uploaded again, and nor does the launcher download it again. build.json,
+  # uploaded after them, names them: the commit, the shell hash, the launcher's
+  # APK, and each file with its path in the build. The files it no longer
+  # names are deleted after it. android-builds.yml deletes a closed pull
+  # request's slot. As with the paint previews, the storage key is given to
+  # the upload step alone, and what the artifact holds is only data here.
+  #
+  # Not one of CI OK's needs: a build the launcher cannot fetch does not stop
+  # a merge.
+  publish-android:
+    name: publish the Android build
+    needs: [build]
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: block-android
+          path: ${{ runner.temp }}/android
+
+      - name: Upload it
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+          SLOT: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          android="$RUNNER_TEMP/android"
+          objects="$RUNNER_TEMP/objects"
+          mkdir -p "$objects"
+          store="https://storage.bunnycdn.com/be3-ci/android/$SLOT"
+
+          object() {
+            hash="$(sha256sum "$1" | cut -c1-64)"
+            [ -e "$objects/$hash.gz" ] || gzip -6 -n -c "$1" > "$objects/$hash.gz"
+            jq -n --arg hash "$hash" --argjson size "$(stat -c %s "$1")" '{hash: $hash, size: $size}'
+          }
+
+          files="$(
+            cd "$android/build"
+            find . -type f | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r path; do
+              object "$android/build/$path" | jq -c --arg path "$path" '{path: $path} + .'
+            done | jq -s .
+          )"
+          jq -n \
+            --arg commit "$COMMIT" \
+            --arg shell "$(cat "$android/shell")" \
+            --argjson launcher "$(object "$android/launcher.apk")" \
+            --argjson files "$files" \
+            '{commit: $commit, shell: $shell, launcher: $launcher, files: $files}' > "$RUNNER_TEMP/build.json"
+
+          present="$(curl --fail --silent --show-error --retry 3 \
+            --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/" |
+            jq -r '.[] | select(.IsDirectory | not) | .ObjectName')" || present=''
+
+          for object in "$objects"/*.gz; do
+            name="$(basename "$object")"
+            if ! grep -qxF "$name" <<< "$present"; then
+              curl --fail --silent --show-error --retry 3 --output /dev/null \
+                --request PUT \
+                --header "AccessKey: $BUNNY_STORAGE_KEY" \
+                --header 'Content-Type: application/octet-stream' \
+                --upload-file "$object" \
+                "$store/$name"
+            fi
+          done
+
+          curl --fail --silent --show-error --retry 3 --output /dev/null \
+            --request PUT \
+            --header "AccessKey: $BUNNY_STORAGE_KEY" \
+            --header 'Content-Type: application/json' \
+            --upload-file "$RUNNER_TEMP/build.json" \
+            "$store/build.json"
+
+          wanted="$(ls "$objects")"
+          while IFS= read -r name; do
+            if [ -n "$name" ] && [ "$name" != build.json ] && ! grep -qxF "$name" <<< "$wanted"; then
+              curl --fail --silent --show-error --retry 3 --output /dev/null \
+                --request DELETE \
+                --header "AccessKey: $BUNNY_STORAGE_KEY" \
+                "$store/$name"
+            fi
+          done <<< "$present"
+
   ci-ok:
     name: 'CI OK'
     if: always()

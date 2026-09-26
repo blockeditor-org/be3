@@ -1,4 +1,4 @@
-load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
+load("@root//buck/android:defs.bzl", "android_apk", "android_build", "signed_apk")
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
@@ -213,6 +213,8 @@ tool(
         "$(location //buck/android:build-tools)",
         "$(location //buck/android:platform-tools)",
         "$(location :apk)",
+        "block-app",
+        "com.be3.block.MainActivity",
     ],
 )
 
@@ -224,6 +226,39 @@ signed_apk(
     exec_compatible_with = ["root//buck/constraints:android_keystore"],
     key_version = 1,
     visibility = ["//buck/ci:"],
+)
+
+# What the launcher on Android downloads from be3-ci and runs in place of an
+# APK: the library, and the plugins precompiled for the device.
+android_build(
+    name = "android-run",
+    assets = ":android-assets",
+    library = ":block-app",
+    visibility = ["//buck/ci:"],
+)
+
+# The launcher runs a downloaded build in its own copy of this Java, so a
+# build runs only in a launcher whose shell hash is its own: the Java, the
+# manifest and GameActivity's AARs. A permission added to AndroidManifest.xml
+# goes in crates/be-launcher/android/AndroidManifest.xml too.
+genrule(
+    name = "android-shell",
+    cmd = "(cd $SRCDIR && find . -type f | LC_ALL=C sort | xargs cat; find -L $(location //buck/android:game-activity) -type f | LC_ALL=C sort | xargs cat) | sha256sum | cut -c1-64 > $OUT",
+    out = "shell",
+    srcs = glob(["android/java/**/*.java"]) + ["android/AndroidManifest.xml"],
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "MainActivity.java",
+    src = "android/java/com/be3/block/MainActivity.java",
+    visibility = ["//crates/be-launcher:"],
+)
+
+export_file(
+    name = "android-res",
+    src = "android/res",
+    visibility = ["//crates/be-launcher:"],
 )
 
 # The native startup smoke check: the app for ten seconds in a virtual display.

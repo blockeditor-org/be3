@@ -221,6 +221,7 @@ mod percent_children_of_an_unbounded_list_use_their_intrinsic_length;
 mod percent_sized_children_still_size_an_intrinsic_lists_height;
 mod performance_measurements_report_work_and_cache_hits;
 mod picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked;
+mod picking_a_node_in_the_components_tab_selects_the_component_that_built_it;
 mod picking_a_node_leaves_the_document_alone;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
@@ -277,6 +278,7 @@ mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
 mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
 mod the_caret_of_a_text_input_paints_two_points_wide;
+mod the_components_tab_lists_components_instead_of_base_nodes;
 mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
 mod the_demo_catalog_survives_switching_tabs;
 mod the_dock_demo_leaves_a_tab_saying_nothing_is_open;
@@ -575,6 +577,10 @@ impl Harness {
             .collect()
     }
 
+    pub(crate) fn selected_row(&self) -> Option<String> {
+        self.inspector().selected_row(&self.document)
+    }
+
     pub(crate) fn row_center(&self, index: usize) -> Pos2 {
         self.node_center(self.inspector().row_node(index))
     }
@@ -734,11 +740,15 @@ impl Harness {
     }
 
     pub(crate) fn accesskit_tab_center(&self) -> Pos2 {
+        self.node_center(self.tab_node(2))
+    }
+
+    pub(crate) fn components_tab_center(&self) -> Pos2 {
         self.node_center(self.tab_node(1))
     }
 
     pub(crate) fn performance_tab_center(&self) -> Pos2 {
-        self.node_center(self.tab_node(2))
+        self.node_center(self.tab_node(3))
     }
 
     pub(crate) fn simulation_tab_center(&self) -> Pos2 {
@@ -746,7 +756,7 @@ impl Harness {
     }
 
     pub(crate) fn simulation_tab_node(&self) -> NodeId {
-        self.tab_node(3)
+        self.tab_node(4)
     }
 
     pub(crate) fn pixel_ratio_option_center(&self, index: usize) -> Pos2 {

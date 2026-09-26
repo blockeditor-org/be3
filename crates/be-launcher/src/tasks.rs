@@ -1,19 +1,33 @@
+#[cfg(not(target_os = "android"))]
 use std::ffi::OsStr;
+#[cfg(not(target_os = "android"))]
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+#[cfg(not(target_os = "android"))]
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(not(target_os = "android"))]
 use std::process::{Command, Stdio};
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, OnceLock};
+#[cfg(not(target_os = "android"))]
+use std::sync::{Mutex, MutexGuard};
 use std::thread;
 
 use beui::Waker;
+#[cfg(not(target_os = "android"))]
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 
 use crate::github::{Entry, Filter, GitHub, PullRequest, download};
+#[cfg(target_os = "android")]
+use crate::phone;
+#[cfg(not(target_os = "android"))]
 use crate::targets::{QUERY, Target, parse_targets};
 
+#[cfg(not(target_os = "android"))]
 const READ_CHUNK: usize = 4096;
+#[cfg(not(target_os = "android"))]
 const DEFAULT_COLS: u16 = 100;
+#[cfg(not(target_os = "android"))]
 const DEFAULT_ROWS: u16 = 30;
 const MAX_IMAGE_WIDTH: u32 = 1200;
 
@@ -28,13 +42,27 @@ pub(crate) enum Event {
     PullRequests(Filter, Result<Vec<PullRequest>, String>),
     Timeline(u64, Result<Vec<Entry>, String>),
     Image(String, Result<Pixels, String>),
-    Head { sha: String, summary: String },
+    #[cfg(not(target_os = "android"))]
+    Head {
+        sha: String,
+        summary: String,
+    },
+    #[cfg(not(target_os = "android"))]
     Targets(Result<Vec<Target>, String>),
+    #[cfg(not(target_os = "android"))]
     Started(String),
+    #[cfg(not(target_os = "android"))]
     Output(Vec<u8>),
-    Finished { summary: String, success: bool },
+    #[cfg(not(target_os = "android"))]
+    Finished {
+        summary: String,
+        success: bool,
+    },
+    #[cfg(target_os = "android")]
+    Phone(phone::Event),
 }
 
+#[cfg(not(target_os = "android"))]
 struct Running {
     process: Option<u32>,
     master: Box<dyn MasterPty + Send>,
@@ -47,7 +75,9 @@ pub(crate) struct Tasks {
     sender: Sender<Event>,
     waker: Arc<OnceLock<Waker>>,
     github: Arc<OnceLock<Result<GitHub, String>>>,
+    #[cfg(not(target_os = "android"))]
     running: Arc<Mutex<Option<Running>>>,
+    #[cfg(not(target_os = "android"))]
     size: Arc<Mutex<(u16, u16)>>,
 }
 
@@ -58,23 +88,30 @@ impl Tasks {
             sender,
             waker: Arc::new(OnceLock::new()),
             github: Arc::new(OnceLock::new()),
+            #[cfg(not(target_os = "android"))]
             running: Arc::new(Mutex::new(None)),
+            #[cfg(not(target_os = "android"))]
             size: Arc::new(Mutex::new((DEFAULT_COLS, DEFAULT_ROWS))),
         }
+    }
+
+    #[cfg(target_os = "android")]
+    pub(crate) fn root(&self) -> &std::path::Path {
+        &self.root
     }
 
     pub(crate) fn set_waker(&self, waker: Waker) {
         let _ = self.waker.set(waker);
     }
 
-    fn send(&self, event: Event) {
+    pub(crate) fn send(&self, event: Event) {
         let _ = self.sender.send(event);
         if let Some(waker) = self.waker.get() {
             waker.wake();
         }
     }
 
-    fn background(&self, work: impl FnOnce(&Tasks) -> Event + Send + 'static) {
+    pub(crate) fn background(&self, work: impl FnOnce(&Tasks) -> Event + Send + 'static) {
         let tasks = self.clone();
         thread::spawn(move || {
             let event = work(&tasks);
@@ -124,6 +161,7 @@ impl Tasks {
         });
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn targets(&self) {
         self.background(|tasks| {
             let listed = capture(
@@ -147,6 +185,7 @@ impl Tasks {
         });
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn read_head(&self) {
         self.background(|tasks| {
             let sha = capture(&tasks.root, "git", &["rev-parse", "HEAD"])
@@ -159,6 +198,7 @@ impl Tasks {
         });
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn run(&self, script: &'static str, args: Vec<String>) {
         let tasks = self.clone();
         thread::spawn(move || {
@@ -173,6 +213,7 @@ impl Tasks {
         });
     }
 
+    #[cfg(not(target_os = "android"))]
     fn run_to_end(&self, script: &str, args: &[String]) -> Result<(String, bool), String> {
         let (cols, rows) = *self.lock_size();
         let pair = native_pty_system()
@@ -227,6 +268,7 @@ impl Tasks {
         Ok((described, status.success()))
     }
 
+    #[cfg(not(target_os = "android"))]
     fn forward(&self, mut stream: impl Read + Send + 'static) -> thread::JoinHandle<()> {
         let tasks = self.clone();
         thread::spawn(move || {
@@ -240,6 +282,7 @@ impl Tasks {
         })
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn stop(&self) {
         let Some(process) = self
             .lock_running()
@@ -251,6 +294,7 @@ impl Tasks {
         let _ = kill_tree(process);
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn input(&self, bytes: &[u8]) {
         if let Some(running) = self.lock_running().as_mut() {
             let _ = running.writer.write_all(bytes);
@@ -258,6 +302,7 @@ impl Tasks {
         }
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn resize(&self, cols: u16, rows: u16) {
         *self.lock_size() = (cols, rows);
         if let Some(running) = self.lock_running().as_ref() {
@@ -270,12 +315,14 @@ impl Tasks {
         }
     }
 
+    #[cfg(not(target_os = "android"))]
     fn lock_running(&self) -> MutexGuard<'_, Option<Running>> {
         self.running
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    #[cfg(not(target_os = "android"))]
     fn lock_size(&self) -> MutexGuard<'_, (u16, u16)> {
         self.size
             .lock()
@@ -308,7 +355,7 @@ fn decode(bytes: &[u8]) -> Result<Pixels, String> {
     })
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "android")))]
 fn kill_tree(group: u32) -> std::io::Result<std::process::ExitStatus> {
     command("kill")
         .args(["-TERM", "--", &format!("-{group}")])
@@ -322,6 +369,7 @@ fn kill_tree(process: u32) -> std::io::Result<std::process::ExitStatus> {
         .status()
 }
 
+#[cfg(not(target_os = "android"))]
 pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
     #[cfg_attr(not(windows), allow(unused_mut))]
     let mut command = Command::new(program);
@@ -333,7 +381,7 @@ pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
     command
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "android")))]
 fn bash() -> PathBuf {
     PathBuf::from("bash")
 }
@@ -357,6 +405,7 @@ fn is_windows_launcher(path: &Path) -> bool {
     })
 }
 
+#[cfg(not(target_os = "android"))]
 pub(crate) fn capture(
     root: &Path,
     program: impl AsRef<OsStr>,
@@ -379,12 +428,19 @@ pub(crate) fn capture(
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+#[cfg(not(target_os = "android"))]
 pub(crate) fn repository_root() -> Result<PathBuf, String> {
     let root = capture(Path::new("."), "git", &["rev-parse", "--show-toplevel"])
         .map_err(|error| format!("run the launcher from inside the be3 checkout: {error}"))?;
     Ok(PathBuf::from(root.trim()))
 }
 
+#[cfg(target_os = "android")]
+pub(crate) fn open_url(url: &str) {
+    crate::android::open_url(url);
+}
+
+#[cfg(not(target_os = "android"))]
 pub(crate) fn open_url(url: &str) {
     #[cfg(target_os = "macos")]
     let spawned = command("open").arg(url).spawn();

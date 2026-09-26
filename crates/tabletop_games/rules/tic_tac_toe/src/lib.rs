@@ -56,7 +56,7 @@ fn grid(board: &[Option<Symbol>; CELL_COUNT]) -> Grid {
 }
 
 fn cell_label(cell: usize) -> String {
-    format!("Row {}, column {}", cell / 3 + 1, cell % 3 + 1)
+    format!("{}{}", (b'a' + (cell % 3) as u8) as char, 3 - cell / 3)
 }
 
 fn winning_symbol(board: &[Option<Symbol>; CELL_COUNT]) -> Option<Symbol> {
@@ -74,13 +74,21 @@ fn tic_tac_toe(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
     let mut players: [Option<Uuid>; 2] = [None, None];
     let mut move_count = 0;
 
+    helper.columns(["X", "O"]);
     loop {
         if let Some(winner) = winning_symbol(&board) {
-            return helper
-                .game_over(|_| Scene::new(format!("{} wins!", winner.label())).on(grid(&board)));
+            let score = match winner {
+                Symbol::X => "1-0",
+                Symbol::O => "0-1",
+            };
+            return helper.game_over(|_| {
+                Scene::new(format!("{} wins!", winner.label()))
+                    .score(score)
+                    .on(grid(&board))
+            });
         }
         if move_count >= CELL_COUNT {
-            return helper.game_over(|_| Scene::new("Draw!").on(grid(&board)));
+            return helper.game_over(|_| Scene::new("Draw!").score("½-½").on(grid(&board)));
         }
 
         let turn = move_count % 2;
@@ -107,7 +115,13 @@ fn tic_tac_toe(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
                     return;
                 }
                 for (cell, value) in board.iter_mut().enumerate() {
-                    if value.is_none() && action(Move::new(cell_label(cell)).click(spot(cell))) {
+                    if value.is_none()
+                        && action(
+                            Move::new(cell_label(cell))
+                                .click(spot(cell))
+                                .column(turn as u32),
+                        )
+                    {
                         if players[turn].is_none() {
                             players[turn] = Some(player);
                         }
