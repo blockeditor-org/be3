@@ -138,6 +138,21 @@ tool(
     ],
 )
 
+# The web app served here and open in a headless Chromium for an agent to
+# drive, signed in with a workspace open: guides/running_the_web_app.md.
+tool(
+    name = "web-dev",
+    command = [
+        "sh",
+        "$(location //buck/app:web-dev.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+        "$(location :web)",
+        "$(location //crates/be-server:be-server-bin)",
+        "$(location //buck/app:web-drive.mjs)",
+    ],
+)
+
 export_file(
     name = "Caddyfile",
     src = "web/Caddyfile",

@@ -100,7 +100,7 @@ pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
 impl Writer {
     pub(crate) async fn send(&mut self, bytes: Vec<u8>) -> Result<(), String> {
         self.0
-            .send_with_u8_array(&bytes)
+            .send_with_js_u8_array(&js_sys::Uint8Array::from(bytes.as_slice()))
             .map_err(|error| describe(&error))
     }
 }
