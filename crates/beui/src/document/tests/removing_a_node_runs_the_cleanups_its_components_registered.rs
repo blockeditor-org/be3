@@ -7,9 +7,9 @@ fn removing_a_node_runs_the_cleanups_its_components_registered() {
     let outer_sink = cleaned.clone();
     let inner_sink = cleaned.clone();
     let (document, [outer]) = toolbar_of(move || {
-        [component(move || {
+        [component("Outer", move || {
             on_cleanup(move || outer_sink.borrow_mut().push("outer"));
-            component(move || {
+            component("Inner", move || {
                 on_cleanup(move || inner_sink.borrow_mut().push("inner"));
                 view! {
                     <Text string="hi" />

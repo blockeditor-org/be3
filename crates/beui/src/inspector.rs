@@ -24,7 +24,7 @@ use crate::styled::Theme;
 use panel::Summary;
 use tree::{Entry, Key};
 
-const DEFAULT_WIDTH: f32 = 320.0;
+const DEFAULT_WIDTH: f32 = 340.0;
 const MINIMUM_WIDTH: f32 = 200.0;
 const GRIP_WIDTH: f32 = 4.0;
 const GRIP_PAINT_WIDTH: f32 = 2.0;
@@ -35,6 +35,7 @@ const BAR_HEIGHT: f32 = 44.0;
 pub(crate) enum InspectorTab {
     #[default]
     Beui,
+    Components,
     AccessKit,
     Performance,
     Simulation,
@@ -43,9 +44,10 @@ pub(crate) enum InspectorTab {
 impl InspectorTab {
     fn from_index(index: usize) -> Self {
         match index {
-            1 => Self::AccessKit,
-            2 => Self::Performance,
-            3 => Self::Simulation,
+            1 => Self::Components,
+            2 => Self::AccessKit,
+            3 => Self::Performance,
+            4 => Self::Simulation,
             _ => Self::Beui,
         }
     }
@@ -56,6 +58,7 @@ pub(crate) struct State {
     tab: Cell<InspectorTab>,
     pub(crate) hovered: Cell<Option<NodeId>>,
     pub(crate) selected: Cell<Option<NodeId>>,
+    selected_component: Cell<Option<Key>>,
     pub(crate) picking: Cell<bool>,
     pub(crate) touch_emulation: Cell<bool>,
     pub(crate) mouse_simulation: Cell<bool>,
@@ -85,6 +88,7 @@ impl State {
             tab: Cell::new(InspectorTab::default()),
             hovered: Cell::new(None),
             selected: Cell::new(None),
+            selected_component: Cell::new(None),
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
             mouse_simulation: Cell::new(ctx.mouse_simulation()),
@@ -209,7 +213,15 @@ impl State {
 
     fn select(&self, id: NodeId) {
         self.selected.set(Some(id));
+        self.selected_component.set(None);
         self.touch();
+    }
+
+    fn select_row(&self, key: Key) {
+        self.select(key.node());
+        if let Key::Component(..) = key {
+            self.selected_component.set(Some(key));
+        }
     }
 
     fn toggle_picking(&self) {
@@ -342,6 +354,13 @@ impl Inspector {
     #[cfg(test)]
     pub(crate) fn reader(&self) -> &ScreenReader {
         &self.reader
+    }
+
+    #[cfg(test)]
+    pub(crate) fn selected_row(&self, target: &Document) -> Option<String> {
+        let key = self.selection_path(target).last().copied()?;
+        let entry = self.entries.iter().find(|entry| entry.key == key)?;
+        Some(entry.kind.clone())
     }
 
     #[cfg(test)]
@@ -563,16 +582,17 @@ impl Inspector {
     fn sync(&mut self, target: &Document, ctx: &Context) {
         let entries = match self.state.tab.get() {
             InspectorTab::Beui => tree::collect(target, &self.state),
+            InspectorTab::Components => tree::collect_components(target, &self.state),
             InspectorTab::AccessKit => tree::collect_accesskit(target, &self.state),
             InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
         };
-        let summary = self.summary(target, ctx, &entries);
+        let selection = self.selection_path(target);
+        let summary = self.summary(target, ctx, &entries, selection.last().copied());
         let performance = panel::PerformanceSummary::from(target.performance());
         let renderer = ctx
             .renderer_info()
             .map(|info| info.rows())
             .unwrap_or_default();
-        let selection = self.selection_path(target);
         let Self {
             document,
             set_keys,
@@ -599,17 +619,25 @@ impl Inspector {
         self.entries = entries;
     }
 
-    fn summary(&self, target: &Document, ctx: &Context, entries: &[Entry]) -> Summary {
+    fn summary(
+        &self,
+        target: &Document,
+        ctx: &Context,
+        entries: &[Entry],
+        selected_key: Option<Key>,
+    ) -> Summary {
         let selected = self.state.selected.get();
         let selection = selected.map_or_else(nothing_selected, |id| {
             entries
                 .iter()
-                .find(|entry| entry.key.node() == id)
+                .find(|entry| Some(entry.key) == selected_key)
+                .or_else(|| entries.iter().find(|entry| entry.key.node() == id))
                 .map_or_else(|| tree::label(target, id), entry_label)
         });
         Summary {
             total: match self.state.tab.get() {
                 InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
+                InspectorTab::Components => tree::component_count(target),
                 InspectorTab::AccessKit => tree::accesskit_count(target),
                 InspectorTab::Performance | InspectorTab::Simulation => 0,
             },
@@ -712,6 +740,14 @@ impl Inspector {
         };
         match self.state.tab.get() {
             InspectorTab::Beui => tree::path(target, id),
+            InspectorTab::Components => {
+                let mut path = tree::component_path(target, id);
+                let chosen = self.state.selected_component.get();
+                if let Some(end) = path.iter().position(|key| Some(*key) == chosen) {
+                    path.truncate(end + 1);
+                }
+                path
+            }
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
             InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
         }
