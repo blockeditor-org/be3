@@ -14,6 +14,7 @@ use crate::reactive::{
     Show, Text, clone, component_accessibility, create_effect, create_memo, create_signal,
     set_component_state,
 };
+use crate::styled::button::ButtonVariant;
 use crate::styled::text_input::TextInput;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, use_theme};
 
@@ -68,6 +69,7 @@ pub fn NumberInput(
     let (editing, set_editing) = create_signal(false);
     let (refocus, set_refocus) = create_signal(false);
     let (hovered, set_hovered) = create_signal(false);
+    let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
     create_effect(clone!(value text set_text -> move || {
         let next = value.get();
@@ -136,7 +138,10 @@ pub fn NumberInput(
     });
 
     let previewed = on_preview.clone();
-    let edited = clone!(set_text -> move |typed: String| {
+    let edited = clone!(set_text editing -> move |typed: String| {
+        if !editing.get_untracked() {
+            return;
+        }
         set_text.set(typed.clone());
         previewed.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
     });
@@ -209,12 +214,14 @@ pub fn NumberInput(
                         on_drag={dragged}
                         on_click={clicked}
                         on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
+                        on_active_change={move |is_active: bool| set_active.set(is_active)}
                     >
                         <NumberFace
                             shown_text={face.clone()}
                             text={face_text}
                             placeholder={face_placeholder}
                             hovered={hovered}
+                            active={active}
                             focused={focused}
                             disabled={face_off}
                         />
@@ -246,6 +253,7 @@ fn NumberFace(
     text: ReadSignal<String>,
     placeholder: Prop<String>,
     hovered: ReadSignal<bool>,
+    active: ReadSignal<bool>,
     focused: ReadSignal<bool>,
     disabled: Memo<bool>,
 ) -> NodeId {
@@ -259,23 +267,13 @@ fn NumberFace(
         }
     }));
     let color = create_memo(clone!(theme text disabled -> move || {
-        match disabled.get() || text.get().is_empty() {
+        match text.get().is_empty() {
             true => theme.text_muted.get(),
-            false => theme.text.get(),
+            false => ButtonVariant::Secondary.label(&theme, disabled.get()),
         }
     }));
-    let fill = create_memo(clone!(theme disabled hovered -> move || {
-        match (disabled.get(), hovered.get()) {
-            (true, _) => theme.surface.get(),
-            (false, true) => theme.hover.get(),
-            (false, false) => theme.surface_raised.get(),
-        }
-    }));
-    let border = create_memo(clone!(theme disabled hovered -> move || {
-        match (disabled.get(), hovered.get()) {
-            (false, true) => theme.text_muted.get(),
-            _ => theme.border.get(),
-        }
+    let fill = create_memo(clone!(theme disabled -> move || {
+        ButtonVariant::Secondary.fill(&theme, disabled.get(), hovered.get(), active.get())
     }));
     view! {
         <Frame
@@ -288,9 +286,10 @@ fn NumberFace(
             <Frame
                 height=HEIGHT
                 color={fill}
-                outline={border}
+                outline={theme.border.clone()}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
+                outline_visible=true
                 padding_horizontal=PADDING_HORIZONTAL
             >
                 <Text
@@ -298,7 +297,7 @@ fn NumberFace(
                     string={shown}
                     font_size=FONT_BODY
                     color={color}
-                    align=TextAlign::Start
+                    align=TextAlign::Center
                     clip=true
                 />
             </Frame>

@@ -1,6 +1,6 @@
 use super::*;
 use block_editor_plugin::be_block::canvas::CanvasColor;
-use block_editor_plugin::beui::Key;
+use block_editor_plugin::beui::{Key, Vec2};
 
 #[test]
 fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
@@ -42,5 +42,16 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
         editor.applied(None),
         before,
         "a cancelled edit must not reach the block, or it lands in its undo history"
+    );
+
+    let field = editor.rect_of("infinite-canvas.transform.y").center();
+    editor.drag(field, field + Vec2::new(20.0, 0.0));
+    editor.run();
+
+    assert_eq!(entities(&editor)[0].transform.center.y, 20.0);
+    assert_eq!(
+        editor.rect_of(&drawn).center().y - resting.center().y,
+        20.0,
+        "a cancelled preview must not keep drawing over later edits"
     );
 }
