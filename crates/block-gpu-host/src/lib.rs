@@ -37,8 +37,14 @@ pub struct Gpu {
 type Outcome<T> = Result<T, String>;
 
 struct Surface {
-    texture: wgpu::Texture,
-    generation: u64,
+    textures: Vec<(wgpu::Texture, u64)>,
+    drawn: usize,
+}
+
+impl Surface {
+    fn shown(&self) -> &(wgpu::Texture, u64) {
+        &self.textures[(self.drawn + 1) % self.textures.len()]
+    }
 }
 
 impl Gpu {
@@ -76,14 +82,19 @@ impl Gpu {
     }
 
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
-        self.generation += 1;
-        self.surfaces.insert(
-            surface,
-            Surface {
-                texture,
-                generation: self.generation,
-            },
-        );
+        self.insert_surface(surface, vec![texture]);
+    }
+
+    fn insert_surface(&mut self, surface: u32, textures: Vec<wgpu::Texture>) {
+        let textures = textures
+            .into_iter()
+            .map(|texture| {
+                self.generation += 1;
+                (texture, self.generation)
+            })
+            .collect();
+        self.surfaces
+            .insert(surface, Surface { textures, drawn: 0 });
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
@@ -91,8 +102,8 @@ impl Gpu {
     }
 
     pub fn surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
-        let surface = self.surfaces.get(&surface)?;
-        Some((&surface.texture, surface.generation))
+        let (texture, generation) = self.surfaces.get(&surface)?.shown();
+        Some((texture, *generation))
     }
 
     pub fn take_presented(&mut self) -> Vec<u32> {
@@ -538,16 +549,7 @@ impl Gpu {
         let request: abi::WriteTexture = abi::decode(bytes)?;
         let texture = self.textures.get(request.destination.texture, "texture")?;
         self.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture,
-                mip_level: request.destination.mip_level,
-                origin: wgpu::Origin3d {
-                    x: request.destination.origin_x,
-                    y: request.destination.origin_y,
-                    z: request.destination.origin_z,
-                },
-                aspect: convert::texture_aspect(request.destination.aspect),
-            },
+            texel_copy_texture(texture, request.destination),
             data,
             wgpu::TexelCopyBufferLayout {
                 offset: request.layout.offset,
@@ -657,6 +659,31 @@ impl Gpu {
             })
             .forget_lifetime();
         Ok(self.passes.insert(pass))
+    }
+
+    pub fn copy_texture_to_texture(&mut self, bytes: &[u8]) {
+        let result = self.try_copy_texture_to_texture(bytes);
+        self.fail(result, ());
+    }
+
+    fn try_copy_texture_to_texture(&mut self, bytes: &[u8]) -> Outcome<()> {
+        let request: abi::CopyTextureToTexture = abi::decode(bytes)?;
+        let source = self
+            .textures
+            .get(request.source.texture, "texture")?
+            .clone();
+        let destination = self
+            .textures
+            .get(request.destination.texture, "texture")?
+            .clone();
+        self.encoders
+            .get_mut(request.encoder, "command encoder")?
+            .copy_texture_to_texture(
+                texel_copy_texture(&source, request.source),
+                texel_copy_texture(&destination, request.destination),
+                convert::extent(request.size),
+            );
+        Ok(())
     }
 
     pub fn finish_encoder(&mut self, encoder: abi::Handle) -> abi::Handle {
@@ -902,30 +929,35 @@ impl Gpu {
         }
         let format = convert::texture_format(format);
         let matches = self.surfaces.get(&surface).is_some_and(|existing| {
-            existing.texture.width() == width
-                && existing.texture.height() == height
-                && existing.texture.format() == format
+            let (texture, _) = existing.shown();
+            existing.textures.len() == 2
+                && texture.width() == width
+                && texture.height() == height
+                && texture.format() == format
         });
         if matches {
             return;
         }
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("plugin surface"),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        self.attach_surface(surface, texture);
+        let texture = || {
+            self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("plugin surface"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            })
+        };
+        let textures = vec![texture(), texture()];
+        self.insert_surface(surface, textures);
     }
 
     pub fn acquire_surface(&mut self, surface: u32) -> abi::Handle {
@@ -933,11 +965,14 @@ impl Gpu {
             self.error = Some(format!("surface {surface} has no target texture"));
             return abi::NULL_HANDLE;
         };
-        let texture = target.texture.clone();
+        let texture = target.textures[target.drawn].0.clone();
         self.textures.insert(texture)
     }
 
     pub fn present_surface(&mut self, surface: u32) {
+        if let Some(target) = self.surfaces.get_mut(&surface) {
+            target.drawn = (target.drawn + 1) % target.textures.len();
+        }
         self.presented.push(surface);
     }
 
@@ -964,6 +999,22 @@ impl Gpu {
             view_formats: Vec::new(),
         };
         Some(abi::encode(&descriptor))
+    }
+}
+
+fn texel_copy_texture(
+    texture: &wgpu::Texture,
+    info: abi::TexelCopyTextureInfo,
+) -> wgpu::TexelCopyTextureInfo<'_> {
+    wgpu::TexelCopyTextureInfo {
+        texture,
+        mip_level: info.mip_level,
+        origin: wgpu::Origin3d {
+            x: info.origin_x,
+            y: info.origin_y,
+            z: info.origin_z,
+        },
+        aspect: convert::texture_aspect(info.aspect),
     }
 }
 

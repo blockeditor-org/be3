@@ -79,6 +79,10 @@ impl Backend for Web {
         })
     }
 
+    fn received_frame(&mut self) -> Option<Self::Frame> {
+        None
+    }
+
     fn take_error(&mut self) -> Option<String> {
         self.error.take()
     }

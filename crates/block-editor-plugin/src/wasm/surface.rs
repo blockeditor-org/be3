@@ -67,19 +67,24 @@ impl Surface {
         if self.layout.is_empty() {
             return Ok(Vec::new());
         }
-        let texture = block_gpu_guest::acquire_surface_texture(SCREENS_SURFACE)?;
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let painted = self.panes.paint(
-            &self.gpu.device,
-            &self.gpu.queue,
-            &view,
-            &self.layout,
-            screens,
-        );
-        block_gpu_guest::present_surface(SCREENS_SURFACE);
+        let ran = self.panes.run(&self.layout, screens);
+        let repaint = ran.repaint;
+        if ran.changed {
+            let texture = block_gpu_guest::acquire_surface_texture(SCREENS_SURFACE)?;
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            self.panes.paint(
+                &self.gpu.device,
+                &self.gpu.queue,
+                &view,
+                &self.layout,
+                screens,
+                ran,
+            );
+            block_gpu_guest::present_surface(SCREENS_SURFACE);
+        }
         Ok(vec![Message::FrameReady(FrameReady {
             generation: self.generation,
-            repaint_after_micros: painted.repaint.map(|delay| delay.as_micros() as u64),
+            repaint_after_micros: repaint.map(|delay| delay.as_micros() as u64),
         })])
     }
 }

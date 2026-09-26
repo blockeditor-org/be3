@@ -9,8 +9,10 @@ pub(crate) struct Panes {
     format: wgpu::TextureFormat,
 }
 
-pub(crate) struct Painted {
+pub(crate) struct Ran {
+    pub(crate) changed: bool,
     pub(crate) repaint: Option<Duration>,
+    placed: Vec<ScreenPlacement>,
 }
 
 impl Panes {
@@ -21,14 +23,7 @@ impl Panes {
         }
     }
 
-    pub(crate) fn paint(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        view: &wgpu::TextureView,
-        layout: &ScreenLayout,
-        screens: &mut Screens,
-    ) -> Painted {
+    pub(crate) fn run(&mut self, layout: &ScreenLayout, screens: &mut Screens) -> Ran {
         let mut repaint = Duration::MAX;
         let mut changed = self.generation != Some(layout.generation);
         self.generation = Some(layout.generation);
@@ -42,14 +37,24 @@ impl Panes {
             repaint = repaint.min(frame.repaint_after.unwrap_or(Duration::MAX));
             placed.push(*placement);
         }
-        let painted = Painted {
+        Ran {
+            changed,
             repaint: (repaint < Duration::MAX).then_some(repaint),
-        };
-        if !changed {
-            return painted;
+            placed,
         }
+    }
+
+    pub(crate) fn paint(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        view: &wgpu::TextureView,
+        layout: &ScreenLayout,
+        screens: &mut Screens,
+        ran: Ran,
+    ) {
         clear(device, queue, view);
-        for placement in placed {
+        for placement in ran.placed {
             let Some(session) = screens.session(placement.instance) else {
                 continue;
             };
@@ -63,7 +68,6 @@ impl Panes {
                 placement,
             });
         }
-        painted
     }
 }
 

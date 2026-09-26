@@ -1,2 +1,0 @@
-# The build script is what tells the crate it is on a stable compiler.
-buildscript.run = true

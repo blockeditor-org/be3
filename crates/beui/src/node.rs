@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::Modifiers;
+use crate::input::{Modifiers, SecondaryDrag};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -26,6 +26,7 @@ pub(crate) struct InteractInput {
     pub(crate) pressed_this_frame: bool,
     pub(crate) released_this_frame: bool,
     pub(crate) secondary_pressed_this_frame: bool,
+    pub(crate) secondary_drag: Option<SecondaryDrag>,
     pub(crate) middle_down: bool,
     pub(crate) middle_pressed_this_frame: bool,
     pub(crate) scroll: Vec2,

@@ -1,5 +1,0 @@
-# On Windows the build script compiles the crate's small C helper, and the
-# archive it writes reaches the link; elsewhere it only sets cfgs.
-[buildscript.run]
-rustc_link_lib = true
-rustc_link_search = true

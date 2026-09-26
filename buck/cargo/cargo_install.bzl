@@ -1,5 +1,5 @@
-# A tool built on a worker with `cargo install --locked`: reindeer and
-# rust-project from pinned commits, wasm-bindgen from a pinned version. The pin
+# A tool built on a worker with `cargo install --locked`:
+# rust-project from a pinned commit, wasm-bindgen from a pinned version. The pin
 # and the toolchain are the inputs, so it is built once and cached.
 def _cargo_install_impl(ctx: AnalysisContext) -> list[Provider]:
     binary = ctx.attrs.binary or ctx.attrs.package
