@@ -1,7 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
 
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
@@ -11,7 +10,7 @@ use block_editor_beui::beui::reactive::{
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockFilter, BlockList, BlockPicker, BlockQuery, Creation, Editor};
 use game_api::GameAction;
-use game_host::Game;
+use game_host::{Game, Session};
 use uuid::Uuid;
 
 mod ui;
@@ -27,7 +26,9 @@ const GUEST: u64 = 0x6775_6573_7473;
 struct Loaded {
     module: Uuid,
     revision: u64,
-    game: Result<Arc<Game>, String>,
+    game: Result<Game, String>,
+    live: Option<Session>,
+    past: Option<Session>,
 }
 
 struct BlockGame {
@@ -111,21 +112,24 @@ impl BlockGame {
             .as_ref()
             .is_none_or(|loaded| loaded.module != module || loaded.revision != revision);
         if stale {
-            let Some(game) = projection.read(|module| Game::load(module.data()).map(Arc::new))
-            else {
+            let Some(game) = projection.read(|module| Game::load(module.data())) else {
                 return GameSnapshot::Loading;
             };
             *self.loaded.borrow_mut() = Some(Loaded {
                 module,
                 revision,
                 game,
+                live: None,
+                past: None,
             });
         }
 
-        let loaded = self.loaded.borrow();
-        let loaded = loaded.as_ref().expect("the module was just loaded");
-        let game = match &loaded.game {
-            Ok(game) => game.clone(),
+        let mut loaded = self.loaded.borrow_mut();
+        let Loaded {
+            game, live, past, ..
+        } = loaded.as_mut().expect("the module was just loaded");
+        let game = match game {
+            Ok(game) => &*game,
             Err(error) => return GameSnapshot::Error(error.clone()),
         };
         let seats = seats(self.account, &actions);
@@ -147,7 +151,7 @@ impl BlockGame {
                 .expect("the player is seated"),
         };
         *self.seats.borrow_mut() = seats;
-        let live = match game.show(&actions, player) {
+        let live = match follow(game, live, &actions).and_then(|session| session.show(player)) {
             Ok(screen) => screen,
             Err(error) => return GameSnapshot::Error(error),
         };
@@ -168,7 +172,7 @@ impl BlockGame {
             0 => 0,
             shown => live.history[shown - 1].entry as usize + 1,
         };
-        match game.show(&actions[..until], player) {
+        match follow(game, past, &actions[..until]).and_then(|session| session.show(player)) {
             Ok(mut past) => {
                 past.description = format!("Looking back at move {shown} of {}", history.len());
                 past.actions.clear();
@@ -331,6 +335,25 @@ impl block_editor_beui::BeuiApp for DeterministicGameApp {
     fn intrinsic_size() -> Option<Vec2> {
         Some(INTRINSIC_SIZE)
     }
+}
+
+fn follow<'a>(
+    game: &Game,
+    slot: &'a mut Option<Session>,
+    actions: &[GameAction],
+) -> Result<&'a mut Session, String> {
+    if slot
+        .as_ref()
+        .is_none_or(|session| !actions.starts_with(session.played()))
+    {
+        *slot = Some(game.start()?);
+    }
+    let session = slot.as_mut().expect("a session was just started");
+    let played = session.played().len();
+    for action in &actions[played..] {
+        session.play(action)?;
+    }
+    Ok(session)
 }
 
 pub(crate) fn seats(account: Uuid, actions: &[GameAction]) -> Vec<Uuid> {

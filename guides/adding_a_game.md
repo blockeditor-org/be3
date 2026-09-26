@@ -72,9 +72,9 @@ offered by calling `action(Move::new(label))`; when it answers `true`, that
 move is the one the log records next for that actor, so the state updates
 happen right there, inline. A move is identified by its position among the
 `action` calls reached for its actor, never by its label or its gesture, so
-nothing a client sends can name a move it was not offered. When the log runs
-out, `action` returns the screen for the viewing player, which `?` propagates
-out.
+nothing a client sends can name a move it was not offered. While the game
+waits in `action`, the host can also ask it for any player's screen, which
+`action` answers from the same `describe` and `body` and then goes on waiting.
 
 ### What the player sees
 
@@ -124,8 +124,8 @@ it (chess marks a check `+` on the move that gave it), and
 `helper.describe_last_turn(text)` replaces it. `helper.listing()` says whether
 the moves being offered are listed for the viewer rather than matched against
 the log, which is the only time their labels are read, so a game whose labels
-are costly to write can offer unlabelled moves while it replays and describe
-the one that was chosen.
+are costly to write can offer unlabelled moves while it plays one out and
+describe the one that was chosen.
 
 Some of what a rulebook says in one sentence is a paragraph of Rust, so
 `GameHelper` says those the short way too:
@@ -156,10 +156,18 @@ follows its `rulebook.md` section by section - so what is left in it is
 what makes Crazy 8s that game: eights are wild, a played eight calls a
 suit, and drawing gets you one card you may play.
 
-The game keeps no state between calls: the log is replayed from the top every
-time, in a fresh instance, and the interpreter cuts a module off that never
-returns. Every move is replayed on every call, so keep what a move costs to
-replay small: a long chess game replays a few hundred of them.
+The game runs once, as one long call the host pauses. `game_api::game!`
+exports `play`, which runs the game function against the host: whenever
+`action` needs the next move it calls the host's `next` import, and the host
+pauses the whole instance there (a wasmi resumable call) until a move arrives
+or a screen is asked for, then resumes it. `game-host`'s `Session` is that
+paused instance: `play(action)` feeds it one move, `show(player)` asks it for a
+screen, and each of those gets a fuel budget of its own, so a move that never
+finishes is cut off as that move's failure however long the game has run.
+wasmi cannot copy a paused instance, so there are no snapshots: looking back at
+an earlier move, or opening a game again, starts a fresh session and plays the
+log into it from the top, each move again on its own budget. `Game::show`
+is that in one call.
 
 ### Games with pieces on a board
 

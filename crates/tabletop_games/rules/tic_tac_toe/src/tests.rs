@@ -10,16 +10,21 @@ mod first_and_second_actors_become_x_and_o;
 mod invalid_action_index_is_ignored;
 mod marks_are_drawn_on_the_board_and_open_tiles_are_clicked;
 mod out_of_turn_action_is_ignored;
+mod a_session_takes_one_move_at_a_time_and_shows_anyone;
 mod spectator_sees_no_actions;
 mod winning_line_ends_the_game;
 
-fn show(actions: &[GameAction], player: Uuid) -> GameScreen {
+fn game() -> &'static Game {
     static GAME: OnceLock<Game> = OnceLock::new();
     GAME.get_or_init(|| {
         Game::load(include_bytes!(env!("GAME_WASM"))).expect("this crate builds its own module")
     })
-    .show(actions, player)
-    .expect("the module answers every screen it is asked for")
+}
+
+fn show(actions: &[GameAction], player: Uuid) -> GameScreen {
+    game()
+        .show(actions, player)
+        .expect("the module answers every screen it is asked for")
 }
 
 fn play(actions: &[GameAction], actor: Uuid, cell: u8) -> GameAction {

@@ -7,7 +7,7 @@ use super::*;
 const PLIES: usize = 400;
 
 #[test]
-fn a_long_game_is_replayed_within_the_modules_fuel() {
+fn a_long_game_gives_every_move_fuel_of_its_own() {
     let mut position = CHESS.start();
     let mut side = Side::First;
     let mut actions = Vec::new();

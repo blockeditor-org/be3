@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use game_host::{Game, GameAction, GameScreen};
 use uuid::Uuid;
 
-mod a_long_game_is_replayed_within_the_modules_fuel;
+mod a_long_game_gives_every_move_fuel_of_its_own;
 mod black_sees_the_board_from_its_own_side;
 mod fools_mate_ends_the_game_and_the_history_reads_in_algebraic_notation;
 mod resigning_ends_the_game;
