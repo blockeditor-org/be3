@@ -201,8 +201,8 @@ A native target depends on a wasm one through a transition in
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
   version), with the page and shims from `crates/block-app/web` and a
   `plugins.json` the browser finds the plugins through. `:web-serve` runs Caddy
-  (`buck/tools:caddy`) with `web/Caddyfile`; a deployment uses the same
-  Caddyfile with `BE3_DOMAIN_NAME` and `BE3_WEB_ROOT`.
+  (`buck/tools:caddy`) with `web/Caddyfile`, and `-- --domain DOMAIN` serves
+  that domain over https, which is how the app is deployed.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The app is a
