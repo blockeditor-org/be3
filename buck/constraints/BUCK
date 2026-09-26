@@ -14,6 +14,14 @@ constraint_value(
     visibility = ["PUBLIC"],
 )
 
+# The beui demo's web build, which draws beui with DOM elements rather than
+# wgpu and so turns on beui's dom feature, which no other build may share.
+constraint_value(
+    name = "dom",
+    constraint_setting = ":wasm_role",
+    visibility = ["PUBLIC"],
+)
+
 # What an action needs from its worker beyond the defaults. The signing
 # platform in buck/platforms has this and the default one does not, so only
 # a target that asks for it with exec_compatible_with runs there.

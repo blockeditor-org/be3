@@ -63,7 +63,8 @@ def _impl(ctx):
 
     # The builds buck2 stands in for, as cargo would be asked for them: the host
     # (block-app with full, without the wasm-only crates), block-app for the web,
-    # the plugins (a plan of their own: they want a different wgpu), the games and
+    # the plugins (a plan of their own: they want a different wgpu), the beui
+    # demo drawn with DOM elements (another: it wants beui's dom), the games and
     # the gpu shim, and the host again for each cross target. `cargo test` where
     # there are tests, so the plan has the dev-dependencies. Every plan names its
     # target, so what cargo builds for the machine running the build - proc
@@ -123,10 +124,11 @@ plan() {
     RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
 }
 RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format-version 1 --locked > "$scratch/metadata.json"
-host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim"
+host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim --exclude beui-web-demo"
 plan test --target x86_64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p block-app --lib --features block-app/full > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui > "$scratch/wasi-guest.json"
+plan build --target wasm32-wasip1-threads -p beui-web-demo --lib > "$scratch/wasi-dom.json"
 plan build --target wasm32-unknown-unknown $games -p block-gpu-shim > "$scratch/wasm32.json"
 plan test --target aarch64-linux-android $host_packages --features block-app/full > "$scratch/android-arm64.json"
 plan test --target aarch64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/linux-arm64.json"
@@ -137,7 +139,7 @@ plan test --target x86_64-pc-windows-msvc $host_packages --features block-app/fu
 CARGO_TARGET_DIR="$scratch/target" PATH="$toolchain/bin:$PATH" \
     "$toolchain/bin/cargo" build --quiet --release --locked -p buck-tools
 "$scratch/target/release/buck-tools" generate "$scratch/metadata.json" Cargo.lock "$scratch/sizes" Cargo.toml \
-    "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasm32=$scratch/wasm32.json" \
+    "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasi-dom=$scratch/wasi-dom.json" "wasm32=$scratch/wasm32.json" \
     "android-arm64=$scratch/android-arm64.json" "linux-arm64=$scratch/linux-arm64.json" "macos-arm64=$scratch/macos-arm64.json" "macos-x86_64=$scratch/macos-x86_64.json" \
     "windows-arm64=$scratch/windows-arm64.json" "windows-x86_64=$scratch/windows-x86_64.json" \
     > "$out/crates.bzl"

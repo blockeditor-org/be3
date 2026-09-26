@@ -5,12 +5,16 @@ use crate::context::Context;
 use crate::geometry::{Rect, Vec2};
 use crate::input::{Event, Key, Modifiers, TouchPhase};
 
-#[cfg(any(feature = "window", feature = "web"))]
+#[cfg(any(feature = "window", feature = "web", feature = "dom"))]
 mod accessibility_dump;
 #[cfg(all(feature = "window", target_os = "android"))]
 mod back;
+#[cfg(any(feature = "web", feature = "dom"))]
+mod browser;
 #[cfg(feature = "window")]
 mod clipboard;
+#[cfg(feature = "dom")]
+mod dom;
 #[cfg(feature = "window")]
 mod native;
 #[cfg(all(feature = "window", target_os = "android"))]
@@ -20,10 +24,14 @@ mod web;
 
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use back::send_android_back;
+#[cfg(any(feature = "web", feature = "dom"))]
+pub use browser::accessibility_tree;
+#[cfg(feature = "dom")]
+pub use dom::run_dom;
 #[cfg(feature = "window")]
 pub use native::{run, run_with, send_back, set_safe_area};
 #[cfg(feature = "web")]
-pub use web::{accessibility_tree, run_web};
+pub use web::run_web;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct SafeArea {
@@ -50,8 +58,11 @@ pub trait App {
 }
 
 pub struct Setup {
+    #[cfg(feature = "render")]
     pub device: wgpu::Device,
+    #[cfg(feature = "render")]
     pub queue: wgpu::Queue,
+    #[cfg(feature = "render")]
     pub format: wgpu::TextureFormat,
     pub waker: Waker,
     #[cfg(feature = "window")]
@@ -90,8 +101,10 @@ pub struct RunOptions {
     pub size: Vec2,
     #[cfg(feature = "window")]
     pub accessibility_dump: Option<std::path::PathBuf>,
-    #[cfg(feature = "web")]
+    #[cfg(any(feature = "web", feature = "dom"))]
     pub accessibility_tree: bool,
+    #[cfg(feature = "dom")]
+    pub icons_font: Option<String>,
     #[cfg(feature = "render")]
     pub open_device: Option<OpenDevice>,
     #[cfg(all(feature = "window", target_os = "android"))]
@@ -106,8 +119,10 @@ impl RunOptions {
             size: Vec2::new(1280.0, 800.0),
             #[cfg(feature = "window")]
             accessibility_dump: None,
-            #[cfg(feature = "web")]
+            #[cfg(any(feature = "web", feature = "dom"))]
             accessibility_tree: false,
+            #[cfg(feature = "dom")]
+            icons_font: None,
             #[cfg(feature = "render")]
             open_device: None,
             #[cfg(all(feature = "window", target_os = "android"))]
@@ -116,7 +131,10 @@ impl RunOptions {
     }
 }
 
-#[cfg_attr(not(any(feature = "window", feature = "web")), allow(dead_code))]
+#[cfg_attr(
+    not(any(feature = "window", feature = "web", feature = "dom")),
+    allow(dead_code)
+)]
 pub(crate) fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
     let typed = pending
         .iter()

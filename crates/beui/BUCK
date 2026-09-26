@@ -24,3 +24,18 @@ cargo_example("demo", srcs = beui_srcs)
 cargo_example("dock", srcs = beui_srcs)
 
 cargo_example("survey", srcs = beui_srcs)
+
+# The demo and the icons for crates/beui-web-demo, which shows the demo in a
+# browser drawn with DOM elements and hands the browser the icons rather than
+# carrying them in the module.
+export_file(
+    name = "demo.rs",
+    src = "examples/demo.rs",
+    visibility = ["//crates/beui-web-demo:"],
+)
+
+export_file(
+    name = "icons.ttf",
+    src = "assets/icons/MaterialSymbolsRounded-Filled.ttf",
+    visibility = ["//crates/beui-web-demo:"],
+)

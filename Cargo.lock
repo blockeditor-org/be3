@@ -839,6 +839,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-web-demo"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui_macros",
+ "text-editor-core",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "beui_macros"
 version = "0.1.0"
 dependencies = [

@@ -6,7 +6,8 @@ license.workspace = true
 
 [features]
 default = ["window"]
-render = ["dep:bytemuck", "dep:wgpu", "wgpu/std", "wgpu/wgsl"]
+fonts = ["dep:freetype", "dep:harfbuzz_rs"]
+render = ["fonts", "dep:bytemuck", "dep:wgpu", "wgpu/std", "wgpu/wgsl"]
 window = [
     "render",
     "dep:accesskit_winit",
@@ -26,14 +27,20 @@ web = [
     "wgpu/webgpu",
     "wgpu/webgl",
 ]
+dom = [
+    "dep:js-sys",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:web-sys",
+]
 
 [dependencies]
 beui_macros = { path = "../beui_macros" }
 accesskit = "0.24.1"
 accesskit_winit = { version = "0.33.2", features = ["accesskit_android"], optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
-freetype = "0.7"
-harfbuzz_rs = "2"
+freetype = { version = "0.7", optional = true }
+harfbuzz_rs = { version = "2", optional = true }
 pollster = { version = "0.4", optional = true }
 geometry = { path = "../geometry" }
 reactive = { path = "../reactive" }
@@ -54,11 +61,13 @@ wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true, features = [
     "AddEventListenerOptions",
     "Blob",
+    "CanvasRenderingContext2d",
     "Clipboard",
     "ClipboardEvent",
     "CompositionEvent",
     "CssStyleDeclaration",
     "DataTransfer",
+    "DomTokenList",
     "Document",
     "DomRect",
     "DragEvent",
@@ -68,8 +77,11 @@ web-sys = { version = "0.3", optional = true, features = [
     "File",
     "FileList",
     "FocusEvent",
+    "FontFaceSet",
     "HtmlCanvasElement",
     "HtmlElement",
+    "HtmlHeadElement",
+    "ImageData",
     "HtmlTextAreaElement",
     "InputEvent",
     "KeyboardEvent",
@@ -78,6 +90,7 @@ web-sys = { version = "0.3", optional = true, features = [
     "PointerEvent",
     "ResizeObserver",
     "ResizeObserverEntry",
+    "TextMetrics",
     "Touch",
     "TouchEvent",
     "TouchList",

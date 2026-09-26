@@ -74,6 +74,7 @@ pub struct Document {
     scroll_hosts: Vec<NodeId>,
     scroll_shifts: NodeMap<f32>,
     viewport: Option<(Context, Rect, f32)>,
+    fonts_generation: u64,
     shapes: Vec<Shape>,
     paint_cache: RefCell<PaintCache>,
     paint_region: Cell<Region>,
@@ -224,6 +225,7 @@ impl Document {
             scroll_hosts: Vec::new(),
             scroll_shifts: NodeMap::default(),
             viewport: None,
+            fonts_generation: 0,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
             paint_region: Cell::new(Region::NOTHING),
@@ -682,12 +684,14 @@ impl Document {
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();
-        if self
-            .viewport
-            .as_ref()
-            .is_none_or(|(old_ctx, old_rect, old_scale)| {
-                !ctx.same(old_ctx) || *old_rect != rect || *old_scale != scale
-            })
+        let fonts_generation = ctx.fonts_generation();
+        if std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation
+            || self
+                .viewport
+                .as_ref()
+                .is_none_or(|(old_ctx, old_rect, old_scale)| {
+                    !ctx.same(old_ctx) || *old_rect != rect || *old_scale != scale
+                })
         {
             let reattached = self
                 .viewport

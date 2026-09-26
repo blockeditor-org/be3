@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use super::freetype::{SUBPIXEL_POSITIONS, split_subpixel};
 use super::*;
 
 mod a_full_galley_cache_keeps_what_is_still_being_used;

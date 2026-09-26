@@ -26,7 +26,7 @@ impl AccessibilityDump {
         }
     }
 
-    #[cfg(feature = "web")]
+    #[cfg(any(feature = "web", feature = "dom"))]
     pub(crate) fn in_memory() -> Self {
         Self {
             #[cfg(feature = "window")]
@@ -77,7 +77,7 @@ impl AccessibilityDump {
         self.written = text;
     }
 
-    #[cfg(feature = "web")]
+    #[cfg(any(feature = "web", feature = "dom"))]
     pub(crate) fn text(&self) -> &str {
         &self.written
     }

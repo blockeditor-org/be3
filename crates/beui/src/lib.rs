@@ -1,7 +1,7 @@
 extern crate self as beui;
 
 mod accessibility;
-#[cfg(any(feature = "window", feature = "web"))]
+#[cfg(any(feature = "window", feature = "web", feature = "dom"))]
 mod app;
 mod base;
 mod color;
@@ -37,12 +37,18 @@ mod timer;
 pub mod unstyled;
 
 pub use accesskit;
+#[cfg(all(feature = "render", any(feature = "window", feature = "web")))]
+pub use app::OpenDevice;
+#[cfg(any(feature = "web", feature = "dom"))]
+pub use app::accessibility_tree;
+#[cfg(feature = "dom")]
+pub use app::run_dom;
+#[cfg(feature = "web")]
+pub use app::run_web;
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use app::send_android_back;
-#[cfg(any(feature = "window", feature = "web"))]
-pub use app::{App, OpenDevice, RunOptions, SafeArea, Setup, Waker};
-#[cfg(feature = "web")]
-pub use app::{accessibility_tree, run_web};
+#[cfg(any(feature = "window", feature = "web", feature = "dom"))]
+pub use app::{App, RunOptions, SafeArea, Setup, Waker};
 #[cfg(feature = "window")]
 pub use app::{run, run_with, send_back, set_safe_area};
 pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};

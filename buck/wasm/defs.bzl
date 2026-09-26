@@ -25,6 +25,14 @@ wasi_transition = transition(
     refs = {"wasi_guest": "root//buck/platforms:wasi_guest"} | PROFILE_REFS,
 )
 
+def _wasi_dom_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    return keep_profile(platform, refs.wasi_dom[PlatformInfo], refs)
+
+wasi_dom_transition = transition(
+    impl = _wasi_dom_transition_impl,
+    refs = {"wasi_dom": "root//buck/platforms:wasi_dom"} | PROFILE_REFS,
+)
+
 def _wasi_app_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return keep_profile(platform, refs.wasi[PlatformInfo], refs)
 
@@ -51,6 +59,14 @@ wasm32_module = rule(
 wasi_module = rule(
     attrs = {
         "library": attrs.transition_dep(cfg = wasi_transition),
+        "module": attrs.option(attrs.string(), default = None),
+    },
+    impl = _wasm_module_impl,
+)
+
+wasi_dom_module = rule(
+    attrs = {
+        "library": attrs.transition_dep(cfg = wasi_dom_transition),
         "module": attrs.option(attrs.string(), default = None),
     },
     impl = _wasm_module_impl,

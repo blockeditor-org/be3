@@ -97,6 +97,16 @@ wasi_app_module(
 
 web_files = glob(["web/*.html", "web/*.js"])
 
+# The WASI and wasi-threads shims, which beui-web-demo needs too.
+[
+    export_file(
+        name = shim,
+        src = "web/" + shim,
+        visibility = ["//crates/beui-web-demo:"],
+    )
+    for shim in ["wasi.js", "threads.js", "thread.js"]
+]
+
 app(
     name = "web",
     bindgen = [":web-module", "//crates/block-gpu-shim:module"],

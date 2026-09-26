@@ -14,6 +14,7 @@ _CONSTRAINTS = {
     "macos-arm64": "root//buck/platforms:macos_arm64_setting",
     "macos-x86_64": "root//buck/platforms:macos_x86_64_setting",
     "wasi": "root//buck/platforms:wasi_setting",
+    "wasi-dom": "root//buck/platforms:wasi_dom_setting",
     "wasi-guest": "root//buck/platforms:wasi_guest_setting",
     "wasm32": "prelude//os:none",
     "windows-arm64": "root//buck/platforms:windows_arm64_setting",

@@ -598,10 +598,7 @@ impl Inspector {
         let selection = self.selection_path(target);
         let summary = self.summary(target, ctx, &entries, selection.last().copied());
         let performance = panel::PerformanceSummary::from(target.performance());
-        let renderer = ctx
-            .renderer_info()
-            .map(|info| info.rows())
-            .unwrap_or_default();
+        let renderer = ctx.renderer_rows();
         let Self {
             document,
             set_keys,

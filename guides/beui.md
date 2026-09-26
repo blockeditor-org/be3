@@ -953,15 +953,25 @@ Run the repository examples with:
 ./scripts/buck run //crates/beui:demo-example
 ```
 
-Beui has three feature levels:
+Beui's features:
 
-- No features provides the document, components, layout, input model, and
-  painting output. This is enough for headless logic tests.
-- `render` adds the wgpu renderer without creating a window. Embedded hosts use
-  this level.
+- `fonts` lays text out and rasterises it with FreeType and HarfBuzz, from the
+  fonts beui carries in the binary.
+- `render` adds the wgpu renderer without creating a window, and enables
+  `fonts`. Embedded hosts use this level.
 - `window` adds the desktop runner and enables `render`; it is the default.
 - `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
   and enables `render`.
+- `dom` is the other browser runner, `beui::run_dom(element_id, options, app)`,
+  which draws with DOM elements instead of wgpu: layout, input and focus are
+  beui's as everywhere else, and each frame's shapes become
+  absolutely positioned elements, reconciled so that only what changed is
+  touched. Text is measured with the browser's own fonts (`font/browser.rs`),
+  so the module carries no fonts; the browser fetches the icon font from the
+  URL `RunOptions::icons_font` names. It replaces `fonts`, so it is built
+  alone: `crates/beui-web-demo` is the demo this way, a wasm plan of its own
+  (`wasi-dom`), and `./scripts/buck run //crates/beui-web-demo:web-serve`
+  serves it. A `Drawing`, a `Punch` and a `Filter` draw nothing there.
 
 `beui::run_with` takes `RunOptions` (title, app id, starting size, and on
 Android the `AndroidApp`) where `beui::run` takes only a title. The rest of

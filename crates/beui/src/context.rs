@@ -15,6 +15,7 @@ use crate::mouse_simulation::MouseSimulation;
 use crate::node::NodeId;
 use crate::paint::Painted;
 use crate::painter::{Painter, Shape};
+#[cfg(feature = "render")]
 use crate::renderer::RendererInfo;
 use crate::screen_simulation::ScreenSimulation;
 
@@ -59,6 +60,7 @@ struct Inner {
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
+    #[cfg(feature = "render")]
     renderer_info: RefCell<Option<RendererInfo>>,
 }
 
@@ -160,17 +162,30 @@ impl Context {
                 accessibility_known: RefCell::new(HashSet::new()),
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
+                #[cfg(feature = "render")]
                 renderer_info: RefCell::new(None),
             }),
         }
     }
 
+    #[cfg(feature = "render")]
     pub fn set_renderer_info(&self, info: RendererInfo) {
         *self.inner.renderer_info.borrow_mut() = Some(info);
     }
 
-    pub(crate) fn renderer_info(&self) -> Option<RendererInfo> {
-        self.inner.renderer_info.borrow().clone()
+    #[cfg(feature = "render")]
+    pub(crate) fn renderer_rows(&self) -> Vec<(&'static str, String)> {
+        self.inner
+            .renderer_info
+            .borrow()
+            .as_ref()
+            .map(RendererInfo::rows)
+            .unwrap_or_default()
+    }
+
+    #[cfg(not(feature = "render"))]
+    pub(crate) fn renderer_rows(&self) -> Vec<(&'static str, String)> {
+        vec![("Renderer", "DOM".to_owned())]
     }
 
     pub fn set_accessibility_active(&self, active: bool) {
@@ -688,6 +703,10 @@ impl Context {
                 .map(|(test_id, rect)| (test_id, rect.scaled(scale))),
         );
         result
+    }
+
+    pub(crate) fn fonts_generation(&self) -> u64 {
+        self.inner.fonts.borrow_mut().generation()
     }
 
     pub(crate) fn layout(&self, text: &str, font: FontId, layout: TextLayout) -> Galley {

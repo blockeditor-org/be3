@@ -1,0 +1,58 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/tools:defs.bzl", "tool")
+load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_dom_module")
+
+# beui's demo (crates/beui/examples/demo.rs) in a browser, drawn with DOM
+# elements rather than wgpu: `./scripts/buck run //crates/beui-web-demo:web-serve`.
+# build.rs names the demo for cargo; BEUI_DEMO below does for buck2.
+cargo_library(
+    env = {"BEUI_DEMO": "$(location //crates/beui:demo.rs)"},
+    rustc_flags = wasi_app_flags,
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+)
+
+wasi_dom_module(
+    name = "module",
+    library = ":beui-web-demo",
+    module = "beui_web_demo",
+)
+
+app(
+    name = "web",
+    bindgen = [":module"],
+    files = [
+        "web/index.html",
+        "//crates/beui:icons.ttf",
+        "//crates/block-app:wasi.js",
+        "//crates/block-app:threads.js",
+        "//crates/block-app:thread.js",
+    ],
+    manifests = [],
+    modules = [],
+    precompile = False,
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+# The bundle on http://127.0.0.1:8070, or on the address after `--`.
+tool(
+    name = "web-serve",
+    command = [
+        "sh",
+        "$(location :serve.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+        "$(location :web)",
+    ],
+)
+
+export_file(
+    name = "serve.sh",
+    src = "web/serve.sh",
+)
+
+export_file(
+    name = "Caddyfile",
+    src = "web/Caddyfile",
+)

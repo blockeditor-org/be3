@@ -20,6 +20,7 @@ use beui_macros::component;
 use std::sync::Arc;
 use text_editor_core::{EditorCommand, MarkdownCommand, TextBuffer, TextLanguage};
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     beui::run("beui demo", DemoApp::new())
 }
