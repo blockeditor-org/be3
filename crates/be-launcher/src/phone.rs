@@ -345,14 +345,6 @@ pub(crate) fn Actions(
     }
 }
 
-pub(crate) fn has_notes(
-    pull_request: Memo<PullRequest>,
-    timeline: ReadSignal<Loaded<Vec<Entry>>>,
-) -> Memo<bool> {
-    let _ = (pull_request, timeline);
-    create_memo(|| true)
-}
-
 #[component]
 pub(crate) fn Notes(
     model: Model,

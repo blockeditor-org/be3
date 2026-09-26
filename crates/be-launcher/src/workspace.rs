@@ -2,8 +2,8 @@ use beui::icons::{
     ICON_BUILD, ICON_DOWNLOAD, ICON_PLAY_ARROW, ICON_REFRESH, ICON_SCIENCE, ICON_SEARCH, ICON_STOP,
 };
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Text, VirtualList,
-    clone, component, create_memo, view,
+    Align, Direction, DynamicSegment, ForEach, Frame, ItemSize, List, ListChild, Memo, ReadSignal,
+    Show, Text, VirtualList, clone, component, create_memo, view,
 };
 use beui::styled::theme::FONT_BODY;
 use beui::styled::{
@@ -337,45 +337,35 @@ pub(crate) fn Actions(
     }
 }
 
-pub(crate) fn has_notes(
-    pull_request: Memo<PullRequest>,
-    timeline: ReadSignal<Loaded<Vec<Entry>>>,
-) -> Memo<bool> {
-    create_memo(move || {
-        !pull_request.get().same_repository
-            || match timeline.get() {
-                Loaded::Ready(entries) => branch_deleted(&entries),
-                _ => false,
-            }
-    })
-}
-
 #[component]
 pub(crate) fn Notes(
     model: Model,
     pull_request: Memo<PullRequest>,
     timeline: ReadSignal<Loaded<Vec<Entry>>>,
-) -> NodeId {
+) -> DynamicSegment<ListChild> {
     let _ = model;
     let fork = create_memo(move || !pull_request.get().same_repository);
     let deleted = create_memo(move || match timeline.get() {
         Loaded::Ready(entries) => branch_deleted(&entries),
         _ => false,
     });
+    let shown = create_memo(clone!(fork deleted -> move || fork.get() || deleted.get()));
     view! {
-        <List spacing=8.0>
-            <Show condition={fork}>
-                <Caption
-                    content="This pull request comes from a fork, so scripts/switch cannot check it out."
-                    wrap=true
-                />
-            </Show>
-            <Show condition={deleted}>
-                <Caption
-                    content="Its branch was deleted, so there is nothing to check out."
-                    wrap=true
-                />
-            </Show>
-        </List>
+        <Show condition={shown}>
+            <List spacing=8.0>
+                <Show condition={fork.clone()}>
+                    <Caption
+                        content="This pull request comes from a fork, so scripts/switch cannot check it out."
+                        wrap=true
+                    />
+                </Show>
+                <Show condition={deleted.clone()}>
+                    <Caption
+                        content="Its branch was deleted, so there is nothing to check out."
+                        wrap=true
+                    />
+                </Show>
+            </List>
+        </Show>
     }
 }

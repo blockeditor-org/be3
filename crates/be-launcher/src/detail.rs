@@ -15,11 +15,11 @@ use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone};
 use crate::markdown::Block;
 use crate::model::{Loaded, Model};
 #[cfg(target_os = "android")]
-use crate::phone::{Actions, Notes, has_notes};
+use crate::phone::{Actions, Notes};
 use crate::time::{now, relative};
 use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
 #[cfg(not(target_os = "android"))]
-use crate::workspace::{Actions, Notes, has_notes};
+use crate::workspace::{Actions, Notes};
 
 const SPACING: f32 = 12.0;
 const CARD_PADDING: f32 = 12.0;
@@ -148,7 +148,6 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let notes = model.clone();
     let noted = pull_request.clone();
     let notes_timeline = timeline.clone();
-    let noting = has_notes(pull_request.clone(), timeline.clone());
     let open = clone!(model pull_request -> move || model.open(&pull_request.get_untracked().url));
     let refresh =
         clone!(model pull_request -> move || model.refresh_timeline(&pull_request.get_untracked()));
@@ -188,13 +187,11 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                             on_click={refresh}
                         />
                     </List>
-                    <Show condition={noting}>
-                        <Notes
-                            model={notes.clone()}
-                            pull_request={noted.clone()}
-                            timeline={notes_timeline.clone()}
-                        />
-                    </Show>
+                    <Notes
+                        model={notes.clone()}
+                        pull_request={noted.clone()}
+                        timeline={notes_timeline.clone()}
+                    />
                     <Separator />
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

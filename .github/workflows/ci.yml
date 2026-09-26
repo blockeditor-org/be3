@@ -125,6 +125,14 @@ jobs:
           path: dist/block-app-android-aarch64/block-app.apk
           retention-days: 14
 
+      # The launcher for Android, signed with the same keystore, which runs the
+      # builds publish-android puts on be3-ci.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: be-launcher-android-aarch64
+          path: dist/be-launcher-android-aarch64/be-launcher.apk
+          retention-days: 14
+
       - uses: actions/upload-artifact@v7
         with:
           name: block-web

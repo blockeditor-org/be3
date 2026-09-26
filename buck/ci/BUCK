@@ -67,6 +67,7 @@ bundle(
     name = "artifacts",
     contents = {"block-" + name: ":dist-" + name for name in NATIVE}
     | {
+        "be-launcher-android-aarch64/be-launcher.apk": "//crates/be-launcher:android-dist",
         "block-android/build": ":android-run",
         "block-android/launcher.apk": "//crates/be-launcher:android-dist",
         "block-android/shell": "//crates/block-app:android-shell",
