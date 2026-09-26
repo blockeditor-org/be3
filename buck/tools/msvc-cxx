@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# clang++ for an MSVC target, with C++17 wherever C++11 or C++14 is asked for.
+#
+# MSVC's standard library is C++14 at the least, and says so with a
+# static_assert rather than by working: a build script that asks for C++11 -
+# harfbuzz-sys's, which is how a plugin host gets HarfBuzz on Windows - would
+# fail to compile against it. Nothing C++17 removed is anything these libraries
+# use, so the newer standard is the one they get.
+#
+# The compiler is the first argument. The loop is the same as wasm-ld's.
+compiler="$1"
+shift
+count=$#
+index=0
+while [ "$index" -lt "$count" ]; do
+    argument="$1"
+    shift
+    index=$((index + 1))
+    case "$argument" in
+        -std=c++11 | -std=c++14) argument=-std=c++17 ;;
+    esac
+    set -- "$@" "$argument"
+done
+exec "$compiler" "$@"

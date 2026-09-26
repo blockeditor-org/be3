@@ -280,6 +280,12 @@ impl Runtime {
             }
         }
         self.apply(forwarded);
+        if let Some(frame) = self.backend.received_frame() {
+            self.shared
+                .lock()
+                .unwrap()
+                .publish(&self.layout, Some(frame));
+        }
     }
 
     pub(super) fn apply(&mut self, messages: Vec<Message>) {
@@ -288,7 +294,8 @@ impl Runtime {
         }
         let mut answers = Vec::new();
         let mut changed = false;
-        for message in messages {
+        for mut message in messages {
+            self.instances.translate(&mut message, true);
             changed |= match message {
                 Message::Layout(layout) => {
                     self.layout = layout;
@@ -329,9 +336,12 @@ impl Runtime {
         });
     }
 
-    fn send(&mut self, messages: Vec<Message>) {
+    fn send(&mut self, mut messages: Vec<Message>) {
         if messages.is_empty() || self.error.is_some() {
             return;
+        }
+        for message in &mut messages {
+            self.instances.translate(message, false);
         }
         self.queued.extend(self.instances.gate(messages));
         self.deliver();

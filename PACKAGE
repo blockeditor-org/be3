@@ -1,9 +1,10 @@
 load("@prelude//rust:cargo_package.bzl", "set_reindeer_platforms")
 
-# Which reindeer platform a configuration is, which is how the generated rules
-# in third-party/rust/BUCK pick a feature set. This is the prelude's own map
-# with one addition: wasi-guest, the plugins, which is the same triple as wasi
-# and differs only by the constraint buck/constraints says why exists.
+# Which platform a configuration is, by the names buck/cargo/crates.bzl keys
+# cargo's plans by, which is how the third-party rules in third-party/rust pick
+# their features and dependencies. This is the prelude's own map with one
+# addition: wasi-guest, the plugins, which is the same triple as wasi and
+# differs only by the constraint buck/constraints says why exists.
 set_reindeer_platforms(
     select({
         "DEFAULT": None,

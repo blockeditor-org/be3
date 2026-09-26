@@ -1,2 +1,0 @@
-# The build script generates the WGL bindings from Khronos' registry.
-buildscript.run = true
