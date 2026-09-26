@@ -1,0 +1,8 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+# `./scripts/buck run //crates/be-launcher:launcher`
+cargo_binary(name = "launcher")

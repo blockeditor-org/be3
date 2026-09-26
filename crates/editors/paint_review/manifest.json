@@ -2,22 +2,28 @@
   "id": "be3.paint-review",
   "name": "Paint review",
   "version": "0.1.0",
-  "block_type": "7061696e-742d-7265-7669-65772d620001",
-  "display_name": "Paint review",
-  "icon": "\ueb7d",
-  "creation": "Immediate",
-  "interaction": "Live",
-  "capabilities": {
-    "rotation": false,
-    "preserve_aspect_ratio": false,
-    "pan_and_zoom": true
-  },
-  "regions": [
-    "Frame"
-  ],
-  "chrome": [
-    "Toolbar",
-    "LeftSidebar"
+  "editors": [
+    {
+      "block_type": "7061696e-742d-7265-7669-65772d620001",
+      "display_name": "Paint review",
+      "icon": "\ueb7d",
+      "templates": {
+        "main": {}
+      },
+      "interaction": "Live",
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": false,
+        "pan_and_zoom": true
+      },
+      "regions": [
+        "Frame"
+      ],
+      "chrome": [
+        "Toolbar",
+        "LeftSidebar"
+      ]
+    }
   ],
   "entry_point": "paint_review.wasm",
   "network": [

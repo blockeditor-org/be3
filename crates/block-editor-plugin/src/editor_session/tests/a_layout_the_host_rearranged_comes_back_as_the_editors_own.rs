@@ -75,6 +75,8 @@ fn a_layout_the_host_rearranged_comes_back_as_the_editors_own() {
                 PaneItem::Tabs {
                     count: 1,
                     active: 0,
+                    vertical: false,
+                    sidebar: 180.0,
                 },
                 PaneItem::Pane(PaneId(2)),
             ],

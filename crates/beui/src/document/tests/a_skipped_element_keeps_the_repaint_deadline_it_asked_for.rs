@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::{Drawing, view};
 
 const PANEL_HEIGHT: f32 = 200.0;
 
@@ -12,13 +12,9 @@ fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
             view! {
                 <List spacing=0.0>
                     <Frame @node_ref=&panel height={PANEL_HEIGHT} color=Color32::WHITE radius=0 />
-                    <Text
-                        @node_ref=&text
-                        string="hello"
-                        font_size=14.0
-                        color=Color32::WHITE
-                        caret=Some(0)
-                    />
+                    <Frame width=40.0 height=20.0>
+                        <Drawing @node_ref=&text draw={blinking()} />
+                    </Frame>
                 </List>
             }
         }
@@ -34,7 +30,7 @@ fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
         .set_frame_color(panel, Color32::from_gray(90));
     let output = harness.frame(Vec::new());
 
-    assert_eq!(paints.get(), settled, "the caret is outside the damage");
+    assert_eq!(paints.get(), settled, "the drawing is outside the damage");
     assert!(
         output.repaint_after < Duration::MAX,
         "a skipped element must still ask for the repaint it was waiting on"

@@ -106,12 +106,16 @@ pub struct TabPosition {
 pub const MIN_FRACTION: f32 = 0.05;
 pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
+pub const SIDEBAR_WIDTH: f32 = 180.0;
+pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Leaf {
     id: LeafId,
     entries: Vec<Entry>,
     active: usize,
+    vertical: bool,
+    sidebar: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -195,6 +199,8 @@ impl Node {
             id: target,
             entries: Vec::new(),
             active: 0,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         });
         let existing = std::mem::replace(slot, placeholder);
         *slot = build(existing);
@@ -258,6 +264,8 @@ pub enum DockTree {
     Tabs {
         entries: Vec<DockTreeEntry>,
         active: usize,
+        vertical: bool,
+        sidebar: f32,
     },
     Split {
         direction: Direction,
@@ -278,6 +286,8 @@ impl Default for DockTree {
         DockTree::Tabs {
             entries: Vec::new(),
             active: 0,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         }
     }
 }
@@ -308,7 +318,12 @@ impl DockTree {
 
     pub fn without(&self, dropped: &[TabId]) -> DockTree {
         match self {
-            DockTree::Tabs { entries, active } => {
+            DockTree::Tabs {
+                entries,
+                active,
+                vertical,
+                sidebar,
+            } => {
                 let shown = entries.get(*active);
                 let kept: Vec<DockTreeEntry> = entries
                     .iter()
@@ -328,6 +343,8 @@ impl DockTree {
                 DockTree::Tabs {
                     entries: kept,
                     active,
+                    vertical: *vertical,
+                    sidebar: *sidebar,
                 }
             }
             DockTree::Split {
@@ -399,6 +416,8 @@ impl DockState {
             id: LeafId(self.mint()),
             entries,
             active: 0,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         }
     }
 
@@ -601,6 +620,26 @@ impl DockState {
             && index < leaf.entries.len()
         {
             leaf.active = index;
+        }
+    }
+
+    pub fn is_vertical(&self, leaf: LeafId) -> bool {
+        self.leaf(leaf).is_some_and(|leaf| leaf.vertical)
+    }
+
+    pub fn set_vertical(&mut self, leaf: LeafId, vertical: bool) {
+        if let Some(leaf) = self.leaf_mut(leaf) {
+            leaf.vertical = vertical;
+        }
+    }
+
+    pub fn sidebar_width(&self, leaf: LeafId) -> f32 {
+        self.leaf(leaf).map_or(SIDEBAR_WIDTH, |leaf| leaf.sidebar)
+    }
+
+    pub fn set_sidebar_width(&mut self, leaf: LeafId, width: f32) {
+        if let Some(leaf) = self.leaf_mut(leaf) {
+            leaf.sidebar = width.max(MIN_SIDEBAR_WIDTH);
         }
     }
 
@@ -924,6 +963,113 @@ impl DockState {
         self.settle_focus();
     }
 
+    pub fn drop_leaf(&mut self, leaf: LeafId, target: DockDrop) {
+        let Some(moved) = self.leaf(leaf).cloned() else {
+            return;
+        };
+        if let [only] = moved.entries.as_slice() {
+            let only = *only;
+            self.drop_entry(only, target);
+            if let Some((landed, _)) = self.locate(only)
+                && landed != leaf
+                && self.entries(landed).len() == 1
+            {
+                self.dress(landed, moved.vertical, moved.sidebar);
+            }
+            return;
+        }
+        if let Some(onto) = target.leaf()
+            && (onto == leaf
+                || moved
+                    .entries
+                    .iter()
+                    .any(|entry| self.contains_leaf(*entry, onto)))
+        {
+            return;
+        }
+        let shown = moved.entries.get(moved.active).copied();
+        let landed = match target {
+            DockDrop::Tab { leaf: onto, index } | DockDrop::Group { leaf: onto, index } => {
+                self.prune(leaf);
+                self.insert_entries(onto, index, moved.entries, shown)
+            }
+            DockDrop::Pane { leaf: onto } => {
+                self.prune(leaf);
+                self.insert_entries(onto, usize::MAX, moved.entries, shown)
+            }
+            DockDrop::Split { leaf: onto, side } => {
+                self.prune(leaf);
+                let landed = match self.leaf(onto).is_some() {
+                    true => self.split_with(onto, side, 0.5, moved.entries),
+                    false => self.insert_entries(onto, usize::MAX, moved.entries, shown),
+                };
+                if let Some(landed) = landed {
+                    self.dress(landed, moved.vertical, moved.sidebar);
+                }
+                landed
+            }
+            DockDrop::Window { pos } => {
+                let window = self
+                    .surface_of(leaf)
+                    .filter(|_| !self.is_nested(leaf))
+                    .filter(|surface| self.leaves(*surface).len() == 1)
+                    .and_then(|surface| Some((surface, self.window_rect(surface)?)));
+                if let Some((surface, rect)) = window {
+                    self.set_window_rect(surface, Rect::from_min_size(pos, rect.size()));
+                    return;
+                }
+                self.prune(leaf);
+                let surface =
+                    self.open_window_with(Rect::from_min_size(pos, FLOATING_SIZE), moved.entries);
+                let landed = self.leaves(surface).first().copied();
+                if let Some(landed) = landed {
+                    self.dress(landed, moved.vertical, moved.sidebar);
+                }
+                landed
+            }
+        };
+        if let (Some(landed), Some(shown)) = (landed, shown)
+            && let Some(index) = self
+                .entries(landed)
+                .iter()
+                .position(|entry| *entry == shown)
+        {
+            self.set_active_index(landed, index);
+            self.focus(landed);
+        }
+        self.normalize();
+        self.settle_focus();
+    }
+
+    fn dress(&mut self, leaf: LeafId, vertical: bool, sidebar: f32) {
+        if let Some(leaf) = self.leaf_mut(leaf) {
+            leaf.vertical = vertical;
+            leaf.sidebar = sidebar;
+        }
+    }
+
+    fn insert_entries(
+        &mut self,
+        leaf: LeafId,
+        index: usize,
+        entries: Vec<Entry>,
+        shown: Option<Entry>,
+    ) -> Option<LeafId> {
+        let leaf = match self.leaf(leaf).is_some() {
+            true => leaf,
+            false => self.leaves(self.main()).first().copied()?,
+        };
+        let target = self.leaf_mut(leaf)?;
+        let index = index.min(target.entries.len());
+        target.entries.splice(index..index, entries);
+        if let Some(shown) = shown
+            && let Some(active) = target.entries.iter().position(|entry| *entry == shown)
+        {
+            target.active = active;
+        }
+        Some(leaf)
+    }
+
     pub fn group_with_next(&mut self, leaf: LeafId, index: usize) {
         let Some(next) = self.entries(leaf).get(index + 1).copied() else {
             return;
@@ -1054,6 +1200,8 @@ impl DockState {
             id: replacement,
             entries: Vec::new(),
             active: 0,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         });
         let taken = std::mem::replace(root, placeholder);
         match taken.without_leaf(leaf) {
@@ -1262,6 +1410,8 @@ impl DockState {
                     })
                     .collect(),
                 active: leaf.active,
+                vertical: leaf.vertical,
+                sidebar: leaf.sidebar,
             },
             Node::Split(split) => DockTree::Split {
                 direction: split.direction,
@@ -1332,7 +1482,12 @@ impl DockState {
 
     fn build(&mut self, layout: &DockTree) -> Node {
         match layout {
-            DockTree::Tabs { entries, active } => {
+            DockTree::Tabs {
+                entries,
+                active,
+                vertical,
+                sidebar,
+            } => {
                 let entries: Vec<Entry> = entries
                     .iter()
                     .map(|entry| match entry {
@@ -1351,6 +1506,8 @@ impl DockState {
                     .collect();
                 let mut leaf = self.new_leaf(entries);
                 leaf.active = (*active).min(leaf.entries.len().saturating_sub(1));
+                leaf.vertical = *vertical;
+                leaf.sidebar = sidebar.max(MIN_SIDEBAR_WIDTH);
                 Node::Leaf(leaf)
             }
             DockTree::Split {

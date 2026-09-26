@@ -1,5 +1,5 @@
 use beui::Direction;
-use beui::unstyled::{DockTree, DockTreeEntry, TabId};
+use beui::unstyled::{DockTree, DockTreeEntry, SIDEBAR_WIDTH, TabId};
 use block_plugin_api::{MAX_PANE_DEPTH, PaneId, PaneItem, PaneTree};
 
 pub fn pane_of(tab: TabId) -> PaneId {
@@ -22,7 +22,12 @@ pub fn pane_tree_with(tree: &DockTree, pane: &dyn Fn(TabId) -> Option<PaneId>) -
 
 fn write(tree: &DockTree, pane: &dyn Fn(TabId) -> Option<PaneId>, items: &mut Vec<PaneItem>) {
     match tree {
-        DockTree::Tabs { entries, active } => {
+        DockTree::Tabs {
+            entries,
+            active,
+            vertical,
+            sidebar,
+        } => {
             let kept: Vec<&DockTreeEntry> = entries
                 .iter()
                 .filter(|entry| match entry {
@@ -37,6 +42,8 @@ fn write(tree: &DockTree, pane: &dyn Fn(TabId) -> Option<PaneId>, items: &mut Ve
             items.push(PaneItem::Tabs {
                 count: kept.len() as u32,
                 active: active as u32,
+                vertical: *vertical,
+                sidebar: *sidebar,
             });
             for entry in kept {
                 match entry {
@@ -106,7 +113,12 @@ fn read(
                 second: Box::new(second),
             })
         }
-        PaneItem::Tabs { count, active } => {
+        PaneItem::Tabs {
+            count,
+            active,
+            vertical,
+            sidebar,
+        } => {
             let mut entries = Vec::new();
             for _ in 0..count {
                 let entry = match items.next()? {
@@ -119,6 +131,11 @@ fn read(
             Some(DockTree::Tabs {
                 active: (active as usize).min(entries.len().saturating_sub(1)),
                 entries,
+                vertical,
+                sidebar: match sidebar.is_finite() {
+                    true => sidebar,
+                    false => SIDEBAR_WIDTH,
+                },
             })
         }
         PaneItem::Pane(_) | PaneItem::Group => None,

@@ -18,15 +18,17 @@ pub(crate) enum SurfaceId {
     Main,
     Presenting,
     Creation,
+    NestedCreation,
     ArtifactSettings,
     Pane(u64),
 }
 
 impl SurfaceId {
-    const FIXED: [Self; 4] = [
+    const FIXED: [Self; 5] = [
         Self::Main,
         Self::Presenting,
         Self::Creation,
+        Self::NestedCreation,
         Self::ArtifactSettings,
     ];
 }

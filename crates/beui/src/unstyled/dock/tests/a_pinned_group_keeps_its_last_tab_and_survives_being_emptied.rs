@@ -7,6 +7,8 @@ fn tabs(ids: &[u64]) -> DockTree {
             .map(|id| DockTreeEntry::Tab(TabId::new(*id)))
             .collect(),
         active: 0,
+        vertical: false,
+        sidebar: SIDEBAR_WIDTH,
     }
 }
 

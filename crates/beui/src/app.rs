@@ -3,19 +3,31 @@ use std::sync::Arc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Rect, Vec2};
-use crate::input::{Event, TouchPhase};
+use crate::input::{Event, Key, Modifiers, TouchPhase};
 
+#[cfg(feature = "window")]
+mod accessibility_dump;
 #[cfg(feature = "window")]
 mod clipboard;
 #[cfg(feature = "window")]
 mod native;
+#[cfg(all(feature = "window", target_os = "android"))]
+mod soft_keyboard;
 #[cfg(feature = "web")]
 mod web;
 
 #[cfg(feature = "window")]
-pub use native::{run, run_with};
+pub use native::{run, run_with, set_safe_area};
 #[cfg(feature = "web")]
 pub use web::run_web;
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub struct SafeArea {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
 
 pub trait App {
     fn update(&mut self, context: &Context, rect: Rect);
@@ -72,6 +84,8 @@ pub struct RunOptions {
     pub title: String,
     pub app_id: Option<String>,
     pub size: Vec2,
+    #[cfg(feature = "window")]
+    pub accessibility_dump: Option<std::path::PathBuf>,
     #[cfg(feature = "render")]
     pub open_device: Option<OpenDevice>,
     #[cfg(all(feature = "window", target_os = "android"))]
@@ -84,6 +98,8 @@ impl RunOptions {
             title: title.into(),
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
+            #[cfg(feature = "window")]
+            accessibility_dump: None,
             #[cfg(feature = "render")]
             open_device: None,
             #[cfg(all(feature = "window", target_os = "android"))]
@@ -118,6 +134,42 @@ pub(crate) fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
             std::mem::replace(pending, rest)
         }
         None => std::mem::take(pending),
+    }
+}
+
+#[cfg_attr(not(all(feature = "window", target_os = "android")), allow(dead_code))]
+pub(crate) fn typed(old: &str, new: &str, events: &mut Vec<Event>) {
+    let common = old
+        .char_indices()
+        .zip(new.chars())
+        .find(|((_, before), after)| before != after)
+        .map_or(old.len().min(new.len()), |((index, _), _)| index);
+    for _ in old[common..].chars() {
+        press(Key::Backspace, events);
+    }
+    let mut rest = &new[common..];
+    while !rest.is_empty() {
+        let end = rest.find(['\n', '\t']).unwrap_or(rest.len());
+        if end > 0 {
+            events.push(Event::Text(rest[..end].to_owned()));
+        }
+        match rest[end..].chars().next() {
+            Some('\n') => press(Key::Enter, events),
+            Some('\t') => press(Key::Tab, events),
+            _ => {}
+        }
+        rest = rest.get(end + 1..).unwrap_or("");
+    }
+}
+
+fn press(key: Key, events: &mut Vec<Event>) {
+    for pressed in [true, false] {
+        events.push(Event::Key {
+            key,
+            pressed,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        });
     }
 }
 

@@ -9,6 +9,8 @@ fn layout(panes: &[u64], arrangement: u64) -> PaneLayout {
     let mut items = vec![PaneItem::Tabs {
         count: panes.len() as u32,
         active: 0,
+        vertical: false,
+        sidebar: 180.0,
     }];
     items.extend(panes.iter().map(|pane| PaneItem::Pane(PaneId(*pane))));
     PaneLayout {

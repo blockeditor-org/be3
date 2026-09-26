@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_plugin::be_block::ImageContent;
 use block_editor_plugin::beui::reactive::{
     Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, Picture, Show,
@@ -21,12 +19,9 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let reason = create_memo(clone!(shown -> move || shown.get().error.unwrap_or_default()));
 
     let chooser = FileChooser::new(filter(), imported);
-    let polled = Rc::clone(&chooser);
-    let host = editor.host().clone();
     let replacing = editor.clone();
-    editor.each_frame(move || {
-        polled.poll(&host);
-        if let Some(image) = polled.take() {
+    chooser.on_reply(editor.replies(), editor.host().clone(), move |chooser| {
+        if let Some(image) = chooser.take() {
             replacing.replace_content(replacing.block_id(), &image);
         }
     });

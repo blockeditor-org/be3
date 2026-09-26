@@ -10,6 +10,8 @@ fn setting_a_tree_moves_its_tabs_in_and_keeps_the_focused_tab_focused() {
             DockTreeEntry::Tab(TabId::new(11)),
         ],
         active: 1,
+        vertical: false,
+        sidebar: SIDEBAR_WIDTH,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);
     state.show(TabId::new(11));
@@ -25,6 +27,8 @@ fn setting_a_tree_moves_its_tabs_in_and_keeps_the_focused_tab_focused() {
         first: Box::new(DockTree::Tabs {
             entries: vec![DockTreeEntry::Tab(TabId::new(10))],
             active: 0,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         }),
         second: Box::new(DockTree::Tabs {
             entries: vec![
@@ -32,6 +36,8 @@ fn setting_a_tree_moves_its_tabs_in_and_keeps_the_focused_tab_focused() {
                 DockTreeEntry::Tab(TabId::new(12)),
             ],
             active: 0,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         }),
     };
     state.set_tree(Tree::Group(group), &split);

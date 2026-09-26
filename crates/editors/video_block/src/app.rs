@@ -69,8 +69,6 @@ impl block_editor_plugin::BeuiApp for VideoApp {
 #[component]
 fn VideoEditor(editor: Editor) -> NodeId {
     let state = VideoState::new(&editor);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
 
     let chrome = editor.chrome_shown();
     let bar = Rc::clone(&state);
@@ -106,8 +104,6 @@ fn VideoEditor(editor: Editor) -> NodeId {
 #[component]
 fn VideoPreview(editor: Editor) -> NodeId {
     let state = VideoState::new(&editor);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
     view! {
         <Player state={state} />
     }

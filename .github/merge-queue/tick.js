@@ -207,6 +207,17 @@ async function hydrate(entry, defaultBranch, required) {
     }
 }
 
+// Everything decided about the head was decided about the commit it was when
+// it was read. The autofix job pushes a fix as this queue's own app when CI on
+// that commit failed, so a failure seen here can already have been fixed on a
+// newer head, and dequeueing for it would drop a pull request the queue was
+// meant to keep. A human's push is not this function's concern: that arrives
+// as its own synchronize event.
+async function headMoved(head) {
+    const pullRequest = await github.get(github.repoPath(`/pulls/${head.number}`))
+    return pullRequest.head.sha !== head.headSha
+}
+
 // --- writing to the world -------------------------------------------------
 
 const LABELS = [
@@ -559,6 +570,11 @@ async function tick() {
 
     const action = decideTick({ queue, head })
     log(`decision -> ${action.kind}: ${action.reason}`)
+
+    if (action.kind === 'dequeue' && (await headMoved(head))) {
+        log(`#${head.number} has a new head since it was read; the next tick will re-evaluate`)
+        return
+    }
 
     await perform(action, head)
 }

@@ -8,6 +8,8 @@ fn a_dock_tree_survives_the_trip_through_panes() {
         first: Box::new(DockTree::Tabs {
             entries: vec![DockTreeEntry::Tab(TabId::new(1))],
             active: 0,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         }),
         second: Box::new(DockTree::Tabs {
             entries: vec![
@@ -18,9 +20,13 @@ fn a_dock_tree_survives_the_trip_through_panes() {
                         DockTreeEntry::Tab(TabId::new(4)),
                     ],
                     active: 1,
+                    vertical: false,
+                    sidebar: SIDEBAR_WIDTH,
                 }),
             ],
             active: 1,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
         }),
     };
 

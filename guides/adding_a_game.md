@@ -55,9 +55,9 @@ A game is one straight-line function over its action log:
 fn foo(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
     loop {
         helper.action(
-            |player| describe(player),
+            |player| Scene::new(describe(player)).on(board(player)),
             |player, action| {
-                if action("Do the thing") {
+                if action(Move::new("Do the thing").click(Spot::tile(0, 0))) {
                     // the log records this move for this player
                 }
             },
@@ -68,12 +68,40 @@ fn foo(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
 
 `helper.action` blocks on a player until the log supplies their move, so the
 game reads like a normal loop rather than a replay pass. Each legal move is
-offered by calling `action(label)`; when it answers `true`, that move is the
-one the log records next for that actor, so the state updates happen right
-there, inline. A move is identified by its position among the `action` calls
-reached for its actor, never by its label, so nothing a client sends can name
-a move it was not offered. When the log runs out, `action` returns the screen
-for the viewing player, which `?` propagates out.
+offered by calling `action(Move::new(label))`; when it answers `true`, that
+move is the one the log records next for that actor, so the state updates
+happen right there, inline. A move is identified by its position among the
+`action` calls reached for its actor, never by its label or its gesture, so
+nothing a client sends can name a move it was not offered. When the log runs
+out, `action` returns the screen for the viewing player, which `?` propagates
+out.
+
+### What the player sees
+
+A game never draws anything. The screen it returns is a `Scene`: a sentence
+for the viewer and a `Board` (`game_api::board`) that says what is on the
+table, and the Game block's editor decides what that looks like - which is
+what lets a player pick their own skin for the pieces. There are two boards:
+
+- `Grid` - columns and rows of `Tile`s, the top row first, each holding a
+  stack of `Sprite` layers painted bottom first. A layer is a `Square` (a
+  light or dark board square), a `Piece` (a `kind` such as `"x"`, `"o"` or
+  `"disc"`, and the `seat` it belongs to, which decides its colour), a
+  `Card` or a `CardBack`. Tic-Tac-Toe and Connect Four use it.
+- `CardTable` - a list of `Pile`s, each with a label, a `PilePlace` (the deck,
+  the discard pile, an extra pile, the viewer's own hand, or someone else's)
+  that says where on the table it goes, a `Spread` (stacked, showing its top
+  card, or fanned out) and its cards. `Table::board(viewer)` builds one for
+  the usual deck, discard pile and hands, with everyone else's hand face down.
+
+A move may carry a gesture, which is how a player makes it on the board
+rather than with a button: `.click(spot)` is a click on one `Spot` (a tile, a
+pile, or one card in a pile), and `.drag(from, to)` is dragging one spot onto
+another - or clicking the first and then the second. The editor highlights
+every spot a move can start from, and once one is picked up, every spot it
+can land on. Two moves may share a gesture - playing an eight onto the
+discard pile is four moves, one per suit it can call - and the editor then
+asks which one was meant. A move with no gesture is a button under the board.
 
 Some of what a rulebook says in one sentence is a paragraph of Rust, so
 `GameHelper` says those the short way too:
@@ -81,9 +109,11 @@ Some of what a rulebook says in one sentence is a paragraph of Rust, so
 - `helper.gather(2)?` fills a table before play begins - anyone may join,
   and once two have, any of them may start - and answers with the players in
   the order they joined.
-- `helper.turn(whose, yours, theirs, |choose| ...)` waits on the one player
-  whose turn it is, who is offered the moves `choose` names; everyone else
-  is only told they are waiting.
+- `helper.turn(whose, yours, theirs, board, |choose| ...)` waits on the one
+  player whose turn it is, who is offered the moves `choose` names; everyone
+  else is only told they are waiting. `board` is what each viewer sees
+  meanwhile; since `choose` changes the game's state, it looks at a copy of
+  the state taken before the turn.
 - `helper.game_over(|player| ...)` ends the game: every viewer is told how
   it ended and nobody is offered anything.
 
@@ -137,3 +167,8 @@ one of those: creating one opens the block picker filtered to game modules, so
 it plays a module the workspace already holds - or one imported from the picker
 there and then - and the module travels with the workspace rather than with the
 app.
+
+To try a game without a second client, the Game block's "Playing as" menu
+switches which player this client is: you, anyone who has moved already, or a
+new player who has not. Each is a player of their own in the log, so one person
+can play every side of a game.

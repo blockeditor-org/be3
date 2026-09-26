@@ -7,6 +7,8 @@ fn a_pane_tree_that_ends_early_is_refused() {
             PaneItem::Tabs {
                 count: 2,
                 active: 0,
+                vertical: false,
+                sidebar: SIDEBAR_WIDTH,
             },
             PaneItem::Pane(PaneId(1)),
         ],

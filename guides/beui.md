@@ -303,7 +303,19 @@ and `Stack`. `TextArea` is the multiline one: it owns a
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and reserves room for the inline and block `TextWidget`s the caller
 names - which is how a block editor puts an embedded block inside the text and
-drives the same document from a toolbar of its own. `MenuButton` is the button that opens a menu under itself, which is
+drives the same document from a toolbar of its own. The state republishes
+what it shows whenever one of its own commands runs; code that changes the
+document behind it - adopting an edit that arrived from someone else - calls
+`sync()`, or `external_edit()` when the edit should also break the undo group,
+since nothing polls the document for changes. It shows a `placeholder` while
+the document is empty, masks every character under `password`, and leaves a
+caret handle under a touch tap that drags the caret and opens its menu.
+`single_line` is the same control laid out on one unwrapped line with no
+gutter, scrolled sideways to keep the caret in view, where Enter submits and
+Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
+own focus and pointer handling. `TextInput` is that single-line mode over a
+plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
+fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was.
@@ -497,9 +509,28 @@ The bubble lives in a passive `Overlay`. It paints above everything, and
 unlike a menu or a dialog it takes no input at all: it is not in the overlay
 stack, so the document under it keeps answering the pointer, Escape still
 reaches whatever it was going to reach, and clicking the control the tooltip
-describes clicks the control. The dwell is measured with `each_frame`, which
-runs a callback inside the document's reactive scope once per frame and is
-disposed with the scope that registered it.
+describes clicks the control. The dwell is a `create_timer`, started when the
+pointer arrives and stopped when it leaves, so a tooltip nobody is hovering
+costs no frames.
+
+### Time: timers and animation
+
+beui has no per-frame hook. Work runs because a signal it reads changed, and
+anything that genuinely depends on time asks for it with `create_timer(work)`.
+The timer belongs to the reactive scope that created it and is dropped with
+it. `start(delay)` schedules `work` (keeping an earlier deadline if one is
+already set), `restart(delay)` replaces the deadline, `stop()` cancels it, and
+`running()` says whether one is pending. The document runs due timers inside
+its reactive scope at the top of a frame and asks the context for a repaint
+at the next deadline, so nothing is drawn while no timer is due. `work`
+returns `Some(delay)` to run again - an animation returns
+`Some(Duration::ZERO)` for the next frame - and `None` once it has settled,
+which is what lets a scroll fling or a spinner stop costing frames. Start a
+timer from the event or effect that begins the motion rather than leaving one
+running.
+
+`pixels_per_point()` is the document's scale as a signal, for layout that
+depends on it.
 
 ### Overlays, and things that float
 
@@ -610,17 +641,22 @@ shut out rather than answering a press through it.
 Dragging a tab picks a drop target from what is under the pointer: a tab bar
 inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
-instead, which is also what "Pop out into a window" on a tab's own menu does. A window
-holds one pane, so a tab dropped anywhere inside one joins it rather than
-splitting it, and the pane's tab bar is the window's title bar: a grip, the
-tabs, and the button that closes it. Anywhere on that bar that is not a tab
-drags the window, so the grip and whatever room is left beside the tabs are
-both handles. Windows resize from any of
+instead, which is also what "Pop out into a window" on a tab's own menu does. Every pane
+and every window wears the same bar: a grip, the tabs, and a button that closes
+them all, shown only when every tab in it can close. Dragging a docked pane's
+grip carries the whole pane (`DockState::drop_leaf`), with the same drop targets
+a tab has. A window holds one pane, so a tab dropped anywhere inside one joins
+it rather than splitting it, and that pane's bar is the window's title bar:
+anywhere on it that is not a tab drags the window. Right-clicking a grip moves
+that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
+whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
+that mode has no title bar, only the sidebar with the grip and the close button
+at its top. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
 registered with `on_shortcut` so they arrive even from inside a text input in a
 panel. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
-`Choice` inside a horizontal `Scroll`, so the arrows, Home and End walk it like
+`Choice` inside a `Scroll` running the way the bar does, so the arrows, Home and End walk it like
 any other tab list and scroll the tab they reach into view when a pane has more
 tabs than it has room for.
 
@@ -654,8 +690,7 @@ out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
 be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were
 elsewhere and keeping the focused tab focused. `group_title` names a group in
-its tab, and `closable` is honoured by every way of closing a tab, including a
-window's close button, which leaves behind the tabs it may not close.
+its tab.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
@@ -700,7 +735,10 @@ press only becomes a drag once the pointer has travelled `threshold` from where
 it went down, and a press that never does is reported through `on_click`
 instead, so a row that is both clickable and draggable does not select itself
 at the end of a drag. `on_drag_change` says when a drag starts and ends, which
-is what a source that dims itself while it is being carried binds.
+is what a source that dims itself while it is being carried binds. Draggables
+that overlap or nest - a fanned hand of cards, a card inside the pile that
+holds it - set `capture_presses`, so a press reaches the topmost one under the
+pointer and nothing beneath it, the way `unstyled::Button` wins a press.
 
 While a drag is under way the `preview` is shown beside the pointer in a
 passive overlay, so it paints above everything and takes no input. The pointer
@@ -1228,7 +1266,7 @@ block_editor_plugin::beui_plugin!(CounterApp, "../manifest.json");
 
 `Editor` is everything the instance was given: the host, the block, the
 `Blocks` handle it reaches the graph through, the view the host is showing the content through, and
-`each_frame(...)` for work that is neither a content projection nor a signal. The
+signals for everything the host tells it. The
 host supplies input, fonts, clipboard integration, rendering, and the frame
 rectangle. A plugin normally depends on beui without the window runner:
 
@@ -1240,19 +1278,32 @@ Block content reaches the view through a `ContentProjection`:
 `editor.block_content::<C>()` holds the content of the editor's own block,
 `project`, `field`, `ids` and `object` derive signals from it, and `operate`
 applies an edit and sends it to the host. The framework pumps every projection
-once at the top of the frame, inside the document's reactive scope. See the
-[reactive guide](reactive.md#blocks).
+once at the top of the frame, inside the document's reactive scope, and
+`read` and `revision` track, so a memo or effect that reads them runs again
+when the content changes. See the [reactive guide](reactive.md#blocks).
+
+Nothing in an editor polls. What the host sends between frames is recorded
+by the framework and delivered at the top of the next frame as signals on
+the `Editor`: `replies()` ticks when the host answers a request (a file or
+block pick, a pasted image, a fetch), and `on_reply(f)` runs `f` each time;
+`drag()` and `files()` carry a drag or a file drop over the editor;
+`audio()`, `history(block)`, `histories()`, `artifacts()`, `focused_block()`,
+`web_view_events()` and `peers::<P>()` follow the host's state;
+`block_types()` tracks the catalog; `placed()` is the content rect as a
+signal. Work on another thread takes its `Waker` from `editor.woken()`,
+whose signal ticks once the work has woken the editor, and an effect that
+reads that signal collects the result.
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
 creation flow, host connection, and current beui plugin capability limits.
 
-A plugin with `"creation": "Dialog"` implements `creation_view` instead, one
+A template the manifest marks `"dialog": true` is made through `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
 and shows in the host's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
-filled in. Host services such as `BlockPicker` work there too, polled from
-`creation.each_frame(...)`.
+filled in. Host services such as `BlockPicker` work there too, collected from
+`creation.on_reply(...)` when the host answers.
 
 ## Develop an unstyled component
 
@@ -1271,6 +1322,11 @@ Compose it from base components. For an interactive control this normally means:
 6. Return the root base node directly so component state and framework slots
    attach to the node callers receive.
 
+A catcher shows the `cursor` it is given while it is hovered or held, and
+one given none leaves the cursor to the catchers around it, so a catcher
+that only listens - for a secondary press, a wheel - does not undo the
+I-beam of the text field it wraps.
+
 A catcher takes the wheel with `on_scroll` and a touch drag with
 `on_scroll_drag`, and `scroll_axis` names the axis it takes them along, so a
 vertical wheel over a horizontal strip passes through to whatever is around it
@@ -1284,8 +1340,10 @@ presses at positions its callback accepts. Before any node handles a press the
 document asks the topmost nodes first, and only the captor receives it: focus
 stays where it is, touch scrolling does not start, and no other catcher arms.
 Paint such parts with `Painter::on_top`, which draws above the rest of the
-document, or of the overlay being painted. The touch selection handles of
-`unstyled::TextInput` use both.
+document, or of the overlay being painted, or from a `CanvasItem` with
+`clip=false`, which a canvas paints without cutting it to its own rectangle.
+The touch selection handles of `unstyled::TextArea` use `capture_at` and an
+unclipped item.
 
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control

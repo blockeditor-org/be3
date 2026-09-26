@@ -268,7 +268,7 @@ impl Instance {
             content: match role {
                 InstanceRole::Editor(block) => crate::be::is_known(block.block_type)
                     .then(|| ContentLink::new(block.block_type)),
-                InstanceRole::Creation | InstanceRole::Artifact(_) => None,
+                InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
         }
     }
@@ -752,6 +752,7 @@ impl Instances {
         instance: EditorInstanceId,
         client_id: Uuid,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        role: InstanceRole,
     ) -> bool {
         self.connect(client_id);
         if self.block_types.is_none() {
@@ -759,7 +760,7 @@ impl Instances {
         }
         self.entries
             .entry(instance)
-            .or_insert_with(|| Instance::new(InstanceRole::Creation))
+            .or_insert_with(|| Instance::new(role))
             .opened
     }
 
@@ -768,6 +769,7 @@ impl Instances {
         instance: EditorInstanceId,
         client_id: Uuid,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        source_type: Uuid,
         block: EditorBlock,
         data: &[u8],
         resync: bool,
@@ -777,7 +779,7 @@ impl Instances {
             self.block_types = Some(Arc::clone(block_types));
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
-            let mut entry = Instance::new(InstanceRole::Artifact(block));
+            let mut entry = Instance::new(InstanceRole::Artifact(source_type, block));
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -903,21 +905,28 @@ impl Instances {
                             editable
                         },
                     }),
-                    InstanceRole::Creation => Message::Editor(EditorMessage::OpenCreation {
-                        instance,
-                        account_id,
-                        workspace_id,
-                        client_id,
-                    }),
-                    InstanceRole::Artifact(block) => Message::Editor(EditorMessage::OpenArtifact {
-                        instance,
-                        block_id: block.id.into_bytes(),
-                        block_type: block.block_type.into_bytes(),
-                        account_id,
-                        workspace_id,
-                        client_id,
-                        data: entry.artifact.data.clone(),
-                    }),
+                    InstanceRole::Creation(editor, template) => {
+                        Message::Editor(EditorMessage::OpenCreation {
+                            instance,
+                            block_type: editor.into_bytes(),
+                            template: template.to_owned(),
+                            account_id,
+                            workspace_id,
+                            client_id,
+                        })
+                    }
+                    InstanceRole::Artifact(source_type, block) => {
+                        Message::Editor(EditorMessage::OpenArtifact {
+                            instance,
+                            source_type: source_type.into_bytes(),
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            account_id,
+                            workspace_id,
+                            client_id,
+                            data: entry.artifact.data.clone(),
+                        })
+                    }
                 });
             }
             opened.append(&mut entry.deferred);
@@ -1373,14 +1382,14 @@ impl Instances {
                     block: entry.role.block().map(|block| block.id),
                     role: match entry.role {
                         InstanceRole::Editor(_) => "editor",
-                        InstanceRole::Creation => "creation",
-                        InstanceRole::Artifact(_) => "artifact",
+                        InstanceRole::Creation(..) => "creation",
+                        InstanceRole::Artifact(..) => "artifact",
                     },
                     opened: entry.opened,
                     aspect_ratio: entry.aspect_ratio,
                     intrinsic: entry.intrinsic,
                     view: entry.view.map(|view| view.rect),
-                    artifact: matches!(entry.role, InstanceRole::Artifact(_)).then(|| {
+                    artifact: matches!(entry.role, InstanceRole::Artifact(..)).then(|| {
                         super::ArtifactStatus {
                             data: entry.artifact.data.len(),
                             draft: entry.artifact.draft.as_ref().map(Vec::len),

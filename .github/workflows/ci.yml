@@ -30,7 +30,8 @@ env:
 # Two jobs do the work. build is one buck2 build of everything CI builds, on
 # every platform, and uploads what ships. verify is ./scripts/buck run //:verify,
 # a runner for each of its three parts, which fixes what it can on a pull
-# request. autofix pushes those fixes, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
+# request. autofix pushes those fixes, paint-previews shows a pull request's
+# changed paintings in a comment, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
 # needs is buck2 and whatever runs here rather than there.
 jobs:
   # buck/ci/BUCK names what is built: //crates/... for the host, which is what
@@ -290,9 +291,9 @@ jobs:
   # not this repository's to push to, and a fork's run has no secrets to push
   # with, so there the failure and its patches are the whole of the answer.
   #
-  # Not in the gate below. Whether the pull request passes was decided by
-  # verify; this only decides whether its author has to push the fix
-  # themselves.
+  # The gate below waits for this but does not judge it. Whether the pull
+  # request passes was decided by verify; this only decides whether its author
+  # has to push the fix themselves.
   autofix:
     name: push autofixes
     if: >-
@@ -348,7 +349,11 @@ jobs:
       #
       # A head that is already this job's own commit and still needed fixing
       # is a fix that does not settle, and pushing again would only start the
-      # same run again, so that is where it stops and a person looks.
+      # same run again, so that is where it stops and a person looks. The
+      # author alone does not say which commit is this job's: the merge queue
+      # is the same app, and the merge it makes when it brings main into a
+      # pull request's branch is authored by it too. That merge can need fixes
+      # of its own, so the commit is recognised by its message as well.
       #
       # The push is to the branch by name and never forced. If the author
       # pushed while this ran, their commit wins, and the run their push
@@ -362,7 +367,8 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           author="$APP_SLUG[bot]"
-          if [ "$(git log -1 --format=%an)" = "$author" ]; then
+          message='style: apply the fixes from ./scripts/buck run //:verify'
+          if [ "$(git log -1 --format=%an)" = "$author" ] && [ "$(git log -1 --format=%s)" = "$message" ]; then
             echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/buck run //:verify and commit what it changes."
             exit 1
           fi
@@ -372,15 +378,147 @@ jobs:
           for patch in "$RUNNER_TEMP"/autofix/*.patch; do
             git apply --index "$patch"
           done
-          git commit --quiet --message 'style: apply the fixes from ./scripts/buck run //:verify'
+          git commit --quiet --message "$message"
           git show --stat HEAD
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
 
+  # Every painting a pull request changes, drawn before, after, and with what
+  # changed marked, in one comment on the pull request that each run edits
+  # rather than adding to. The paintings compared are the ones committed on
+  # the head, so a painting the autofix job accepts shows up in the run its
+  # commit starts.
+  #
+  # It is two jobs for the same reason verify and autofix are. This one builds
+  # and runs the rasterizer from the pull request, so it has no credentials;
+  # publish-paint-previews runs nothing from the pull request and does the
+  # writing. A fork's run has no BuildBuddy key to build with and no token to
+  # write with, so it has no previews.
+  #
+  # Not in the gate below: a preview is for the reviewer, and verify is what
+  # decides whether the paintings are right.
+  paint-previews:
+    name: render paint previews
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      # The whole history, since what the pull request changed is measured
+      # from where it left its base rather than from wherever the base is now.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/buck2
+
+      - name: Collect the paintings the pull request changed
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="$(git merge-base "$BASE" HEAD)"
+          before="$RUNNER_TEMP/paintings/before"
+          after="$RUNNER_TEMP/paintings/after"
+          mkdir -p "$before" "$after"
+          git diff --name-only --no-renames -z "$base" HEAD -- 'snapshots/*.paint' |
+            while IFS= read -r -d '' path; do
+              name="$(basename "$path")"
+              if git cat-file -e "$base:$path" 2> /dev/null; then
+                git show "$base:$path" > "$before/$name"
+              fi
+              if [ -e "$path" ]; then
+                cp "$path" "$after/$name"
+              fi
+            done
+
+      - name: Render them
+        run: >-
+          ./scripts/buck run //crates/paint-snapshot:preview-example --
+          "$RUNNER_TEMP/paintings/before" "$RUNNER_TEMP/paintings/after" "$RUNNER_TEMP/previews"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: paint-previews
+          path: ${{ runner.temp }}/previews
+          retention-days: 1
+
+  # The images go to the be3-ci Bunny storage zone as paint-previews/<hash>.png,
+  # named by the SHA-256 of their bytes, and the comment links them through the
+  # zone's CDN. A name that is its content's hash never changes what it points
+  # at, so an upload never has to replace anything a comment already links,
+  # and an image two runs both drew is stored once. The storage key is given to
+  # the upload step alone. What the artifact holds was made by the pull
+  # request's code, so it is only ever data here: files to upload and text to
+  # post.
+  #
+  # A pull request that no longer changes any painting has its comment edited
+  # to say so; one that never did gets no comment.
+  publish-paint-previews:
+    name: comment paint previews
+    needs: [paint-previews]
+    if: needs.paint-previews.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: paint-previews
+          path: ${{ runner.temp }}/previews
+
+      - name: Upload the previews
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for image in "$RUNNER_TEMP"/previews/*.png; do
+            curl --fail --silent --show-error --retry 3 --output /dev/null \
+              --request PUT \
+              --header "AccessKey: $BUNNY_STORAGE_KEY" \
+              --header 'Content-Type: image/png' \
+              --upload-file "$image" \
+              "https://storage.bunnycdn.com/be3-ci/paint-previews/$(basename "$image")"
+          done
+
+      - name: Comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          previews="$RUNNER_TEMP/previews"
+          comment="$RUNNER_TEMP/comment.md"
+          sed 's|PREVIEW_ROOT|https://be3-ci.b-cdn.net/paint-previews|g' "$previews/comment.md" > "$comment"
+
+          existing="$(gh api --paginate "repos/$REPOSITORY/issues/$NUMBER/comments" --jq \
+            '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- paint-previews -->"))) | .id' |
+            sed -n 1p)"
+
+          if [ -n "$existing" ]; then
+            jq --raw-input --slurp '{body: .}' "$comment" |
+              gh api --method PATCH "repos/$REPOSITORY/issues/comments/$existing" --input - > /dev/null
+          elif compgen -G "$previews/*.png" > /dev/null; then
+            jq --raw-input --slurp '{body: .}' "$comment" |
+              gh api --method POST "repos/$REPOSITORY/issues/$NUMBER/comments" --input - > /dev/null
+          else
+            echo 'The pull request changes no paintings.'
+          fi
+
   # The one check the ruleset on main requires, and the only thing the merge
-  # queue in merge-queue.yml waits for. Everything above is a job this needs,
-  # so requiring this one name requires all of them, and adding a job to the
-  # list above extends the gate without anyone editing the ruleset.
+  # queue in merge-queue.yml waits for. Every job it names in needs other than
+  # autofix has to pass, so requiring this one name requires all of them, and
+  # adding a job to the check below extends the gate without anyone editing
+  # the ruleset.
+  #
+  # It waits for autofix without judging it. A failure here is what makes the
+  # merge queue give up on a pull request, and a verification the autofix job
+  # is about to fix is not one to give up on: the fix is pushed as the queue's
+  # own app, which the queue keeps queued, and CI starts again on it. Waiting
+  # means that by the time this fails, that push has already happened.
   #
   # always(), and nothing else. A job whose `if` is false does not run, and
   # GitHub reports what did not run as a skipped check run, which a required
@@ -393,12 +531,11 @@ jobs:
   ci-ok:
     name: 'CI OK'
     if: always()
-    needs: [build, verify]
+    needs: [build, verify, autofix]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to have passed
         if: >-
-          contains(needs.*.result, 'failure') ||
-          contains(needs.*.result, 'cancelled') ||
-          contains(needs.*.result, 'skipped')
+          needs.build.result != 'success' ||
+          needs.verify.result != 'success'
         run: exit 1

@@ -1,15 +1,17 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 
-use be_block::{BlockContent, BlockMetadata, CanvasContent};
 use be_graph::BlockParent;
 use beui::Rect;
+use block_plugin_api::TemplateCategory;
 use uuid::Uuid;
 
 use crate::{
-    editors::{BlockLabel, CreationStep, EditorAccess, PendingCreation, PluginEditor},
+    editors::{
+        BlockLabel, CreationStep, EditorAccess, EditorRegistry, PendingCreation,
+        plugin::CreationTarget,
+    },
     host::{SurfaceOutput, Ui},
-    slide_templates::SlideTemplate,
     surfaces::{self, SurfaceId},
 };
 
@@ -24,8 +26,7 @@ pub(crate) enum PickerTab {
 pub(crate) enum PickerAction {
     Tab(PickerTab),
     Search(String),
-    Add(Uuid),
-    Template(usize),
+    Make(TileAction),
     Link(Uuid),
     Close,
     Create,
@@ -44,14 +45,21 @@ pub(crate) struct Tile {
     pub(crate) key: String,
     pub(crate) label: String,
     pub(crate) icon: String,
-    pub(crate) important: bool,
     pub(crate) action: TileAction,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum TileAction {
-    Add(Uuid),
-    Template(usize),
+pub(crate) struct TileAction {
+    pub(crate) editor: Uuid,
+    pub(crate) template: &'static str,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TileSection {
+    pub(crate) key: String,
+    pub(crate) title: String,
+    pub(crate) icon: Option<String>,
+    pub(crate) tiles: Vec<Tile>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,7 +74,7 @@ pub(crate) struct LinkRow {
 pub(crate) struct ChooseView {
     pub(crate) tab: PickerTab,
     pub(crate) search: String,
-    pub(crate) tiles: Vec<Tile>,
+    pub(crate) sections: Vec<TileSection>,
     pub(crate) links: Vec<LinkRow>,
     pub(crate) empty: String,
 }
@@ -82,6 +90,7 @@ pub(crate) struct CreateView {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PickerView {
     pub(crate) id: Uuid,
+    pub(crate) depth: usize,
     pub(crate) choose: Option<ChooseView>,
     pub(crate) create: Option<CreateView>,
     pub(crate) error: Option<String>,
@@ -90,19 +99,22 @@ pub(crate) struct PickerView {
 #[derive(Default)]
 struct Board {
     inbox: Vec<PickerCommand>,
-    view: Option<PickerView>,
+    views: Vec<PickerView>,
 }
 
 thread_local! {
     static BOARD: RefCell<Board> = RefCell::new(Board::default());
+    static DEPTH: Cell<usize> = const { Cell::new(0) };
 }
 
 pub(crate) fn deliver(command: PickerCommand) {
     BOARD.with(|board| board.borrow_mut().inbox.push(command));
 }
 
-pub(crate) fn view() -> Option<PickerView> {
-    BOARD.with(|board| board.borrow_mut().view.take())
+pub(crate) fn views() -> Vec<PickerView> {
+    let mut views = BOARD.with(|board| std::mem::take(&mut board.borrow_mut().views));
+    views.sort_by_key(|view| view.depth);
+    views
 }
 
 fn take_actions(picker: Uuid) -> Vec<PickerAction> {
@@ -117,16 +129,26 @@ fn take_actions(picker: Uuid) -> Vec<PickerAction> {
 }
 
 fn publish(view: PickerView) {
+    if view.choose.is_none() && view.create.is_none() && view.error.is_none() {
+        return;
+    }
     BOARD.with(|board| {
         let mut board = board.borrow_mut();
-        if board.view.is_none() {
-            board.view = Some(view);
+        if board.views.iter().all(|shown| shown.id != view.id) {
+            board.views.push(view);
         }
     });
 }
 
+pub(crate) fn creation_surface(depth: usize) -> SurfaceId {
+    match depth {
+        0 => SurfaceId::Creation,
+        _ => SurfaceId::NestedCreation,
+    }
+}
+
 struct PendingBlock {
-    block_type: Uuid,
+    target: CreationTarget,
     creation: Box<dyn PendingCreation>,
     creating: bool,
     step: Option<CreationStep>,
@@ -140,6 +162,7 @@ pub struct BlockPickerResult {
 
 pub struct BlockPicker {
     id: Uuid,
+    depth: usize,
     open: bool,
     tab: PickerTab,
     search: String,
@@ -153,6 +176,7 @@ impl Default for BlockPicker {
     fn default() -> Self {
         Self {
             id: Uuid::new_v4(),
+            depth: 0,
             open: false,
             tab: PickerTab::Add,
             search: String::new(),
@@ -199,21 +223,16 @@ impl BlockPicker {
         editors: &mut EditorAccess<'_>,
         created_parent: BlockParent,
     ) -> Option<BlockPickerResult> {
+        self.depth = DEPTH.get();
         let mut result = None;
         for action in take_actions(self.id) {
             match action {
                 PickerAction::Tab(tab) => self.tab = tab,
                 PickerAction::Search(search) => self.search = search,
                 PickerAction::Close => self.open = false,
-                PickerAction::Add(block_type) => {
+                PickerAction::Make(tile) => {
                     self.open = false;
-                    result = result.or_else(|| self.create_registered_block(editors, block_type));
-                }
-                PickerAction::Template(index) => {
-                    self.open = false;
-                    if let Some(template) = SlideTemplate::ALL.get(index).copied() {
-                        result = Some(Self::finish_template(editors, template, created_parent));
-                    }
+                    self.create_from_template(editors, tile);
                 }
                 PickerAction::Link(id) => {
                     self.open = false;
@@ -246,36 +265,13 @@ impl BlockPicker {
         let registry = editors.registry();
         PickerView {
             id: self.id,
+            depth: self.depth,
             choose: self.open.then(|| {
-                let mut tiles: Vec<Tile> = match self.tab {
-                    PickerTab::Add => registry
-                        .new_block_actions()
-                        .iter()
-                        .filter(|(_, block_type, _)| {
-                            self.allowed.is_empty() || self.allowed.contains(block_type)
-                        })
-                        .map(|&(label, block_type, important)| Tile {
-                            key: block_type.to_string(),
-                            label: label.to_owned(),
-                            icon: registry.icon(block_type).unwrap_or_default().to_owned(),
-                            important,
-                            action: TileAction::Add(block_type),
-                        })
-                        .collect(),
-                    PickerTab::Templates => SlideTemplate::ALL
-                        .iter()
-                        .enumerate()
-                        .map(|(index, template)| Tile {
-                            key: format!("template-{index}"),
-                            label: template.label().to_owned(),
-                            icon: template.icon().to_owned(),
-                            important: true,
-                            action: TileAction::Template(index),
-                        })
-                        .collect(),
+                let sections = match self.tab {
+                    PickerTab::Add => add_sections(registry, &self.allowed),
+                    PickerTab::Templates => template_sections(registry, &self.allowed),
                     PickerTab::LinkExisting => Vec::new(),
                 };
-                tiles.sort_by_key(|tile| !tile.important);
                 let query = self.search.trim().to_lowercase();
                 let links: Vec<LinkRow> = match self.tab {
                     PickerTab::LinkExisting => crate::be::nodes()
@@ -304,7 +300,7 @@ impl BlockPicker {
                 ChooseView {
                     tab: self.tab,
                     search: self.search.clone(),
-                    tiles,
+                    sections,
                     links,
                     empty: match query.is_empty() {
                         true => "No blocks are available to link.".to_owned(),
@@ -313,7 +309,7 @@ impl BlockPicker {
                 }
             }),
             create: self.pending_block.as_ref().map(|pending| {
-                let title = registry.display_name(pending.block_type).unwrap_or("block");
+                let title = pending.target.name;
                 let (working, ready) = match pending.step {
                     Some(CreationStep::Working) | None => (true, false),
                     Some(CreationStep::Options(ready)) => (false, ready),
@@ -329,24 +325,21 @@ impl BlockPicker {
         }
     }
 
-    fn create_registered_block(
-        &mut self,
-        editors: &mut EditorAccess<'_>,
-        block_type: Uuid,
-    ) -> Option<BlockPickerResult> {
-        match editors.registry().create(block_type) {
-            Some(creation) => {
+    fn create_from_template(&mut self, editors: &mut EditorAccess<'_>, tile: TileAction) {
+        match editors.registry().create(tile.editor, tile.template) {
+            Some((target, creation)) => {
                 self.pending_block = Some(PendingBlock {
-                    block_type,
+                    target,
                     creation,
                     creating: false,
                     step: None,
                 });
-                None
             }
             None => {
-                self.error = Some(format!("Could not create block type {block_type}"));
-                None
+                self.error = Some(format!(
+                    "Could not create template {} of {}",
+                    tile.template, tile.editor
+                ));
             }
         }
     }
@@ -357,13 +350,16 @@ impl BlockPicker {
         parent: BlockParent,
     ) -> Option<BlockPickerResult> {
         let mut pending = self.pending_block.take()?;
-        surfaces::set_height(SurfaceId::Creation, pending.creation.height());
-        let step = surfaces::with(SurfaceId::Creation, |ui| pending.creation.ui(ui, editors))
-            .unwrap_or_else(|| {
+        let surface = creation_surface(self.depth);
+        surfaces::set_height(surface, pending.creation.height());
+        DEPTH.set(self.depth + 1);
+        let step =
+            surfaces::with(surface, |ui| pending.creation.ui(ui, editors)).unwrap_or_else(|| {
                 let mut scratch = SurfaceOutput::default();
                 let mut ui = Ui::new(&mut scratch, Rect::ZERO, Rect::ZERO, 1);
                 pending.creation.ui(&mut ui, editors)
             });
+        DEPTH.set(self.depth);
         if matches!(step, CreationStep::Working) {
             pending.creating = true;
         }
@@ -373,12 +369,12 @@ impl BlockPicker {
             return None;
         }
         match pending.creation.create() {
-            Ok(Some(editor)) => {
-                surfaces::set_height(SurfaceId::Creation, None);
+            Ok(Some(id)) => {
+                surfaces::set_height(surface, None);
                 Some(Self::finish_creation(
                     editors,
-                    editor,
-                    pending.block_type,
+                    id,
+                    pending.target.block_type,
                     parent,
                 ))
             }
@@ -387,44 +383,22 @@ impl BlockPicker {
                 None
             }
             Err(error) => {
-                surfaces::set_height(SurfaceId::Creation, None);
+                surfaces::set_height(surface, None);
                 self.error = Some(error);
                 None
             }
         }
     }
 
-    fn finish_template(
-        editors: &mut EditorAccess<'_>,
-        template: SlideTemplate,
-        parent: BlockParent,
-    ) -> BlockPickerResult {
-        let canvas = crate::slide_templates::build_template_canvas(template);
-        let id = Uuid::new_v4();
-        crate::be::create(
-            id,
-            CanvasContent::CONTENT_TYPE,
-            parent,
-            BlockMetadata::default(),
-            Some(canvas.encode()),
-        );
-        editors.ensure(id, CanvasContent::CONTENT_TYPE);
-        BlockPickerResult {
-            id,
-            block_type: CanvasContent::CONTENT_TYPE,
-            linked: false,
-        }
-    }
-
     fn finish_creation(
         editors: &mut EditorAccess<'_>,
-        editor: PluginEditor,
-        block_type: Uuid,
+        id: Uuid,
+        declared: Uuid,
         parent: BlockParent,
     ) -> BlockPickerResult {
-        let id = editor.id();
+        let block_type = crate::be::node(id).map_or(declared, |node| node.content_type);
         crate::be::set_parent(id, parent);
-        editors.insert(editor);
+        editors.ensure(id, block_type);
         BlockPickerResult {
             id,
             block_type,
@@ -432,3 +406,80 @@ impl BlockPicker {
         }
     }
 }
+
+fn offered(
+    registry: &EditorRegistry,
+    allowed: &HashSet<Uuid>,
+) -> Vec<(Tile, TemplateCategory, Uuid)> {
+    registry
+        .templates()
+        .iter()
+        .filter(|entry| allowed.is_empty() || allowed.contains(&entry.target.block_type))
+        .map(|entry| {
+            let action = TileAction {
+                editor: entry.target.editor,
+                template: entry.target.template,
+            };
+            let tile = Tile {
+                key: format!("{}/{}", action.editor, action.template),
+                label: entry.target.name.to_owned(),
+                icon: entry.icon.to_owned(),
+                action,
+            };
+            (tile, entry.category, entry.target.editor)
+        })
+        .collect()
+}
+
+pub(crate) fn add_sections(registry: &EditorRegistry, allowed: &HashSet<Uuid>) -> Vec<TileSection> {
+    let offered = offered(registry, allowed);
+    [
+        (TemplateCategory::Important, "Common"),
+        (TemplateCategory::Regular, "More blocks"),
+        (TemplateCategory::Debug, "Debug"),
+    ]
+    .into_iter()
+    .map(|(category, title)| {
+        let mut tiles: Vec<Tile> = offered
+            .iter()
+            .filter(|(_, offered, _)| *offered == category)
+            .map(|(tile, _, _)| tile.clone())
+            .collect();
+        tiles.sort_by(|a, b| a.label.cmp(&b.label));
+        TileSection {
+            key: format!("{category:?}"),
+            title: title.to_owned(),
+            icon: None,
+            tiles,
+        }
+    })
+    .filter(|section| !section.tiles.is_empty())
+    .collect()
+}
+
+pub(crate) fn template_sections(
+    registry: &EditorRegistry,
+    allowed: &HashSet<Uuid>,
+) -> Vec<TileSection> {
+    let mut sections: Vec<TileSection> = Vec::new();
+    for (tile, category, editor) in offered(registry, allowed) {
+        if category != TemplateCategory::Template {
+            continue;
+        }
+        let key = editor.to_string();
+        match sections.iter_mut().find(|section| section.key == key) {
+            Some(section) => section.tiles.push(tile),
+            None => sections.push(TileSection {
+                key,
+                title: registry.display_name(editor).unwrap_or_default().to_owned(),
+                icon: registry.icon(editor).map(str::to_owned),
+                tiles: vec![tile],
+            }),
+        }
+    }
+    sections.sort_by(|a, b| a.title.cmp(&b.title));
+    sections
+}
+
+#[cfg(test)]
+mod tests;

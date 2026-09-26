@@ -21,7 +21,8 @@ pub(crate) struct Runtime {
 }
 
 impl Runtime {
-    pub(crate) fn new<A: crate::BeuiApp>(
+    pub(crate) fn new(
+        apps: Vec<(uuid::Uuid, crate::screens::Opener)>,
         id: &str,
         name: &str,
         version: &str,
@@ -29,7 +30,7 @@ impl Runtime {
     ) -> Self {
         Self {
             session: ClientSession::new(id, name, version),
-            screens: Screens::new::<A>(waker),
+            screens: Screens::new(apps, waker),
             surface: None,
             generation: 0,
             asked: false,

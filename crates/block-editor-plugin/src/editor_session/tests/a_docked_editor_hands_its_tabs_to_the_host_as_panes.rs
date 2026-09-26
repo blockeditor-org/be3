@@ -88,6 +88,8 @@ fn a_docked_editor_hands_its_tabs_to_the_host_as_panes() {
             PaneItem::Tabs {
                 count: 2,
                 active: 0,
+                vertical: false,
+                sidebar: 180.0,
             },
             PaneItem::Pane(PaneId(1)),
             PaneItem::Pane(PaneId(2)),

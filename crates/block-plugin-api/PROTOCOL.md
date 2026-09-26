@@ -70,9 +70,17 @@ of any length: the host forwards them in both directions without interpreting
 them, and the server treats each instance as a separate client of the one
 connection.
 
-An editor whose block cannot be made until something has been filled in is
-opened as a creation dialog instead of on a block: it has a client of its own
-but no block, and is given a frame with no chrome bands. It reports whether the dialog
+A plugin may edit several block types, and every message that opens an
+instance names the block type whose editor it is for, which is how the plugin
+picks the editor to run: the block's own type, the type of the editor whose
+template is being made, or the type of the block an artifact was generated
+from.
+
+Every block is made from a template the plugin's manifest declares, and an
+instance opened to make one is opened as a creation instance instead of on a
+block, naming the template it makes: it has a client of its own but no block,
+and a template the manifest marks as a dialog is also given a frame with no
+chrome bands, in which it asks what it needs first. It reports whether the dialog
 has been filled in, which is what lets the user accept it. On acceptance the
 host asks the instance to commit, and the instance creates the block through
 its own client and answers with the block's id, or with why it could not be

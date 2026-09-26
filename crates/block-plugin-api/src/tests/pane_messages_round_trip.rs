@@ -11,17 +11,23 @@ fn pane_messages_round_trip() {
             PaneItem::Tabs {
                 count: 1,
                 active: 0,
+                vertical: false,
+                sidebar: 180.0,
             },
             PaneItem::Pane(PaneId(1)),
             PaneItem::Tabs {
                 count: 2,
                 active: 1,
+                vertical: false,
+                sidebar: 180.0,
             },
             PaneItem::Pane(PaneId(2)),
             PaneItem::Group,
             PaneItem::Tabs {
                 count: 1,
                 active: 0,
+                vertical: false,
+                sidebar: 180.0,
             },
             PaneItem::Pane(PaneId(3)),
         ],

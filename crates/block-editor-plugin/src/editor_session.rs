@@ -3,7 +3,7 @@ use beui::unstyled::{DockState, TabId, Tree};
 use block_plugin_api::{
     ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
-    FrameReport, FrameSpec, HostReply, ImeArea, InputEvent, Key, MAX_CHILDREN,
+    FrameReport, FrameSpec, HostReply, ImeArea, ImeInput, InputEvent, Key, MAX_CHILDREN,
     MAX_COLLECTION_ITEMS, Message, Occluder, PaneId, PaneInfo, PaneLayout, PaneTree, PointerButton,
     RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent,
     WheelUnit,
@@ -147,7 +147,7 @@ trait AppUi {
     fn preview(&mut self, context: &beui::Context, rect: beui::Rect);
     fn artifact_settings(&mut self, context: &beui::Context, rect: beui::Rect, draft: &mut Vec<u8>);
     fn connect(&mut self, host: EditorHost, block_id: Uuid);
-    fn connect_creation(&mut self, host: EditorHost);
+    fn connect_creation(&mut self, host: EditorHost, template: String);
     fn create_block(&mut self) -> Result<Uuid, String>;
     fn connect_artifact(&mut self, host: EditorHost, artifact: crate::Artifact);
     fn describe_artifact(&mut self, data: &[u8]) -> ArtifactDescription;
@@ -240,8 +240,8 @@ impl<A: crate::BeuiApp> AppUi for BeuiHolder<A> {
         self.preview_document = None;
     }
 
-    fn connect_creation(&mut self, host: EditorHost) {
-        let creation = crate::Creation::new(host);
+    fn connect_creation(&mut self, host: EditorHost, template: String) {
+        let creation = crate::Creation::for_template(host, template);
         let built = creation.clone();
         self.dialog = Some(beui::reactive::build(move || A::creation_view(built)));
         self.creation = Some(creation);
@@ -643,10 +643,10 @@ impl EditorSession {
         self.app.connect(self.host.clone(), block_id);
     }
 
-    pub(crate) fn connect_creation(&mut self) {
+    pub(crate) fn connect_creation(&mut self, template: String) {
         self.creating = true;
         self.host.set_editable(true);
-        self.app.connect_creation(self.host.clone());
+        self.app.connect_creation(self.host.clone(), template);
     }
 
     pub(crate) fn connect_artifact(&mut self, block_id: Uuid, block_type: Uuid, data: Vec<u8>) {
@@ -1321,6 +1321,10 @@ impl EditorSession {
                 true => CursorIcon::Crosshair,
                 false => beui_cursor(output.cursor_icon),
             };
+            state.ime = output.ime.map(|area| ImeArea {
+                rect: reported(area.rect),
+                cursor: reported(area.cursor),
+            });
             state.report = (region == EditorRegion::Frame).then(|| FrameReport {
                 screen,
                 content: reported(reported_content),
@@ -1465,7 +1469,13 @@ impl EditorSession {
                 state.emulated_touch = false;
                 state.events.push(beui::Event::Focus(false));
             }
-            InputEvent::Ime(_) | InputEvent::Focus(_) => {}
+            InputEvent::Ime(ime) => state.events.push(beui::Event::Ime(match ime {
+                ImeInput::Enabled => beui::ImeEvent::Enabled,
+                ImeInput::Preedit(text) => beui::ImeEvent::Preedit(text.clone()),
+                ImeInput::Commit(text) => beui::ImeEvent::Commit(text.clone()),
+                ImeInput::Disabled => beui::ImeEvent::Disabled,
+            })),
+            InputEvent::Focus(_) => {}
         }
     }
 }
