@@ -22,8 +22,6 @@ pub(crate) use debug::{
     DebugCommand, DebugView, DebugWindow, Line, LineStyle, PerformanceRow, PluginsView, RunView,
     RuntimeView, VersionRuns, VersionView,
 };
-#[cfg(feature = "terminal")]
-pub(crate) use debug::{TerminalInput, TerminalRow, TerminalSpan, TerminalView};
 
 thread_local! {
     static COMMANDS: RefCell<Vec<UiCommand>> = const { RefCell::new(Vec::new()) };

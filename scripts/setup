@@ -72,6 +72,9 @@ packages+=(libgbm1 libinput10 libseat1 libudev1)
 # ./scripts/buck run //crates/block-app:smoke starts the app against a virtual
 # display.
 packages+=(xvfb)
+# ./scripts/buck run //crates/block-app:dev drives the app in that display:
+# xdotool sends it input and ImageMagick's import takes screenshots of it.
+packages+=(xdotool imagemagick)
 
 missing=()
 for package in "${packages[@]}"; do

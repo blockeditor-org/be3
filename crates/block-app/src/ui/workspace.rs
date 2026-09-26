@@ -53,10 +53,9 @@ const MORE_PERFORMANCE: usize = 2;
 const MORE_PLUGINS: usize = 3;
 const MORE_VERSION: usize = 4;
 const MORE_INSPECTOR: usize = 5;
-const MORE_TERMINAL: usize = 6;
-const MORE_WORKSPACE: usize = 7;
-const MORE_ACCOUNTS: usize = 8;
-const MORE_ABOUT: usize = 10;
+const MORE_WORKSPACE: usize = 6;
+const MORE_ACCOUNTS: usize = 7;
+const MORE_ABOUT: usize = 8;
 
 #[component]
 fn StatusBar(status: Memo<StatusView>) -> NodeId {
@@ -109,7 +108,6 @@ fn StatusBar(status: Memo<StatusView>) -> NodeId {
                         <MenuItem label="Plugins" />
                         <MenuItem label="Version" />
                         <MenuItem label="Inspector" />
-                        <MenuItem label="Terminal" disabled={!cfg!(feature = "terminal")} />
                         <MenuItem label={workspace}>
                             <MenuItem label="Invite member" />
                             <MenuItem label="Switch workspace" />
@@ -153,7 +151,6 @@ fn more(path: &[usize], accounts: &[super::AccountRow]) {
         [MORE_PLUGINS] => open(DebugWindow::Plugins),
         [MORE_VERSION] => open(DebugWindow::Version),
         [MORE_INSPECTOR] => send(UiCommand::OpenInspector),
-        [MORE_TERMINAL] => open(DebugWindow::Terminal),
         [MORE_WORKSPACE, 0] => send(UiCommand::InviteMember),
         [MORE_WORKSPACE, 1] => send(UiCommand::SwitchWorkspace),
         [MORE_ACCOUNTS, index] => match accounts.get(*index) {

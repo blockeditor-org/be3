@@ -39,15 +39,11 @@ config_changes = "orientation|keyboardHidden|screenSize|screenLayout"
 exported = true
 
 [features]
-# Two features rather than one, because what they cost to set up is different:
-# the terminal needs a Zig toolchain and a Ghostty checkout before cargo can
-# link anything at all, and the embedded browser only needs a large dependency
-# tree. Neither is on by default, so a plain cargo build works without either
-# prerequisite. buck2, which is what builds the app, always turns both on.
+# The embedded browser needs a large dependency tree, so it is not on by
+# default. buck2, which is what builds the app, always turns it on.
 default = []
-terminal = ["dep:ghostty-vt"]
 web-view = ["dep:wry"]
-full = ["terminal", "web-view"]
+full = ["web-view"]
 
 [dependencies]
 # The block stack. The app is a peer of it on every platform: be-client's socket
@@ -61,7 +57,6 @@ beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 game-host = { path = "../tabletop_games/host" }
-ghostty-vt = { path = "../ghostty-vt", optional = true }
 flate2 = "1"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }

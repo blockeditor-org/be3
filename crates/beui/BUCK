@@ -22,3 +22,5 @@ cargo_example("counter", srcs = beui_srcs)
 cargo_example("demo", srcs = beui_srcs)
 
 cargo_example("dock", srcs = beui_srcs)
+
+cargo_example("survey", srcs = beui_srcs)
