@@ -135,7 +135,7 @@ struct Kind {
     copy: worker::Copy,
     seed: worker::Seed,
     replace: worker::Seed,
-    name: fn(&[u8]) -> Option<String>,
+    describe: fn(&[u8]) -> Option<Described>,
     child: ChildOperations,
 }
 
@@ -149,7 +149,7 @@ where
         copy: worker::copy::<C>,
         seed: worker::seed::<C>,
         replace: worker::replace::<C>,
-        name: content_name::<C>,
+        describe: describe::<C>,
         child: child_operations::<C>,
     }
 }
@@ -164,13 +164,23 @@ where
         copy: worker::copy::<C>,
         seed: worker::seed::<C>,
         replace: worker::replace::<C>,
-        name: content_name::<C>,
+        describe: describe::<C>,
         child: child_operations::<C>,
     }
 }
 
-fn content_name<C: be_block::BlockContent>(bytes: &[u8]) -> Option<String> {
-    C::decode(bytes).ok()?.name()
+#[derive(Default)]
+pub(crate) struct Described {
+    pub(crate) name: Option<String>,
+    pub(crate) derived: be_block::DerivedMetadata,
+}
+
+fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<Described> {
+    let content = C::decode(bytes).ok()?;
+    Some(Described {
+        name: content.name(),
+        derived: content.derived_metadata(),
+    })
 }
 
 fn child_operations<C: be_block::LiveEdit>(
@@ -220,8 +230,8 @@ fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
     KINDS.iter().find(|kind| kind.content_type == content_type)
 }
 
-pub(crate) fn name_of(content: &Content) -> Option<String> {
-    (kind_of(content.content_type)?.name)(&content.bytes)
+pub(crate) fn describe_of(content: &Content) -> Option<Described> {
+    (kind_of(content.content_type)?.describe)(&content.bytes)
 }
 
 pub(crate) fn is_known(content_type: Uuid) -> bool {
@@ -578,15 +588,18 @@ pub(crate) fn set_name(block: Uuid, name: Option<String>) {
     set_metadata(block, metadata);
 }
 
-pub(crate) fn name_implicitly(block: Uuid, name: Option<String>) {
-    let Some(mut metadata) = node(block).map(|node| node.metadata) else {
+pub(crate) fn describe_implicitly(block: Uuid, described: Described) {
+    let Some(original) = node(block).map(|node| node.metadata) else {
         return;
     };
-    if metadata.named_by_hand || metadata.name == name {
-        return;
+    let mut metadata = original.clone();
+    if !metadata.named_by_hand {
+        metadata.name = described.name;
     }
-    metadata.name = name;
-    set_metadata(block, metadata);
+    metadata.derived = described.derived;
+    if metadata != original {
+        set_metadata(block, metadata);
+    }
 }
 
 pub(crate) fn set_access(block: Uuid, account: Uuid, access: be_graph::Access) {

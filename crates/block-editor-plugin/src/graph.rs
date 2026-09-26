@@ -91,6 +91,7 @@ pub struct BlockInfo {
     pub references: Vec<Uuid>,
     pub access: AccessLevel,
     pub artifact: Option<ArtifactSource>,
+    pub thumbhash: Option<Vec<u8>>,
 }
 
 impl BlockInfo {
@@ -105,6 +106,7 @@ impl BlockInfo {
             references: Vec::new(),
             access: AccessLevel::Edit,
             artifact: None,
+            thumbhash: None,
         }
     }
 
@@ -138,6 +140,7 @@ impl BlockInfo {
                     source_type: artifact.source_type.into_bytes(),
                     data: artifact.data.clone(),
                 }),
+            thumbhash: self.thumbhash.clone(),
         }
     }
 
@@ -155,6 +158,7 @@ impl BlockInfo {
                 source_type: Uuid::from_bytes(artifact.source_type),
                 data: artifact.data,
             }),
+            thumbhash: info.thumbhash,
         }
     }
 }

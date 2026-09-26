@@ -8,6 +8,12 @@ pub struct BlockMetadata {
     pub name: Option<String>,
     pub named_by_hand: bool,
     pub artifact: Option<ArtifactSource>,
+    pub derived: DerivedMetadata,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DerivedMetadata {
+    pub thumbhash: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -30,6 +36,7 @@ impl BlockMetadata {
             name: Some(name.into()),
             named_by_hand: true,
             artifact: None,
+            derived: DerivedMetadata::default(),
         }
     }
 }

@@ -12,6 +12,8 @@ use crate::reactive::{Prop, create_effect, with_document};
 
 pub(crate) struct PictureNode {
     image: Option<Image>,
+    thumbhash: Option<Vec<u8>>,
+    placeholder: Option<Image>,
     source: Option<Rect>,
     fit: ImageFit,
     tint: Color32,
@@ -25,6 +27,14 @@ const WHOLE: Rect = Rect {
 };
 
 impl PictureNode {
+    fn shown(&self) -> Option<(&Image, bool)> {
+        match (&self.image, &self.placeholder) {
+            (Some(image), _) => Some((image, self.smooth)),
+            (None, Some(placeholder)) => Some((placeholder, true)),
+            (None, None) => None,
+        }
+    }
+
     fn shown_size(&self, image: &Image) -> Vec2 {
         let size = image.size();
         match self.source {
@@ -36,7 +46,7 @@ impl PictureNode {
 
 impl Element for PictureNode {
     fn measure(&self, _doc: &mut Document, _painter: &Painter, available: Vec2) -> Vec2 {
-        let Some(image) = self.image.as_ref() else {
+        let Some((image, _)) = self.shown() else {
             return Vec2::ZERO;
         };
         let size = self.shown_size(image);
@@ -59,7 +69,7 @@ impl Element for PictureNode {
     }
 
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, rect: Rect) {
-        let Some(image) = self.image.as_ref() else {
+        let Some((image, smooth)) = self.shown() else {
             return;
         };
         painter.image(
@@ -68,7 +78,7 @@ impl Element for PictureNode {
             image,
             self.tint,
             self.radius,
-            self.smooth,
+            smooth,
         );
     }
 
@@ -93,9 +103,11 @@ impl Element for PictureNode {
     }
 
     fn detail(&self) -> Option<String> {
-        self.image
-            .as_ref()
-            .map(|image| format!("{}x{}", image.width(), image.height()))
+        match (&self.image, &self.placeholder) {
+            (Some(image), _) => Some(format!("{}x{}", image.width(), image.height())),
+            (None, Some(_)) => Some("thumbhash".to_owned()),
+            (None, None) => None,
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -110,6 +122,7 @@ impl Element for PictureNode {
 #[component]
 pub fn Picture(
     image: Prop<Option<Image>>,
+    #[prop(default = None)] thumbhash: Prop<Option<Vec<u8>>>,
     #[prop(default = None)] source: Prop<Option<Rect>>,
     #[prop(default = ImageFit::Contain)] fit: Prop<ImageFit>,
     #[prop(default = Color32::WHITE)] tint: Prop<Color32>,
@@ -120,6 +133,10 @@ pub fn Picture(
     create_effect(move || {
         let image = image.get();
         with_document(|document| document.set_picture_image(picture, image));
+    });
+    create_effect(move || {
+        let thumbhash = thumbhash.get();
+        with_document(|document| document.set_picture_thumbhash(picture, thumbhash));
     });
     create_effect(move || {
         let source = source.get();
@@ -148,6 +165,8 @@ impl Document {
     pub(crate) fn create_picture(&mut self) -> NodeId {
         self.arena.insert(PictureNode {
             image: None,
+            thumbhash: None,
+            placeholder: None,
             source: None,
             fit: ImageFit::Contain,
             tint: Color32::WHITE,
@@ -159,6 +178,14 @@ impl Document {
     pub(crate) fn set_picture_image(&mut self, picture: NodeId, image: Option<Image>) {
         if self.arena.get_as::<PictureNode>(picture).image != image {
             self.arena.get_mut_as::<PictureNode>(picture).image = image;
+        }
+    }
+
+    pub(crate) fn set_picture_thumbhash(&mut self, picture: NodeId, thumbhash: Option<Vec<u8>>) {
+        if self.arena.get_as::<PictureNode>(picture).thumbhash != thumbhash {
+            let node = self.arena.get_mut_as::<PictureNode>(picture);
+            node.placeholder = thumbhash.as_deref().and_then(Image::from_thumbhash);
+            node.thumbhash = thumbhash;
         }
     }
 

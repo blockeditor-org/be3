@@ -18,6 +18,7 @@ fn multiplexed_messages_round_trip() {
             references: vec![[4; 16]],
             access: AccessLevel::Edit,
             artifact: None,
+            thumbhash: Some(vec![5, 6, 7]),
         }],
     });
     assert_eq!(

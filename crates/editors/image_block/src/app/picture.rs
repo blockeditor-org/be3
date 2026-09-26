@@ -6,7 +6,7 @@ use std::rc::Rc;
 use block_editor_plugin::be_block::{ImageContent, ImageHeader, ImageOp};
 use block_editor_plugin::beui::Image;
 use block_editor_plugin::beui::reactive::{Memo, create_effect, create_memo, create_signal};
-use block_editor_plugin::{ContentProjection, Editor};
+use block_editor_plugin::{BlockQuery, ContentProjection, Editor};
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Shown {
@@ -47,22 +47,25 @@ pub(crate) fn watch(editor: &Editor, block: &Rc<ContentProjection<ImageContent>>
         };
         let (found, shown) = match result {
             Ok(found) => {
-                let shown = Shown {
-                    image: Some(Image::from_rgba(found.width, found.height, found.pixels)),
-                    error: None,
-                };
+                let image = Image::from_rgba(found.width, found.height, found.pixels);
                 let recorded = ImageHeader {
                     media_type: found.media_type,
                     width: found.width,
                     height: found.height,
                     failure: None,
+                    thumbhash: Some(image.thumbhash()),
                     ..header.clone()
+                };
+                let shown = Shown {
+                    image: Some(image),
+                    error: None,
                 };
                 (recorded, shown)
             }
             Err(error) => (
                 ImageHeader {
                     failure: Some(error.clone()),
+                    thumbhash: None,
                     ..header.clone()
                 },
                 Shown {
@@ -79,4 +82,14 @@ pub(crate) fn watch(editor: &Editor, block: &Rc<ContentProjection<ImageContent>>
         }
     });
     create_memo(move || shown.get())
+}
+
+pub(crate) fn thumbhash(editor: &Editor) -> Memo<Option<Vec<u8>>> {
+    let info = editor.watch_blocks(BlockQuery::Block(editor.block_id()));
+    create_memo(move || {
+        info.get()?
+            .into_iter()
+            .next()
+            .and_then(|info| info.thumbhash)
+    })
 }

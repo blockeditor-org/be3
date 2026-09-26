@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::DerivedMetadata;
 use crate::blob::{Blob, BlobKind, BlobOp};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -10,6 +11,7 @@ pub struct ImageHeader {
     pub width: u32,
     pub height: u32,
     pub failure: Option<String>,
+    pub thumbhash: Option<Vec<u8>>,
 }
 
 impl ImageHeader {
@@ -27,6 +29,12 @@ impl BlobKind for ImageFile {
 
     fn name(header: &ImageHeader) -> &str {
         &header.source_name
+    }
+
+    fn derived_metadata(header: &ImageHeader) -> DerivedMetadata {
+        DerivedMetadata {
+            thumbhash: header.thumbhash.clone(),
+        }
     }
 }
 

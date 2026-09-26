@@ -117,6 +117,7 @@ fn header(name: &str) -> ImageHeader {
         width: 640,
         height: 480,
         failure: None,
+        thumbhash: None,
     }
 }
 

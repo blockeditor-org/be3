@@ -58,6 +58,7 @@ pub(crate) fn info_of(node: &Node) -> BlockInfo {
                 source_type: artifact.source_type.into_bytes(),
                 data: artifact.data.clone(),
             }),
+        thumbhash: node.metadata.derived.thumbhash.clone(),
     }
 }
 

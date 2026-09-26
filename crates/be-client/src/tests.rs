@@ -108,6 +108,7 @@ fn image(name: &str, bytes: usize, seed: u64) -> ImageContent {
             width: 1920,
             height: 1080,
             failure: None,
+            thumbhash: None,
         },
         pseudorandom(bytes, seed),
     )

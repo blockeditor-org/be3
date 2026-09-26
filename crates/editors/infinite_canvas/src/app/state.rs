@@ -261,6 +261,8 @@ pub(crate) struct CanvasState {
     set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
     pub(crate) types: ReadSignal<HashMap<Uuid, Uuid>>,
     set_types: WriteSignal<HashMap<Uuid, Uuid>>,
+    thumbhashes: ReadSignal<HashMap<Uuid, Vec<u8>>>,
+    set_thumbhashes: WriteSignal<HashMap<Uuid, Vec<u8>>>,
     pub(crate) child_states: ReadSignal<HashMap<Uuid, ChildState>>,
     set_child_states: WriteSignal<HashMap<Uuid, ChildState>>,
     pub(crate) presence: ReadSignal<Presence>,
@@ -286,6 +288,7 @@ impl CanvasState {
         let (import_error, set_import_error) = create_signal(None);
         let (labels, set_labels) = create_signal(HashMap::new());
         let (types, set_types) = create_signal(HashMap::new());
+        let (thumbhashes, set_thumbhashes) = create_signal(HashMap::new());
         let (child_states, set_child_states) = create_signal(HashMap::new());
         let (presence, set_presence) = create_signal(Presence::default());
         let (pointer, set_pointer) = create_signal(None);
@@ -329,6 +332,8 @@ impl CanvasState {
             set_labels,
             types,
             set_types,
+            thumbhashes,
+            set_thumbhashes,
             child_states,
             set_child_states,
             presence,
@@ -413,6 +418,10 @@ impl CanvasState {
 
     pub(crate) fn label_of(&self, reference: Uuid) -> Option<BlockLabel> {
         self.labels.get().get(&reference).cloned()
+    }
+
+    pub(crate) fn thumbhash_of(&self, reference: Uuid) -> Option<Vec<u8>> {
+        self.thumbhashes.get().get(&reference).cloned()
     }
 
     pub(crate) fn block_type_of(&self, id: Uuid) -> Option<Uuid> {
@@ -1722,7 +1731,14 @@ impl CanvasState {
             .iter()
             .map(|reference| (reference.id, reference.block_type))
             .collect();
+        let thumbhashes: HashMap<Uuid, Vec<u8>> = dependencies
+            .iter()
+            .filter_map(|reference| Some((reference.id, reference.thumbhash.clone()?)))
+            .collect();
         untrack(|| {
+            if self.thumbhashes.get_untracked() != thumbhashes {
+                self.set_thumbhashes.set(thumbhashes);
+            }
             if self.labels.get_untracked() != labels {
                 self.set_labels.set(labels);
             }
