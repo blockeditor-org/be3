@@ -15,6 +15,6 @@ fn resigning_ends_the_game() {
     let history = show(&actions, SECOND).history;
     assert_eq!(
         history.last().map(|turn| turn.description.as_str()),
-        Some("Resigned")
+        Some("resigns")
     );
 }

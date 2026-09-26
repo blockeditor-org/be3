@@ -131,7 +131,7 @@ mod children_written_between_show_tags_are_not_built_until_it_is_shown;
 mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
 mod clicking_a_checkbox_toggles_it;
 mod clicking_a_link_reports_it_and_reads_as_a_link;
-mod clicking_a_row_collapses_its_children;
+mod clicking_a_row_leaves_its_children_expanded;
 mod clicking_a_row_selects_the_node_it_lists;
 mod clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip;
 mod clicking_a_tab_selects_the_panel_it_names;
@@ -183,7 +183,7 @@ mod enter_activates_a_list_row_and_space_selects_it;
 mod enter_activates_the_focused_button;
 mod enter_confirms_the_highlighted_select_option_and_closes_the_popup;
 mod enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line;
-mod enter_on_an_inspector_row_selects_it_and_toggles_its_children;
+mod enter_on_an_inspector_row_selects_it_without_collapsing_it;
 mod enter_toggles_the_focused_checkbox;
 mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
 mod escape_discards_what_was_typed_into_a_number_input;
@@ -218,10 +218,9 @@ mod percent_children_land_on_whole_device_pixels;
 mod percent_children_of_an_unbounded_list_use_their_intrinsic_length;
 mod percent_sized_children_still_size_an_intrinsic_lists_height;
 mod performance_measurements_report_work_and_cache_hits;
+mod picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked;
 mod picking_a_node_in_the_components_tab_selects_the_component_that_built_it;
 mod picking_a_node_leaves_the_document_alone;
-mod picking_a_node_reveals_it_in_the_tree;
-mod picking_a_node_scrolls_the_inspector_tree_to_its_row;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
@@ -293,6 +292,7 @@ mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
+mod the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
 mod the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach;
 mod the_screen_reader_follows_focus_that_tab_moves;
@@ -572,13 +572,8 @@ impl Harness {
             .collect()
     }
 
-    pub(crate) fn selected_rows(&self) -> Vec<String> {
-        self.inspector()
-            .entries
-            .iter()
-            .filter(|entry| entry.selected)
-            .map(|entry| entry.kind.clone())
-            .collect()
+    pub(crate) fn selected_row(&self) -> Option<String> {
+        self.inspector().selected_row(&self.document)
     }
 
     pub(crate) fn row_center(&self, index: usize) -> Pos2 {
@@ -815,6 +810,24 @@ impl Harness {
 
     pub(crate) fn touch_emulation(&self) -> bool {
         self.context.touch_emulation()
+    }
+
+    pub(crate) fn chevron_center(&self, index: usize) -> Pos2 {
+        let row = self.inspector().entries[index].key.test_id();
+        self.inspector_center(&format!("{row}.chevron"))
+    }
+
+    pub(crate) fn reveal_center(&self) -> Pos2 {
+        self.inspector_center("inspector.reveal")
+    }
+
+    pub(crate) fn reveal_shown(&self) -> bool {
+        let inspector = self.inspector();
+        inspector
+            .document
+            .find_test_id("inspector.reveal")
+            .and_then(|button| inspector.document.node_rect(button))
+            .is_some()
     }
 
     fn node_center(&self, id: NodeId) -> Pos2 {

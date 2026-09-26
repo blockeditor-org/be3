@@ -57,6 +57,7 @@ impl Play {
             if offers(&|gesture| match gesture {
                 Gesture::Click(clicked) => clicked == spot,
                 Gesture::Drag { from, to } => Some(from) == selected && to == spot,
+                Gesture::Control(_) => false,
             }) {
                 Mark::Target
             } else if offers(

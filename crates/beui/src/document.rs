@@ -56,6 +56,7 @@ pub struct Document {
     layout_revision: u64,
     paint_revision: u64,
     delivering: bool,
+    pub(crate) deferred_reveals: Vec<NodeId>,
     constrained: HashSet<NodeId>,
     measurements: NodeMap<Vec<(Vec2, Vec2)>>,
     layout_parent: Option<NodeId>,
@@ -201,6 +202,7 @@ impl Document {
             layout_revision: 0,
             paint_revision: 0,
             delivering: false,
+            deferred_reveals: Vec::new(),
             constrained: HashSet::new(),
             measurements: NodeMap::default(),
             layout_parent: None,
@@ -1270,6 +1272,11 @@ impl Document {
         self.rects = Rc::new(rects);
         self.placing.clear();
         self.layout_revision = self.arena.revision;
+        for node in std::mem::take(&mut self.deferred_reveals) {
+            if self.arena.contains(node) {
+                self.reveal_node(node);
+            }
+        }
         true
     }
 }

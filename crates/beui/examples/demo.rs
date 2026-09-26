@@ -34,6 +34,7 @@ const ZOOM_MAX: f32 = 3.0;
 const ZOOM_MIDPOINT: f32 = 1.0;
 const BODY_SPACING: f32 = 20.0;
 const SHORT_HEIGHT: f32 = 900.0;
+const TREE_HEIGHT: f32 = 240.0;
 const CARD_NARROW_WIDTH: f32 = 460.0;
 const TABS_NARROW_WIDTH: f32 = 380.0;
 const ICON_BUTTON_WIDTH: f32 = 44.0;
@@ -976,16 +977,24 @@ fn TreeControls() -> NodeId {
         None => "Nothing selected".to_owned(),
     }));
     let expansion = collapsed.clone();
+    let reveal = set_collapsed.clone();
 
     view! {
         <List spacing=8.0>
             <Caption
-                content="Arrow keys walk the tree; Enter or a click opens and closes a folder"
+                content="Arrow keys walk the tree; a chevron or an arrow key opens and closes a folder"
             />
             <Tree
+                @sizing=ItemSize::Fixed(TREE_HEIGHT)
                 keys
                 item={move |row: usize| tree_item(row, &expansion.get())}
                 selected
+                ancestors={tree_ancestors}
+                on_reveal={move |row: usize| {
+                    reveal.update(|collapsed| {
+                        collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
+                    });
+                }}
                 on_select={move |row: usize| set_selected.set(Some(row))}
                 on_expand={move |(row, expanded): (usize, bool)| {
                     set_collapsed.update(|collapsed| {
@@ -1012,8 +1021,23 @@ fn tree_item(row: usize, collapsed: &[usize]) -> TreeItem {
         depth,
         expandable: has_children(row),
         expanded: !collapsed.contains(&row),
-        marked: false,
     }
+}
+
+fn tree_ancestors(row: usize) -> Vec<usize> {
+    let mut depth = TREE_NODES[row].1;
+    let mut ancestors: Vec<usize> = (0..row)
+        .rev()
+        .filter(|candidate| {
+            let above = TREE_NODES[*candidate].1 < depth;
+            if above {
+                depth = TREE_NODES[*candidate].1;
+            }
+            above
+        })
+        .collect();
+    ancestors.reverse();
+    ancestors
 }
 
 fn has_children(row: usize) -> bool {

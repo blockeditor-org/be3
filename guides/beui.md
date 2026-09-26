@@ -594,6 +594,17 @@ row for tests, as `<id>.row` and `<id>.chevron`, and `outline` gives a single
 row an outline of its own, which is how a drop target says whether it will
 take what is over it.
 
+Choosing a row never expands, collapses or scrolls anything: only the chevron
+and the arrow keys do. The styled tree owns its `Scroll` (`padding` goes inside
+it), and follows the `selected` key wherever it is instead. Given `ancestors`,
+which answers with the keys above one, outermost first, it marks the chevron of
+the deepest row still shown above a selection hidden inside a collapsed one, and
+while the selection is hidden or scrolled out of view it floats a button over
+the top or bottom edge that reports `on_reveal` - the caller expands the
+ancestors - and then scrolls the row into view once it is laid out. The file
+tree and the beui inspector both work this way. `styled::tree_row_node` and
+`styled::tree_focused` reach the rows through the styled tree's node.
+
 ### Docking and windows
 
 `styled::DockArea` is the workspace layout: panes split from one another, a tab

@@ -11,7 +11,7 @@ fn cards_are_played_by_dragging_them_onto_the_discard_pile() {
     let actions = started(&players);
 
     let screen = show(&actions, players[0]);
-    let Board::Cards(table) = &screen.board else {
+    let Board::Cards(table) = &*screen.board else {
         panic!("crazy 8s is played on a card table");
     };
     let hand = &table.piles[2];

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn clicking_a_row_collapses_its_children() {
+fn clicking_a_row_leaves_its_children_expanded() {
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::new(document);
 
@@ -10,7 +10,7 @@ fn clicking_a_row_collapses_its_children() {
     harness.click(padding_row);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  frame"]);
+    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
 
     harness.click(padding_row);
     harness.frame(Vec::new());

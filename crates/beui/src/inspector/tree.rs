@@ -42,7 +42,6 @@ pub(crate) struct Entry {
     pub(crate) kind: String,
     pub(crate) expandable: bool,
     pub(crate) expanded: bool,
-    pub(crate) selected: bool,
     pub(crate) detail: String,
     pub(crate) size: String,
 }
@@ -174,7 +173,6 @@ fn visit_accesskit(
         kind: format!("{:?}", node.role()),
         expandable,
         expanded,
-        selected: state.selected.get() == Some(id),
         detail: accesskit_detail(node),
         size: accesskit_size(node),
     });
@@ -195,7 +193,6 @@ fn visit(target: &Document, state: &State, key: Key, depth: usize, entries: &mut
         kind: kind(target, key).to_owned(),
         expandable,
         expanded,
-        selected: state.is_selected(target, key),
         detail: detail(target, key),
         size: size(target, key.node()),
     });
@@ -265,11 +262,6 @@ fn kind(target: &Document, key: Key) -> &'static str {
 pub(crate) fn component_name(target: &Document, id: NodeId, level: usize) -> &'static str {
     let names = target.component_names(id);
     names[names.len() - 1 - level]
-}
-
-pub(crate) fn innermost(target: &Document, id: NodeId) -> Option<Key> {
-    let levels = target.component_names(id).len();
-    (levels > 0).then(|| Key::Component(id, levels - 1))
 }
 
 fn auto_expand(key: Key, depth: usize) -> bool {

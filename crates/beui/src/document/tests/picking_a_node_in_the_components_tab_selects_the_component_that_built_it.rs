@@ -22,11 +22,11 @@ fn picking_a_node_in_the_components_tab_selects_the_component_that_built_it() {
     harness.frame(Vec::new());
 
     assert_eq!(harness.inspector().state.selected.get(), Some(face));
-    assert_eq!(harness.selected_rows(), ["Frame"]);
+    assert_eq!(harness.selected_row().as_deref(), Some("Frame"));
 
     harness.click(harness.row_center(1));
     harness.frame(Vec::new());
 
     assert_eq!(harness.inspector().state.selected.get(), Some(face));
-    assert_eq!(harness.selected_rows(), ["ButtonFace"]);
+    assert_eq!(harness.selected_row().as_deref(), Some("ButtonFace"));
 }
