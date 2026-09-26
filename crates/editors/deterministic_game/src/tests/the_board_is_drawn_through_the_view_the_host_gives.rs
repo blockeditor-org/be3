@@ -6,7 +6,10 @@ use super::*;
 fn the_board_is_drawn_through_the_view_the_host_gives() {
     let mut editor = placed(CHESS.to_vec(), Vec::new(), false);
 
-    editor.set_view(Rect::from_min_size(pos2(100.0, 50.0), vec2(270.0, 270.0)), 0.5);
+    editor.set_view(
+        Rect::from_min_size(pos2(100.0, 50.0), vec2(270.0, 270.0)),
+        0.5,
+    );
     editor.run();
 
     assert_eq!(

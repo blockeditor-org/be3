@@ -13,11 +13,11 @@ use block_editor_beui::beui::{
 use game_api::Spot;
 use game_api::board::Sprite;
 
+use super::Steps;
 use super::annotations::{self, Annotation, Brush, toggled};
 use super::layout::{CARD, LABEL_HEIGHT, Layout, Look, Placed};
 use super::play::{Dragging, Mark, Play};
 use super::skin::paint_sprite;
-use super::Steps;
 
 const DRAG_THRESHOLD: f32 = 6.0;
 const LABEL_SIZE: f32 = 13.0;
@@ -215,12 +215,13 @@ pub(crate) fn Stage(editor: Editor, play: Play, layout: Memo<Layout>, steps: Ste
         }) as Draw
     })));
     let bounds = create_memo(clone!(layout -> move || layout.with(Layout::bounds)));
-    let marks_draw: Prop<Draw> = Prop::Dynamic(Rc::new(clone!(layout annotations pending -> move || {
-        let (layout, annotations, pending) = (layout.get(), annotations.get(), pending.get());
-        Rc::new(move |painter: &Painter, rect: Rect| {
-            annotations::paint(painter, rect, &layout, &annotations, pending);
-        }) as Draw
-    })));
+    let marks_draw: Prop<Draw> =
+        Prop::Dynamic(Rc::new(clone!(layout annotations pending -> move || {
+            let (layout, annotations, pending) = (layout.get(), annotations.get(), pending.get());
+            Rc::new(move |painter: &Painter, rect: Rect| {
+                annotations::paint(painter, rect, &layout, &annotations, pending);
+            }) as Draw
+        })));
     let lifted = create_memo(clone!(layout play -> move || {
         let dragging = play.dragging.get()?;
         layout.with(|layout| {

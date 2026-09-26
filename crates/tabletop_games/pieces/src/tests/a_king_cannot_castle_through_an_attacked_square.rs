@@ -26,6 +26,9 @@ fn a_king_cannot_castle_through_an_attacked_square() {
     let mut castled = free.clone();
     let legal = free.legal(Side::First, false);
     castled.apply(find(&legal, "e1", "g1").expect("the king castles short"));
-    assert_eq!(castled.at(square("f1")).map(|man| man.piece.name()), Some("rook"));
+    assert_eq!(
+        castled.at(square("f1")).map(|man| man.piece.name()),
+        Some("rook")
+    );
     assert!(castled.at(square("h1")).is_none());
 }

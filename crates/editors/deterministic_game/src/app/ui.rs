@@ -5,8 +5,8 @@ use block_editor_beui::beui::icons::{
     ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIRST_PAGE, ICON_LAST_PAGE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show,
-    Text, clone, component, create_effect, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show, Text,
+    clone, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Heading, IconButton, IconButtonSize, Paragraph,
@@ -156,8 +156,7 @@ pub(crate) struct Steps {
 impl Steps {
     fn show(&self, shown: usize) {
         let count = self.count.get_untracked();
-        self.game
-            .show_turns((shown < count).then_some(shown));
+        self.game.show_turns((shown < count).then_some(shown));
     }
 
     pub(crate) fn first(&self) {
@@ -266,7 +265,8 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
     let seat = create_memo(clone!(screen -> move || screen.get().seat));
     let history = create_memo(clone!(screen -> move || screen.get().history));
     let count = create_memo(clone!(history -> move || history.with(Vec::len)));
-    let shown = create_memo(clone!(screen count -> move || screen.get().shown.unwrap_or(count.get())));
+    let shown =
+        create_memo(clone!(screen count -> move || screen.get().shown.unwrap_or(count.get())));
     let buttons = create_memo(clone!(actions -> move || {
         actions
             .get()
@@ -509,7 +509,8 @@ fn History(history: Memo<Vec<Turn>>, shown: Memo<usize>, steps: Steps) -> NodeId
     let at_end = create_memo(clone!(shown count -> move || shown.get() >= count.get()));
     let keys = create_memo(clone!(count -> move || (0..count.get()).collect::<Vec<_>>()));
     let empty = create_memo(clone!(count -> move || count.get() == 0));
-    let (first, previous, next, last) = (steps.clone(), steps.clone(), steps.clone(), steps.clone());
+    let (first, previous, next, last) =
+        (steps.clone(), steps.clone(), steps.clone(), steps.clone());
     view! {
         <List spacing=6.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>

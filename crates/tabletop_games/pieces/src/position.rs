@@ -105,7 +105,8 @@ impl Position {
     }
 
     pub fn squares(&self) -> impl Iterator<Item = Square> + '_ {
-        (0..self.rows).flat_map(move |rank| (0..self.columns).map(move |file| Square::new(file, rank)))
+        (0..self.rows)
+            .flat_map(move |rank| (0..self.columns).map(move |file| Square::new(file, rank)))
     }
 
     pub fn men(&self, side: Side) -> impl Iterator<Item = (Square, Man)> + '_ {

@@ -73,7 +73,11 @@ pub fn play(helper: GameHelper<'_>, rules: &Rules) -> Result<Infallible, GameScr
             if check || position.royals(side).next().is_none() {
                 Some(Ending::Won {
                     winner: side.other(),
-                    how: if check { "checkmate" } else { "leaving no move" },
+                    how: if check {
+                        "checkmate"
+                    } else {
+                        "leaving no move"
+                    },
                 })
             } else {
                 Some(Ending::Drawn("stalemate"))
@@ -94,8 +98,9 @@ pub fn play(helper: GameHelper<'_>, rules: &Rules) -> Result<Infallible, GameScr
             check: check.then_some(side),
         };
         if let Some(ending) = ending {
-            return helper
-                .game_over(|viewer| Scene::new(table.ending(&ending, viewer)).on(table.grid(viewer)));
+            return helper.game_over(|viewer| {
+                Scene::new(table.ending(&ending, viewer)).on(table.grid(viewer))
+            });
         }
 
         let can_move = |player: Uuid| match seats[side.index()] {
@@ -117,18 +122,15 @@ pub fn play(helper: GameHelper<'_>, rules: &Rules) -> Result<Infallible, GameScr
                             true => rules.label(&position, step, &legal),
                             false => String::new(),
                         };
-                        let gesture = Move::new(label).drag(
-                            table.spot(step.from, flipped),
-                            table.spot(step.to, flipped),
-                        );
+                        let gesture = Move::new(label)
+                            .drag(table.spot(step.from, flipped), table.spot(step.to, flipped));
                         if choose(gesture) {
                             chosen = Some((index, player));
                             return;
                         }
                     }
                 }
-                if seats.contains(&Some(player))
-                    && choose(Move::new("Resign").recorded("Resigned"))
+                if seats.contains(&Some(player)) && choose(Move::new("Resign").recorded("Resigned"))
                 {
                     resigned = Some(player);
                 }
@@ -141,15 +143,19 @@ pub fn play(helper: GameHelper<'_>, rules: &Rules) -> Result<Infallible, GameScr
                 false => Side::Second,
             };
             let ending = Ending::Resigned(loser);
-            return helper
-                .game_over(|viewer| Scene::new(table.ending(&ending, viewer)).on(table.grid(viewer)));
+            return helper.game_over(|viewer| {
+                Scene::new(table.ending(&ending, viewer)).on(table.grid(viewer))
+            });
         }
         let Some((index, player)) = chosen else {
             continue;
         };
         helper.describe_last_turn(rules.label(&position, &legal[index], &legal));
         seats[side.index()].get_or_insert(player);
-        let step = legal.into_iter().nth(index).expect("the chosen move is legal");
+        let step = legal
+            .into_iter()
+            .nth(index)
+            .expect("the chosen move is legal");
         let irreversible = step.is_capture()
             || position
                 .at(step.from)
@@ -231,10 +237,7 @@ impl Table<'_> {
 
     fn grid(&self, viewer: Uuid) -> Grid {
         let flipped = self.flipped(viewer);
-        let mut grid = Grid::new(
-            self.position.columns() as u32,
-            self.position.rows() as u32,
-        );
+        let mut grid = Grid::new(self.position.columns() as u32, self.position.rows() as u32);
         let marked: Vec<Square> = self
             .last
             .map(|step| {

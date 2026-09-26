@@ -13,5 +13,8 @@ fn resigning_ends_the_game() {
         "White resigned - Black wins"
     );
     let history = show(&actions, SECOND).history;
-    assert_eq!(history.last().map(|turn| turn.description.as_str()), Some("Resigned"));
+    assert_eq!(
+        history.last().map(|turn| turn.description.as_str()),
+        Some("Resigned")
+    );
 }

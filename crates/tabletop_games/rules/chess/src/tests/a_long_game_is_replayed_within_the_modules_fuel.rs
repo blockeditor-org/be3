@@ -18,7 +18,9 @@ fn a_long_game_is_replayed_within_the_modules_fuel() {
             .filter(|index| !legal[*index].is_capture())
             .collect();
         let Some(choice) = (!quiet.is_empty()).then(|| {
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             quiet[(seed >> 33) as usize % quiet.len()]
         }) else {
             break;

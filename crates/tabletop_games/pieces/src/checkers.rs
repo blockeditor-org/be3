@@ -1,9 +1,7 @@
 use crate::movement::DIAGONAL;
 use crate::{Piece, Position, Side, Square, Step};
 
-pub static MAN: CheckerMan = CheckerMan {
-    crowned: &CROWNED,
-};
+pub static MAN: CheckerMan = CheckerMan { crowned: &CROWNED };
 pub static CROWNED: CheckerKing = CheckerKing;
 
 pub fn army(position: &mut Position, side: Side, ranks: i8) {
@@ -138,10 +136,7 @@ impl Chain<'_> {
     }
 
     fn step(&self) -> Step {
-        let (to, via) = self
-            .landings
-            .split_last()
-            .expect("a jump lands somewhere");
+        let (to, via) = self.landings.split_last().expect("a jump lands somewhere");
         let mut step = Step::new(self.start, *to);
         step.via = via.to_vec();
         step.captures = self.taken.clone();

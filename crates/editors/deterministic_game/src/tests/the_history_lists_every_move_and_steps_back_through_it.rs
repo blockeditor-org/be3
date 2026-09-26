@@ -9,7 +9,10 @@ fn the_history_lists_every_move_and_steps_back_through_it() {
     let mut editor = editor_after(TIC_TAC_TOE.to_vec(), actions.clone());
 
     assert_eq!(editor.label("game.history.0"), "1. Row 2, column 2 You");
-    assert_eq!(editor.label("game.history.1"), "2. Row 1, column 1 Player 2");
+    assert_eq!(
+        editor.label("game.history.1"),
+        "2. Row 1, column 1 Player 2"
+    );
 
     editor.click("game.history.0");
     editor.run();

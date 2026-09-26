@@ -170,8 +170,7 @@ impl BlockGame {
         };
         match game.show(&actions[..until], player) {
             Ok(mut past) => {
-                past.description =
-                    format!("Looking back at move {shown} of {}", history.len());
+                past.description = format!("Looking back at move {shown} of {}", history.len());
                 past.actions.clear();
                 GameSnapshot::screen(past, seat, false, history, Some(shown))
             }

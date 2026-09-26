@@ -45,9 +45,7 @@ impl Play {
         if selected == Some(spot) {
             return Mark::Selected;
         }
-        if self.over.get() == Some(spot)
-            && selected.is_some_and(|from| self.leads(from, spot))
-        {
+        if self.over.get() == Some(spot) && selected.is_some_and(|from| self.leads(from, spot)) {
             return Mark::Over;
         }
         self.actions.with(|actions| {

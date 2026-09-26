@@ -11,6 +11,9 @@ fn a_pawn_reaching_the_last_rank_becomes_any_of_four_pieces() {
     let moves = written(&position, Side::First);
 
     for promotion in ["b8=B", "b8=N", "b8=Q", "b8=R"] {
-        assert!(moves.contains(&promotion.to_owned()), "{promotion} is missing");
+        assert!(
+            moves.contains(&promotion.to_owned()),
+            "{promotion} is missing"
+        );
     }
 }
