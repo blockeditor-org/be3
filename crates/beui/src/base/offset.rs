@@ -458,6 +458,10 @@ impl Document {
     }
 
     pub fn reveal_node(&mut self, node: NodeId) {
+        if self.delivering() {
+            self.deferred_reveals.push(node);
+            return;
+        }
         let Some(root) = self.root else {
             return;
         };
