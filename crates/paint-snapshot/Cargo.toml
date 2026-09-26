@@ -9,7 +9,7 @@ bincode = "1"
 flate2 = "1"
 image = { version = "0.25", default-features = false, features = ["png"] }
 serde = { version = "1", features = ["derive"] }
-sha2 = "0.10"
+sha2 = "0.11"
 
 [lints]
 workspace = true
