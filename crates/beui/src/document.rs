@@ -83,6 +83,7 @@ pub struct Document {
     placements: NodeMap<Vec<PlacementWatcher>>,
     placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
+    component_names: HashMap<NodeId, Vec<&'static str>>,
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: NodeMap<Node>,
     pub(crate) accessibility_tree: RefCell<AccessibilityTree>,
@@ -227,6 +228,7 @@ impl Document {
             placements: NodeMap::default(),
             placed: NodeMap::default(),
             component_states: HashMap::new(),
+            component_names: HashMap::new(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
             accessibility_tree: RefCell::default(),
@@ -542,6 +544,7 @@ impl Document {
         self.placed.remove(&id);
         self.measurements.remove(&id);
         self.component_states.remove(&id);
+        self.component_names.remove(&id);
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
         self.reached_pass.remove(&id);
@@ -846,6 +849,14 @@ impl Document {
         self.sizes
             .get_or_default(id)
             .push(SizeWatcher { read, write });
+    }
+
+    pub(crate) fn name_component(&mut self, id: NodeId, name: &'static str) {
+        self.component_names.entry(id).or_default().push(name);
+    }
+
+    pub(crate) fn component_names(&self, id: NodeId) -> &[&'static str] {
+        self.component_names.get(&id).map_or(&[], Vec::as_slice)
     }
 
     pub(crate) fn set_component_state_dyn(&mut self, id: NodeId, state: Box<dyn Any>) {
