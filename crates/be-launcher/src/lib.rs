@@ -8,6 +8,7 @@ mod targets;
 mod tasks;
 mod time;
 mod view;
+mod viewer;
 mod workspace;
 
 #[cfg(test)]

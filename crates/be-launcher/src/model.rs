@@ -7,7 +7,7 @@ use beui::reactive::{
     KeyedStore, ReadSignal, Selector, WriteSignal, clone, create_selector, create_signal,
 };
 
-use crate::github::{Entry, Filter, PullRequest};
+use crate::github::{Entry, Filter, PullRequest, timeline_images};
 use crate::pane::Pane;
 use crate::targets::{Action, Target};
 use crate::tasks::{Event, Tasks, open_url};
@@ -79,6 +79,12 @@ pub(crate) enum Loaded<T> {
 type Slot<T> = (ReadSignal<T>, WriteSignal<T>);
 type Cache<K, T> = Rc<RefCell<HashMap<K, Slot<Loaded<T>>>>>;
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Viewer {
+    pub(crate) images: Vec<String>,
+    pub(crate) index: usize,
+}
+
 #[derive(Clone)]
 pub(crate) struct Model {
     tasks: Tasks,
@@ -102,6 +108,8 @@ pub(crate) struct Model {
     set_head_summary: WriteSignal<String>,
     pub(crate) common: ReadSignal<usize>,
     set_common: WriteSignal<usize>,
+    pub(crate) viewer: ReadSignal<Option<Viewer>>,
+    set_viewer: WriteSignal<Option<Viewer>>,
     pub(crate) tab: ReadSignal<Tab>,
     set_tab: WriteSignal<Tab>,
     pub(crate) targets: ReadSignal<Option<Loaded<Vec<Target>>>>,
@@ -127,6 +135,7 @@ impl Model {
         let (head_summary, set_head_summary) = create_signal(String::new());
         let (common, set_common) = create_signal(0usize);
         let (tab, set_tab) = create_signal(Tab::PullRequest);
+        let (viewer, set_viewer) = create_signal(None);
         let (targets, set_targets) = create_signal(None);
         let (target_query, set_target_query) = create_signal(String::new());
         let (running, set_running) = create_signal(false);
@@ -152,6 +161,8 @@ impl Model {
             set_head_summary,
             common,
             set_common,
+            viewer,
+            set_viewer,
             tab,
             set_tab,
             targets,
@@ -214,6 +225,38 @@ impl Model {
             write.set(Loaded::Loading);
         }
         self.tasks.timeline(pull_request.clone());
+    }
+
+    pub(crate) fn view_image(&self, url: &str) {
+        let images = self
+            .selected
+            .get_untracked()
+            .and_then(|pull_request| {
+                let timeline = self.timelines.borrow().get(&pull_request.number)?.0.clone();
+                match timeline.get_untracked() {
+                    Loaded::Ready(entries) => Some(timeline_images(&entries)),
+                    _ => None,
+                }
+            })
+            .unwrap_or_default();
+        let (images, index) = match images.iter().position(|candidate| candidate == url) {
+            Some(index) => (images, index),
+            None => (vec![url.to_owned()], 0),
+        };
+        self.set_viewer.set(Some(Viewer { images, index }));
+    }
+
+    pub(crate) fn step_image(&self, step: isize) {
+        self.set_viewer.update(|viewer| {
+            if let Some(viewer) = viewer {
+                let last = viewer.images.len().saturating_sub(1) as isize;
+                viewer.index = (viewer.index as isize + step).clamp(0, last) as usize;
+            }
+        });
+    }
+
+    pub(crate) fn close_image(&self) {
+        self.set_viewer.set(None);
     }
 
     pub(crate) fn image(&self, url: &str) -> ReadSignal<Loaded<Image>> {

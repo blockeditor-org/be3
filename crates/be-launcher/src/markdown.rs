@@ -10,6 +10,22 @@ pub(crate) enum Block {
     Rule,
 }
 
+pub(crate) fn images(blocks: &[Block], found: &mut Vec<String>) {
+    for block in blocks {
+        match block {
+            Block::Image { url, .. } => found.push(url.clone()),
+            Block::Table(rows) => {
+                for cells in rows {
+                    for cell in cells {
+                        images(cell, found);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 pub(crate) fn blocks(markdown: &str) -> Vec<Block> {
     let text = html_breaks(&without_comments(&markdown.replace('\r', "")));
     let mut parsed = Parsed::default();

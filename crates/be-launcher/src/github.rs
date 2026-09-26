@@ -5,7 +5,7 @@ use std::process::Stdio;
 use beui::Color32;
 use serde_json::Value;
 
-use crate::markdown::{Block, blocks};
+use crate::markdown::{self, Block, blocks};
 use crate::tasks::{capture, command};
 use crate::time::parse_timestamp;
 
@@ -111,6 +111,19 @@ pub(crate) enum Entry {
         text: String,
         when: i64,
     },
+}
+
+pub(crate) fn timeline_images(entries: &[Entry]) -> Vec<String> {
+    let mut found = Vec::new();
+    for entry in entries {
+        if let Entry::Comment { body, inline, .. } = entry {
+            markdown::images(body, &mut found);
+            for comment in inline {
+                markdown::images(&comment.body, &mut found);
+            }
+        }
+    }
+    found
 }
 
 pub(crate) const BRANCH_DELETED: &str = "deleted the branch";

@@ -8,6 +8,7 @@ mod color_input;
 mod context_menu;
 mod dialog;
 mod dock;
+mod fullscreen;
 mod icon_button;
 mod link;
 mod list_row;
@@ -43,6 +44,7 @@ pub use dialog::Dialog;
 #[cfg(test)]
 pub(crate) use dock::CHROME_BORDER;
 pub use dock::DockArea;
+pub use fullscreen::Fullscreen;
 pub use icon_button::{IconButton, IconButtonSize};
 pub use link::Link;
 pub use list_row::ListRow;
