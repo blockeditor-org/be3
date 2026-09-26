@@ -47,6 +47,7 @@ pub struct Tile {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub enum Sprite {
     Square(Shade),
+    Tint(Tint),
     Piece(Piece),
     Card(Card),
     CardBack,
@@ -65,6 +66,12 @@ impl Sprite {
 pub enum Shade {
     Light,
     Dark,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
+pub enum Tint {
+    LastMove,
+    Danger,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
@@ -128,6 +135,7 @@ pub enum Gesture {
 pub struct Move {
     pub label: String,
     pub gesture: Option<Gesture>,
+    pub recorded: Option<String>,
 }
 
 impl Move {
@@ -135,7 +143,13 @@ impl Move {
         Self {
             label: label.into(),
             gesture: None,
+            recorded: None,
         }
+    }
+
+    pub fn recorded(mut self, history: impl Into<String>) -> Self {
+        self.recorded = Some(history.into());
+        self
     }
 
     pub fn click(mut self, spot: Spot) -> Self {
