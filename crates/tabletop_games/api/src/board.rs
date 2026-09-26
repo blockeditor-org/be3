@@ -129,6 +129,12 @@ impl Spot {
 pub enum Gesture {
     Click(Spot),
     Drag { from: Spot, to: Spot },
+    Control(Control),
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
+pub enum Control {
+    Resign,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -136,6 +142,7 @@ pub struct Move {
     pub label: String,
     pub gesture: Option<Gesture>,
     pub recorded: Option<String>,
+    pub column: Option<u32>,
 }
 
 impl Move {
@@ -144,7 +151,18 @@ impl Move {
             label: label.into(),
             gesture: None,
             recorded: None,
+            column: None,
         }
+    }
+
+    pub fn column(mut self, column: u32) -> Self {
+        self.column = Some(column);
+        self
+    }
+
+    pub fn control(mut self, control: Control) -> Self {
+        self.gesture = Some(Gesture::Control(control));
+        self
     }
 
     pub fn recorded(mut self, history: impl Into<String>) -> Self {
@@ -167,6 +185,7 @@ impl Move {
 pub struct Scene {
     pub description: String,
     pub board: Board,
+    pub score: Option<String>,
 }
 
 impl Scene {
@@ -174,7 +193,13 @@ impl Scene {
         Self {
             description: description.into(),
             board: Board::Empty,
+            score: None,
         }
+    }
+
+    pub fn score(mut self, score: impl Into<String>) -> Self {
+        self.score = Some(score.into());
+        self
     }
 
     pub fn on(mut self, board: impl Into<Board>) -> Self {

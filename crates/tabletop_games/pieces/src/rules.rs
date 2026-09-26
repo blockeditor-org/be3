@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use game_api::board::{Grid, Shade, Sprite, Tint};
-use game_api::{GameHelper, GameScreen, Move, Scene, Spot};
+use game_api::{Control, GameHelper, GameScreen, Move, Scene, Spot};
 use uuid::Uuid;
 
 use crate::checkers::dark;
@@ -61,6 +61,7 @@ pub fn play(helper: GameHelper<'_>, rules: &Rules) -> Result<Infallible, GameScr
     let mut last: Option<Step> = None;
     let mut quiet = 0;
     let mut seen = vec![position.key(side)];
+    helper.columns(rules.armies.iter().map(|army| army.name));
 
     loop {
         let legal = position.legal(side, rules.army(side).must_capture);
@@ -98,9 +99,7 @@ pub fn play(helper: GameHelper<'_>, rules: &Rules) -> Result<Infallible, GameScr
             check: check.then_some(side),
         };
         if let Some(ending) = ending {
-            return helper.game_over(|viewer| {
-                Scene::new(table.ending(&ending, viewer)).on(table.grid(viewer))
-            });
+            return helper.game_over(|viewer| table.finish(&ending, viewer));
         }
 
         let can_move = |player: Uuid| match seats[side.index()] {
@@ -123,14 +122,20 @@ pub fn play(helper: GameHelper<'_>, rules: &Rules) -> Result<Infallible, GameScr
                             false => String::new(),
                         };
                         let gesture = Move::new(label)
-                            .drag(table.spot(step.from, flipped), table.spot(step.to, flipped));
+                            .drag(table.spot(step.from, flipped), table.spot(step.to, flipped))
+                            .column(side.index() as u32);
                         if choose(gesture) {
                             chosen = Some((index, player));
                             return;
                         }
                     }
                 }
-                if seats.contains(&Some(player)) && choose(Move::new("Resign").recorded("Resigned"))
+                if seats.contains(&Some(player))
+                    && choose(
+                        Move::new("Resign")
+                            .control(Control::Resign)
+                            .recorded("resigns"),
+                    )
                 {
                     resigned = Some(player);
                 }
@@ -143,9 +148,7 @@ pub fn play(helper: GameHelper<'_>, rules: &Rules) -> Result<Infallible, GameScr
                 false => Side::Second,
             };
             let ending = Ending::Resigned(loser);
-            return helper.game_over(|viewer| {
-                Scene::new(table.ending(&ending, viewer)).on(table.grid(viewer))
-            });
+            return helper.game_over(|viewer| table.finish(&ending, viewer));
         }
         let Some((index, player)) = chosen else {
             continue;
@@ -216,6 +219,22 @@ impl Table<'_> {
         } else {
             format!("{army} to move")
         }
+    }
+
+    fn finish(&self, ending: &Ending, viewer: Uuid) -> Scene {
+        let winner = match *ending {
+            Ending::Won { winner, .. } => Some(winner),
+            Ending::Resigned(loser) => Some(loser.other()),
+            Ending::Drawn(_) => None,
+        };
+        let score = match winner {
+            Some(Side::First) => "1-0",
+            Some(Side::Second) => "0-1",
+            None => "½-½",
+        };
+        Scene::new(self.ending(ending, viewer))
+            .score(score)
+            .on(self.grid(viewer))
     }
 
     fn ending(&self, ending: &Ending, viewer: Uuid) -> String {

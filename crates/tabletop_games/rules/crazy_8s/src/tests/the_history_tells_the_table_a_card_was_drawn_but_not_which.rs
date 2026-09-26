@@ -21,13 +21,5 @@ fn the_history_tells_the_table_a_card_was_drawn_but_not_which() {
         .into_iter()
         .map(|turn| turn.description)
         .collect();
-    assert_eq!(
-        history,
-        [
-            "Joined the game",
-            "Joined the game",
-            "Started the game",
-            "Drew a card"
-        ]
-    );
+    assert_eq!(history, ["joins", "joins", "deals", "draw"]);
 }

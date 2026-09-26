@@ -103,7 +103,15 @@ another - or clicking the first and then the second. The editor highlights
 every spot a move can start from, and once one is picked up, every spot it
 can land on. Two moves may share a gesture - playing an eight onto the
 discard pile is four moves, one per suit it can call - and the editor then
-asks which one was meant. A move with no gesture is a button beside the board.
+asks which one was meant. Give every move a gesture: the editor shows no list
+of moves and no status line, only the board and the move table, so a player
+joins or deals by clicking the deck. The one exception is a move that is about
+the game rather than the board - `.control(Control::Resign)` - which the editor
+shows as an icon under the move table and asks before it plays.
+
+When the game ends, the screen from `game_over` is the result: its
+description, with a `Scene::score` such as `1-0` or `½-½`, closes the move
+table and shows in a banner over the board until it is closed.
 
 The editor lays the board out in a world of its own and draws it on a
 pan-and-zoom canvas, so a Game block plays the same in a tab of its own as
@@ -114,11 +122,17 @@ finger while one is held down - and none of that reaches the game.
 ### The history
 
 Every move the log records becomes a line of the game's history (`Turn`s on
-the `GameScreen`), which the editor lists beside the board and steps back
-through by showing the log up to that move. The line reads as the move's
-label, unless `.recorded(text)` says otherwise. The history is shown to every
+the `GameScreen`), which the editor lays out as a move table beside the board
+and steps back through by showing the log up to that move. The game names the
+table's columns once with `helper.columns(...)` - White and Black, X and O,
+one per seat - and puts each move in one with `.column(seat)`; a move with no
+column (joining, dealing) stays out of the table. A row holds one move per
+column, and a seat's moves in a row share its cell, so Crazy 8s reads
+`draw 7♥`. Write a move the way the game's own notation would, as tersely:
+`e4`, `11-15`, `b2`, `K♣`. The move reads as its label unless
+`.recorded(text)` says otherwise. The history is shown to every
 player, so a move whose label names something only its player may know is
-recorded as what the table saw: Crazy 8s records "Drew a card", never which.
+recorded as what the table saw: Crazy 8s records `draw`, never which card.
 `helper.annotate(suffix)` adds to the last line once the game knows more about
 it (chess marks a check `+` on the move that gave it), and
 `helper.describe_last_turn(text)` replaces it. `helper.listing()` says whether
