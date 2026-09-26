@@ -265,6 +265,23 @@ pub enum Event {
     FileHovered,
     FileHoverCancelled,
     FileDropped(DroppedFile),
+    Back(BackGesture),
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum BackGesture {
+    Started { edge: BackEdge },
+    Progressed(f32),
+    Cancelled,
+    Invoked,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum BackEdge {
+    #[default]
+    None,
+    Left,
+    Right,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]

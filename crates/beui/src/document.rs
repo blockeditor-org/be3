@@ -13,7 +13,7 @@ use crate::damage::{Damage, Region};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::input::{Event, Key, KeyPress};
+use crate::input::{BackEdge, Event, Key, KeyPress};
 
 use crate::inspector::{Inspector, Layout};
 use crate::interact::{self, Keys};
@@ -43,6 +43,8 @@ pub struct Document {
     pub(crate) portal_holders: std::collections::HashMap<NodeId, NodeId>,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
+    pub(crate) back_handlers: Vec<NodeId>,
+    pub(crate) back_gesture: Option<(NodeId, BackEdge)>,
     timers: RefCell<crate::timer::Timers>,
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
     attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
@@ -191,6 +193,8 @@ impl Document {
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
+            back_handlers: Vec::new(),
+            back_gesture: None,
             timers: RefCell::new(Vec::new()),
             scale: ::reactive::create_signal(1.0),
             attached: ::reactive::create_signal(0),
@@ -545,6 +549,7 @@ impl Document {
         self.arena.remove(id);
         self.overlay_stack.retain(|overlay| *overlay != id);
         self.passive_overlays.retain(|overlay| *overlay != id);
+        self.back_handlers.retain(|handler| *handler != id);
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
         self.placements.remove(&id);
@@ -732,6 +737,9 @@ impl Document {
             && let Some(area) = self.focused_ime_area()
         {
             ctx.set_ime_area(Some(area));
+        }
+        if self.handles_back() {
+            ctx.handle_back();
         }
 
         if let Some(text) = self.copied_text.take() {

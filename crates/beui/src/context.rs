@@ -40,6 +40,7 @@ struct Inner {
     ime: Cell<Option<ImeArea>>,
     fullscreen: Cell<Option<bool>>,
     close_requested: Cell<bool>,
+    handles_back: Cell<bool>,
     pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
     mouse_simulation: RefCell<MouseSimulation>,
@@ -69,6 +70,7 @@ pub struct FrameOutput {
     pub ime: Option<ImeArea>,
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
+    pub handles_back: bool,
     pub pointer_locked: bool,
     pub copied_text: Option<String>,
     pub paste_requested: bool,
@@ -139,6 +141,7 @@ impl Context {
                 ime: Cell::new(None),
                 fullscreen: Cell::new(None),
                 close_requested: Cell::new(false),
+                handles_back: Cell::new(false),
                 pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 mouse_simulation: RefCell::new(MouseSimulation::default()),
@@ -221,6 +224,7 @@ impl Context {
         self.inner.ime.set(None);
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
+        self.inner.handles_back.set(false);
         self.inner.accessibility.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
         *self.inner.accessibility_known.borrow_mut() = published;
@@ -272,6 +276,7 @@ impl Context {
             ime: self.inner.ime.get(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
+            handles_back: self.inner.handles_back.get(),
             pointer_locked: self.inner.pointer_locked.get(),
             repaint: self.inner.repaint.get(),
             accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
@@ -303,6 +308,10 @@ impl Context {
 
     pub fn close_window(&self) {
         self.inner.close_requested.set(true);
+    }
+
+    pub fn handle_back(&self) {
+        self.inner.handles_back.set(true);
     }
 
     pub fn painter(&self) -> Painter {

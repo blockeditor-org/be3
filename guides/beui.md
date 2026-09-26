@@ -542,6 +542,16 @@ while it is open: it goes on the overlay stack, so input reaches it and
 nothing else, it can trap focus, Escape closes the topmost one, and a press
 outside it dismisses it.
 
+Back - Android's back gesture, or the Back key or mouse button - closes the
+topmost modal overlay too, and while the gesture is held the overlay slides
+with it and its scrim fades. With no modal open, back goes to the most
+recently made enabled `BackHandler`, which slides its child the same way and
+calls `on_back` when the gesture completes: wrap a page in one to make back
+leave it. The document reports whether anything would take back through
+`FrameOutput::handles_back`; on Android the runner passes that to the
+activity's `setBackHandled`, and when nothing takes it the system's own back
+(to the home screen) plays instead.
+
 A **passive** one takes no input at all. It is painted above everything and is
 not on the stack, so the document underneath goes on answering the pointer and
 the keyboard as if it were not there. A tooltip is passive: hovering the thing
