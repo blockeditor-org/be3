@@ -31,9 +31,9 @@ mod wasm;
 pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockCommand, BlockFilter, BlockPick, ChildId,
-    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage,
-    EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, HostReply, HostRequest,
-    InteractionMode, Occluder, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
+    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorCapabilities,
+    EditorInstanceId, EditorRegion, FetchResult, HostReply, HostRequest, InteractionMode, Occluder,
+    ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_ui;
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};

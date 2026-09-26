@@ -16,7 +16,8 @@ use crate::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use crate::unstyled;
 use crate::unstyled::{
     DockDragged, DockGripHandle, DockPanelHandle, DockPreviewHandle, DockSplitterHandle, DockState,
-    DockTabHandle, DockWindowHandle, Entry, GroupId, MenuItem, SPLITTER_THICKNESS, TabId, sidebar_size,
+    DockTabHandle, DockWindowHandle, Entry, GroupId, MenuItem, SPLITTER_THICKNESS, TabId,
+    sidebar_size,
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;

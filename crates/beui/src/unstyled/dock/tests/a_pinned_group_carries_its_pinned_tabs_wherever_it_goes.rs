@@ -23,6 +23,9 @@ fn a_pinned_group_carries_its_pinned_tabs_wherever_it_goes() {
     );
 
     let window = state.windows()[0];
-    assert_eq!(state.surface_tabs(window), vec![TabId::new(10), TabId::new(11)]);
+    assert_eq!(
+        state.surface_tabs(window),
+        vec![TabId::new(10), TabId::new(11)]
+    );
     assert!(state.is_tab_pinned(TabId::new(10)));
 }

@@ -389,7 +389,10 @@ pub const MAX_PANE_DEPTH: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum PaneItem {
-    Split { horizontal: bool, fraction: f32 },
+    Split {
+        horizontal: bool,
+        fraction: f32,
+    },
     Tabs {
         count: u32,
         active: u32,

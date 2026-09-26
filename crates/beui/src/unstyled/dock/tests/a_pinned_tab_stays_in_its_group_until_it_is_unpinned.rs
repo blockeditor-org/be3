@@ -28,7 +28,10 @@ fn a_pinned_tab_stays_in_its_group_until_it_is_unpinned() {
         "the pane holding pinned tabs cannot be dragged out either"
     );
     state.drop_tab(TabId::new(10), window);
-    assert_eq!(state.group_tabs(group), vec![TabId::new(10), TabId::new(11)]);
+    assert_eq!(
+        state.group_tabs(group),
+        vec![TabId::new(10), TabId::new(11)]
+    );
 
     state.set_tab_pinned(TabId::new(10), false);
     state.drop_tab(TabId::new(10), window);
@@ -45,5 +48,8 @@ fn a_pinned_tab_stays_in_its_group_until_it_is_unpinned() {
     state.set_tab_pinned(TabId::new(10), true);
 
     assert!(state.is_tab_pinned(TabId::new(10)));
-    assert_eq!(state.group_tabs(group), vec![TabId::new(11), TabId::new(10)]);
+    assert_eq!(
+        state.group_tabs(group),
+        vec![TabId::new(11), TabId::new(10)]
+    );
 }

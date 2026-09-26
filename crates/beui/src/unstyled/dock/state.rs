@@ -1369,7 +1369,11 @@ impl DockState {
         };
         let tabs = self.entry_tabs(entry);
         let held = tabs.iter().any(|tab| {
-            let Some(home) = self.homes.iter().find(|home| home.tab == *tab && home.pinned) else {
+            let Some(home) = self
+                .homes
+                .iter()
+                .find(|home| home.tab == *tab && home.pinned)
+            else {
                 return false;
             };
             entry != Entry::Group(home.group) && !self.lands_in(target, home.group)
@@ -1505,12 +1509,14 @@ impl DockState {
         {
             let kept = self.homes.clone();
             self.homes.retain(|home| !incoming.contains(&home.tab));
-            self.homes.extend(incoming.iter().map(|tab| Home {
-                tab: *tab,
-                group,
-                pinned: !kept
-                    .iter()
-                    .any(|home| home.tab == *tab && home.group == group && !home.pinned),
+            self.homes.extend(incoming.iter().map(|tab| {
+                Home {
+                    tab: *tab,
+                    group,
+                    pinned: !kept
+                        .iter()
+                        .any(|home| home.tab == *tab && home.group == group && !home.pinned),
+                }
             }));
         }
         self.normalize();

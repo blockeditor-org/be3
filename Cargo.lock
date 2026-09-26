@@ -909,6 +909,7 @@ dependencies = [
  "beui",
  "block-editor-plugin",
  "block-plugin-api",
+ "block-ui",
  "block-wasm-host",
  "bytemuck",
  "directories-next",
@@ -1025,6 +1026,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "beui",
+ "block-plugin-api",
  "uuid",
 ]
 
