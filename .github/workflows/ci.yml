@@ -173,7 +173,7 @@ jobs:
       # third-party action, a tag only for GitHub's own, no expansion of an
       # input into a shell script - are worth more as a check than as a
       # convention. .github/zizmor.yml is where the policy is written.
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+      - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
         if: matrix.part == 'lint'
         with:
           tool: zizmor@1.30.1
