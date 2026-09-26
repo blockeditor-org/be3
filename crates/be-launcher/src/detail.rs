@@ -9,7 +9,7 @@ use beui::styled::{
     Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, MenuButton, Scroll,
     Separator, Spinner, use_theme,
 };
-use beui::unstyled::MenuItem;
+use beui::unstyled::{self, MenuItem};
 
 use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone, branch_deleted};
 use crate::markdown::Block;
@@ -657,7 +657,9 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
         alt
     };
     let missing = format!("Could not load {described}");
-    let open = move || model.open(&url);
+    let open = clone!(model url -> move || model.open(&url));
+    let enlarge = move || model.view_image(&url);
+    let accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
     view! {
         <List spacing=4.0>
             <Show condition={waiting}>
@@ -669,7 +671,9 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
             <Show condition={failed}>
                 <Link label={missing} on_click={open} />
             </Show>
-            <Picture image={picture} radius=6.0 />
+            <unstyled::Button on_click={enlarge} accessibility>
+                <Picture image={picture} radius=6.0 />
+            </unstyled::Button>
         </List>
     }
 }

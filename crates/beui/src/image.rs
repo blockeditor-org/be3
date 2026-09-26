@@ -14,6 +14,7 @@ pub enum ImageFit {
     Contain,
     Cover,
     Fill,
+    ScaleDown,
 }
 
 struct ImageData {
@@ -88,6 +89,9 @@ impl ImageFit {
             Self::Fill => return into,
             Self::Contain => (into.width() / source.x).min(into.height() / source.y),
             Self::Cover => (into.width() / source.x).max(into.height() / source.y),
+            Self::ScaleDown => (into.width() / source.x)
+                .min(into.height() / source.y)
+                .min(1.0),
         };
         let size = Vec2::new(source.x * scale, source.y * scale);
         crate::geometry::Rect::from_min_size(

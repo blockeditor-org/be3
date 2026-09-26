@@ -59,9 +59,12 @@ pub(crate) struct Pane {
 }
 
 impl Session {
-    pub(crate) fn new() -> Result<Self, String> {
-        let terminal = Terminal::new(DEFAULT_COLS, DEFAULT_ROWS, MAX_SCROLLBACK)
+    pub(crate) fn new(tasks: Tasks) -> Result<Self, String> {
+        let mut terminal = Terminal::new(DEFAULT_COLS, DEFAULT_ROWS, MAX_SCROLLBACK)
             .map_err(|error| format!("could not create the terminal emulator: {error}"))?;
+        terminal
+            .on_reply(move |reply| tasks.input(reply))
+            .map_err(|error| format!("could not answer the terminal's queries: {error}"))?;
         let renderer = Renderer::new()
             .map_err(|error| format!("could not create the terminal renderer: {error}"))?;
         Ok(Self {

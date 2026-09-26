@@ -80,6 +80,7 @@ pub fn TextInput(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
     #[prop(default = FONT_SIZE)] font_size: Prop<f32>,
@@ -173,6 +174,7 @@ pub fn TextInput(
         }
     });
     let submit_state = state.clone();
+    let focus_state = state.clone();
     let menu_state = state.clone();
     let close_menu = set_menu_at.clone();
     let field_disabled = disabled.clone();
@@ -194,6 +196,9 @@ pub fn TextInput(
             on_key_override={move |press: KeyPress| on_key_override.call(press)}
             on_submit={move || on_submit.call(text_of(&submit_state))}
             on_focus_change={move |focused: bool| {
+                if focused && select_on_focus.peek() {
+                    focus_state.execute(EditorCommand::SelectAll);
+                }
                 set_focused.set(focused);
                 on_focus_change.call(focused);
             }}

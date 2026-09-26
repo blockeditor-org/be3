@@ -3,16 +3,14 @@ use crate::reactive::view;
 use crate::styled::{NumberInput, number_input_field, number_input_text};
 
 #[test]
-fn a_number_input_reports_what_was_typed_within_its_range() {
+fn escape_discards_what_was_typed_into_a_number_input() {
     let changes = Rc::new(RefCell::new(Vec::new()));
     let previews = Rc::new(RefCell::new(Vec::new()));
     let (change_sink, preview_sink) = (changes.clone(), previews.clone());
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <NumberInput
-                value=4.0
-                min=0.0
-                max=10.0
+                value=7.0
                 on_change={move |value| change_sink.borrow_mut().push(value)}
                 on_preview={move |value| preview_sink.borrow_mut().push(value)}
             />
@@ -20,27 +18,23 @@ fn a_number_input_reports_what_was_typed_within_its_range() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let shown = number_input_text(harness.document(), input).expect("the input starts closed");
+    let middle = harness.center(input);
 
-    assert_eq!(text_of(harness.document(), shown), "4");
-
-    harness.key(Key::Tab, Modifiers::NONE);
-    harness.key(Key::Enter, Modifiers::NONE);
+    harness.click(middle);
     harness.frame(Vec::new());
-    let field = number_input_field(harness.document(), input).expect("enter opens the field");
-    harness.type_text("42");
+    assert!(number_input_field(harness.document(), input).is_some());
+    harness.type_text("35");
+    harness.frame(Vec::new());
+    assert_eq!(previews.borrow().last().copied(), Some(Some(35.0)));
+
+    harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert_eq!(unstyled::text_input_shown(harness.document(), field), "42");
-    assert_eq!(previews.borrow().last().copied(), Some(Some(10.0)));
     assert!(
         changes.borrow().is_empty(),
-        "typing only previews the value"
+        "escape must not change the value"
     );
-
-    harness.key(Key::Enter, Modifiers::NONE);
-    harness.frame(Vec::new());
-
-    assert_eq!(*changes.borrow(), [10.0]);
     assert_eq!(previews.borrow().last().copied(), Some(None));
+    let shown = number_input_text(harness.document(), input).expect("escape closes the field");
+    assert_eq!(text_of(harness.document(), shown), "7");
 }
