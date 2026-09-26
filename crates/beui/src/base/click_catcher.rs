@@ -391,27 +391,27 @@ impl Document {
 
     pub(crate) fn set_click_catcher_cursor(&mut self, id: NodeId, cursor: Option<CursorIcon>) {
         if self.arena.get_as::<ClickCatcherNode>(id).cursor != cursor {
-            self.arena.get_mut_as::<ClickCatcherNode>(id).cursor = cursor;
+            self.arena.touch_mut_as::<ClickCatcherNode>(id).cursor = cursor;
         }
     }
 
     pub(crate) fn set_click_catcher_capture_presses(&mut self, id: NodeId, capture_presses: bool) {
         if self.arena.get_as::<ClickCatcherNode>(id).capture_presses != capture_presses {
             self.arena
-                .get_mut_as::<ClickCatcherNode>(id)
+                .touch_mut_as::<ClickCatcherNode>(id)
                 .capture_presses = capture_presses;
         }
     }
 
     pub(crate) fn set_click_catcher_scroll_axis(&mut self, id: NodeId, axis: Option<Direction>) {
         if self.arena.get_as::<ClickCatcherNode>(id).scroll_axis != axis {
-            self.arena.get_mut_as::<ClickCatcherNode>(id).scroll_axis = axis;
+            self.arena.touch_mut_as::<ClickCatcherNode>(id).scroll_axis = axis;
         }
     }
 
     pub(crate) fn set_click_catcher_repeat_drag(&mut self, id: NodeId, repeat_drag: bool) {
         if self.arena.get_as::<ClickCatcherNode>(id).repeat_drag != repeat_drag {
-            self.arena.get_mut_as::<ClickCatcherNode>(id).repeat_drag = repeat_drag;
+            self.arena.touch_mut_as::<ClickCatcherNode>(id).repeat_drag = repeat_drag;
         }
     }
 
@@ -419,7 +419,7 @@ impl Document {
         if !self.contains(id) {
             return;
         }
-        let click_catcher = self.arena.get_mut_as::<ClickCatcherNode>(id);
+        let click_catcher = self.arena.touch_mut_as::<ClickCatcherNode>(id);
         click_catcher.key_active = key_active;
         let active = click_catcher.is_active();
         if active == click_catcher.active {
@@ -457,7 +457,7 @@ pub fn ClickCatcher(
 ) -> NodeId {
     let click_catcher = with_document(|document| {
         let click_catcher = document.create_click_catcher();
-        let node = document.arena.get_mut_as::<ClickCatcherNode>(click_catcher);
+        let node = document.arena.touch_mut_as::<ClickCatcherNode>(click_catcher);
         node.on_click = on_click;
         node.on_click_at = on_click_at;
         node.on_hover_change = on_hover_change;

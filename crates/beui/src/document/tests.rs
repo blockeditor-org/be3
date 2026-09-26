@@ -1289,6 +1289,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
         paints: Rc::new(Cell::new(0)),
         measures: Rc::new(Cell::new(0)),
     };
+    document.verifies_paint = false;
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,

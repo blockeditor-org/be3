@@ -290,19 +290,19 @@ impl Document {
 
     pub(crate) fn set_text_color(&mut self, text: NodeId, color: Color32) {
         if self.arena.get_as::<TextNode>(text).color != color {
-            self.arena.get_mut_as::<TextNode>(text).color = color;
+            self.arena.paint_mut_as::<TextNode>(text).color = color;
         }
     }
 
     pub(crate) fn set_text_clip(&mut self, text: NodeId, clip: bool) {
         if self.arena.get_as::<TextNode>(text).clip != clip {
-            self.arena.get_mut_as::<TextNode>(text).clip = clip;
+            self.arena.paint_mut_as::<TextNode>(text).clip = clip;
         }
     }
 
     pub(crate) fn set_text_underline(&mut self, text: NodeId, underline: bool) {
         if self.arena.get_as::<TextNode>(text).underline != underline {
-            self.arena.get_mut_as::<TextNode>(text).underline = underline;
+            self.arena.paint_mut_as::<TextNode>(text).underline = underline;
         }
     }
 }

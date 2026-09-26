@@ -19,10 +19,6 @@ impl Region {
         &self.rects[..self.count]
     }
 
-    pub(crate) fn intersects(&self, rect: Rect) -> bool {
-        self.rects().iter().any(|region| region.intersects(rect))
-    }
-
     pub(crate) fn add(&mut self, rect: Rect) {
         if !rect.is_positive() {
             return;
@@ -59,6 +55,12 @@ impl Region {
     }
 }
 
+impl Default for Region {
+    fn default() -> Self {
+        Self::NOTHING
+    }
+}
+
 fn area(rect: Rect) -> f32 {
     rect.width() * rect.height()
 }
@@ -80,6 +82,12 @@ impl Default for Damage {
 impl Damage {
     pub(crate) fn add(&mut self, rect: Rect) {
         self.region.add(rect);
+    }
+
+    pub(crate) fn add_region(&mut self, region: Region) {
+        for rect in region.rects() {
+            self.region.add(*rect);
+        }
     }
 
     pub(crate) fn everything(&mut self) {

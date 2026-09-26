@@ -316,7 +316,7 @@ impl Document {
             tree.reset();
             tree.root = Some(root);
         }
-        for id in self.arena.changed_since(0) {
+        for id in self.arena.changed() {
             tree.mark(*id, &self.arena);
         }
         let scale = self.pixels_per_point();

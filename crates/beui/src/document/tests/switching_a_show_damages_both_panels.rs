@@ -39,8 +39,8 @@ fn switching_a_show_damages_both_panels() {
 
     assert_eq!(
         damage,
-        Rect::from_min_max(pos2(0.0, 0.0), pos2(VIEWPORT.x, VIEWPORT.y)),
-        "taking a panel out of the column and putting another in damages the column that lays \
-         them out, which covers the panel that went and the one that came"
+        Rect::from_min_max(pos2(0.0, 0.0), pos2(VIEWPORT.x, SECOND)),
+        "taking a panel out of the column and putting another in damages what the column \
+         painted before and after, which covers the panel that went and the one that came"
     );
 }

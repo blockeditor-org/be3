@@ -22,9 +22,14 @@ fn performance_measurements_report_what_the_frame_reused() {
     harness.frame(Vec::new());
 
     let after = harness.document().performance().latest.work;
-    assert!(
-        after.reused_measurements > after.measured,
-        "recolouring one panel must reuse more measurements than it takes, got {after:?}"
+    assert_eq!(
+        (after.measured, after.placed),
+        (0, 0),
+        "recolouring one panel must not measure or place anything, got {after:?}"
+    );
+    assert_eq!(
+        after.painted_nodes, 1,
+        "recolouring one panel paints only that panel, got {after:?}"
     );
     assert!(
         after.replayed_nodes > 0,

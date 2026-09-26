@@ -200,25 +200,25 @@ impl Document {
 
     pub(crate) fn set_picture_fit(&mut self, picture: NodeId, fit: ImageFit) {
         if self.arena.get_as::<PictureNode>(picture).fit != fit {
-            self.arena.get_mut_as::<PictureNode>(picture).fit = fit;
+            self.arena.paint_mut_as::<PictureNode>(picture).fit = fit;
         }
     }
 
     pub(crate) fn set_picture_tint(&mut self, picture: NodeId, tint: Color32) {
         if self.arena.get_as::<PictureNode>(picture).tint != tint {
-            self.arena.get_mut_as::<PictureNode>(picture).tint = tint;
+            self.arena.paint_mut_as::<PictureNode>(picture).tint = tint;
         }
     }
 
     pub(crate) fn set_picture_radius(&mut self, picture: NodeId, radius: f32) {
         if self.arena.get_as::<PictureNode>(picture).radius != radius {
-            self.arena.get_mut_as::<PictureNode>(picture).radius = radius;
+            self.arena.paint_mut_as::<PictureNode>(picture).radius = radius;
         }
     }
 
     pub(crate) fn set_picture_smooth(&mut self, picture: NodeId, smooth: bool) {
         if self.arena.get_as::<PictureNode>(picture).smooth != smooth {
-            self.arena.get_mut_as::<PictureNode>(picture).smooth = smooth;
+            self.arena.paint_mut_as::<PictureNode>(picture).smooth = smooth;
         }
     }
 }

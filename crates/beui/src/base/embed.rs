@@ -152,13 +152,13 @@ impl Document {
 
     pub(crate) fn set_embed_punch(&mut self, embed: NodeId, punch: bool) {
         if self.arena.get_as::<EmbedNode>(embed).punch != punch {
-            self.arena.get_mut_as::<EmbedNode>(embed).punch = punch;
+            self.arena.paint_mut_as::<EmbedNode>(embed).punch = punch;
         }
     }
 
     pub(crate) fn set_embed_rotation(&mut self, embed: NodeId, rotation: f32) {
         if self.arena.get_as::<EmbedNode>(embed).rotation != rotation {
-            self.arena.get_mut_as::<EmbedNode>(embed).rotation = rotation;
+            self.arena.paint_mut_as::<EmbedNode>(embed).rotation = rotation;
         }
     }
 

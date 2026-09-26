@@ -137,7 +137,7 @@ impl Document {
             return;
         }
         if self.arena.get_as::<FocusableNode>(focusable).tab_stop != tab_stop {
-            self.arena.get_mut_as::<FocusableNode>(focusable).tab_stop = tab_stop;
+            self.arena.touch_mut_as::<FocusableNode>(focusable).tab_stop = tab_stop;
         }
     }
 
@@ -174,7 +174,7 @@ impl Document {
 
     pub(crate) fn set_focusable_ime(&mut self, focusable: NodeId, ime: bool) {
         if self.contains(focusable) {
-            self.arena.get_mut_as::<FocusableNode>(focusable).ime = ime;
+            self.arena.touch_mut_as::<FocusableNode>(focusable).ime = ime;
         }
     }
 
@@ -184,7 +184,7 @@ impl Document {
         cursor: Option<ImeCursor>,
     ) {
         if self.contains(focusable) {
-            self.arena.get_mut_as::<FocusableNode>(focusable).ime_cursor = cursor;
+            self.arena.touch_mut_as::<FocusableNode>(focusable).ime_cursor = cursor;
         }
     }
 
@@ -416,7 +416,7 @@ impl Document {
         }
         if let Some(node) = self
             .arena
-            .get_mut(id)
+            .touch_mut(id)
             .as_any_mut()
             .downcast_mut::<FocusableNode>()
         {
@@ -536,7 +536,7 @@ pub fn Focusable(
 ) -> NodeId {
     let focusable = with_document(|document| {
         let focusable = document.create_focusable();
-        let node = document.arena.get_mut_as::<FocusableNode>(focusable);
+        let node = document.arena.touch_mut_as::<FocusableNode>(focusable);
         node.on_focus_change = on_focus_change;
         node.on_activate_change = on_activate_change;
         node.on_activate = on_activate;

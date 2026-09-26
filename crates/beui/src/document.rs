@@ -9,7 +9,7 @@ use accesskit::Node;
 use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::Context;
-use crate::damage::{Damage, Region};
+use crate::damage::Damage;
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -19,7 +19,7 @@ use crate::inspector::{Inspector, Layout};
 use crate::interact::{self, Keys};
 use crate::layout;
 use crate::node::{Arena, NodeId, NodeMap};
-use crate::paint::{self, PaintCache, Painted};
+use crate::paint::{self, PaintCache};
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
@@ -75,11 +75,9 @@ pub struct Document {
     scroll_shifts: NodeMap<f32>,
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
-    paint_cache: RefCell<PaintCache>,
-    paint_region: Cell<Region>,
-    paint_base: Cell<Option<usize>>,
-    grown: Cell<Rect>,
-    deadlines: Vec<NodeId>,
+    pub(crate) paint_cache: RefCell<PaintCache>,
+    #[cfg(test)]
+    pub(crate) verifies_paint: bool,
     pub(crate) copied_text: Option<String>,
     next_paint: Option<Instant>,
     reactive_scope: ::reactive::Scope,
@@ -226,10 +224,8 @@ impl Document {
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
-            paint_region: Cell::new(Region::NOTHING),
-            paint_base: Cell::new(None),
-            grown: Cell::new(Rect::NOTHING),
-            deadlines: Vec::new(),
+            #[cfg(test)]
+            verifies_paint: true,
             copied_text: None,
             next_paint: None,
             reactive_scope: ::reactive::Scope::new(),
@@ -454,46 +450,6 @@ impl Document {
 
     pub(crate) fn track_damage(&mut self, enabled: bool) {
         self.damage_flashes.set_enabled(enabled);
-    }
-
-    pub(crate) fn paint_cache(&self) -> std::cell::Ref<'_, PaintCache> {
-        self.paint_cache.borrow()
-    }
-
-    pub(crate) fn cached_start(&self, id: NodeId, parent: Option<NodeId>) -> Option<usize> {
-        self.paint_cache.borrow().start(id, parent)
-    }
-
-    pub(crate) fn cached_bounds(&self, id: NodeId) -> Rect {
-        self.paint_cache.borrow().bounds(id)
-    }
-
-    pub(crate) fn store_painted(&self, id: NodeId, painted: Painted) {
-        self.paint_cache.borrow_mut().store(id, painted);
-    }
-
-    pub(crate) fn paint_region(&self) -> Region {
-        self.paint_region.get()
-    }
-
-    pub(crate) fn paint_base(&self) -> Option<usize> {
-        self.paint_base.get()
-    }
-
-    pub(crate) fn enter_paint_base(&self, base: Option<usize>) -> Option<usize> {
-        self.paint_base.replace(base)
-    }
-
-    pub(crate) fn leave_paint_base(&self, base: Option<usize>) {
-        self.paint_base.set(base);
-    }
-
-    pub(crate) fn painted_shapes(&self, base: usize, len: usize) -> Option<&[Shape]> {
-        self.shapes.get(base..base + len)
-    }
-
-    pub(crate) fn note_grown(&self, bounds: Rect) {
-        self.grown.set(self.grown.get().union(bounds));
     }
 
     pub(crate) fn change_flashes(&self) -> impl Iterator<Item = (NodeId, Instant)> {
@@ -764,58 +720,34 @@ impl Document {
         self.damage_flashes.prune(now);
         if self.arena.take_everything() {
             self.damage.everything();
+            self.paint_cache.get_mut().clear();
         }
         for id in self.arena.take_changed() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
             self.changes.record(id, now);
-            if let Some(node) = self.rects.get(&id)
-                && self.paints(id)
-            {
-                self.damage.add(node.intersect(self.clip(id)));
-            }
-            self.damage.add(self.paint_cache.borrow().bounds(id));
         }
-        let due = self.next_paint.is_some_and(|deadline| deadline <= now);
-        if due {
-            for id in std::mem::take(&mut self.deadlines) {
-                self.damage.add(self.paint_cache.borrow().bounds(id));
-            }
+        let mut repaints = self.arena.take_repaints();
+        let cache = self.paint_cache.get_mut();
+        repaints.extend(cache.take_due(now));
+        for id in &repaints {
+            cache.mark(*id, &self.arena);
         }
-        if self.paint_revision != self.arena.revision || due {
+        if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
-            self.paint_region.set(self.damage.take(rect));
-            self.grown.set(Rect::NOTHING);
-            let (shapes, delay) = FrameMeasurement::measure(&mut measurement.timings.paint, || {
-                ctx.capture(|| {
-                    if let Some(root) = self.root {
-                        self.paint_base.set(Some(0));
-                        paint::paint(self, &ctx.painter(), &self.rects, root);
-                    }
-                    ctx.flush_top();
-                    for overlay in self.overlays_bottom_up() {
-                        if let Some(content) = self.overlay_content(overlay)
-                            && self.rects.contains_key(&content)
-                        {
-                            self.paint_base.set(Some(0));
-                            paint::paint(self, &ctx.painter(), &self.rects, content);
-                        }
-                        ctx.flush_top();
-                    }
-                })
-            });
-            self.shapes = shapes;
-            self.deadlines = ctx.take_deadlines();
-            let mut region = self.paint_region.get();
-            region.add(self.grown.get());
-            for damaged in region.rects() {
-                let damaged = damaged.intersect(rect);
-                if damaged.is_positive() {
-                    self.damage_flashes.record(damaged, now);
-                    ctx.report_damage(damaged);
-                }
-            }
-            self.next_paint = Instant::now().checked_add(delay);
+            #[cfg(test)]
+            let previous = self.shapes.clone();
+            FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
+            let region = self.damage.take(rect);
+            #[cfg(test)]
+            if self.verifies_paint {
+                self.verify_paint(ctx, rect, &previous, &region);
+            }
+            for damaged in region.rects() {
+                self.damage_flashes.record(*damaged, now);
+                ctx.report_damage(*damaged);
+            }
+            self.next_paint = self.paint_cache.get_mut().next_deadline();
         }
         if let Some(deadline) = self.next_paint {
             ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
@@ -841,6 +773,83 @@ impl Document {
         measurement.work = self.work.gathered();
         let frame = measurement.finish(self.arena.len(), self.shapes.len());
         self.performance.record(frame);
+    }
+
+    fn paint(&mut self, ctx: &Context) {
+        let painter = ctx.painter();
+        let mut roots = Vec::new();
+        if let Some(root) = self.root {
+            paint::paint(self, &painter, &self.rects, root);
+            roots.push(root);
+        }
+        for overlay in self.overlays_bottom_up() {
+            if let Some(content) = self.overlay_content(overlay)
+                && self.rects.contains_key(&content)
+            {
+                paint::paint(self, &painter, &self.rects, content);
+                roots.push(content);
+            }
+        }
+        let cache = self.paint_cache.get_mut();
+        cache.settle_roots(roots);
+        if cache.take_recorded() {
+            self.shapes = cache.flatten();
+        }
+        self.damage.add_region(cache.take_damage());
+    }
+
+    #[cfg(test)]
+    fn verify_paint(&mut self, ctx: &Context, viewport: Rect, previous: &[Shape], region: &crate::damage::Region) {
+        let counted = (
+            self.work.painted_nodes.get(),
+            self.work.replayed_nodes.get(),
+        );
+        let retained = self.paint_cache.replace(PaintCache::default());
+        let shapes = std::mem::take(&mut self.shapes);
+        let damage = std::mem::take(&mut self.damage);
+        self.paint(ctx);
+        let fresh = std::mem::replace(&mut self.shapes, shapes);
+        self.paint_cache.replace(retained);
+        self.damage = damage;
+        self.work.painted_nodes.set(counted.0);
+        self.work.replayed_nodes.set(counted.1);
+        let differs = fresh
+            .iter()
+            .zip(&self.shapes)
+            .position(|(fresh, retained)| !paint::same_shape(fresh, retained));
+        assert!(
+            fresh.len() == self.shapes.len() && differs.is_none(),
+            "the retained painting differs from painting from scratch: {} shapes against {}, first at {differs:?}: {:?} against {:?}",
+            fresh.len(),
+            self.shapes.len(),
+            differs.map(|at| crate::damage::bounds(&fresh[at])),
+            differs.map(|at| crate::damage::bounds(&self.shapes[at])),
+        );
+        let prefix = previous
+            .iter()
+            .zip(&self.shapes)
+            .take_while(|(old, new)| old == new)
+            .count();
+        let suffix = previous[prefix..]
+            .iter()
+            .rev()
+            .zip(self.shapes[prefix..].iter().rev())
+            .take_while(|(old, new)| old == new)
+            .count();
+        let old = &previous[prefix..previous.len() - suffix];
+        let new = &self.shapes[prefix..self.shapes.len() - suffix];
+        let moved = old
+            .iter()
+            .filter(|shape| !new.contains(shape))
+            .chain(new.iter().filter(|shape| !old.contains(shape)));
+        for shape in moved {
+            let bounds = crate::damage::bounds(shape).intersect(viewport);
+            assert!(
+                !bounds.is_positive() || region.rects().iter().any(|rect| rect.contains_rect(bounds)),
+                "a shape changed outside the damaged region: {bounds:?} is not within {:?}",
+                region.rects(),
+            );
+        }
     }
 
     pub(crate) fn watch_size(&mut self, id: NodeId) -> ::reactive::ReadSignal<Vec2> {
@@ -980,7 +989,7 @@ impl Document {
 
     pub(crate) fn assert_confined(&self, id: NodeId, watermark: usize) {
         if cfg!(debug_assertions) {
-            for changed in self.arena.changed_since(watermark) {
+            for changed in self.arena.relaid_since(watermark) {
                 assert!(
                     *changed == id || self.placed_pass.get(changed) != Some(&self.layout_pass),
                     "laying out {id:?} ({}) restructured {changed:?} ({}), which this pass had already placed",
@@ -1010,7 +1019,7 @@ impl Document {
         size: Vec2,
         watermark: u64,
     ) {
-        if self.arena.revision != watermark {
+        if self.arena.layout_revision != watermark {
             return;
         }
         self.arena.clear_stale(id);
@@ -1116,12 +1125,9 @@ impl Document {
         if self.delivering && self.reached_pass.get(&id) == Some(&self.layout_pass) {
             return;
         }
-        let clip = self.clips.remove(&id).unwrap_or(Rect::EVERYTHING);
-        if let Some(rect) = out.remove(&id) {
+        self.clips.remove(&id);
+        if out.remove(&id).is_some() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
-            if self.paints(id) {
-                self.damage.add(rect.intersect(clip));
-            }
             self.damage.add(self.paint_cache.borrow().bounds(id));
         }
         dropped.push(id);
@@ -1242,29 +1248,11 @@ impl Document {
             return;
         }
         self.arena.clear_unplaced(id);
+        self.arena.note_relaid(id);
         self.placed_pass.insert(id, self.layout_pass);
-        let previous_clip = self.clips.insert(id, clip).unwrap_or(Rect::EVERYTHING);
-        if previous == Some(rect) && previous_clip == clip {
-            return;
-        }
-        self.accessibility_tree.get_mut().mark(id, &self.arena);
-        if self.paints(id) {
-            self.damage.add(rect.intersect(clip));
-            if let Some(previous) = previous {
-                self.damage.add(previous.intersect(previous_clip));
-            }
-        }
-        self.damage.add(self.paint_cache.borrow().bounds(id));
-    }
-
-    fn clip(&self, id: NodeId) -> Rect {
-        self.clips.get(&id).copied().unwrap_or(Rect::EVERYTHING)
-    }
-
-    fn paints(&self, id: NodeId) -> bool {
-        match self.arena.contains(id) {
-            true => self.arena.get(id).paints(),
-            false => true,
+        let previous_clip = self.clips.insert(id, clip);
+        if previous != Some(rect) || previous_clip != Some(clip) {
+            self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
     }
 
@@ -1288,7 +1276,7 @@ impl Document {
     }
 
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> bool {
-        if self.layout_revision == self.arena.revision {
+        if self.layout_revision == self.arena.layout_revision {
             return false;
         }
         self.layout_pass = self.layout_pass.wrapping_add(1);
@@ -1313,7 +1301,7 @@ impl Document {
         }
         self.rects = Rc::new(rects);
         self.placing.clear();
-        self.layout_revision = self.arena.revision;
+        self.layout_revision = self.arena.layout_revision;
         for node in std::mem::take(&mut self.deferred_reveals) {
             if self.arena.contains(node) {
                 self.reveal_node(node);
