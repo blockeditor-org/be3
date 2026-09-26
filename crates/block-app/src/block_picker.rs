@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 
 use be_block::{BlockContent, BlockMetadata, CanvasContent};
@@ -82,6 +82,7 @@ pub(crate) struct CreateView {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PickerView {
     pub(crate) id: Uuid,
+    pub(crate) depth: usize,
     pub(crate) choose: Option<ChooseView>,
     pub(crate) create: Option<CreateView>,
     pub(crate) error: Option<String>,
@@ -90,19 +91,22 @@ pub(crate) struct PickerView {
 #[derive(Default)]
 struct Board {
     inbox: Vec<PickerCommand>,
-    view: Option<PickerView>,
+    views: Vec<PickerView>,
 }
 
 thread_local! {
     static BOARD: RefCell<Board> = RefCell::new(Board::default());
+    static DEPTH: Cell<usize> = const { Cell::new(0) };
 }
 
 pub(crate) fn deliver(command: PickerCommand) {
     BOARD.with(|board| board.borrow_mut().inbox.push(command));
 }
 
-pub(crate) fn view() -> Option<PickerView> {
-    BOARD.with(|board| board.borrow_mut().view.take())
+pub(crate) fn views() -> Vec<PickerView> {
+    let mut views = BOARD.with(|board| std::mem::take(&mut board.borrow_mut().views));
+    views.sort_by_key(|view| view.depth);
+    views
 }
 
 fn take_actions(picker: Uuid) -> Vec<PickerAction> {
@@ -117,12 +121,22 @@ fn take_actions(picker: Uuid) -> Vec<PickerAction> {
 }
 
 fn publish(view: PickerView) {
+    if view.choose.is_none() && view.create.is_none() && view.error.is_none() {
+        return;
+    }
     BOARD.with(|board| {
         let mut board = board.borrow_mut();
-        if board.view.is_none() {
-            board.view = Some(view);
+        if board.views.iter().all(|shown| shown.id != view.id) {
+            board.views.push(view);
         }
     });
+}
+
+pub(crate) fn creation_surface(depth: usize) -> SurfaceId {
+    match depth {
+        0 => SurfaceId::Creation,
+        _ => SurfaceId::NestedCreation,
+    }
 }
 
 struct PendingBlock {
@@ -140,6 +154,7 @@ pub struct BlockPickerResult {
 
 pub struct BlockPicker {
     id: Uuid,
+    depth: usize,
     open: bool,
     tab: PickerTab,
     search: String,
@@ -153,6 +168,7 @@ impl Default for BlockPicker {
     fn default() -> Self {
         Self {
             id: Uuid::new_v4(),
+            depth: 0,
             open: false,
             tab: PickerTab::Add,
             search: String::new(),
@@ -199,6 +215,7 @@ impl BlockPicker {
         editors: &mut EditorAccess<'_>,
         created_parent: BlockParent,
     ) -> Option<BlockPickerResult> {
+        self.depth = DEPTH.get();
         let mut result = None;
         for action in take_actions(self.id) {
             match action {
@@ -246,6 +263,7 @@ impl BlockPicker {
         let registry = editors.registry();
         PickerView {
             id: self.id,
+            depth: self.depth,
             choose: self.open.then(|| {
                 let mut tiles: Vec<Tile> = match self.tab {
                     PickerTab::Add => registry
@@ -357,13 +375,16 @@ impl BlockPicker {
         parent: BlockParent,
     ) -> Option<BlockPickerResult> {
         let mut pending = self.pending_block.take()?;
-        surfaces::set_height(SurfaceId::Creation, pending.creation.height());
-        let step = surfaces::with(SurfaceId::Creation, |ui| pending.creation.ui(ui, editors))
-            .unwrap_or_else(|| {
+        let surface = creation_surface(self.depth);
+        surfaces::set_height(surface, pending.creation.height());
+        DEPTH.set(self.depth + 1);
+        let step =
+            surfaces::with(surface, |ui| pending.creation.ui(ui, editors)).unwrap_or_else(|| {
                 let mut scratch = SurfaceOutput::default();
                 let mut ui = Ui::new(&mut scratch, Rect::ZERO, Rect::ZERO, 1);
                 pending.creation.ui(&mut ui, editors)
             });
+        DEPTH.set(self.depth);
         if matches!(step, CreationStep::Working) {
             pending.creating = true;
         }
@@ -374,7 +395,7 @@ impl BlockPicker {
         }
         match pending.creation.create() {
             Ok(Some(editor)) => {
-                surfaces::set_height(SurfaceId::Creation, None);
+                surfaces::set_height(surface, None);
                 Some(Self::finish_creation(
                     editors,
                     editor,
@@ -387,7 +408,7 @@ impl BlockPicker {
                 None
             }
             Err(error) => {
-                surfaces::set_height(SurfaceId::Creation, None);
+                surfaces::set_height(surface, None);
                 self.error = Some(error);
                 None
             }
@@ -432,3 +453,6 @@ impl BlockPicker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
