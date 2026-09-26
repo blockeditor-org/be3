@@ -479,6 +479,10 @@ impl Review {
         count.unwrap_or(1).max(1)
     }
 
+    pub(crate) fn rastering(&self) -> bool {
+        self.paintings.borrow().working()
+    }
+
     pub(crate) fn loading(&self) -> Option<(usize, usize)> {
         let path = self.selected.get()?;
         let status = self.status(&path)?;

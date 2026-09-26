@@ -2,11 +2,10 @@ use super::*;
 
 #[test]
 fn the_filmstrip_stays_while_a_slide_holds_the_frame() {
-    let (mut test, editor) = editor(3);
+    let (mut test, _editor) = editor(3);
     test.run();
 
-    editor.host().set_chrome_shown(false);
-    test.run();
+    test.set_chrome(false);
 
     assert!(
         test.shown("presentation.add"),

@@ -14,7 +14,7 @@ fn adding_an_event_writes_it_to_the_block() {
     calendar.run();
 
     let titles: Vec<String> = calendar
-        .content
+        .content()
         .root()
         .events
         .iter()

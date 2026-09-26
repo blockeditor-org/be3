@@ -20,8 +20,8 @@ impl Fixture {
         }
     }
 
-    fn opened(&self) -> Vec<Uuid> {
-        self.host
+    fn opened(&mut self) -> Vec<Uuid> {
+        self.test
             .take_opens()
             .into_iter()
             .map(|(id, _, _)| id)

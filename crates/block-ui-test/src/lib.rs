@@ -1,8 +1,9 @@
 mod beui;
-mod content;
+mod input;
 mod snapshot;
+mod store;
 #[cfg(test)]
 mod tests;
 
 pub use beui::BeuiTest;
-pub use content::{ContentHarness, ContentStore};
+pub use store::ContentStore;

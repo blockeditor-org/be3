@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use block_plugin_api::{
-    CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent, ScreenPlacement,
-};
+#[cfg(target_arch = "wasm32")]
+use block_plugin_api::ScreenPlacement;
+use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -12,7 +12,7 @@ pub trait Plugin: 'static {
     fn open(host: EditorHost) -> Box<dyn Instance>;
 }
 
-pub trait Instance {
+pub trait Instance: std::any::Any {
     fn connect(&mut self, block_id: Uuid);
 
     fn connect_creation(&mut self, _template: String) {}
@@ -53,6 +53,7 @@ pub trait Instance {
 
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
 
+    #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>);
 }
 
@@ -87,6 +88,7 @@ pub struct Ime {
     pub cursor: Rect,
 }
 
+#[cfg(target_arch = "wasm32")]
 pub struct PaintTarget<'a> {
     pub device: &'a wgpu::Device,
     pub queue: &'a wgpu::Queue,
@@ -97,6 +99,7 @@ pub struct PaintTarget<'a> {
     pub placement: ScreenPlacement,
 }
 
+#[cfg(target_arch = "wasm32")]
 impl PaintTarget<'_> {
     pub fn scissor(&self) -> (u32, u32, u32, u32) {
         let placement = self.placement;

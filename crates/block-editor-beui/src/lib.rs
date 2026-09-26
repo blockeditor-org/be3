@@ -2,7 +2,6 @@ pub use beui;
 pub use block_editor_plugin;
 pub use block_editor_plugin::*;
 
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod beui_frame;
 mod block_link;
 mod child;
@@ -11,7 +10,7 @@ pub mod database;
 mod datetime;
 mod editor;
 mod file_chooser;
-#[cfg(target_arch = "wasm32")]
+pub mod headless;
 mod instance;
 mod related_content;
 
@@ -23,7 +22,6 @@ pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
 pub use datetime::DateTimeRow;
 pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit_content};
 pub use file_chooser::{FileChooser, content_file_creation};
-#[cfg(target_arch = "wasm32")]
 pub use instance::BeuiPlugin;
 pub use related_content::RelatedContent;
 

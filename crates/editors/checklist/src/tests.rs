@@ -1,6 +1,4 @@
-use block_editor_beui::be_block::{
-    BlockContent, Checklist as ChecklistModel, ChecklistContent, Edit, LiveEdit, ObjectId,
-};
+use block_editor_beui::be_block::{Checklist as ChecklistModel, ChecklistContent, Edit, ObjectId};
 use block_editor_beui::beui::Document;
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
@@ -14,9 +12,6 @@ mod filtering_to_open_hides_the_items_that_are_done;
 
 struct Harness {
     editor: BeuiTest<ChecklistApp>,
-    host: EditorHost,
-    content: ChecklistContent,
-    applied: u64,
 }
 
 impl Harness {
@@ -24,7 +19,7 @@ impl Harness {
         let block = Uuid::new_v4();
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host.clone(), block);
+        let editor = Editor::new(host, block);
         let mut content = ChecklistContent::default();
         for (text, done) in items {
             let (id, add) = ChecklistModel::add(*text);
@@ -35,43 +30,18 @@ impl Harness {
         }
         let mut harness = Self {
             editor: BeuiTest::new(editor),
-            host,
-            content,
-            applied: 0,
         };
-        harness.publish();
+        harness.editor.hold(None, content);
         harness.run();
         harness
     }
 
     fn run(&mut self) {
         self.editor.run();
-        let mut changed = false;
-        for operation in self.host.take_content_operations() {
-            let operation = ChecklistContent::decode_operation(&operation)
-                .expect("the editor sent an operation the checklist cannot read");
-            self.content.apply(&operation);
-            self.applied += 1;
-            changed = true;
-        }
-        if changed {
-            self.publish();
-        }
-        self.editor.run();
-    }
-
-    fn publish(&mut self) {
-        self.host.set_block_content(
-            ChecklistContent::CONTENT_TYPE,
-            self.content.encode(),
-            self.applied,
-        );
     }
 
     fn arrive(&mut self, operation: Edit) {
-        self.content.apply(&operation);
-        self.publish();
-        self.run();
+        self.editor.edit::<ChecklistContent>(None, &operation);
     }
 
     fn click(&mut self, test_id: &str) {
@@ -92,8 +62,12 @@ impl Harness {
         self.editor.snapshot(name);
     }
 
+    fn content(&self) -> ChecklistContent {
+        self.editor.content(None)
+    }
+
     fn items(&self) -> Vec<(String, bool)> {
-        self.content
+        self.content()
             .root()
             .items
             .iter()
@@ -102,6 +76,6 @@ impl Harness {
     }
 
     fn id(&self, index: usize) -> ObjectId {
-        self.content.root().items[index].id
+        self.content().root().items[index].id
     }
 }

@@ -168,6 +168,10 @@ impl Paintings {
         rendered
     }
 
+    pub fn working(&self) -> bool {
+        self.active.is_some() || !self.queue.is_empty()
+    }
+
     pub fn rastered(&self) -> usize {
         self.rastered
     }

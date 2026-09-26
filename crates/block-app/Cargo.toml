@@ -55,6 +55,8 @@ be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
+beui-plugin-input = { path = "../beui-plugin-input" }
+block-ui = { path = "../block-ui" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 game-host = { path = "../tabletop_games/host" }
 flate2 = "1"

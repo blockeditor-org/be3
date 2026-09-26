@@ -13,6 +13,7 @@ members = [
     "crates/be-session",
     "crates/be-store",
     "crates/beui",
+    "crates/beui-plugin-input",
     "crates/geometry",
     "crates/beui_macros",
     "crates/reactive_macros",

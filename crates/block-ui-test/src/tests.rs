@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::{BeuiTest, ContentStore};
 
 mod a_child_block_reports_its_placement_and_follows_its_status;
+mod a_shortcut_on_punctuation_reaches_the_editor;
 mod clearing_the_name_gives_the_block_back_its_derived_name;
 mod ctrl_z_in_a_text_field_is_left_to_the_field;
 mod ctrl_z_undoes_the_block_through_the_top_bar;
@@ -81,17 +82,10 @@ fn named_editor() -> (BeuiTest<ChildApp>, ContentStore, Uuid) {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_block_type(FILE_TREE);
-    let store = ContentStore::new(host.clone());
-    store.own(block, FILE_TREE);
     let mut test = BeuiTest::new(Editor::new(host, block)).with_top_bar(false);
-    settle(&mut test, &store);
+    test.run();
+    let store = test.store();
     (test, store, block)
-}
-
-fn settle(test: &mut BeuiTest<ChildApp>, store: &ContentStore) {
-    test.run();
-    store.sync();
-    test.run();
 }
 
 fn name(store: &ContentStore, block: Uuid) -> Option<String> {
@@ -109,17 +103,18 @@ fn shown_name(test: &BeuiTest<ChildApp>) -> String {
     beui::styled::text_input_value(test.document(), input)
 }
 
-fn undoable_editor() -> (BeuiTest<ChildApp>, EditorHost, Uuid) {
+fn undoable_editor() -> (BeuiTest<ChildApp>, Uuid) {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    host.set_histories([(
+    let mut test = BeuiTest::<ChildApp>::new(Editor::new(host, block)).with_top_bar(false);
+    test.set_histories([(
         block,
         block_editor_beui::BlockHistory {
             can_undo: true,
             can_redo: false,
         },
     )]);
-    let test = BeuiTest::<ChildApp>::new(Editor::new(host.clone(), block)).with_top_bar(false);
-    (test, host, block)
+    test.run();
+    (test, block)
 }

@@ -810,6 +810,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-plugin-input"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-plugin-api",
+]
+
+[[package]]
 name = "beui_macros"
 version = "0.1.0"
 dependencies = [
@@ -908,8 +916,10 @@ dependencies = [
  "be-server",
  "be-store",
  "beui",
+ "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",
+ "block-ui",
  "block-wasm-host",
  "bytemuck",
  "directories-next",
@@ -957,6 +967,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "beui",
+ "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
@@ -1047,7 +1058,9 @@ name = "block-ui-test"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-plugin-input",
  "block-editor-beui",
+ "block-plugin-api",
  "paint-snapshot",
  "uuid",
 ]

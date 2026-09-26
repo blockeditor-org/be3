@@ -11,7 +11,9 @@ use geometry::{Rect, Vec2, pos2, vec2};
 use std::{collections::HashMap, rc::Rc};
 use uuid::Uuid;
 
-use crate::plugin::{Frame, Instance, PaintTarget, Region};
+#[cfg(target_arch = "wasm32")]
+use crate::plugin::PaintTarget;
+use crate::plugin::{Frame, Instance, Region};
 use crate::{EditorHost, Waker, host::BlockDrag};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
@@ -79,8 +81,12 @@ struct RegionState {
 impl EditorSession {
     pub fn new(instance: EditorInstanceId, waker: Waker, open: Open) -> Self {
         let host = EditorHost::new(waker);
+        Self::adopt(instance, open(host.clone()), host)
+    }
+
+    pub fn adopt(instance: EditorInstanceId, app: Box<dyn Instance>, host: EditorHost) -> Self {
         Self {
-            app: open(host.clone()),
+            app,
             instance,
             regions: HashMap::new(),
             host,
@@ -98,6 +104,14 @@ impl EditorSession {
 
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
         self.host.set_block_types(catalog);
+    }
+
+    pub fn instance(&self) -> &dyn Instance {
+        self.app.as_ref()
+    }
+
+    pub fn instance_mut(&mut self) -> &mut dyn Instance {
+        self.app.as_mut()
     }
 
     pub(crate) fn set_audio(&self, status: block_plugin_api::AudioStatus) {
@@ -818,6 +832,7 @@ impl EditorSession {
         frame
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn paint(&mut self, target: &PaintTarget<'_>) {
         self.app.paint(target);
     }

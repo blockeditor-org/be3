@@ -370,10 +370,11 @@ and a new file for an existing block from `ReplaceContent` (below).
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
 in `crates/be-client/src/tests/`. An editor's tests stand in for the host with
-`block_ui_test::ContentHarness`, which holds the content of the editor's block
-and of any block it watches, applies what the editor sends, and takes the
-content it seeds or replaces; `ContentStore` is the same store handed to a test
-fixture that needs to read or write it between runs.
+`block_ui_test::BeuiTest`, which holds the content of the editor's block and of
+any block it watches through `WatchContent`, applies the `Operate` messages the
+editor sends and echoes them back as operations marked as its own, the way the
+app's host does; `store()` hands a test fixture the same `ContentStore` to read
+or write between runs.
 
 ## Running it
 

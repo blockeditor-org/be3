@@ -1,6 +1,4 @@
-use block_editor_beui::be_block::{
-    BlockContent, Counter as CounterModel, CounterContent, LiveEdit,
-};
+use block_editor_beui::be_block::{Counter as CounterModel, CounterContent};
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -14,9 +12,6 @@ mod the_counter_shows_what_the_block_holds;
 
 struct Harness {
     editor: BeuiTest<CounterApp>,
-    host: EditorHost,
-    content: CounterContent,
-    applied: u64,
 }
 
 impl Harness {
@@ -24,14 +19,11 @@ impl Harness {
         let block = Uuid::new_v4();
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host.clone(), block);
+        let editor = Editor::new(host, block);
         let mut harness = Self {
             editor: BeuiTest::new(editor),
-            host,
-            content: CounterContent::default(),
-            applied: 0,
         };
-        harness.publish();
+        harness.editor.hold(None, CounterContent::default());
         harness.run();
         harness
     }
@@ -42,36 +34,16 @@ impl Harness {
 
     fn run(&mut self) {
         self.editor.run();
-        let mut changed = false;
-        for operation in self.host.take_content_operations() {
-            let operation = CounterContent::decode_operation(&operation)
-                .expect("the editor sent an operation the counter cannot read");
-            self.content.apply(&operation);
-            self.applied += 1;
-            changed = true;
-        }
-        if changed {
-            self.publish();
-        }
-        self.editor.run();
-    }
-
-    fn publish(&mut self) {
-        self.host.set_block_content(
-            CounterContent::CONTENT_TYPE,
-            self.content.encode(),
-            self.applied,
-        );
     }
 
     fn set_count(&mut self, count: i64) {
         let by = count - self.count();
-        self.content.apply(&CounterModel::add(by));
-        self.publish();
+        self.editor
+            .edit::<CounterContent>(None, &CounterModel::add(by));
     }
 
     fn count(&self) -> i64 {
-        self.content.root().value()
+        self.editor.content::<CounterContent>(None).root().value()
     }
 
     fn shown(&mut self) -> String {

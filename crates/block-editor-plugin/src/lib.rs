@@ -3,18 +3,16 @@ pub use geometry;
 pub use reactive;
 
 mod content;
-#[cfg(target_arch = "wasm32")]
 pub mod editor_session;
 mod graph;
+pub mod headless;
 mod host;
 #[cfg(target_arch = "wasm32")]
 mod panes;
-#[cfg(target_arch = "wasm32")]
 mod plugin;
 pub mod root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
-#[cfg(target_arch = "wasm32")]
 mod screens;
 pub mod session;
 #[cfg(target_arch = "wasm32")]
@@ -39,7 +37,8 @@ pub use host::{
     ShownPresence, Waker,
 };
 #[cfg(target_arch = "wasm32")]
-pub use plugin::{Frame, Ime, Instance, PaintTarget, Plugin, Region};
+pub use plugin::PaintTarget;
+pub use plugin::{Frame, Ime, Instance, Plugin, Region};
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;
 

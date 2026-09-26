@@ -9,6 +9,7 @@ be-block = { path = "../be-block" }
 beui = { path = "../beui", default-features = false }
 block-editor-plugin = { path = "../block-editor-plugin" }
 block-plugin-api = { path = "../block-plugin-api" }
+beui-plugin-input = { path = "../beui-plugin-input" }
 block-ui = { path = "../block-ui" }
 serde_json = "1"
 uuid = "1"

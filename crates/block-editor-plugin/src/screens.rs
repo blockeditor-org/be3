@@ -37,6 +37,10 @@ impl Screens {
         }
     }
 
+    pub(crate) fn adopt(&mut self, instance: EditorInstanceId, session: EditorSession) {
+        self.sessions.insert(instance, session);
+    }
+
     fn open(&mut self, instance: EditorInstanceId, block_type: Uuid) -> &mut EditorSession {
         let apps = &self.apps;
         let waker = &self.waker;
@@ -54,6 +58,7 @@ impl Screens {
         &self.layout
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub(crate) fn surface(&self) -> Option<SurfaceSpec> {
         self.surface
     }
@@ -452,6 +457,10 @@ impl Screens {
             messages.extend(session.outbound());
         }
         messages
+    }
+
+    pub(crate) fn get(&self, instance: EditorInstanceId) -> Option<&EditorSession> {
+        self.sessions.get(&instance)
     }
 
     pub(crate) fn session(&mut self, instance: EditorInstanceId) -> Option<&mut EditorSession> {

@@ -25,8 +25,8 @@ fn dropping_an_eight_asks_which_suit_to_call() {
     let mut editor = editor_after(CRAZY_8S.to_vec(), actions.clone());
 
     let from = on_the_card(&editor, &format!("game.card.{pile}.{card}"));
-    let to = editor.editor.rect_of("game.pile.1").center();
-    editor.editor.drag(from, to);
+    let to = editor.rect_of("game.pile.1").center();
+    editor.drag(from, to);
     editor.run();
     assert_eq!(moves(&editor).len(), actions.len());
     let called = eights

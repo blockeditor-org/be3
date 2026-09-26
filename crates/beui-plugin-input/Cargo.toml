@@ -1,18 +1,12 @@
 [package]
-name = "block-ui-test"
+name = "beui-plugin-input"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
 beui = { path = "../beui", default-features = false }
-beui-plugin-input = { path = "../beui-plugin-input" }
-block-editor-beui = { path = "../block-editor-beui" }
 block-plugin-api = { path = "../block-plugin-api" }
-paint-snapshot = { path = "../paint-snapshot" }
-uuid = "1"
-
-[dev-dependencies]
 
 [lints]
 workspace = true

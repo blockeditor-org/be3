@@ -444,21 +444,23 @@ jobs:
           path: ${{ runner.temp }}/previews
           retention-days: 1
 
-  # The images go on a branch of their own, paint-previews/<number>, as one
-  # commit that each run replaces, and the comment links them by that commit.
-  # It is pushed with GITHUB_TOKEN, which starts no workflow, and nothing else
-  # reads the branch. What the artifact holds was made by the pull request's
-  # code, so it is only ever data here: files to commit and text to post.
+  # The images go to the be3-ci Bunny storage zone as paint-previews/<hash>.png,
+  # named by the SHA-256 of their bytes, and the comment links them through the
+  # zone's CDN. A name that is its content's hash never changes what it points
+  # at, so an upload never has to replace anything a comment already links,
+  # and an image two runs both drew is stored once. The storage key is given to
+  # the upload step alone. What the artifact holds was made by the pull
+  # request's code, so it is only ever data here: files to upload and text to
+  # post.
   #
   # A pull request that no longer changes any painting has its comment edited
-  # to say so and its branch deleted; one that never did gets no comment.
+  # to say so; one that never did gets no comment.
   publish-paint-previews:
     name: comment paint previews
     needs: [paint-previews]
     if: needs.paint-previews.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
       pull-requests: write
     steps:
       - uses: actions/download-artifact@v8
@@ -466,7 +468,22 @@ jobs:
           name: paint-previews
           path: ${{ runner.temp }}/previews
 
-      - name: Publish the previews and comment
+      - name: Upload the previews
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for image in "$RUNNER_TEMP"/previews/*.png; do
+            curl --fail --silent --show-error --retry 3 --output /dev/null \
+              --request PUT \
+              --header "AccessKey: $BUNNY_STORAGE_KEY" \
+              --header 'Content-Type: image/png' \
+              --upload-file "$image" \
+              "https://storage.bunnycdn.com/be3-ci/paint-previews/$(basename "$image")"
+          done
+
+      - name: Comment
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -474,38 +491,21 @@ jobs:
         run: |
           set -euo pipefail
           previews="$RUNNER_TEMP/previews"
-          branch="paint-previews/$NUMBER"
           comment="$RUNNER_TEMP/comment.md"
+          sed 's|PREVIEW_ROOT|https://be3-ci.b-cdn.net/paint-previews|g' "$previews/comment.md" > "$comment"
 
           existing="$(gh api --paginate "repos/$REPOSITORY/issues/$NUMBER/comments" --jq \
             '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- paint-previews -->"))) | .id' |
             sed -n 1p)"
 
-          if compgen -G "$previews/*/*.png" > /dev/null; then
-            cd "$previews"
-            git -c init.defaultBranch=previews init --quiet
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add -- ./*/
-            git commit --quiet --message "Paint previews for #$NUMBER"
-            git push --quiet --force "https://x-access-token:$GH_TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$branch"
-            sha="$(git rev-parse HEAD)"
-            sed "s|PREVIEW_ROOT|https://github.com/$REPOSITORY/raw/$sha|g" comment.md > "$comment"
-          else
-            gh api --method DELETE "repos/$REPOSITORY/git/refs/heads/$branch" > /dev/null 2>&1 || true
-            if [ -z "$existing" ]; then
-              echo 'The pull request changes no paintings.'
-              exit 0
-            fi
-            cp "$previews/comment.md" "$comment"
-          fi
-
           if [ -n "$existing" ]; then
             jq --raw-input --slurp '{body: .}' "$comment" |
               gh api --method PATCH "repos/$REPOSITORY/issues/comments/$existing" --input - > /dev/null
-          else
+          elif compgen -G "$previews/*.png" > /dev/null; then
             jq --raw-input --slurp '{body: .}' "$comment" |
               gh api --method POST "repos/$REPOSITORY/issues/$NUMBER/comments" --input - > /dev/null
+          else
+            echo 'The pull request changes no paintings.'
           fi
 
   # The one check the ruleset on main requires, and the only thing the merge

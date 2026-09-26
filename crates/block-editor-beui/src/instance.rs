@@ -4,12 +4,12 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::time::Duration;
 
-use block_editor_plugin::wgpu;
 use block_editor_plugin::{
-    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Ime, Instance, PaintTarget,
-    Region,
+    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Ime, Instance, Region,
 };
-use block_plugin_api::{CursorIcon, ImeInput, InputEvent, Key, PointerButton, WheelUnit};
+#[cfg(target_arch = "wasm32")]
+use block_editor_plugin::{PaintTarget, wgpu};
+use block_plugin_api::{CursorIcon, ImeInput, InputEvent, PointerButton, WheelUnit};
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
@@ -27,11 +27,12 @@ impl<A: BeuiApp> block_editor_plugin::Plugin for BeuiPlugin<A> {
     }
 }
 
-struct BeuiInstance<A: BeuiApp> {
+pub(crate) struct BeuiInstance<A: BeuiApp> {
     host: EditorHost,
     scale: Rc<Cell<BeuiScale>>,
     regions: HashMap<EditorRegion, BeuiRegion>,
     views: Views<A>,
+    #[cfg(target_arch = "wasm32")]
     renderer: Option<beui::Renderer>,
 }
 
@@ -80,6 +81,7 @@ struct Views<A: BeuiApp> {
     dialog: Option<beui::Document>,
     artifacts: Option<Artifacts>,
     settings: Option<beui::Document>,
+    view: Option<crate::headless::View>,
     app: PhantomData<A>,
 }
 
@@ -131,6 +133,48 @@ impl<A: BeuiApp> Views<A> {
 }
 
 impl<A: BeuiApp> BeuiInstance<A> {
+    pub(crate) fn adopting(adopted: crate::headless::Adopted) -> Self {
+        let mut instance = Self::new(adopted.host());
+        let views = &mut instance.views;
+        match adopted {
+            crate::headless::Adopted::Editor(editor, view) => {
+                views.editor = Some(editor);
+                views.view = view;
+            }
+            crate::headless::Adopted::Preview(editor) => views.preview = Some(editor),
+            crate::headless::Adopted::Creation(creation) => views.creation = Some(creation),
+            crate::headless::Adopted::Artifacts(artifacts) => views.artifacts = Some(artifacts),
+        }
+        instance
+    }
+
+    pub(crate) fn editor(&self) -> Option<Editor> {
+        self.views.editor.clone()
+    }
+
+    pub(crate) fn document(&self, region: EditorRegion) -> Option<&beui::Document> {
+        match (region, self.views.creating) {
+            (EditorRegion::Frame, false) => self
+                .regions
+                .get(&region)
+                .and_then(|state| state.chrome.as_ref())
+                .map(BeuiFrame::document),
+            (EditorRegion::Frame, true) => self.views.dialog.as_ref(),
+            (EditorRegion::Preview, _) => self.views.preview_document.as_ref(),
+            (EditorRegion::ArtifactSettings, _) => self.views.settings.as_ref(),
+        }
+    }
+
+    pub(crate) fn chrome_mut(&mut self) -> Option<&mut BeuiFrame> {
+        self.regions
+            .get_mut(&EditorRegion::Frame)
+            .and_then(|state| state.chrome.as_mut())
+    }
+
+    pub(crate) fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput> {
+        self.regions.get_mut(&region)?.output.take()
+    }
+
     fn new(host: EditorHost) -> Self {
         Self {
             host,
@@ -145,8 +189,10 @@ impl<A: BeuiApp> BeuiInstance<A> {
                 dialog: None,
                 artifacts: None,
                 settings: None,
+                view: None,
                 app: PhantomData,
             },
+            #[cfg(target_arch = "wasm32")]
             renderer: None,
         }
     }
@@ -155,14 +201,28 @@ impl<A: BeuiApp> BeuiInstance<A> {
 impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn connect(&mut self, block_id: Uuid) {
         let scaled = |host: EditorHost| Editor::scaled(host, block_id, Rc::clone(&self.scale));
-        self.views.editor = Some(scaled(self.host.clone()));
-        self.views.preview = Some(scaled(self.host.clone()));
-        self.views.preview_document = None;
+        let fresh = |editor: &Option<Editor>| {
+            editor
+                .as_ref()
+                .is_none_or(|editor| editor.block_id() != block_id)
+        };
+        if fresh(&self.views.editor) {
+            self.views.editor = Some(scaled(self.host.clone()));
+            self.views.view = None;
+        }
+        if fresh(&self.views.preview) {
+            self.views.preview = Some(scaled(self.host.clone()));
+            self.views.preview_document = None;
+        }
     }
 
     fn connect_creation(&mut self, template: String) {
         self.views.creating = true;
-        let creation = Creation::for_template(self.host.clone(), template);
+        let creation = self
+            .views
+            .creation
+            .take()
+            .unwrap_or_else(|| Creation::for_template(self.host.clone(), template));
         let built = creation.clone();
         self.views.dialog = Some(beui::reactive::build(move || A::creation_view(built)));
         self.views.creation = Some(creation);
@@ -178,7 +238,10 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn connect_artifact(&mut self, artifact: Artifact) {
-        let artifacts = Artifacts::new(self.host.clone(), artifact);
+        let artifacts = match self.views.artifacts.take() {
+            Some(artifacts) if artifacts.block_id() == artifact.block_id => artifacts,
+            _ => Artifacts::new(self.host.clone(), artifact),
+        };
         A::connect_artifact(&artifacts);
         self.views.artifacts = Some(artifacts);
     }
@@ -202,6 +265,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             .editor
             .as_ref()
             .and_then(Editor::intrinsic_size)
+            .or_else(|| self.views.preview.as_ref().and_then(Editor::intrinsic_size))
             .or_else(A::intrinsic_size)
     }
 
@@ -262,7 +326,11 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 .clone()
                 .expect("connect is called before the view is built");
             let built = editor.clone();
-            state.chrome = Some(BeuiFrame::build(&editor, move || A::view(built)));
+            let view = views.view.take();
+            state.chrome = Some(BeuiFrame::build(&editor, move || match view {
+                Some(view) => view(),
+                None => A::view(built),
+            }));
         }
         let mut exit = false;
         let mut content = None;
@@ -337,6 +405,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         result
     }
 
+    #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) {
         let Some(output) = self
             .regions
@@ -477,7 +546,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 pressed,
                 repeat,
             } => {
-                let Some(key) = beui_key(*key) else {
+                let Some(key) = beui_plugin_input::beui_key(*key) else {
                     return;
                 };
                 state.events.push(beui::Event::Key {
@@ -537,68 +606,6 @@ fn beui_touch_phase(phase: block_plugin_api::TouchPhase) -> beui::TouchPhase {
         block_plugin_api::TouchPhase::End => beui::TouchPhase::End,
         block_plugin_api::TouchPhase::Cancel => beui::TouchPhase::Cancel,
     }
-}
-
-fn beui_key(key: Key) -> Option<beui::Key> {
-    let key = match key {
-        Key::ArrowDown => beui::Key::ArrowDown,
-        Key::ArrowLeft => beui::Key::ArrowLeft,
-        Key::ArrowRight => beui::Key::ArrowRight,
-        Key::ArrowUp => beui::Key::ArrowUp,
-        Key::Backspace => beui::Key::Backspace,
-        Key::Delete => beui::Key::Delete,
-        Key::End => beui::Key::End,
-        Key::Enter => beui::Key::Enter,
-        Key::Escape => beui::Key::Escape,
-        Key::Home => beui::Key::Home,
-        Key::OpenBracket => beui::Key::BracketLeft,
-        Key::CloseBracket => beui::Key::BracketRight,
-        Key::Minus => beui::Key::Minus,
-        Key::PageDown => beui::Key::PageDown,
-        Key::PageUp => beui::Key::PageUp,
-        Key::Plus | Key::Equals => beui::Key::Plus,
-        Key::Space => beui::Key::Space,
-        Key::Tab => beui::Key::Tab,
-        Key::Num0 => beui::Key::Zero,
-        Key::Num1 => beui::Key::One,
-        Key::Num2 => beui::Key::Two,
-        Key::Num3 => beui::Key::Three,
-        Key::Num4 => beui::Key::Four,
-        Key::Num5 => beui::Key::Five,
-        Key::Num6 => beui::Key::Six,
-        Key::Num7 => beui::Key::Seven,
-        Key::Num8 => beui::Key::Eight,
-        Key::Num9 => beui::Key::Nine,
-        Key::Backtick => beui::Key::Backtick,
-        Key::A => beui::Key::A,
-        Key::B => beui::Key::B,
-        Key::C => beui::Key::C,
-        Key::D => beui::Key::D,
-        Key::E => beui::Key::E,
-        Key::F => beui::Key::F,
-        Key::G => beui::Key::G,
-        Key::H => beui::Key::H,
-        Key::I => beui::Key::I,
-        Key::J => beui::Key::J,
-        Key::K => beui::Key::K,
-        Key::L => beui::Key::L,
-        Key::M => beui::Key::M,
-        Key::N => beui::Key::N,
-        Key::O => beui::Key::O,
-        Key::P => beui::Key::P,
-        Key::Q => beui::Key::Q,
-        Key::R => beui::Key::R,
-        Key::S => beui::Key::S,
-        Key::T => beui::Key::T,
-        Key::U => beui::Key::U,
-        Key::V => beui::Key::V,
-        Key::W => beui::Key::W,
-        Key::X => beui::Key::X,
-        Key::Y => beui::Key::Y,
-        Key::Z => beui::Key::Z,
-        _ => return None,
-    };
-    Some(key)
 }
 
 fn beui_cursor(cursor: beui::CursorIcon) -> CursorIcon {

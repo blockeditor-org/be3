@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::{Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_ui_test::BeuiTest;
 use image::ImageEncoder;
 use uuid::Uuid;
 
@@ -9,12 +9,12 @@ use crate::app::ImageApp;
 mod a_decoded_image_is_painted_at_its_shape;
 mod an_image_that_will_not_decode_says_so;
 
-fn editor(data: Vec<u8>) -> ContentHarness<ImageApp> {
+fn editor(data: Vec<u8>) -> BeuiTest<ImageApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = Editor::new(host.clone(), block);
-    let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
+    let mut editor = BeuiTest::new(editor);
     editor.hold(None, ImageContent::from_file("picture.png", data));
     editor.run();
     editor.run();
