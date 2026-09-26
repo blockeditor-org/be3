@@ -3,6 +3,8 @@ use beui::icons::ICON_ARROW_BACK;
 use beui::icons::{
     ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_MERGE, ICON_REFRESH, ICON_SEARCH,
 };
+#[cfg(target_os = "android")]
+use beui::reactive::BackHandler;
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, clone,
     component, create_memo, view,
@@ -47,6 +49,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let listing = create_memo(clone!(model -> move || model.selected.with(Option::is_none)));
     let reading = create_memo(clone!(listing -> move || !listing.get()));
     let back = clone!(model -> move || model.deselect());
+    let gesture = back.clone();
     let sidebar = model.clone();
     let viewer = model.clone();
     view! {
@@ -55,16 +58,18 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 <Sidebar @sizing=ItemSize::Percent(100.0) model={sidebar.clone()} />
             </Show>
             <Show condition={reading}>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Frame padding_horizontal=8.0 padding_vertical=4.0>
-                        <IconButton
-                            glyph=ICON_ARROW_BACK
-                            label="Back to the pull requests"
-                            on_click={back}
-                        />
-                    </Frame>
-                    <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
-                </List>
+                <BackHandler @sizing=ItemSize::Percent(100.0) on_back={gesture.clone()}>
+                    <List spacing=0.0>
+                        <Frame padding_horizontal=8.0 padding_vertical=4.0>
+                            <IconButton
+                                glyph=ICON_ARROW_BACK
+                                label="Back to the pull requests"
+                                on_click={back.clone()}
+                            />
+                        </Frame>
+                        <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
+                    </List>
+                </BackHandler>
             </Show>
             <ImageViewer model={viewer} />
         </List>

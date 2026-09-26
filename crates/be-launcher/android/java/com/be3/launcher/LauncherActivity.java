@@ -7,7 +7,10 @@ import android.content.pm.PackageInstaller;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Process;
+import android.view.KeyEvent;
 import android.view.View;
+import androidx.activity.BackEventCompat;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -23,13 +26,54 @@ public final class LauncherActivity extends GameActivity {
     private static final String BUILD_PROCESS = ":build";
     private static final String INSTALLED = "com.be3.launcher.INSTALLED";
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
+    private static final int BACK_STARTED = 0;
+    private static final int BACK_PROGRESSED = 1;
+    private static final int BACK_CANCELLED = 2;
+    private static final int BACK_INVOKED = 3;
     private static LauncherActivity current;
+    private final OnBackPressedCallback back = new OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackStarted(BackEventCompat event) {
+            nativeBack(BACK_STARTED, event.getProgress(), event.getSwipeEdge());
+        }
+
+        @Override
+        public void handleOnBackProgressed(BackEventCompat event) {
+            nativeBack(BACK_PROGRESSED, event.getProgress(), event.getSwipeEdge());
+        }
+
+        @Override
+        public void handleOnBackCancelled() {
+            nativeBack(BACK_CANCELLED, 0f, 0);
+        }
+
+        @Override
+        public void handleOnBackPressed() {
+            nativeBack(BACK_INVOKED, 1f, 0);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle state) {
         current = this;
         super.onCreate(state);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getOnBackPressedDispatcher().addCallback(this, back);
+    }
+
+    public void setBackHandled(boolean handled) {
+        runOnUiThread(() -> back.setEnabled(handled));
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                getOnBackPressedDispatcher().onBackPressed();
+            }
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     @Override
@@ -138,6 +182,8 @@ public final class LauncherActivity extends GameActivity {
             session.commit(pending.getIntentSender());
         }
     }
+
+    private static native void nativeBack(int phase, float progress, int edge);
 
     private static native void nativeSafeAreaChanged(int left, int top, int right, int bottom);
 

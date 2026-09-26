@@ -37,12 +37,14 @@ mod timer;
 pub mod unstyled;
 
 pub use accesskit;
+#[cfg(all(feature = "window", target_os = "android"))]
+pub use app::send_android_back;
 #[cfg(any(feature = "window", feature = "web"))]
 pub use app::{App, OpenDevice, RunOptions, SafeArea, Setup, Waker};
 #[cfg(feature = "web")]
 pub use app::{accessibility_tree, run_web};
 #[cfg(feature = "window")]
-pub use app::{run, run_with, set_safe_area};
+pub use app::{run, run_with, send_back, set_safe_area};
 pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
@@ -59,9 +61,9 @@ pub use font::{
 pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 pub use image::{Image, ImageFit, ImageId};
 pub use input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, InputState, Key, KeyPress, Modifiers,
-    PointerButton, PointerPress, RawInput, ScrollGesture, SecondaryDrag, TouchId, TouchPhase,
-    TouchPoint, TouchState, ZoomGesture,
+    BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, InputState, Key,
+    KeyPress, Modifiers, PointerButton, PointerPress, RawInput, ScrollGesture, SecondaryDrag,
+    TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
 pub use node::{ClickHandler, Handler, NodeId};
 pub use page::{Page, PageShape};

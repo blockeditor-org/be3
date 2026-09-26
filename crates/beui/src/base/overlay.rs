@@ -2,6 +2,7 @@ use std::any::Any;
 use std::cell::Cell;
 use std::rc::Rc;
 
+use crate::base::back::BackProgress;
 use crate::color::Color32;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{CursorIcon, PointerPress};
@@ -69,6 +70,7 @@ pub(crate) struct OverlayNode {
     traps_focus: bool,
     mode: OverlayMode,
     on_dismiss: Option<ClickHandler>,
+    back: BackProgress,
 }
 
 impl OverlayNode {
@@ -83,6 +85,7 @@ impl OverlayNode {
             traps_focus: true,
             mode: OverlayMode::Modal,
             on_dismiss: None,
+            back: BackProgress::default(),
         }
     }
 
@@ -188,12 +191,16 @@ impl Element for OverlayNode {
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
         };
         let rect = resolve_rect(viewport, anchor_rect, self.placement, content_size);
+        let rect = rect.translate(self.back.shift(viewport.width()));
         crate::layout::layout(doc, painter, content, rect, out);
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, _rect: Rect) {
         if self.paints() {
-            painter.rect_filled(doc.viewport_rect(), 0.0, self.dim);
+            let [red, green, blue, alpha] = self.dim.to_array();
+            let alpha = (f32::from(alpha) * (1.0 - self.back.progress)).round() as u8;
+            let dim = Color32::from_rgba_unmultiplied(red, green, blue, alpha);
+            painter.rect_filled(doc.viewport_rect(), 0.0, dim);
         }
     }
 
@@ -432,6 +439,17 @@ impl Document {
         self.arena.get_mut_as::<OverlayNode>(overlay).on_dismiss = Some(Box::new(handler));
     }
 
+    pub(crate) fn is_overlay(&self, node: NodeId) -> bool {
+        self.arena.get(node).as_any().is::<OverlayNode>()
+    }
+
+    pub(crate) fn set_overlay_back_progress(&mut self, overlay: NodeId, back: BackProgress) {
+        if self.arena.get_as::<OverlayNode>(overlay).back != back {
+            self.arena.get_mut_as::<OverlayNode>(overlay).back = back;
+            self.arena.invalidate_node(overlay);
+        }
+    }
+
     pub(crate) fn is_overlay_open(&self, overlay: NodeId) -> bool {
         self.arena.get_as::<OverlayNode>(overlay).open
     }
@@ -511,7 +529,9 @@ impl Document {
         self.overlay_stack.extend(kept);
         for id in std::iter::once(closed).chain(nested) {
             if self.contains(id) {
-                self.arena.get_mut_as::<OverlayNode>(id).open = false;
+                let node = self.arena.get_mut_as::<OverlayNode>(id);
+                node.open = false;
+                node.back = BackProgress::default();
             }
             self.arena.invalidate_node(id);
             self.call_overlay_dismiss(id);

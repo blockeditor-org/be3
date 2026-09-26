@@ -28,6 +28,17 @@ removed.
   insets to `beui::set_safe_area`, and the runner hands the app the rect
   inside them. The keyboard's inset is not included, so it can still cover
   a field.
+- **No back gesture.** winit 0.30 has no back event, predictive or not: with
+  `enableOnBackInvokedCallback` the system never sends `KEYCODE_BACK`, and
+  without it there is no gesture progress. Each activity registers an
+  androidx `OnBackPressedCallback`, which reports the predictive gesture's
+  start, progress, cancel and completion to `nativeBack` and on to
+  `beui::send_android_back`, and beui enables it through the activity's
+  `setBackHandled` only while the document would take back
+  (`app/back.rs`). Below Android 13 the Back key still arrives as a key, so
+  `dispatchKeyEvent` hands it to the same dispatcher. A back event in winit
+  would move the forwarding out of Java, but the enabling would stay, since
+  it decides whether the system plays its own animation.
 
 ## android-activity 0.6.1 and GameActivity
 

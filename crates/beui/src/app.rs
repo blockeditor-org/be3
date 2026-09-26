@@ -7,6 +7,8 @@ use crate::input::{Event, Key, Modifiers, TouchPhase};
 
 #[cfg(any(feature = "window", feature = "web"))]
 mod accessibility_dump;
+#[cfg(all(feature = "window", target_os = "android"))]
+mod back;
 #[cfg(feature = "window")]
 mod clipboard;
 #[cfg(feature = "window")]
@@ -16,8 +18,10 @@ mod soft_keyboard;
 #[cfg(feature = "web")]
 mod web;
 
+#[cfg(all(feature = "window", target_os = "android"))]
+pub use back::send_android_back;
 #[cfg(feature = "window")]
-pub use native::{run, run_with, set_safe_area};
+pub use native::{run, run_with, send_back, set_safe_area};
 #[cfg(feature = "web")]
 pub use web::{accessibility_tree, run_web};
 

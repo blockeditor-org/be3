@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <application android:label="${be3Label}" android:theme="@style/Theme.Block">
+    <application android:enableOnBackInvokedCallback="true" android:label="${be3Label}" android:theme="@style/Theme.Block">
         <activity android:name="com.be3.launcher.LauncherActivity" android:configChanges="orientation|keyboardHidden|screenSize|screenLayout" android:exported="true" android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name" android:value="be_launcher" />
             <intent-filter>
