@@ -20,7 +20,12 @@ pub const RENDER_STATE_DATA_CURSOR_VIEWPORT_X: c_int = 15;
 pub const RENDER_STATE_DATA_CURSOR_VIEWPORT_Y: c_int = 16;
 pub const RENDER_STATE_DATA_COLORS: c_int = 19;
 
+pub const TERMINAL_OPT_USERDATA: c_int = 0;
+pub const TERMINAL_OPT_WRITE_PTY: c_int = 1;
 pub const TERMINAL_OPT_SCROLLBACK_MAX_LINES: c_int = 28;
+
+pub type WritePtyFn =
+    unsafe extern "C" fn(terminal: Terminal, userdata: *mut c_void, data: *const u8, len: usize);
 
 pub const RENDER_STATE_OPTION_DIRTY: c_int = 0;
 pub const RENDER_STATE_DIRTY_FALSE: c_int = 0;
