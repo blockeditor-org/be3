@@ -560,6 +560,10 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         blocks: Vec<WatchedContent>,
     },
+    ResendContent {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+    },
     SeedContent {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -894,6 +898,7 @@ impl EditorMessage {
             | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
             | Self::WatchContent { instance, .. }
+            | Self::ResendContent { instance, .. }
             | Self::SeedContent { instance, .. }
             | Self::ReplaceContent { instance, .. }
             | Self::ShowPresence { instance, .. }
@@ -1488,6 +1493,7 @@ impl EditorMessage {
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
             | Self::WatchContent { .. }
+            | Self::ResendContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
             | Self::ShowPresence { .. }

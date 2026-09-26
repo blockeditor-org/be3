@@ -21,17 +21,17 @@ pub struct RetentionPolicy {
 
 impl RetentionPolicy {
     pub fn interval_for(&self, age: i64) -> i64 {
-        self.buckets
-            .iter()
-            .find(|bucket| age <= bucket.until_age)
-            .map_or(WEEK, |bucket| bucket.interval)
+        self.bucket_of(age).1
     }
 
-    fn bucket_of(&self, age: i64) -> usize {
+    fn bucket_of(&self, age: i64) -> (usize, i64) {
         self.buckets
             .iter()
-            .position(|bucket| age <= bucket.until_age)
-            .unwrap_or(self.buckets.len())
+            .enumerate()
+            .find(|(_, bucket)| age <= bucket.until_age)
+            .map_or((self.buckets.len(), WEEK), |(index, bucket)| {
+                (index, bucket.interval)
+            })
     }
 }
 
@@ -88,9 +88,8 @@ pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> 
             plan.keep.push(summary.id);
             continue;
         }
-        let bucket = policy.bucket_of(age);
-        let interval = policy.interval_for(age).max(1);
-        let slot = age / interval;
+        let (bucket, interval) = policy.bucket_of(age);
+        let slot = summary.time.div_euclid(interval.max(1));
         let quiet = ordered[index - 1].time - summary.time;
         let position = undecided.len();
         undecided.push((summary.id, quiet, summary.time));

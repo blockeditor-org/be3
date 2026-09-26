@@ -49,7 +49,7 @@ pub(crate) struct Pane {
 }
 
 impl Pane {
-    pub(crate) fn poll(&mut self, performance: Option<&PerformanceReporter>) -> Option<PageFacts> {
+    pub(crate) fn poll(&mut self, performance: &PerformanceReporter) -> Option<PageFacts> {
         let (request, job) = self.job.as_ref()?;
         let request = *request;
         let receive_started = Instant::now();
@@ -57,11 +57,8 @@ impl Pane {
         let receive_elapsed = receive_started.elapsed();
         match received {
             Ok(message) => {
-                if let Some(performance) = performance {
-                    performance
-                        .record_duration("Result ready to poll", message.completed_at.elapsed());
-                    performance.record_duration("Result receive", receive_elapsed);
-                }
+                performance.record_duration("Result ready to poll", message.completed_at.elapsed());
+                performance.record_duration("Result receive", receive_elapsed);
                 match message.result {
                     Ok(rendered) => {
                         self.job = None;
@@ -95,7 +92,7 @@ impl Pane {
         &mut self,
         request: RenderRequest,
         rendered: RenderedTile,
-        performance: Option<&PerformanceReporter>,
+        performance: &PerformanceReporter,
     ) {
         let slot = match request.target {
             RenderTarget::FullPage { .. } => &mut self.base,
@@ -110,9 +107,7 @@ impl Pane {
             size_pts: rendered.size_pts,
             image: rendered.image,
         });
-        if let Some(performance) = performance {
-            performance.record_duration("Tile store", stored.elapsed());
-        }
+        performance.record_duration("Tile store", stored.elapsed());
     }
 
     pub(crate) fn ensure(
@@ -124,7 +119,7 @@ impl Pane {
         visible_rect: Rect,
         pixels_per_point: f32,
         waker: Waker,
-        performance: Option<&PerformanceReporter>,
+        performance: &PerformanceReporter,
         data: impl FnOnce() -> Option<Vec<u8>>,
     ) {
         if self
@@ -162,17 +157,12 @@ impl Pane {
         let Some(data) = data() else {
             return;
         };
-        if let Some(performance) = performance {
-            performance.record_duration("PDF data copy", data_started.elapsed());
-            performance.record_count("PDF bytes", data.len() as u64);
-        }
+        performance.record_duration("PDF data copy", data_started.elapsed());
+        performance.record_count("PDF bytes", data.len() as u64);
         let request = RenderRequest {
             revision,
             page,
             target,
-        };
-        let Some(performance) = performance else {
-            return;
         };
         let spawn_started = Instant::now();
         let job = spawn_render_job(data, page, target, waker, performance.clone());

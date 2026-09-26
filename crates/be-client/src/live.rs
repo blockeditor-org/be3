@@ -41,6 +41,7 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     base: Option<CommitId>,
     sealed: u64,
     reload: bool,
+    catching_up: bool,
     events: Receiver<ServerMessage>,
     journal: Vec<Journaled<C::Op>>,
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
@@ -75,6 +76,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             base: head,
             sealed: 0,
             reload: false,
+            catching_up: false,
             events,
             journal: Vec::new(),
             presence: BTreeMap::new(),
@@ -214,26 +216,38 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             let event = match self.events.try_recv() {
                 Ok(event) => event,
                 Err(TryRecvError::Empty | TryRecvError::Closed) => break,
-                Err(TryRecvError::Lagged(_)) => continue,
+                Err(TryRecvError::Lagged(_)) => {
+                    handled += self.resynchronize().await?;
+                    continue;
+                }
             };
             handled += self.handle(event).await?;
         }
         Ok(handled)
     }
 
+    async fn resynchronize(&mut self) -> Result<usize, ClientError> {
+        let (_, state) = self.peer.join_session(self.block).await?;
+        self.adopt(state).await?;
+        if let Role::Follower(follower) = &self.role {
+            self.catching_up = true;
+            let catchup = follower.catchup();
+            let owner = self.state.owner;
+            self.send(owner, &catchup).await?;
+        }
+        Ok(1)
+    }
+
     pub async fn wait(&mut self) -> Result<usize, ClientError> {
-        let event = loop {
-            match self.events.recv().await {
-                Ok(event) => break event,
-                Err(RecvError::Lagged(_)) => {}
-                Err(RecvError::Closed) => {
-                    return Err(ClientError::Disconnected(
-                        "the connection closed while waiting on the session".into(),
-                    ));
-                }
+        let handled = match self.events.recv().await {
+            Ok(event) => self.handle(event).await?,
+            Err(RecvError::Lagged(_)) => self.resynchronize().await?,
+            Err(RecvError::Closed) => {
+                return Err(ClientError::Disconnected(
+                    "the connection closed while waiting on the session".into(),
+                ));
             }
         };
-        let handled = self.handle(event).await?;
         Ok(handled + self.poll().await?)
     }
 
@@ -295,7 +309,9 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 self.broadcast(&SessionMessage::Accepted { op }).await
             }
             SessionMessage::Accepted { op } => {
-                self.apply_accepted(&op);
+                if !self.catching_up || self.is_owner() {
+                    self.apply_accepted(&op);
+                }
                 Ok(())
             }
             SessionMessage::Catchup { since } => {
@@ -320,6 +336,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 let Role::Follower(_) = &self.role else {
                     return Ok(());
                 };
+                self.catching_up = false;
                 let sealed = sequence.saturating_sub(ops.len() as u64);
                 if head != self.base
                     && let Some(head) = head
@@ -466,7 +483,10 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         }
         if !self.state.is_owner(self.client) {
             let applied = follower.applied();
-            let resubmit = follower.resynchronize(applied);
+            let mut resubmit = follower.resynchronize(applied);
+            if self.catching_up {
+                resubmit.push(follower.catchup());
+            }
             let owner = self.state.owner;
             for message in resubmit {
                 self.send(owner, &message).await?;
