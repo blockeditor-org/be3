@@ -40,7 +40,10 @@ pub struct Document {
     pub(crate) portal_holders: std::collections::HashMap<NodeId, NodeId>,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
-    frame_hooks: RefCell<Vec<Weak<dyn Fn()>>>,
+    timers: RefCell<crate::timer::Timers>,
+    scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
+    attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
+    reattached: Cell<bool>,
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
     pub(crate) touch_scroll_horizontal: Option<NodeId>,
@@ -180,7 +183,10 @@ impl Document {
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
-            frame_hooks: RefCell::new(Vec::new()),
+            timers: RefCell::new(Vec::new()),
+            scale: ::reactive::create_signal(1.0),
+            attached: ::reactive::create_signal(0),
+            reattached: Cell::new(false),
             shortcuts: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
             touch_scroll_horizontal: None,
@@ -277,8 +283,16 @@ impl Document {
         }
     }
 
-    pub(crate) fn register_frame_hook(&self, work: Weak<dyn Fn()>) {
-        self.frame_hooks.borrow_mut().push(work);
+    pub(crate) fn register_timer(&self, timer: Weak<crate::timer::TimerState>) {
+        self.timers.borrow_mut().push(timer);
+    }
+
+    pub(crate) fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
+        self.attached.0.clone()
+    }
+
+    pub(crate) fn watch_pixels_per_point(&self) -> ::reactive::ReadSignal<f32> {
+        self.scale.0.clone()
     }
 
     pub(crate) fn register_shortcut(&self, shortcut: Weak<Shortcut>) {
@@ -293,14 +307,35 @@ impl Document {
         live.into_iter().any(|shortcut| shortcut(press))
     }
 
-    fn run_frame_hooks(&self) {
-        let mut hooks = self.frame_hooks.borrow_mut();
-        hooks.retain(|hook| hook.strong_count() > 0);
-        let live: Vec<Rc<dyn Fn()>> = hooks.iter().filter_map(Weak::upgrade).collect();
-        drop(hooks);
-        for hook in live {
-            hook();
+    fn run_timers(&self) {
+        let scale = self.pixels_per_point();
+        if self.scale.0.get_untracked() != scale {
+            self.scale.1.set(scale);
         }
+        if self.reattached.replace(false) {
+            self.attached.1.update(|attached| *attached += 1);
+        }
+        let now = Instant::now();
+        let mut timers = self.timers.borrow_mut();
+        timers.retain(|timer| timer.strong_count() > 0);
+        let due: Vec<_> = timers
+            .iter()
+            .filter_map(Weak::upgrade)
+            .filter(|timer| timer.due().is_some_and(|due| due <= now))
+            .collect();
+        drop(timers);
+        for timer in due {
+            timer.fire(now);
+        }
+    }
+
+    fn next_timer(&self) -> Option<Instant> {
+        self.timers
+            .borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .filter_map(|timer| timer.due())
+            .min()
     }
 
     pub(crate) fn register_node_scope(&mut self, node: NodeId, scope: ::reactive::Scope) {
@@ -600,6 +635,11 @@ impl Document {
                 !ctx.same(old_ctx) || *old_rect != rect || *old_scale != scale
             })
         {
+            let reattached = self
+                .viewport
+                .as_ref()
+                .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx));
+            self.reattached.set(self.reattached.get() || reattached);
             self.arena.invalidate();
             self.viewport = Some((ctx.clone(), rect, scale));
         }
@@ -621,7 +661,7 @@ impl Document {
         {
             let context = self.reactive_scope().context();
             let _guard = crate::reactive::install(self);
-            context.run(|| crate::reactive::with_document(|document| document.run_frame_hooks()));
+            context.run(|| crate::reactive::with_document(|document| document.run_timers()));
         }
 
         if pointer || keys != Keys::Ignored {
@@ -638,6 +678,11 @@ impl Document {
                     });
                 }
             });
+        }
+        if keys != Keys::Ignored
+            && let Some(area) = self.focused_ime_area()
+        {
+            ctx.set_ime_area(Some(area));
         }
 
         if let Some(text) = self.copied_text.take() {
@@ -716,6 +761,9 @@ impl Document {
             self.paint_revision = self.arena.revision;
         }
         if let Some(deadline) = self.next_paint {
+            ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
+        }
+        if let Some(deadline) = self.next_timer() {
             ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
         }
         ctx.extend(&self.shapes);

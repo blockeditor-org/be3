@@ -6,7 +6,7 @@ use beui::NodeId;
 use beui::icons::{ICON_REDO, ICON_SHARE, ICON_UNDO};
 use beui::reactive::{
     ClickCallback, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_memo, create_signal, focus_takes_text, on_shortcut, view,
+    component, create_effect, create_memo, create_signal, focus_takes_text, on_shortcut, view,
 };
 use beui::styled::{Button, ButtonVariant, IconButton, TextInput};
 use beui::{Context, Document, Key, KeyPress};
@@ -138,7 +138,7 @@ impl Watched {
             .and_then(|block_type| types.display_name(block_type))
             .unwrap_or("Untitled")
             .to_owned();
-        let editable = host.editable() && self.can_edit();
+        let editable = self.editor.editable().get() && self.can_edit();
         let (can_undo, can_redo) = match editable {
             true => self.history(),
             false => (false, false),
@@ -158,6 +158,7 @@ impl Watched {
     }
 
     fn history(&self) -> (bool, bool) {
+        self.editor.histories().get();
         let history = self.editor.host().history(self.editor.block_id());
         (history.can_undo, history.can_redo)
     }
@@ -228,8 +229,8 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
     let shortcuts = Rc::clone(&watched);
     let active = shown.clone();
     on_shortcut(move |press: KeyPress| active.get_untracked() && shortcuts.shortcut(press));
-    editor.each_frame(move || {
-        if visible.get_untracked() {
+    create_effect(move || {
+        if visible.get() {
             set_state.set(reading.read());
         }
     });

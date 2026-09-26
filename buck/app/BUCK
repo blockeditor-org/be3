@@ -7,3 +7,8 @@ export_file(
     name = "smoke.sh",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "dev.sh",
+    visibility = ["PUBLIC"],
+)

@@ -4,9 +4,14 @@ use std::sync::Arc;
 use block_plugin_api::manifest_from_json;
 use uuid::Uuid;
 
-use super::{add_sections, template_sections};
+use super::{
+    CreateView, PickerView, add_sections, creation_surface, publish, template_sections, views,
+};
 use crate::editors::EditorRegistry;
+use crate::surfaces::SurfaceId;
 
+mod a_picker_opened_from_a_creation_dialog_is_shown_above_it;
+mod a_picker_with_nothing_to_show_is_not_shown;
 mod important_regular_and_debug_blocks_sit_under_their_own_headings;
 mod templates_are_grouped_under_the_editor_that_declares_them;
 
@@ -72,4 +77,19 @@ fn registry() -> EditorRegistry {
 
 fn uuid(value: &str) -> Uuid {
     Uuid::parse_str(value).expect("a uuid")
+}
+
+fn creating(id: Uuid, depth: usize) -> PickerView {
+    PickerView {
+        id,
+        depth,
+        choose: None,
+        create: Some(CreateView {
+            title: "Game".to_owned(),
+            working: false,
+            ready: false,
+            dialog: true,
+        }),
+        error: None,
+    }
 }

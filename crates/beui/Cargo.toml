@@ -11,6 +11,8 @@ window = [
     "render",
     "dep:accesskit_winit",
     "dep:arboard",
+    "dep:jni",
+    "dep:ndk-context",
     "dep:pollster",
     "dep:winit",
     "wgpu/default",
@@ -38,6 +40,10 @@ text-editor-core = { path = "../text-editor-core" }
 unicode-script = "0.5"
 wgpu = { version = "29", default-features = false, optional = true }
 winit = { version = "0.30", optional = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.22", optional = true }
+ndk-context = { version = "0.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = { version = "0.3", optional = true }
@@ -94,4 +100,8 @@ required-features = ["window"]
 
 [[example]]
 name = "dock"
+required-features = ["window"]
+
+[[example]]
+name = "survey"
 required-features = ["window"]

@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_plugin::Editor;
 use block_editor_plugin::be_block::pixel_art::Artwork;
 use block_editor_plugin::be_block::pixel_art::PixelColor;
 use block_editor_plugin::beui::Image;
@@ -56,13 +55,11 @@ impl Pane {
 
     pub(crate) fn refresh(
         &self,
-        editor: &Editor,
         block: &ArtBlock,
         dark_mode: bool,
         pixels: &[(u16, u16)],
         color: PixelColor,
     ) {
-        let _ = editor;
         let Some(revision) = block.revision() else {
             return;
         };

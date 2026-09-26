@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::geometry::{Rect, Vec2};
-use crate::input::{Key, KeyPress};
+use crate::input::{ImeArea, Key, KeyPress};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -14,15 +14,24 @@ use beui_macros::component;
 
 pub type KeyCallback = Callback<KeyPress, bool>;
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ImeCursor {
+    pub node: NodeId,
+    pub rect: Rect,
+}
+
 pub(crate) struct FocusableNode {
     pub(crate) child: Option<NodeId>,
     pub(crate) focused: bool,
     pub(crate) tab_stop: bool,
+    pub(crate) ime: bool,
+    pub(crate) ime_cursor: Option<ImeCursor>,
     pub(crate) on_focus_change: Callback<bool>,
     pub(crate) on_activate_change: Callback<bool>,
     pub(crate) on_activate: ClickCallback,
     pub(crate) on_step: Callback<f32>,
     pub(crate) on_text: Callback<String>,
+    pub(crate) on_preedit: Callback<String>,
     pub(crate) on_key: KeyCallback,
     pub(crate) on_ancestor_key: KeyCallback,
     pub(crate) on_motion: Callback<Vec2>,
@@ -34,11 +43,14 @@ impl FocusableNode {
             child: None,
             focused: false,
             tab_stop: true,
+            ime: false,
+            ime_cursor: None,
             on_focus_change: Callback::empty(),
             on_activate_change: Callback::empty(),
             on_activate: ClickCallback::empty(),
             on_step: Callback::empty(),
             on_text: Callback::empty(),
+            on_preedit: Callback::empty(),
             on_key: Callback::empty(),
             on_ancestor_key: Callback::empty(),
             on_motion: Callback::empty(),
@@ -139,6 +151,12 @@ impl Document {
         }
     }
 
+    pub(crate) fn preedit_focused(&mut self, text: &str) {
+        if let Some(focused) = self.focused {
+            self.call_focusable_handler(focused, text.to_owned(), |node| &node.on_preedit);
+        }
+    }
+
     pub(crate) fn motion_focused(&mut self, motion: Vec2) {
         if let Some(focused) = self.focused {
             self.call_focusable_handler(focused, motion, |node| &node.on_motion);
@@ -152,6 +170,44 @@ impl Document {
         crate::reactive::with_reactive_scope(self, || {
             crate::reactive::with_document(|document| document.update_focus(None));
         });
+    }
+
+    pub(crate) fn set_focusable_ime(&mut self, focusable: NodeId, ime: bool) {
+        if self.contains(focusable) {
+            self.arena.get_mut_as::<FocusableNode>(focusable).ime = ime;
+        }
+    }
+
+    pub(crate) fn set_focusable_ime_cursor(
+        &mut self,
+        focusable: NodeId,
+        cursor: Option<ImeCursor>,
+    ) {
+        if self.contains(focusable) {
+            self.arena.get_mut_as::<FocusableNode>(focusable).ime_cursor = cursor;
+        }
+    }
+
+    pub(crate) fn focused_ime_area(&self) -> Option<ImeArea> {
+        let focused = self.focused?;
+        let node = self
+            .arena
+            .get(focused)
+            .as_any()
+            .downcast_ref::<FocusableNode>()?;
+        if !node.ime {
+            return None;
+        }
+        let rect = self.node_rect(focused)?;
+        let cursor = node
+            .ime_cursor
+            .filter(|cursor| self.contains(cursor.node))
+            .and_then(|cursor| {
+                let anchor = self.node_rect(cursor.node)?;
+                Some(cursor.rect.translate(anchor.min.to_vec2()))
+            })
+            .unwrap_or(rect);
+        Some(ImeArea { rect, cursor })
     }
 
     pub fn focus_takes_text(&self) -> bool {
@@ -465,11 +521,14 @@ pub fn focus_within(node: NodeId) {
 pub fn Focusable(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = false)] ime: Prop<bool>,
+    #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
     on_focus_change: Callback<bool>,
     on_activate_change: Callback<bool>,
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
+    on_preedit: Callback<String>,
     on_key: Callback<KeyPress, bool>,
     on_ancestor_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
@@ -483,6 +542,7 @@ pub fn Focusable(
         node.on_activate = on_activate;
         node.on_step = on_step;
         node.on_text = on_text;
+        node.on_preedit = on_preedit;
         node.on_key = on_key;
         node.on_ancestor_key = on_ancestor_key;
         node.on_motion = on_motion;
@@ -493,6 +553,13 @@ pub fn Focusable(
     });
     create_effect(move || {
         with_document(|document| document.set_focusable_tab_stop(focusable, tab_stop.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_focusable_ime(focusable, ime.get()))
+    });
+    create_effect(move || {
+        let cursor = ime_cursor.get();
+        with_document(|document| document.set_focusable_ime_cursor(focusable, cursor))
     });
     create_effect(move || {
         let wanted = focused.get();

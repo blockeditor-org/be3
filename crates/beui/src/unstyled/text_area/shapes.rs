@@ -11,9 +11,7 @@ use crate::reactive::layout_text;
 
 use super::RemoteTextCursor;
 use super::colors::TextAreaColors;
-use super::layout::{
-    BytePosition, DocumentLayout, INLINE_WIDGET_ICON_INSET, LineLayout, Run, style_size,
-};
+use super::layout::{BytePosition, DocumentLayout, INLINE_WIDGET_ICON_INSET, LineLayout, Run};
 use super::state::{MarkdownCheckbox, Snapshot};
 
 pub(crate) const PADDING: Vec2 = Vec2::new(12.0, 8.0);
@@ -26,7 +24,7 @@ pub(crate) const TOUCH_HANDLE_GAP: f32 = 4.0;
 pub(crate) const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 
 const COLLAPSED_ELLIPSIS_GAP: f32 = 6.0;
-const CARET_WIDTH: f32 = 2.0;
+pub(crate) const CARET_WIDTH: f32 = 2.0;
 const EMPTY_BYTE_WIDTH: f32 = 8.0;
 const CHECKBOX_RADIUS: f32 = 3.0;
 const CHECKBOX_OUTLINE: f32 = 1.5;
@@ -38,6 +36,7 @@ const REMOTE_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 pub(crate) enum SelectionHandle {
     Start,
     End,
+    Caret,
 }
 
 pub(crate) fn digit_width() -> f32 {
@@ -66,8 +65,8 @@ pub(crate) fn gutter_width(line_count: usize) -> f32 {
         + GUTTER_PADDING_RIGHT
 }
 
-pub(crate) fn origin(gutter_width: f32) -> Vec2 {
-    Vec2::new(gutter_width + PADDING.x, PADDING.y)
+pub(crate) fn origin(gutter_width: f32, padding: Vec2) -> Vec2 {
+    Vec2::new(gutter_width + padding.x, padding.y)
 }
 
 fn text(origin: Pos2, string: &str, font: FontId, color: Color32) -> Option<PageShape> {
@@ -242,6 +241,7 @@ pub(crate) fn touch_handle_center(anchor: Vec2, handle: SelectionHandle) -> Vec2
     match handle {
         SelectionHandle::Start => anchor + Vec2::new(-TOUCH_HANDLE_RADIUS, TOUCH_HANDLE_RADIUS),
         SelectionHandle::End => anchor + Vec2::new(TOUCH_HANDLE_RADIUS, TOUCH_HANDLE_RADIUS),
+        SelectionHandle::Caret => anchor + Vec2::new(0.0, TOUCH_HANDLE_RADIUS),
     }
 }
 
@@ -261,6 +261,10 @@ fn touch_handle_shapes(anchor: Vec2, handle: SelectionHandle, color: Color32) ->
         ),
         SelectionHandle::End => Rect::from_min_size(
             Pos2::new(anchor.x, anchor.y),
+            Vec2::splat(TOUCH_HANDLE_RADIUS),
+        ),
+        SelectionHandle::Caret => Rect::from_min_size(
+            Pos2::new(anchor.x - TOUCH_HANDLE_RADIUS / 2.0, anchor.y),
             Vec2::splat(TOUCH_HANDLE_RADIUS),
         ),
     };
@@ -286,23 +290,23 @@ pub(crate) fn background(
     gutter_width: f32,
     origin: Vec2,
 ) -> Page {
-    let mut shapes = vec![
-        PageShape::Rect {
-            rect: Rect::from_min_size(Pos2::ZERO, size),
-            corner_radius: 0.0,
-            color: colors.surface,
-        },
-        PageShape::Rect {
+    let mut shapes = vec![PageShape::Rect {
+        rect: Rect::from_min_size(Pos2::ZERO, size),
+        corner_radius: 0.0,
+        color: colors.surface,
+    }];
+    if gutter_width > 0.0 {
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(gutter_width, size.y)),
             corner_radius: 0.0,
             color: colors.gutter,
-        },
-        PageShape::Rect {
+        });
+        shapes.push(PageShape::Rect {
             rect: Rect::from_min_size(Pos2::new(gutter_width - 1.0, 0.0), Vec2::new(1.0, size.y)),
             corner_radius: 0.0,
             color: colors.gutter_border,
-        },
-    ];
+        });
+    }
 
     for section in snapshot.sections.iter().filter(|section| section.revealed) {
         let hidden = layout
@@ -328,7 +332,7 @@ pub(crate) fn background(
 
     let number_x = gutter_width - GUTTER_PADDING_RIGHT;
     for line in &layout.lines {
-        if line.show_line_number {
+        if line.show_line_number && gutter_width > 0.0 {
             let number = (line.document_line + 1).to_string();
             if let Some(galley) = layout_text(
                 &number,
@@ -467,7 +471,7 @@ fn run_shapes(
         galley: galley.clone(),
         color,
     });
-    let font_size = style_size(run.style);
+    let font_size = run.font_size;
     let baseline = origin.y + line.y + line.baseline;
     let thickness = (font_size / 16.0).max(1.0);
     if run.style.underline {
@@ -488,13 +492,33 @@ fn run_shapes(
     }
 }
 
+pub(crate) fn placeholder(
+    layout: &DocumentLayout,
+    placeholder: &str,
+    font: FontId,
+    colors: &TextAreaColors,
+    origin: Vec2,
+) -> Option<PageShape> {
+    let line = layout.lines.first()?;
+    let galley = layout_text(placeholder, font, TextLayout::DEFAULT)?;
+    Some(PageShape::Text {
+        origin: Pos2::new(
+            origin.x,
+            origin.y + line.y + line.baseline - galley.baseline(),
+        ),
+        galley,
+        color: colors.placeholder,
+    })
+}
+
 pub(crate) fn content(
     layout: &DocumentLayout,
     snapshot: &Snapshot,
     colors: &TextAreaColors,
     origin: Vec2,
+    placeholder: Option<PageShape>,
 ) -> Page {
-    let mut shapes = Vec::new();
+    let mut shapes = Vec::from_iter(placeholder);
     for line in &layout.lines {
         for run in &line.runs {
             if run.invisible && !run.show_when_trailing {
@@ -558,11 +582,8 @@ pub(crate) struct Overlay<'a> {
     pub layout: &'a DocumentLayout,
     pub colors: &'a TextAreaColors,
     pub origin: Vec2,
-    pub focused: bool,
     pub selection: &'a [Range<usize>],
-    pub carets: &'a [usize],
     pub remote: &'a [RemoteTextCursor],
-    pub touch_handles: Option<Range<usize>>,
     pub drop_caret: Option<usize>,
 }
 
@@ -571,11 +592,8 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
         layout,
         colors,
         origin,
-        focused,
         selection,
-        carets,
         remote,
-        touch_handles,
         drop_caret,
     } = state;
     let mut shapes = Vec::new();
@@ -628,30 +646,6 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
         });
     }
 
-    if focused {
-        for caret in carets {
-            if let Some(rect) = caret_rect(layout, *caret, origin) {
-                shapes.push(PageShape::Rect {
-                    rect,
-                    corner_radius: 0.0,
-                    color: colors.caret,
-                });
-            }
-        }
-    }
-
-    if let Some(range) = touch_handles {
-        for (byte, handle) in [
-            (range.start, SelectionHandle::Start),
-            (range.end, SelectionHandle::End),
-        ] {
-            let Some(anchor) = touch_handle_anchor(layout, byte) else {
-                continue;
-            };
-            shapes.extend(touch_handle_shapes(anchor + origin, handle, colors.caret));
-        }
-    }
-
     if let Some(byte) = drop_caret
         && let Some(rect) = caret_rect(layout, byte, origin)
     {
@@ -662,5 +656,39 @@ pub(crate) fn overlay(state: Overlay<'_>) -> Page {
         });
     }
 
+    Page::new(shapes)
+}
+
+pub(crate) fn carets(
+    layout: &DocumentLayout,
+    carets: &[usize],
+    color: Color32,
+    origin: Vec2,
+) -> Page {
+    Page::new(
+        carets
+            .iter()
+            .filter_map(|caret| caret_rect(layout, *caret, origin))
+            .map(|rect| PageShape::Rect {
+                rect,
+                corner_radius: 0.0,
+                color,
+            })
+            .collect(),
+    )
+}
+
+pub(crate) fn handles(
+    layout: &DocumentLayout,
+    handles: &[(SelectionHandle, usize)],
+    color: Color32,
+    origin: Vec2,
+) -> Page {
+    let mut shapes = Vec::new();
+    for (handle, byte) in handles {
+        if let Some(anchor) = touch_handle_anchor(layout, *byte) {
+            shapes.extend(touch_handle_shapes(anchor + origin, *handle, color));
+        }
+    }
     Page::new(shapes)
 }
