@@ -1,4 +1,5 @@
-use core::{future::ready, ops::Range, pin::Pin};
+use core::{fmt, future::ready, ops::Range, pin::Pin};
+use std::{cell::RefCell, sync::Arc};
 
 use block_gpu_abi as abi;
 use serde::Serialize;
@@ -20,11 +21,71 @@ fn last_error() -> String {
     String::from_utf8(buffer).unwrap_or_else(|_| "the host reported an unreadable error".into())
 }
 
+struct Scope {
+    filter: wgpu::ErrorFilter,
+    error: Option<wgpu::Error>,
+}
+
+thread_local! {
+    static SCOPES: RefCell<Vec<Scope>> = const { RefCell::new(Vec::new()) };
+    static UNCAPTURED: RefCell<Option<Arc<dyn wgpu::UncapturedErrorHandler>>> =
+        const { RefCell::new(None) };
+}
+
+#[derive(Debug)]
+struct Rejected(String);
+
+impl fmt::Display for Rejected {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for Rejected {}
+
+fn reject(message: String) {
+    let error = wgpu::Error::Validation {
+        source: Box::new(Rejected(message.clone())),
+        description: message,
+    };
+    let unscoped = SCOPES.with(|scopes| {
+        let mut scopes = scopes.borrow_mut();
+        match scopes
+            .iter_mut()
+            .rev()
+            .find(|scope| scope.filter == wgpu::ErrorFilter::Validation)
+        {
+            Some(scope) => {
+                scope.error.get_or_insert(error);
+                None
+            }
+            None => Some(error),
+        }
+    });
+    let Some(error) = unscoped else {
+        return;
+    };
+    match UNCAPTURED.with(|handler| handler.borrow().clone()) {
+        Some(handler) => handler(error),
+        None => panic!("the plugin gpu abi rejected a request: {error}"),
+    }
+}
+
+fn checked() {
+    if SCOPES.with(|scopes| scopes.borrow().is_empty()) {
+        return;
+    }
+    let message = last_error();
+    if !message.is_empty() {
+        reject(message);
+    }
+}
+
 fn created<T: Serialize>(descriptor: &T, call: impl FnOnce(u32, u32) -> u32) -> abi::Handle {
     let bytes = abi::encode(descriptor);
     let handle = call(bytes.as_ptr() as u32, bytes.len() as u32);
     if handle == abi::NULL_HANDLE {
-        panic!("the plugin gpu abi rejected a request: {}", last_error());
+        reject(last_error());
     }
     handle
 }
@@ -44,7 +105,9 @@ macro_rules! resource {
 
         impl Drop for $name {
             fn drop(&mut self) {
-                unsafe { imports::resource_drop(abi::ResourceKind::$kind.code(), self.handle) };
+                if self.handle != abi::NULL_HANDLE {
+                    unsafe { imports::resource_drop(abi::ResourceKind::$kind.code(), self.handle) };
+                }
             }
         }
     };
@@ -69,7 +132,7 @@ pub(crate) struct CommandEncoder {
 
 impl Drop for CommandEncoder {
     fn drop(&mut self) {
-        if !self.finished {
+        if !self.finished && self.handle != abi::NULL_HANDLE {
             unsafe {
                 imports::resource_drop(abi::ResourceKind::CommandEncoder.code(), self.handle)
             };
@@ -84,7 +147,10 @@ pub(crate) struct RenderPass {
 
 impl Drop for RenderPass {
     fn drop(&mut self) {
-        unsafe { imports::pass_end(self.handle) };
+        if self.handle != abi::NULL_HANDLE {
+            unsafe { imports::pass_end(self.handle) };
+            checked();
+        }
     }
 }
 
@@ -493,14 +559,28 @@ impl DeviceInterface for Device {
 
     fn set_device_lost_callback(&self, _device_lost_callback: BoxDeviceLostCallback) {}
 
-    fn on_uncaptured_error(&self, _handler: std::sync::Arc<dyn wgpu::UncapturedErrorHandler>) {}
-
-    fn push_error_scope(&self, _filter: wgpu::ErrorFilter) -> u32 {
-        0
+    fn on_uncaptured_error(&self, handler: Arc<dyn wgpu::UncapturedErrorHandler>) {
+        UNCAPTURED.with(|held| *held.borrow_mut() = Some(handler));
     }
 
-    fn pop_error_scope(&self, _index: u32) -> Pin<Box<dyn PopErrorScopeFuture>> {
-        Box::pin(ready(None))
+    fn push_error_scope(&self, filter: wgpu::ErrorFilter) -> u32 {
+        SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            scopes.push(Scope {
+                filter,
+                error: None,
+            });
+            scopes.len() as u32 - 1
+        })
+    }
+
+    fn pop_error_scope(&self, index: u32) -> Pin<Box<dyn PopErrorScopeFuture>> {
+        let error = SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            let popped = scopes.drain(index as usize..).next();
+            popped.and_then(|scope| scope.error)
+        });
+        Box::pin(ready(error))
     }
 
     unsafe fn start_graphics_debugger_capture(&self) {}
@@ -538,6 +618,7 @@ impl QueueInterface for Queue {
                 data.len() as u32,
             )
         };
+        checked();
     }
 
     fn create_staging_buffer(&self, size: wgpu::BufferSize) -> Option<DispatchQueueWriteBuffer> {
@@ -599,6 +680,7 @@ impl QueueInterface for Queue {
                 data.len() as u32,
             )
         };
+        checked();
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -623,6 +705,7 @@ impl QueueInterface for Queue {
             })
             .collect();
         unsafe { imports::queue_submit(handles.as_ptr() as u32, handles.len() as u32) };
+        checked();
         0
     }
 
@@ -682,6 +765,7 @@ impl BufferInterface for Buffer {
 
     fn unmap(&self) {
         unsafe { imports::buffer_unmap(self.handle) };
+        checked();
     }
 
     fn destroy(&self) {}
@@ -833,10 +917,7 @@ impl CommandEncoderInterface for CommandEncoder {
         let handle = unsafe { imports::encoder_finish(self.handle) };
         self.finished = true;
         if handle == abi::NULL_HANDLE {
-            panic!(
-                "the plugin gpu abi could not finish an encoder: {}",
-                last_error()
-            );
+            reject(last_error());
         }
         DispatchCommandBuffer::custom(CommandBuffer { handle })
     }

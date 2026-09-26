@@ -5,6 +5,9 @@ mod tables;
 mod tests;
 
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::pin;
+use std::task::{Context, Poll, Waker};
 
 use block_gpu_abi as abi;
 use tables::Table;
@@ -129,9 +132,36 @@ impl Gpu {
         self.fail(result, abi::NULL_HANDLE)
     }
 
-    pub fn create_buffer(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_buffer(bytes);
+    fn create(
+        &mut self,
+        kind: abi::ResourceKind,
+        act: impl FnOnce(&mut Self) -> Outcome<abi::Handle>,
+    ) -> abi::Handle {
+        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let result = match (act(self), caught(scope.pop())) {
+            (Ok(handle), Some(error)) => {
+                self.drop_resource(kind.code(), handle);
+                Err(error)
+            }
+            (result, _) => result,
+        };
         self.handle(result)
+    }
+
+    fn guard(&mut self, act: impl FnOnce(&mut Self) -> Outcome<()>) {
+        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let result = act(self);
+        let result = match caught(scope.pop()) {
+            Some(error) => result.and(Err(error)),
+            None => result,
+        };
+        self.fail(result, ());
+    }
+
+    pub fn create_buffer(&mut self, bytes: &[u8]) -> abi::Handle {
+        self.create(abi::ResourceKind::Buffer, |gpu| {
+            gpu.try_create_buffer(bytes)
+        })
     }
 
     fn try_create_buffer(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -146,8 +176,9 @@ impl Gpu {
     }
 
     pub fn create_texture(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_texture(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::Texture, |gpu| {
+            gpu.try_create_texture(bytes)
+        })
     }
 
     fn try_create_texture(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -171,8 +202,9 @@ impl Gpu {
     }
 
     pub fn create_texture_view(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_texture_view(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::TextureView, |gpu| {
+            gpu.try_create_texture_view(bytes)
+        })
     }
 
     fn try_create_texture_view(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -193,8 +225,9 @@ impl Gpu {
     }
 
     pub fn create_sampler(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_sampler(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::Sampler, |gpu| {
+            gpu.try_create_sampler(bytes)
+        })
     }
 
     fn try_create_sampler(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -217,8 +250,9 @@ impl Gpu {
     }
 
     pub fn create_bind_group_layout(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_bind_group_layout(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::BindGroupLayout, |gpu| {
+            gpu.try_create_bind_group_layout(bytes)
+        })
     }
 
     fn try_create_bind_group_layout(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -243,8 +277,9 @@ impl Gpu {
     }
 
     pub fn create_bind_group(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_bind_group(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::BindGroup, |gpu| {
+            gpu.try_create_bind_group(bytes)
+        })
     }
 
     fn try_create_bind_group(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -310,8 +345,9 @@ impl Gpu {
     }
 
     pub fn create_pipeline_layout(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_pipeline_layout(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::PipelineLayout, |gpu| {
+            gpu.try_create_pipeline_layout(bytes)
+        })
     }
 
     fn try_create_pipeline_layout(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -337,8 +373,9 @@ impl Gpu {
     }
 
     pub fn create_shader_module(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_shader_module(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::ShaderModule, |gpu| {
+            gpu.try_create_shader_module(bytes)
+        })
     }
 
     fn try_create_shader_module(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -353,8 +390,9 @@ impl Gpu {
     }
 
     pub fn create_render_pipeline(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_render_pipeline(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::RenderPipeline, |gpu| {
+            gpu.try_create_render_pipeline(bytes)
+        })
     }
 
     fn try_create_render_pipeline(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -485,8 +523,9 @@ impl Gpu {
     }
 
     pub fn create_command_encoder(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_create_command_encoder(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::CommandEncoder, |gpu| {
+            gpu.try_create_command_encoder(bytes)
+        })
     }
 
     fn try_create_command_encoder(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -500,7 +539,16 @@ impl Gpu {
     }
 
     pub fn write_mapped_buffer(&mut self, buffer: abi::Handle, offset: u64, data: &[u8]) {
-        let result = self.buffers.get(buffer, "buffer").and_then(|buffer| {
+        self.guard(|gpu| gpu.try_write_mapped_buffer(buffer, offset, data));
+    }
+
+    fn try_write_mapped_buffer(
+        &self,
+        buffer: abi::Handle,
+        offset: u64,
+        data: &[u8],
+    ) -> Outcome<()> {
+        self.buffers.get(buffer, "buffer").and_then(|buffer| {
             let end = offset
                 .checked_add(data.len() as u64)
                 .ok_or_else(|| "a mapped write ran past the end of its buffer".to_owned())?;
@@ -512,26 +560,23 @@ impl Gpu {
                 .get_mapped_range_mut()
                 .copy_from_slice(data);
             Ok(())
-        });
-        self.fail(result, ());
+        })
     }
 
     pub fn unmap_buffer(&mut self, buffer: abi::Handle) {
-        let result = self.buffers.get(buffer, "buffer").map(wgpu::Buffer::unmap);
-        self.fail(result, ());
+        self.guard(|gpu| gpu.buffers.get(buffer, "buffer").map(wgpu::Buffer::unmap));
     }
 
     pub fn write_buffer(&mut self, buffer: abi::Handle, offset: u64, data: &[u8]) {
-        let result = self
-            .buffers
-            .get(buffer, "buffer")
-            .map(|buffer| self.queue.write_buffer(buffer, offset, data));
-        self.fail(result, ());
+        self.guard(|gpu| {
+            gpu.buffers
+                .get(buffer, "buffer")
+                .map(|buffer| gpu.queue.write_buffer(buffer, offset, data))
+        });
     }
 
     pub fn write_texture(&mut self, bytes: &[u8], data: &[u8]) {
-        let result = self.try_write_texture(bytes, data);
-        self.fail(result, ());
+        self.guard(|gpu| gpu.try_write_texture(bytes, data));
     }
 
     fn try_write_texture(&mut self, bytes: &[u8], data: &[u8]) -> Outcome<()> {
@@ -560,8 +605,7 @@ impl Gpu {
     }
 
     pub fn submit(&mut self, handles: &[u32]) {
-        let result = self.try_submit(handles);
-        self.fail(result, ());
+        self.guard(|gpu| gpu.try_submit(handles));
     }
 
     fn try_submit(&mut self, handles: &[u32]) -> Outcome<()> {
@@ -574,8 +618,9 @@ impl Gpu {
     }
 
     pub fn begin_render_pass(&mut self, bytes: &[u8]) -> abi::Handle {
-        let result = self.try_begin_render_pass(bytes);
-        self.handle(result)
+        self.create(abi::ResourceKind::RenderPass, |gpu| {
+            gpu.try_begin_render_pass(bytes)
+        })
     }
 
     fn try_begin_render_pass(&mut self, bytes: &[u8]) -> Outcome<abi::Handle> {
@@ -660,11 +705,11 @@ impl Gpu {
     }
 
     pub fn finish_encoder(&mut self, encoder: abi::Handle) -> abi::Handle {
-        let result = self
-            .encoders
-            .take(encoder, "command encoder")
-            .map(|encoder| self.command_buffers.insert(encoder.finish()));
-        self.handle(result)
+        self.create(abi::ResourceKind::CommandBuffer, |gpu| {
+            gpu.encoders
+                .take(encoder, "command encoder")
+                .map(|encoder| gpu.command_buffers.insert(encoder.finish()))
+        })
     }
 
     pub fn set_pipeline(&mut self, pass: abi::Handle, pipeline: abi::Handle) {
@@ -855,8 +900,7 @@ impl Gpu {
     }
 
     pub fn end_pass(&mut self, pass: abi::Handle) {
-        let result = self.passes.take(pass, "render pass").map(drop);
-        self.fail(result, ());
+        self.guard(|gpu| gpu.passes.take(pass, "render pass").map(drop));
     }
 
     pub fn drop_resource(&mut self, kind: u32, handle: abi::Handle) {
@@ -990,5 +1034,12 @@ fn reverse_format(value: wgpu::TextureFormat) -> abi::TextureFormat {
         wgpu::TextureFormat::Bgra8UnormSrgb => abi::TextureFormat::Bgra8UnormSrgb,
         wgpu::TextureFormat::Rgba16Float => abi::TextureFormat::Rgba16Float,
         _ => abi::TextureFormat::Rgba8Unorm,
+    }
+}
+
+fn caught(popped: impl Future<Output = Option<wgpu::Error>>) -> Option<String> {
+    match pin!(popped).poll(&mut Context::from_waker(Waker::noop())) {
+        Poll::Ready(error) => error.map(|error| error.to_string()),
+        Poll::Pending => None,
     }
 }
