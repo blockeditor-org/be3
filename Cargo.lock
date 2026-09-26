@@ -1490,17 +1490,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "compiled_logic"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-plugin",
- "block-ui-test",
- "logicgame",
- "uuid",
-]
-
-[[package]]
 name = "comrak"
 version = "0.55.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1985,26 +1974,6 @@ checksum = "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8"
 
 [[package]]
 name = "database"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-plugin",
- "block-ui-test",
- "uuid",
-]
-
-[[package]]
-name = "database_schema"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-plugin",
- "block-ui-test",
- "uuid",
-]
-
-[[package]]
-name = "database_view"
 version = "0.1.0"
 dependencies = [
  "beui",
@@ -2665,17 +2634,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "game_module"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-plugin",
- "block-ui-test",
- "game-host",
- "uuid",
-]
-
-[[package]]
 name = "gbm"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3225,16 +3183,6 @@ name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
-
-[[package]]
-name = "hotbar"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-plugin",
- "block-ui-test",
- "uuid",
-]
 
 [[package]]
 name = "hound"
@@ -3860,17 +3808,6 @@ name = "log"
 version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
-
-[[package]]
-name = "logic_game"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-plugin",
- "block-ui-test",
- "logicgame",
- "uuid",
-]
 
 [[package]]
 name = "logic_grid"

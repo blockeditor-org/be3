@@ -80,14 +80,67 @@ pub trait BeuiApp: 'static {
 #[doc(hidden)]
 pub mod __private {
     #[cfg(target_arch = "wasm32")]
+    pub struct App {
+        block_type: uuid::Uuid,
+        open: crate::screens::Opener,
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn app<A: crate::BeuiApp>(block_type: uuid::Uuid) -> App {
+        App {
+            block_type,
+            open: crate::editor_session::EditorSession::new::<A>,
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn only_app<A: crate::BeuiApp>(manifest: &str) -> Vec<App> {
+        let editors = document(manifest).editors;
+        let [editor] = editors.as_slice() else {
+            panic!(
+                "a plugin with one app declares exactly one editor, not {}",
+                editors.len()
+            );
+        };
+        let block_type = uuid::Uuid::parse_str(&editor.block_type)
+            .unwrap_or_else(|error| panic!("this plugin's block type is invalid: {error}"));
+        vec![app::<A>(block_type)]
+    }
+
+    pub fn declared_block_types(manifest: &str) -> Vec<uuid::Uuid> {
+        document(manifest)
+            .editors
+            .iter()
+            .map(|editor| {
+                uuid::Uuid::parse_str(&editor.block_type)
+                    .unwrap_or_else(|error| panic!("this plugin's block type is invalid: {error}"))
+            })
+            .collect()
+    }
+
+    #[cfg(target_arch = "wasm32")]
     pub fn initialize_tls(size: usize, align: usize) {
         crate::wasm::initialize_storage(size, align);
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn start_wasm<A: crate::BeuiApp>(manifest: &str) {
+    pub fn start_wasm(manifest: &str, apps: Vec<App>) {
         let identity = identity(manifest);
-        if let Err(error) = crate::wasm::start::<A>(&identity.id, &identity.name, &identity.version)
+        let mut declared = declared_block_types(manifest);
+        let mut implemented: Vec<_> = apps.iter().map(|app| app.block_type).collect();
+        declared.sort();
+        implemented.sort();
+        assert_eq!(
+            declared, implemented,
+            "{} must implement exactly the editors its manifest declares",
+            identity.name
+        );
+        let apps = apps
+            .into_iter()
+            .map(|app| (app.block_type, app.open))
+            .collect();
+        if let Err(error) =
+            crate::wasm::start(apps, &identity.id, &identity.name, &identity.version)
         {
             panic!("{} could not start: {error}", identity.name);
         }
@@ -118,7 +171,7 @@ pub mod __private {
 #[cfg(target_arch = "wasm32")]
 #[macro_export]
 macro_rules! platform_entry {
-    ($app:ty, $manifest:ident) => {
+    ($manifest:ident, $apps:expr) => {
         #[unsafe(no_mangle)]
         pub extern "C" fn plugin_initialize_tls(size: u32, align: u32) {
             $crate::__private::initialize_tls(size as usize, align as usize);
@@ -126,7 +179,7 @@ macro_rules! platform_entry {
 
         #[unsafe(no_mangle)]
         pub extern "C" fn plugin_start() {
-            $crate::__private::start_wasm::<$app>($manifest);
+            $crate::__private::start_wasm($manifest, $apps);
         }
 
         #[unsafe(no_mangle)]
@@ -144,7 +197,7 @@ macro_rules! platform_entry {
 #[cfg(not(target_arch = "wasm32"))]
 #[macro_export]
 macro_rules! platform_entry {
-    ($app:ty, $manifest:ident) => {};
+    ($manifest:ident, $apps:expr) => {};
 }
 
 #[macro_export]
@@ -152,6 +205,21 @@ macro_rules! beui_plugin {
     ($app:ty, $manifest:expr) => {
         const PLUGIN_MANIFEST: &str = include_str!($manifest);
 
-        $crate::platform_entry!($app, PLUGIN_MANIFEST);
+        $crate::platform_entry!(
+            PLUGIN_MANIFEST,
+            $crate::__private::only_app::<$app>(PLUGIN_MANIFEST)
+        );
+    };
+    ($manifest:expr, { $($content:ty => $app:ty),+ $(,)? }) => {
+        const PLUGIN_MANIFEST: &str = include_str!($manifest);
+
+        $crate::platform_entry!(
+            PLUGIN_MANIFEST,
+            vec![$(
+                $crate::__private::app::<$app>(
+                    <$content as $crate::be_block::BlockContent>::CONTENT_TYPE,
+                )
+            ),+]
+        );
     };
 }

@@ -2,39 +2,61 @@ use super::*;
 
 #[test]
 fn manifest_validation() {
+    let editor = EditorManifest {
+        block_type: [1; 16],
+        display_name: "Counter".into(),
+        icon: "123".into(),
+        templates: vec![TemplateManifest {
+            id: "main".into(),
+            name: "Counter".into(),
+            icon: "123".into(),
+            category: TemplateCategory::Debug,
+            dialog: false,
+            block_type: [1; 16],
+        }],
+        children: ChildOperations::default(),
+        interaction: InteractionMode::Live,
+        capabilities: EditorCapabilities::default(),
+        resize: ResizeMode::Both,
+        regions: vec![EditorRegion::Frame, EditorRegion::Preview],
+        chrome: vec![EditorBand::Toolbar],
+    };
     let manifest = PluginManifest {
         identity: PluginIdentity {
             id: "be3.counter".into(),
             name: "Counter".into(),
             version: "1".into(),
         },
-        block_type: [1; 16],
-        display_name: "Counter".into(),
-        icon: "123".into(),
-        creation: CreationMode::Immediate,
-        children: ChildOperations::default(),
-        important: false,
-        interaction: InteractionMode::Live,
-        capabilities: EditorCapabilities::default(),
-        resize: ResizeMode::Both,
-        regions: vec![EditorRegion::Frame, EditorRegion::Preview],
-        chrome: vec![EditorBand::Toolbar],
+        editors: vec![editor.clone()],
         entry_point: "counter.wasm".into(),
         network: vec!["api.github.com".into()],
     };
     assert_eq!(manifest.validate(), Ok(()));
 
     let mut invalid = manifest.clone();
-    invalid.regions.push(EditorRegion::Preview);
+    invalid.editors[0].regions.push(EditorRegion::Preview);
     assert_eq!(invalid.validate(), Err(ManifestError::InvalidRegions));
 
     let mut invalid = manifest.clone();
-    invalid.regions = vec![EditorRegion::Preview];
+    invalid.editors[0].regions = vec![EditorRegion::Preview];
     assert_eq!(invalid.validate(), Err(ManifestError::InvalidRegions));
 
     let mut invalid = manifest.clone();
-    invalid.chrome.push(EditorBand::Toolbar);
+    invalid.editors[0].chrome.push(EditorBand::Toolbar);
     assert_eq!(invalid.validate(), Err(ManifestError::InvalidChrome));
+
+    let mut invalid = manifest.clone();
+    invalid.editors.clear();
+    assert_eq!(invalid.validate(), Err(ManifestError::NoEditors));
+
+    let mut invalid = manifest.clone();
+    invalid.editors.push(editor.clone());
+    assert_eq!(invalid.validate(), Err(ManifestError::DuplicateBlockType));
+
+    let mut invalid = manifest.clone();
+    let template = invalid.editors[0].templates[0].clone();
+    invalid.editors[0].templates.push(template);
+    assert_eq!(invalid.validate(), Err(ManifestError::DuplicateTemplate));
 
     let mut invalid = manifest.clone();
     invalid.entry_point = String::new();
