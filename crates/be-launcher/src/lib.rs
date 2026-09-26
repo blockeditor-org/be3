@@ -1,26 +1,28 @@
+mod detail;
+mod github;
+mod markdown;
+mod model;
 mod pane;
+mod runner;
 mod tasks;
+mod time;
 mod view;
 
 #[cfg(test)]
 mod tests;
 
 use std::error::Error;
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 
 use beui::reactive::{Frame, build, view, with_reactive_scope};
 use beui::styled::use_theme;
 use beui::{App, Color32, Context, Document, Rect, Setup};
 
+use model::Model;
 use pane::{Pane, Session};
 use tasks::{Event, Tasks};
-use view::{Launcher, State};
-
-const PADDING: f32 = 16.0;
-const BOLD: &str = "\x1b[1m";
-const GREEN: &str = "\x1b[32m";
-const RED: &str = "\x1b[31m";
-const RESET: &str = "\x1b[0m";
+use view::Launcher;
 
 pub fn run() -> Result<(), Box<dyn Error>> {
     let root = tasks::repository_root()?;
@@ -29,39 +31,32 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
 struct LauncherApp {
     document: Document,
-    state: State,
+    model: Model,
     tasks: Tasks,
     events: Receiver<Event>,
 }
 
 impl LauncherApp {
-    fn new(root: std::path::PathBuf) -> Result<Self, String> {
+    fn new(root: PathBuf) -> Result<Self, String> {
         let (sender, events) = channel();
         let tasks = Tasks::new(root, sender);
         let session = Session::new()?;
         let mut exported = None;
         let document = build(|| {
             let theme = use_theme();
-            let state = State::new(Pane::new(session));
-            exported = Some(state.clone());
-            let tasks = tasks.clone();
+            let model = Model::new(tasks.clone(), Pane::new(session));
+            exported = Some(model.clone());
             view! {
-                <Frame
-                    color={theme.background.clone()}
-                    radius=0
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                >
-                    <Launcher state tasks />
+                <Frame color={theme.background.clone()} radius=0>
+                    <Launcher model />
                 </Frame>
             }
         });
-        let state = exported.expect("build ran the view");
-        tasks.list_pull_requests();
-        tasks.read_head();
+        let model = exported.expect("build ran the view");
+        model.start();
         Ok(Self {
             document,
-            state,
+            model,
             tasks,
             events,
         })
@@ -72,42 +67,12 @@ impl LauncherApp {
         if events.is_empty() {
             return;
         }
-        let state = self.state.clone();
+        let model = self.model.clone();
         with_reactive_scope(&mut self.document, || {
             for event in events {
-                match event {
-                    Event::Started(description) => {
-                        state.set_running.set(true);
-                        state.set_status.set(format!("Running {description}"));
-                        state
-                            .pane
-                            .write_line(&format!("{BOLD}$ {description}{RESET}"));
-                    }
-                    Event::Output(bytes) => state.pane.write(&bytes),
-                    Event::Finished { summary, success } => {
-                        let color = if success { GREEN } else { RED };
-                        state.pane.write_line(&format!("{color}{summary}{RESET}\n"));
-                        state.set_running.set(false);
-                        state.set_status.set(summary);
-                    }
-                    Event::Head(head) => state.set_head.set(head),
-                    Event::PullRequests(Ok(listing)) => {
-                        state.set_status.set(format!(
-                            "{} {}",
-                            listing.pull_requests.len(),
-                            listing.source
-                        ));
-                        state.pull_requests.reconcile_owned(
-                            listing
-                                .pull_requests
-                                .into_iter()
-                                .map(|pull_request| (pull_request.branch.clone(), pull_request)),
-                        );
-                    }
-                    Event::PullRequests(Err(error)) => state.set_status.set(error),
-                }
+                model.receive(event);
             }
-            state.pane.refresh();
+            model.pane.refresh();
         });
     }
 }

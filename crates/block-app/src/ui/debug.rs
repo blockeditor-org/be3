@@ -1,3 +1,4 @@
+use beui::NodeId;
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, Text, VirtualList, clone,
     component, create_memo, view,
@@ -5,7 +6,6 @@ use beui::reactive::{
 use beui::styled::{
     Button, ButtonVariant, Caption, Code, Heading, Link, Scroll, Spinner, use_theme,
 };
-use beui::NodeId;
 
 use super::onboarding::ErrorText;
 use super::{UiCommand, send};

@@ -8,23 +8,23 @@ use std::thread;
 
 use beui::Waker;
 
-const PULL_REQUEST_LIMIT: &str = "100";
+use crate::github::{Entry, Filter, GitHub, PullRequest, download};
+
 const READ_CHUNK: usize = 4096;
+const MAX_IMAGE_WIDTH: u32 = 1200;
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PullRequest {
-    pub(crate) branch: String,
-    pub(crate) label: String,
-}
-
-pub(crate) struct Listing {
-    pub(crate) pull_requests: Vec<PullRequest>,
-    pub(crate) source: &'static str,
+pub(crate) struct Pixels {
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) rgba: Vec<u8>,
 }
 
 pub(crate) enum Event {
-    PullRequests(Result<Listing, String>),
-    Head(String),
+    Connected(Result<String, String>),
+    PullRequests(Filter, Result<Vec<PullRequest>, String>),
+    Timeline(u64, Result<Vec<Entry>, String>),
+    Image(String, Result<Pixels, String>),
+    Head { sha: String, summary: String },
     Started(String),
     Output(Vec<u8>),
     Finished { summary: String, success: bool },
@@ -35,6 +35,7 @@ pub(crate) struct Tasks {
     root: PathBuf,
     sender: Sender<Event>,
     waker: Arc<OnceLock<Waker>>,
+    github: Arc<OnceLock<Result<GitHub, String>>>,
     running: Arc<Mutex<Option<u32>>>,
 }
 
@@ -44,6 +45,7 @@ impl Tasks {
             root,
             sender,
             waker: Arc::new(OnceLock::new()),
+            github: Arc::new(OnceLock::new()),
             running: Arc::new(Mutex::new(None)),
         }
     }
@@ -59,65 +61,65 @@ impl Tasks {
         }
     }
 
-    pub(crate) fn list_pull_requests(&self) {
+    fn background(&self, work: impl FnOnce(&Tasks) -> Event + Send + 'static) {
         let tasks = self.clone();
         thread::spawn(move || {
-            let listed = tasks
-                .pull_requests_from_github()
-                .map(|pull_requests| Listing {
-                    pull_requests,
-                    source: "open pull requests",
-                })
-                .or_else(|_| {
-                    tasks.remote_branches().map(|pull_requests| Listing {
-                        pull_requests,
-                        source: "remote branches (gh is not available)",
-                    })
-                });
-            tasks.send(Event::PullRequests(listed));
+            let event = work(&tasks);
+            tasks.send(event);
         });
     }
 
-    fn pull_requests_from_github(&self) -> Result<Vec<PullRequest>, String> {
-        let listed = capture(
-            &self.root,
-            "gh",
-            &[
-                "pr",
-                "list",
-                "--limit",
-                PULL_REQUEST_LIMIT,
-                "--json",
-                "number,title,headRefName",
-                "--template",
-                "{{range .}}{{.headRefName}}\t#{{.number}} {{.title}}\n{{end}}",
-            ],
-        )?;
-        Ok(parse_pull_requests(&listed))
+    fn github(&self) -> Result<&GitHub, String> {
+        self.github
+            .get_or_init(|| GitHub::connect(&self.root))
+            .as_ref()
+            .map_err(Clone::clone)
     }
 
-    fn remote_branches(&self) -> Result<Vec<PullRequest>, String> {
-        capture(&self.root, "git", &["fetch", "--prune", "origin"])?;
-        let listed = capture(
-            &self.root,
-            "git",
-            &[
-                "for-each-ref",
-                "--sort=-committerdate",
-                "--format=%(refname:lstrip=3)",
-                "refs/remotes/origin",
-            ],
-        )?;
-        Ok(parse_branches(&listed))
+    pub(crate) fn connect(&self) {
+        self.background(|tasks| {
+            Event::Connected(tasks.github().map(|github| github.repository().full_name()))
+        });
+    }
+
+    pub(crate) fn list(&self, filter: Filter) {
+        self.background(move |tasks| {
+            Event::PullRequests(
+                filter,
+                tasks
+                    .github()
+                    .and_then(|github| github.pull_requests(filter)),
+            )
+        });
+    }
+
+    pub(crate) fn timeline(&self, pull_request: PullRequest) {
+        self.background(move |tasks| {
+            Event::Timeline(
+                pull_request.number,
+                tasks
+                    .github()
+                    .and_then(|github| github.timeline(&pull_request)),
+            )
+        });
+    }
+
+    pub(crate) fn image(&self, url: String) {
+        self.background(move |_| {
+            let pixels = download(&url, None).and_then(|bytes| decode(&bytes));
+            Event::Image(url, pixels)
+        });
     }
 
     pub(crate) fn read_head(&self) {
-        let tasks = self.clone();
-        thread::spawn(move || {
-            let head = capture(&tasks.root, "git", &["log", "-1", "--format=%h %s"])
-                .map(|head| format!("At {}", head.trim()))
+        self.background(|tasks| {
+            let sha = capture(&tasks.root, "git", &["rev-parse", "HEAD"])
+                .map(|sha| sha.trim().to_owned())
+                .unwrap_or_default();
+            let summary = capture(&tasks.root, "git", &["log", "-1", "--format=%h %s"])
+                .map(|summary| summary.trim().to_owned())
                 .unwrap_or_else(|error| error);
-            tasks.send(Event::Head(head));
+            Event::Head { sha, summary }
         });
     }
 
@@ -190,6 +192,31 @@ impl Tasks {
     }
 }
 
+fn decode(bytes: &[u8]) -> Result<Pixels, String> {
+    let decoded = image::load_from_memory(bytes).map_err(|error| error.to_string())?;
+    let decoded = if decoded.width() > MAX_IMAGE_WIDTH {
+        let height = (u64::from(decoded.height()) * u64::from(MAX_IMAGE_WIDTH)
+            / u64::from(decoded.width()))
+        .max(1) as u32;
+        decoded.resize_exact(
+            MAX_IMAGE_WIDTH,
+            height,
+            image::imageops::FilterType::Triangle,
+        )
+    } else {
+        decoded
+    };
+    let rgba = decoded.to_rgba8();
+    if rgba.width() == 0 || rgba.height() == 0 {
+        return Err("the image is empty".to_owned());
+    }
+    Ok(Pixels {
+        width: rgba.width(),
+        height: rgba.height(),
+        rgba: rgba.into_raw(),
+    })
+}
+
 #[cfg(unix)]
 fn kill_tree(group: u32) -> std::io::Result<std::process::ExitStatus> {
     command("kill")
@@ -204,7 +231,7 @@ fn kill_tree(process: u32) -> std::io::Result<std::process::ExitStatus> {
         .status()
 }
 
-fn command(program: impl AsRef<OsStr>) -> Command {
+pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
     #[cfg_attr(not(windows), allow(unused_mut))]
     let mut command = Command::new(program);
     #[cfg(windows)]
@@ -239,7 +266,7 @@ fn is_windows_launcher(path: &Path) -> bool {
     })
 }
 
-fn capture(root: &Path, program: &str, args: &[&str]) -> Result<String, String> {
+pub(crate) fn capture(root: &Path, program: &str, args: &[&str]) -> Result<String, String> {
     let output = command(program)
         .args(args)
         .current_dir(root)
@@ -261,25 +288,16 @@ pub(crate) fn repository_root() -> Result<PathBuf, String> {
     Ok(PathBuf::from(root.trim()))
 }
 
-pub(crate) fn parse_pull_requests(listed: &str) -> Vec<PullRequest> {
-    listed
-        .lines()
-        .filter_map(|line| line.split_once('\t'))
-        .map(|(branch, label)| PullRequest {
-            branch: branch.to_owned(),
-            label: label.to_owned(),
-        })
-        .collect()
-}
-
-pub(crate) fn parse_branches(listed: &str) -> Vec<PullRequest> {
-    listed
-        .lines()
-        .map(str::trim)
-        .filter(|branch| !branch.is_empty() && *branch != "HEAD")
-        .map(|branch| PullRequest {
-            branch: branch.to_owned(),
-            label: branch.to_owned(),
-        })
-        .collect()
+pub(crate) fn open_url(url: &str) {
+    #[cfg(target_os = "macos")]
+    let spawned = command("open").arg(url).spawn();
+    #[cfg(windows)]
+    let spawned = command("rundll32")
+        .args(["url.dll,FileProtocolHandler", url])
+        .spawn();
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let spawned = command("xdg-open").arg(url).spawn();
+    if let Err(error) = spawned {
+        eprintln!("could not open {url}: {error}");
+    }
 }

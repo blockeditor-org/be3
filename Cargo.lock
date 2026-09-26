@@ -701,6 +701,8 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "ghostty-vt",
+ "image",
+ "serde_json",
 ]
 
 [[package]]
@@ -911,7 +913,6 @@ dependencies = [
  "flate2",
  "futures-util",
  "game-host",
- "ghostty-vt",
  "image",
  "jni 0.22.4",
  "js-sys",
