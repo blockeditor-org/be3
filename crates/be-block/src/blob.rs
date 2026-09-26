@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::{
-    BlockContent, ContentError, LiveEdit, Merge,
+    BlockContent, ContentError, DerivedMetadata, LiveEdit, Merge,
     streamed::{Streamed, decode_streamed, encode_streamed},
 };
 
@@ -23,6 +23,11 @@ pub trait BlobKind: Send + Sync + 'static {
         + 'static;
 
     fn name(header: &Self::Header) -> &str;
+
+    fn derived_metadata(header: &Self::Header) -> DerivedMetadata {
+        let _ = header;
+        DerivedMetadata::default()
+    }
 }
 
 pub struct Blob<K: BlobKind> {
@@ -104,6 +109,10 @@ impl<K: BlobKind> BlockContent for Blob<K> {
     fn name(&self) -> Option<String> {
         let name = K::name(&self.header).trim();
         (!name.is_empty()).then(|| name.to_owned())
+    }
+
+    fn derived_metadata(&self) -> DerivedMetadata {
+        K::derived_metadata(&self.header)
     }
 }
 

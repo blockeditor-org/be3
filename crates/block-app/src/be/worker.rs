@@ -75,7 +75,7 @@ pub(super) enum Command {
     },
     ListAccess {
         block: Uuid,
-        reply: std::sync::mpsc::Sender<Result<Vec<AccessEntry>, String>>,
+        reply: crate::host::WakingSender<Result<Vec<AccessEntry>, String>>,
     },
     Version {
         block: Uuid,

@@ -183,11 +183,16 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
             .map(|entity| item_bounds(&entity))
             .unwrap_or(Rect::ZERO)
     }));
+    let hashed = Rc::clone(&state);
+    let thumbhash = create_memo(clone!(entity -> move || {
+        hashed.thumbhash_of(reference_of(&entity.get()?)?)
+    }));
+    let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
     let drawn = Rc::clone(&state);
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
-    create_effect(clone!(entity drawn theme camera -> move || {
+    create_effect(clone!(entity drawn theme camera placeholder -> move || {
         let Some(entity) = entity.get() else {
             return;
         };
@@ -210,6 +215,7 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
                 .and_then(|label| label.icon)
                 .map(str::to_owned),
             automatic: label.is_some_and(|label| label.automatic),
+            placeholder: placeholder.get(),
             entity,
         };
         if shown.borrow().as_ref() == Some(&paint) {

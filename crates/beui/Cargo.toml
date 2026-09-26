@@ -38,6 +38,7 @@ pollster = { version = "0.4", optional = true }
 geometry = { path = "../geometry" }
 reactive = { path = "../reactive" }
 text-editor-core = { path = "../text-editor-core" }
+thumbhash = "0.1"
 unicode-script = "0.5"
 wgpu = { version = "29", default-features = false, optional = true }
 winit = { version = "0.30", optional = true }

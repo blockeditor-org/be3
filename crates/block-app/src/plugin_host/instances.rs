@@ -12,7 +12,6 @@ use block_plugin_api::{
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
-    time::Duration,
 };
 use uuid::Uuid;
 
@@ -29,7 +28,6 @@ use crate::{
     plugin_host::web_view::WebViewHost,
 };
 
-const FETCH_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const REFUSED: &str = "this plugin's manifest does not allow it to reach";
 
 #[derive(Default)]
@@ -103,7 +101,7 @@ struct ContentLink {
     origin: u64,
     sent: Option<u64>,
     peers_sent: Option<u64>,
-    named: Option<u64>,
+    described: Option<u64>,
 }
 
 impl ContentLink {
@@ -114,19 +112,19 @@ impl ContentLink {
             origin: crate::be::next_origin(),
             sent: None,
             peers_sent: None,
-            named: None,
+            described: None,
         }
     }
 
-    fn name(&mut self, block: Uuid) {
+    fn describe(&mut self, block: Uuid) {
         let Some(content) = crate::be::content(block) else {
             return;
         };
-        if self.named == Some(content.revision) || !crate::be::access(block).can_edit() {
+        if self.described == Some(content.revision) || !crate::be::access(block).can_edit() {
             return;
         }
-        self.named = Some(content.revision);
-        crate::be::name_implicitly(block, crate::be::name_of(&content));
+        self.described = Some(content.revision);
+        crate::be::describe_implicitly(block, crate::be::describe_of(&content).unwrap_or_default());
     }
 
     fn content_message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
@@ -366,10 +364,10 @@ impl Instance {
 
     fn name_content(&mut self) {
         if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
-            link.name(block.id);
+            link.describe(block.id);
         }
         for (block, link) in &mut self.watched {
-            link.name(*block);
+            link.describe(*block);
         }
     }
 }
@@ -400,10 +398,7 @@ impl Work {
             Self::Fetch(fetch) => match fetch.poll() {
                 Some(Ok(body)) => Some(HostReply::Fetched(FetchResult::Body(body))),
                 Some(Err(error)) => Some(HostReply::Fetched(FetchResult::Failed(error))),
-                None => {
-                    host::request_repaint_after(FETCH_POLL_INTERVAL);
-                    None
-                }
+                None => None,
             },
             Self::Paste(image) => Some(HostReply::ImagePasted(std::mem::replace(
                 image,
@@ -1961,6 +1956,17 @@ impl Instances {
             EditorMessage::WatchContent { instance, blocks } => {
                 self.watch_content(instance, blocks)
             }
+            EditorMessage::ResendContent { instance, block_id } => {
+                let Some(link) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.link_mut(Uuid::from_bytes(block_id)))
+                else {
+                    return false;
+                };
+                link.sent = None;
+                true
+            }
             EditorMessage::VersionControl {
                 instance,
                 block_id,
@@ -2028,6 +2034,7 @@ impl Instances {
                         data: artifact.data,
                     }),
                     local_id: None,
+                    derived: be_block::DerivedMetadata::default(),
                 };
                 crate::be::create(
                     block,

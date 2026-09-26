@@ -378,6 +378,15 @@ impl EditorSession {
                 operation,
             }));
         }
+        for block in self.host.take_content_resend_requests() {
+            let Some(block) = block.or(self.own_block) else {
+                continue;
+            };
+            messages.push(Message::Editor(EditorMessage::ResendContent {
+                instance,
+                block_id: block.into_bytes(),
+            }));
+        }
         if let Some(watched) = self.host.take_content_watch() {
             messages.push(Message::Editor(EditorMessage::WatchContent {
                 instance,

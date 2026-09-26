@@ -20,7 +20,9 @@ pub(crate) enum SurfaceId {
 }
 
 impl SurfaceId {
-    const ALL: [Self; 5] = [
+    const COUNT: usize = Self::ArtifactSettings as usize + 1;
+
+    const ALL: [Self; Self::COUNT] = [
         Self::Main,
         Self::Presenting,
         Self::Creation,
@@ -29,13 +31,7 @@ impl SurfaceId {
     ];
 
     fn index(self) -> usize {
-        match self {
-            Self::Main => 0,
-            Self::Presenting => 1,
-            Self::Creation => 2,
-            Self::NestedCreation => 3,
-            Self::ArtifactSettings => 4,
-        }
+        self as usize
     }
 }
 
@@ -93,8 +89,8 @@ impl SurfaceHandle {
 }
 
 thread_local! {
-    static STATES: [RefCell<State>; 5] = Default::default();
-    static HANDLES: RefCell<Option<Rc<[SurfaceHandle; 5]>>> = const { RefCell::new(None) };
+    static STATES: [RefCell<State>; SurfaceId::COUNT] = Default::default();
+    static HANDLES: RefCell<Option<Rc<[SurfaceHandle; SurfaceId::COUNT]>>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn create_handles() {

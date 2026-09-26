@@ -390,6 +390,7 @@ pub struct EditorHost {
     next_frame: Rc<Cell<Option<Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
+    resend_requests: Rc<RefCell<Vec<Option<Uuid>>>>,
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
     seeded: Rc<RefCell<Vec<SeededContent>>>,
     shown: Rc<RefCell<Vec<ShownPresence>>>,
@@ -776,6 +777,19 @@ impl EditorHost {
 
     pub(crate) fn take_all_content_operations(&self) -> Vec<(Option<Uuid>, Vec<u8>)> {
         std::mem::take(&mut self.content_operations.borrow_mut())
+    }
+
+    pub(crate) fn request_content_resend(&self, block: Option<Uuid>) {
+        let mut requests = self.resend_requests.borrow_mut();
+        if !requests.contains(&block) {
+            requests.push(block);
+        }
+        drop(requests);
+        self.waker.wake();
+    }
+
+    pub(crate) fn take_content_resend_requests(&self) -> Vec<Option<Uuid>> {
+        std::mem::take(&mut self.resend_requests.borrow_mut())
     }
 
     pub fn watch_content(&self, block: Uuid, content_type: Uuid) {

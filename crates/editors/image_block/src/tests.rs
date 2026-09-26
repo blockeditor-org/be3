@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::{BlockInfo, BlockParent, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use image::ImageEncoder;
 use uuid::Uuid;
@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::app::ImageApp;
 
 mod a_decoded_image_is_painted_at_its_shape;
+mod an_image_still_loading_shows_its_thumbhash;
 mod an_image_that_will_not_decode_says_so;
 
 fn editor(data: Vec<u8>) -> BeuiTest<ImageApp> {

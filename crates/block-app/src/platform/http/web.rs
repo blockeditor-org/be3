@@ -16,11 +16,13 @@ impl Fetch {
         wasm_bindgen_futures::spawn_local(async move {
             let result = run(url, headers).await;
             *state_for_task.borrow_mut() = Some(result);
+            crate::host::wake();
         });
         Self { state }
     }
 
     pub(crate) fn refused(reason: String) -> Self {
+        crate::host::wake();
         Self {
             state: Rc::new(RefCell::new(Some(Err(reason)))),
         }

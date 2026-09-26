@@ -560,6 +560,10 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         blocks: Vec<WatchedContent>,
     },
+    ResendContent {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+    },
     SeedContent {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -894,6 +898,7 @@ impl EditorMessage {
             | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
             | Self::WatchContent { instance, .. }
+            | Self::ResendContent { instance, .. }
             | Self::SeedContent { instance, .. }
             | Self::ReplaceContent { instance, .. }
             | Self::ShowPresence { instance, .. }
@@ -1066,6 +1071,14 @@ pub struct BlockInfo {
     pub references: Vec<[u8; 16]>,
     pub access: AccessLevel,
     pub artifact: Option<ArtifactSource>,
+    pub thumbhash: Option<Thumbhash>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Thumbhash {
+    pub hash: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1488,6 +1501,7 @@ impl EditorMessage {
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
             | Self::WatchContent { .. }
+            | Self::ResendContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
             | Self::ShowPresence { .. }
