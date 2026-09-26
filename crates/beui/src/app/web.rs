@@ -679,6 +679,9 @@ fn listen(
     })?;
 
     on(agent_target, "keydown", |event: web_sys::KeyboardEvent| {
+        if event.is_composing() {
+            return;
+        }
         let modifiers = modifiers_of(
             event.alt_key(),
             event.ctrl_key(),
@@ -701,6 +704,9 @@ fn listen(
         }
     })?;
     on(agent_target, "keyup", |event: web_sys::KeyboardEvent| {
+        if event.is_composing() {
+            return;
+        }
         let modifiers = modifiers_of(
             event.alt_key(),
             event.ctrl_key(),

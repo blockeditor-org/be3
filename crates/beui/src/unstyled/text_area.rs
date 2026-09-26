@@ -18,7 +18,7 @@ use text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::base::{ItemSize, ScrollPosition};
+use crate::base::{ImeCursor, ItemSize, ScrollPosition};
 use crate::color::Color32;
 use crate::document::Document;
 use crate::font::FontId;
@@ -73,6 +73,8 @@ struct Surface {
     view_width: Memo<f32>,
     focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
+    preedit: ReadSignal<String>,
+    set_preedit: WriteSignal<String>,
     set_autoscroll: WriteSignal<bool>,
     viewport: NodeRef,
     masked: Memo<bool>,
@@ -528,6 +530,7 @@ fn extend(cx: &Context, press: PointerPress) {
 }
 
 fn blur(cx: &Context) {
+    cx.set_preedit.set(String::new());
     cx.state.end_grab();
     cx.state.set_selecting(false);
     cx.set_autoscroll.set(false);
@@ -559,6 +562,19 @@ fn insert_text(cx: &Context, text: &str) {
     cx.state.reveal_cursor();
 }
 
+fn compose(cx: &Context, text: String) {
+    let text = match cx.disabled.get_untracked() {
+        true => String::new(),
+        false => text.chars().filter(|letter| !letter.is_control()).collect(),
+    };
+    if text == cx.preedit.get_untracked() {
+        return;
+    }
+    cx.set_preedit.set(text);
+    cx.state.set_caret_handle(false);
+    cx.state.reveal_cursor();
+}
+
 #[derive(Clone)]
 struct Field {
     cx: Context,
@@ -580,6 +596,8 @@ struct Field {
     overlay: Memo<Page>,
     carets: Memo<Page>,
     handles: Memo<Page>,
+    composing: Memo<Page>,
+    ime_rect: Memo<Option<Rect>>,
     on_key_override: Callback<KeyPress, bool>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
@@ -622,6 +640,7 @@ pub fn TextArea(
     let (offset, set_offset) = create_signal(0.0_f32);
     let (shift, set_shift) = create_signal(0.0_f32);
     let (focused, set_focused) = create_signal(false);
+    let (preedit, set_preedit) = create_signal(String::new());
     let (autoscroll, set_autoscroll) = create_signal(false);
     let viewport = NodeRef::new();
     let (outer, inner) = match single_line {
@@ -742,6 +761,8 @@ pub fn TextArea(
         view_width: view_width.clone(),
         focused: focused.clone(),
         set_focused: set_focused.clone(),
+        preedit: preedit.clone(),
+        set_preedit,
         set_autoscroll,
         viewport: viewport.clone(),
         masked: masked.clone(),
@@ -849,10 +870,52 @@ pub fn TextArea(
             })
         }),
     );
-    let carets = create_memo(clone!(state layout colors focused -> move || {
+    let shown_preedit = create_memo(clone!(preedit masked -> move || {
+        let preedit = preedit.get();
+        match masked.get() {
+            true => layout::mask(&preedit),
+            false => preedit,
+        }
+    }));
+    let composing = create_memo(
+        clone!(state layout colors focused shown_preedit font_size -> move || {
+            state.cursors().get();
+            let layout = layout.get();
+            let preedit = shown_preedit.get();
+            match (focused.get(), state.caret_indices().first()) {
+                (true, Some(&caret)) if !preedit.is_empty() => shapes::preedit(
+                    layout.document(),
+                    caret,
+                    &preedit,
+                    FontId::proportional(font_size.get()),
+                    &colors.get(),
+                    layout.origin(),
+                ),
+                _ => Page::new(Vec::new()),
+            }
+        }),
+    );
+    let ime_rect = create_memo(
+        clone!(state layout focused shown_preedit font_size -> move || {
+            state.cursors().get();
+            let layout = layout.get();
+            let preedit = shown_preedit.get();
+            if !focused.get() {
+                return None;
+            }
+            shapes::preedit_caret(
+                layout.document(),
+                *state.caret_indices().first()?,
+                &preedit,
+                FontId::proportional(font_size.get()),
+                layout.origin(),
+            )
+        }),
+    );
+    let carets = create_memo(clone!(state layout colors focused preedit -> move || {
         state.cursors().get();
         let layout = layout.get();
-        let carets = match focused.get() {
+        let carets = match focused.get() && preedit.get().is_empty() {
             true => state.caret_indices(),
             false => Vec::new(),
         };
@@ -937,6 +1000,8 @@ pub fn TextArea(
         overlay,
         carets,
         handles,
+        composing,
+        ime_rect,
         on_key_override,
         on_focus_change,
         on_hover_change,
@@ -991,11 +1056,21 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
         overlay,
         carets,
         handles,
+        composing,
+        ime_rect,
         on_key_override,
         on_focus_change,
         on_hover_change,
     } = field;
     let canvas = cx.state.canvas();
+    let ime_cursor = create_memo(clone!(canvas -> move || {
+        let rect = ime_rect.get()?;
+        Some(ImeCursor {
+            node: canvas.try_get()?,
+            rect,
+        })
+    }));
+    let preedit_cx = cx.clone();
     let focused = cx.focused.clone();
     let set_focused = cx.set_focused.clone();
     let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
@@ -1009,6 +1084,7 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
             focused
             tab_stop
             ime={create_memo(move || !disabled.get())}
+            ime_cursor
             on_focus_change={move |is_focused: bool| {
                 set_focused.set(is_focused);
                 if !is_focused {
@@ -1017,9 +1093,11 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
                 on_focus_change.call(is_focused);
             }}
             on_text={move |typed: String| insert_text(&text_cx, &typed)}
+            on_preedit={move |text: String| compose(&preedit_cx, text)}
             on_key={move |press: KeyPress| {
-                !key_cx.disabled.get_untracked()
-                    && (on_key_override.call(press) || keys::key(&key_cx, press))
+                !key_cx.preedit.get_untracked().is_empty()
+                    || (!key_cx.disabled.get_untracked()
+                        && (on_key_override.call(press) || keys::key(&key_cx, press)))
             }}
         >
             <ClickCatcher
@@ -1050,6 +1128,7 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
                             {children}
                             <Layer page={overlay} size={layer_size.clone()} />
                             <Caret page={carets} size={layer_size.clone()} />
+                            <Layer page={composing} size={layer_size.clone()} />
                             <Layer page={handles} size={layer_size} clip=false />
                         </Canvas>
                     };

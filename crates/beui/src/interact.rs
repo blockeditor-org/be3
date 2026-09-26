@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
-use crate::input::{Event, Key, KeyPress};
+use crate::input::{Event, ImeEvent, Key, KeyPress};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -232,7 +232,7 @@ pub(crate) fn interact(
                 }
                 continue;
             }
-            Event::Text(_) | Event::Key { .. } if keys == Keys::Ignored => continue,
+            Event::Text(_) | Event::Key { .. } | Event::Ime(_) if keys == Keys::Ignored => continue,
             Event::Key { .. }
                 if keys == Keys::BesideScreenReader && crate::screen_reader::claims(&event) =>
             {
@@ -241,6 +241,23 @@ pub(crate) fn interact(
             Event::Text(text) => {
                 doc.text_focused(&text);
                 doc.reveal_focus(painter);
+                continue;
+            }
+            Event::Ime(ImeEvent::Preedit(text)) => {
+                doc.preedit_focused(&text);
+                doc.reveal_focus(painter);
+                continue;
+            }
+            Event::Ime(ImeEvent::Commit(text)) => {
+                doc.preedit_focused("");
+                if !text.is_empty() {
+                    doc.text_focused(&text);
+                }
+                doc.reveal_focus(painter);
+                continue;
+            }
+            Event::Ime(ImeEvent::Disabled) => {
+                doc.preedit_focused("");
                 continue;
             }
             Event::Key {
