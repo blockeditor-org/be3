@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
 use game_api::cards::{Card, Rank, SUITS, Suit};
-use game_api::table::Table;
-use game_api::{GameHelper, GameScreen};
+use game_api::table::{DISCARD_PILE, DRAW_PILE, Table};
+use game_api::{Choose, GameHelper, GameScreen, Move, Scene, Spot};
 
 const HAND_SIZE: usize = 8;
 const PLAYERS_PER_DECK: usize = 4;
@@ -15,16 +15,18 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
 
     loop {
         if let Some(winner) = table.player_who_is_out() {
-            return helper.game_over(move |player| {
-                if player == winner {
-                    "You win!".to_owned()
+            return helper.game_over(|player| {
+                let outcome = if player == winner {
+                    "You win!"
                 } else {
-                    "You lose!".to_owned()
-                }
+                    "You lose!"
+                };
+                Scene::new(outcome).on(table.board(player))
             });
         }
         if table.everyone_has_passed() {
-            return helper.game_over(|_| "Draw! No one can play.".to_owned());
+            return helper
+                .game_over(|player| Scene::new("Draw! No one can play.").on(table.board(player)));
         }
 
         let whose_turn = table.whose_turn();
@@ -34,30 +36,44 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
         );
         let mut drawn = None;
 
-        helper.turn(whose_turn, &your_turn, WAITING, |choose| {
-            let hand = table.hand().to_vec();
-            if play_a_card(&mut table, &mut suit_to_match, &hand, choose) {
-                return;
-            }
-            if table.can_draw() {
-                if choose("Draw a card") {
-                    drawn = table.draw();
+        let seen = table.clone();
+        helper.turn(
+            whose_turn,
+            &your_turn,
+            WAITING,
+            |player| seen.board(player).into(),
+            |choose| {
+                let hand = table.hand().to_vec();
+                if play_a_card(&mut table, &mut suit_to_match, &hand, choose) {
+                    return;
                 }
-            } else if choose("Pass") {
-                table.pass();
-            }
-        })?;
+                if table.can_draw() {
+                    if choose(Move::new("Draw a card").click(Spot::Pile(DRAW_PILE))) {
+                        drawn = table.draw();
+                    }
+                } else if choose(Move::new("Pass")) {
+                    table.pass();
+                }
+            },
+        )?;
 
         if let Some(card) =
             drawn.filter(|card| can_be_played(*card, table.face_up(), suit_to_match))
         {
             let you_drew = format!("You drew the {card} - play it or keep it");
-            helper.turn(whose_turn, &you_drew, WAITING, |choose| {
-                if play_a_card(&mut table, &mut suit_to_match, &[card], choose) {
-                    return;
-                }
-                choose("Keep it");
-            })?;
+            let seen = table.clone();
+            helper.turn(
+                whose_turn,
+                &you_drew,
+                WAITING,
+                |player| seen.board(player).into(),
+                |choose| {
+                    if play_a_card(&mut table, &mut suit_to_match, &[card], choose) {
+                        return;
+                    }
+                    choose(Move::new("Keep it"));
+                },
+            )?;
         }
 
         table.turn_passes_to_the_left();
@@ -68,21 +84,26 @@ fn play_a_card(
     table: &mut Table,
     suit_to_match: &mut Suit,
     cards: &[Card],
-    choose: &mut dyn FnMut(&str) -> bool,
+    choose: &mut Choose<'_>,
 ) -> bool {
     for card in cards.iter().copied() {
         if !can_be_played(card, table.face_up(), *suit_to_match) {
             continue;
         }
+        let from = table.in_hand(card);
+        let onto_the_discard_pile =
+            move |label: String| Move::new(label).drag(from, Spot::Pile(DISCARD_PILE));
         if card.rank == Rank::Eight {
             for suit in SUITS {
-                if choose(&format!("Play {card} and call {suit}")) {
+                if choose(onto_the_discard_pile(format!(
+                    "Play {card} and call {suit}"
+                ))) {
                     table.play(card);
                     *suit_to_match = suit;
                     return true;
                 }
             }
-        } else if choose(&format!("Play {card}")) {
+        } else if choose(onto_the_discard_pile(format!("Play {card}"))) {
             table.play(card);
             *suit_to_match = card.suit;
             return true;
