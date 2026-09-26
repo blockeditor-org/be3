@@ -3,13 +3,12 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Duration;
 
+use beui::AndroidApp;
 use jni::errors::Error as JniError;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::refs::Reference;
-use jni::sys::{jfloat, jint};
 use jni::vm::JavaVM;
 use jni::{Env, EnvUnowned, jni_sig, jni_str};
-use winit::platform::android::activity::AndroidApp;
 
 use crate::LauncherApp;
 use crate::builds::Fetch;
@@ -24,8 +23,7 @@ static TASKS: OnceLock<Tasks> = OnceLock::new();
 #[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     let files = app.internal_data_path().unwrap_or_default();
-    let mut options = beui::RunOptions::new("be3 launcher");
-    options.android_app = Some(app);
+    let options = beui::RunOptions::new("be3 launcher");
     let code = match beui::run_with(options, LauncherApp::new(files)) {
         Ok(()) => 0,
         Err(error) => {
@@ -213,32 +211,4 @@ pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeInstallFinis
     if let Some(tasks) = TASKS.get() {
         tasks.send(Event::Phone(phone::Event::Finished(result)));
     }
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeSafeAreaChanged(
-    _env: EnvUnowned<'_>,
-    _: JClass<'_>,
-    left: jint,
-    top: jint,
-    right: jint,
-    bottom: jint,
-) {
-    beui::set_safe_area(beui::SafeArea {
-        left: left as f32,
-        top: top as f32,
-        right: right as f32,
-        bottom: bottom as f32,
-    });
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeBack(
-    _env: EnvUnowned<'_>,
-    _: JClass<'_>,
-    phase: jint,
-    progress: jfloat,
-    edge: jint,
-) {
-    beui::send_android_back(phase, progress, edge);
 }

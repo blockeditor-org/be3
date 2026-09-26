@@ -8,25 +8,26 @@ use crate::input::{Event, Key, Modifiers, TouchPhase};
 #[cfg(any(feature = "window", feature = "web"))]
 mod accessibility_dump;
 #[cfg(all(feature = "window", target_os = "android"))]
-mod back;
+mod android;
 #[cfg(feature = "window")]
 mod clipboard;
-#[cfg(feature = "window")]
+#[cfg(all(feature = "window", not(target_os = "android")))]
 mod native;
-#[cfg(all(feature = "window", target_os = "android"))]
-mod soft_keyboard;
+#[cfg(feature = "window")]
+mod present;
 #[cfg(feature = "web")]
 mod web;
 
 #[cfg(all(feature = "window", target_os = "android"))]
-pub use back::send_android_back;
-#[cfg(feature = "window")]
-pub use native::{run, run_with, send_back, set_safe_area};
+pub use android::{AndroidApp, run, run_with};
+#[cfg(all(feature = "window", not(target_os = "android")))]
+pub use native::{run, run_with};
 #[cfg(feature = "web")]
 pub use web::{accessibility_tree, run_web};
 
+#[cfg(feature = "window")]
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub struct SafeArea {
+pub(crate) struct SafeArea {
     pub left: f32,
     pub top: f32,
     pub right: f32,
@@ -54,7 +55,7 @@ pub struct Setup {
     pub queue: wgpu::Queue,
     pub format: wgpu::TextureFormat,
     pub waker: Waker,
-    #[cfg(feature = "window")]
+    #[cfg(all(feature = "window", not(target_os = "android")))]
     pub window: Arc<winit::window::Window>,
 }
 
@@ -94,8 +95,6 @@ pub struct RunOptions {
     pub accessibility_tree: bool,
     #[cfg(feature = "render")]
     pub open_device: Option<OpenDevice>,
-    #[cfg(all(feature = "window", target_os = "android"))]
-    pub android_app: Option<winit::platform::android::activity::AndroidApp>,
 }
 
 impl RunOptions {
@@ -110,8 +109,6 @@ impl RunOptions {
             accessibility_tree: false,
             #[cfg(feature = "render")]
             open_device: None,
-            #[cfg(all(feature = "window", target_os = "android"))]
-            android_app: None,
         }
     }
 }

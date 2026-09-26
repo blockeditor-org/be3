@@ -1,13 +1,9 @@
 use std::sync::mpsc::Receiver;
 
-#[cfg(target_os = "android")]
-mod back;
 mod file_picker;
 pub(crate) mod http;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
-#[cfg(target_os = "android")]
-mod safe_area;
 #[cfg(target_arch = "wasm32")]
 mod web;
 

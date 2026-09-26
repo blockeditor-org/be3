@@ -23,7 +23,7 @@ commit = {
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
 
-# On Android the app is this library, loaded by GameActivity under cargo's
+# On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
     env = commit,
@@ -186,8 +186,7 @@ app(
         name = name,
         application_id = application_id,
         assets = assets,
-        java = glob(["android/java/**/*.java"]),
-        java_libraries = "//buck/android:game-activity",
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui:android-java"],
         label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",

@@ -1,6 +1,6 @@
 use std::{ffi::CString, io::Read, sync::Arc};
 
-use winit::platform::android::activity::AndroidApp;
+use beui::AndroidApp;
 
 use super::Plugins;
 
