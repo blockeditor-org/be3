@@ -1285,7 +1285,7 @@ The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
 creation flow, host connection, and current beui plugin capability limits.
 
-A plugin with `"creation": "Dialog"` implements `creation_view` instead, one
+A template the manifest marks `"dialog": true` is made through `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
 and shows in the host's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been

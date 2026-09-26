@@ -5,6 +5,7 @@ fn artifact_messages_round_trip() {
     let messages = [
         Message::Editor(EditorMessage::OpenArtifact {
             instance: EditorInstanceId(3),
+            source_type: [6; 16],
             block_id: [1; 16],
             block_type: [2; 16],
             account_id: [3; 16],

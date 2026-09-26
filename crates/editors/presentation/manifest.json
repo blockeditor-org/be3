@@ -2,20 +2,44 @@
   "id": "be3.presentation",
   "name": "Presentation",
   "version": "0.1.0",
-  "block_type": "00007072-6573-656e-7461-74696f6e0001",
-  "display_name": "Presentation",
-  "icon": "\ue41b",
-  "creation": "Immediate",
-  "children": {
-    "add": true,
-    "delete": true,
-    "replace": true
-  },
-  "interaction": "Playback",
-  "resize": "Both",
-  "regions": [
-    "Frame",
-    "Preview"
+  "editors": [
+    {
+      "block_type": "00007072-6573-656e-7461-74696f6e0001",
+      "display_name": "Presentation",
+      "icon": "\ue41b",
+      "templates": {
+        "main": {},
+        "title-slide": {
+          "name": "Title page",
+          "icon": "\ue264",
+          "category": "template",
+          "block_type": "696e6669-6e69-7465-2d63-616e76617301"
+        },
+        "regular-slide": {
+          "name": "Regular page",
+          "icon": "\ue8d2",
+          "category": "template",
+          "block_type": "696e6669-6e69-7465-2d63-616e76617301"
+        },
+        "blank-slide": {
+          "name": "Blank page",
+          "icon": "\ue3c6",
+          "category": "template",
+          "block_type": "696e6669-6e69-7465-2d63-616e76617301"
+        }
+      },
+      "children": {
+        "add": true,
+        "delete": true,
+        "replace": true
+      },
+      "interaction": "Playback",
+      "resize": "Both",
+      "regions": [
+        "Frame",
+        "Preview"
+      ]
+    }
   ],
   "entry_point": "presentation.wasm"
 }

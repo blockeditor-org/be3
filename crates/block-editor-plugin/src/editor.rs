@@ -868,21 +868,33 @@ pub struct Creation(Rc<CreationState>);
 
 struct CreationState {
     host: EditorHost,
+    template: String,
     maker: RefCell<Option<Maker>>,
     pushed: Mirror,
 }
 
 impl Creation {
+    pub const MAIN: &str = "main";
+
     pub fn new(host: EditorHost) -> Self {
+        Self::for_template(host, Self::MAIN)
+    }
+
+    pub fn for_template(host: EditorHost, template: impl Into<String>) -> Self {
         Self(Rc::new(CreationState {
             pushed: Mirror::new(&host),
             host,
+            template: template.into(),
             maker: RefCell::new(None),
         }))
     }
 
     pub fn host(&self) -> &EditorHost {
         &self.0.host
+    }
+
+    pub fn template(&self) -> &str {
+        &self.0.template
     }
 
     pub fn blocks(&self) -> Blocks {

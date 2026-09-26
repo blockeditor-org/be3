@@ -730,6 +730,7 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
         block_types,
         client_id,
         instance,
+        role,
     } = slot;
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -742,7 +743,7 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
         }
         match runtime
             .instances
-            .report_creation(instance, client_id, block_types)
+            .report_creation(instance, client_id, block_types, role)
         {
             true => CreationState::Ready,
             false => CreationState::Starting,
@@ -756,6 +757,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         block_types,
         client_id,
         instance,
+        source_type,
         block,
         data,
         resync,
@@ -773,6 +775,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
             instance,
             client_id,
             block_types,
+            source_type,
             block,
             data,
             resync,

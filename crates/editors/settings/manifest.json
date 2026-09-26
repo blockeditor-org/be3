@@ -2,12 +2,15 @@
   "id": "be3.settings",
   "name": "Settings",
   "version": "0.1.0",
-  "block_type": "73657474-696e-6773-2d62-6c6f636b3031",
-  "display_name": "Settings",
-  "icon": "\ue8b8",
-  "creation": "None",
-  "regions": [
-    "Frame"
+  "editors": [
+    {
+      "block_type": "73657474-696e-6773-2d62-6c6f636b3031",
+      "display_name": "Settings",
+      "icon": "\ue8b8",
+      "regions": [
+        "Frame"
+      ]
+    }
   ],
   "entry_point": "settings.wasm"
 }
