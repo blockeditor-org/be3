@@ -416,6 +416,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         &self.occluders
     }
 
+    fn band(&self, rect: Rect) -> Rect {
+        self.content_rect()
+            .filter(|content| content.is_positive())
+            .unwrap_or(rect)
+    }
+
     pub fn content_rect(&self) -> Option<Rect> {
         let report = self.report.as_ref()?;
         let origin = self.origin();
@@ -613,11 +619,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         let mut inbox = std::mem::take(&mut self.inbox);
         inbox.extend(self.store.outgoing(INSTANCE));
         let rect = self.rect();
+        let band = self.band(rect);
         let intrinsic = self.intrinsic;
         if let Some(message) = self
             .viewport
             .as_mut()
-            .and_then(|viewport| viewport.place(rect, intrinsic))
+            .and_then(|viewport| viewport.place(band, rect.min, intrinsic))
         {
             inbox.push(message);
         }
@@ -645,9 +652,10 @@ impl<A: BeuiApp> BeuiTest<A> {
             self.handle(roundtrip(message, "a message the plugin sent"));
         }
         let intrinsic = self.intrinsic;
+        let band = self.band(rect);
         if let Some(viewport) = &mut self.viewport {
-            viewport.settle(&mut self.sent, rect);
-            self.inbox.extend(viewport.place(rect, intrinsic));
+            viewport.settle(&mut self.sent, band, rect.min);
+            self.inbox.extend(viewport.place(band, rect.min, intrinsic));
         }
     }
 
@@ -902,6 +910,25 @@ impl<A: BeuiApp> BeuiTest<A> {
         });
     }
 
+    pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
+        let modifiers = self.input.held();
+        self.hover_at(from);
+        self.push(Event::PointerButton {
+            pos: from,
+            button: PointerButton::Secondary,
+            pressed: true,
+            modifiers,
+        });
+        self.next_frame();
+        self.push(Event::PointerMoved(to));
+        self.push(Event::PointerButton {
+            pos: to,
+            button: PointerButton::Secondary,
+            pressed: false,
+            modifiers,
+        });
+    }
+
     pub fn touch_start(&mut self, pos: Pos2) {
         self.touch(TouchPhase::Start, pos);
     }
@@ -919,11 +946,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn touch(&mut self, phase: TouchPhase, pos: Pos2) {
+        self.finger(1, phase, pos);
+    }
+
+    pub fn finger(&mut self, finger: u64, phase: TouchPhase, pos: Pos2) {
         self.push(Event::Touch {
-            id: TouchId {
-                device: 1,
-                finger: 1,
-            },
+            id: TouchId { device: 1, finger },
             phase,
             pos,
             force: None,
@@ -1023,7 +1051,7 @@ impl Viewport {
         }
     }
 
-    fn place(&mut self, region: Rect, intrinsic: Option<Vec2>) -> Option<Message> {
+    fn place(&mut self, region: Rect, origin: Pos2, intrinsic: Option<Vec2>) -> Option<Message> {
         let content = intrinsic
             .unwrap_or(Vec2::ZERO)
             .max(region.size())
@@ -1037,7 +1065,7 @@ impl Viewport {
         }
         let size = content * self.zoom;
         let center = region.center() + self.pan;
-        let view = Rect::from_min_size(center - size * 0.5, size).translate(-region.min.to_vec2());
+        let view = Rect::from_min_size(center - size * 0.5, size).translate(-origin.to_vec2());
         if self.sent == Some((view, self.zoom)) {
             return None;
         }
@@ -1052,7 +1080,7 @@ impl Viewport {
         }))
     }
 
-    fn settle(&mut self, sent: &mut Vec<EditorMessage>, region: Rect) {
+    fn settle(&mut self, sent: &mut Vec<EditorMessage>, region: Rect, origin: Pos2) {
         let mut changes = Vec::new();
         sent.retain(|message| match message {
             EditorMessage::ChangeView { change, .. } => {
@@ -1069,9 +1097,9 @@ impl Viewport {
                 ViewChange::Pan { x, y } => self.pan += Vec2::new(x, y),
                 ViewChange::Zoom { factor, anchor } => {
                     let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
-                    let anchor = anchor.map_or(region.center(), |(x, y)| {
-                        Pos2::new(x, y) + region.min.to_vec2()
-                    }) - region.center();
+                    let anchor = anchor
+                        .map_or(region.center(), |(x, y)| Pos2::new(x, y) + origin.to_vec2())
+                        - region.center();
                     self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
                     self.zoom = zoom;
                 }

@@ -112,7 +112,8 @@ race with a wider margin, which is how one of these hid.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main
-region: it holds a zoom and an offset, hands the editor a view over its region, and answers
+region: it holds a zoom and an offset, hands the editor a view over the content band the
+editor reported (the whole region until it reports one), and answers
 the pan, zoom and fit the editor asks for, fitting the content until the first of them
 arrives. An editor that is not in a viewport is told nothing about a view and fills its
 region, which is what an editor without that capability does anyway.
