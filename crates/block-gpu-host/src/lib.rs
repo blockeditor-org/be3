@@ -38,6 +38,7 @@ type Outcome<T> = Result<T, String>;
 
 struct Surface {
     texture: wgpu::Texture,
+    shown: Option<wgpu::Texture>,
     generation: u64,
 }
 
@@ -76,11 +77,21 @@ impl Gpu {
     }
 
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
+        self.insert_surface(surface, texture, None);
+    }
+
+    fn insert_surface(
+        &mut self,
+        surface: u32,
+        texture: wgpu::Texture,
+        shown: Option<wgpu::Texture>,
+    ) {
         self.generation += 1;
         self.surfaces.insert(
             surface,
             Surface {
                 texture,
+                shown,
                 generation: self.generation,
             },
         );
@@ -92,7 +103,10 @@ impl Gpu {
 
     pub fn surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
         let surface = self.surfaces.get(&surface)?;
-        Some((&surface.texture, surface.generation))
+        Some((
+            surface.shown.as_ref().unwrap_or(&surface.texture),
+            surface.generation,
+        ))
     }
 
     pub fn take_presented(&mut self) -> Vec<u32> {
@@ -909,23 +923,35 @@ impl Gpu {
         if matches {
             return;
         }
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("plugin surface"),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+        let texture = |label, usage| {
+            self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage,
+                view_formats: &[],
+            })
+        };
+        let drawn = texture(
+            "plugin surface",
+            wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        self.attach_surface(surface, texture);
+        );
+        let shown = texture(
+            "plugin surface shown",
+            wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST,
+        );
+        self.insert_surface(surface, drawn, Some(shown));
     }
 
     pub fn acquire_surface(&mut self, surface: u32) -> abi::Handle {
@@ -938,6 +964,24 @@ impl Gpu {
     }
 
     pub fn present_surface(&mut self, surface: u32) {
+        if let Some(Surface {
+            texture,
+            shown: Some(shown),
+            ..
+        }) = self.surfaces.get(&surface)
+        {
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("plugin surface present"),
+                });
+            encoder.copy_texture_to_texture(
+                texture.as_image_copy(),
+                shown.as_image_copy(),
+                texture.size(),
+            );
+            self.queue.submit([encoder.finish()]);
+        }
         self.presented.push(surface);
     }
 

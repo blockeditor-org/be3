@@ -23,6 +23,7 @@ fn configuration(width: u32, height: u32) -> Vec<u8> {
 }
 
 mod a_configured_surface_keeps_its_texture_until_its_size_changes;
+mod a_configured_surface_shows_a_copy_rather_than_the_texture_being_drawn;
 mod a_created_buffer_gets_a_live_handle;
 mod a_dropped_handle_is_reported_not_reused;
 mod a_malformed_descriptor_is_reported;
