@@ -187,6 +187,10 @@ impl Tasks {
         command.arg(format!("scripts/{script}"));
         command.args(args);
         command.cwd(&self.root);
+        command.env_clear();
+        for (key, value) in std::env::vars_os() {
+            command.env(key, value);
+        }
         command.env("TERM", "xterm-256color");
         command.env("COLORTERM", "truecolor");
         let mut child = pair

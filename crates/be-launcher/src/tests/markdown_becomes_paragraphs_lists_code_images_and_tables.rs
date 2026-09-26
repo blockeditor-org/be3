@@ -13,9 +13,11 @@ fn markdown_becomes_paragraphs_lists_code_images_and_tables() {
         \n\
         ```rust\nfn main() {}\n```\n\
         ![screenshot](https://example.com/a.png) and <img alt=\"b\" src=\"https://example.com/b.png\">\n\
+        \n\
         | Before | After |\n\
         | --- | --- |\n\
         | ![](https://example.com/c.png) | 2 * 3 |\n\
+        \n\
         ---\n";
     assert_eq!(
         blocks(markdown),

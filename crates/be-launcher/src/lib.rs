@@ -8,6 +8,7 @@ mod targets;
 mod tasks;
 mod time;
 mod view;
+mod viewer;
 mod workspace;
 
 #[cfg(test)]
@@ -42,7 +43,7 @@ impl LauncherApp {
     fn new(root: PathBuf) -> Result<Self, String> {
         let (sender, events) = channel();
         let tasks = Tasks::new(root, sender);
-        let session = Session::new()?;
+        let session = Session::new(tasks.clone())?;
         let mut exported = None;
         let document = build(|| {
             let theme = use_theme();

@@ -16,6 +16,7 @@ use beui::{Color32, NodeId};
 use crate::github::{Filter, Label, PullRequest, State};
 use crate::model::{Loaded, Model};
 use crate::time::{now, relative};
+use crate::viewer::ImageViewer;
 use crate::workspace::Workspace;
 
 const SIDEBAR_WIDTH: f32 = 380.0;
@@ -31,6 +32,7 @@ pub(crate) const MERGED: Color32 = Color32::from_rgb(163, 113, 247);
 pub(crate) fn Launcher(model: Model) -> NodeId {
     let theme = use_theme();
     let sidebar = model.clone();
+    let viewer = model.clone();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) color={theme.surface.clone()}>
@@ -40,6 +42,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0)>
                 <Workspace model />
             </Frame>
+            <ImageViewer model={viewer} />
         </List>
     }
 }
