@@ -1,24 +1,21 @@
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::mpsc::{self, Receiver, Sender},
-};
+use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver};
 
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlInputElement;
 
 use super::{FileFilter, PickResult, PickedFile};
+use crate::host::WakingSender;
 
 pub(super) fn open(filter: &FileFilter) -> Receiver<PickResult> {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = crate::host::waking_channel();
     if let Err(error) = show(filter, sender.clone()) {
         let _ = sender.send(Err(error));
     }
     receiver
 }
 
-fn show(filter: &FileFilter, sender: Sender<PickResult>) -> Result<(), String> {
+fn show(filter: &FileFilter, sender: WakingSender<PickResult>) -> Result<(), String> {
     let document = web_sys::window()
         .ok_or("no browser window is available")?
         .document()

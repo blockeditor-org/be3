@@ -115,9 +115,6 @@ impl ShareDialog {
     pub fn poll(&mut self) {
         if let Some(state) = &mut self.open {
             state.poll();
-            if state.request.is_some() {
-                crate::host::request_repaint_after(std::time::Duration::from_millis(100));
-            }
         }
     }
 

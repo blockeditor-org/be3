@@ -12,7 +12,6 @@ use block_plugin_api::{
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
-    time::Duration,
 };
 use uuid::Uuid;
 
@@ -29,7 +28,6 @@ use crate::{
     plugin_host::web_view::WebViewHost,
 };
 
-const FETCH_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const REFUSED: &str = "this plugin's manifest does not allow it to reach";
 
 #[derive(Default)]
@@ -386,10 +384,7 @@ impl Work {
             Self::Fetch(fetch) => match fetch.poll() {
                 Some(Ok(body)) => Some(HostReply::Fetched(FetchResult::Body(body))),
                 Some(Err(error)) => Some(HostReply::Fetched(FetchResult::Failed(error))),
-                None => {
-                    host::request_repaint_after(FETCH_POLL_INTERVAL);
-                    None
-                }
+                None => None,
             },
             Self::Paste(image) => Some(HostReply::ImagePasted(std::mem::replace(
                 image,
