@@ -218,7 +218,7 @@ pub extern "C" fn surface_configure(surface: u32, pointer: u32, length: u32) {
                 shim.report(message);
                 return;
             }
-            let _ = surface;
+            shim.gpu.configure_surface(surface, &bytes);
         },
         (),
     )
@@ -226,30 +226,23 @@ pub extern "C" fn surface_configure(surface: u32, pointer: u32, length: u32) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn surface_acquire(surface: u32) -> u32 {
-    with(
-        |shim| {
-            let device = shim.gpu.device().clone();
-            match shim.canvas.acquire(&device) {
-                Ok(texture) => {
-                    shim.gpu.attach_surface(surface, texture);
-                    shim.gpu.acquire_surface(surface)
-                }
-                Err(message) => {
-                    shim.report(message);
-                    abi::NULL_HANDLE
-                }
-            }
-        },
-        abi::NULL_HANDLE,
-    )
+    with(|shim| shim.gpu.acquire_surface(surface), abi::NULL_HANDLE)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn surface_present(surface: u32) {
     with(
         |shim| {
-            shim.canvas.present();
             shim.gpu.present_surface(surface);
+            let Some((drawn, _)) = shim.gpu.surface(surface) else {
+                return;
+            };
+            let drawn = drawn.clone();
+            let device = shim.gpu.device().clone();
+            let queue = shim.gpu.queue().clone();
+            if let Err(message) = shim.canvas.present(&device, &queue, &drawn) {
+                shim.report(message);
+            }
         },
         (),
     )

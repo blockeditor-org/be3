@@ -181,10 +181,10 @@ function memoryLimits(bytes) {
     throw new Error("a plugin does not import the memory it runs in");
 }
 
-export async function boot(shimUrl, moduleUrl, canvas, wake) {
+export async function boot(shimUrl, moduleUrl, wake) {
     const shimModule = await import(shimUrl);
     const shim = await shimModule.default();
-    await shimModule.start(canvas);
+    await shimModule.start(new OffscreenCanvas(1, 1));
     const bytes = await (await fetch(moduleUrl)).arrayBuffer();
     const limits = memoryLimits(bytes);
     const memory = new WebAssembly.Memory({ ...limits, shared: true });
@@ -200,6 +200,7 @@ export async function boot(shimUrl, moduleUrl, canvas, wake) {
     return {
         deliver: (frame) => shimModule.deliver(frame),
         collect: () => shimModule.collect(),
+        picture: () => shimModule.picture(),
         failure: () => shimModule.failure(),
         woken: () => shimModule.woken(),
         step: () => exports.plugin_step(),

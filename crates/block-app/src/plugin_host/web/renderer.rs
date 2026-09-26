@@ -1,21 +1,20 @@
 use std::collections::HashMap;
-use wasm_bindgen::JsCast;
 
 use super::super::presenter::{BlitPipeline, SurfacePresenter};
 
 pub(crate) fn presenter(
-    _device: &wgpu::Device,
+    device: &wgpu::Device,
     _queue: &wgpu::Queue,
 ) -> Result<WebSurfacePresenter, String> {
     Ok(WebSurfacePresenter {
         targets: HashMap::new(),
+        premultiplied: device.adapter_info().backend == wgpu::Backend::BrowserWebGpu,
     })
 }
 
 pub(crate) struct WebFrame {
     pub(crate) size: [u32; 2],
-    pub(crate) canvas_id: String,
-    pub(crate) drawn: Option<u64>,
+    pub(crate) picture: Option<(u64, web_sys::ImageBitmap)>,
 }
 
 struct Target {
@@ -27,6 +26,7 @@ struct Target {
 
 pub(crate) struct WebSurfacePresenter {
     targets: HashMap<u32, Target>,
+    premultiplied: bool,
 }
 
 impl WebSurfacePresenter {
@@ -73,28 +73,28 @@ impl WebSurfacePresenter {
         );
     }
 
-    fn copy_from_canvas(&mut self, queue: &wgpu::Queue, surface: u32, frame: &WebFrame) {
+    fn copy_picture(&mut self, queue: &wgpu::Queue, surface: u32, frame: &WebFrame) {
         let Some(target) = self.targets.get_mut(&surface) else {
             return;
         };
-        if target.copied == frame.drawn {
-            return;
-        }
-        let Some(canvas) = canvas_element(&frame.canvas_id) else {
+        let Some((drawn, picture)) = &frame.picture else {
             return;
         };
+        if target.copied == Some(*drawn) {
+            return;
+        }
+        target.copied = Some(*drawn);
         let copy_size = wgpu::Extent3d {
-            width: target.size[0],
-            height: target.size[1],
+            width: target.size[0].min(picture.width()),
+            height: target.size[1].min(picture.height()),
             depth_or_array_layers: 1,
         };
         if copy_size.width == 0 || copy_size.height == 0 {
             return;
         }
-        target.copied = frame.drawn;
         queue.copy_external_image_to_texture(
             &wgpu::CopyExternalImageSourceInfo {
-                source: wgpu::ExternalImageSource::HTMLCanvasElement(canvas),
+                source: wgpu::ExternalImageSource::ImageBitmap(picture.clone()),
                 origin: wgpu::Origin2d::ZERO,
                 flip_y: false,
             },
@@ -104,7 +104,7 @@ impl WebSurfacePresenter {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
                 color_space: wgpu::PredefinedColorSpace::Srgb,
-                premultiplied_alpha: false,
+                premultiplied_alpha: self.premultiplied,
             },
             copy_size,
         );
@@ -134,7 +134,7 @@ impl SurfacePresenter for WebSurfacePresenter {
         frame: &Self::Frame,
     ) -> Result<(), String> {
         if frame.size[0] > 0 && frame.size[1] > 0 {
-            self.copy_from_canvas(queue, surface, frame);
+            self.copy_picture(queue, surface, frame);
         }
         Ok(())
     }
@@ -146,12 +146,4 @@ impl SurfacePresenter for WebSurfacePresenter {
     fn release(&mut self, surface: u32) {
         self.targets.remove(&surface);
     }
-}
-
-fn canvas_element(id: &str) -> Option<web_sys::HtmlCanvasElement> {
-    web_sys::window()?
-        .document()?
-        .get_element_by_id(id)?
-        .dyn_into()
-        .ok()
 }

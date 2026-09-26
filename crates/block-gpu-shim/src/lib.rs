@@ -40,6 +40,9 @@ fn with<R>(act: impl FnOnce(&mut Shim) -> R, absent: R) -> R {
 
 #[wasm_bindgen]
 pub async fn start(canvas: JsValue) -> Result<(), JsValue> {
+    std::panic::set_hook(Box::new(|info| {
+        web_sys::console::error_1(&format!("the plugin's gpu shim panicked: {info}").into());
+    }));
     let canvas: web_sys::OffscreenCanvas = canvas.dyn_into()?;
     let (canvas, device, queue) = Canvas::open(canvas)
         .await
@@ -75,6 +78,11 @@ pub fn collect() -> js_sys::Array {
         (),
     );
     frames
+}
+
+#[wasm_bindgen]
+pub fn picture() -> Option<web_sys::ImageBitmap> {
+    with(|shim| shim.canvas.take_picture(), None)
 }
 
 #[wasm_bindgen]

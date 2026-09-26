@@ -6,16 +6,18 @@ const WORKER_SOURCE: &str = r#"
 // The worker one plugin runs in.
 //
 // A plugin is the same wasm every other platform runs, so the worker hands it
-// to plugin.js, which stands block-gpu-shim up on this worker's canvas and
-// answers the plugin's gpu abi from it. Stepping is scheduled rather than
+// to plugin.js, which stands block-gpu-shim up on a canvas of this worker's own
+// and answers the plugin's gpu abi from it. What the plugin presents on that
+// canvas reaches the host as an ImageBitmap, which stays on the GPU and is
+// transferred rather than copied. Stepping is scheduled rather than
 // immediate: a step that produced something schedules the next one, and a
 // quiet plugin stops until the host says something.
 let plugin = null;
 const queued = [];
 let scheduled = false;
 
-function post(frames) {
-    self.postMessage({ kind: "frames", frames });
+function post(frames, picture) {
+    self.postMessage({ kind: "frames", frames, picture }, picture ? [picture] : []);
 }
 
 function fail(error) {
@@ -32,8 +34,9 @@ function schedule() {
 
 function drain() {
     const frames = plugin.collect();
-    if (frames.length > 0) {
-        post(frames);
+    const picture = plugin.picture();
+    if (frames.length > 0 || picture) {
+        post(frames, picture);
     }
     if (frames.length > 0 || plugin.woken()) {
         schedule();
@@ -66,7 +69,6 @@ self.onmessage = async (event) => {
             plugin = await bootstrap.boot(
                 new URL("./block_gpu_shim.js", data.url).href,
                 data.url,
-                data.canvas,
                 schedule,
             );
             drain();
@@ -91,6 +93,8 @@ self.onmessage = async (event) => {
 #[derive(Default)]
 struct Inbox {
     frames: Vec<Vec<u8>>,
+    picture: Option<web_sys::ImageBitmap>,
+    pictures: u64,
     error: Option<String>,
 }
 
@@ -98,39 +102,36 @@ pub(super) struct WebProtocolAdapter {
     worker: web_sys::Worker,
     inbox: Rc<RefCell<Inbox>>,
     received: Vec<Message>,
-    frames: u64,
     spoken: bool,
     _onmessage: Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
 
 impl WebProtocolAdapter {
-    pub(super) fn start(url: &str, canvas: &web_sys::HtmlCanvasElement) -> Result<Self, String> {
-        let offscreen = canvas
-            .transfer_control_to_offscreen()
-            .map_err(|_| "the plugin canvas could not be handed to its worker".to_owned())?;
+    pub(super) fn start(url: &str) -> Result<Self, String> {
         let worker = spawn()?;
         let inbox = Rc::new(RefCell::new(Inbox::default()));
         let onmessage = listen(&worker, Rc::clone(&inbox));
         let message = js_sys::Object::new();
         set(&message, "kind", &"start".into());
         set(&message, "url", &absolute(url).into());
-        set(&message, "canvas", &offscreen);
-        let transfer = js_sys::Array::of1(&offscreen);
         worker
-            .post_message_with_transfer(&message, &transfer)
+            .post_message(&message)
             .map_err(|_| "the plugin worker could not be started".to_owned())?;
         Ok(Self {
             worker,
             inbox,
             received: Vec::new(),
-            frames: 0,
             spoken: false,
             _onmessage: onmessage,
         })
     }
 
-    pub(super) fn frames(&self) -> u64 {
-        self.frames
+    pub(super) fn picture(&self) -> Option<(u64, web_sys::ImageBitmap)> {
+        let inbox = self.inbox.borrow();
+        inbox
+            .picture
+            .as_ref()
+            .map(|picture| (inbox.pictures, picture.clone()))
     }
 
     pub(super) fn running(&self) -> bool {
@@ -165,9 +166,6 @@ impl WebProtocolAdapter {
         for frame in frames {
             let message = decode(&frame)?;
             self.spoken = true;
-            if matches!(message, Message::FrameReady(_)) {
-                self.frames += 1;
-            }
             self.received.push(message);
         }
         Ok(())
@@ -182,6 +180,9 @@ impl WebProtocolAdapter {
         set(&message, "kind", &"shutdown".into());
         let _ = self.worker.post_message(&message);
         self.worker.terminate();
+        if let Some(picture) = self.inbox.borrow_mut().picture.take() {
+            picture.close();
+        }
     }
 }
 
@@ -198,6 +199,12 @@ fn listen(
                 let frames = js_sys::Array::from(&get(&data, "frames"));
                 for frame in frames.iter() {
                     inbox.frames.push(js_sys::Uint8Array::new(&frame).to_vec());
+                }
+                if let Ok(picture) = get(&data, "picture").dyn_into::<web_sys::ImageBitmap>() {
+                    if let Some(previous) = inbox.picture.replace(picture) {
+                        previous.close();
+                    }
+                    inbox.pictures += 1;
                 }
             }
             _ => {
