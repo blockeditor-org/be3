@@ -3,7 +3,7 @@ use std::ops::Range;
 use text_editor_core::{CollapsibleSection, SynHlColorScope};
 
 use crate::color::Color32;
-use crate::font::{FontId, Galley, TextLayout};
+use crate::font::{FontId, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
 use crate::page::{Page, PageShape};
@@ -691,75 +691,4 @@ pub(crate) fn handles(
         }
     }
     Page::new(shapes)
-}
-
-fn preedit_galley(
-    layout: &DocumentLayout,
-    byte: usize,
-    preedit: &str,
-    font: FontId,
-    origin: Vec2,
-) -> Option<(Rect, f32, Galley)> {
-    let caret = caret_rect(layout, byte, origin)?;
-    let position = layout.positions.get(byte).copied().flatten()?;
-    let line = layout.lines.get(position.line)?;
-    let galley = layout_text(preedit, font, TextLayout::DEFAULT)?;
-    Some((caret, origin.y + line.y + line.baseline, galley))
-}
-
-pub(crate) fn preedit_caret(
-    layout: &DocumentLayout,
-    byte: usize,
-    preedit: &str,
-    font: FontId,
-    origin: Vec2,
-) -> Option<Rect> {
-    if preedit.is_empty() {
-        return caret_rect(layout, byte, origin);
-    }
-    let (caret, _, galley) = preedit_galley(layout, byte, preedit, font, origin)?;
-    Some(caret.translate(Vec2::new(galley.size().x, 0.0)))
-}
-
-pub(crate) fn preedit(
-    layout: &DocumentLayout,
-    byte: usize,
-    preedit: &str,
-    font: FontId,
-    colors: &TextAreaColors,
-    origin: Vec2,
-) -> Page {
-    let Some((caret, baseline, galley)) = preedit_galley(layout, byte, preedit, font, origin)
-    else {
-        return Page::new(Vec::new());
-    };
-    let width = galley.size().x;
-    let font_size = font.size;
-    let color = colors.syntax.scope(SynHlColorScope::Unstyled);
-    let underline = baseline + (font_size * 0.12).max(1.0);
-    Page::new(vec![
-        PageShape::Rect {
-            rect: Rect::from_min_size(caret.min, Vec2::new(width, caret.height())),
-            corner_radius: 0.0,
-            color: colors.surface,
-        },
-        PageShape::Text {
-            origin: Pos2::new(caret.min.x, baseline - galley.baseline()),
-            galley,
-            color,
-        },
-        PageShape::Rect {
-            rect: Rect::from_min_size(
-                Pos2::new(caret.min.x, underline),
-                Vec2::new(width, (font_size / 16.0).max(1.0)),
-            ),
-            corner_radius: 0.0,
-            color,
-        },
-        PageShape::Rect {
-            rect: caret.translate(Vec2::new(width, 0.0)),
-            corner_radius: 0.0,
-            color: colors.caret,
-        },
-    ])
 }

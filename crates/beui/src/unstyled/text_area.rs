@@ -35,7 +35,7 @@ use crate::reactive::{
 };
 use crate::unstyled::Scroll;
 
-use layout::{BODY_SIZE, LayoutOptions, hit_test, layout_document};
+use layout::{BODY_SIZE, Composition, LayoutOptions, hit_test, layout_document};
 use shapes::{
     CARET_WIDTH, PADDING, SelectionHandle, TOUCH_HANDLE_GAP, TOUCH_HANDLE_HIT_RADIUS, checkbox_at,
     gutter_arrow_at, touch_handle_anchor, touch_handle_center,
@@ -596,7 +596,6 @@ struct Field {
     overlay: Memo<Page>,
     carets: Memo<Page>,
     handles: Memo<Page>,
-    composing: Memo<Page>,
     ime_rect: Memo<Option<Rect>>,
     on_key_override: Callback<KeyPress, bool>,
     on_focus_change: Callback<bool>,
@@ -698,8 +697,19 @@ pub fn TextArea(
     let wrap_width = create_memo(clone!(size gutter padding -> move || {
         (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
     }));
+    let composition = create_memo(clone!(state preedit -> move || {
+        let text = preedit.get();
+        if text.is_empty() {
+            return None;
+        }
+        state.cursors().get();
+        Some(Composition {
+            at: *state.caret_indices().first()?,
+            text,
+        })
+    }));
     let document = create_memo(
-        clone!(state content wrap_width scale attached widgets masked font_size -> move || {
+        clone!(state content wrap_width scale attached widgets masked font_size composition -> move || {
             content.get();
             scale.get();
             attached.get();
@@ -715,6 +725,7 @@ pub fn TextArea(
                 ..options
             };
             let widgets = widgets.get();
+            let composition = composition.get();
             let document = state.with_snapshot(|snapshot| {
                 layout_document(
                     &snapshot.bytes,
@@ -723,6 +734,7 @@ pub fn TextArea(
                     &snapshot.checkbox_markers,
                     &snapshot.hidden,
                     &options,
+                    composition.as_ref(),
                 )
             });
             TextAreaLayout::new(Rc::new(document.unwrap_or_default()), Vec2::ZERO)
@@ -870,52 +882,18 @@ pub fn TextArea(
             })
         }),
     );
-    let shown_preedit = create_memo(clone!(preedit masked -> move || {
-        let preedit = preedit.get();
-        match masked.get() {
-            true => layout::mask(&preedit),
-            false => preedit,
-        }
-    }));
-    let composing = create_memo(
-        clone!(state layout colors focused shown_preedit font_size -> move || {
-            state.cursors().get();
-            let layout = layout.get();
-            let preedit = shown_preedit.get();
-            match (focused.get(), state.caret_indices().first()) {
-                (true, Some(&caret)) if !preedit.is_empty() => shapes::preedit(
-                    layout.document(),
-                    caret,
-                    &preedit,
-                    FontId::proportional(font_size.get()),
-                    &colors.get(),
-                    layout.origin(),
-                ),
-                _ => Page::new(Vec::new()),
-            }
-        }),
-    );
-    let ime_rect = create_memo(
-        clone!(state layout focused shown_preedit font_size -> move || {
-            state.cursors().get();
-            let layout = layout.get();
-            let preedit = shown_preedit.get();
-            if !focused.get() {
-                return None;
-            }
-            shapes::preedit_caret(
-                layout.document(),
-                *state.caret_indices().first()?,
-                &preedit,
-                FontId::proportional(font_size.get()),
-                layout.origin(),
-            )
-        }),
-    );
-    let carets = create_memo(clone!(state layout colors focused preedit -> move || {
+    let ime_rect = create_memo(clone!(state layout focused -> move || {
         state.cursors().get();
         let layout = layout.get();
-        let carets = match focused.get() && preedit.get().is_empty() {
+        if !focused.get() {
+            return None;
+        }
+        layout.caret_rect(*state.caret_indices().first()?)
+    }));
+    let carets = create_memo(clone!(state layout colors focused -> move || {
+        state.cursors().get();
+        let layout = layout.get();
+        let carets = match focused.get() {
             true => state.caret_indices(),
             false => Vec::new(),
         };
@@ -1000,7 +978,6 @@ pub fn TextArea(
         overlay,
         carets,
         handles,
-        composing,
         ime_rect,
         on_key_override,
         on_focus_change,
@@ -1056,7 +1033,6 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
         overlay,
         carets,
         handles,
-        composing,
         ime_rect,
         on_key_override,
         on_focus_change,
@@ -1128,7 +1104,6 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
                             {children}
                             <Layer page={overlay} size={layer_size.clone()} />
                             <Caret page={carets} size={layer_size.clone()} />
-                            <Layer page={composing} size={layer_size.clone()} />
                             <Layer page={handles} size={layer_size} clip=false />
                         </Canvas>
                     };
