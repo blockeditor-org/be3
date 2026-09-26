@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::view;
-use crate::styled::{NumberDrag, NumberInput, number_input_field};
+use crate::styled::{NumberDrag, NumberInput, number_input_field, number_input_text};
 
 #[test]
 fn dragging_a_number_input_sideways_changes_its_value() {
@@ -19,29 +19,25 @@ fn dragging_a_number_input_sideways_changes_its_value() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let field = number_input_field(harness.document(), input);
     let middle = harness.center(input);
 
     harness.drag(middle, middle + Vec2::new(20.0, 0.0));
     harness.frame(Vec::new());
 
     assert_eq!(changes.borrow().last().copied(), Some(14.0));
-    assert_eq!(unstyled::text_input_shown(harness.document(), field), "14");
-    assert!(
-        !unstyled::text_input_focused(harness.document(), field).get(),
-        "a drag must not leave the field being edited"
-    );
+    let shown = number_input_text(harness.document(), input)
+        .expect("a drag must not open the field for editing");
+    assert_eq!(text_of(harness.document(), shown), "14");
 
     changes.borrow_mut().clear();
     harness.click(middle);
     harness.frame(Vec::new());
 
     assert!(
-        unstyled::text_input_focused(harness.document(), field).get(),
-        "a click without a drag must put the caret in the field"
-    );
-    assert!(
         changes.borrow().is_empty(),
         "a click without a drag must not change the value"
     );
+    let field = number_input_field(harness.document(), input)
+        .expect("a click without a drag must open the field");
+    assert!(unstyled::text_input_focused(harness.document(), field).get());
 }
